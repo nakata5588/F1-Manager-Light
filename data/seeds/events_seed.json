@@ -1,0 +1,26 @@
+[
+  {
+    "id": "EV_SES_BRIEFING_001",
+    "type": "GP Preparation",
+    "title": "Strategy Briefing — Buenos Aires",
+    "date": "1980-01-12",
+    "participants": [
+      "D_0001",
+      "D_0002",
+      "S_ENG_WIL_001"
+    ],
+    "mandatory": true,
+    "duration_h": 2,
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "benefits": {
+      "synergy": 5,
+      "race_prep": 3
+    },
+    "risk": {
+      "leak_to_press": 0.02
+    },
+    "source": "calendar",
+    "effects_scope": "next_GP"
+  }
+]

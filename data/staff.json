@@ -1,0 +1,18 @@
+[
+  {
+    "staff_id": "S_ENG_WIL_001",
+    "team_id": "T_WILLIAMS",
+    "role": "Technical Director",
+    "full_name": "Patrick Head",
+    "core_staff_attributes": {
+      "aero_knowledge": 82,
+      "mechanical_knowledge": 88,
+      "race_strategy": 70,
+      "pitstop_coordination": 74,
+      "leadership": 84,
+      "communication": 79,
+      "reliability_focus": 81,
+      "budget_efficiency": 76
+    }
+  }
+]

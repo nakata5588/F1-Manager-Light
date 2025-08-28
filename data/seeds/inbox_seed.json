@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "subject": "Tyre allocation confirmed",
+    "from": "FIA",
+    "tag": "FIA",
+    "date": "1980-01-10",
+    "body": "Tyre allocation for the next GP has been confirmed. You have 8 qualifying sets and 10 race sets."
+  },
+  {
+    "id": 2,
+    "subject": "Sponsor meeting recap",
+    "from": "Commercial",
+    "tag": "Sponsors",
+    "date": "1980-01-09",
+    "body": "Meeting with ELF and Renault. They expect podium targets this quarter. Bonus structure discussed."
+  }
+]
