@@ -1,0 +1,15 @@
+{
+  "name": "f1-manager-light",
+  "version": "1.0.0",
+  "description": "A clean, GitHub‑ready bundle containing: - **/data**: normalized JSONs (drivers, teams, staff, tracks, calendar 1980, rules/era, attributes dictionaries, etc.). - **/data/seeds**: gameplay seeds (events, inbox, sponsors). - **/scripts**: helpers to validate and (optionally) ingest a single Excel file into JSONs. - **/src**: minimal loader utilities (JS) that read the JSONs.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ajv": "^8.17.1"
+  }
+}
