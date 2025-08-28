@@ -1,0 +1,23 @@
+{
+  "current_ability": "Current Ability",
+  "potential_ability": "Potential Ability",
+  "pace": "Pace",
+  "qualifying": "Qualifying",
+  "start_launch": "Start & Launch",
+  "racecraft": "Racecraft",
+  "wet_skill": "Wet Pace",
+  "consistency": "Consistency",
+  "tire_management": "Tire Management",
+  "race_intelligence": "Race Intelligence",
+  "technical_feedback": "Technical Feedback",
+  "adaptability": "Adaptability",
+  "ers_fuel_management": "ERS/Fuel Management",
+  "mentality": "Mentality",
+  "agression": "Agression",
+  "crash_likelihood": "Crash Likelihood",
+  "pressure_handling": "Pressure Handling",
+  "leadership": "Leadership",
+  "team_player": "Team Player",
+  "car_development_impact": "Car Development Impact",
+  "reputation": "Reputation"
+}

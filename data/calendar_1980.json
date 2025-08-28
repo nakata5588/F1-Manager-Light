@@ -1,0 +1,114 @@
+[
+  {
+    "year": 1980,
+    "round": 1,
+    "gp_name": "Argentine Grand Prix",
+    "gp_id": "gp_001",
+    "track_id": "tr_0015",
+    "race_date": "1980-01-13"
+  },
+  {
+    "year": 1980,
+    "round": 2,
+    "gp_name": "Brazilian Grand Prix",
+    "gp_id": "gp_002",
+    "track_id": "tr_0016",
+    "race_date": "1980-01-27"
+  },
+  {
+    "year": 1980,
+    "round": 3,
+    "gp_name": "South African Grand Prix",
+    "gp_id": "gp_003",
+    "track_id": "tr_0009",
+    "race_date": "1980-03-01"
+  },
+  {
+    "year": 1980,
+    "round": 4,
+    "gp_name": "United States Grand Prix",
+    "gp_id": "gp_004",
+    "track_id": "tr_0001",
+    "race_date": "1980-03-30"
+  },
+  {
+    "year": 1980,
+    "round": 5,
+    "gp_name": "Belgian Grand Prix",
+    "gp_id": "gp_005",
+    "track_id": "tr_0012",
+    "race_date": "1980-05-04"
+  },
+  {
+    "year": 1980,
+    "round": 6,
+    "gp_name": "Monaco Grand Prix",
+    "gp_id": "gp_006",
+    "track_id": "tr_0003",
+    "race_date": "1980-05-18"
+  },
+  {
+    "year": 1980,
+    "round": 7,
+    "gp_name": "French Grand Prix",
+    "gp_id": "gp_007",
+    "track_id": "tr_0004",
+    "race_date": "1980-06-29"
+  },
+  {
+    "year": 1980,
+    "round": 8,
+    "gp_name": "British Grand Prix",
+    "gp_id": "gp_008",
+    "track_id": "tr_0012",
+    "race_date": "1980-07-13"
+  },
+  {
+    "year": 1980,
+    "round": 9,
+    "gp_name": "German Grand Prix",
+    "gp_id": "gp_009",
+    "track_id": "tr_0006",
+    "race_date": "1980-08-10"
+  },
+  {
+    "year": 1980,
+    "round": 10,
+    "gp_name": "Austrian Grand Prix",
+    "gp_id": "gp_010",
+    "track_id": "tr_0011",
+    "race_date": "1980-08-17"
+  },
+  {
+    "year": 1980,
+    "round": 11,
+    "gp_name": "Dutch Grand Prix",
+    "gp_id": "gp_011",
+    "track_id": "tr_0007",
+    "race_date": "1980-08-31"
+  },
+  {
+    "year": 1980,
+    "round": 12,
+    "gp_name": "Italian Grand Prix",
+    "gp_id": "gp_012",
+    "track_id": "tr_0010",
+    "race_date": "1980-09-14"
+  },
+  {
+    "year": 1980,
+    "round": 13,
+    "gp_name": "Canadian Grand Prix",
+    "gp_id": "gp_013",
+    "track_id": "tr_0017",
+    "race_date": "1980-09-28"
+  },
+  {
+    "year": 1980,
+    "round": 14,
+    "gp_name": "United States Grand Prix",
+    "gp_id": "gp_014",
+    "track_id": "tr_0013",
+    "race_date": "1980-10-05"
+  }
+]
