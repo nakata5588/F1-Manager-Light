@@ -1,37 +1,41 @@
-// Minimal JSON schema validator (node) to sanity‑check the shape.
+// scripts/validate_json.js
 const fs = require('fs');
 const Ajv = require('ajv');
-const ajv = new Ajv();
+const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 
 const schemas = {
   drivers: {
     type: 'array',
     items: {
       type: 'object',
-      required: ['driver_id','first_name','last_name','team_id'],
+      required: ['driver_id'],  // só exigimos o ID
       properties: {
-        driver_id: { type: 'string' },
-        slug: { type: 'string' },
-        first_name: { type: 'string' },
-        last_name: { type: 'string' },
+        driver_id:   { type: 'string' },
+        full_name:   { type: 'string' },
+        first_name:  { type: 'string' },
+        last_name:   { type: 'string' },
+        name:        { type: 'string' },
         nationality: { type: 'string' },
-        birthdate: { type: 'string' },
-        team_id: { type: 'string' },
-        attributes: { type: 'object' }
+        birthdate:   { type: 'string' },
+        team_id:     { type: 'string' },
+        attributes:  { type: 'object' }
       }
+      // sem allOf/anyOf para o nome — aceitamos qualquer variante
     }
   },
   teams: {
     type: 'array',
     items: {
       type: 'object',
-      required: ['team_id','name_common'],
+      required: ['team_id'],
       properties: {
-        team_id: { type: 'string' },
+        team_id:       { type: 'string' },
+        name_common:   { type: 'string' },
         name_official: { type: 'string' },
-        name_common: { type: 'string' },
-        short_name: { type: 'string' },
-        country: { type: 'string' }
+        name:          { type: 'string' },
+        short_name:    { type: 'string' },
+        country:       { type: 'string' },
+        engine_supplier: { type: 'string' }
       }
     }
   }

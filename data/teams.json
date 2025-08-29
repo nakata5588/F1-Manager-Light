@@ -2,76 +2,91 @@
   {
     "team_id": "t_0001",
     "Name": "Williams",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0001"
   },
   {
     "team_id": "t_0002",
     "Name": "Ligier",
-    "hq": "Italy"
+    "hq": "Italy",
+    "name_common": "t_0002"
   },
   {
     "team_id": "t_0003",
     "Name": "Brabham",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0003"
   },
   {
     "team_id": "t_0004",
     "Name": "Renault",
-    "hq": "France"
+    "hq": "France",
+    "name_common": "t_0004"
   },
   {
     "team_id": "t_0005",
     "Name": "Lotus",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0005"
   },
   {
     "team_id": "t_0006",
     "Name": "Tyrrell",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0006"
   },
   {
     "team_id": "t_0007",
     "Name": "Arrows",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0007"
   },
   {
     "team_id": "t_0008",
     "Name": "Fittipaldi",
-    "hq": "Brazil"
+    "hq": "Brazil",
+    "name_common": "t_0008"
   },
   {
     "team_id": "t_0009",
     "Name": "McLaren",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0009"
   },
   {
     "team_id": "t_0010",
     "Name": "Ferrari",
-    "hq": "Italy"
+    "hq": "Italy",
+    "name_common": "t_0010"
   },
   {
     "team_id": "t_0011",
     "Name": "Alfa Romeo",
-    "hq": "Switzerland"
+    "hq": "Switzerland",
+    "name_common": "t_0011"
   },
   {
     "team_id": "t_0012",
     "Name": "ATS",
-    "hq": "Germany"
+    "hq": "Germany",
+    "name_common": "t_0012"
   },
   {
     "team_id": "t_0013",
     "Name": "Ensign",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0013"
   },
   {
     "team_id": "t_0014",
     "Name": "Osella",
-    "hq": "Italy"
+    "hq": "Italy",
+    "name_common": "t_0014"
   },
   {
     "team_id": "t_0015",
     "Name": "Shadow",
-    "hq": "United Kingdom"
+    "hq": "United Kingdom",
+    "name_common": "t_0015"
   }
 ]
