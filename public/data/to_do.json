@@ -1,0 +1,46 @@
+[
+  {
+    "TODO": "Forçar data de início para 01.01.1980",
+    "WHERE": "Game"
+  },
+  {
+    "TODO": "Escolher Cards em Home",
+    "WHERE": "Home"
+  },
+  {
+    "TODO": "Fazer Budgets",
+    "WHERE": null
+  },
+  {
+    "TODO": "Colocar \"days left\" no Calendar",
+    "WHERE": "Home"
+  },
+  {
+    "TODO": "Linkar Inbox de Home à pagina Inbox",
+    "WHERE": "Home"
+  },
+  {
+    "TODO": "Colocar Staff",
+    "WHERE": "Team"
+  },
+  {
+    "TODO": "Colocar HQ e Níveis",
+    "WHERE": "Team"
+  },
+  {
+    "TODO": "Colocar Development",
+    "WHERE": "Team"
+  },
+  {
+    "TODO": "Colocar outras series",
+    "WHERE": "Standings"
+  },
+  {
+    "TODO": "Criar Página de Results",
+    "WHERE": "Results"
+  },
+  {
+    "TODO": "Criar Base de Dados de HQ",
+    "WHERE": "HQ"
+  }
+]

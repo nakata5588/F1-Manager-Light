@@ -1,0 +1,42 @@
+[
+  {
+    "Year": 1950,
+    "Sessions": 2,
+    "Length": "1h",
+    "Rule": "best lap",
+    "year": 1950,
+    "sessions": 2,
+    "length": "1h",
+    "rule": "best lap"
+  },
+  {
+    "Year": 1996,
+    "Sessions": 1,
+    "Length": "1h",
+    "Rule": "best lap",
+    "year": 1996,
+    "sessions": 1,
+    "length": "1h",
+    "rule": "best lap"
+  },
+  {
+    "Year": 2003,
+    "Sessions": 2,
+    "Length": "1 lap",
+    "Rule": "session 1 best lap, session 2 reverse results from session 1",
+    "year": 2003,
+    "sessions": 2,
+    "length": "1 lap",
+    "rule": "session 1 best lap, session 2 reverse results from session 1"
+  },
+  {
+    "Year": 2006,
+    "Sessions": 3,
+    "Length": "18min",
+    "Rule": "Knockout slowest 5 in each session",
+    "year": 2006,
+    "sessions": 3,
+    "length": "18min",
+    "rule": "Knockout slowest 5 in each session"
+  }
+]

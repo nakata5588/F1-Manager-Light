@@ -1,0 +1,122 @@
+[
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team name": "Williams",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team name": "Ligier",
+    "engine_id": "eg_0006",
+    "engine_name": "Matra MS81",
+    "power_unit": "Matra"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team name": "Brabham",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0004",
+    "team name": "Renault",
+    "engine_id": "eg_0004",
+    "engine_name": "Renault EF1 V6 t",
+    "power_unit": "Renault"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0005",
+    "team name": "Lotus",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0006",
+    "team name": "Tyrrell",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0007",
+    "team name": "Arrows",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0008",
+    "team name": "Fittipaldi",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0009",
+    "team name": "McLaren",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0010",
+    "team name": "Ferrari",
+    "engine_id": "eg_0002",
+    "engine_name": "Ferrari 015 F12",
+    "power_unit": "Ferrari"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0011",
+    "team name": "Alfa Romeo",
+    "engine_id": "eg_0003",
+    "engine_name": "Alfa Romeo 1260 V12",
+    "power_unit": "Alfa Romeo"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0012",
+    "team name": "ATS",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0013",
+    "team name": "Ensign",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0014",
+    "team name": "Osella",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0015",
+    "team name": "Shadow",
+    "engine_id": "eg_0001",
+    "engine_name": "Ford Cosworth DFV V8",
+    "power_unit": "Ford"
+  }
+]

@@ -1,0 +1,218 @@
+[
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "sponsor_id": "sp_0003",
+    "sponsor_name": "Saudia",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "sponsor_id": "sp_0004",
+    "sponsor_name": "Gitanes",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "sponsor_id": "sp_0005",
+    "sponsor_name": "Parlmalat",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0004",
+    "team_name": "Renault",
+    "sponsor_id": "sp_0006",
+    "sponsor_name": "Elf",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0005",
+    "team_name": "Team Lotus",
+    "sponsor_id": "sp_0007",
+    "sponsor_name": "Essex",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0006",
+    "team_name": "Tyrrell",
+    "sponsor_id": "sp_0010",
+    "sponsor_name": "Candy",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0007",
+    "team_name": "Arrows",
+    "sponsor_id": "sp_0011",
+    "sponsor_name": "Warsteiner",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0008",
+    "team_name": "Fittipaldi",
+    "sponsor_id": "sp_0012",
+    "sponsor_name": "Skol",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "sponsor_id": "sp_0002",
+    "sponsor_name": "Marlboro",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "sponsor_id": "sp_0020",
+    "sponsor_name": "Buler Quartz",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0011",
+    "team_name": "Alfa Romeo",
+    "sponsor_id": "sp_0002",
+    "sponsor_name": "Marlboro",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0012",
+    "team_name": "ATS",
+    "sponsor_id": "sp_0024",
+    "sponsor_name": "Penthouse",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0013",
+    "team_name": "Ensign",
+    "sponsor_id": "sp_0015",
+    "sponsor_name": "Unipart",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0014",
+    "team_name": "Osella",
+    "sponsor_id": "sp_0013",
+    "sponsor_name": "Denim",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0015",
+    "team_name": "Shadow",
+    "sponsor_id": "sp_0014",
+    "sponsor_name": "Villiger",
+    "tier": "major",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "sponsor_id": "sp_0016",
+    "sponsor_name": "Champion",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "sponsor_id": "sp_0018",
+    "sponsor_name": "Magnetti Marelli",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "sponsor_id": "sp_0025",
+    "sponsor_name": "STP",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0004",
+    "team_name": "Renault",
+    "sponsor_id": "sp_0017",
+    "sponsor_name": "Agip",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0005",
+    "team_name": "Team Lotus",
+    "sponsor_id": "sp_0023",
+    "sponsor_name": "John Player Special",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0006",
+    "team_name": "Tyrrell",
+    "sponsor_id": "sp_0019",
+    "sponsor_name": "Shell",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0007",
+    "team_name": "Arrows",
+    "sponsor_id": "sp_0022",
+    "sponsor_name": "Camel",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "sponsor_id": "sp_0021",
+    "sponsor_name": "Durex",
+    "tier": "secondary",
+    "duration_years": 1
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0011",
+    "team_name": "Alfa Romeo",
+    "sponsor_id": "sp_0014",
+    "sponsor_name": "Villiger",
+    "tier": "secondary",
+    "duration_years": 1
+  }
+]

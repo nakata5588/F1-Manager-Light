@@ -1,0 +1,48 @@
+{
+  "track_overrides": [
+    {
+      "track_id": "buenos_aires_1980",
+      "month": 1,
+      "weights": { "SUNNY": 40, "CLOUDY": 30, "WINDY": 5, "DRIZZLE_DRYING": 5, "WETTING": 5, "LIGHT_RAIN": 10, "HEAVY_RAIN": 4, "STORM": 1 }
+    }
+  ],
+  "country_month": [
+    { "country": "Argentina", "month": 1, "weights": { "SUNNY": 35, "CLOUDY": 30, "WINDY": 10, "LIGHT_RAIN": 15, "HEAVY_RAIN": 8, "STORM": 2 } },
+    { "country": "Monaco", "month": 5, "weights": { "SUNNY": 42, "CLOUDY": 35, "WINDY": 6, "DRIZZLE_DRYING": 5, "LIGHT_RAIN": 9, "HEAVY_RAIN": 2, "STORM": 1 } },
+    { "country": "United Kingdom", "month": 7, "weights": { "SUNNY": 28, "CLOUDY": 40, "WINDY": 10, "DRIZZLE_DRYING": 7, "LIGHT_RAIN": 10, "HEAVY_RAIN": 4, "STORM": 1 } }
+  ],
+  "climate_zone_defaults": [
+    {
+      "zone": "Temperate_Europe",
+      "weights_by_month": {
+        "1":  { "SUNNY": 10, "CLOUDY": 55, "WINDY": 10, "LIGHT_RAIN": 15, "HEAVY_RAIN": 8, "STORM": 2 },
+        "5":  { "SUNNY": 35, "CLOUDY": 40, "WINDY": 8,  "DRIZZLE_DRYING": 6, "LIGHT_RAIN": 9, "HEAVY_RAIN": 2 },
+        "7":  { "SUNNY": 40, "CLOUDY": 35, "WINDY": 8,  "DRIZZLE_DRYING": 5, "LIGHT_RAIN": 9, "HEAVY_RAIN": 2, "STORM": 1 },
+        "10": { "SUNNY": 22, "CLOUDY": 45, "WINDY": 10, "LIGHT_RAIN": 15, "HEAVY_RAIN": 6, "STORM": 2 }
+      }
+    },
+    {
+      "zone": "Mediterranean",
+      "weights_by_month": {
+        "5": { "SUNNY": 50, "CLOUDY": 30, "WINDY": 6, "DRIZZLE_DRYING": 5, "LIGHT_RAIN": 7, "HEAVY_RAIN": 1, "STORM": 1 },
+        "8": { "SUNNY": 60, "CLOUDY": 25, "WINDY": 8, "LIGHT_RAIN": 4, "HEAVY_RAIN": 2, "STORM": 1 }
+      }
+    }
+  ],
+  "track_to_zone": [
+    { "track_id": "monte_carlo", "zone": "Mediterranean" },
+    { "track_id": "silverstone", "zone": "Temperate_Europe" },
+    { "track_id": "buenos_aires_1980", "zone": "Temperate_Europe" }
+  ],
+  "transition_rules": {
+    "max_changes_per_race": 2,
+    "min_laps_between_changes": 6,
+    "transitions": [
+      { "from": "CLOUDY", "to": "LIGHT_RAIN", "chance_pct": 10 },
+      { "from": "LIGHT_RAIN", "to": "DRIZZLE_DRYING", "chance_pct": 25 },
+      { "from": "DRIZZLE_DRYING", "to": "SUNNY", "chance_pct": 35 },
+      { "from": "WETTING", "to": "HEAVY_RAIN", "chance_pct": 20 },
+      { "from": "HEAVY_RAIN", "to": "LIGHT_RAIN", "chance_pct": 22 }
+    ]
+  }
+}

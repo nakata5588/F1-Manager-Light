@@ -1,0 +1,74 @@
+[
+  {
+    "series_id": "S_0001",
+    "series_division": 1,
+    "series_short_name": "F1",
+    "series_name": "FIA Formula 1 Championship",
+    "start_year": 1950,
+    "end_year": null
+  },
+  {
+    "series_id": "S_0002",
+    "series_division": 2,
+    "series_short_name": "F2",
+    "series_name": "FIA Formula 2 Championship",
+    "start_year": 2017,
+    "end_year": null
+  },
+  {
+    "series_id": "S_0003",
+    "series_division": 3,
+    "series_short_name": "F3",
+    "series_name": "FIA Formula 3 Championship",
+    "start_year": 2019,
+    "end_year": null
+  },
+  {
+    "series_id": "S_0004",
+    "series_division": 3,
+    "series_short_name": "BF3",
+    "series_name": "British Formula Three",
+    "start_year": 1951,
+    "end_year": 2014
+  },
+  {
+    "series_id": "S_0005",
+    "series_division": 2,
+    "series_short_name": "GP2",
+    "series_name": "GP2 Series",
+    "start_year": 2004,
+    "end_year": 2016
+  },
+  {
+    "series_id": "S_0006",
+    "series_division": 2,
+    "series_short_name": "F3000",
+    "series_name": "International Formula 3000",
+    "start_year": 1985,
+    "end_year": 2004
+  },
+  {
+    "series_id": "S_0007",
+    "series_division": 2,
+    "series_short_name": "F2",
+    "series_name": "Formula Two",
+    "start_year": 1951,
+    "end_year": 1985
+  },
+  {
+    "series_id": "S_0008",
+    "series_division": 3,
+    "series_short_name": "GP3",
+    "series_name": "GP3 Series",
+    "start_year": 2010,
+    "end_year": 2018
+  },
+  {
+    "series_id": "S_0009",
+    "series_division": 4,
+    "series_short_name": "F4",
+    "series_name": "FIA Formula 4",
+    "start_year": 2013,
+    "end_year": "-"
+  }
+]

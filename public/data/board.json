@@ -1,0 +1,11 @@
+{
+  "reputation": 0.62,
+  "expectation": "Score points regularly; mid-table finish",
+  "objectives": [
+    { "id":"O1","category":"PERFORMANCE","title":"Score points in next 3 races","desc":"At least 2 top-10 finishes.","deadline":"1980-03-31","status":"active","progress":0.33,"weight":2,"priority":1,"reward":"+€250k","penalty":"-€100k" },
+    { "id":"O2","category":"FINANCIAL","title":"Keep weekly spend under €500k","deadline":"1980-02-28","status":"active","progress":0.6,"weight":1,"priority":2 },
+    { "id":"O3","category":"DEV","title":"Approve front wing concept","deadline":"1980-02-15","status":"completed","progress":1,"weight":1,"priority":2,"reward":"Wind tunnel slot secured" },
+    { "id":"O4","category":"STAFF","title":"Hire a Chief Mechanic","deadline":"1980-04-10","status":"paused","progress":0.2,"priority":3 },
+    { "id":"O5","category":"PR","title":"Sponsor activation event","deadline":"1980-03-05","status":"failed","progress":0.7,"priority":3,"penalty":"Minor sponsor dissatisfaction" }
+  ]
+}

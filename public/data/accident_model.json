@@ -1,0 +1,16 @@
+[
+  {
+    "year": 1980,
+    "minor_prob": "0.82",
+    "damage_DNF_prob": "0.16",
+    "injury_prob": "0.02",
+    "fatality_prob": "0.002"
+  },
+  {
+    "year": 2000,
+    "minor_prob": "0.90",
+    "damage_DNF_prob": "0.09",
+    "injury_prob": "0.01",
+    "fatality_prob": "0.0001"
+  }
+]

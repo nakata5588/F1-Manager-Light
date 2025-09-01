@@ -1,0 +1,57 @@
+[
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "staff_id": "st_0001",
+    "staff_name": "Frank Williams",
+    "role": "owner,team_principal",
+    "contract_until": 10,
+    "driver_number": null,
+    "salary": 250000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "staff_id": "st_0016",
+    "staff_name": "Patrick Head",
+    "role": "chief_engineer",
+    "contract_until": 3,
+    "driver_number": null,
+    "salary": 220000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "staff_id": "st_0002",
+    "staff_name": "Guy Ligier",
+    "role": "owner,team_principal",
+    "contract_until": 3,
+    "driver_number": null,
+    "salary": 180000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "staff_id": "st_0003",
+    "staff_name": "Bernie Ecclestone",
+    "role": "owner,team_principal",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": 300000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "staff_id": "st_0025",
+    "staff_name": "Gordon Murray",
+    "role": "chief_engineer",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": 240000
+  }
+]
