@@ -1,1 +1,555 @@
-[]
+[
+  {
+    "driver_id": "d_0001",
+    "driver_name": "Alan Jones",
+    "country_name": "Australia",
+    "country_code": "AUS",
+    "dob": "1946-02-11",
+    "career_start_year": 1971,
+    "f1_rookie_season": 1975,
+    "career_end_year": 1986,
+    "death_date": null,
+    "portrait_path": "https://www.f1-fansite.com/wp-content/uploads/2012/06/alan-jones-1977.jpg",
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "formula": "IF($O$1 < F2,\n   \"hidden\",\n   IF(AND(I2= $O$1),\n      \"deceased\",\n      IF($O$1 < G2,\n         \"junior_only\",\n         IF(OR(H2=\"\", $O$1 <= H2),\n            \"eligible\",\n            \"retired\"\n         )\n      )\n   )\n)",
+      "result": "eligible"
+    }
+  },
+  {
+    "driver_id": "d_0002",
+    "driver_name": "Carlos Reutemann",
+    "country_name": "Argentina",
+    "country_code": "ARG",
+    "dob": "1942-12-04",
+    "career_start_year": 1970,
+    "f1_rookie_season": 1972,
+    "career_end_year": 1982,
+    "death_date": "2001-07-07",
+    "portrait_path": "https://www.f1-fansite.com/wp-content/uploads/2021/07/reutemann1_960545057.jpg",
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "formula": "IF($O$1 < F3,\n   \"hidden\",\n   IF(AND(I3<>\"\", YEAR(I3) <= $O$1),\n      \"deceased\",\n      IF($O$1 < G3,\n         \"junior_only\",\n         IF(OR(H3=\"\", $O$1 <= H3),\n            \"eligible\",\n            \"retired\"\n         )\n      )\n   )\n)",
+      "result": "eligible",
+      "ref": "N3:N30",
+      "shareType": "shared"
+    }
+  },
+  {
+    "driver_id": "d_0003",
+    "driver_name": "Gilles Villeneuve",
+    "country_name": "Canada",
+    "country_code": "CAN",
+    "dob": "1950-01-18",
+    "career_start_year": 1976,
+    "f1_rookie_season": 1977,
+    "career_end_year": 1982,
+    "death_date": "1982-05-08",
+    "portrait_path": "https://www.f1-fansite.com/wp-content/uploads/2018/10/1978-Monaco-Villeneuve-01.jpg",
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0004",
+    "driver_name": "Jody Scheckter",
+    "country_name": "South Africa",
+    "country_code": "RFA",
+    "dob": "1950-01-29",
+    "career_start_year": 1972,
+    "f1_rookie_season": 1972,
+    "career_end_year": 1980,
+    "death_date": null,
+    "portrait_path": "https://www.f1-fansite.com/wp-content/uploads/2012/06/jody-scheckter.jpg",
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0005",
+    "driver_name": "Nelson Piquet",
+    "country_name": "Brazil",
+    "country_code": "BRA",
+    "dob": "1952-08-17",
+    "career_start_year": 1977,
+    "f1_rookie_season": 1978,
+    "career_end_year": 1991,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0006",
+    "driver_name": "Jacques Laffite",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1943-11-21",
+    "career_start_year": 1974,
+    "f1_rookie_season": 1974,
+    "career_end_year": 1986,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0007",
+    "driver_name": "Didier Pironi",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1952-03-26",
+    "career_start_year": 1977,
+    "f1_rookie_season": 1978,
+    "career_end_year": 1982,
+    "death_date": "1987-08-23",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0008",
+    "driver_name": "René Arnoux",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1948-07-04",
+    "career_start_year": 1974,
+    "f1_rookie_season": 1978,
+    "career_end_year": 1989,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0009",
+    "driver_name": "Elio de Angelis",
+    "country_name": "Italy",
+    "country_code": "ITA",
+    "dob": "1958-03-26",
+    "career_start_year": 1977,
+    "f1_rookie_season": 1979,
+    "career_end_year": 1986,
+    "death_date": "1986-05-15",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0010",
+    "driver_name": "Jean-Pierre Jabouille",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1942-10-01",
+    "career_start_year": 1968,
+    "f1_rookie_season": 1974,
+    "career_end_year": 1981,
+    "death_date": "2023-02-02",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0011",
+    "driver_name": "Riccardo Patrese",
+    "country_name": "Italy",
+    "country_code": "ITA",
+    "dob": "1954-04-17",
+    "career_start_year": 1976,
+    "f1_rookie_season": 1977,
+    "career_end_year": 1993,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0012",
+    "driver_name": "Keke Rosberg",
+    "country_name": "Finland",
+    "country_code": "FIN",
+    "dob": "1948-12-06",
+    "career_start_year": 1976,
+    "f1_rookie_season": 1978,
+    "career_end_year": 1986,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0013",
+    "driver_name": "John Watson",
+    "country_name": "United Kingdom",
+    "country_code": "UK",
+    "dob": "1946-05-04",
+    "career_start_year": 1969,
+    "f1_rookie_season": 1973,
+    "career_end_year": 1985,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0014",
+    "driver_name": "Derek Daly",
+    "country_name": "Ireland",
+    "country_code": "IRE",
+    "dob": "1953-03-11",
+    "career_start_year": 1977,
+    "f1_rookie_season": 1978,
+    "career_end_year": 1982,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0015",
+    "driver_name": "Jean-Pierre Jarier",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1946-07-10",
+    "career_start_year": 1970,
+    "f1_rookie_season": 1971,
+    "career_end_year": 1983,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0016",
+    "driver_name": "Emerson Fittipaldi",
+    "country_name": "Brazil",
+    "country_code": "BRA",
+    "dob": "1946-12-12",
+    "career_start_year": 1969,
+    "f1_rookie_season": 1970,
+    "career_end_year": 1980,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0017",
+    "driver_name": "Alain Prost",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1955-02-24",
+    "career_start_year": 1978,
+    "f1_rookie_season": 1980,
+    "career_end_year": 1993,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0018",
+    "driver_name": "Jochen Mass",
+    "country_name": "Germany",
+    "country_code": "GER",
+    "dob": "1946-09-30",
+    "career_start_year": 1972,
+    "f1_rookie_season": 1973,
+    "career_end_year": 1982,
+    "death_date": "2025-05-04",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0019",
+    "driver_name": "Bruno Giacomelli",
+    "country_name": "Italy",
+    "country_code": "ITA",
+    "dob": "1952-09-10",
+    "career_start_year": 1976,
+    "f1_rookie_season": 1977,
+    "career_end_year": 1983,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0020",
+    "driver_name": "Mario Andretti",
+    "country_name": "United States",
+    "country_code": "USA",
+    "dob": "1940-02-28",
+    "career_start_year": 1968,
+    "f1_rookie_season": 1968,
+    "career_end_year": 1982,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0021",
+    "driver_name": "Clay Regazzoni",
+    "country_name": "Switzerland",
+    "country_code": "SWI",
+    "dob": "1939-09-05",
+    "career_start_year": 1968,
+    "f1_rookie_season": 1970,
+    "career_end_year": 1980,
+    "death_date": "2006-12-15",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0022",
+    "driver_name": "Ricardo Zunino",
+    "country_name": "Argentina",
+    "country_code": "ARG",
+    "dob": "1948-07-04",
+    "career_start_year": 1977,
+    "f1_rookie_season": 1979,
+    "career_end_year": 1981,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0023",
+    "driver_name": "Marc Surer",
+    "country_name": "Switzerland",
+    "country_code": "SWI",
+    "dob": "1951-09-18",
+    "career_start_year": 1976,
+    "f1_rookie_season": 1979,
+    "career_end_year": 1986,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0024",
+    "driver_name": "Patrick Depailler",
+    "country_name": "France",
+    "country_code": "FRA",
+    "dob": "1944-08-09",
+    "career_start_year": 1970,
+    "f1_rookie_season": 1972,
+    "career_end_year": 1980,
+    "death_date": "1981-08-01",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0025",
+    "driver_name": "David Kennedy",
+    "country_name": "Ireland",
+    "country_code": "IRE",
+    "dob": "1953-01-15",
+    "career_start_year": 1980,
+    "f1_rookie_season": 1980,
+    "career_end_year": 1980,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0026",
+    "driver_name": "Jan Lammers",
+    "country_name": "Netherlands",
+    "country_code": "NED",
+    "dob": "1956-06-02",
+    "career_start_year": 1979,
+    "f1_rookie_season": 1979,
+    "career_end_year": 1992,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0027",
+    "driver_name": "Stefan Johansson",
+    "country_name": "Sweden",
+    "country_code": "SWE",
+    "dob": "1956-09-08",
+    "career_start_year": 1978,
+    "f1_rookie_season": 1980,
+    "career_end_year": 1991,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0028",
+    "driver_name": "Eddie Cheever",
+    "country_name": "USA",
+    "country_code": "USA",
+    "dob": "1958-01-10",
+    "career_start_year": 1975,
+    "f1_rookie_season": 1978,
+    "career_end_year": 1989,
+    "death_date": null,
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  },
+  {
+    "driver_id": "d_0029",
+    "driver_name": "Niki Lauda",
+    "country_name": "Austria",
+    "country_code": "AT",
+    "dob": "1949-02-22",
+    "career_start_year": 1971,
+    "f1_rookie_season": 1971,
+    "career_end_year": 1985,
+    "death_date": "2019-05-20",
+    "portrait_path": null,
+    "helmet_color_primary": null,
+    "helmet_color_secondary": null,
+    "prefered_number": null,
+    "status": {
+      "result": "eligible",
+      "sharedFormula": "N3"
+    }
+  }
+]

@@ -1,0 +1,139 @@
+[
+  {
+    "team_id": "t_0001",
+    "year": 1980,
+    "team_name": "Williams",
+    "team_official_name": "Williams Grand Prix Engineering",
+    "team_short_name": "WIL",
+    "primary_color": "#005AFF",
+    "secondary_color": "#FFFFFF",
+    "logo": "data:image/png;base64,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"
+  },
+  {
+    "team_id": "t_0002",
+    "year": 1980,
+    "team_name": "Ligier",
+    "team_official_name": "Équipe Ligier",
+    "team_short_name": "LIG",
+    "primary_color": "#0033CC",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0003",
+    "year": 1980,
+    "team_name": "Brabham",
+    "team_official_name": "Motor Racing Developments",
+    "team_short_name": "BRA",
+    "primary_color": "#000066",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0004",
+    "year": 1980,
+    "team_name": "Renault",
+    "team_official_name": "Renault F1",
+    "team_short_name": "REN",
+    "primary_color": "#FFD700",
+    "secondary_color": "#000000"
+  },
+  {
+    "team_id": "t_0005",
+    "year": 1980,
+    "team_name": "Lotus",
+    "team_official_name": "Team Lotus",
+    "team_short_name": "LOT",
+    "primary_color": "#FFB800",
+    "secondary_color": "#000000"
+  },
+  {
+    "team_id": "t_0006",
+    "year": 1980,
+    "team_name": "Tyrrell",
+    "team_official_name": "Tyrrell Racing Organisation",
+    "team_short_name": "TYR",
+    "primary_color": "#0000FF",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0007",
+    "year": 1980,
+    "team_name": "Arrows",
+    "team_official_name": "Arrows Grand Prix International",
+    "team_short_name": "ARR",
+    "primary_color": "#FF6600",
+    "secondary_color": "#000000"
+  },
+  {
+    "team_id": "t_0008",
+    "year": 1980,
+    "team_name": "Fittipaldi",
+    "team_official_name": "Fittipaldi Automotive",
+    "team_short_name": "FIT",
+    "primary_color": "#FFD700",
+    "secondary_color": "#000000"
+  },
+  {
+    "team_id": "t_0009",
+    "year": 1980,
+    "team_name": "McLaren",
+    "team_official_name": "McLaren Racing",
+    "team_short_name": "MCL",
+    "primary_color": "#FF0000",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0010",
+    "year": 1980,
+    "team_name": "Ferrari",
+    "team_official_name": "SEFAC Ferrari",
+    "team_short_name": "FER",
+    "primary_color": "#FF2800",
+    "secondary_color": "#FFFFFF",
+    "logo": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTEzFoIj6hcjaLv7-njiD3LVY1bvyi4eFMgYA&s"
+  },
+  {
+    "team_id": "t_0011",
+    "year": 1980,
+    "team_name": "Alfa",
+    "team_official_name": "Alfa Romeo Racing",
+    "team_short_name": "ALF",
+    "primary_color": "#900000",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0012",
+    "year": 1980,
+    "team_name": "ATS",
+    "team_official_name": "Auto Technisches Spezialzubehör",
+    "team_short_name": "ATS",
+    "primary_color": "#FFFF00",
+    "secondary_color": "#000000"
+  },
+  {
+    "team_id": "t_0013",
+    "year": 1980,
+    "team_name": "Ensign",
+    "team_official_name": "Ensign Racing",
+    "team_short_name": "ENS",
+    "primary_color": "#1A1A1A",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0014",
+    "year": 1980,
+    "team_name": "Osella",
+    "team_official_name": "Osella Squadra Corse",
+    "team_short_name": "OSE",
+    "primary_color": "#005A7A",
+    "secondary_color": "#FFFFFF"
+  },
+  {
+    "team_id": "t_0015",
+    "year": 1980,
+    "team_name": "Shadow",
+    "team_official_name": "Shadow Racing Cars",
+    "team_short_name": "SHA",
+    "primary_color": "#000000",
+    "secondary_color": "#FFFFFF"
+  }
+]

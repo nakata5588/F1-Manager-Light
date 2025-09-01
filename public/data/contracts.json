@@ -1,0 +1,419 @@
+[
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "person_id": "d_0001",
+    "driver_name": "Alan Jones",
+    "role": "main_driver",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": null,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "team_principal"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "person_id": "d_0002",
+    "driver_name": "Carlos Reutemann",
+    "role": "second_driver",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": null,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "technical_director"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "person_id": "st_0001",
+    "driver_name": "Frank Williams",
+    "role": "owner,team_principal",
+    "contract_until": 10,
+    "driver_number": null,
+    "salary": 250000,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "chief_engineer"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "person_id": "st_0016",
+    "driver_name": "Patrick Head",
+    "role": "chief_engineer",
+    "contract_until": 3,
+    "driver_number": null,
+    "salary": 220000,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "race_engineer"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "person_id": "d_0006",
+    "driver_name": "Jacques Laffite",
+    "role": "main_driver",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": null,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "chief_strategist"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "person_id": "d_0007",
+    "driver_name": "Didier Pironi",
+    "role": "second_driver",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": null,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "person_id": "st_0002",
+    "driver_name": "Guy Ligier",
+    "role": "owner,team_principal",
+    "contract_until": 3,
+    "driver_number": null,
+    "salary": 180000,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "person_id": "d_0005",
+    "driver_name": "Nelson Piquet",
+    "role": "main_driver",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": null,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "test_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "person_id": "d_0022",
+    "driver_name": "Ricardo Zunino",
+    "role": "second_driver",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": null,
+    "col_10": null,
+    "col_11": null,
+    "col_12": null,
+    "col_13": null,
+    "col_14": null,
+    "col_15": "junior"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "person_id": "st_0003",
+    "driver_name": "Bernie Ecclestone",
+    "role": "owner,team_principal",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": 300000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "person_id": "st_0025",
+    "driver_name": "Gordon Murray",
+    "role": "chief_engineer",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": 240000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0004",
+    "team_name": "Renault",
+    "person_id": "d_0008",
+    "driver_name": "René Arnoux",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0004",
+    "team_name": "Renault",
+    "person_id": "d_0010",
+    "driver_name": "Jean-Pierre Jabouille",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0004",
+    "team_name": "Renault"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0005",
+    "team_name": "Lotus",
+    "person_id": "d_0009",
+    "driver_name": "Elio de Angelis",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0005",
+    "team_name": "Lotus",
+    "person_id": "d_0020",
+    "driver_name": "Mario Andretti",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0005",
+    "team_name": "Lotus"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0006",
+    "team_name": "Tyrrell",
+    "person_id": "d_0014",
+    "driver_name": "Derek Daly",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0006",
+    "team_name": "Tyrrell",
+    "person_id": "d_0015",
+    "driver_name": "Jean-Pierre Jarier",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0006",
+    "team_name": "Tyrrell"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0007",
+    "team_name": "Arrows",
+    "person_id": "d_0011",
+    "driver_name": "Riccardo Patrese",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0007",
+    "team_name": "Arrows",
+    "person_id": "d_0018",
+    "driver_name": "Jochen Mass",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0007",
+    "team_name": "Arrows"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0008",
+    "team_name": "Fittipaldi",
+    "person_id": "d_0012",
+    "driver_name": "Keke Rosberg",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0008",
+    "team_name": "Fittipaldi",
+    "person_id": "d_0016",
+    "driver_name": "Emerson Fittipaldi",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0008",
+    "team_name": "Fittipaldi"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "person_id": "d_0013",
+    "driver_name": "John Watson",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "person_id": "d_0017",
+    "driver_name": "Alain Prost",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0009",
+    "team_name": "McLaren"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "person_id": "d_0003",
+    "driver_name": "Gilles Villeneuve",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "person_id": "d_0004",
+    "driver_name": "Jody Scheckter",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0010",
+    "team_name": "Ferrari"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0011",
+    "team_name": "Alfa Romeo",
+    "person_id": "d_0019",
+    "driver_name": "Bruno Giacomelli",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0011",
+    "team_name": "Alfa Romeo",
+    "person_id": "d_0024",
+    "driver_name": "Patrick Depailler",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0011",
+    "team_name": "Alfa Romeo",
+    "person_id": "st_0011",
+    "driver_name": "Carlo Chiti",
+    "role": "chief_engineer,team_principal",
+    "contract_until": null,
+    "driver_number": null,
+    "salary": 220000
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0012",
+    "team_name": "ATS",
+    "person_id": "d_0023",
+    "driver_name": "Marc Surer",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0012",
+    "team_name": "ATS",
+    "person_id": "d_0026",
+    "driver_name": "Jan Lammers",
+    "role": "second_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0012",
+    "team_name": "ATS"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0013",
+    "team_name": "Ensign",
+    "person_id": "d_0021",
+    "driver_name": "Clay Regazzoni",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0013",
+    "team_name": "Ensign"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0014",
+    "team_name": "Osella",
+    "person_id": "d_0028",
+    "driver_name": "Eddie Cheever",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0014",
+    "team_name": "Osella"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0015",
+    "team_name": "Shadow",
+    "person_id": "d_0025",
+    "driver_name": "David Kennedy",
+    "role": "test_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0015",
+    "team_name": "Shadow",
+    "person_id": "d_0027",
+    "driver_name": "Stefan Johansson",
+    "role": "main_driver"
+  },
+  {
+    "year": 1980,
+    "team_id": "t_0015",
+    "team_name": "Shadow"
+  }
+]

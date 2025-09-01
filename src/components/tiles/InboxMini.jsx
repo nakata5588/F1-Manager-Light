@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card.jsx";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card.jsx";
 
 export default function InboxMini({ items = [] }) {
   const recent = items.slice(0, 5);

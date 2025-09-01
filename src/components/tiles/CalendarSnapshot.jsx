@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card.jsx";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card.jsx";
 
 export default function CalendarSnapshot({ calendar = [], currentRound = 0 }) {
   const slice = calendar.slice(currentRound, currentRound + 5);

@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card.jsx";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card.jsx";
 
 export default function TeamOverview({ team }) {
   return (

@@ -1,0 +1,16 @@
+[
+  {
+    "year": 1980,
+    "era_safety_index": "0.42",
+    "car_safety": "0.50",
+    "medical_response": "0.60",
+    "marshals_quality": "0.55"
+  },
+  {
+    "year": 1995,
+    "era_safety_index": "0.70",
+    "car_safety": "0.75",
+    "medical_response": "0.80",
+    "marshals_quality": "0.78"
+  }
+]
