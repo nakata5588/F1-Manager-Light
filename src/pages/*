@@ -1,0 +1,30 @@
+// Home.jsx
+import React from "react";
+import { useGame } from "../state/GameStore.js";
+import { daysBetween } from "../utils/date.js";
+export default function Home() {
+  const { gameState } = useGame();
+  const { currentDateISO, calendar = [], currentRound = 0, team } = gameState;
+  const next = calendar[currentRound];
+  const daysLeft = next ? daysBetween(currentDateISO, next.dateISO) : null;
+  return (
+    <div className="grid gap-4">
+      <div className="bg-white rounded-xl shadow p-4">
+        <h2 className="text-lg font-semibold">Dashboard</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          Date: {currentDateISO} • Team: {team?.name ?? "—"}
+        </p>
+      </div>
+      <div className="bg-white rounded-xl shadow p-4">
+        <h3 className="font-semibold">Next GP</h3>
+        {next ? (
+          <p className="text-sm text-gray-700 mt-1">
+            {next.name} — in <b>{daysLeft}</b> days ({next.dateISO})
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 mt-1">No events scheduled.</p>
+        )}
+      </div>
+    </div>
+  );
+}
