@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Topbar from "@/components/Topbar";
 import { useGame } from "./state/GameStore";
 import HubLayout from "./layouts/HubLayout.jsx";
 

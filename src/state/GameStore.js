@@ -3,6 +3,24 @@ import { create } from "zustand";
 /** Onde vamos guardar o "save" local (opcional) */
 const SAVE_KEY = "f1hm_save";
 
+/* ──────────────────────────────────────────────
+   NOVO: sistema multi-save (convive com o SAVE_KEY)
+   ────────────────────────────────────────────── */
+const SAVE_PREFIX = "f1ml_save_";
+const LAST_SAVE_KEY = "f1ml_last_save_key";
+
+function nowIso() {
+  return new Date().toISOString();
+}
+function defaultSaveName(gs) {
+  const team = gs?.team?.team_name || gs?.team?.name || "Save";
+  const season = gs?.activeYear || gs?.seasonYear || "";
+  return `${team}${season ? ` — ${season}` : ""}`;
+}
+function safeJSONParse(str) {
+  try { return JSON.parse(str); } catch { return null; }
+}
+
 /** ===== DEFAULT SETTINGS (para a página Settings.jsx) ===== */
 const defaultSettings = {
   uiTheme: "auto",              // auto | light | dark
@@ -199,6 +217,9 @@ export const useGame = create((set, get) => ({
     standings: { drivers: [], teams: [] },
     inbox: [],
   },
+
+  /* NOVO: track da key do save multi-slot atualmente carregado (para "Save (overwrite)") */
+  currentSaveKey: null,
 
   setGameState: (partial) => set((s) => ({ gameState: { ...s.gameState, ...partial } })),
 
@@ -455,6 +476,8 @@ export const useGame = create((set, get) => ({
     set((s) => ({
       gameState: { ...s.gameState, ...initial },
     }));
+    // quando iniciamos novo jogo, já não há “save multi-slot” ativo
+    set({ currentSaveKey: null });
   },
 
   /** ====== NEW GAME — Create Team (wizard) ====== */
@@ -514,6 +537,8 @@ export const useGame = create((set, get) => ({
           settings: s.gameState?.settings ?? defaultSettings,
         },
       }));
+      // reset à key atual (não há overwrite de multi-save ativo)
+      set({ currentSaveKey: null });
 
       // 5) Guardar no SAVE_KEY único já usado no teu projeto
       get().saveLocal?.();
@@ -525,20 +550,31 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  // ====== SAVE / LOAD ======
+  // ====== SAVE / LOAD (LEGADO — slot único, mantém-se) ======
   saveLocal: () => {
-    try {
-      const state = get().gameState;
-      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-      return true;
-    } catch (e) {
-      console.error("saveLocal() failed:", e);
-      return false;
-    }
-  },
+  try {
+    const state = get().gameState;
+    // 1) legado (mantém compat)
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
 
-  // Alias para compatibilidade com Settings.jsx
-  saveGame: () => get().saveLocal(),
+    // 2) NOVO: espelho em multi-save para aparecer no Load Game
+    const meta = {
+      name: (state?.team?.team_name || state?.team?.name || "Save") +
+            ((state?.activeYear || state?.seasonYear) ? ` — ${state.activeYear || state.seasonYear}` : ""),
+      version: "0.1.0",
+      savedAt: new Date().toISOString(),
+    };
+    const payload = { meta, gameState: state };
+    const key = `f1ml_save_${Date.now()}`;
+    localStorage.setItem(key, JSON.stringify(payload));
+    localStorage.setItem("f1ml_last_save_key", key);
+
+    return true;
+  } catch (e) {
+    console.error("saveLocal() failed:", e);
+    return false;
+  }
+},
 
   loadLocal: () => {
     try {
@@ -552,6 +588,8 @@ export const useGame = create((set, get) => ({
           settings: { ...defaultSettings, ...(saved.settings || {}) },
         },
       }));
+      // quando carregamos do slot único, não há key multi-save
+      set({ currentSaveKey: null });
       return true;
     } catch (e) {
       console.error("loadLocal() failed:", e);
@@ -559,15 +597,23 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  // ====== META MAIN MENU ======
+  // ====== META MAIN MENU (legado + multi) ======
   hasAnySave: () => {
     try {
-      return !!localStorage.getItem(SAVE_KEY);
+      if (localStorage.getItem(SAVE_KEY)) return true; // legado
+      // procura qualquer chave que comece por SAVE_PREFIX
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(SAVE_PREFIX)) return true;
+      }
+      return false;
     } catch {
       return false;
     }
   },
+
   loadLastPlayed: () => get().loadLocal(),
+
   getLastSaveMeta: () => {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
@@ -577,5 +623,77 @@ export const useGame = create((set, get) => ({
     } catch {
       return null;
     }
+  },
+
+  /* ──────────────────────────────────────────────
+     NOVO: API multi-save (usada pela Topbar/LoadGame)
+     ────────────────────────────────────────────── */
+
+  /** Carrega um gameState diretamente (ex.: vindo de LoadGame.jsx) */
+  loadGame: (gs) => {
+    if (!gs || typeof gs !== "object") return;
+    set({ gameState: gs, currentSaveKey: null });
+  },
+
+  /** Guarda o gameState atual em um novo slot (ou overwrite se passar a key) */
+  saveGame: (options) => {
+    // compat: se chamarem sem argumentos (ex.: Settings.jsx), usa legado
+    if (options == null) {
+      return get().saveLocal();
+    }
+
+    const { name, overwriteKey } = options || {};
+    const state = get();
+    const gs = state.gameState || {};
+    const meta = {
+      name: (name || "").trim() || defaultSaveName(gs),
+      version: "0.1.0",
+      savedAt: nowIso(),
+    };
+
+    const payload = { meta, gameState: gs };
+    const key = overwriteKey || state.currentSaveKey || `${SAVE_PREFIX}${Date.now()}`;
+
+    try {
+      localStorage.setItem(key, JSON.stringify(payload));
+      localStorage.setItem(LAST_SAVE_KEY, key);
+      set({ currentSaveKey: key });
+    } catch (e) {
+      console.warn("saveGame (multi) failed:", e);
+    }
+
+    return { key, meta };
+  },
+
+  /** Guarda rápido com nome automático (team + hora) */
+  quickSave: () => {
+    const gs = get().gameState || {};
+    const base = defaultSaveName(gs);
+    const hhmm = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return get().saveGame({ name: `${base} — ${hhmm}` });
+  },
+
+  /** Devolve a key do último save multi-slot (para botão Continue) */
+  getLastSaveKey: () => {
+    try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; }
+  },
+
+  /** Lê um save por key (multi-slot) e aplica ao jogo */
+  loadFromKey: (key) => {
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const obj = safeJSONParse(raw);
+      const gs = obj?.gameState || obj;
+      if (gs && typeof gs === "object") {
+        set({ gameState: gs, currentSaveKey: key });
+        try { localStorage.setItem(LAST_SAVE_KEY, key); } catch {}
+        return gs;
+      }
+    } catch (e) {
+      console.warn("loadFromKey failed:", e);
+    }
+    return null;
   },
 }));
