@@ -1,0 +1,5 @@
+[
+  { "id":"1", "type":"GP", "title":"Argentina GP - Race week", "body":"Media duties Tue, strategy brief Thu.", "date":"1980-01-07", "unread":true },
+  { "id":"2", "type":"BOARD", "title":"Board objective updated", "body":"Target: score points in the next 3 races.", "date":"1980-01-05", "unread":false },
+  { "id":"3", "type":"DEV", "title":"Front wing concept approved", "body":"Wind tunnel slot booked for 14 Jan.", "date":"1980-01-06", "unread":true }
+]

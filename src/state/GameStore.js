@@ -312,20 +312,33 @@ export const useGame = create((set, get) => ({
     const teamsRaw = (prev.dbTeams || []).filter((t) => activeInYear(t, y));
     const teams = teamsRaw.map(normalizeTeam);
 
+    // === Drivers robustos (suporta Excel: driver_id + driver_name) ===
     const driversWithStatus = (prev.dbDrivers || []).map((d) => {
+      // nome: tentar vários campos, com prioridade ao driver_name do Excel
+      const first =
+        d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
+      const last =
+        d.last_name ?? d.lastname ?? d.family_name ?? d.surname ?? d.last ?? "";
+      const combo = `${first} ${last}`.trim();
+      const display_name =
+        d.driver_name || // Excel
+        d.name || d.display_name || d.full_name || d.fullname || combo || d.code || "";
+
       const status = computeDriverStatus(y, d);
       const age = ageOnYear(d.dob, y);
       const canHireF1 = status === "eligible";
       const canHireAcademy = status === "junior_only" || (!Number.isNaN(age) && age <= 16);
+
       return {
         ...d,
-        driver_id: d.driver_id,
-        name: d.display_name ?? d.name ?? "",
-        country: d.country_name ?? "",
-        country_code: d.country_code ?? "",
-        dob: d.dob ?? "",
-        prefered_number: d.prefered_number ?? "",
-        portrait_path: d.portrait_path ?? "",
+        driver_id: d.driver_id ?? d.id ?? d.code ?? null, // Excel já traz driver_id
+        display_name,
+        name: display_name || d.name || "",
+        country: d.country_name ?? d.country ?? "",
+        country_code: d.country_code ?? d.nationality_code ?? "",
+        dob: d.dob ?? d.date_of_birth ?? "",
+        prefered_number: d.prefered_number ?? d.number ?? "",
+        portrait_path: d.portrait_path ?? d.portrait ?? "",
         helmet_color_primary: d.helmet_color_primary ?? "",
         helmet_color_secondary: d.helmet_color_secondary ?? "",
         status,
@@ -334,7 +347,9 @@ export const useGame = create((set, get) => ({
         canHireAcademy,
       };
     });
-    const drivers = driversWithStatus.filter((d) => d.status !== "hidden");
+    const drivers = driversWithStatus
+      .filter((d) => d.status !== "hidden")
+      .filter((d) => d.driver_id && (d.display_name || d.name));
 
     // ✅ EXTRACTS
     const driverRatingsExact = filterByYear(prev.dbDriverRatings, y);
@@ -367,7 +382,7 @@ export const useGame = create((set, get) => ({
 
     if ((drivers || []).length === 0 && (prev.dbDrivers || []).length > 0) {
       console.warn(
-        `[GameStore] Year ${y}: 0 drivers após filtro. Verifica drivers.json (career_start_year, f1_rookie_season, career_end_year, death_date, dob).`
+        `[GameStore] Year ${y}: 0 drivers após filtro. Verifica drivers.json (driver_id, driver_name, career_start_year, f1_rookie_season, career_end_year, death_date, dob).`
       );
     }
 
@@ -451,7 +466,7 @@ export const useGame = create((set, get) => ({
       // 1) Garantir dados filtrados para o ano
       get().applyYearFilter(y);
 
-      // 2) Construir equipa do utilizador
+      // 2) Construir equipa do utilizador (inclui logo)
       const userTeam = {
         team_id: team.team_id,
         name: team.name,
@@ -459,6 +474,8 @@ export const useGame = create((set, get) => ({
         colors: team.colors,
         engine_id: team.engine_id,
         budget: team.starting_budget ?? 5_000_000,
+        logo_data_url: team.logo_data_url ?? null,
+        logo_file_name: team.logo_file_name ?? null,
         is_user_controlled: true,
       };
 

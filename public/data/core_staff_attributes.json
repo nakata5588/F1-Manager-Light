@@ -1,0 +1,67 @@
+[
+  {
+    "key": "leadership",
+    "label": "Leadership",
+    "desc": "Leads team and decision making under pressure."
+  },
+  {
+    "key": "technical",
+    "label": "Technical",
+    "desc": "Mechanical understanding and car development input."
+  },
+  {
+    "key": "strategy",
+    "label": "Strategy",
+    "desc": "Race strategy planning and adaptation."
+  },
+  {
+    "key": "motivation",
+    "label": "Motivation",
+    "desc": "Team morale impact and resilience."
+  },
+  {
+    "key": "communication",
+    "label": "Communication",
+    "desc": "Clarity in transmitting instructions to drivers and crew during GPs."
+  },
+  {
+    "key": "pitstop_management",
+    "label": "Pit Stop Mgmt",
+    "desc": "Coordination and training of mechanics, reducing pit stop errors."
+  },
+  {
+    "key": "reliability_focus",
+    "label": "Reliability Focus",
+    "desc": "Attention to detail preventing failures and breakdowns."
+  },
+  {
+    "key": "data_analysis",
+    "label": "Data Analysis",
+    "desc": "Ability to interpret telemetry and car data for performance gains."
+  },
+  {
+    "key": "innovation",
+    "label": "Innovation",
+    "desc": "Creativity in solutions, driving unique upgrades and developments."
+  },
+  {
+    "key": "budget_management",
+    "label": "Budget Mgmt",
+    "desc": "Efficiency in handling financial resources and investments."
+  },
+  {
+    "key": "driver_development",
+    "label": "Driver Dev.",
+    "desc": "Focus on coaching and improving young or academy drivers."
+  },
+  {
+    "key": "conflict_management",
+    "label": "Conflict Mgmt",
+    "desc": "Managing egos and disputes, maintaining team harmony."
+  },
+  {
+    "key": "negotiation",
+    "label": "Negotiation",
+    "desc": "Skills in negotiating contracts, sponsors, and supplier deals."
+  }
+]

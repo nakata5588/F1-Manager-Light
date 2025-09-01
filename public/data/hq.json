@@ -1,0 +1,12 @@
+{
+  "facilities": [
+    { "id":"wind_tunnel","name":"Wind Tunnel","category":"Aero","level":2,"max_level":5,"status":"active","effects":{"aero_efficiency":"+2%","parts_validation":"+1"},"upgrade_cost":750000,"upgrade_time_days":21 },
+    { "id":"cfd","name":"CFD Suite","category":"Aero","level":1,"max_level":5,"status":"upgrading","upgrade_cost":500000,"upgrade_time_days":14,"started_at":"1980-01-05","finishes_at":"1980-01-19" },
+    { "id":"sim","name":"Driver Simulator","category":"Performance","level":3,"max_level":5,"status":"active","effects":{"driver_consistency":"+1","braking":"+1"},"upgrade_cost":600000,"upgrade_time_days":18 },
+    { "id":"factory","name":"Factory","category":"Operations","level":2,"max_level":5,"status":"active","effects":{"manufacturing_speed":"+10%"},"upgrade_cost":900000,"upgrade_time_days":28 },
+    { "id":"pit","name":"Pit Crew","category":"Operations","level":2,"max_level":5,"status":"active","effects":{"pit_errors":"-5%"},"upgrade_cost":250000,"upgrade_time_days":7 }
+  ],
+  "queue": [
+    { "id":"Q1","facility_id":"cfd","name":"CFD Suite to Level 2","started_at":"1980-01-05","finishes_at":"1980-01-19","cost":500000 }
+  ]
+}

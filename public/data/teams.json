@@ -2,76 +2,91 @@
   {
     "team_id": "t_0001",
     "team_name": "Williams",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Williams"
   },
   {
     "team_id": "t_0002",
     "team_name": "Ligier",
-    "team_base": "Italy"
+    "team_base": "Italy",
+    "short_name": "Ligier"
   },
   {
     "team_id": "t_0003",
     "team_name": "Brabham",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Brabham"
   },
   {
     "team_id": "t_0004",
     "team_name": "Renault",
-    "team_base": "France"
+    "team_base": "France",
+    "short_name": "Renault"
   },
   {
     "team_id": "t_0005",
     "team_name": "Lotus",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Lotus"
   },
   {
     "team_id": "t_0006",
     "team_name": "Tyrrell",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Tyrrell"
   },
   {
     "team_id": "t_0007",
     "team_name": "Arrows",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Arrows"
   },
   {
     "team_id": "t_0008",
     "team_name": "Fittipaldi",
-    "team_base": "Brazil"
+    "team_base": "Brazil",
+    "short_name": "Fittipaldi"
   },
   {
     "team_id": "t_0009",
     "team_name": "McLaren",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "McLaren"
   },
   {
     "team_id": "t_0010",
     "team_name": "Ferrari",
-    "team_base": "Italy"
+    "team_base": "Italy",
+    "short_name": "Ferrari"
   },
   {
     "team_id": "t_0011",
     "team_name": "Alfa Romeo",
-    "team_base": "Switzerland"
+    "team_base": "Switzerland",
+    "short_name": "Alfa"
   },
   {
     "team_id": "t_0012",
     "team_name": "ATS",
-    "team_base": "Germany"
+    "team_base": "Germany",
+    "short_name": "ATS"
   },
   {
     "team_id": "t_0013",
     "team_name": "Ensign",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Ensign"
   },
   {
     "team_id": "t_0014",
     "team_name": "Osella",
-    "team_base": "Italy"
+    "team_base": "Italy",
+    "short_name": "Osella"
   },
   {
     "team_id": "t_0015",
     "team_name": "Shadow",
-    "team_base": "United Kingdom"
+    "team_base": "United Kingdom",
+    "short_name": "Shadow"
   }
 ]

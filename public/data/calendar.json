@@ -6,7 +6,9 @@
     "Country": "Argentina",
     "gp_id": "gp_001",
     "track_id": "tr_0015",
-    "race_date": "1980-01-13"
+    "race_date": "1980-01-13",
+    "dateISO": "1980-01-13",
+    "country": "Argentina"
   },
   {
     "year": 1980,
@@ -15,7 +17,9 @@
     "Country": "Brazil",
     "gp_id": "gp_002",
     "track_id": "tr_0016",
-    "race_date": "1980-01-27"
+    "race_date": "1980-01-27",
+    "dateISO": "1980-01-27",
+    "country": "Brazil"
   },
   {
     "year": 1980,
@@ -24,7 +28,9 @@
     "Country": "South Africa",
     "gp_id": "gp_003",
     "track_id": "tr_0009",
-    "race_date": "1980-03-01"
+    "race_date": "1980-03-01",
+    "dateISO": "1980-03-01",
+    "country": "South Africa"
   },
   {
     "year": 1980,
@@ -33,7 +39,9 @@
     "Country": "USA",
     "gp_id": "gp_004",
     "track_id": "tr_0001",
-    "race_date": "1980-03-30"
+    "race_date": "1980-03-30",
+    "dateISO": "1980-03-30",
+    "country": "USA"
   },
   {
     "year": 1980,
@@ -42,7 +50,9 @@
     "Country": "Belgium",
     "gp_id": "gp_005",
     "track_id": "tr_0012",
-    "race_date": "1980-05-04"
+    "race_date": "1980-05-04",
+    "dateISO": "1980-05-04",
+    "country": "Belgium"
   },
   {
     "year": 1980,
@@ -51,7 +61,9 @@
     "Country": "Monaco",
     "gp_id": "gp_006",
     "track_id": "tr_0003",
-    "race_date": "1980-05-18"
+    "race_date": "1980-05-18",
+    "dateISO": "1980-05-18",
+    "country": "Monaco"
   },
   {
     "year": 1980,
@@ -60,7 +72,9 @@
     "Country": "France",
     "gp_id": "gp_007",
     "track_id": "tr_0004",
-    "race_date": "1980-06-29"
+    "race_date": "1980-06-29",
+    "dateISO": "1980-06-29",
+    "country": "France"
   },
   {
     "year": 1980,
@@ -69,7 +83,9 @@
     "Country": "United Kingdom",
     "gp_id": "gp_008",
     "track_id": "tr_0012",
-    "race_date": "1980-07-13"
+    "race_date": "1980-07-13",
+    "dateISO": "1980-07-13",
+    "country": "United Kingdom"
   },
   {
     "year": 1980,
@@ -78,7 +94,9 @@
     "Country": "Germany",
     "gp_id": "gp_009",
     "track_id": "tr_0006",
-    "race_date": "1980-08-10"
+    "race_date": "1980-08-10",
+    "dateISO": "1980-08-10",
+    "country": "Germany"
   },
   {
     "year": 1980,
@@ -87,7 +105,9 @@
     "Country": "Austria",
     "gp_id": "gp_010",
     "track_id": "tr_0011",
-    "race_date": "1980-08-17"
+    "race_date": "1980-08-17",
+    "dateISO": "1980-08-17",
+    "country": "Austria"
   },
   {
     "year": 1980,
@@ -96,7 +116,9 @@
     "Country": "Netherlands",
     "gp_id": "gp_011",
     "track_id": "tr_0007",
-    "race_date": "1980-08-31"
+    "race_date": "1980-08-31",
+    "dateISO": "1980-08-31",
+    "country": "Netherlands"
   },
   {
     "year": 1980,
@@ -105,7 +127,9 @@
     "Country": "Italy",
     "gp_id": "gp_012",
     "track_id": "tr_0010",
-    "race_date": "1980-09-14"
+    "race_date": "1980-09-14",
+    "dateISO": "1980-09-14",
+    "country": "Italy"
   },
   {
     "year": 1980,
@@ -114,7 +138,9 @@
     "Country": "Canada",
     "gp_id": "gp_013",
     "track_id": "tr_0017",
-    "race_date": "1980-09-28"
+    "race_date": "1980-09-28",
+    "dateISO": "1980-09-28",
+    "country": "Canada"
   },
   {
     "year": 1980,
@@ -123,6 +149,8 @@
     "Country": "USA",
     "gp_id": "gp_014",
     "track_id": "tr_0013",
-    "race_date": "1980-10-05"
+    "race_date": "1980-10-05",
+    "dateISO": "1980-10-05",
+    "country": "USA"
   }
 ]

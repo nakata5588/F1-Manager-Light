@@ -1,0 +1,107 @@
+[
+  {
+    "key": "current_ability",
+    "label": "Current Ability",
+    "desc": "Overall skill level of the driver at the moment"
+  },
+  {
+    "key": "potential_ability",
+    "label": "Potential Ability",
+    "desc": "Maximum ability the driver can realistically reach in their career"
+  },
+  {
+    "key": "pace",
+    "label": "Pace",
+    "desc": "Raw speed and lap time potintial in race conditions"
+  },
+  {
+    "key": "qualifying",
+    "label": "Qualifying",
+    "desc": "One-lap pace under pressure in qualifying sessions"
+  },
+  {
+    "key": "start_launch",
+    "label": "Start & Launch",
+    "desc": "Skill at race starts, reaction off the line, and gaining positions early"
+  },
+  {
+    "key": "racecraft",
+    "label": "Racecraft",
+    "desc": "Ability to overtake, defend, and position the car in wheel-to-wheel battles"
+  },
+  {
+    "key": "wet_skill",
+    "label": "Wet Pace",
+    "desc": "Performance and control in wet or mixed conditions"
+  },
+  {
+    "key": "consistency",
+    "label": "Consistency",
+    "desc": "Ability to deliver stable lap times and avoid mistakes over a full race"
+  },
+  {
+    "key": "tire_management",
+    "label": "Tire Management",
+    "desc": "skill in conserving tyre wear and extending stints"
+  },
+  {
+    "key": "race_intelligence",
+    "label": "Race Intelligence",
+    "desc": "decision-making during races: strategy awareness, risk vs reward"
+  },
+  {
+    "key": "technical_feedback",
+    "label": "Technical Feedback",
+    "desc": "Ability to give useful feedback to engineers for car setup and development"
+  },
+  {
+    "key": "adaptability",
+    "label": "Adaptability",
+    "desc": "How quickly the driver adjusts to new cars, tracks, or changing conditions"
+  },
+  {
+    "key": "ers_fuel_management",
+    "label": "ERS/Fuel Management",
+    "desc": "Efficiency in using hybrid systems, battery, and fuel across a race"
+  },
+  {
+    "key": "mentality",
+    "label": "Mentality",
+    "desc": "Mental toughness: focus, determination, and ability to recover from setbacks"
+  },
+  {
+    "key": "agression",
+    "label": "Agression",
+    "desc": "How forceful the driver is in battkes; higher values mean bolder but riskier moves"
+  },
+  {
+    "key": "crash_likelihood",
+    "label": "Crash Likelihood",
+    "desc": "Tendency to make errors leading to incidents or retirements"
+  },
+  {
+    "key": "pressure_handling",
+    "label": "Pressure Handling",
+    "desc": "Ability to stay calm and deliver under high-pressure situations"
+  },
+  {
+    "key": "leadership",
+    "label": "Leadership",
+    "desc": "Influence on the team: motivating staff, leading car development direction"
+  },
+  {
+    "key": "team_player",
+    "label": "Team Player",
+    "desc": "Willingness to cooperate with teammates and support team goals"
+  },
+  {
+    "key": "car_development_impact",
+    "label": "Car Development Impact",
+    "desc": "Effectiveness at improving the car through feedback and testing"
+  },
+  {
+    "key": "reputation",
+    "label": "Reputation",
+    "desc": "How highly the driver is regarded by fans, media, and the paddock"
+  }
+]

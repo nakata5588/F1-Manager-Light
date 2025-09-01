@@ -23,7 +23,7 @@ const difficulties = [
   { key: "hard", label: "Hard", budgetMul: 0.85 },
 ];
 
-// Nome de piloto robusto p/ schemas diferentes
+// Nome de piloto robusto p/ schemas diferentes (inclui driver_name do Excel)
 function driverLabel(d = {}) {
   const first =
     d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
@@ -31,11 +31,13 @@ function driverLabel(d = {}) {
     d.last_name ?? d.lastname ?? d.family_name ?? d.surname ?? d.last ?? "";
   const combo = `${first} ${last}`.trim();
   return (
+    d.driver_name || // Excel
     d.name ||
     d.display_name ||
     d.full_name ||
     d.fullname ||
-    (combo.length ? combo : "Unknown")
+    (combo.length ? combo : d.code) ||
+    "Unknown"
   );
 }
 
@@ -72,6 +74,7 @@ export default function CreateTeam() {
   // === Dados filtrados por ano vindos do GameStore ===
   const teams = gameState?.teams || [];
   const drivers = gameState?.drivers || [];
+  const contracts = gameState?.contracts || [];
   const teamEngines = gameState?.teamEngines || []; // vem de /data/team_engines.json
 
   // Derivar “engines” a partir de teamEngines (nome/id/fee se existir)
@@ -110,6 +113,9 @@ export default function CreateTeam() {
   const [difficulty, setDifficulty] = useState("normal");
   const [startingBudget, setStartingBudget] = useState(5_000_000);
 
+  // NOVO: mostrar só livres por defeito
+  const [includeSigned, setIncludeSigned] = useState(false);
+
   useEffect(() => {
     if (selectedTeam) {
       setTeamName((prev) => prev || selectedTeam.name || selectedTeam.team_name || "");
@@ -126,8 +132,39 @@ export default function CreateTeam() {
   const canContinueTeam = selectedTeamId && teamName && shortName;
   const canContinueDrivers = driver1 && driver2 && driver1 !== driver2;
 
+  // Conjunto de drivers com contrato neste ano (schema-agnóstico)
+  const contractedDriverIds = useMemo(() => {
+    const ids = new Set();
+    (contracts || []).forEach((c) => {
+      const id =
+        c.driver_id ?? c.person_id ?? c.driver ?? c.id ?? null;
+      if (id) ids.add(String(id));
+    });
+    return ids;
+  }, [contracts]);
+
+  // Listas derivadas
+  const freeDrivers = useMemo(() => {
+    return (drivers || [])
+      .filter((d) => d.status === "eligible")
+      .filter((d) => !contractedDriverIds.has(String(d.driver_id)))
+      .sort((a, b) => driverLabel(a).localeCompare(driverLabel(b)));
+  }, [drivers, contractedDriverIds]);
+
+  const allDriversWithFlag = useMemo(() => {
+    return (drivers || [])
+      .filter((d) => d.status !== "hidden")
+      .map((d) => ({
+        ...d,
+        _signed: contractedDriverIds.has(String(d.driver_id)),
+      }))
+      .sort((a, b) => driverLabel(a).localeCompare(driverLabel(b)));
+  }, [drivers, contractedDriverIds]);
+
+  const selectableDrivers = includeSigned ? allDriversWithFlag : freeDrivers;
+
   const onRandomizeDrivers = () => {
-    const pool = drivers.filter((d) => d.status === "eligible");
+    const pool = freeDrivers; // random só com LIVRES
     const picks = pickRandom(pool, 2);
     setDriver1(picks[0]?.driver_id || "");
     setDriver2(picks[1]?.driver_id || "");
@@ -337,6 +374,25 @@ export default function CreateTeam() {
         {step === 3 && (
           <Card className="bg-gray-600 border-0">
             <CardContent className="p-6 space-y-4">
+              {/* Toggle para incluir contratados */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm opacity-80">
+                  Showing{" "}
+                  <b>{freeDrivers.length}</b> free drivers
+                  {!includeSigned ? null : (
+                    <> + <b>{allDriversWithFlag.filter(d=>d._signed).length}</b> signed</>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={includeSigned}
+                    onChange={(e) => setIncludeSigned(e.target.checked)}
+                  />
+                  Include signed drivers
+                </label>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                 <div>
                   <label className="text-sm">Driver 1</label>
@@ -346,9 +402,9 @@ export default function CreateTeam() {
                     className="w-full h-10 rounded-md bg-gray-700 border border-gray-500 px-3"
                   >
                     <option value="" disabled>Pick driver</option>
-                    {drivers.map((d) => (
+                    {(selectableDrivers || []).map((d) => (
                       <option key={d.driver_id} value={d.driver_id}>
-                        {driverLabel(d)}
+                        {driverLabel(d)}{d._signed ? " (Signed)" : ""}
                       </option>
                     ))}
                   </select>
@@ -361,9 +417,9 @@ export default function CreateTeam() {
                     className="w-full h-10 rounded-md bg-gray-700 border border-gray-500 px-3"
                   >
                     <option value="" disabled>Pick driver</option>
-                    {drivers.map((d) => (
+                    {(selectableDrivers || []).map((d) => (
                       <option key={d.driver_id} value={d.driver_id}>
-                        {driverLabel(d)}
+                        {driverLabel(d)}{d._signed ? " (Signed)" : ""}
                       </option>
                     ))}
                   </select>
@@ -422,7 +478,9 @@ export default function CreateTeam() {
                   <div><b>Season:</b> {year}</div>
                   <div><b>Team:</b> {teamName} ({shortName})</div>
                   <div><b>Engine:</b> {engines.find((e) => e.id === engineId)?.name || "—"}</div>
-                  <div><b>Drivers:</b> {[driver1, driver2].map((id) => drivers.find((d) => d.driver_id === id))
+                  <div><b>Drivers:</b> {[driver1, driver2].map((id) =>
+                    (includeSigned ? allDriversWithFlag : freeDrivers).find((d) => d.driver_id === id)
+                  )
                     .map((d) => d ? driverLabel(d) : "?").join(" & ")}</div>
                 </div>
               </div>

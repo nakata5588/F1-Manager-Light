@@ -6,7 +6,16 @@
     "leadership": 95,
     "technical": 70,
     "strategy": 88,
-    "motivation": 82
+    "motivation": 82,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0016",
@@ -15,7 +24,16 @@
     "leadership": 75,
     "technical": 95,
     "strategy": 85,
-    "motivation": 88
+    "motivation": 88,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0017",
@@ -24,7 +42,16 @@
     "leadership": 72,
     "technical": 90,
     "strategy": 80,
-    "motivation": 83
+    "motivation": 83,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0002",
@@ -33,7 +60,16 @@
     "leadership": 85,
     "technical": 60,
     "strategy": 78,
-    "motivation": 85
+    "motivation": 85,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0003",
@@ -42,7 +78,16 @@
     "leadership": 98,
     "technical": 40,
     "strategy": 90,
-    "motivation": 86
+    "motivation": 86,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0025",
@@ -51,7 +96,16 @@
     "leadership": 70,
     "technical": 98,
     "strategy": 88,
-    "motivation": 87
+    "motivation": 87,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0018",
@@ -60,7 +114,16 @@
     "leadership": 68,
     "technical": 85,
     "strategy": 78,
-    "motivation": 79
+    "motivation": 79,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0004",
@@ -69,7 +132,16 @@
     "leadership": 82,
     "technical": 60,
     "strategy": 84,
-    "motivation": 80
+    "motivation": 80,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0005",
@@ -78,7 +150,16 @@
     "leadership": 95,
     "technical": 96,
     "strategy": 90,
-    "motivation": 93
+    "motivation": 93,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0006",
@@ -87,7 +168,16 @@
     "leadership": 90,
     "technical": 65,
     "strategy": 82,
-    "motivation": 88
+    "motivation": 88,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0019",
@@ -96,12 +186,34 @@
     "leadership": 78,
     "technical": 65,
     "strategy": 77,
-    "motivation": 75
+    "motivation": 75,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0007",
     "staff_name": "Franco Ambrosio",
-    "year": 1980
+    "year": 1980,
+    "leadership": null,
+    "technical": null,
+    "strategy": null,
+    "motivation": null,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0020",
@@ -110,7 +222,16 @@
     "leadership": 68,
     "technical": 87,
     "strategy": 76,
-    "motivation": 75
+    "motivation": 75,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0008",
@@ -119,12 +240,34 @@
     "leadership": 80,
     "technical": 70,
     "strategy": 76,
-    "motivation": 84
+    "motivation": 84,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0009",
     "staff_name": "Bruce McLaren",
-    "year": 1980
+    "year": 1980,
+    "leadership": null,
+    "technical": null,
+    "strategy": null,
+    "motivation": null,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0022",
@@ -133,7 +276,16 @@
     "leadership": 60,
     "technical": 75,
     "strategy": 72,
-    "motivation": 70
+    "motivation": 70,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0021",
@@ -142,12 +294,34 @@
     "leadership": 85,
     "technical": 68,
     "strategy": 83,
-    "motivation": 80
+    "motivation": 80,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0010",
     "staff_name": "Enzo Ferrari",
-    "year": 1980
+    "year": 1980,
+    "leadership": null,
+    "technical": null,
+    "strategy": null,
+    "motivation": null,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0023",
@@ -156,7 +330,16 @@
     "leadership": 82,
     "technical": 55,
     "strategy": 80,
-    "motivation": 80
+    "motivation": 80,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0024",
@@ -165,7 +348,16 @@
     "leadership": 78,
     "technical": 92,
     "strategy": 88,
-    "motivation": 82
+    "motivation": 82,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0011",
@@ -174,7 +366,16 @@
     "leadership": 84,
     "technical": 88,
     "strategy": 80,
-    "motivation": 82
+    "motivation": 82,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0012",
@@ -183,7 +384,16 @@
     "leadership": 70,
     "technical": 50,
     "strategy": 68,
-    "motivation": 70
+    "motivation": 70,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0013",
@@ -192,7 +402,16 @@
     "leadership": 76,
     "technical": 82,
     "strategy": 75,
-    "motivation": 78
+    "motivation": 78,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0014",
@@ -201,7 +420,16 @@
     "leadership": 74,
     "technical": 78,
     "strategy": 70,
-    "motivation": 75
+    "motivation": 75,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   },
   {
     "staff_id": "st_0015",
@@ -210,6 +438,15 @@
     "leadership": 78,
     "technical": 60,
     "strategy": 72,
-    "motivation": 76
+    "motivation": 76,
+    "communication": null,
+    "pitstop_management": null,
+    "reliability_focus": null,
+    "data_analysis": null,
+    "innovation": null,
+    "budget_management": null,
+    "driver_development": null,
+    "conflict_management": null,
+    "negotiation": null
   }
 ]

@@ -1,0 +1,152 @@
+[
+  {
+    "staff_id": "st_0001",
+    "staff_name": "Frank Williams",
+    "country": null,
+    "dob": "1942-04-16"
+  },
+  {
+    "staff_id": "st_0016",
+    "staff_name": "Patrick Head",
+    "country": null,
+    "dob": "1945-06-05"
+  },
+  {
+    "staff_id": "st_0017",
+    "staff_name": "Gérard Ducarouge",
+    "country": null,
+    "dob": "1941-10-01"
+  },
+  {
+    "staff_id": "st_0002",
+    "staff_name": "Guy Ligier",
+    "country": null,
+    "dob": "1930-07-12"
+  },
+  {
+    "staff_id": "st_0003",
+    "staff_name": "Bernie Ecclestone",
+    "country": null,
+    "dob": "1930-10-28"
+  },
+  {
+    "staff_id": "st_0025",
+    "staff_name": "Gordon Murray",
+    "country": null,
+    "dob": "1946-06-18"
+  },
+  {
+    "staff_id": "st_0018",
+    "staff_name": "François Castaing",
+    "country": null,
+    "dob": "1945-03-18"
+  },
+  {
+    "staff_id": "st_0004",
+    "staff_name": "Jean Sage",
+    "country": null,
+    "dob": "1945-03-27"
+  },
+  {
+    "staff_id": "st_0005",
+    "staff_name": "Colin Chapman",
+    "country": null,
+    "dob": "1928-05-19"
+  },
+  {
+    "staff_id": "st_0006",
+    "staff_name": "Ken Tyrrell",
+    "country": null,
+    "dob": "1924-05-03"
+  },
+  {
+    "staff_id": "st_0019",
+    "staff_name": "Alan Rees",
+    "country": null,
+    "dob": "1938-01-12"
+  },
+  {
+    "staff_id": "st_0007",
+    "staff_name": "Franco Ambrosio",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0020",
+    "staff_name": "Tony Southgate",
+    "country": null,
+    "dob": "1940-05-25"
+  },
+  {
+    "staff_id": "st_0008",
+    "staff_name": "Wilson Fittipaldi",
+    "country": null,
+    "dob": "1943-12-25"
+  },
+  {
+    "staff_id": "st_0009",
+    "staff_name": "Bruce McLaren",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0022",
+    "staff_name": "Steve Nichols",
+    "country": null,
+    "dob": "1950-01-01"
+  },
+  {
+    "staff_id": "st_0021",
+    "staff_name": "Teddy Mayer",
+    "country": null,
+    "dob": "1935-09-08"
+  },
+  {
+    "staff_id": "st_0010",
+    "staff_name": "Enzo Ferrari",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0023",
+    "staff_name": "Marco Piccinini",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0024",
+    "staff_name": "Mauro Forghieri",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0011",
+    "staff_name": "Carlo Chiti",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0012",
+    "staff_name": "Günter Schmid",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0013",
+    "staff_name": "Mo Nunn",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0014",
+    "staff_name": "Enzo Osella",
+    "country": null,
+    "dob": null
+  },
+  {
+    "staff_id": "st_0015",
+    "staff_name": "Don Nichols",
+    "country": null,
+    "dob": null
+  }
+]

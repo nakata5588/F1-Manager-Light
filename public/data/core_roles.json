@@ -1,0 +1,42 @@
+[
+  {
+    "role_id": "team_principal",
+    "name": "Team Principal"
+  },
+  {
+    "role_id": "technical_director",
+    "name": "Technical Director"
+  },
+  {
+    "role_id": "chief_engineer",
+    "name": "Chief Engineer"
+  },
+  {
+    "role_id": "race_engineer",
+    "name": "Race Engineer"
+  },
+  {
+    "role_id": "chief_strategist",
+    "name": "Chief Strategist"
+  },
+  {
+    "role_id": "main_driver",
+    "name": "Driver"
+  },
+  {
+    "role_id": "second_driver",
+    "name": "Driver"
+  },
+  {
+    "role_id": "test_driver",
+    "name": "Test Driver"
+  },
+  {
+    "role_id": "junior",
+    "name": "Academy Driver"
+  },
+  {
+    "role_id": "owner",
+    "name": "Owner"
+  }
+]

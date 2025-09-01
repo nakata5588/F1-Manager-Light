@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Topbar from "@/components/Topbar";
 import { useGame } from "./state/GameStore";
 import HubLayout from "./layouts/HubLayout.jsx";
 
@@ -16,7 +17,6 @@ import HQ from "./pages/HQ.jsx";
 import Inbox from "./pages/Inbox.jsx";
 import LoadGame from "./pages/LoadGame.jsx";
 import MainMenu from "./pages/MainMenu.jsx";
-import MainScreen from "./pages/MainScreen.jsx"; // opcional (demo)
 import NewGame from "./pages/NewGame.jsx";
 import CreateTeam from "./pages/CreateTeam.jsx";
 import Scouting from "./pages/Scouting.jsx";
@@ -58,7 +58,6 @@ export default function App() {
       <Routes>
         {/* === Pré-jogo (SEM HubLayout) === */}
         <Route path="/" element={<MainMenu />} />
-        <Route path="/MainScreen" element={<MainScreen />} /> {/* opcional */}
         <Route path="/NewGame" element={<NewGame />} />
         <Route path="/CreateTeam" element={<CreateTeam />} />
         <Route path="/LoadGame" element={<LoadGame />} />

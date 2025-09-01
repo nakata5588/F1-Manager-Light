@@ -4,7 +4,7 @@ import { ageOn } from "../utils/date.js";
 
 const headers = [
   { key: "name", label: "Driver" },
-  { key: "team", label: "Team" },
+  { key: "team_name", label: "Team" },
   { key: "nationality", label: "Nat." },
   { key: "age", label: "Age", numeric: true },
   { key: "current_ability", label: "Overall", numeric: true },
@@ -132,7 +132,7 @@ export default function Drivers() {
             ) : paged.map(d => (
               <tr key={d.id} className="border-t">
                 <td className="px-4 py-2">{d.name}</td>
-                <td className="px-4 py-2">{d.team ?? "—"}</td>
+                <td className="px-4 py-2">{d.team_name ?? "—"}</td>
                 <td className="px-4 py-2">{d.nationality ?? "—"}</td>
                 <td className="px-4 py-2">{d.age ?? "—"}</td>
                 <td className="px-4 py-2">{d.current_ability ?? "—"}</td>

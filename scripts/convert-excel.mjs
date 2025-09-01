@@ -7,97 +7,22 @@ const ROOT = process.cwd();
 const SRC_XLSX = process.env.DB_XLSX || path.join(ROOT, "data", "f1_db.xlsx");
 const OUT_DIR = path.join(ROOT, "public", "data");
 
-// ---- Configuração dos alvos (folhas + mapeamento de colunas) ----
-const TARGETS = [
-  {
-  key: "drivers",
-  out: "drivers.json",
-  sheetAliases: ["drivers","pilotos","driver","roster","drivers_1980","drivers80"],
-  columns: {
-    // id
-    id: ["id","driver_id","codigo","cod"],
-
-    // nome — aceita várias formas
-    name: ["name","driver","nome","piloto","full_name","fullname"],
-    first_name: ["first_name","firstname","given_name","given","nome_proprio","nome1"],
-    last_name: ["last_name","lastname","family_name","surname","apelido","sobrenome"],
-
-    // equipa
-    team: ["team","equipa","constructor","escuderia","team_name","constructor_name","equipa_nome","constructorid","teamid"],
-
-    // nacionalidade / país
-    nationality: ["nationality","nat","pais","país","country","nation"],
-
-    // datas
-    birthdate: ["birthdate","dob","data_nasc","nascimento","data_nascimento"],
-
-    // overall / rating
-    current_ability: ["current_ability","overall","ovr","rating","habilidade","habilidade_atual","ca"],
-
-    // contrato
-    contract_until: ["contract_until","contract","contract_end","fim_contrato","contrato_ate","validade","contractuntil"]
-  },
-  post(row) {
-    // construir name se vier separado
-    let name = row.name;
-    if (!name && (row.first_name || row.last_name)) {
-      name = [row.first_name, row.last_name].filter(Boolean).join(" ");
-    }
-    return {
-      ...row,
-      name,
-      birthdate: toISO(row.birthdate) ?? row.birthdate ?? null,
-      contract_until: toISO(row.contract_until) ?? row.contract_until ?? null
-    };
-  }
-},
-  {
-    key: "calendar",
-  out: "calendar.json",
-  sheetAliases: ["calendar", "calendario", "schedule", "races", "gps", "season_calendar", "calendar_1980"],
-  // mapeamento de cabeçalhos da tua folha
-  columns: {
-    id: ["id", "race_id", "gp_id", "round_id"],         // aceita gp_id como id
-    name: ["name", "gp", "race", "nome", "grande_premio", "grand_prix", "gp_name", "gpname"],
-    country: ["country", "pais", "país", "location", "circuit_country"],
-    dateISO: ["dateiso", "date", "data", "race_date"],
-    year: ["year", "season"],
-    round: ["round", "rd"],
-    track_id: ["track_id", "circuit_id", "track"]       // opcional
-  },
-  post(row) {
-    // normalizar datas e garantir tipos simpáticos
-    const out = {
-      ...row,
-      dateISO: toISO(row.dateISO) ?? row.dateISO ?? null
-    };
-    if (out.year != null) out.year = Number(out.year);
-    if (out.round != null) out.round = Number(out.round);
-    return out;;
-    }
-  },
-  {
-    key: "teams",
-    out: "teams.json",
-    sheetAliases: ["teams", "equipas", "constructors", "escuderias", "teams_1980"],
-    columns: {
-      id: ["id", "team_id", "constructor_id", "codigo"],
-      name: ["name", "team", "constructor", "nome", "equipa", "official_name", "oficial_name"],
-      short_name: ["short_name", "short", "abreviado", "sigla"]
-    }
-  }
-];
-
-// ---- Helpers ----
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
-}
+// ---------- Utils ----------
+function ensureDir(p) { fs.mkdirSync(p, { recursive: true }); }
 
 function norm(s) {
   return String(s ?? "")
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "");
+}
+function slug(s) {
+  return String(s ?? "")
+    .trim()
+    .replace(/[^\w\-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
 }
 
 function readHeader(ws) {
@@ -106,22 +31,6 @@ function readHeader(ws) {
     headers.push(String(cell?.value ?? "").trim());
   });
   return headers;
-}
-
-function mapHeaders(headers, colSynonyms) {
-  const pairs = [];
-  const normed = headers.map(norm);
-  const keys = Object.keys(colSynonyms);
-  for (let i = 0; i < normed.length; i++) {
-    const h = normed[i];
-    let matched = null;
-    for (const key of keys) {
-      const syns = colSynonyms[key].map(norm);
-      if (syns.includes(h)) { matched = key; break; }
-    }
-    if (matched) pairs.push({ idx: i + 1, key: matched });
-  }
-  return pairs;
 }
 
 function isEmptyRow(row) {
@@ -144,7 +53,7 @@ function toISO(dateLike) {
     return d.toISOString().slice(0, 10);
   }
   if (typeof dateLike === "number") {
-    // Excel serial date (base 1899-12-30)
+    // Excel 1900 date system (base 1899-12-30)
     const base = new Date(Date.UTC(1899, 11, 30));
     const ms = dateLike * 86400000;
     return new Date(base.getTime() + ms).toISOString().slice(0, 10);
@@ -157,73 +66,373 @@ function toISO(dateLike) {
   return null;
 }
 
-function rowToObj(row, headerMap) {
+function looksLikeDateHeader(h) {
+  const n = norm(h);
+  return (
+    n.includes("date") ||
+    n.endsWith("dob") ||
+    n.endsWith("_dt") ||
+    n.endsWith("_iso") ||
+    n.includes("race_date") ||
+    n.includes("contract_end") ||
+    n.includes("contract_until") ||
+    n.includes("nascimento") ||
+    n.includes("falecimento")
+  );
+}
+
+function cleanHeader(h) {
+  if (!h || /^Unnamed:\s*\d+$/i.test(h) || h === "-" ) return null;
+  return h;
+}
+
+/**
+ * rowToObjExpanded
+ * - parte de TODAS as colunas originais (pass-through)
+ * - aplica renomes/synonyms para gerar chaves canónicas (sem perder as originais)
+ * - normaliza datas
+ */
+function rowToObjExpanded(row, headers, cfg) {
   const obj = {};
-  for (const { idx, key } of headerMap) {
-    let v = row.getCell(idx)?.value;
+  // 1) Pass-through das colunas originais
+  headers.forEach((h, idx) => {
+    if (!h) return;
+    let v = row.getCell(idx + 1)?.value;
     if (v && typeof v === "object" && "text" in v) v = v.text;
-    obj[key] = v instanceof Date ? toISO(v) : v;
+    if (v instanceof Date) v = toISO(v);
+    if (typeof v === "number" && looksLikeDateHeader(h)) {
+      const iso = toISO(v);
+      if (iso) v = iso;
+    }
+    obj[h] = v;
+  });
+
+  // 2) Renomes/synonyms → canónicas (não remove as originais)
+  if (cfg?.columns) {
+    for (const [canonical, variants] of Object.entries(cfg.columns)) {
+      let found = null;
+      for (const cand of variants) {
+        if (obj[cand] != null && obj[cand] !== "") { found = obj[cand]; break; }
+      }
+      if (found != null) obj[canonical] = found;
+    }
   }
+
+  // 3) Normalizações extras
+  if (cfg?.post) return cfg.post(obj);
   return obj;
 }
 
-function scoreHeader(headers, colSynonyms) {
-  const set = new Set(headers.map(norm));
-  let score = 0;
-  for (const key of Object.keys(colSynonyms)) {
-    const syns = colSynonyms[key].map(norm);
-    if (syns.some((s) => set.has(s))) score++;
-  }
-  return score;
-}
-
-async function extractTarget(wb, target, envVarName) {
-  // 1) escolher folha (ENV override -> alias -> heurística)
-  const all = wb.worksheets.map((w) => w.name);
-  let ws = null;
-
-  const forced = process.env[envVarName];
-  if (forced) {
-    ws = wb.getWorksheet(forced);
-    if (!ws) console.warn(`[convert-excel] Sheet "${forced}" (from ${envVarName}) not found.`);
-  }
-  if (!ws) {
-    const byAlias = all.find((n) => target.sheetAliases.map(norm).includes(norm(n)));
-    if (byAlias) ws = wb.getWorksheet(byAlias);
-  }
-  if (!ws) {
-    let best = null;
-    let bestScore = -1;
-    for (const name of all) {
-      const tmp = wb.getWorksheet(name);
-      const header = readHeader(tmp);
-      const score = scoreHeader(header, target.columns);
-      if (score > bestScore) { bestScore = score; best = tmp; }
+// ---------- Config por sheet (synonyms + normalizações) ----------
+/**
+ * Nota:
+ * - Mantemos os nomes originais de coluna no JSON (pass-through).
+ * - Adicionalmente criamos campos canónicos quando úteis (ex.: "id", "name", "dateISO"...).
+ * - Se uma folha não estiver listada em SHEET_CONFIG, é processada genericamente.
+ */
+const SHEET_CONFIG = {
+  // Drivers master
+  drivers: {
+    out: "drivers.json",
+    columns: {
+      id: ["driver_id","id","codigo","cod"],
+      name: ["display_name","name","fullname","full_name","driver_name"],
+      nationality: ["country_name","country","nationality","nat","country_code"],
+      birthdate: ["dob","birthdate","data_nascimento","data_nasc"],
+      portrait_path: ["portrait_path","portrait","photo","image","img"],
+      helmet_color_primary: ["helmet_color_primary"],
+      helmet_color_secondary: ["helmet_color_secondary"],
+      prefered_number: ["prefered_number","preferred_number","race_number","number"],
+      status: ["status"],
+      active_1980: ["1980","active_1980","activein1980"],
+    },
+    post(row) {
+      // datas
+      row.birthdate_iso = toISO(row.birthdate) ?? toISO(row.dob) ?? null;
+      if ("dob" in row && !row.birthdate) row.birthdate = row.dob;
+      // coerções
+      if (row.prefered_number != null) row.prefered_number = Number(row.prefered_number);
+      if (typeof row.active_1980 === "string") {
+        row.active_1980 = row.active_1980.trim().toLowerCase() === "true";
+      } else if (row.active_1980 != null) {
+        row.active_1980 = Boolean(row.active_1980);
+      }
+      return row;
     }
-    if (bestScore > 0) ws = best;
-  }
+  },
 
-  if (!ws) {
-    console.warn(`[convert-excel] Sheet for "${target.key}" not found — writing empty ${target.out}. Candidates: ${all.join(", ")}`);
-    return [];
-  }
+  // Driver ratings por ano
+  driver_ratings: {
+    out: "driver_ratings.json",
+    columns: {
+      year: ["year","ano"],
+      driver_id: ["driver_id","id"],
+      driver_name: ["driver_name","display_name","name"],
+      current_ability: ["current_ability","overall","rating","ovr"],
+      potential_ability: ["potential_ability","pa"],
+      // atributos longos: mantemos pass-through; canónicos acima já chegam
+    }
+  },
 
-  // 2) mapear cabeçalhos
-  const headers = readHeader(ws);
-  const headerMap = mapHeaders(headers, target.columns);
-  if (headerMap.length === 0) {
-    console.warn(`[convert-excel] Sheet "${ws.name}" for "${target.key}" has no recognizable columns.\n  Headers: ${headers.join(" | ")}`);
-  }
+  // Histórico/Carreira
+  driver_career: {
+    out: "driver_career.json",
+    columns: {
+      driver_id: ["driver_id","id"],
+      driver_name: ["driver_name","name","display_name"],
+      year: ["year"],
+      series_division: ["series_division","division","series"],
+      team_id: ["team_id"],
+      team_name: ["team_name","team"],
+      races: ["races","starts"],
+      wins: ["wins"],
+      podiums: ["podiums","podios"],
+      poles: ["poles","pole_positions"],
+      fastest_laps: ["fastest_laps"],
+      points: ["points"],
+      champ_pos: ["champ_pos","championship_position","position"],
+      order: ["order","sort"]
+    }
+  },
 
-  // 3) varrer linhas
-  const out = [];
+  // Staff master
+  staff_core: {
+    out: "staff_core.json",
+    columns: {
+      staff_id: ["staff_id","id"],
+      staff_name: ["staff_name","name","display_name"],
+      country_name: ["country_name","nationality","country"],
+      role_id: ["role_id","role","cargo"]
+    }
+  },
+
+  // Staff ratings
+  staff_ratings: {
+    out: "staff_ratings.json",
+    columns: {
+      year: ["year"],
+      staff_id: ["staff_id","id"],
+      staff_name: ["staff_name","name","display_name"],
+      // atributos mantêm pass-through
+    }
+  },
+
+  // Teams
+  teams: {
+    out: "teams.json",
+    columns: {
+      team_id: ["team_id","id","constructor_id"],
+      team_name: ["team_name","name","official_name","oficial_name","equipa"],
+      team_base: ["team_base","base","hq","headquarters","city","location"]
+    },
+    post(row) {
+      // short_name gerado se não existir
+      if (!row.short_name && row.team_name) {
+        row.short_name = String(row.team_name).split(" ")[0];
+      }
+      return row;
+    }
+  },
+
+  team_brands: { out: "team_brands.json" },
+  team_engines: { out: "team_engines.json" },
+
+  // Contratos (genérico)
+  contracts: {
+    out: "contracts.json",
+    columns: {
+      year: ["year"],
+      team_id: ["team_id"],
+      team_name: ["team_name"],
+      driver_id: ["driver_id"],
+      driver_name: ["driver_name","display_name","name"],
+      contract_end: ["contract_end","contract_until","end_date"],
+    },
+    post(row) {
+      if (row.contract_end) row.contract_end_iso = toISO(row.contract_end);
+      return row;
+    }
+  },
+
+  // Pistas base
+  core_tracks: {
+    out: "core_tracks.json",
+    columns: {
+      track_id: ["track_id","circuit_id","id"],
+      track_name: ["track_name","name","circuit_name"],
+      country: ["country","pais","país","location"]
+    }
+  },
+
+  // Calendário
+  calendar: {
+    out: "calendar.json",
+    columns: {
+      year: ["year","season"],
+      round: ["round","rd"],
+      gp_name: ["gp_name","name","gp","race","grand_prix","grande_premio"],
+      gp_id: ["gp_id","id","race_id"],
+      track_id: ["track_id","circuit_id","track"],
+      race_date: ["race_date","date","data"]
+    },
+    post(row) {
+      row.dateISO = toISO(row.race_date) ?? toISO(row.date) ?? null;
+      if (!row.country && row.Country) row.country = row.Country; // normalização simples
+      return row;
+    }
+  },
+
+  // Resultados de corrida
+  race_results: {
+    out: "race_results.json",
+    columns: {
+      year: ["year"],
+      round: ["round"],
+      gp_name: ["gp_name","race","name"],
+      gp_id: ["gp_id","race_id","id"],
+      track_id: ["track_id","circuit_id"],
+      race_date: ["race_date","date"],
+      driver_id: ["driver_id","id"],
+      driver_name: ["driver_name","name","display_name"],
+    },
+    post(row) {
+      row.dateISO = toISO(row.race_date) ?? null;
+      return row;
+    }
+  },
+
+  // Motores base
+  core_engines: {
+    out: "core_engines.json",
+    columns: {
+      engine_id: ["engine_id","id"],
+      engine_name: ["engine_name","name"],
+      aspiration: ["aspiration"]
+      // restantes métricas mantêm pass-through
+    }
+  },
+
+  // Sponsors catálogo (com correção de coluna "sposor_name")
+  core_sponsors_catalog: {
+    out: "core_sponsors_catalog.json",
+    columns: {
+      sponsor_id: ["sponsor_id","id"],
+      sponsor_name: ["sponsor_name","sposor_name","name"],
+      industry: ["industry","sector"]
+    }
+  },
+
+  // Sponsors contratos
+  sponsors_contracts: {
+    out: "sponsors_contracts.json",
+    columns: {
+      year: ["year"],
+      team_id: ["team_id"],
+      team_name: ["team_name"],
+      sponsor_id: ["sponsor_id"],
+      sponsor_name: ["sponsor_name","name"],
+      tier: ["tier"],
+      duration_years: ["duration_years","duration"]
+    }
+  },
+
+  // Regras
+  rules: {
+    out: "rules.json",
+    columns: {
+      year: ["year"],
+      points_system: ["points_system","points"],
+      fastest_lap_points: ["fastest_lap_points","fl_points"],
+      currency: ["currency","moeda"]
+    }
+  },
+
+  // Qualifying rules (tem "Year" capitalizado)
+  qualifying_rules: {
+    out: "qualifying_rules.json",
+    columns: {
+      year: ["Year","year"],
+      sessions: ["Sessions","sessions"],
+      length: ["Length","length"],
+      rule: ["Rule","rule"]
+    }
+  },
+
+  // Segurança por era
+  era_safety: {
+    out: "era_safety.json",
+    columns: {
+      year: ["year"],
+      era_safety_index: ["era_safety_index"],
+      car_safety: ["car_safety"],
+      medical_response: ["medical_response"],
+      marshals_quality: ["marshals_quality"]
+    }
+  },
+
+  // Modelo de acidentes
+  accident_model: {
+    out: "accident_model.json",
+    columns: {
+      year: ["year"],
+      minor_prob: ["minor_prob"],
+      damage_DNF_prob: ["damage_DNF_prob","damage_dnf_prob"],
+      injury_prob: ["injury_prob"],
+      fatality_prob: ["fatality_prob"]
+    }
+  },
+
+  // Atributos base
+  core_driver_attributes: { out: "core_driver_attributes.json" },
+  core_staff_attributes: { out: "core_staff_attributes.json" },
+  core_roles: { out: "core_roles.json" },
+
+  // Séries (limpamos colunas Unnamed/-)
+  Series: {
+    out: "series.json",
+    columns: {
+      series_id: ["series_id","id"],
+      series_division: ["series_division","division"],
+      series_short_name: ["series_short_name","short_name","short"],
+      series_name: ["series_name","name","title"]
+    }
+  },
+
+  // Pesos de atributos de piloto
+  driver_attribute_weights: {
+    out: "driver_attribute_weights.json",
+    columns: {
+      attribute: ["attribute","key","attr"],
+      // restantes colunas ficam pass-through
+    }
+  }
+};
+
+// ---------- Pipeline ----------
+async function processSheet(wb, ws) {
+  const name = ws.name;
+  const cfg = SHEET_CONFIG[name] || null;
+
+  // 1) headers limpos
+  const rawHeaders = readHeader(ws);
+  const headers = rawHeaders.map(cleanHeader).map((h, i) => h ?? `col_${i+1}`);
+  const dropIdx = rawHeaders.map((h, i) => cleanHeader(h) ? null : i);
+
+  // 2) rows
+  const rows = [];
   for (let r = 2; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     if (isEmptyRow(row)) continue;
-    const obj = rowToObj(row, headerMap);
-    out.push(target.post ? target.post(obj) : obj);
+    const obj = rowToObjExpanded(row, headers, cfg);
+    // remove chaves col_* que correspondem a Unnamed/- (se ficaram vazias)
+    for (const di of dropIdx) {
+      if (di != null) delete obj[`col_${di+1}`];
+    }
+    rows.push(obj);
   }
-  return out;
+
+  const outName = cfg?.out || `${slug(name)}.json`;
+  return { outName, rows };
 }
 
 async function main() {
@@ -232,25 +441,22 @@ async function main() {
     process.exit(1);
   }
 
+  ensureDir(OUT_DIR);
+
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(SRC_XLSX);
 
-  ensureDir(OUT_DIR);
+  const sheets = wb.worksheets;
+  console.log(`[convert-excel] Sheets detected: ${sheets.map(s => s.name).join(", ")}`);
 
-  const envNames = {
-    drivers: "DB_SHEET_DRIVERS",
-    calendar: "DB_SHEET_CALENDAR",
-    teams: "DB_SHEET_TEAMS"
-  };
-
-  for (const target of TARGETS) {
-    const rows = await extractTarget(wb, target, envNames[target.key]);
-    const outPath = path.join(OUT_DIR, target.out);
-    fs.writeFileSync(outPath, JSON.stringify(rows ?? [], null, 2), "utf8");
-    console.log(`[convert-excel] Wrote ${target.out} (${rows?.length ?? 0} rows)`);
+  for (const ws of sheets) {
+    const { outName, rows } = await processSheet(wb, ws);
+    const outPath = path.join(OUT_DIR, outName);
+    fs.writeFileSync(outPath, JSON.stringify(rows, null, 2), "utf8");
+    console.log(`[convert-excel] Wrote ${outName} (${rows.length} rows)`);
   }
 
-  console.log(`[convert-excel] Sheets detected: ${wb.worksheets.map((w) => w.name).join(", ")}`);
+  console.log(`[convert-excel] Done.`);
 }
 
 main().catch((e) => {

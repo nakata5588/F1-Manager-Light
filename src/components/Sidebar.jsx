@@ -20,7 +20,6 @@ export default function Sidebar() {
     <aside className="w-56 shrink-0 border-r bg-white p-3 flex flex-col gap-1">
       <div className="px-2 py-1 text-xs font-semibold text-gray-500">Main</div>
       <Item to="/MainMenu"     label="Main Menu"     icon="🏁" />
-      <Item to="/MainScreen"   label="Main Screen"   icon="🖥️" />
       <Item to="/Home"         label="Home"          icon="🏠" />
       <Item to="/CalendarPage" label="Calendar"      icon="🗓️" />
       <Item to="/Inbox"        label="Inbox"         icon="📨" />
