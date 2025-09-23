@@ -1,442 +1,2243 @@
 [
   {
     "year": 1980,
-    "team_id": "t_0001",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C2,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
     "team_name": "Williams",
-    "driver_id": "d_0001",
-    "driver_name": "Alan Jones",
-    "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "driver_id": "d_0002",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E2,drivers!$B:$B,0)),\"\")",
+      "result": "d_0199"
+    },
     "driver_name": "Carlos Reutemann",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 28,
+    "salary": 600000,
+    "bonus_win": 40000,
+    "bonus_podium": 20000,
+    "bonus_championship": 150000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0002",
-    "team_name": "Ligier",
-    "driver_id": "d_0006",
-    "driver_name": "Jacques Laffite",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C3,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E3,drivers!$B:$B,0)),\"\")",
+      "result": "d_0178"
+    },
+    "driver_name": "Alan Jones",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 27,
+    "salary": 800000,
+    "bonus_win": 50000,
+    "bonus_podium": 25000,
+    "bonus_championship": 200000,
+    "contract_start_year": 1978,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0002",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C4,teams!$B:$B,0)),\"\")",
+      "result": "t_0002"
+    },
     "team_name": "Ligier",
-    "driver_id": "d_0007",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E4,drivers!$B:$B,0)),\"\")",
+      "result": "d_0202"
+    },
     "driver_name": "Didier Pironi",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 26,
+    "salary": 350000,
+    "bonus_win": 25000,
+    "bonus_podium": 12000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1978,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0003",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C5,teams!$B:$B,0)),\"\")",
+      "result": "t_0002"
+    },
+    "team_name": "Ligier",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E5,drivers!$B:$B,0)),\"\")",
+      "result": "d_0172"
+    },
+    "driver_name": "Jacques Laffite",
+    "role": "main_driver",
+    "driver_number": 25,
+    "salary": 500000,
+    "bonus_win": 30000,
+    "bonus_podium": 15000,
+    "bonus_championship": 120000,
+    "contract_start_year": 1976,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
+  },
+  {
+    "year": 1980,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C6,teams!$B:$B,0)),\"\")",
+      "result": "t_0003"
+    },
     "team_name": "Brabham",
-    "driver_id": "d_0005",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E6,drivers!$B:$B,0)),\"\")",
+      "result": "d_0137"
+    },
     "driver_name": "Nelson Piquet",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 5,
+    "salary": 700000,
+    "bonus_win": 40000,
+    "bonus_podium": 20000,
+    "bonus_championship": 150000,
+    "contract_start_year": 1978,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0003",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C7,teams!$B:$B,0)),\"\")",
+      "result": "t_0003"
+    },
     "team_name": "Brabham",
-    "driver_id": "d_0022",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E7,drivers!$B:$B,0)),\"\")",
+      "result": "d_0217"
+    },
     "driver_name": "Ricardo Zunino",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 6,
+    "salary": 200000,
+    "bonus_win": 15000,
+    "bonus_podium": 8000,
+    "bonus_championship": 50000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0004",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C8,teams!$B:$B,0)),\"\")",
+      "result": "t_0004"
+    },
     "team_name": "Renault",
-    "driver_id": "d_0008",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E8,drivers!$B:$B,0)),\"\")",
+      "result": "d_0163"
+    },
     "driver_name": "René Arnoux",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 15,
+    "salary": 450000,
+    "bonus_win": 30000,
+    "bonus_podium": 15000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0004",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C9,teams!$B:$B,0)),\"\")",
+      "result": "t_0004"
+    },
     "team_name": "Renault",
-    "driver_id": "d_0010",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E9,drivers!$B:$B,0)),\"\")",
+      "result": "d_0219"
+    },
     "driver_name": "Jean-Pierre Jabouille",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 16,
+    "salary": 500000,
+    "bonus_win": 30000,
+    "bonus_podium": 15000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0004",
-    "team_name": "Renault",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0005",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C10,teams!$B:$B,0)),\"\")",
+      "result": "t_0005"
+    },
     "team_name": "Lotus",
-    "driver_id": "d_0009",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E10,drivers!$B:$B,0)),\"\")",
+      "result": "d_0173"
+    },
     "driver_name": "Elio de Angelis",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 11,
+    "salary": 300000,
+    "bonus_win": 20000,
+    "bonus_podium": 10000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0005",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C11,teams!$B:$B,0)),\"\")",
+      "result": "t_0005"
+    },
     "team_name": "Lotus",
-    "driver_id": "d_0020",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E11,drivers!$B:$B,0)),\"\")",
+      "result": "d_0207"
+    },
     "driver_name": "Mario Andretti",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 12,
+    "salary": 700000,
+    "bonus_win": 40000,
+    "bonus_podium": 20000,
+    "bonus_championship": 150000,
+    "contract_start_year": 1976,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0005",
-    "team_name": "Lotus",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0006",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C12,teams!$B:$B,0)),\"\")",
+      "result": "t_0006"
+    },
     "team_name": "Tyrrell",
-    "driver_id": "d_0014",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E12,drivers!$B:$B,0)),\"\")",
+      "result": "d_0206"
+    },
     "driver_name": "Derek Daly",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 3,
+    "salary": 250000,
+    "bonus_win": 18000,
+    "bonus_podium": 9000,
+    "bonus_championship": 70000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0006",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C13,teams!$B:$B,0)),\"\")",
+      "result": "t_0006"
+    },
     "team_name": "Tyrrell",
-    "driver_id": "d_0015",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E13,drivers!$B:$B,0)),\"\")",
+      "result": "d_0197"
+    },
     "driver_name": "Jean-Pierre Jarier",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 4,
+    "salary": 400000,
+    "bonus_win": 25000,
+    "bonus_podium": 12000,
+    "bonus_championship": 90000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0006",
-    "team_name": "Tyrrell",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0007",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C14,teams!$B:$B,0)),\"\")",
+      "result": "t_0007"
+    },
     "team_name": "Arrows",
-    "driver_id": "d_0011",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E14,drivers!$B:$B,0)),\"\")",
+      "result": "d_0119"
+    },
     "driver_name": "Riccardo Patrese",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 29,
+    "salary": 450000,
+    "bonus_win": 25000,
+    "bonus_podium": 12000,
+    "bonus_championship": 90000,
+    "contract_start_year": 1978,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0007",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C15,teams!$B:$B,0)),\"\")",
+      "result": "t_0007"
+    },
     "team_name": "Arrows",
-    "driver_id": "d_0018",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E15,drivers!$B:$B,0)),\"\")",
+      "result": "d_0200"
+    },
     "driver_name": "Jochen Mass",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 30,
+    "salary": 300000,
+    "bonus_win": 20000,
+    "bonus_podium": 10000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0007",
-    "team_name": "Arrows",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0008",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C16,teams!$B:$B,0)),\"\")",
+      "result": "t_0008"
+    },
     "team_name": "Fittipaldi",
-    "driver_id": "d_0012",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E16,drivers!$B:$B,0)),\"\")",
+      "result": "d_0177"
+    },
     "driver_name": "Keke Rosberg",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 14,
+    "salary": 200000,
+    "bonus_win": 15000,
+    "bonus_podium": 8000,
+    "bonus_championship": 60000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0008",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C17,teams!$B:$B,0)),\"\")",
+      "result": "t_0008"
+    },
     "team_name": "Fittipaldi",
-    "driver_id": "d_0016",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E17,drivers!$B:$B,0)),\"\")",
+      "result": "d_0224"
+    },
     "driver_name": "Emerson Fittipaldi",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 33,
+    "salary": 500000,
+    "bonus_win": 30000,
+    "bonus_podium": 15000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1975,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0008",
-    "team_name": "Fittipaldi",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0009",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C18,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
     "team_name": "McLaren",
-    "driver_id": "d_0013",
-    "driver_name": "John Watson",
-    "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "driver_id": "d_0017",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E18,drivers!$B:$B,0)),\"\")",
+      "result": "d_0117"
+    },
     "driver_name": "Alain Prost",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 8,
+    "salary": 250000,
+    "bonus_win": 20000,
+    "bonus_podium": 10000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0009",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C19,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
     "team_name": "McLaren",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E19,drivers!$B:$B,0)),\"\")",
+      "result": "d_0187"
+    },
+    "driver_name": "John Watson",
+    "role": "main_driver",
+    "driver_number": 7,
+    "salary": 600000,
+    "bonus_win": 35000,
+    "bonus_podium": 18000,
+    "bonus_championship": 120000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0010",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C20,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
     "team_name": "Ferrari",
-    "driver_id": "d_0003",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E20,drivers!$B:$B,0)),\"\")",
+      "result": "d_0203"
+    },
     "driver_name": "Gilles Villeneuve",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 2,
+    "salary": 650000,
+    "bonus_win": 40000,
+    "bonus_podium": 20000,
+    "bonus_championship": 150000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0010",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C21,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
     "team_name": "Ferrari",
-    "driver_id": "d_0004",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E21,drivers!$B:$B,0)),\"\")",
+      "result": "d_0222"
+    },
     "driver_name": "Jody Scheckter",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 1,
+    "salary": 700000,
+    "bonus_win": 40000,
+    "bonus_podium": 20000,
+    "bonus_championship": 150000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0011",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C22,teams!$B:$B,0)),\"\")",
+      "result": "t_0011"
+    },
     "team_name": "Alfa Romeo",
-    "driver_id": "d_0019",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E22,drivers!$B:$B,0)),\"\")",
+      "result": "d_0152"
+    },
     "driver_name": "Bruno Giacomelli",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 22,
+    "salary": 350000,
+    "bonus_win": 20000,
+    "bonus_podium": 10000,
+    "bonus_championship": 90000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0011",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C23,teams!$B:$B,0)),\"\")",
+      "result": "t_0011"
+    },
     "team_name": "Alfa Romeo",
-    "driver_id": "d_0024",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E23,drivers!$B:$B,0)),\"\")",
+      "result": "d_0221"
+    },
     "driver_name": "Patrick Depailler",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 23,
+    "salary": 400000,
+    "bonus_win": 25000,
+    "bonus_podium": 12000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0011",
-    "team_name": "Alfa Romeo",
-    "driver_id": "st_0011",
-    "driver_name": "Carlo Chiti",
-    "role": "chief_engineer,team_principal",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": 220000
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0012",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C24,teams!$B:$B,0)),\"\")",
+      "result": "t_0012"
+    },
     "team_name": "ATS",
-    "driver_id": "d_0023",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E24,drivers!$B:$B,0)),\"\")",
+      "result": "d_0176"
+    },
     "driver_name": "Marc Surer",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 9,
+    "salary": 250000,
+    "bonus_win": 18000,
+    "bonus_podium": 9000,
+    "bonus_championship": 70000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0012",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C25,teams!$B:$B,0)),\"\")",
+      "result": "t_0012"
+    },
     "team_name": "ATS",
-    "driver_id": "d_0026",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E25,drivers!$B:$B,0)),\"\")",
+      "result": "d_0136"
+    },
     "driver_name": "Jan Lammers",
     "role": "second_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 10,
+    "salary": 200000,
+    "bonus_win": 15000,
+    "bonus_podium": 8000,
+    "bonus_championship": 60000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0012",
-    "team_name": "ATS",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0013",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C26,teams!$B:$B,0)),\"\")",
+      "result": "t_0013"
+    },
     "team_name": "Ensign",
-    "driver_id": "d_0021",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E26,drivers!$B:$B,0)),\"\")",
+      "result": "d_0223"
+    },
     "driver_name": "Clay Regazzoni",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 36,
+    "salary": 300000,
+    "bonus_win": 20000,
+    "bonus_podium": 10000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0013",
-    "team_name": "Ensign",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0014",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C27,teams!$B:$B,0)),\"\")",
+      "result": "t_0014"
+    },
     "team_name": "Osella",
-    "driver_id": "d_0028",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E27,drivers!$B:$B,0)),\"\")",
+      "result": "d_0158"
+    },
     "driver_name": "Eddie Cheever",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 31,
+    "salary": 200000,
+    "bonus_win": 15000,
+    "bonus_podium": 8000,
+    "bonus_championship": 60000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0014",
-    "team_name": "Osella",
-    "driver_id": null,
-    "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
-  },
-  {
-    "year": 1980,
-    "team_id": "t_0015",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C28,teams!$B:$B,0)),\"\")",
+      "result": "t_0015"
+    },
     "team_name": "Shadow",
-    "driver_id": "d_0025",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E28,drivers!$B:$B,0)),\"\")",
+      "result": "d_0862"
+    },
     "driver_name": "David Kennedy",
     "role": "test_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 39,
+    "salary": 100000,
+    "bonus_win": 5000,
+    "bonus_podium": 2500,
+    "bonus_championship": 30000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
     "year": 1980,
-    "team_id": "t_0015",
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C29,teams!$B:$B,0)),\"\")",
+      "result": "t_0015"
+    },
     "team_name": "Shadow",
-    "driver_id": "d_0027",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E29,drivers!$B:$B,0)),\"\")",
+      "result": "d_0140"
+    },
     "driver_name": "Stefan Johansson",
     "role": "main_driver",
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "driver_number": 40,
+    "salary": 180000,
+    "bonus_win": 12000,
+    "bonus_podium": 6000,
+    "bonus_championship": 50000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1980,
+    "contract_end_sort": "1980-12-31"
   },
   {
-    "year": 1980,
-    "team_id": "t_0015",
-    "team_name": "Shadow",
-    "driver_id": null,
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C30,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E30,drivers!$B:$B,0)),\"\")",
+      "result": "d_0178"
+    },
+    "driver_name": "Alan Jones",
+    "role": "main_driver",
+    "driver_number": 1,
+    "salary": 4000000,
+    "bonus_win": 250000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C31,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E31,drivers!$B:$B,0)),\"\")",
+      "result": "d_0199"
+    },
+    "driver_name": "Carlos Reutemann",
+    "role": "second_driver",
+    "driver_number": 2,
+    "salary": 3500000,
+    "bonus_win": 200000,
+    "bonus_podium": 40000,
+    "bonus_championship": 800000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C32,teams!$B:$B,0)),\"\")",
+      "result": "t_0002"
+    },
+    "team_name": "Ligier",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E32,drivers!$B:$B,0)),\"\")"
+    },
     "driver_name": null,
-    "role": null,
-    "contract_until": null,
-    "driver_number": null,
-    "salary": null
+    "role": "second_driver",
+    "driver_number": 0,
+    "salary": 0,
+    "bonus_win": 0,
+    "bonus_podium": 0,
+    "bonus_championship": 0,
+    "contract_start_year": 1981,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C33,teams!$B:$B,0)),\"\")",
+      "result": "t_0002"
+    },
+    "team_name": "Ligier",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E33,drivers!$B:$B,0)),\"\")",
+      "result": "d_0172"
+    },
+    "driver_name": "Jacques Laffite",
+    "role": "main_driver",
+    "driver_number": 25,
+    "salary": 1000000,
+    "bonus_win": 50000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C34,teams!$B:$B,0)),\"\")",
+      "result": "t_0003"
+    },
+    "team_name": "Brabham",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E34,drivers!$B:$B,0)),\"\")",
+      "result": "d_0212"
+    },
+    "driver_name": "Hector Rebaque",
+    "role": "second_driver",
+    "driver_number": 5,
+    "salary": 3000000,
+    "bonus_win": 150000,
+    "bonus_podium": 30000,
+    "bonus_championship": 750000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C35,teams!$B:$B,0)),\"\")",
+      "result": "t_0003"
+    },
+    "team_name": "Brabham",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E35,drivers!$B:$B,0)),\"\")",
+      "result": "d_0137"
+    },
+    "driver_name": "Nelson Piquet",
+    "role": "main_driver",
+    "driver_number": 6,
+    "salary": 2800000,
+    "bonus_win": 140000,
+    "bonus_podium": 28000,
+    "bonus_championship": 700000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C36,teams!$B:$B,0)),\"\")",
+      "result": "t_0004"
+    },
+    "team_name": "Renault",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E36,drivers!$B:$B,0)),\"\")",
+      "result": "d_0117"
+    },
+    "driver_name": "Alain Prost",
+    "role": "main_driver",
+    "driver_number": 15,
+    "salary": 2200000,
+    "bonus_win": 100000,
+    "bonus_podium": 20000,
+    "bonus_championship": 450000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C37,teams!$B:$B,0)),\"\")",
+      "result": "t_0004"
+    },
+    "team_name": "Renault",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E37,drivers!$B:$B,0)),\"\")",
+      "result": "d_0163"
+    },
+    "driver_name": "René Arnoux",
+    "role": "second_driver",
+    "driver_number": 16,
+    "salary": 2000000,
+    "bonus_win": 90000,
+    "bonus_podium": 18000,
+    "bonus_championship": 400000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C38,teams!$B:$B,0)),\"\")",
+      "result": "t_0005"
+    },
+    "team_name": "Lotus",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E38,drivers!$B:$B,0)),\"\")",
+      "result": "d_0173"
+    },
+    "driver_name": "Elio de Angelis",
+    "role": "main_driver",
+    "driver_number": 11,
+    "salary": 1800000,
+    "bonus_win": 80000,
+    "bonus_podium": 16000,
+    "bonus_championship": 350000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C39,teams!$B:$B,0)),\"\")",
+      "result": "t_0005"
+    },
+    "team_name": "Lotus",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E39,drivers!$B:$B,0)),\"\")",
+      "result": "d_0095"
+    },
+    "driver_name": "Nigel Mansell",
+    "role": "second_driver",
+    "driver_number": 12,
+    "salary": 1500000,
+    "bonus_win": 70000,
+    "bonus_podium": 14000,
+    "bonus_championship": 300000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C40,teams!$B:$B,0)),\"\")",
+      "result": "t_0006"
+    },
+    "team_name": "Tyrrell",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E40,drivers!$B:$B,0)),\"\")",
+      "result": "d_0158"
+    },
+    "driver_name": "Eddie Cheever",
+    "role": "main_driver",
+    "driver_number": 3,
+    "salary": 1200000,
+    "bonus_win": 60000,
+    "bonus_podium": 12000,
+    "bonus_championship": 250000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C41,teams!$B:$B,0)),\"\")",
+      "result": "t_0006"
+    },
+    "team_name": "Tyrrell",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E41,drivers!$B:$B,0)),\"\")",
+      "result": "d_0105"
+    },
+    "driver_name": "Michele Alboreto",
+    "role": "second_driver",
+    "driver_number": 4,
+    "salary": 1000000,
+    "bonus_win": 50000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C42,teams!$B:$B,0)),\"\")",
+      "result": "t_0007"
+    },
+    "team_name": "Arrows",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E42,drivers!$B:$B,0)),\"\")",
+      "result": "d_0119"
+    },
+    "driver_name": "Riccardo Patrese",
+    "role": "main_driver",
+    "driver_number": 29,
+    "salary": 1500000,
+    "bonus_win": 75000,
+    "bonus_podium": 15000,
+    "bonus_championship": 300000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C43,teams!$B:$B,0)),\"\")",
+      "result": "t_0007"
+    },
+    "team_name": "Arrows",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E43,drivers!$B:$B,0)),\"\")",
+      "result": "d_0216"
+    },
+    "driver_name": "Siegfried Stohr",
+    "role": "second_driver",
+    "driver_number": 30,
+    "salary": 800000,
+    "bonus_win": 40000,
+    "bonus_podium": 8000,
+    "bonus_championship": 150000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C44,teams!$B:$B,0)),\"\")",
+      "result": "t_0008"
+    },
+    "team_name": "Fittipaldi",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E44,drivers!$B:$B,0)),\"\")",
+      "result": "d_0192"
+    },
+    "driver_name": "Chico Serra",
+    "role": "second_driver",
+    "driver_number": 20,
+    "salary": 750000,
+    "bonus_win": 35000,
+    "bonus_podium": 7000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C45,teams!$B:$B,0)),\"\")",
+      "result": "t_0008"
+    },
+    "team_name": "Fittipaldi",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E45,drivers!$B:$B,0)),\"\")",
+      "result": "d_0177"
+    },
+    "driver_name": "Keke Rosberg",
+    "role": "main_driver",
+    "driver_number": 21,
+    "salary": 800000,
+    "bonus_win": 40000,
+    "bonus_podium": 8000,
+    "bonus_championship": 120000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C46,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
+    "team_name": "McLaren",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E46,drivers!$B:$B,0)),\"\")",
+      "result": "d_0110"
+    },
+    "driver_name": "Andrea de Cesaris",
+    "role": "second_driver",
+    "driver_number": 7,
+    "salary": 2000000,
+    "bonus_win": 90000,
+    "bonus_podium": 18000,
+    "bonus_championship": 400000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C47,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
+    "team_name": "McLaren",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E47,drivers!$B:$B,0)),\"\")",
+      "result": "d_0187"
+    },
+    "driver_name": "John Watson",
+    "role": "main_driver",
+    "driver_number": 8,
+    "salary": 2200000,
+    "bonus_win": 100000,
+    "bonus_podium": 20000,
+    "bonus_championship": 450000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C48,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
+    "team_name": "Ferrari",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E48,drivers!$B:$B,0)),\"\")",
+      "result": "d_0202"
+    },
+    "driver_name": "Didier Pironi",
+    "role": "second_driver",
+    "driver_number": 27,
+    "salary": 3000000,
+    "bonus_win": 150000,
+    "bonus_podium": 30000,
+    "bonus_championship": 700000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C49,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
+    "team_name": "Ferrari",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E49,drivers!$B:$B,0)),\"\")",
+      "result": "d_0203"
+    },
+    "driver_name": "Gilles Villeneuve",
+    "role": "main_driver",
+    "driver_number": 28,
+    "salary": 3200000,
+    "bonus_win": 160000,
+    "bonus_podium": 32000,
+    "bonus_championship": 750000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C50,teams!$B:$B,0)),\"\")",
+      "result": "t_0011"
+    },
+    "team_name": "Alfa Romeo",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E50,drivers!$B:$B,0)),\"\")",
+      "result": "d_0152"
+    },
+    "driver_name": "Bruno Giacomelli",
+    "role": "second_driver",
+    "driver_number": 22,
+    "salary": 1000000,
+    "bonus_win": 50000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C51,teams!$B:$B,0)),\"\")",
+      "result": "t_0011"
+    },
+    "team_name": "Alfa Romeo",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E51,drivers!$B:$B,0)),\"\")",
+      "result": "d_0207"
+    },
+    "driver_name": "Mario Andretti",
+    "role": "main_driver",
+    "driver_number": 23,
+    "salary": 900000,
+    "bonus_win": 45000,
+    "bonus_podium": 9000,
+    "bonus_championship": 180000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C52,teams!$B:$B,0)),\"\")",
+      "result": "t_0012"
+    },
+    "team_name": "ATS",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E52,drivers!$B:$B,0)),\"\")",
+      "result": "d_0136"
+    },
+    "driver_name": "Jan Lammers",
+    "role": "main_driver",
+    "driver_number": 9,
+    "salary": 500000,
+    "bonus_win": 25000,
+    "bonus_podium": 5000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C53,teams!$B:$B,0)),\"\")",
+      "result": "t_0012"
+    },
+    "team_name": "ATS",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E53,drivers!$B:$B,0)),\"\")",
+      "result": "d_0201"
+    },
+    "driver_name": "Slim Borgudd",
+    "role": "second_driver",
+    "driver_number": 10,
+    "salary": 450000,
+    "bonus_win": 22000,
+    "bonus_podium": 4500,
+    "bonus_championship": 70000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C54,teams!$B:$B,0)),\"\")",
+      "result": "t_0013"
+    },
+    "team_name": "Ensign",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E54,drivers!$B:$B,0)),\"\")",
+      "result": "d_0176"
+    },
+    "driver_name": "Marc Surer",
+    "role": "main_driver",
+    "driver_number": 14,
+    "salary": 550000,
+    "bonus_win": 27000,
+    "bonus_podium": 5500,
+    "bonus_championship": 90000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C55,teams!$B:$B,0)),\"\")",
+      "result": "t_0013"
+    },
+    "team_name": "Ensign",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E55,drivers!$B:$B,0)),\"\")"
+    },
+    "driver_name": null,
+    "role": "second_driver",
+    "driver_number": 0,
+    "salary": 0,
+    "bonus_win": 0,
+    "bonus_podium": 0,
+    "bonus_championship": 0,
+    "contract_start_year": 1981,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C56,teams!$B:$B,0)),\"\")",
+      "result": "t_0014"
+    },
+    "team_name": "Osella",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E56,drivers!$B:$B,0)),\"\")",
+      "result": "d_0213"
+    },
+    "driver_name": "Beppe Gabbiani",
+    "role": "main_driver",
+    "driver_number": 31,
+    "salary": 500000,
+    "bonus_win": 25000,
+    "bonus_podium": 5000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C57,teams!$B:$B,0)),\"\")",
+      "result": "t_0014"
+    },
+    "team_name": "Osella",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E57,drivers!$B:$B,0)),\"\")",
+      "result": "d_0215"
+    },
+    "driver_name": "Miguel Ángel Guerra",
+    "role": "second_driver",
+    "driver_number": 32,
+    "salary": 400000,
+    "bonus_win": 20000,
+    "bonus_podium": 4000,
+    "bonus_championship": 60000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C58,teams!$B:$B,0)),\"\")",
+      "result": "t_0044"
+    },
+    "team_name": "March",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E58,drivers!$B:$B,0)),\"\")",
+      "result": "d_0206"
+    },
+    "driver_name": "Derek Daly",
+    "role": "main_driver",
+    "driver_number": 17,
+    "salary": 600000,
+    "bonus_win": 30000,
+    "bonus_podium": 6000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C59,teams!$B:$B,0)),\"\")",
+      "result": "t_0044"
+    },
+    "team_name": "March",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E59,drivers!$B:$B,0)),\"\")",
+      "result": "d_0194"
+    },
+    "driver_name": "Eliseo Salazar",
+    "role": "second_driver",
+    "driver_number": 18,
+    "salary": 500000,
+    "bonus_win": 25000,
+    "bonus_podium": 5000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C60,teams!$B:$B,0)),\"\")",
+      "result": "t_0057"
+    },
+    "team_name": "Toleman",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E60,drivers!$B:$B,0)),\"\")",
+      "result": "d_0205"
+    },
+    "driver_name": "Brian Henton",
+    "role": "main_driver",
+    "driver_number": 35,
+    "salary": 500000,
+    "bonus_win": 25000,
+    "bonus_podium": 5000,
+    "bonus_championship": 80000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C61,teams!$B:$B,0)),\"\")",
+      "result": "t_0057"
+    },
+    "team_name": "Toleman",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E61,drivers!$B:$B,0)),\"\")",
+      "result": "d_0118"
+    },
+    "driver_name": "Derek Warwick",
+    "role": "second_driver",
+    "driver_number": 36,
+    "salary": 450000,
+    "bonus_win": 22000,
+    "bonus_podium": 4500,
+    "bonus_championship": 70000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C62,teams!$B:$B,0)),\"\")",
+      "result": "t_0058"
+    },
+    "team_name": "Theodore",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E62,drivers!$B:$B,0)),\"\")",
+      "result": "d_0175"
+    },
+    "driver_name": "Patrick Tambay",
+    "role": "main_driver",
+    "driver_number": 32,
+    "salary": 600000,
+    "bonus_win": 30000,
+    "bonus_podium": 6000,
+    "bonus_championship": 100000,
+    "contract_start_year": 1981,
+    "contract_until_year": 1982,
+    "contract_end_sort": "1982-12-31"
+  },
+  {
+    "year": 1981,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C63,teams!$B:$B,0)),\"\")",
+      "result": "t_0058"
+    },
+    "team_name": "Theodore",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E63,drivers!$B:$B,0)),\"\")"
+    },
+    "driver_name": null,
+    "role": "second_driver",
+    "driver_number": 0,
+    "salary": 0,
+    "bonus_win": 0,
+    "bonus_podium": 0,
+    "bonus_championship": 0,
+    "contract_start_year": 1981,
+    "contract_until_year": 1981,
+    "contract_end_sort": "1981-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C64,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E64,drivers!$B:$B,0)),\"\")",
+      "result": "d_0031"
+    },
+    "driver_name": "Juan Pablo Montoya",
+    "role": "main_driver",
+    "driver_number": 3,
+    "salary": 12000000,
+    "bonus_win": 300000,
+    "bonus_podium": 150000,
+    "bonus_championship": 3000000,
+    "contract_start_year": 2001,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C65,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E65,drivers!$B:$B,0)),\"\")",
+      "result": "d_0023"
+    },
+    "driver_name": "Ralf Schumacher",
+    "role": "second_driver",
+    "driver_number": 4,
+    "salary": 10000000,
+    "bonus_win": 250000,
+    "bonus_podium": 100000,
+    "bonus_championship": 2500000,
+    "contract_start_year": 1999,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C66,teams!$B:$B,0)),\"\")",
+      "result": "t_0004"
+    },
+    "team_name": "Renault",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E66,drivers!$B:$B,0)),\"\")",
+      "result": "d_0004"
+    },
+    "driver_name": "Fernando Alonso",
+    "role": "second_driver",
+    "driver_number": 8,
+    "salary": 7000000,
+    "bonus_win": 200000,
+    "bonus_podium": 100000,
+    "bonus_championship": 2500000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2006,
+    "contract_end_sort": "2006-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C67,teams!$B:$B,0)),\"\")",
+      "result": "t_0004"
+    },
+    "team_name": "Renault",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E67,drivers!$B:$B,0)),\"\")",
+      "result": "d_0015"
+    },
+    "driver_name": "Jarno Trulli",
+    "role": "main_driver",
+    "driver_number": 7,
+    "salary": 6000000,
+    "bonus_win": 150000,
+    "bonus_podium": 75000,
+    "bonus_championship": 1500000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C68,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
+    "team_name": "McLaren",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E68,drivers!$B:$B,0)),\"\")",
+      "result": "d_0008"
+    },
+    "driver_name": "Kimi Räikkönen",
+    "role": "second_driver",
+    "driver_number": 6,
+    "salary": 10000000,
+    "bonus_win": 250000,
+    "bonus_podium": 100000,
+    "bonus_championship": 3000000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2006,
+    "contract_end_sort": "2006-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C69,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
+    "team_name": "McLaren",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E69,drivers!$B:$B,0)),\"\")",
+      "result": "d_0014"
+    },
+    "driver_name": "David Coulthard",
+    "role": "main_driver",
+    "driver_number": 5,
+    "salary": 8000000,
+    "bonus_win": 200000,
+    "bonus_podium": 100000,
+    "bonus_championship": 2000000,
+    "contract_start_year": 1996,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C70,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
+    "team_name": "Ferrari",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E70,drivers!$B:$B,0)),\"\")",
+      "result": "d_0030"
+    },
+    "driver_name": "Michael Schumacher",
+    "role": "main_driver",
+    "driver_number": 1,
+    "salary": 30000000,
+    "bonus_win": 500000,
+    "bonus_podium": 200000,
+    "bonus_championship": 5000000,
+    "contract_start_year": 1996,
+    "contract_until_year": 2006,
+    "contract_end_sort": "2006-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C71,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
+    "team_name": "Ferrari",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E71,drivers!$B:$B,0)),\"\")",
+      "result": "d_0022"
+    },
+    "driver_name": "Rubens Barrichello",
+    "role": "second_driver",
+    "driver_number": 2,
+    "salary": 10000000,
+    "bonus_win": 250000,
+    "bonus_podium": 100000,
+    "bonus_championship": 2000000,
+    "contract_start_year": 2000,
+    "contract_until_year": 2005,
+    "contract_end_sort": "2005-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C72,teams!$B:$B,0)),\"\")",
+      "result": "t_0018"
+    },
+    "team_name": "Toyota",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E72,drivers!$B:$B,0)),\"\")",
+      "result": "d_0043"
+    },
+    "driver_name": "Cristiano da Matta",
+    "role": "main_driver",
+    "driver_number": 16,
+    "salary": 4000000,
+    "bonus_win": 100000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C73,teams!$B:$B,0)),\"\")",
+      "result": "t_0018"
+    },
+    "team_name": "Toyota",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E73,drivers!$B:$B,0)),\"\")",
+      "result": "d_0044"
+    },
+    "driver_name": "Olivier Panis",
+    "role": "second_driver",
+    "driver_number": 17,
+    "salary": 3500000,
+    "bonus_win": 100000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C74,teams!$B:$B,0)),\"\")",
+      "result": "t_0026"
+    },
+    "team_name": "Sauber",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E74,drivers!$B:$B,0)),\"\")",
+      "result": "d_0013"
+    },
+    "driver_name": "Felipe Massa",
+    "role": "second_driver",
+    "driver_number": 15,
+    "salary": 3000000,
+    "bonus_win": 100000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2005,
+    "contract_end_sort": "2005-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C75,teams!$B:$B,0)),\"\")",
+      "result": "t_0026"
+    },
+    "team_name": "Sauber",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E75,drivers!$B:$B,0)),\"\")",
+      "result": "d_0021"
+    },
+    "driver_name": "Giancarlo Fisichella",
+    "role": "main_driver",
+    "driver_number": 14,
+    "salary": 5000000,
+    "bonus_win": 150000,
+    "bonus_podium": 75000,
+    "bonus_championship": 1500000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C76,teams!$B:$B,0)),\"\")",
+      "result": "t_0027"
+    },
+    "team_name": "BAR",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E76,drivers!$B:$B,0)),\"\")",
+      "result": "d_0011"
+    },
+    "driver_name": "Takuma Sato",
+    "role": "second_driver",
+    "driver_number": 10,
+    "salary": 2000000,
+    "bonus_win": 100000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C77,teams!$B:$B,0)),\"\")",
+      "result": "t_0027"
+    },
+    "team_name": "BAR",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E77,drivers!$B:$B,0)),\"\")",
+      "result": "d_0018"
+    },
+    "driver_name": "Jenson Button",
+    "role": "main_driver",
+    "driver_number": 9,
+    "salary": 8000000,
+    "bonus_win": 200000,
+    "bonus_podium": 100000,
+    "bonus_championship": 2000000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C78,teams!$B:$B,0)),\"\")",
+      "result": "t_0028"
+    },
+    "team_name": "Jordan",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E78,drivers!$B:$B,0)),\"\")",
+      "result": "d_0002"
+    },
+    "driver_name": "Nick Heidfeld",
+    "role": "main_driver",
+    "driver_number": 11,
+    "salary": 3000000,
+    "bonus_win": 100000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C79,teams!$B:$B,0)),\"\")",
+      "result": "t_0028"
+    },
+    "team_name": "Jordan",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E79,drivers!$B:$B,0)),\"\")",
+      "result": "d_0045"
+    },
+    "driver_name": "Giorgio Pantano",
+    "role": "second_driver",
+    "driver_number": 12,
+    "salary": 500000,
+    "bonus_win": 25000,
+    "bonus_podium": 10000,
+    "bonus_championship": 250000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C80,teams!$B:$B,0)),\"\")",
+      "result": "t_0029"
+    },
+    "team_name": "Minardi",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E80,drivers!$B:$B,0)),\"\")",
+      "result": "d_0046"
+    },
+    "driver_name": "Gianmaria Bruni",
+    "role": "main_driver",
+    "driver_number": 20,
+    "salary": 300000,
+    "bonus_win": 20000,
+    "bonus_podium": 10000,
+    "bonus_championship": 100000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C81,teams!$B:$B,0)),\"\")",
+      "result": "t_0029"
+    },
+    "team_name": "Minardi",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E81,drivers!$B:$B,0)),\"\")",
+      "result": "d_0047"
+    },
+    "driver_name": "Zsolt Baumgartner",
+    "role": "second_driver",
+    "driver_number": 21,
+    "salary": 500000,
+    "bonus_win": 25000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C82,teams!$B:$B,0)),\"\")",
+      "result": "t_0030"
+    },
+    "team_name": "Jaguar",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E82,drivers!$B:$B,0)),\"\")",
+      "result": "d_0032"
+    },
+    "driver_name": "Christian Klien",
+    "role": "second_driver",
+    "driver_number": 17,
+    "salary": 1500000,
+    "bonus_win": 50000,
+    "bonus_podium": 25000,
+    "bonus_championship": 500000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2004,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C83,teams!$B:$B,0)),\"\")",
+      "result": "t_0030"
+    },
+    "team_name": "Jaguar",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E83,drivers!$B:$B,0)),\"\")",
+      "result": "d_0017"
+    },
+    "driver_name": "Mark Webber",
+    "role": "main_driver",
+    "driver_number": 16,
+    "salary": 4000000,
+    "bonus_win": 150000,
+    "bonus_podium": 75000,
+    "bonus_championship": 1500000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2004,
+    "contract_end_sort": "2004-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C84,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
+    "team_name": "McLaren",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E84,drivers!$B:$B,0)),\"\")",
+      "result": "d_0845"
+    },
+    "driver_name": "Lando Norris",
+    "role": "main_driver",
+    "driver_number": 4,
+    "salary": 20000000,
+    "bonus_win": 500000,
+    "bonus_podium": 100000,
+    "bonus_championship": 5000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C85,teams!$B:$B,0)),\"\")",
+      "result": "t_0131"
+    },
+    "team_name": "Mercedes",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E85,drivers!$B:$B,0)),\"\")",
+      "result": "d_0846"
+    },
+    "driver_name": "George Russell",
+    "role": "main_driver",
+    "driver_number": 63,
+    "salary": 12000000,
+    "bonus_win": 300000,
+    "bonus_podium": 80000,
+    "bonus_championship": 3000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C86,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
+    "team_name": "Ferrari",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E86,drivers!$B:$B,0)),\"\")",
+      "result": "d_0001"
+    },
+    "driver_name": "Lewis Hamilton",
+    "role": "main_driver",
+    "driver_number": 44,
+    "salary": 50000000,
+    "bonus_win": 1000000,
+    "bonus_podium": 250000,
+    "bonus_championship": 10000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C87,teams!$B:$B,0)),\"\")",
+      "result": "t_0020"
+    },
+    "team_name": "Red Bull",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E87,drivers!$B:$B,0)),\"\")",
+      "result": "d_0829"
+    },
+    "driver_name": "Max Verstappen",
+    "role": "main_driver",
+    "driver_number": 1,
+    "salary": 55000000,
+    "bonus_win": 1200000,
+    "bonus_podium": 300000,
+    "bonus_championship": 15000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2028,
+    "contract_end_sort": "2028-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C88,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E88,drivers!$B:$B,0)),\"\")",
+      "result": "d_0831"
+    },
+    "driver_name": "Carlos Sainz",
+    "role": "main_driver",
+    "driver_number": 55,
+    "salary": 18000000,
+    "bonus_win": 450000,
+    "bonus_podium": 90000,
+    "bonus_championship": 4000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C89,teams!$B:$B,0)),\"\")",
+      "result": "t_0212"
+    },
+    "team_name": "RB F1 Team",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E89,drivers!$B:$B,0)),\"\")",
+      "result": "d_0858"
+    },
+    "driver_name": "Liam Lawson",
+    "role": "main_driver",
+    "driver_number": 30,
+    "salary": 3000000,
+    "bonus_win": 100000,
+    "bonus_podium": 25000,
+    "bonus_championship": 500000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C90,teams!$B:$B,0)),\"\")",
+      "result": "t_0117"
+    },
+    "team_name": "Aston Martin",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E90,drivers!$B:$B,0)),\"\")",
+      "result": "d_0004"
+    },
+    "driver_name": "Fernando Alonso",
+    "role": "main_driver",
+    "driver_number": 14,
+    "salary": 25000000,
+    "bonus_win": 600000,
+    "bonus_podium": 120000,
+    "bonus_championship": 6000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C91,teams!$B:$B,0)),\"\")",
+      "result": "t_0026"
+    },
+    "team_name": "Sauber",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E91,drivers!$B:$B,0)),\"\")",
+      "result": "d_0807"
+    },
+    "driver_name": "Nico Hulkenberg",
+    "role": "main_driver",
+    "driver_number": 27,
+    "salary": 4000000,
+    "bonus_win": 150000,
+    "bonus_podium": 30000,
+    "bonus_championship": 700000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C92,teams!$B:$B,0)),\"\")",
+      "result": "t_0208"
+    },
+    "team_name": "Haas F1 Team",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E92,drivers!$B:$B,0)),\"\")",
+      "result": "d_0838"
+    },
+    "driver_name": "Esteban Ocon",
+    "role": "main_driver",
+    "driver_number": 31,
+    "salary": 5000000,
+    "bonus_win": 180000,
+    "bonus_podium": 40000,
+    "bonus_championship": 900000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C93,teams!$B:$B,0)),\"\")",
+      "result": "t_0211"
+    },
+    "team_name": "Alpine F1 Team",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E93,drivers!$B:$B,0)),\"\")",
+      "result": "d_0841"
+    },
+    "driver_name": "Pierre Gasly",
+    "role": "main_driver",
+    "driver_number": 10,
+    "salary": 8000000,
+    "bonus_win": 200000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1200000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C94,teams!$B:$B,0)),\"\")",
+      "result": "t_0009"
+    },
+    "team_name": "McLaren",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E94,drivers!$B:$B,0)),\"\")",
+      "result": "d_0856"
+    },
+    "driver_name": "Oscar Piastri",
+    "role": "second_driver",
+    "driver_number": 81,
+    "salary": 10000000,
+    "bonus_win": 250000,
+    "bonus_podium": 50000,
+    "bonus_championship": 2500000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C95,teams!$B:$B,0)),\"\")",
+      "result": "t_0131"
+    },
+    "team_name": "Mercedes",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E95,drivers!$B:$B,0)),\"\")",
+      "result": "d_0864"
+    },
+    "driver_name": "Kimi Antonelli",
+    "role": "second_driver",
+    "driver_number": 12,
+    "salary": 1000000,
+    "bonus_win": 50000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2026,
+    "contract_end_sort": "2026-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C96,teams!$B:$B,0)),\"\")",
+      "result": "t_0010"
+    },
+    "team_name": "Ferrari",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E96,drivers!$B:$B,0)),\"\")",
+      "result": "d_0843"
+    },
+    "driver_name": "Charles Leclerc",
+    "role": "second_driver",
+    "driver_number": 16,
+    "salary": 35000000,
+    "bonus_win": 800000,
+    "bonus_podium": 200000,
+    "bonus_championship": 8000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2028,
+    "contract_end_sort": "2028-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C97,teams!$B:$B,0)),\"\")",
+      "result": "t_0020"
+    },
+    "team_name": "Red Bull",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E97,drivers!$B:$B,0)),\"\")",
+      "result": "d_0851"
+    },
+    "driver_name": "Yuki Tsunoda",
+    "role": "second_driver",
+    "driver_number": 22,
+    "salary": 8000000,
+    "bonus_win": 200000,
+    "bonus_podium": 50000,
+    "bonus_championship": 1500000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C98,teams!$B:$B,0)),\"\")",
+      "result": "t_0001"
+    },
+    "team_name": "Williams",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E98,drivers!$B:$B,0)),\"\")",
+      "result": "d_0847"
+    },
+    "driver_name": "Alexander Albon",
+    "role": "second_driver",
+    "driver_number": 23,
+    "salary": 6000000,
+    "bonus_win": 180000,
+    "bonus_podium": 35000,
+    "bonus_championship": 1000000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C99,teams!$B:$B,0)),\"\")",
+      "result": "t_0212"
+    },
+    "team_name": "RB F1 Team",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E99,drivers!$B:$B,0)),\"\")",
+      "result": "d_0865"
+    },
+    "driver_name": "Isack Hadjar",
+    "role": "second_driver",
+    "driver_number": 26,
+    "salary": 1500000,
+    "bonus_win": 80000,
+    "bonus_podium": 15000,
+    "bonus_championship": 300000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C100,teams!$B:$B,0)),\"\")",
+      "result": "t_0117"
+    },
+    "team_name": "Aston Martin",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E100,drivers!$B:$B,0)),\"\")",
+      "result": "d_0839"
+    },
+    "driver_name": "Lance Stroll",
+    "role": "second_driver",
+    "driver_number": 18,
+    "salary": 10000000,
+    "bonus_win": 250000,
+    "bonus_podium": 50000,
+    "bonus_championship": 2500000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C101,teams!$B:$B,0)),\"\")",
+      "result": "t_0026"
+    },
+    "team_name": "Sauber",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E101,drivers!$B:$B,0)),\"\")",
+      "result": "d_0866"
+    },
+    "driver_name": "Gabriel Bortoleto",
+    "role": "second_driver",
+    "driver_number": 11,
+    "salary": 1000000,
+    "bonus_win": 40000,
+    "bonus_podium": 8000,
+    "bonus_championship": 200000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C102,teams!$B:$B,0)),\"\")",
+      "result": "t_0208"
+    },
+    "team_name": "Haas F1 Team",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E102,drivers!$B:$B,0)),\"\")",
+      "result": "d_0859"
+    },
+    "driver_name": "Oliver Bearman",
+    "role": "second_driver",
+    "driver_number": 50,
+    "salary": 1000000,
+    "bonus_win": 50000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
+  },
+  {
+    "year": 2025,
+    "team_id": {
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C103,teams!$B:$B,0)),\"\")",
+      "result": "t_0211"
+    },
+    "team_name": "Alpine F1 Team",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E103,drivers!$B:$B,0)),\"\")",
+      "result": "d_0860"
+    },
+    "driver_name": "Franco Colapinto",
+    "role": "second_driver",
+    "driver_number": 32,
+    "salary": 1000000,
+    "bonus_win": 50000,
+    "bonus_podium": 10000,
+    "bonus_championship": 200000,
+    "contract_start_year": 2025,
+    "contract_until_year": 2025,
+    "contract_end_sort": "2025-12-31"
   }
 ]

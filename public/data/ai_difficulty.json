@@ -1,0 +1,42 @@
+[
+  {
+    "level_id": "easy",
+    "label": "Casual",
+    "driver_attr_multiplier": "0.95",
+    "team_budget_multiplier": "1.1",
+    "strategy_error_prob": "0.12",
+    "ai_overtake_bias": "0.9",
+    "ai_defense_bias": "0.9",
+    "pit_error_mult": "1.1"
+  },
+  {
+    "level_id": "normal",
+    "label": "Standard",
+    "driver_attr_multiplier": "1.0",
+    "team_budget_multiplier": "1.0",
+    "strategy_error_prob": "0.08",
+    "ai_overtake_bias": "1.0",
+    "ai_defense_bias": "1.0",
+    "pit_error_mult": "1.0"
+  },
+  {
+    "level_id": "hard",
+    "label": "Pro",
+    "driver_attr_multiplier": "1.03",
+    "team_budget_multiplier": "0.95",
+    "strategy_error_prob": "0.06",
+    "ai_overtake_bias": "1.05",
+    "ai_defense_bias": "1.05",
+    "pit_error_mult": "0.95"
+  },
+  {
+    "level_id": "legend",
+    "label": "Legend",
+    "driver_attr_multiplier": "1.06",
+    "team_budget_multiplier": "0.9",
+    "strategy_error_prob": "0.04",
+    "ai_overtake_bias": "1.1",
+    "ai_defense_bias": "1.1",
+    "pit_error_mult": "0.9"
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "points_system_id": "ps_1950",
+    "year_from": 1950,
+    "year_to": 1990,
+    "places_csv": "9,6,4,3,2,1",
+    "fastest_lap_bonus": 0,
+    "pole_bonus": 0,
+    "notes": "Classic 6-scoring positions."
+  },
+  {
+    "points_system_id": "ps_1991_2002",
+    "year_from": 1991,
+    "year_to": 2002,
+    "places_csv": "10,6,4,3,2,1",
+    "fastest_lap_bonus": 0,
+    "pole_bonus": 0,
+    "notes": "Wider gap between P1 and P2."
+  },
+  {
+    "points_system_id": "ps_2003_2009",
+    "year_from": 2003,
+    "year_to": 2009,
+    "places_csv": "10,8,6,5,4,3,2,1",
+    "fastest_lap_bonus": 0,
+    "pole_bonus": 0,
+    "notes": "Top 8 score; used in 2004."
+  },
+  {
+    "points_system_id": "ps_2010",
+    "year_from": 2010,
+    "year_to": null,
+    "places_csv": "25,18,15,12,10,8,6,4,2,1",
+    "fastest_lap_bonus": 1,
+    "pole_bonus": 0,
+    "notes": "top 10 score; fastest if in top 10 1 point; used from 2010 to today"
+  }
+]

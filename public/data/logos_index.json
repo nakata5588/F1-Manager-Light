@@ -1,0 +1,32 @@
+[
+  {
+    "team_id": "t_0001",
+    "year_from": 1979,
+    "year_to": 1982,
+    "path_rel": "public/logos/t_0001_1980.png"
+  },
+  {
+    "team_id": "t_0001",
+    "year_from": 2003,
+    "year_to": 2005,
+    "path_rel": "public/logos/t_0001_2004.png"
+  },
+  {
+    "team_id": "t_0004",
+    "year_from": 1979,
+    "year_to": 1982,
+    "path_rel": "public/logos/t_0004_1980.png"
+  },
+  {
+    "team_id": "t_0005",
+    "year_from": 1979,
+    "year_to": 1982,
+    "path_rel": "public/logos/t_0005_1980.png"
+  },
+  {
+    "team_id": "t_0006",
+    "year_from": 1979,
+    "year_to": 1982,
+    "path_rel": "public/logos/t_0006_1980.png"
+  }
+]

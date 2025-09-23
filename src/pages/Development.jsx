@@ -13,7 +13,7 @@ const tryFetchJSON = async (paths) => {
 };
 const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
 const fmtMoney = (n) => {
-  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(n||0)); }
+  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n||0)); }
   catch { return `${n}`; }
 };
 const toDate = (v) => {

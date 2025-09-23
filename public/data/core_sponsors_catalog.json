@@ -1,352 +1,1040 @@
 [
   {
     "sponsor_id": "sp_0001",
-    "sposor_name": "TAG Heuer",
+    "sponsor_name": "TAG Heuer",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1971,
     "end_year": 1985,
     "anual_income": 2000000,
-    "exigence": "Podiums",
+    "cash_upfront": {
+      "formula": "G2*0.1",
+      "result": 200000
+    },
+    "monthly_fee": {
+      "formula": "(G2-H2)/12",
+      "result": 150000
+    },
+    "objective_type": "podiums",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 500000,
     "bonus_podium": 200000,
-    "bonus_championship": 1000000,
-    "sponsor_name": "TAG Heuer"
+    "bonus_championship": 1000000
   },
   {
     "sponsor_id": "sp_0002",
-    "sposor_name": "Marlboro",
+    "sponsor_name": "Marlboro",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1972,
     "end_year": 2006,
     "anual_income": 4500000,
-    "exigence": "Wins",
+    "cash_upfront": {
+      "formula": "G3*0.1",
+      "result": 450000,
+      "ref": "H3:H26",
+      "shareType": "shared"
+    },
+    "monthly_fee": {
+      "formula": "(G3-H3)/12",
+      "result": 337500,
+      "ref": "I3:I26",
+      "shareType": "shared"
+    },
+    "objective_type": "wins",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 1000000,
     "bonus_podium": 400000,
-    "bonus_championship": 2000000,
-    "sponsor_name": "Marlboro"
+    "bonus_championship": 2000000
   },
   {
     "sponsor_id": "sp_0003",
-    "sposor_name": "Saudia",
+    "sponsor_name": "Saudia",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1977,
     "end_year": 1984,
     "anual_income": 2500000,
-    "exigence": "Podiums",
+    "cash_upfront": {
+      "result": 250000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 187500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "podiums",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 600000,
     "bonus_podium": 250000,
-    "bonus_championship": 1200000,
-    "sponsor_name": "Saudia"
+    "bonus_championship": 1200000
   },
   {
     "sponsor_id": "sp_0004",
-    "sposor_name": "Gitanes",
+    "sponsor_name": "Gitanes",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1975,
     "end_year": 1986,
     "anual_income": 1800000,
-    "exigence": "Regular Top 6",
+    "cash_upfront": {
+      "result": 180000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 135000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "top_6",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 400000,
     "bonus_podium": 150000,
-    "bonus_championship": 800000,
-    "sponsor_name": "Gitanes"
+    "bonus_championship": 800000
   },
   {
     "sponsor_id": "sp_0005",
-    "sposor_name": "Parmalat",
+    "sponsor_name": "Parmalat",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1978,
     "end_year": 1985,
     "anual_income": 3200000,
-    "exigence": "Fight for Win",
+    "cash_upfront": {
+      "result": 320000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 240000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "wins",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 800000,
     "bonus_podium": 300000,
-    "bonus_championship": 1800000,
-    "sponsor_name": "Parmalat"
+    "bonus_championship": 1800000
   },
   {
     "sponsor_id": "sp_0006",
-    "sposor_name": "Elf",
+    "sponsor_name": "Elf",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1968,
     "end_year": 1984,
     "anual_income": 1200000,
-    "exigence": "Occasional Podiums",
+    "cash_upfront": {
+      "result": 120000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 90000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "podiums",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 300000,
     "bonus_podium": 100000,
-    "bonus_championship": 600000,
-    "sponsor_name": "Elf"
+    "bonus_championship": 600000
   },
   {
     "sponsor_id": "sp_0007",
-    "sposor_name": "Essex",
+    "sponsor_name": "Essex",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1979,
     "end_year": 1981,
     "anual_income": 2200000,
-    "exigence": "1 Win",
+    "cash_upfront": {
+      "result": 220000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 165000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "top_6",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 600000,
     "bonus_podium": 250000,
-    "bonus_championship": 1200000,
-    "sponsor_name": "Essex"
+    "bonus_championship": 1200000
   },
   {
     "sponsor_id": "sp_0008",
-    "sposor_name": "Martini",
+    "sponsor_name": "Martini",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1975,
     "end_year": 1982,
     "anual_income": 1500000,
-    "exigence": "Regular Top 10",
+    "cash_upfront": {
+      "result": 150000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 112500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "top_10",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 350000,
     "bonus_podium": 120000,
-    "bonus_championship": 700000,
-    "sponsor_name": "Martini"
+    "bonus_championship": 700000
   },
   {
     "sponsor_id": "sp_0009",
-    "sposor_name": "Olympus",
+    "sponsor_name": "Olympus",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1979,
     "end_year": 1981,
     "anual_income": 1800000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 180000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 135000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 400000,
     "bonus_podium": 200000,
-    "bonus_championship": 900000,
-    "sponsor_name": "Olympus"
+    "bonus_championship": 900000
   },
   {
     "sponsor_id": "sp_0010",
-    "sposor_name": "Candy",
+    "sponsor_name": "Candy",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1979,
     "end_year": 1984,
     "anual_income": 1400000,
-    "exigence": "Qualifying",
+    "cash_upfront": {
+      "result": 140000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 105000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "qualifying",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 300000,
     "bonus_podium": 100000,
-    "bonus_championship": 500000,
-    "sponsor_name": "Candy"
+    "bonus_championship": 500000
   },
   {
     "sponsor_id": "sp_0011",
-    "sposor_name": "Warsteiner",
+    "sponsor_name": "Warsteiner",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1976,
     "end_year": 1983,
     "anual_income": 1100000,
-    "exigence": "Top 6",
+    "cash_upfront": {
+      "result": 110000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 82500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "Top 6",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 200000,
     "bonus_podium": 100000,
-    "bonus_championship": 600000,
-    "sponsor_name": "Warsteiner"
+    "bonus_championship": 600000
   },
   {
     "sponsor_id": "sp_0012",
-    "sposor_name": "Skol",
+    "sponsor_name": "Skol",
     "industry": null,
     "sponsor_reputation": "Main",
     "start_year": 1980,
     "end_year": 1982,
     "anual_income": 950000,
-    "exigence": "Points",
+    "cash_upfront": {
+      "result": 95000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 71250,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "points",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 150000,
     "bonus_podium": 75000,
-    "bonus_championship": 500000,
-    "sponsor_name": "Skol"
+    "bonus_championship": 500000
   },
   {
     "sponsor_id": "sp_0013",
-    "sposor_name": "Denim",
+    "sponsor_name": "Denim",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1979,
     "end_year": 1984,
     "anual_income": 900000,
-    "exigence": "Points",
+    "cash_upfront": {
+      "result": 90000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 67500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "points",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 160000,
     "bonus_podium": 80000,
-    "bonus_championship": 450000,
-    "sponsor_name": "Denim"
+    "bonus_championship": 450000
   },
   {
     "sponsor_id": "sp_0014",
-    "sposor_name": "Villiger",
+    "sponsor_name": "Villiger",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1978,
     "end_year": 1981,
     "anual_income": 850000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 85000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 63750,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 120000,
     "bonus_podium": 60000,
-    "bonus_championship": 400000,
-    "sponsor_name": "Villiger"
+    "bonus_championship": 400000
   },
   {
     "sponsor_id": "sp_0015",
-    "sposor_name": "Unipart",
+    "sponsor_name": "Unipart",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1979,
     "end_year": 1981,
     "anual_income": 800000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 80000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 60000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 100000,
     "bonus_podium": 50000,
-    "bonus_championship": 350000,
-    "sponsor_name": "Unipart"
+    "bonus_championship": 350000
   },
   {
     "sponsor_id": "sp_0016",
-    "sposor_name": "Champion",
+    "sponsor_name": "Champion",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1975,
     "end_year": 1985,
     "anual_income": 600000,
-    "exigence": "Points",
+    "cash_upfront": {
+      "result": 60000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 45000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "points",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 100000,
     "bonus_podium": 50000,
-    "bonus_championship": 300000,
-    "sponsor_name": "Champion"
+    "bonus_championship": 300000
   },
   {
     "sponsor_id": "sp_0017",
-    "sposor_name": "Agip",
+    "sponsor_name": "Agip",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1970,
     "end_year": 1995,
     "anual_income": 500000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 50000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 37500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 80000,
     "bonus_podium": 40000,
-    "bonus_championship": 200000,
-    "sponsor_name": "Agip"
+    "bonus_championship": 200000
   },
   {
     "sponsor_id": "sp_0018",
-    "sposor_name": "Magneti Marelli",
+    "sponsor_name": "Magneti Marelli",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1972,
     "end_year": 1990,
     "anual_income": 450000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 45000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 33750,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 60000,
     "bonus_podium": 30000,
-    "bonus_championship": 180000,
-    "sponsor_name": "Magneti Marelli"
+    "bonus_championship": 180000
   },
   {
     "sponsor_id": "sp_0019",
-    "sposor_name": "Shell",
+    "sponsor_name": "Shell",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1975,
     "end_year": 1985,
     "anual_income": 400000,
-    "exigence": "Top 10",
+    "cash_upfront": {
+      "result": 40000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 30000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": "top_10",
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 50000,
     "bonus_podium": 25000,
-    "bonus_championship": 150000,
-    "sponsor_name": "Shell"
+    "bonus_championship": 150000
   },
   {
     "sponsor_id": "sp_0020",
-    "sposor_name": "Buler Quartz",
+    "sponsor_name": "Buler Quartz",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1979,
     "end_year": 1982,
     "anual_income": 350000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 35000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 26250,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 40000,
     "bonus_podium": 20000,
-    "bonus_championship": 120000,
-    "sponsor_name": "Buler Quartz"
+    "bonus_championship": 120000
   },
   {
     "sponsor_id": "sp_0021",
-    "sposor_name": "Durex",
+    "sponsor_name": "Durex",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1976,
     "end_year": 1976,
     "anual_income": 500000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 50000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 37500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 50000,
     "bonus_podium": 25000,
-    "bonus_championship": 100000,
-    "sponsor_name": "Durex"
+    "bonus_championship": 100000
   },
   {
     "sponsor_id": "sp_0022",
-    "sposor_name": "Camel",
+    "sponsor_name": "Camel",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1972,
     "end_year": 1989,
     "anual_income": 1200000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 120000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 90000,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 150000,
     "bonus_podium": 75000,
-    "bonus_championship": 500000,
-    "sponsor_name": "Camel"
+    "bonus_championship": 500000
   },
   {
     "sponsor_id": "sp_0023",
-    "sposor_name": "John Player Special",
+    "sponsor_name": "John Player Special",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1972,
     "end_year": 1986,
     "anual_income": 1500000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 150000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 112500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 200000,
     "bonus_podium": 100000,
-    "bonus_championship": 600000,
-    "sponsor_name": "John Player Special"
+    "bonus_championship": 600000
   },
   {
     "sponsor_id": "sp_0024",
-    "sposor_name": "Penthouse",
+    "sponsor_name": "Penthouse",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1970,
     "end_year": 1979,
     "anual_income": 300000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 30000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 22500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 30000,
     "bonus_podium": 15000,
-    "bonus_championship": 70000,
-    "sponsor_name": "Penthouse"
+    "bonus_championship": 70000
   },
   {
     "sponsor_id": "sp_0025",
-    "sposor_name": "STP",
+    "sponsor_name": "STP",
     "industry": null,
     "sponsor_reputation": "Secondary",
     "start_year": 1970,
     "end_year": 1979,
     "anual_income": 700000,
-    "exigence": null,
+    "cash_upfront": {
+      "result": 70000,
+      "sharedFormula": "H3"
+    },
+    "monthly_fee": {
+      "result": 52500,
+      "sharedFormula": "I3"
+    },
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
     "bonus_win": 90000,
     "bonus_podium": 45000,
-    "bonus_championship": 250000,
-    "sponsor_name": "STP"
+    "bonus_championship": 250000
+  },
+  {
+    "sponsor_id": "sp_0026",
+    "sponsor_name": "Allianz",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0027",
+    "sponsor_name": "Benson & Hedges",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0028",
+    "sponsor_name": "BMW",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0029",
+    "sponsor_name": "Bridgestone",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0030",
+    "sponsor_name": "Cosworth",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0031",
+    "sponsor_name": "Credit Suisse",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0032",
+    "sponsor_name": "Denso",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0033",
+    "sponsor_name": "Esso",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0034",
+    "sponsor_name": "European",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0035",
+    "sponsor_name": "Ford",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0036",
+    "sponsor_name": "Hanjin",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0037",
+    "sponsor_name": "Honda",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0038",
+    "sponsor_name": "HP",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0039",
+    "sponsor_name": "HSBC",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0040",
+    "sponsor_name": "Lucky Strike",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0041",
+    "sponsor_name": "Mercedes-Benz",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0042",
+    "sponsor_name": "Mild Seven",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0043",
+    "sponsor_name": "Mobil",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0044",
+    "sponsor_name": "Panasonic",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0045",
+    "sponsor_name": "Petrobras",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0046",
+    "sponsor_name": "Petronas",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0047",
+    "sponsor_name": "T-Mobile",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0048",
+    "sponsor_name": "Total",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0049",
+    "sponsor_name": "Trust",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0050",
+    "sponsor_name": "Vodafone",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0051",
+    "sponsor_name": "West",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
+  },
+  {
+    "sponsor_id": "sp_0052",
+    "sponsor_name": "Wilux",
+    "industry": null,
+    "sponsor_reputation": null,
+    "start_year": null,
+    "end_year": null,
+    "anual_income": null,
+    "cash_upfront": null,
+    "monthly_fee": null,
+    "objective_type": null,
+    "penalties": null,
+    "activation_slots_required": null,
+    "bonus_win": null,
+    "bonus_podium": null,
+    "bonus_championship": null
   }
 ]

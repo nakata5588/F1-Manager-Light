@@ -1,0 +1,74 @@
+[
+  {
+    "track_id": "tr_0001",
+    "year_from": 1979,
+    "year_to": 1981,
+    "laps": 80,
+    "lap_length_km": "3.275",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 24
+  },
+  {
+    "track_id": "tr_0002",
+    "year_from": 1979,
+    "year_to": 1987,
+    "laps": 54,
+    "lap_length_km": "5.942",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 19
+  },
+  {
+    "track_id": "tr_0003",
+    "year_from": 1979,
+    "year_to": 1981,
+    "laps": 76,
+    "lap_length_km": "3.312",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 28
+  },
+  {
+    "track_id": "tr_0004",
+    "year_from": 1979,
+    "year_to": 1985,
+    "laps": 54,
+    "lap_length_km": "5.809",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 21
+  },
+  {
+    "track_id": "tr_0005",
+    "year_from": 1979,
+    "year_to": 1984,
+    "laps": 70,
+    "lap_length_km": "4.262",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 21
+  },
+  {
+    "track_id": "tr_0006",
+    "year_from": 1979,
+    "year_to": 1981,
+    "laps": 45,
+    "lap_length_km": "6.79",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 22
+  },
+  {
+    "track_id": "tr_0007",
+    "year_from": 1979,
+    "year_to": 1985,
+    "laps": 72,
+    "lap_length_km": "4.226",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 21
+  },
+  {
+    "track_id": "tr_0008",
+    "year_from": 1979,
+    "year_to": 1984,
+    "laps": 80,
+    "lap_length_km": "3.801",
+    "drs_zones": 0,
+    "pit_lane_loss_s": 22
+  }
+]

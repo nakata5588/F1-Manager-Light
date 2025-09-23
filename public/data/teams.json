@@ -1,92 +1,1698 @@
 [
   {
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "team_base": "United Kingdom",
-    "short_name": "Williams"
+    "team_id": "t_0161",
+    "team_name": "Adams",
+    "team_base": "United States",
+    "short_name": "Adams",
+    "founded_year": null,
+    "country_code": "USA"
   },
   {
-    "team_id": "t_0002",
-    "team_name": "Ligier",
-    "team_base": "Italy",
-    "short_name": "Ligier"
+    "team_id": "t_0147",
+    "team_name": "AFM",
+    "team_base": "Germany",
+    "short_name": "AFM",
+    "founded_year": null,
+    "country_code": "GER"
   },
   {
-    "team_id": "t_0003",
-    "team_name": "Brabham",
-    "team_base": "United Kingdom",
-    "short_name": "Brabham"
-  },
-  {
-    "team_id": "t_0004",
-    "team_name": "Renault",
+    "team_id": "t_0046",
+    "team_name": "AGS",
     "team_base": "France",
-    "short_name": "Renault"
-  },
-  {
-    "team_id": "t_0005",
-    "team_name": "Lotus",
-    "team_base": "United Kingdom",
-    "short_name": "Lotus"
-  },
-  {
-    "team_id": "t_0006",
-    "team_name": "Tyrrell",
-    "team_base": "United Kingdom",
-    "short_name": "Tyrrell"
-  },
-  {
-    "team_id": "t_0007",
-    "team_name": "Arrows",
-    "team_base": "United Kingdom",
-    "short_name": "Arrows"
-  },
-  {
-    "team_id": "t_0008",
-    "team_name": "Fittipaldi",
-    "team_base": "Brazil",
-    "short_name": "Fittipaldi"
-  },
-  {
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "team_base": "United Kingdom",
-    "short_name": "McLaren"
-  },
-  {
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "team_base": "Italy",
-    "short_name": "Ferrari"
+    "short_name": "AGS",
+    "founded_year": null,
+    "country_code": "FRA"
   },
   {
     "team_id": "t_0011",
     "team_name": "Alfa Romeo",
     "team_base": "Switzerland",
-    "short_name": "Alfa"
+    "short_name": "ALF",
+    "founded_year": 1950,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0210",
+    "team_name": "AlphaTauri",
+    "team_base": "Italy",
+    "short_name": "AlphaTauri",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0211",
+    "team_name": "Alpine F1 Team",
+    "team_base": "France",
+    "short_name": "Alpine",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0126",
+    "team_name": "Alta",
+    "team_base": "United Kingdom",
+    "short_name": "Alta",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0078",
+    "team_name": "Amon",
+    "team_base": "New Zealand",
+    "short_name": "Amon",
+    "founded_year": null,
+    "country_code": "NZL"
+  },
+  {
+    "team_id": "t_0045",
+    "team_name": "Andrea Moda",
+    "team_base": "Italy",
+    "short_name": "Andrea",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0071",
+    "team_name": "Apollon",
+    "team_base": "Switzerland",
+    "short_name": "Apollon",
+    "founded_year": null,
+    "country_code": "SUI"
+  },
+  {
+    "team_id": "t_0007",
+    "team_name": "Arrows",
+    "team_base": "United Kingdom",
+    "short_name": "ARR",
+    "founded_year": 1977,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0137",
+    "team_name": "Arzani-Volpini",
+    "team_base": "Italy",
+    "short_name": "Arzani-Volpini",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0152",
+    "team_name": "Aston Butterworth",
+    "team_base": "United Kingdom",
+    "short_name": "Aston",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0117",
+    "team_name": "Aston Martin",
+    "team_base": "United Kingdom",
+    "short_name": "Aston",
+    "founded_year": null,
+    "country_code": "GBR"
   },
   {
     "team_id": "t_0012",
     "team_name": "ATS",
     "team_base": "Germany",
-    "short_name": "ATS"
+    "short_name": "ATS",
+    "founded_year": 1977,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0027",
+    "team_name": "BAR",
+    "team_base": "United Kingdom",
+    "short_name": "BAR",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0104",
+    "team_name": "Behra-Porsche",
+    "team_base": "Italy",
+    "short_name": "Behra-Porsche",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0085",
+    "team_name": "Bellasi",
+    "team_base": "Switzerland",
+    "short_name": "Bellasi",
+    "founded_year": null,
+    "country_code": "SUI"
+  },
+  {
+    "team_id": "t_0032",
+    "team_name": "Benetton",
+    "team_base": "Italy",
+    "short_name": "Benetton",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0145",
+    "team_name": "BMW",
+    "team_base": "Germany",
+    "short_name": "BMW",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0016",
+    "team_name": "BMW Sauber",
+    "team_base": "Germany",
+    "short_name": "BMW",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0070",
+    "team_name": "Boro",
+    "team_base": "Netherlands",
+    "short_name": "Boro",
+    "founded_year": null,
+    "country_code": "NED"
+  },
+  {
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "team_base": "United Kingdom",
+    "short_name": "BRA",
+    "founded_year": 1960,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0203",
+    "team_name": "Brabham-Alfa Romeo",
+    "team_base": "United Kingdom",
+    "short_name": "Brabham-Alfa",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0180",
+    "team_name": "Brabham-BRM",
+    "team_base": "United Kingdom",
+    "short_name": "Brabham-BRM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0182",
+    "team_name": "Brabham-Climax",
+    "team_base": "United Kingdom",
+    "short_name": "Brabham-Climax",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0181",
+    "team_name": "Brabham-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "Brabham-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0190",
+    "team_name": "Brabham-Repco",
+    "team_base": "United Kingdom",
+    "short_name": "Brabham-Repco",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0033",
+    "team_name": "Brawn",
+    "team_base": "United Kingdom",
+    "short_name": "Brawn",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0066",
+    "team_name": "BRM",
+    "team_base": "United Kingdom",
+    "short_name": "BRM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0196",
+    "team_name": "BRM-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "BRM-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0139",
+    "team_name": "Bromme",
+    "team_base": "United States",
+    "short_name": "Bromme",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0094",
+    "team_name": "BRP",
+    "team_base": "United Kingdom",
+    "short_name": "BRP",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0130",
+    "team_name": "Bugatti",
+    "team_base": "France",
+    "short_name": "Bugatti",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0205",
+    "team_name": "Caterham",
+    "team_base": "Malaysia",
+    "short_name": "Caterham",
+    "founded_year": null,
+    "country_code": "MAS"
+  },
+  {
+    "team_id": "t_0115",
+    "team_name": "Christensen",
+    "team_base": "United States",
+    "short_name": "Christensen",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0153",
+    "team_name": "Cisitalia",
+    "team_base": "Italy",
+    "short_name": "Cisitalia",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0049",
+    "team_name": "Coloni",
+    "team_base": "Italy",
+    "short_name": "Coloni",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0125",
+    "team_name": "Connaught",
+    "team_base": "United Kingdom",
+    "short_name": "Connaught",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0084",
+    "team_name": "Connew",
+    "team_base": "United Kingdom",
+    "short_name": "Connew",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0087",
+    "team_name": "Cooper",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0177",
+    "team_name": "Cooper-Alfa Romeo",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Alfa",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0192",
+    "team_name": "Cooper-ATS",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-ATS",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0168",
+    "team_name": "Cooper-Borgward",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Borgward",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0194",
+    "team_name": "Cooper-BRM",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-BRM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0170",
+    "team_name": "Cooper-Castellotti",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Castellotti",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0169",
+    "team_name": "Cooper-Climax",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Climax",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0191",
+    "team_name": "Cooper-Ferrari",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Ferrari",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0185",
+    "team_name": "Cooper-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0165",
+    "team_name": "Cooper-Maserati",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-Maserati",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0167",
+    "team_name": "Cooper-OSCA",
+    "team_base": "United Kingdom",
+    "short_name": "Cooper-OSCA",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0042",
+    "team_name": "Dallara",
+    "team_base": "Italy",
+    "short_name": "Dallara",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0086",
+    "team_name": "De Tomaso",
+    "team_base": "Italy",
+    "short_name": "De",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0174",
+    "team_name": "De Tomaso-Alfa Romeo",
+    "team_base": "Italy",
+    "short_name": "De",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0178",
+    "team_name": "De Tomaso-Ferrari",
+    "team_base": "Italy",
+    "short_name": "De",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0173",
+    "team_name": "De Tomaso-Osca",
+    "team_base": "Italy",
+    "short_name": "De",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0150",
+    "team_name": "Deidt",
+    "team_base": "United States",
+    "short_name": "Deidt",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0143",
+    "team_name": "Del Roy",
+    "team_base": "United States",
+    "short_name": "Del",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0096",
+    "team_name": "Derrington",
+    "team_base": "United Kingdom",
+    "short_name": "Derrington",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0120",
+    "team_name": "Dunn",
+    "team_base": "United States",
+    "short_name": "Dunn",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0088",
+    "team_name": "Eagle",
+    "team_base": "United States",
+    "short_name": "Eagle",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0188",
+    "team_name": "Eagle-Climax",
+    "team_base": "United States",
+    "short_name": "Eagle-Climax",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0189",
+    "team_name": "Eagle-Weslake",
+    "team_base": "United States",
+    "short_name": "Eagle-Weslake",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0121",
+    "team_name": "Elder",
+    "team_base": "United States",
+    "short_name": "Elder",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0075",
+    "team_name": "Embassy Hill",
+    "team_base": "United Kingdom",
+    "short_name": "Embassy",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0099",
+    "team_name": "Emeryson",
+    "team_base": "United Kingdom",
+    "short_name": "Emeryson",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0146",
+    "team_name": "EMW",
+    "team_base": "East Germany",
+    "short_name": "EMW",
+    "founded_year": null,
+    "country_code": "GDR"
+  },
+  {
+    "team_id": "t_0100",
+    "team_name": "ENB",
+    "team_base": "Belgium",
+    "short_name": "ENB",
+    "founded_year": null,
+    "country_code": "BEL"
   },
   {
     "team_id": "t_0013",
     "team_name": "Ensign",
     "team_base": "United Kingdom",
-    "short_name": "Ensign"
+    "short_name": "ENS",
+    "founded_year": 1973,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0108",
+    "team_name": "Epperly",
+    "team_base": "United States",
+    "short_name": "Epperly",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0151",
+    "team_name": "ERA",
+    "team_base": "United Kingdom",
+    "short_name": "ERA",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0050",
+    "team_name": "Euro Brun",
+    "team_base": "Italy",
+    "short_name": "Euro",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0116",
+    "team_name": "Ewing",
+    "team_base": "United States",
+    "short_name": "Ewing",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0102",
+    "team_name": "Ferguson",
+    "team_base": "United Kingdom",
+    "short_name": "Ferguson",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "team_base": "Italy",
+    "short_name": "FER",
+    "founded_year": 1929,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0008",
+    "team_name": "Fittipaldi",
+    "team_base": "Brazil",
+    "short_name": "FIT",
+    "founded_year": 1974,
+    "country_code": "BRA"
+  },
+  {
+    "team_id": "t_0043",
+    "team_name": "Fondmetal",
+    "team_base": "Italy",
+    "short_name": "Fondmetal",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0037",
+    "team_name": "Footwork",
+    "team_base": "United Kingdom",
+    "short_name": "Footwork",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0021",
+    "team_name": "Force India",
+    "team_base": "India",
+    "short_name": "Force",
+    "founded_year": null,
+    "country_code": "IND"
+  },
+  {
+    "team_id": "t_0036",
+    "team_name": "Forti",
+    "team_base": "Italy",
+    "short_name": "Forti",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0148",
+    "team_name": "Frazer Nash",
+    "team_base": "United Kingdom",
+    "short_name": "Frazer",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0123",
+    "team_name": "Fry",
+    "team_base": "United Kingdom",
+    "short_name": "Fry",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0097",
+    "team_name": "Gilby",
+    "team_base": "United Kingdom",
+    "short_name": "Gilby",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0128",
+    "team_name": "Gordini",
+    "team_base": "France",
+    "short_name": "Gordini",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0208",
+    "team_name": "Haas F1 Team",
+    "team_base": "United States",
+    "short_name": "Haas",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0155",
+    "team_name": "Hall",
+    "team_base": "United States",
+    "short_name": "Hall",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0064",
+    "team_name": "Hesketh",
+    "team_base": "United Kingdom",
+    "short_name": "Hesketh",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0022",
+    "team_name": "Honda",
+    "team_base": "Japan",
+    "short_name": "Honda",
+    "founded_year": null,
+    "country_code": "JPN"
+  },
+  {
+    "team_id": "t_0164",
+    "team_name": "HRT",
+    "team_base": "Spain",
+    "short_name": "HRT",
+    "founded_year": null,
+    "country_code": "ESP"
+  },
+  {
+    "team_id": "t_0133",
+    "team_name": "HWM",
+    "team_base": "United Kingdom",
+    "short_name": "HWM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0080",
+    "team_name": "Iso Marlboro",
+    "team_base": "United Kingdom",
+    "short_name": "Iso",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0030",
+    "team_name": "Jaguar",
+    "team_base": "United Kingdom",
+    "short_name": "Jaguar",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0101",
+    "team_name": "JBW",
+    "team_base": "United Kingdom",
+    "short_name": "JBW",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0028",
+    "team_name": "Jordan",
+    "team_base": "Ireland",
+    "short_name": "Jordan",
+    "founded_year": null,
+    "country_code": "IRL"
+  },
+  {
+    "team_id": "t_0061",
+    "team_name": "Kauhsen",
+    "team_base": "Germany",
+    "short_name": "Kauhsen",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0140",
+    "team_name": "Klenk",
+    "team_base": "Germany",
+    "short_name": "Klenk",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0072",
+    "team_name": "Kojima",
+    "team_base": "Japan",
+    "short_name": "Kojima",
+    "founded_year": null,
+    "country_code": "JPN"
+  },
+  {
+    "team_id": "t_0113",
+    "team_name": "Kurtis Kraft",
+    "team_base": "United States",
+    "short_name": "Kurtis",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0114",
+    "team_name": "Kuzma",
+    "team_base": "United States",
+    "short_name": "Kuzma",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0047",
+    "team_name": "Lambo",
+    "team_base": "Italy",
+    "short_name": "Lambo",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0132",
+    "team_name": "Lancia",
+    "team_base": "Italy",
+    "short_name": "Lancia",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0157",
+    "team_name": "Langley",
+    "team_base": "United States",
+    "short_name": "Langley",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0041",
+    "team_name": "Larrousse",
+    "team_base": "France",
+    "short_name": "Larrousse",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0089",
+    "team_name": "LDS",
+    "team_base": "South Africa",
+    "short_name": "LDS",
+    "founded_year": null,
+    "country_code": "RSA"
+  },
+  {
+    "team_id": "t_0184",
+    "team_name": "LDS-Alfa Romeo",
+    "team_base": "South Africa",
+    "short_name": "LDS-Alfa",
+    "founded_year": null,
+    "country_code": "RSA"
+  },
+  {
+    "team_id": "t_0183",
+    "team_name": "LDS-Climax",
+    "team_base": "South Africa",
+    "short_name": "LDS-Climax",
+    "founded_year": null,
+    "country_code": "RSA"
+  },
+  {
+    "team_id": "t_0068",
+    "team_name": "LEC",
+    "team_base": "United Kingdom",
+    "short_name": "LEC",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0110",
+    "team_name": "Lesovsky",
+    "team_base": "United States",
+    "short_name": "Lesovsky",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0048",
+    "team_name": "Leyton House",
+    "team_base": "United Kingdom",
+    "short_name": "Leyton",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0052",
+    "team_name": "Life",
+    "team_base": "Italy",
+    "short_name": "Life",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0002",
+    "team_name": "Ligier",
+    "team_base": "Italy",
+    "short_name": "LIG",
+    "founded_year": 1976,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0035",
+    "team_name": "Lola",
+    "team_base": "United Kingdom",
+    "short_name": "Lola",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0005",
+    "team_name": "Lotus",
+    "team_base": "United Kingdom",
+    "short_name": "LOT",
+    "founded_year": 1952,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0206",
+    "team_name": "Lotus F1",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0176",
+    "team_name": "Lotus-Borgward",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus-Borgward",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0175",
+    "team_name": "Lotus-BRM",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus-BRM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0171",
+    "team_name": "Lotus-Climax",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus-Climax",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0179",
+    "team_name": "Lotus-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0172",
+    "team_name": "Lotus-Maserati",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus-Maserati",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0200",
+    "team_name": "Lotus-Pratt &amp; Whitney",
+    "team_base": "United Kingdom",
+    "short_name": "Lotus-Pratt",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0076",
+    "team_name": "Lyncar",
+    "team_base": "United Kingdom",
+    "short_name": "Lyncar",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0074",
+    "team_name": "Maki",
+    "team_base": "Japan",
+    "short_name": "Maki",
+    "founded_year": null,
+    "country_code": "JPN"
+  },
+  {
+    "team_id": "t_0207",
+    "team_name": "Manor Marussia",
+    "team_base": "United Kingdom",
+    "short_name": "Manor",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0044",
+    "team_name": "March",
+    "team_base": "United Kingdom",
+    "short_name": "March",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0198",
+    "team_name": "March-Alfa Romeo",
+    "team_base": "United Kingdom",
+    "short_name": "March-Alfa",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0156",
+    "team_name": "Marchese",
+    "team_base": "United States",
+    "short_name": "Marchese",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0199",
+    "team_name": "March-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "March-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0065",
+    "team_name": "Martini",
+    "team_base": "France",
+    "short_name": "Martini",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0204",
+    "team_name": "Marussia",
+    "team_base": "Russia",
+    "short_name": "Marussia",
+    "founded_year": null,
+    "country_code": "RUS"
+  },
+  {
+    "team_id": "t_0105",
+    "team_name": "Maserati",
+    "team_base": "Italy",
+    "short_name": "Maserati",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0082",
+    "team_name": "Matra",
+    "team_base": "France",
+    "short_name": "Matra",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0195",
+    "team_name": "Matra-Ford",
+    "team_base": "France",
+    "short_name": "Matra-Ford",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0103",
+    "team_name": "MBM",
+    "team_base": "Switzerland",
+    "short_name": "MBM",
+    "founded_year": null,
+    "country_code": "SUI"
+  },
+  {
+    "team_id": "t_0069",
+    "team_name": "McGuire",
+    "team_base": "Australia",
+    "short_name": "McGuire",
+    "founded_year": null,
+    "country_code": "AUS"
+  },
+  {
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "team_base": "United Kingdom",
+    "short_name": "MCL",
+    "founded_year": 1963,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0197",
+    "team_name": "McLaren-Alfa Romeo",
+    "team_base": "United Kingdom",
+    "short_name": "McLaren-Alfa",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0193",
+    "team_name": "McLaren-BRM",
+    "team_base": "United Kingdom",
+    "short_name": "McLaren-BRM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0186",
+    "team_name": "McLaren-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "McLaren-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0187",
+    "team_name": "McLaren-Serenissima",
+    "team_base": "United Kingdom",
+    "short_name": "McLaren-Serenissima",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0131",
+    "team_name": "Mercedes",
+    "team_base": "Germany",
+    "short_name": "Mercedes",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0060",
+    "team_name": "Merzario",
+    "team_base": "Italy",
+    "short_name": "Merzario",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0112",
+    "team_name": "Meskowski",
+    "team_base": "United States",
+    "short_name": "Meskowski",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0024",
+    "team_name": "MF1",
+    "team_base": "Russia",
+    "short_name": "MF1",
+    "founded_year": null,
+    "country_code": "RUS"
+  },
+  {
+    "team_id": "t_0163",
+    "team_name": "Milano",
+    "team_base": "Italy",
+    "short_name": "Milano",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0029",
+    "team_name": "Minardi",
+    "team_base": "Italy",
+    "short_name": "Minardi",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0119",
+    "team_name": "Moore",
+    "team_base": "United States",
+    "short_name": "Moore",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0138",
+    "team_name": "Nichels",
+    "team_base": "United States",
+    "short_name": "Nichels",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0159",
+    "team_name": "Olson",
+    "team_base": "United States",
+    "short_name": "Olson",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0051",
+    "team_name": "Onyx",
+    "team_base": "United Kingdom",
+    "short_name": "Onyx",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0127",
+    "team_name": "OSCA",
+    "team_base": "Italy",
+    "short_name": "OSCA",
+    "founded_year": null,
+    "country_code": "ITA"
   },
   {
     "team_id": "t_0014",
     "team_name": "Osella",
     "team_base": "Italy",
-    "short_name": "Osella"
+    "short_name": "OSE",
+    "founded_year": 1980,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0038",
+    "team_name": "Pacific",
+    "team_base": "United Kingdom",
+    "short_name": "Pacific",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0136",
+    "team_name": "Pankratz",
+    "team_base": "United States",
+    "short_name": "Pankratz",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0073",
+    "team_name": "Parnelli",
+    "team_base": "United States",
+    "short_name": "Parnelli",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0135",
+    "team_name": "Pawl",
+    "team_base": "United States",
+    "short_name": "Pawl",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0067",
+    "team_name": "Penske",
+    "team_base": "United States",
+    "short_name": "Penske",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0109",
+    "team_name": "Phillips",
+    "team_base": "United States",
+    "short_name": "Phillips",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0083",
+    "team_name": "Politoys",
+    "team_base": "United Kingdom",
+    "short_name": "Politoys",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0095",
+    "team_name": "Porsche",
+    "team_base": "Germany",
+    "short_name": "Porsche",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0031",
+    "team_name": "Prost",
+    "team_base": "France",
+    "short_name": "Prost",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0090",
+    "team_name": "Protos",
+    "team_base": "United Kingdom",
+    "short_name": "Protos",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0209",
+    "team_name": "Racing Point",
+    "team_base": "United Kingdom",
+    "short_name": "Racing",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0158",
+    "team_name": "Rae",
+    "team_base": "United States",
+    "short_name": "Rae",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0055",
+    "team_name": "RAM",
+    "team_base": "United Kingdom",
+    "short_name": "RAM",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0212",
+    "team_name": "RB F1 Team",
+    "team_base": "Italy",
+    "short_name": "RB",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0093",
+    "team_name": "RE",
+    "team_base": "Rhodesia (historic)",
+    "short_name": "RE",
+    "founded_year": null,
+    "country_code": "RHO"
+  },
+  {
+    "team_id": "t_0062",
+    "team_name": "Rebaque",
+    "team_base": "Mexico",
+    "short_name": "Rebaque",
+    "founded_year": null,
+    "country_code": "MEX"
+  },
+  {
+    "team_id": "t_0020",
+    "team_name": "Red Bull",
+    "team_base": "Austria",
+    "short_name": "Red",
+    "founded_year": null,
+    "country_code": "AUT"
+  },
+  {
+    "team_id": "t_0004",
+    "team_name": "Renault",
+    "team_base": "France",
+    "short_name": "REN",
+    "founded_year": 1977,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0053",
+    "team_name": "Rial",
+    "team_base": "Germany",
+    "short_name": "Rial",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0026",
+    "team_name": "Sauber",
+    "team_base": "Switzerland",
+    "short_name": "Sauber",
+    "founded_year": null,
+    "country_code": "SUI"
+  },
+  {
+    "team_id": "t_0106",
+    "team_name": "Scarab",
+    "team_base": "United States",
+    "short_name": "Scarab",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0134",
+    "team_name": "Schroeder",
+    "team_base": "United States",
+    "short_name": "Schroeder",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0092",
+    "team_name": "Scirocco",
+    "team_base": "United Kingdom",
+    "short_name": "Scirocco",
+    "founded_year": null,
+    "country_code": "GBR"
   },
   {
     "team_id": "t_0015",
     "team_name": "Shadow",
     "team_base": "United Kingdom",
-    "short_name": "Shadow"
+    "short_name": "SHA",
+    "founded_year": 1973,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0201",
+    "team_name": "Shadow-Ford",
+    "team_base": "United Kingdom",
+    "short_name": "Shadow-Ford",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0202",
+    "team_name": "Shadow-Matra",
+    "team_base": "United Kingdom",
+    "short_name": "Shadow-Matra",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0091",
+    "team_name": "Shannon",
+    "team_base": "United Kingdom",
+    "short_name": "Shannon",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0149",
+    "team_name": "Sherman",
+    "team_base": "United States",
+    "short_name": "Sherman",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0141",
+    "team_name": "Simca",
+    "team_base": "France",
+    "short_name": "Simca",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0039",
+    "team_name": "Simtek",
+    "team_base": "United Kingdom",
+    "short_name": "Simtek",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0162",
+    "team_name": "Snowberger",
+    "team_base": "United States",
+    "short_name": "Snowberger",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0056",
+    "team_name": "Spirit",
+    "team_base": "United Kingdom",
+    "short_name": "Spirit",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0023",
+    "team_name": "Spyker",
+    "team_base": "Netherlands",
+    "short_name": "Spyker",
+    "founded_year": null,
+    "country_code": "NED"
+  },
+  {
+    "team_id": "t_0025",
+    "team_name": "Spyker MF1",
+    "team_base": "Netherlands",
+    "short_name": "Spyker",
+    "founded_year": null,
+    "country_code": "NED"
+  },
+  {
+    "team_id": "t_0098",
+    "team_name": "Stebro",
+    "team_base": "Canada",
+    "short_name": "Stebro",
+    "founded_year": null,
+    "country_code": "CAN"
+  },
+  {
+    "team_id": "t_0129",
+    "team_name": "Stevens",
+    "team_base": "United States",
+    "short_name": "Stevens",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0034",
+    "team_name": "Stewart",
+    "team_base": "United Kingdom",
+    "short_name": "Stewart",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0019",
+    "team_name": "Super Aguri",
+    "team_base": "Japan",
+    "short_name": "Super",
+    "founded_year": null,
+    "country_code": "JPN"
+  },
+  {
+    "team_id": "t_0063",
+    "team_name": "Surtees",
+    "team_base": "United Kingdom",
+    "short_name": "Surtees",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0122",
+    "team_name": "Sutton",
+    "team_base": "United States",
+    "short_name": "Sutton",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0154",
+    "team_name": "Talbot-Lago",
+    "team_base": "France",
+    "short_name": "Talbot-Lago",
+    "founded_year": null,
+    "country_code": "FRA"
+  },
+  {
+    "team_id": "t_0040",
+    "team_name": "Team Lotus",
+    "team_base": "United Kingdom",
+    "short_name": "Team",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0124",
+    "team_name": "Tec-Mec",
+    "team_base": "Italy",
+    "short_name": "Tec-Mec",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0081",
+    "team_name": "Tecno",
+    "team_base": "Italy",
+    "short_name": "Tecno",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0058",
+    "team_name": "Theodore",
+    "team_base": "Hong Kong",
+    "short_name": "Theodore",
+    "founded_year": null,
+    "country_code": "HKG"
+  },
+  {
+    "team_id": "t_0079",
+    "team_name": "Token",
+    "team_base": "United Kingdom",
+    "short_name": "Token",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0057",
+    "team_name": "Toleman",
+    "team_base": "United Kingdom",
+    "short_name": "Toleman",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0017",
+    "team_name": "Toro Rosso",
+    "team_base": "Italy",
+    "short_name": "Toro",
+    "founded_year": null,
+    "country_code": "ITA"
+  },
+  {
+    "team_id": "t_0018",
+    "team_name": "Toyota",
+    "team_base": "Japan",
+    "short_name": "Toyota",
+    "founded_year": null,
+    "country_code": "JPN"
+  },
+  {
+    "team_id": "t_0111",
+    "team_name": "Trevis",
+    "team_base": "United States",
+    "short_name": "Trevis",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0077",
+    "team_name": "Trojan",
+    "team_base": "United Kingdom",
+    "short_name": "Trojan",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0142",
+    "team_name": "Turner",
+    "team_base": "United States",
+    "short_name": "Turner",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0006",
+    "team_name": "Tyrrell",
+    "team_base": "United Kingdom",
+    "short_name": "TYR",
+    "founded_year": 1970,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0118",
+    "team_name": "Vanwall",
+    "team_base": "United Kingdom",
+    "short_name": "Vanwall",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0144",
+    "team_name": "Veritas",
+    "team_base": "Germany",
+    "short_name": "Veritas",
+    "founded_year": null,
+    "country_code": "GER"
+  },
+  {
+    "team_id": "t_0166",
+    "team_name": "Virgin",
+    "team_base": "United Kingdom",
+    "short_name": "Virgin",
+    "founded_year": null,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0107",
+    "team_name": "Watson",
+    "team_base": "United States",
+    "short_name": "Watson",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0160",
+    "team_name": "Wetteroth",
+    "team_base": "United States",
+    "short_name": "Wetteroth",
+    "founded_year": null,
+    "country_code": "USA"
+  },
+  {
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "team_base": "United Kingdom",
+    "short_name": "WIL",
+    "founded_year": 1977,
+    "country_code": "GBR"
+  },
+  {
+    "team_id": "t_0059",
+    "team_name": "Wolf",
+    "team_base": "Canada",
+    "short_name": "Wolf",
+    "founded_year": null,
+    "country_code": "CAN"
+  },
+  {
+    "team_id": "t_0054",
+    "team_name": "Zakspeed",
+    "team_base": "Germany",
+    "short_name": "Zakspeed",
+    "founded_year": null,
+    "country_code": "GER"
   }
 ]

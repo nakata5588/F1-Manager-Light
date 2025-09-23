@@ -1,0 +1,30 @@
+[
+  {
+    "year_from": 1979,
+    "year_to": 1985,
+    "currency": "USD",
+    "min_salary_driver": 80000,
+    "max_salary_driver": 800000,
+    "min_salary_staff": 40000,
+    "max_salary_staff": 300000,
+    "prize_money_per_point": 12000,
+    "win_bonus": 50000,
+    "pole_bonus": 0,
+    "fastest_lap_bonus": 0,
+    "notes": ""
+  },
+  {
+    "year_from": 2004,
+    "year_to": 2005,
+    "currency": "USD",
+    "min_salary_driver": 200000,
+    "max_salary_driver": 4000000,
+    "min_salary_staff": 100000,
+    "max_salary_staff": 1200000,
+    "prize_money_per_point": 25000,
+    "win_bonus": 100000,
+    "pole_bonus": 0,
+    "fastest_lap_bonus": 0,
+    "notes": ""
+  }
+]

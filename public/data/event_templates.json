@@ -1,0 +1,2150 @@
+[
+  {
+    "template_id": "tpl_sim_cornering_01",
+    "type": "training",
+    "title": "Simulator: Cornering Program",
+    "description": "Focused sim work on mid-speed corners.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week",
+      "has_simulator"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 3000,
+    "cost_fatigue": 8,
+    "mods": {
+      "cornering": 2,
+      "consistency": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "tech"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_cornering_02",
+    "type": "training",
+    "title": "Simulator: Cornering Program v2",
+    "description": "Focused sim work on mid-speed corners.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week",
+      "has_simulator"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 3000,
+    "cost_fatigue": 8,
+    "mods": {
+      "cornering": 2,
+      "consistency": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "tech"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_braking_01",
+    "type": "training",
+    "title": "Simulator: Braking Traces",
+    "description": "Optimise braking points and pressure ramp.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week",
+      "has_simulator"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 3000,
+    "cost_fatigue": 8,
+    "mods": {
+      "braking": 2,
+      "consistency": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "tech"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_wet_01",
+    "type": "training",
+    "title": "Simulator: Wet Programme",
+    "description": "Rain lines and traction control in wet.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week",
+      "has_simulator",
+      "weather.wet_prob>=0.3"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 3500,
+    "cost_fatigue": 9,
+    "mods": {
+      "wet_skill": 2,
+      "adaptability": 1
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "wet"
+    ]
+  },
+  {
+    "template_id": "tpl_physical_stamina_01",
+    "type": "training",
+    "title": "Physical: Stamina Block",
+    "description": "Cardio & endurance microcycle.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 10,
+    "mods": {
+      "stamina": 1
+    },
+    "cooldown_days": 14,
+    "source": "calendar",
+    "tags": [
+      "fitness"
+    ]
+  },
+  {
+    "template_id": "tpl_physical_reflex_01",
+    "type": "training",
+    "title": "Physical: Reflex Drills",
+    "description": "Reaction time drills and neuro work.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 500,
+    "cost_fatigue": 6,
+    "mods": {
+      "reflexes": 1,
+      "start_launch": 1
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "fitness"
+    ]
+  },
+  {
+    "template_id": "tpl_track_test_setup_01",
+    "type": "training",
+    "title": "Track Test: Setup Sweep",
+    "description": "Setup mapping across aero and suspension.",
+    "targets": "team",
+    "base_weight": 6,
+    "prerequisites": [
+      "testing_allowed"
+    ],
+    "effects_scope": "season",
+    "cost_money": 20000,
+    "cost_fatigue": 10,
+    "mods": {
+      "setup_knowledge": 2,
+      "car_knowledge": 1
+    },
+    "cooldown_days": 21,
+    "source": "calendar",
+    "tags": [
+      "tracktest"
+    ]
+  },
+  {
+    "template_id": "tpl_workshop_tech_01",
+    "type": "training",
+    "title": "Technical Workshop: Aero/Mech",
+    "description": "Engineers share best practices and new tools.",
+    "targets": "staff",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 8000,
+    "cost_fatigue": 4,
+    "mods": {
+      "engineer_skill": 1,
+      "mechanic_skill": 1
+    },
+    "cooldown_days": 21,
+    "source": "calendar",
+    "tags": [
+      "workshop"
+    ]
+  },
+  {
+    "template_id": "tpl_data_analysis_01",
+    "type": "training",
+    "title": "Data Analysis Sprint",
+    "description": "Pre-event data crunch for deltas and strategies.",
+    "targets": "staff",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 2000,
+    "cost_fatigue": 3,
+    "mods": {
+      "next_GP_prep": 2
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "analysis"
+    ]
+  },
+  {
+    "template_id": "tpl_briefing_01",
+    "type": "gp_prep",
+    "title": "Strategy Briefing",
+    "description": "Drivers and engineers align on stints & deltas.",
+    "targets": "team",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "race_prep": 2,
+      "synergy": 2
+    },
+    "cooldown_days": 3,
+    "source": "calendar",
+    "tags": [
+      "briefing"
+    ]
+  },
+  {
+    "template_id": "tpl_pit_practice_01",
+    "type": "gp_prep",
+    "title": "Pit Stop Practice",
+    "description": "Mechanics rehearse tyre changes.",
+    "targets": "team",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 5,
+    "mods": {
+      "pit_errors": -4
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "pitstop"
+    ]
+  },
+  {
+    "template_id": "tpl_setup_session_01",
+    "type": "gp_prep",
+    "title": "Setup Correlation Session",
+    "description": "Driver-engineer setup alignment.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 5,
+    "mods": {
+      "qual_pace": 1,
+      "race_pace": 1
+    },
+    "cooldown_days": 5,
+    "source": "calendar",
+    "tags": [
+      "setup"
+    ]
+  },
+  {
+    "template_id": "tpl_quali_sim_01",
+    "type": "gp_prep",
+    "title": "Qualifying Simulation",
+    "description": "Low-fuel, soft tyre time attack.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 6,
+    "mods": {
+      "confidence": 2,
+      "pressure_handling": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "qualifying"
+    ]
+  },
+  {
+    "template_id": "tpl_race_sim_01",
+    "type": "gp_prep",
+    "title": "Race Simulation Run",
+    "description": "Long-run stint practice and tyre eval.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 7,
+    "mods": {
+      "tire_management": 2,
+      "ers_fuel_management": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "race"
+    ]
+  },
+  {
+    "template_id": "tpl_starts_practice_01",
+    "type": "gp_prep",
+    "title": "Start Launch Practice",
+    "description": "Clutch bite point and reaction launch.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "start_launch": 2
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "start"
+    ]
+  },
+  {
+    "template_id": "tpl_press_conf_01",
+    "type": "pr",
+    "title": "FIA Press Conference",
+    "description": "Mandatory media duties for lead driver.",
+    "targets": "driver",
+    "base_weight": 4,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "instant",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "driver_popularity": 2
+    },
+    "cooldown_days": 7,
+    "source": "sponsor",
+    "tags": [
+      "media",
+      "obligatory"
+    ]
+  },
+  {
+    "template_id": "tpl_sponsor_filming_01",
+    "type": "pr",
+    "title": "Sponsor Filming Day",
+    "description": "Content shoot with title sponsor.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": -15000,
+    "cost_fatigue": 6,
+    "mods": {
+      "sponsor_attract": 3
+    },
+    "cooldown_days": 28,
+    "source": "sponsor",
+    "tags": [
+      "marketing"
+    ]
+  },
+  {
+    "template_id": "tpl_fan_event_01",
+    "type": "pr",
+    "title": "Fan Meet & Greet",
+    "description": "Autographs and fan interaction.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "season",
+    "cost_money": -5000,
+    "cost_fatigue": 5,
+    "mods": {
+      "team_popularity": 2
+    },
+    "cooldown_days": 21,
+    "source": "sponsor",
+    "tags": [
+      "fans"
+    ]
+  },
+  {
+    "template_id": "tpl_tv_interview_01",
+    "type": "pr",
+    "title": "Exclusive TV Interview",
+    "description": "Prime-time interview boosts profile.",
+    "targets": "driver",
+    "base_weight": 4,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "reputation": 2
+    },
+    "cooldown_days": 14,
+    "source": "sponsor",
+    "tags": [
+      "media"
+    ]
+  },
+  {
+    "template_id": "tpl_board_review_01",
+    "type": "management",
+    "title": "Board Review: Performance",
+    "description": "Quarterly check on objectives.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "after_round>=3"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "board_pressure": 1
+    },
+    "cooldown_days": 56,
+    "source": "calendar",
+    "tags": [
+      "board"
+    ]
+  },
+  {
+    "template_id": "tpl_contract_talks_01",
+    "type": "management",
+    "title": "Driver Contract Talks",
+    "description": "Agent requests meeting about role and salary.",
+    "targets": "driver",
+    "base_weight": 3,
+    "prerequisites": [
+      "driver_form>=1"
+    ],
+    "effects_scope": "instant",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "morale": 1
+    },
+    "cooldown_days": 21,
+    "source": "calendar",
+    "tags": [
+      "contracts"
+    ]
+  },
+  {
+    "template_id": "tpl_recruitment_push_01",
+    "type": "management",
+    "title": "Recruitment Push",
+    "description": "Scouting session for staff.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 10000,
+    "cost_fatigue": 3,
+    "mods": {
+      "recruitment_interest": 2
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "recruitment"
+    ]
+  },
+  {
+    "template_id": "tpl_budget_meeting_01",
+    "type": "management",
+    "title": "Budget Meeting",
+    "description": "Finance review and reallocations.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "month_start"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "capex_flex": 1
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "finance"
+    ]
+  },
+  {
+    "template_id": "tpl_conflict_resolution_01",
+    "type": "management",
+    "title": "Internal Conflict Resolution",
+    "description": "Resolve tension between staff.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "has_conflict"
+    ],
+    "effects_scope": "season",
+    "cost_money": 2000,
+    "cost_fatigue": 2,
+    "mods": {
+      "synergy": 1
+    },
+    "cooldown_days": 35,
+    "source": "calendar",
+    "tags": [
+      "hr"
+    ]
+  },
+  {
+    "template_id": "tpl_fia_fine_unsafe_01",
+    "type": "fia",
+    "title": "FIA Fine: Unsafe Release",
+    "description": "Stewards issue fine for pit incident.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "race_completed",
+      "pit_incident"
+    ],
+    "effects_scope": "season",
+    "cost_money": 20000,
+    "cost_fatigue": 0,
+    "mods": {},
+    "cooldown_days": 28,
+    "source": "fia",
+    "tags": [
+      "penalty"
+    ]
+  },
+  {
+    "template_id": "tpl_grid_penalty_gearbox_01",
+    "type": "fia",
+    "title": "Grid Penalty: Gearbox",
+    "description": "Component change triggers penalty.",
+    "targets": "driver",
+    "base_weight": 2,
+    "prerequisites": [
+      "component_limit_exceeded"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "pressure_handling": -1
+    },
+    "cooldown_days": 21,
+    "source": "fia",
+    "tags": [
+      "penalty",
+      "reliability"
+    ]
+  },
+  {
+    "template_id": "tpl_reprimand_incident_01",
+    "type": "fia",
+    "title": "Reprimand for On-track Incident",
+    "description": "Driving standards warning.",
+    "targets": "driver",
+    "base_weight": 2,
+    "prerequisites": [
+      "incident_reported"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "reputation": -1
+    },
+    "cooldown_days": 21,
+    "source": "fia",
+    "tags": [
+      "stewards"
+    ]
+  },
+  {
+    "template_id": "tpl_budget_cap_audit_01",
+    "type": "fia",
+    "title": "Budget Cap Audit",
+    "description": "FIA initiates a cost review.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "board_pressure": 1
+    },
+    "cooldown_days": 90,
+    "source": "fia",
+    "tags": [
+      "finance",
+      "fia"
+    ]
+  },
+  {
+    "template_id": "tpl_driver_illness_01",
+    "type": "random",
+    "title": "Driver Illness",
+    "description": "Driver reports fever and fatigue.",
+    "targets": "driver",
+    "base_weight": 1,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 12,
+    "mods": {
+      "consistency": -2,
+      "confidence": -1
+    },
+    "cooldown_days": 35,
+    "source": "random",
+    "tags": [
+      "health",
+      "risk"
+    ]
+  },
+  {
+    "template_id": "tpl_training_accident_01",
+    "type": "random",
+    "title": "Training Accident",
+    "description": "Minor injury during off-track training.",
+    "targets": "driver",
+    "base_weight": 1,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 15,
+    "mods": {
+      "stamina": -1,
+      "confidence": -1
+    },
+    "cooldown_days": 45,
+    "source": "random",
+    "tags": [
+      "health"
+    ]
+  },
+  {
+    "template_id": "tpl_weather_damage_01",
+    "type": "random",
+    "title": "Storm damages pit equipment",
+    "description": "Overnight storm affects equipment.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "weather.storm",
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 8000,
+    "cost_fatigue": 5,
+    "mods": {
+      "pit_errors": 2
+    },
+    "cooldown_days": 30,
+    "source": "random",
+    "tags": [
+      "weather"
+    ]
+  },
+  {
+    "template_id": "tpl_freight_delay_01",
+    "type": "random",
+    "title": "Freight Delay",
+    "description": "Logistics delay reduces prep time.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "flyaway_gp"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "race_prep": -2
+    },
+    "cooldown_days": 21,
+    "source": "random",
+    "tags": [
+      "logistics"
+    ]
+  },
+  {
+    "template_id": "tpl_fan_backlash_01",
+    "type": "random",
+    "title": "Fan Backlash",
+    "description": "Social media backlash after poor race.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "result_last_gp<=-2"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 2,
+    "mods": {
+      "team_popularity": -2
+    },
+    "cooldown_days": 21,
+    "source": "random",
+    "tags": [
+      "fans"
+    ]
+  },
+  {
+    "template_id": "tpl_sponsor_short_deal_01",
+    "type": "random",
+    "title": "Unexpected Sponsor Short Deal",
+    "description": "One-off activation boosts budget.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": -20000,
+    "cost_fatigue": 2,
+    "mods": {
+      "sponsor_attract": 1
+    },
+    "cooldown_days": 45,
+    "source": "random",
+    "tags": [
+      "marketing"
+    ]
+  },
+  {
+    "template_id": "tpl_staff_free_01",
+    "type": "market",
+    "title": "Top engineer becomes available",
+    "description": "Rival team parts ways with senior engineer.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "after_round>=5"
+    ],
+    "effects_scope": "instant",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "recruitment_interest": 3
+    },
+    "cooldown_days": 21,
+    "source": "market",
+    "tags": [
+      "recruitment"
+    ]
+  },
+  {
+    "template_id": "tpl_driver_unhappy_01",
+    "type": "market",
+    "title": "Driver unhappy with role",
+    "description": "Rumblings about status and expectations.",
+    "targets": "driver",
+    "base_weight": 2,
+    "prerequisites": [
+      "driver_form<=-1"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "morale": -1
+    },
+    "cooldown_days": 28,
+    "source": "market",
+    "tags": [
+      "contracts"
+    ]
+  },
+  {
+    "template_id": "tpl_poach_attempt_01",
+    "type": "market",
+    "title": "Rival attempts to poach staff",
+    "description": "Offer made to key staff member.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "after_round>=8"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "synergy": -1
+    },
+    "cooldown_days": 35,
+    "source": "market",
+    "tags": [
+      "recruitment"
+    ]
+  },
+  {
+    "template_id": "tpl_driver_camp_01",
+    "type": "training",
+    "title": "Driver Camp: Desert Altitude",
+    "description": "High-altitude cardio & breathing program.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 5000,
+    "cost_fatigue": 12,
+    "mods": {
+      "stamina": 2,
+      "adaptability": 1
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "fitness",
+      "offseason"
+    ]
+  },
+  {
+    "template_id": "tpl_driver_camp_02",
+    "type": "training",
+    "title": "Driver Camp: Desert Altitude v2",
+    "description": "High-altitude cardio & breathing program.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 5000,
+    "cost_fatigue": 12,
+    "mods": {
+      "stamina": 2,
+      "adaptability": 1
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "fitness",
+      "offseason"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_night_01",
+    "type": "training",
+    "title": "Night Driving Simulation",
+    "description": "Focus sessions in dark/low visibility.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 4000,
+    "cost_fatigue": 7,
+    "mods": {
+      "adaptability": 2,
+      "consistency": 1
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "night"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_traffic_01",
+    "type": "training",
+    "title": "Traffic Management Drill",
+    "description": "Mixed-pace sim sessions with traffic.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 3000,
+    "cost_fatigue": 7,
+    "mods": {
+      "racecraft": 2
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "traffic"
+    ]
+  },
+  {
+    "template_id": "tpl_workshop_strat_01",
+    "type": "training",
+    "title": "Strategy Workshop",
+    "description": "Engineers debate alternative pit scenarios.",
+    "targets": "staff",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 1000,
+    "cost_fatigue": 3,
+    "mods": {
+      "next_GP_prep": 1,
+      "race_intelligence": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "workshop",
+      "strategy"
+    ]
+  },
+  {
+    "template_id": "tpl_mech_refresh_01",
+    "type": "training",
+    "title": "Mechanic Refresher",
+    "description": "Hands-on with pit equipment & tools.",
+    "targets": "staff",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 2000,
+    "cost_fatigue": 4,
+    "mods": {
+      "mechanic_skill": 2
+    },
+    "cooldown_days": 21,
+    "source": "calendar",
+    "tags": [
+      "mechanics"
+    ]
+  },
+  {
+    "template_id": "tpl_quali_pressure_01",
+    "type": "gp_prep",
+    "title": "Pressure Simulation",
+    "description": "Quali sim with artificial “pressure” (mock audience).",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 6,
+    "mods": {
+      "pressure_handling": 2
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "qualifying",
+      "psychology"
+    ]
+  },
+  {
+    "template_id": "tpl_race_heat_01",
+    "type": "gp_prep",
+    "title": "Heat Acclimatization",
+    "description": "Long-run under simulated heat stress.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week",
+      "weather.hot"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 8,
+    "mods": {
+      "stamina": 1,
+      "tire_management": 1
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "race",
+      "weather"
+    ]
+  },
+  {
+    "template_id": "tpl_race_rain_01",
+    "type": "gp_prep",
+    "title": "Wet Race Simulation",
+    "description": "Long-run stints in wet tyres.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week",
+      "weather.wet_prob>=0.5"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 9,
+    "mods": {
+      "wet_skill": 2
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "race",
+      "wet"
+    ]
+  },
+  {
+    "template_id": "tpl_setup_wing_01",
+    "type": "gp_prep",
+    "title": "Wing Level Correlation",
+    "description": "Run low/high downforce back-to-back.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 5,
+    "mods": {
+      "technical_feedback": 2
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "setup",
+      "aero"
+    ]
+  },
+  {
+    "template_id": "tpl_pit_night_01",
+    "type": "gp_prep",
+    "title": "Night Pit Stop Practice",
+    "description": "Pit drills under simulated floodlights.",
+    "targets": "team",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 6,
+    "mods": {
+      "pit_errors": -3
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "pitstop",
+      "night"
+    ]
+  },
+  {
+    "template_id": "tpl_charity_event_01",
+    "type": "pr",
+    "title": "Charity Gala Appearance",
+    "description": "Drivers attend charity fundraiser.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": -7000,
+    "cost_fatigue": 4,
+    "mods": {
+      "team_popularity": 2,
+      "driver_popularity": 1
+    },
+    "cooldown_days": 21,
+    "source": "sponsor",
+    "tags": [
+      "charity",
+      "fans"
+    ]
+  },
+  {
+    "template_id": "tpl_tv_show_01",
+    "type": "pr",
+    "title": "TV Show Guest Spot",
+    "description": "Driver on popular talk show.",
+    "targets": "driver",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "reputation": 2,
+      "driver_popularity": 2
+    },
+    "cooldown_days": 14,
+    "source": "sponsor",
+    "tags": [
+      "media",
+      "tv"
+    ]
+  },
+  {
+    "template_id": "tpl_social_media_01",
+    "type": "pr",
+    "title": "Social Media Day",
+    "description": "Drivers and team create behind-the-scenes content.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "instant",
+    "cost_money": -2000,
+    "cost_fatigue": 2,
+    "mods": {
+      "team_popularity": 1,
+      "driver_popularity": 1
+    },
+    "cooldown_days": 7,
+    "source": "sponsor",
+    "tags": [
+      "marketing",
+      "social"
+    ]
+  },
+  {
+    "template_id": "tpl_conf_sponsor_01",
+    "type": "management",
+    "title": "Sponsor Conflict Meeting",
+    "description": "Resolve overlapping sponsor rights.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "sponsor_conflict"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 2,
+    "mods": {
+      "board_pressure": 1,
+      "sponsor_attract": -1
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "sponsors"
+    ]
+  },
+  {
+    "template_id": "tpl_hr_training_01",
+    "type": "management",
+    "title": "HR Training: Inclusivity",
+    "description": "Staff workshop on inclusivity.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 3000,
+    "cost_fatigue": 3,
+    "mods": {
+      "synergy": 1
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "hr",
+      "training"
+    ]
+  },
+  {
+    "template_id": "tpl_union_neg_01",
+    "type": "management",
+    "title": "Union Negotiation",
+    "description": "Negotiation with mechanics’ union.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "synergy": -1
+    },
+    "cooldown_days": 35,
+    "source": "calendar",
+    "tags": [
+      "hr",
+      "union"
+    ]
+  },
+  {
+    "template_id": "tpl_fia_testban_01",
+    "type": "fia",
+    "title": "FIA Test Ban",
+    "description": "In-season test ban issued.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "testing_violation"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "car_knowledge": -2
+    },
+    "cooldown_days": 90,
+    "source": "fia",
+    "tags": [
+      "fia",
+      "penalty"
+    ]
+  },
+  {
+    "template_id": "tpl_fia_safety_01",
+    "type": "fia",
+    "title": "FIA Safety Directive",
+    "description": "New cockpit padding directive.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 5000,
+    "cost_fatigue": 0,
+    "mods": {
+      "car_safety": 1
+    },
+    "cooldown_days": 30,
+    "source": "fia",
+    "tags": [
+      "fia",
+      "safety"
+    ]
+  },
+  {
+    "template_id": "tpl_blackout_01",
+    "type": "random",
+    "title": "Factory Power Blackout",
+    "description": "Factory suffers 24h blackout.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "car_development_impact": -1
+    },
+    "cooldown_days": 21,
+    "source": "random",
+    "tags": [
+      "infrastructure"
+    ]
+  },
+  {
+    "template_id": "tpl_food_poison_01",
+    "type": "random",
+    "title": "Food Poisoning",
+    "description": "Driver/engineer struck by food poisoning.",
+    "targets": "driver",
+    "base_weight": 1,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 10,
+    "mods": {
+      "consistency": -2
+    },
+    "cooldown_days": 30,
+    "source": "random",
+    "tags": [
+      "health"
+    ]
+  },
+  {
+    "template_id": "tpl_protest_fans_01",
+    "type": "random",
+    "title": "Fan Protest",
+    "description": "Protest delays team access to paddock.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "team_popularity": -2
+    },
+    "cooldown_days": 14,
+    "source": "random",
+    "tags": [
+      "fans",
+      "politics"
+    ]
+  },
+  {
+    "template_id": "tpl_social_trend_01",
+    "type": "random",
+    "title": "Social Media Trend",
+    "description": "Positive viral video of driver.",
+    "targets": "driver",
+    "base_weight": 1,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "driver_popularity": 2
+    },
+    "cooldown_days": 14,
+    "source": "random",
+    "tags": [
+      "social",
+      "fans"
+    ]
+  },
+  {
+    "template_id": "tpl_market_sponsor_exit_01",
+    "type": "market",
+    "title": "Sponsor Exit",
+    "description": "Major sponsor terminates deal.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "sponsor_attract": -2
+    },
+    "cooldown_days": 90,
+    "source": "market",
+    "tags": [
+      "sponsors"
+    ]
+  },
+  {
+    "template_id": "tpl_market_new_investor_01",
+    "type": "market",
+    "title": "New Investor Interest",
+    "description": "Private equity fund rumored to invest.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "board_pressure": -1
+    },
+    "cooldown_days": 90,
+    "source": "market",
+    "tags": [
+      "finance",
+      "rumor"
+    ]
+  },
+  {
+    "template_id": "tpl_market_engine_dev_01",
+    "type": "market",
+    "title": "Engine Supplier Rumor",
+    "description": "Rival supplier may open to new deals.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "after_round>=10"
+    ],
+    "effects_scope": "instant",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "recruitment_interest": 1
+    },
+    "cooldown_days": 30,
+    "source": "market",
+    "tags": [
+      "engines",
+      "rumor"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_ers_01",
+    "type": "training",
+    "title": "Simulator: ERS Deployment Program",
+    "description": "Optimise energy release patterns.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 4000,
+    "cost_fatigue": 7,
+    "mods": {
+      "ers_fuel_management": 2
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "ers"
+    ]
+  },
+  {
+    "template_id": "tpl_sim_tyre_01",
+    "type": "training",
+    "title": "Simulator: Tyre Management",
+    "description": "Focus on extending stint life.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 4000,
+    "cost_fatigue": 7,
+    "mods": {
+      "tire_management": 2
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "sim",
+      "tyres"
+    ]
+  },
+  {
+    "template_id": "tpl_short_track_01",
+    "type": "training",
+    "title": "Short Track Intensive",
+    "description": "Pilot sessions on short circuit layout.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 5000,
+    "cost_fatigue": 9,
+    "mods": {
+      "adaptability": 1,
+      "cornering": 1
+    },
+    "cooldown_days": 14,
+    "source": "calendar",
+    "tags": [
+      "track",
+      "short"
+    ]
+  },
+  {
+    "template_id": "tpl_long_track_01",
+    "type": "training",
+    "title": "Long Track Endurance",
+    "description": "Run extended laps on high-speed layout.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 5000,
+    "cost_fatigue": 9,
+    "mods": {
+      "stamina": 1,
+      "braking": 1
+    },
+    "cooldown_days": 14,
+    "source": "calendar",
+    "tags": [
+      "track",
+      "long"
+    ]
+  },
+  {
+    "template_id": "tpl_driver_heat_chamber_01",
+    "type": "training",
+    "title": "Heat Chamber Training",
+    "description": "Driver adaptation to extreme cockpit temps.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "weather.hot"
+    ],
+    "effects_scope": "season",
+    "cost_money": 6000,
+    "cost_fatigue": 10,
+    "mods": {
+      "stamina": 2
+    },
+    "cooldown_days": 21,
+    "source": "calendar",
+    "tags": [
+      "fitness",
+      "weather"
+    ]
+  },
+  {
+    "template_id": "tpl_flag_drill_01",
+    "type": "gp_prep",
+    "title": "Marshal Flag Drill",
+    "description": "Drivers trained on flag responses.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "mentality": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "flags",
+      "gp_prep"
+    ]
+  },
+  {
+    "template_id": "tpl_safetycar_sim_01",
+    "type": "gp_prep",
+    "title": "Safety Car Restart Practice",
+    "description": "Launch drills behind SC.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "start_launch": 1,
+      "consistency": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "safetycar",
+      "gp_prep"
+    ]
+  },
+  {
+    "template_id": "tpl_night_race_prep_01",
+    "type": "gp_prep",
+    "title": "Night Race Preparation",
+    "description": "Driver eye adaptation runs.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week",
+      "race_type=night"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 5,
+    "mods": {
+      "adaptability": 2
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "night",
+      "gp_prep"
+    ]
+  },
+  {
+    "template_id": "tpl_wet_quali_01",
+    "type": "gp_prep",
+    "title": "Wet Qualifying Simulation",
+    "description": "Short stints on inters/wets.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week",
+      "weather.wet_prob>=0.6"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 6,
+    "mods": {
+      "wet_skill": 2,
+      "confidence": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "qualifying",
+      "wet"
+    ]
+  },
+  {
+    "template_id": "tpl_tyres_new_compound_01",
+    "type": "gp_prep",
+    "title": "New Tyre Compound Evaluation",
+    "description": "Team tests supplier’s new tyre.",
+    "targets": "team",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week",
+      "new_tyre_available"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 2000,
+    "cost_fatigue": 5,
+    "mods": {
+      "tire_management": 1
+    },
+    "cooldown_days": 14,
+    "source": "calendar",
+    "tags": [
+      "tyres",
+      "gp_prep"
+    ]
+  },
+  {
+    "template_id": "tpl_vip_launch_01",
+    "type": "pr",
+    "title": "VIP Sponsor Launch",
+    "description": "Event with key sponsor and VIPs.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": -20000,
+    "cost_fatigue": 6,
+    "mods": {
+      "sponsor_attract": 3,
+      "team_popularity": 1
+    },
+    "cooldown_days": 30,
+    "source": "sponsor",
+    "tags": [
+      "sponsor",
+      "vip"
+    ]
+  },
+  {
+    "template_id": "tpl_local_school_01",
+    "type": "pr",
+    "title": "Local School Visit",
+    "description": "Driver engages with community schools.",
+    "targets": "driver",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_day"
+    ],
+    "effects_scope": "instant",
+    "cost_money": -1000,
+    "cost_fatigue": 3,
+    "mods": {
+      "driver_popularity": 1
+    },
+    "cooldown_days": 7,
+    "source": "sponsor",
+    "tags": [
+      "community",
+      "pr"
+    ]
+  },
+  {
+    "template_id": "tpl_investor_meet_01",
+    "type": "management",
+    "title": "Investor Meeting",
+    "description": "Board updates potential investors.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 2,
+    "mods": {
+      "board_pressure": -1
+    },
+    "cooldown_days": 30,
+    "source": "calendar",
+    "tags": [
+      "finance",
+      "investors"
+    ]
+  },
+  {
+    "template_id": "tpl_budget_cut_01",
+    "type": "management",
+    "title": "Budget Cuts",
+    "description": "Team forced to trim budgets.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "capex_flex": -1,
+      "board_pressure": 1
+    },
+    "cooldown_days": 90,
+    "source": "calendar",
+    "tags": [
+      "finance",
+      "cuts"
+    ]
+  },
+  {
+    "template_id": "tpl_fia_fuel_rule_01",
+    "type": "fia",
+    "title": "FIA Fuel Flow Directive",
+    "description": "Clarification on fuel usage.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "race_intelligence": -1
+    },
+    "cooldown_days": 30,
+    "source": "fia",
+    "tags": [
+      "fia",
+      "fuel"
+    ]
+  },
+  {
+    "template_id": "tpl_setup_camber_01",
+    "type": "gp_prep",
+    "title": "Camber & Toe Sweep",
+    "description": "Back-to-back camber/toe exploration for balance.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 5,
+    "mods": {
+      "technical_feedback": 2,
+      "race_pace": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "setup",
+      "mechanical"
+    ]
+  },
+  {
+    "template_id": "tpl_brake_bias_01",
+    "type": "gp_prep",
+    "title": "Brake Bias Mapping",
+    "description": "Map bias windows for quali vs race.",
+    "targets": "driver",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "braking": 1,
+      "consistency": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "brakes",
+      "setup"
+    ]
+  },
+  {
+    "template_id": "tpl_quali_tow_01",
+    "type": "gp_prep",
+    "title": "Quali Tow Coordination",
+    "description": "Practice tow timing with both cars.",
+    "targets": "team",
+    "base_weight": 7,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "qual_pace": 1,
+      "synergy": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "qualifying",
+      "teamplay"
+    ]
+  },
+  {
+    "template_id": "tpl_susp_rig_01",
+    "type": "training",
+    "title": "Suspension Rig Session",
+    "description": "Kinematics & compliance on 7-post rig.",
+    "targets": "staff",
+    "base_weight": 6,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 6000,
+    "cost_fatigue": 5,
+    "mods": {
+      "engineer_skill": 1
+    },
+    "cooldown_days": 21,
+    "source": "calendar",
+    "tags": [
+      "workshop",
+      "mechanical"
+    ]
+  },
+  {
+    "template_id": "tpl_ers_cooling_01",
+    "type": "training",
+    "title": "ERS & Cooling Management",
+    "description": "Learning cooling deltas for energy usage.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week",
+      "weather.hot"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 2000,
+    "cost_fatigue": 6,
+    "mods": {
+      "ers_fuel_management": 1
+    },
+    "cooldown_days": 10,
+    "source": "calendar",
+    "tags": [
+      "ers",
+      "cooling"
+    ]
+  },
+  {
+    "template_id": "tpl_wet_start_01",
+    "type": "training",
+    "title": "Wet Start Launch Practice",
+    "description": "Clutch & throttle modulation on wets.",
+    "targets": "driver",
+    "base_weight": 6,
+    "prerequisites": [
+      "is_race_week",
+      "weather.wet_prob>=0.4"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 5,
+    "mods": {
+      "start_launch": 1,
+      "wet_skill": 1
+    },
+    "cooldown_days": 7,
+    "source": "calendar",
+    "tags": [
+      "start",
+      "wet"
+    ]
+  },
+  {
+    "template_id": "tpl_engine_reliab_01",
+    "type": "management",
+    "title": "Engine Reliability Taskforce",
+    "description": "Cross-dept taskforce on PU reliability.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "season_mid"
+    ],
+    "effects_scope": "season",
+    "cost_money": 8000,
+    "cost_fatigue": 3,
+    "mods": {
+      "reliability": 1
+    },
+    "cooldown_days": 30,
+    "source": "calendar",
+    "tags": [
+      "reliability",
+      "powerunit"
+    ]
+  },
+  {
+    "template_id": "tpl_quality_audit_01",
+    "type": "management",
+    "title": "Quality Audit: Assembly",
+    "description": "Tighten torque & QA checklists.",
+    "targets": "team",
+    "base_weight": 3,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": 3000,
+    "cost_fatigue": 2,
+    "mods": {
+      "pit_errors": -1,
+      "reliability": 1
+    },
+    "cooldown_days": 28,
+    "source": "calendar",
+    "tags": [
+      "qa",
+      "process"
+    ]
+  },
+  {
+    "template_id": "tpl_parts_shortage_01",
+    "type": "random",
+    "title": "Parts Shortage",
+    "description": "Shipment error reduces spare stock.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "race_prep": -1
+    },
+    "cooldown_days": 21,
+    "source": "random",
+    "tags": [
+      "logistics",
+      "risk"
+    ]
+  },
+  {
+    "template_id": "tpl_travel_strike_01",
+    "type": "random",
+    "title": "Airport Strike",
+    "description": "Travel delays affect staff arrival.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "flyaway_gp"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 4,
+    "mods": {
+      "race_prep": -1
+    },
+    "cooldown_days": 14,
+    "source": "random",
+    "tags": [
+      "logistics",
+      "external"
+    ]
+  },
+  {
+    "template_id": "tpl_customs_hold_01",
+    "type": "random",
+    "title": "Customs Hold",
+    "description": "Equipment held by customs briefly.",
+    "targets": "team",
+    "base_weight": 1,
+    "prerequisites": [
+      "flyaway_gp"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 3,
+    "mods": {
+      "race_prep": -1
+    },
+    "cooldown_days": 14,
+    "source": "random",
+    "tags": [
+      "logistics",
+      "external"
+    ]
+  },
+  {
+    "template_id": "tpl_scrut_hold_01",
+    "type": "fia",
+    "title": "Scrutineering Hold",
+    "description": "Random scrutineering hold delays garage work.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {},
+    "cooldown_days": 7,
+    "source": "fia",
+    "tags": [
+      "fia",
+      "scrutineering"
+    ]
+  },
+  {
+    "template_id": "tpl_track_limits_01",
+    "type": "fia",
+    "title": "Track Limits Bulletin",
+    "description": "Extra sensors at key corners.",
+    "targets": "team",
+    "base_weight": 2,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "next_gp",
+    "cost_money": 0,
+    "cost_fatigue": 0,
+    "mods": {
+      "pressure_handling": -1
+    },
+    "cooldown_days": 7,
+    "source": "fia",
+    "tags": [
+      "fia",
+      "stewards"
+    ]
+  },
+  {
+    "template_id": "tpl_env_campaign_01",
+    "type": "pr",
+    "title": "Green Initiative Campaign",
+    "description": "Team announces sustainability push.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "not_race_week"
+    ],
+    "effects_scope": "season",
+    "cost_money": -8000,
+    "cost_fatigue": 2,
+    "mods": {
+      "team_popularity": 1
+    },
+    "cooldown_days": 28,
+    "source": "sponsor",
+    "tags": [
+      "pr",
+      "sustainability"
+    ]
+  },
+  {
+    "template_id": "tpl_local_partner_01",
+    "type": "pr",
+    "title": "Local Partner Activation",
+    "description": "Local collab with regional partner.",
+    "targets": "team",
+    "base_weight": 4,
+    "prerequisites": [
+      "is_race_week"
+    ],
+    "effects_scope": "instant",
+    "cost_money": -4000,
+    "cost_fatigue": 2,
+    "mods": {
+      "sponsor_attract": 1
+    },
+    "cooldown_days": 14,
+    "source": "sponsor",
+    "tags": [
+      "marketing",
+      "local"
+    ]
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "rule_id": "pen_unsafe_release",
+    "year_from": 1980,
+    "year_to": 2024,
+    "type": "time",
+    "trigger": "Unsafe release in pit lane",
+    "value": 10,
+    "units": "seconds",
+    "applies_to": "team",
+    "during": "race",
+    "notes": "Standard time penalty."
+  },
+  {
+    "rule_id": "pen_jump_start",
+    "year_from": 1980,
+    "year_to": 2024,
+    "type": "drive_through",
+    "trigger": "False start detected",
+    "value": 1,
+    "units": "event",
+    "applies_to": "driver",
+    "during": "race",
+    "notes": "Drive-through penalty."
+  },
+  {
+    "rule_id": "pen_speeding_pit",
+    "year_from": 1980,
+    "year_to": 2024,
+    "type": "drive_through",
+    "trigger": "Pit-lane speeding",
+    "value": 1,
+    "units": "event",
+    "applies_to": "driver",
+    "during": "race",
+    "notes": "Drive-through; time penalty if late race."
+  },
+  {
+    "rule_id": "pen_blocking_quali",
+    "year_from": 1980,
+    "year_to": 2024,
+    "type": "grid_drop",
+    "trigger": "Impeded another in quali",
+    "value": 3,
+    "units": "places",
+    "applies_to": "driver",
+    "during": "qualifying",
+    "notes": "3-place grid drop."
+  },
+  {
+    "rule_id": "pen_engine_change_2004",
+    "year_from": 2004,
+    "year_to": 2004,
+    "type": "grid_drop",
+    "trigger": "Engine change during event",
+    "value": 10,
+    "units": "places",
+    "applies_to": "driver",
+    "during": "qualifying",
+    "notes": "One-engine-per-weekend rule."
+  },
+  {
+    "rule_id": "pen_gearbox_change_late",
+    "year_from": 2004,
+    "year_to": 2024,
+    "type": "grid_drop",
+    "trigger": "Gearbox change before limit",
+    "value": 5,
+    "units": "places",
+    "applies_to": "driver",
+    "during": "qualifying",
+    "notes": "Generic modern-style example."
+  }
+]

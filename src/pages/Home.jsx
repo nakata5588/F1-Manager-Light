@@ -1,19 +1,23 @@
 import React, { useMemo } from "react";
 import { useGame } from "../state/GameStore.js";
-import NextGpCard from "../components/tiles/NextGpCard.jsx";
-import CalendarSnapshot from "../components/tiles/CalendarSnapshot.jsx";
 import TeamOverview from "../components/tiles/TeamOverview.jsx";
 import InboxMini from "../components/tiles/InboxMini.jsx";
+import GpMiniLists from "../components/tiles/GpMiniLists.jsx";
 
-/**
- * Home (Hub) – contracts-driven roster, DB-aware, com DebugCard
- * - Usa contracts (person_id) para descobrir os pilotos da equipa.
- * - Filtra só contratos de DRIVER (role contém "driver" OU person_id começa por "d_").
- * - Mapeia person_id -> drivers[driver_id].
- * - Normaliza calendário {date,name}.
- */
+/* ===== Debug card (stub seguro) ===== */
+function DebugCard(props) {
+  const { title = "Debug", ...rest } = props || {};
+  return (
+    <div className="bg-white rounded-xl shadow p-4">
+      <div className="text-sm font-semibold mb-2">{title}</div>
+      <pre className="text-[11px] leading-tight whitespace-pre-wrap break-all opacity-80">
+        {JSON.stringify(rest, null, 2)}
+      </pre>
+    </div>
+  );
+}
 
-// ===== Utils =====
+/** ===== Utils ===== */
 function fromISO(iso) {
   if (!iso) return new Date(NaN);
   const [y, m, d] = String(iso).split("-").map(Number);
@@ -25,7 +29,7 @@ function toISO(date) {
 function firstArray(...cands) { for (const c of cands) if (Array.isArray(c)) return c; return []; }
 
 export default function Home() {
-  const { gameState, setGameState } = useGame();
+  const { gameState } = useGame();
 
   if (!gameState) {
     return (
@@ -38,7 +42,7 @@ export default function Home() {
     );
   }
 
-  // === Dados (filtrados pelo GameStore.applyYearFilter)
+  // === Dados base
   const season     = gameState.activeYear ?? gameState.season ?? null;
   const contracts  = firstArray(gameState.contracts, gameState.dbContracts);
   const driversDb  = firstArray(gameState.drivers,   gameState.dbDrivers);
@@ -49,11 +53,15 @@ export default function Home() {
     currentDateISO,
     calendar = [],
     currentRound = 0,
-    team,             // { team_id?, name?/team_name? }
+    team,
     inbox = [],
+    board = {},
   } = gameState;
 
-  // teamId: usa team.team_id; senão infere por team_name nos contracts
+  const finances   = gameState.finances || gameState.finance || {};
+  const dev        = gameState.development || {};
+
+  // teamId (por id ou por nome a partir dos contracts)
   const teamKey = useMemo(() => {
     if (team?.team_id) return String(team.team_id);
     const tname = team?.team_name || team?.name;
@@ -62,32 +70,40 @@ export default function Home() {
     return c?.team_id ? String(c.team_id) : null;
   }, [team, contracts]);
 
-  // ===== Calendar normalizado =====
+  // Calendário normalizado
   const normalizedCalendar = useMemo(() => {
     return (Array.isArray(calendar) ? calendar : []).map((row) => ({
       ...row,
       date: row?.date ?? row?.race_date ?? null,
       name: row?.name ?? row?.gp_name ?? "Grand Prix",
+      gp_id: row?.gp_id ?? row?.id ?? null,
+      track_id: row?.track_id ?? null,
     }));
   }, [calendar]);
 
-  // Next GP (primeiro >= hoje, senão fallback)
+  // Next 3 e Last 3
   const today = fromISO(currentDateISO);
-  const nextGp = useMemo(() => {
-    if (!normalizedCalendar.length) return null;
-    const future = normalizedCalendar
-      .filter((g) => g?.date)
-      .sort((a, b) => (a.date < b.date ? -1 : 1))
-      .find((g) => fromISO(g.date) >= today);
-    return future || normalizedCalendar[currentRound] || normalizedCalendar[0] || null;
-  }, [normalizedCalendar, currentRound, currentDateISO]);
+  const next3 = useMemo(() => {
+    const arr = (normalizedCalendar || [])
+      .filter(g => g?.date)
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+    const today = fromISO(currentDateISO);
+    return arr.filter(g => fromISO(g.date) >= today);
+  }, [normalizedCalendar, currentDateISO]);
 
-  // ===== Pilotos da nossa equipa via contracts (person_id + role com "driver") =====
+  const last3 = useMemo(() => {
+    const arr = (normalizedCalendar || [])
+      .filter(g => g?.date)
+      .sort((a, b) => (a.date > b.date ? -1 : 1));
+    const today = fromISO(currentDateISO);
+    return arr.filter(g => fromISO(g.date) < today);
+  }, [normalizedCalendar, currentDateISO]);
+
+  // Pilotos da nossa equipa via contracts
   const teamDrivers = useMemo(() => {
     const result = [];
     if (!teamKey) return result;
 
-    // index de drivers por driver_id
     const driverIndex = new Map();
     for (const d of driversDb) {
       const id = d?.driver_id ?? d?.id ?? d?.driverId;
@@ -98,9 +114,8 @@ export default function Home() {
       if (!c) return false;
       const status = String(c.status || "").toLowerCase();
       if (status === "active") return true;
-      const end =
-        c.contract_until || c.end_date || c.contract_end || c.valid_until || c.endDate || c.until;
-      if (!end) return true; // sem fim → ativo
+      const end = c.contract_until || c.end_date || c.contract_end || c.valid_until || c.endDate || c.until;
+      if (!end) return true;
       const endDt = fromISO(String(end));
       if (Number.isNaN(endDt.getTime())) return true;
       return !(endDt < today);
@@ -113,10 +128,9 @@ export default function Home() {
     };
 
     for (const c of contracts) {
-      // filtrar por época se existir no contract
       if (season != null && c.year != null && String(c.year) !== String(season)) continue;
       if (String(c?.team_id) !== String(teamKey)) continue;
-      if (!isDriverContract(c)) continue;           // ignora staff
+      if (!isDriverContract(c)) continue;
       if (!isActive(c)) continue;
 
       const personId = c?.person_id ?? c?.driver_id ?? c?.id;
@@ -124,7 +138,6 @@ export default function Home() {
       if (d) result.push({ ...d, __contract_role: c.role || null });
     }
 
-    // ordenar por posição no campeonato, se existir
     const posMap = new Map(
       (standings?.drivers || []).map((r) => [String(r.driver_id ?? r.id ?? r.driverId), r.position])
     );
@@ -139,7 +152,7 @@ export default function Home() {
       .slice(0, 2);
   }, [contracts, driversDb, standings, teamKey, currentDateISO, season]);
 
-  // Mapa de pontos/posição por driver
+  // Pts/Pos por driver
   const driverPointsMap = useMemo(() => {
     const m = new Map();
     (standings?.drivers || []).forEach((r) =>
@@ -148,7 +161,7 @@ export default function Home() {
     return m;
   }, [standings]);
 
-  // Linha da nossa equipa em construtores/equipas
+  // Linha da nossa equipa em construtores
   const constructorRow = useMemo(() => {
     const cons = (standings?.constructors && standings.constructors.length
       ? standings.constructors
@@ -156,63 +169,61 @@ export default function Home() {
     return cons.find((r) => String(r?.team_id) === String(teamKey)) || null;
   }, [standings, teamKey]);
 
-  // ===== Actions =====
-  const advanceOneDay = () => {
-    const base = fromISO(currentDateISO);
-    const dt = new Date(base);
-    dt.setUTCDate(dt.getUTCDate() + 1);
-    const nextISO = toISO(dt);
-    setGameState({ currentDateISO: nextISO });
-  };
-
-  const saveGame = () => {
-    try {
-      localStorage.setItem("f1hm_save", JSON.stringify(gameState));
-      alert("Game saved locally.");
-    } catch (e) {
-      console.error("Save failed", e);
-      alert("Save failed (see console)");
-    }
-  };
+  // Alerts vindos da Inbox
+  const alerts = useMemo(() => {
+    const arr = Array.isArray(inbox) ? inbox : [];
+    return arr.filter((m) => {
+      const t = String(m?.type || m?.category || "").toLowerCase();
+      const requires = m?.requires_response ?? m?.requiresReply ?? m?.action_required ?? m?.actionRequired;
+      const priority = String(m?.priority || "").toLowerCase();
+      const unread = m?.unread === true || m?.read === false;
+      return (
+        t.includes("alert") ||
+        t.includes("warning") ||
+        priority === "high" ||
+        requires === true ||
+        (unread && (m?.due_date || m?.deadline))
+      );
+    }).slice(0, 5);
+  }, [inbox]);
 
   const SHOW_DEBUG_CARD = !teamDrivers.length;
 
   return (
     <div className="grid gap-4">
-      {/* Top row */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <NextGpCard currentDateISO={currentDateISO} gp={nextGp} onAdvanceDay={advanceOneDay} />
-        <CalendarSnapshot calendar={normalizedCalendar} currentRound={currentRound} />
-        <TeamOverview team={team} onSave={saveGame} constructorRow={constructorRow} />
-      </div>
+      {/* ======= Main grid (12 cols) ======= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* LEFT: Inbox + Team/Drivers (Drivers alargado) */}
+        <div className="lg:col-span-5 grid gap-4">
+          <CardShell title="News">
+            <InboxMini items={inbox} compact />
+          </CardShell>
 
-      {/* Middle row */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <OurDriversCard drivers={teamDrivers} driverPointsMap={driverPointsMap} />
-        <StandingsMiniCard standings={standings} teamId={teamKey} />
-        <div className="md:col-span-1">
-          <div className="bg-white rounded-xl shadow p-4 h-full">
-            <h3 className="text-base font-semibold">Coming soon</h3>
-            <p className="text-sm text-gray-600 mt-1">More widgets here.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TeamOverview team={team} constructorRow={constructorRow} />
+            <div className="md:col-span-2">
+              <OurDriversCard drivers={teamDrivers} driverPointsMap={driverPointsMap} />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Bottom row */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <InboxMini items={inbox} />
-        <div className="md:col-span-2 flex flex-wrap gap-2 items-center">
-          <button className="px-3 py-1.5 text-sm rounded-lg bg-gray-100 hover:bg-gray-200" onClick={advanceOneDay}>
-            Advance 1 day
-          </button>
-          <button className="px-3 py-1.5 text-sm rounded-lg bg-gray-100 hover:bg-gray-200" onClick={saveGame}>
-            Save (local)
-          </button>
+        {/* MID: Next 3 / Last 3 GPs */}
+        <div className="lg:col-span-4 grid gap-4">
+          <GpMiniLists next3={next3} last3={last3} currentDateISO={currentDateISO} />
+        </div>
+
+        {/* RIGHT: Alerts + Finances + Development + Objectives */}
+        <div className="lg:col-span-3 grid gap-4">
+          <AlertsMini alerts={alerts} />
+          <FinancesCard finances={finances} />
+          <DevelopmentCard dev={dev} />
+          <ObjectivesCard board={board} />
         </div>
       </div>
 
       {SHOW_DEBUG_CARD && (
         <DebugCard
+          title="Debug snapshot"
           teamKey={teamKey}
           season={season}
           contracts={contracts}
@@ -220,6 +231,19 @@ export default function Home() {
           standings={standings}
         />
       )}
+    </div>
+  );
+}
+
+/* ====== Generic shell ====== */
+function CardShell({ title, right, children, className = "" }) {
+  return (
+    <div className={`bg-white rounded-xl shadow p-4 ${className}`}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold">{title}</h3>
+        {right}
+      </div>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
@@ -236,10 +260,9 @@ function StatPill({ label, value }) {
 
 function OurDriversCard({ drivers = [], driverPointsMap }) {
   return (
-    <div className="bg-white rounded-xl shadow p-4 h-full">
-      <h3 className="text-base font-semibold">Our Drivers</h3>
+    <CardShell title="Drivers">
       {drivers.length ? (
-        <ul className="divide-y mt-2">
+        <ul className="divide-y mt-1">
           {drivers.map((d) => {
             const key = String(d?.driver_id ?? d?.id ?? d?.driverId ?? Math.random());
             const s = driverPointsMap?.get(String(d?.driver_id ?? d?.id ?? d?.driverId)) || {
@@ -253,7 +276,9 @@ function OurDriversCard({ drivers = [], driverPointsMap }) {
                     src={d.portrait_path}
                     alt={d?.display_name || d?.name || "Driver"}
                     className="h-10 w-10 rounded object-cover"
-                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
                   />
                 ) : (
                   <div className="h-10 w-10 rounded bg-gray-100 flex items-center justify-center text-sm font-medium">
@@ -262,14 +287,28 @@ function OurDriversCard({ drivers = [], driverPointsMap }) {
                 )}
                 <div className="min-w-0 grow">
                   <div className="text-sm font-medium truncate">
-                    {d?.display_name || d?.name || `${d?.first_name ?? ""} ${d?.last_name ?? ""}`.trim() || "—"}
+                    <span
+                      data-entity="driver"
+                      data-id={d?.driver_id ?? d?.id ?? d?.driverId}
+                      className="entity-link-driver"
+                    >
+                      {d?.display_name ||
+                        d?.name ||
+                        `${d?.first_name ?? ""} ${d?.last_name ?? ""}`.trim() ||
+                        "—"}
+                    </span>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-2">
                     <StatPill label="Pts" value={s.points} />
                     <StatPill label="Pos" value={s.position ? `P${s.position}` : "—"} />
                     <StatPill label="Prep" value={d?.preparation ?? d?.prep ?? "—"} />
                     <StatPill label="Morale" value={d?.morale ?? d?.moral ?? "—"} />
-                    {d?.__contract_role && <StatPill label="Role" value={String(d.__contract_role).replace(/_/g, " ")} />}
+                    {d?.__contract_role && (
+                      <StatPill
+                        label="Role"
+                        value={String(d.__contract_role).replace(/_/g, " ")}
+                      />
+                    )}
                   </div>
                 </div>
               </li>
@@ -279,105 +318,119 @@ function OurDriversCard({ drivers = [], driverPointsMap }) {
       ) : (
         <p className="text-sm text-gray-600 mt-2">No drivers linked to your team.</p>
       )}
+    </CardShell>
+  );
+}
+
+/* ===== Outros cards ===== */
+function FinancesCard({ finances = {} }) {
+  const balance     = finances.balance ?? finances.cash ?? finances.bank ?? "—";
+  const weekly      = finances.weeklyChange ?? finances.weekly_delta ?? finances.weekly ?? "—";
+  const nextPayAmt  = finances.nextSponsorAmount ?? finances.next_payment_amount ?? finances.nextPayment ?? "—";
+  const nextPayDate = finances.nextSponsorDate ?? finances.next_payment_date ?? finances.nextDate ?? "—";
+
+  return (
+    <CardShell title="Finances">
+      <ul className="text-sm space-y-1">
+        <li className="flex justify-between"><span>Balance</span><span className="font-medium">{fmt(balance)}</span></li>
+        <li className="flex justify-between"><span>Weekly change</span><span className="font-medium">{fmt(weekly)}</span></li>
+        <li className="flex justify-between">
+          <span>Next sponsor payment</span>
+          <span className="font-medium">{fmt(nextPayAmt)}{nextPayDate ? ` • ${nextPayDate}` : ""}</span>
+        </li>
+      </ul>
+    </CardShell>
+  );
+}
+
+function DevelopmentCard({ dev = {} }) {
+  const researchPts = dev.researchPoints ?? dev.rp ?? "—";
+  const facilities  = firstArray(dev.facilities)?.slice(0, 3);
+  const parts       = firstArray(dev.partsInProgress, dev.inProgress)?.slice(0, 3);
+
+  return (
+    <CardShell title="Development">
+      <div className="text-sm">
+        <div className="flex justify-between mb-2">
+          <span className="text-gray-600">Research points</span>
+          <span className="font-medium">{fmt(researchPts)}</span>
+        </div>
+        <div className="text-gray-600">Parts in progress</div>
+        <ul className="list-disc list-inside">
+          {parts.length ? parts.map((p, i) => (
+            <li key={i} className="text-sm">
+              {p?.name || p?.part || "Part"} {p?.level ? `(L${p.level})` : ""} {p?.eta ? `– ETA ${p.eta}` : ""}
+            </li>
+          )) : <li className="text-sm text-gray-500">None</li>}
+        </ul>
+        <div className="text-gray-600 mt-2">Facilities</div>
+        <ul className="list-disc list-inside">
+          {facilities.length ? facilities.map((f, i) => (
+            <li key={i} className="text-sm">
+              {(f?.name || f?.facility || "Facility")} {f?.level ? `(L${f.level})` : ""}
+            </li>
+          )) : <li className="text-sm text-gray-500">—</li>}
+        </ul>
+      </div>
+    </CardShell>
+  );
+}
+
+function ObjectivesCard({ board = {} }) {
+  const objectives = Array.isArray(board?.objectives) ? board.objectives.slice(0, 5) : [];
+
+  return (
+    <CardShell title="Objectives">
+      {objectives.length ? (
+        <ul className="space-y-1">
+          {objectives.map((o, i) => (
+            <li key={i} className="text-sm flex items-start justify-between gap-3">
+              <span className="truncate">
+                {o?.title || o?.name || "Objective"}
+                {o?.deadline ? <span className="text-gray-500"> • {o.deadline}</span> : null}
+              </span>
+              <span className={`text-xs rounded px-2 py-0.5 ${badgeClr(o?.status)}`}>
+                {o?.status || o?.state || "—"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-600">No objectives found.</p>
+      )}
+    </CardShell>
+  );
+}
+
+function AlertsMini({ alerts = [] }) {
+  return (
+    <div className="bg-white rounded-xl shadow p-3">
+      <div className="text-xs uppercase tracking-wide text-gray-500">Alerts</div>
+      {alerts.length ? (
+        <ul className="mt-1 space-y-1">
+          {alerts.map((m, i) => (
+            <li key={i} className="text-sm">
+              {m?.subject || m?.title || m?.summary || "Message"}{m?.due_date ? ` • due ${m.due_date}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-1 text-sm text-gray-600">No alerts.</div>
+      )}
     </div>
   );
 }
 
-function MiniRow({ left, right, highlight }) {
-  return (
-    <li className={`px-3 py-2 text-sm flex items-center justify-between ${highlight ? "bg-indigo-50" : ""}`}>
-      <span className="truncate">{left}</span>
-      <span className="font-medium">{right}</span>
-    </li>
-  );
+/* ===== Helpers visuais ===== */
+function fmt(v) {
+  if (v === null || v === undefined || v === "—") return "—";
+  if (typeof v === "number") return v.toLocaleString();
+  return String(v);
 }
-
-function StandingsMiniCard({ standings = {}, teamId }) {
-  const cons = Array.isArray(standings.constructors) && standings.constructors.length
-    ? standings.constructors
-    : (Array.isArray(standings.teams) ? standings.teams : []);
-  const drvs = Array.isArray(standings.drivers) ? standings.drivers : [];
-
-  const topC  = cons.slice(0, 5);
-  const ourC  = cons.find((r) => String(r?.team_id) === String(teamId));
-  const rowsC = [...topC];
-  if (ourC && !topC.some((r) => String(r.team_id) === String(ourC.team_id))) rowsC.push(ourC);
-
-  const topD  = drvs.slice(0, 5);
-  const ourD  = drvs.filter((r) => String(r?.team_id) === String(teamId));
-  const dMap  = new Map(topD.map((r) => [String(r.driver_id ?? r.id ?? r.driverId), r]));
-  ourD.forEach((r) => { const k = String(r.driver_id ?? r.id ?? r.driverId); if (!dMap.has(k)) dMap.set(k, r); });
-  const rowsD = Array.from(dMap.values());
-
-  return (
-    <div className="bg-white rounded-xl shadow p-4 h-full">
-      <h3 className="text-base font-semibold">Standings Snapshot</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-        <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Constructors</div>
-          <div className="rounded-xl border overflow-hidden">
-            <ul className="divide-y">
-              {rowsC.length ? rowsC.map((r) => (
-                <MiniRow
-                  key={String(r.team_id)}
-                  left={`${r.position ? "P" + r.position : "—"} ${r.team_name || r.name || "—"}`}
-                  right={`${r.points ?? 0} pts`}
-                  highlight={String(r.team_id) === String(teamId)}
-                />
-              )) : <li className="px-3 py-2 text-sm text-gray-500">No data.</li>}
-            </ul>
-          </div>
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">Drivers</div>
-          <div className="rounded-xl border overflow-hidden">
-            <ul className="divide-y">
-              {rowsD.length ? rowsD.map((r) => (
-                <MiniRow
-                  key={String(r.driver_id ?? r.id ?? r.driverId)}
-                  left={`${r.position ? "P" + r.position : "—"} ${r.driver_name || r.name || "—"}`}
-                  right={`${r.points ?? 0} pts`}
-                  highlight={String(r.team_id) === String(teamId)}
-                />
-              )) : <li className="px-3 py-2 text-sm text-gray-500">No data.</li>}
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DebugCard({ teamKey, season, contracts, drivers, standings }) {
-  const sample = (arr) => (Array.isArray(arr) ? arr.slice(0, 5) : []);
-  return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-      <div className="text-amber-900 font-semibold">Debug info</div>
-      <div className="text-xs text-amber-900/90 mt-2 grid md:grid-cols-4 gap-3">
-        <div>
-          <div className="font-medium">Keys</div>
-          <div>teamKey: <code>{String(teamKey)}</code></div>
-          <div>season: <code>{String(season ?? "—")}</code></div>
-        </div>
-        <div>
-          <div className="font-medium">Counts</div>
-          <div>contracts: {Array.isArray(contracts) ? contracts.length : 0}</div>
-          <div>drivers: {Array.isArray(drivers) ? drivers.length : 0}</div>
-          <div>standings.drivers: {Array.isArray(standings?.drivers) ? standings.drivers.length : 0}</div>
-        </div>
-        <div className="md:col-span-2">
-          <div className="font-medium">Sample</div>
-          <pre className="text-[10px] leading-tight whitespace-pre-wrap bg-white border rounded p-2 mt-1">{JSON.stringify({
-            contracts: sample(contracts),
-            drivers: sample(drivers),
-            standings_drivers: sample(standings?.drivers),
-          }, null, 2)}</pre>
-        </div>
-      </div>
-      <div className="text-[10px] text-amber-900/70 mt-2">
-        Tip: este painel aparece quando ainda não consegui mostrar os pilotos. Agora trabalhamos com
-        <code> person_id </code> e filtramos apenas contratos de <code>driver</code>.
-      </div>
-    </div>
-  );
+function badgeClr(statusRaw) {
+  const s = String(statusRaw || "").toLowerCase();
+  if (s.includes("done") || s.includes("complete") || s === "ok") return "bg-emerald-100 text-emerald-700";
+  if (s.includes("at risk") || s.includes("warning")) return "bg-amber-100 text-amber-700";
+  if (s.includes("fail") || s.includes("overdue") || s.includes("blocked")) return "bg-rose-100 text-rose-700";
+  return "bg-gray-100 text-gray-700";
 }

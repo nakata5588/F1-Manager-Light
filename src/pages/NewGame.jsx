@@ -5,6 +5,7 @@ import { useGame } from "../state/GameStore";
 
 /* ---------- helpers ---------- */
 const ERA_DECADES = ["1950s","1960s","1970s","1980s","1990s","2000s","2010s","2020s"];
+
 const eraToRange = (era) => {
   const m1=/^(\d{4})s$/.exec(era); const m2=/^(\d{2})s$/.exec(era); const m3=/^(\d{4})\s*-\s*(\d{4})$/.exec(era);
   if(m1){const s=+m1[1]; return [s,s+9];}
@@ -22,6 +23,14 @@ const sameTeam = (rec, team) => {
   const tn = pick(team, ["name","team_name","short_name"]);
   return rn && tn && canon(rn) === canon(tn);
 };
+
+/** Garante string segura para JSX */
+function safeText(v, fallback = "—") {
+  if (v == null) return fallback;
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  // tenta .message (erros), depois toString, senão JSON
+  return String(v?.message ?? (typeof v?.toString === "function" ? v.toString() : JSON.stringify(v)));
+}
 
 /* Pequeno avatar fallback (iniciais) */
 function FallbackAvatar({ title }) {
@@ -41,19 +50,19 @@ function FallbackAvatar({ title }) {
 
 /* Componente de Logo com fallback */
 function TeamLogo({ candidates, title }) {
-  const [src, setSrc] = useState(candidates?.[0] || "");
+  const [src, setSrc] = useState(Array.isArray(candidates) && candidates.length ? candidates[0] : "");
   const [failedIdx, setFailedIdx] = useState(0);
 
-  if (!src) return <FallbackAvatar title={title} />;
+  if (!src) return <FallbackAvatar title={safeText(title, "?")} />;
 
   return (
     <img
       src={src}
-      alt={title}
+      alt={safeText(title, "Team")}
       className="w-8 h-8 rounded-md object-contain bg-white/5"
       onError={() => {
         const next = failedIdx + 1;
-        if (next < (candidates?.length || 0)) {
+        if (Array.isArray(candidates) && next < candidates.length) {
           setFailedIdx(next);
           setSrc(candidates[next]);
         } else {
@@ -67,7 +76,15 @@ function TeamLogo({ candidates, title }) {
 /* ---------- componente ---------- */
 export default function NewGame() {
   const navigate = useNavigate();
-  const { gameState, loadData, applyYearFilter, startNewGame, saveLocal, getTeamDisplayName, getTeamLogoCandidates } = useGame();
+  const {
+    gameState,
+    loadData,
+    applyYearFilter,
+    startNewGame,
+    saveLocal,
+    getTeamDisplayName,
+    getTeamLogoCandidates,
+  } = useGame();
 
   const [step, setStep] = useState(0);
   const [era, setEra] = useState("1980s");
@@ -75,31 +92,29 @@ export default function NewGame() {
   const [teamId, setTeamId] = useState("");
   const [difficulty, setDifficulty] = useState("Normal");
 
+  // bootstrap data
   useEffect(() => {
     if (!gameState?.dbDrivers?.length || !gameState?.dbCalendar?.length || !gameState?.dbTeams?.length) {
       loadData();
     }
   }, [gameState?.dbDrivers?.length, gameState?.dbCalendar?.length, gameState?.dbTeams?.length, loadData]);
 
+  // usar yearsAvailable do store (calculado no loadData)
   const allYears = useMemo(() => {
-    const s = new Set();
-    (gameState.dbCalendar || []).forEach((gp) => {
-      const y = gp?.season_year ?? gp?.year ?? (typeof gp?.date === "string" ? gp.date.slice(0,4) : null);
-      if (y) s.add(String(y));
-    });
-    const arr = Array.from(s);
-    if (!arr.length) arr.push("1980");
-    return arr.sort();
-  }, [gameState.dbCalendar]);
+    const ys = gameState?.yearsAvailable || [];
+    if (Array.isArray(ys) && ys.length) return ys.map(String);
+    return ["1980"];
+  }, [gameState?.yearsAvailable]);
 
   const eraYears = useMemo(() => {
     const [a,b] = eraToRange(era);
-    const list = allYears.filter((y) => (+y)>=a && (+y)<=b);
+    const list = (allYears || []).filter((y) => (+y)>=a && (+y)<=b);
     return list.length ? list : allYears;
   }, [allYears, era]);
 
+  // quando muda a era, garantir que o ano está dentro do range e aplicar slice
   useEffect(() => {
-    if (eraYears.length) {
+    if (Array.isArray(eraYears) && eraYears.length) {
       if (!eraYears.includes(year)) {
         setYear(eraYears[0]);
         applyYearFilter(+eraYears[0]);
@@ -113,14 +128,15 @@ export default function NewGame() {
 
   const pickYear = (y) => { setYear(String(y)); applyYearFilter(+y); setTeamId(""); };
 
-  // listas filtradas
-  const teamsForYear = gameState.teams || [];
-  const engines = gameState.teamEngines || [];
-  const contracts = gameState.contracts || [];
-  const gpCount = gameState.calendar?.length ?? 0;
-  const driverCount = gameState.drivers?.length ?? 0;
+  // listas filtradas (já em snapshot)
+  const teamsForYear = Array.isArray(gameState?.teams) ? gameState.teams : [];
+  const contracts = Array.isArray(gameState?.contracts) ? gameState.contracts : [];
+  const gpCount = Array.isArray(gameState?.calendar) ? gameState.calendar.length : 0;
+  const driverCount = Array.isArray(gameState?.drivers) ? gameState.drivers.length : 0;
 
-  const isLoading = !gameState?.dbCalendar?.length || !gameState?.dbTeams?.length || !allYears.length;
+  const isLoading = !Array.isArray(gameState?.dbCalendar) || !gameState.dbCalendar.length
+                 || !Array.isArray(gameState?.dbTeams) || !gameState.dbTeams.length
+                 || !(allYears && allYears.length);
 
   const canNext = useMemo(() => {
     if (step === 0) return !!era;
@@ -181,7 +197,7 @@ export default function NewGame() {
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold mb-2">Choose Year</h2>
                   <div className="flex flex-wrap gap-2">
-                    {eraYears.map((y) => {
+                    {Array.isArray(eraYears) && eraYears.map((y) => {
                       const selected = year === y;
                       return (
                         <button key={y} onClick={() => pickYear(y)}
@@ -192,7 +208,7 @@ export default function NewGame() {
                     })}
                   </div>
                   <p className="text-xs opacity-70">
-                    Dataset for {year}: {gpCount} GPs · {teamsForYear.length} teams · {driverCount} drivers (hidden excluded).
+                    Dataset for {safeText(year)}: {safeText(gpCount)} GPs · {safeText(teamsForYear.length)} teams · {safeText(driverCount)} drivers (hidden excluded).
                   </p>
                 </div>
               )}
@@ -214,27 +230,27 @@ export default function NewGame() {
                     </button>
 
                     {/* Existing teams */}
-                    {teamsForYear.map((t) => {
+                    {Array.isArray(teamsForYear) && teamsForYear.map((t) => {
                       const id = getTeamId(t);
                       const selected = teamId === id;
 
-                      const engineRec = (gameState.teamEngines || []).find((e) => sameTeam(e, t));
-                      const engineName = pick(engineRec, ["engine_name","name","engine","power_unit"], "—");
+                      const engineRec = Array.isArray(gameState?.teamEngines) ? gameState.teamEngines.find((e) => sameTeam(e, t)) : null;
+                      const engineName = safeText(pick(engineRec, ["engine_name","name","engine","power_unit"], "—"));
 
-                      const title = typeof getTeamDisplayName === "function"
+                      const rawTitle = typeof getTeamDisplayName === "function"
                         ? getTeamDisplayName(t)
-                        : (pick(t, ["official_name","team_name","name","short_name"], id));
+                        : pick(t, ["official_name","team_name","name","short_name"], id);
+                      const title = safeText(rawTitle, id);
 
-                      // Base do teams.json (team_base > base > país)
-                      const base = pick(t, ["team_base", "base", "country", "nation", "location"], "—");
+                      const base = safeText(pick(t, ["team_base", "base", "country", "nation", "location"], "—"));
 
-                      // Drivers
                       const driverContracts = (contracts || []).filter(
                         (c) => sameTeam(c, t) && /driver/i.test(String(pick(c,["role","position"], "")))
                       );
                       const driverNames = driverContracts
                         .map((c) => pick(c, ["driver_name","name","full_name","short_name"], null))
-                        .filter(Boolean);
+                        .filter(Boolean)
+                        .map((n) => safeText(n));
                       const driversText =
                         driverNames.length === 0
                           ? "—"

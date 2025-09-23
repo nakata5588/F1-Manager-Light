@@ -1,7 +1,10 @@
 [
   {
     "year": 1980,
-    "driver_id": "d_0001",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C2,drivers!$B:$B,0)),\"\")",
+      "result": "d_0178"
+    },
     "driver_name": "Alan Jones",
     "current_ability": 73,
     "potential_ability": 80,
@@ -23,11 +26,15 @@
     "leadership": 80,
     "team_player": 75,
     "car_development_impact": 82,
-    "reputation": 78
+    "reputation": 78,
+    "market_value": 3200000
   },
   {
     "year": 1980,
-    "driver_id": "d_0002",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C3,drivers!$B:$B,0)),\"\")",
+      "result": "d_0199"
+    },
     "driver_name": "Carlos Reutemann",
     "current_ability": 72,
     "potential_ability": 74,
@@ -49,11 +56,15 @@
     "leadership": 78,
     "team_player": 74,
     "car_development_impact": 80,
-    "reputation": 76
+    "reputation": 76,
+    "market_value": 2800000
   },
   {
     "year": 1980,
-    "driver_id": "d_0003",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C4,drivers!$B:$B,0)),\"\")",
+      "result": "d_0203"
+    },
     "driver_name": "Gilles Villeneuve",
     "current_ability": 75,
     "potential_ability": 92,
@@ -75,11 +86,15 @@
     "leadership": 75,
     "team_player": 72,
     "car_development_impact": 75,
-    "reputation": 83
+    "reputation": 83,
+    "market_value": 2600000
   },
   {
     "year": 1980,
-    "driver_id": "d_0004",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C5,drivers!$B:$B,0)),\"\")",
+      "result": "d_0222"
+    },
     "driver_name": "Jody Scheckter",
     "current_ability": 72,
     "potential_ability": 76,
@@ -101,11 +116,15 @@
     "leadership": 82,
     "team_player": 78,
     "car_development_impact": 80,
-    "reputation": 85
+    "reputation": 85,
+    "market_value": 2200000
   },
   {
     "year": 1980,
-    "driver_id": "d_0005",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C6,drivers!$B:$B,0)),\"\")",
+      "result": "d_0137"
+    },
     "driver_name": "Nelson Piquet",
     "current_ability": 71,
     "potential_ability": 94,
@@ -127,11 +146,15 @@
     "leadership": 68,
     "team_player": 70,
     "car_development_impact": 72,
-    "reputation": 72
+    "reputation": 72,
+    "market_value": 2500000
   },
   {
     "year": 1980,
-    "driver_id": "d_0006",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C7,drivers!$B:$B,0)),\"\")",
+      "result": "d_0172"
+    },
     "driver_name": "Jacques Laffite",
     "current_ability": 70,
     "potential_ability": 73,
@@ -153,11 +176,15 @@
     "leadership": 76,
     "team_player": 74,
     "car_development_impact": 74,
-    "reputation": 75
+    "reputation": 75,
+    "market_value": 2000000
   },
   {
     "year": 1980,
-    "driver_id": "d_0007",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C8,drivers!$B:$B,0)),\"\")",
+      "result": "d_0202"
+    },
     "driver_name": "Didier Pironi",
     "current_ability": 70,
     "potential_ability": 86,
@@ -179,11 +206,15 @@
     "leadership": 75,
     "team_player": 72,
     "car_development_impact": 73,
-    "reputation": 70
+    "reputation": 70,
+    "market_value": 1400000
   },
   {
     "year": 1980,
-    "driver_id": "d_0008",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C9,drivers!$B:$B,0)),\"\")",
+      "result": "d_0163"
+    },
     "driver_name": "René Arnoux",
     "current_ability": 70,
     "potential_ability": 82,
@@ -205,11 +236,15 @@
     "leadership": 74,
     "team_player": 72,
     "car_development_impact": 72,
-    "reputation": 71
+    "reputation": 71,
+    "market_value": 1600000
   },
   {
     "year": 1980,
-    "driver_id": "d_0009",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C10,drivers!$B:$B,0)),\"\")",
+      "result": "d_0173"
+    },
     "driver_name": "Elio de Angelis",
     "current_ability": 67,
     "potential_ability": 85,
@@ -231,11 +266,15 @@
     "leadership": 72,
     "team_player": 70,
     "car_development_impact": 70,
-    "reputation": 60
+    "reputation": 60,
+    "market_value": 1200000
   },
   {
     "year": 1980,
-    "driver_id": "d_0010",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C11,drivers!$B:$B,0)),\"\")",
+      "result": "d_0219"
+    },
     "driver_name": "Jean-Pierre Jabouille",
     "current_ability": 67,
     "potential_ability": 70,
@@ -257,11 +296,15 @@
     "leadership": 71,
     "team_player": 70,
     "car_development_impact": 71,
-    "reputation": 68
+    "reputation": 68,
+    "market_value": 1000000
   },
   {
     "year": 1980,
-    "driver_id": "d_0011",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C12,drivers!$B:$B,0)),\"\")",
+      "result": "d_0119"
+    },
     "driver_name": "Riccardo Patrese",
     "current_ability": 68,
     "potential_ability": 86,
@@ -283,11 +326,15 @@
     "leadership": 73,
     "team_player": 71,
     "car_development_impact": 72,
-    "reputation": 69
+    "reputation": 69,
+    "market_value": 1400000
   },
   {
     "year": 1980,
-    "driver_id": "d_0012",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C13,drivers!$B:$B,0)),\"\")",
+      "result": "d_0177"
+    },
     "driver_name": "Keke Rosberg",
     "current_ability": 64,
     "potential_ability": 83,
@@ -309,11 +356,15 @@
     "leadership": 65,
     "team_player": 67,
     "car_development_impact": 70,
-    "reputation": 67
+    "reputation": 67,
+    "market_value": 1000000
   },
   {
     "year": 1980,
-    "driver_id": "d_0013",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C14,drivers!$B:$B,0)),\"\")",
+      "result": "d_0187"
+    },
     "driver_name": "John Watson",
     "current_ability": 66,
     "potential_ability": 75,
@@ -335,11 +386,15 @@
     "leadership": 70,
     "team_player": 68,
     "car_development_impact": 71,
-    "reputation": 70
+    "reputation": 70,
+    "market_value": 1600000
   },
   {
     "year": 1980,
-    "driver_id": "d_0014",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C15,drivers!$B:$B,0)),\"\")",
+      "result": "d_0206"
+    },
     "driver_name": "Derek Daly",
     "current_ability": 64,
     "potential_ability": 72,
@@ -361,11 +416,15 @@
     "leadership": 69,
     "team_player": 68,
     "car_development_impact": 70,
-    "reputation": 63
+    "reputation": 63,
+    "market_value": 700000
   },
   {
     "year": 1980,
-    "driver_id": "d_0015",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C16,drivers!$B:$B,0)),\"\")",
+      "result": "d_0197"
+    },
     "driver_name": "Jean-Pierre Jarier",
     "current_ability": 65,
     "potential_ability": 74,
@@ -387,11 +446,15 @@
     "leadership": 69,
     "team_player": 67,
     "car_development_impact": 70,
-    "reputation": 69
+    "reputation": 69,
+    "market_value": 1000000
   },
   {
     "year": 1980,
-    "driver_id": "d_0016",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C17,drivers!$B:$B,0)),\"\")",
+      "result": "d_0224"
+    },
     "driver_name": "Emerson Fittipaldi",
     "current_ability": 62,
     "potential_ability": 70,
@@ -413,11 +476,15 @@
     "leadership": 68,
     "team_player": 66,
     "car_development_impact": 68,
-    "reputation": 88
+    "reputation": 88,
+    "market_value": 1200000
   },
   {
     "year": 1980,
-    "driver_id": "d_0017",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C18,drivers!$B:$B,0)),\"\")",
+      "result": "d_0117"
+    },
     "driver_name": "Alain Prost",
     "current_ability": 60,
     "potential_ability": 98,
@@ -439,11 +506,15 @@
     "leadership": 60,
     "team_player": 62,
     "car_development_impact": 65,
-    "reputation": 58
+    "reputation": 58,
+    "market_value": 1500000
   },
   {
     "year": 1980,
-    "driver_id": "d_0018",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C19,drivers!$B:$B,0)),\"\")",
+      "result": "d_0200"
+    },
     "driver_name": "Jochen Mass",
     "current_ability": 63,
     "potential_ability": 72,
@@ -465,11 +536,15 @@
     "leadership": 70,
     "team_player": 68,
     "car_development_impact": 70,
-    "reputation": 65
+    "reputation": 65,
+    "market_value": 900000
   },
   {
     "year": 1980,
-    "driver_id": "d_0019",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C20,drivers!$B:$B,0)),\"\")",
+      "result": "d_0152"
+    },
     "driver_name": "Bruno Giacomelli",
     "current_ability": 66,
     "potential_ability": 75,
@@ -491,11 +566,15 @@
     "leadership": 74,
     "team_player": 72,
     "car_development_impact": 73,
-    "reputation": 68
+    "reputation": 68,
+    "market_value": 900000
   },
   {
     "year": 1980,
-    "driver_id": "d_0020",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C21,drivers!$B:$B,0)),\"\")",
+      "result": "d_0207"
+    },
     "driver_name": "Mario Andretti",
     "current_ability": 72,
     "potential_ability": 74,
@@ -517,11 +596,15 @@
     "leadership": 82,
     "team_player": 78,
     "car_development_impact": 78,
-    "reputation": 90
+    "reputation": 90,
+    "market_value": 2200000
   },
   {
     "year": 1980,
-    "driver_id": "d_0021",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C22,drivers!$B:$B,0)),\"\")",
+      "result": "d_0223"
+    },
     "driver_name": "Clay Regazzoni",
     "current_ability": 67,
     "potential_ability": 68,
@@ -543,11 +626,15 @@
     "leadership": 75,
     "team_player": 72,
     "car_development_impact": 74,
-    "reputation": 74
+    "reputation": 74,
+    "market_value": 1100000
   },
   {
     "year": 1980,
-    "driver_id": "d_0022",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C23,drivers!$B:$B,0)),\"\")",
+      "result": "d_0217"
+    },
     "driver_name": "Ricardo Zunino",
     "current_ability": 59,
     "potential_ability": 65,
@@ -569,11 +656,15 @@
     "leadership": 60,
     "team_player": 62,
     "car_development_impact": 64,
-    "reputation": 55
+    "reputation": 55,
+    "market_value": 500000
   },
   {
     "year": 1980,
-    "driver_id": "d_0023",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C24,drivers!$B:$B,0)),\"\")",
+      "result": "d_0176"
+    },
     "driver_name": "Marc Surer",
     "current_ability": 64,
     "potential_ability": 73,
@@ -595,11 +686,15 @@
     "leadership": 70,
     "team_player": 68,
     "car_development_impact": 70,
-    "reputation": 60
+    "reputation": 60,
+    "market_value": 700000
   },
   {
     "year": 1980,
-    "driver_id": "d_0024",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C25,drivers!$B:$B,0)),\"\")",
+      "result": "d_0221"
+    },
     "driver_name": "Patrick Depailler",
     "current_ability": 69,
     "potential_ability": 72,
@@ -621,11 +716,15 @@
     "leadership": 78,
     "team_player": 75,
     "car_development_impact": 76,
-    "reputation": 73
+    "reputation": 73,
+    "market_value": 1300000
   },
   {
     "year": 1980,
-    "driver_id": "d_0025",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C26,drivers!$B:$B,0)),\"\")",
+      "result": "d_0862"
+    },
     "driver_name": "David Kennedy",
     "current_ability": 57,
     "potential_ability": 65,
@@ -647,11 +746,15 @@
     "leadership": 60,
     "team_player": 60,
     "car_development_impact": 60,
-    "reputation": 52
+    "reputation": 52,
+    "market_value": 400000
   },
   {
     "year": 1980,
-    "driver_id": "d_0026",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C27,drivers!$B:$B,0)),\"\")",
+      "result": "d_0136"
+    },
     "driver_name": "Jan Lammers",
     "current_ability": 59,
     "potential_ability": 76,
@@ -673,11 +776,15 @@
     "leadership": 65,
     "team_player": 64,
     "car_development_impact": 65,
-    "reputation": 57
+    "reputation": 57,
+    "market_value": 600000
   },
   {
     "year": 1980,
-    "driver_id": "d_0027",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C28,drivers!$B:$B,0)),\"\")",
+      "result": "d_0140"
+    },
     "driver_name": "Stefan Johansson",
     "current_ability": 57,
     "potential_ability": 78,
@@ -699,11 +806,15 @@
     "leadership": 62,
     "team_player": 62,
     "car_development_impact": 63,
-    "reputation": 56
+    "reputation": 56,
+    "market_value": 700000
   },
   {
     "year": 1980,
-    "driver_id": "d_0028",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C29,drivers!$B:$B,0)),\"\")",
+      "result": "d_0158"
+    },
     "driver_name": "Eddie Cheever",
     "current_ability": 59,
     "potential_ability": 78,
@@ -725,11 +836,15 @@
     "leadership": 66,
     "team_player": 64,
     "car_development_impact": 65,
-    "reputation": 64
+    "reputation": 64,
+    "market_value": 1000000
   },
   {
     "year": 1980,
-    "driver_id": "d_0029",
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C30,drivers!$B:$B,0)),\"\")",
+      "result": "d_0182"
+    },
     "driver_name": "Niki Lauda",
     "current_ability": 83,
     "potential_ability": 83,
@@ -751,6 +866,607 @@
     "leadership": 88,
     "team_player": 82,
     "car_development_impact": 97,
-    "reputation": 95
+    "reputation": 95,
+    "market_value": 2500000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C31,drivers!$B:$B,0)),\"\")",
+      "result": "d_0018"
+    },
+    "driver_name": "Jenson Button",
+    "current_ability": 88,
+    "potential_ability": 91,
+    "pace": 88,
+    "qualifying": 87,
+    "start_launch": 80,
+    "racecraft": 86,
+    "wet_skill": 85,
+    "consistency": 88,
+    "tire_management": 82,
+    "race_intelligence": 85,
+    "technical_feedback": 83,
+    "adaptability": 84,
+    "ers_fuel_management": 82,
+    "mentality": 87,
+    "agression": 65,
+    "crash_likelihood": 15,
+    "pressure_handling": 84,
+    "leadership": 75,
+    "team_player": 78,
+    "car_development_impact": 80,
+    "reputation": 85,
+    "market_value": 25000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C32,drivers!$B:$B,0)),\"\")",
+      "result": "d_0011"
+    },
+    "driver_name": "Takuma Sato",
+    "current_ability": 78,
+    "potential_ability": 82,
+    "pace": 85,
+    "qualifying": 80,
+    "start_launch": 82,
+    "racecraft": 76,
+    "wet_skill": 70,
+    "consistency": 75,
+    "tire_management": 72,
+    "race_intelligence": 70,
+    "technical_feedback": 68,
+    "adaptability": 72,
+    "ers_fuel_management": 74,
+    "mentality": 78,
+    "agression": 88,
+    "crash_likelihood": 25,
+    "pressure_handling": 68,
+    "leadership": 60,
+    "team_player": 65,
+    "car_development_impact": 60,
+    "reputation": 70,
+    "market_value": 12000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C33,drivers!$B:$B,0)),\"\")",
+      "result": "d_0030"
+    },
+    "driver_name": "Michael Schumacher",
+    "current_ability": 98,
+    "potential_ability": 99,
+    "pace": 99,
+    "qualifying": 99,
+    "start_launch": 94,
+    "racecraft": 98,
+    "wet_skill": 97,
+    "consistency": 99,
+    "tire_management": 96,
+    "race_intelligence": 98,
+    "technical_feedback": 97,
+    "adaptability": 96,
+    "ers_fuel_management": 95,
+    "mentality": 99,
+    "agression": 70,
+    "crash_likelihood": 10,
+    "pressure_handling": 99,
+    "leadership": 95,
+    "team_player": 90,
+    "car_development_impact": 95,
+    "reputation": 100,
+    "market_value": 50000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C34,drivers!$B:$B,0)),\"\")",
+      "result": "d_0022"
+    },
+    "driver_name": "Rubens Barrichello",
+    "current_ability": 90,
+    "potential_ability": 91,
+    "pace": 90,
+    "qualifying": 91,
+    "start_launch": 86,
+    "racecraft": 88,
+    "wet_skill": 85,
+    "consistency": 90,
+    "tire_management": 88,
+    "race_intelligence": 89,
+    "technical_feedback": 88,
+    "adaptability": 87,
+    "ers_fuel_management": 86,
+    "mentality": 90,
+    "agression": 68,
+    "crash_likelihood": 12,
+    "pressure_handling": 88,
+    "leadership": 80,
+    "team_player": 82,
+    "car_development_impact": 85,
+    "reputation": 90,
+    "market_value": 20000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C35,drivers!$B:$B,0)),\"\")",
+      "result": "d_0017"
+    },
+    "driver_name": "Mark Webber",
+    "current_ability": 85,
+    "potential_ability": 88,
+    "pace": 86,
+    "qualifying": 87,
+    "start_launch": 82,
+    "racecraft": 83,
+    "wet_skill": 80,
+    "consistency": 84,
+    "tire_management": 80,
+    "race_intelligence": 82,
+    "technical_feedback": 80,
+    "adaptability": 83,
+    "ers_fuel_management": 82,
+    "mentality": 86,
+    "agression": 70,
+    "crash_likelihood": 18,
+    "pressure_handling": 83,
+    "leadership": 72,
+    "team_player": 75,
+    "car_development_impact": 78,
+    "reputation": 85,
+    "market_value": 15000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C36,drivers!$B:$B,0)),\"\")",
+      "result": "d_0032"
+    },
+    "driver_name": "Christian Klien",
+    "current_ability": 70,
+    "potential_ability": 80,
+    "pace": 78,
+    "qualifying": 72,
+    "start_launch": 75,
+    "racecraft": 68,
+    "wet_skill": 65,
+    "consistency": 70,
+    "tire_management": 68,
+    "race_intelligence": 66,
+    "technical_feedback": 65,
+    "adaptability": 68,
+    "ers_fuel_management": 70,
+    "mentality": 74,
+    "agression": 85,
+    "crash_likelihood": 30,
+    "pressure_handling": 66,
+    "leadership": 55,
+    "team_player": 60,
+    "car_development_impact": 60,
+    "reputation": 65,
+    "market_value": 5000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C37,drivers!$B:$B,0)),\"\")",
+      "result": "d_0002"
+    },
+    "driver_name": "Nick Heidfeld",
+    "current_ability": 83,
+    "potential_ability": 86,
+    "pace": 82,
+    "qualifying": 83,
+    "start_launch": 80,
+    "racecraft": 82,
+    "wet_skill": 82,
+    "consistency": 83,
+    "tire_management": 80,
+    "race_intelligence": 81,
+    "technical_feedback": 82,
+    "adaptability": 82,
+    "ers_fuel_management": 80,
+    "mentality": 84,
+    "agression": 60,
+    "crash_likelihood": 12,
+    "pressure_handling": 82,
+    "leadership": 72,
+    "team_player": 74,
+    "car_development_impact": 76,
+    "reputation": 82,
+    "market_value": 10000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C38,drivers!$B:$B,0)),\"\")",
+      "result": "d_0045"
+    },
+    "driver_name": "Giorgio Pantano",
+    "current_ability": 68,
+    "potential_ability": 74,
+    "pace": 72,
+    "qualifying": 70,
+    "start_launch": 70,
+    "racecraft": 68,
+    "wet_skill": 65,
+    "consistency": 68,
+    "tire_management": 66,
+    "race_intelligence": 65,
+    "technical_feedback": 64,
+    "adaptability": 66,
+    "ers_fuel_management": 68,
+    "mentality": 72,
+    "agression": 78,
+    "crash_likelihood": 25,
+    "pressure_handling": 65,
+    "leadership": 55,
+    "team_player": 58,
+    "car_development_impact": 55,
+    "reputation": 60,
+    "market_value": 3000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C39,drivers!$B:$B,0)),\"\")",
+      "result": "d_0014"
+    },
+    "driver_name": "David Coulthard",
+    "current_ability": 87,
+    "potential_ability": 87,
+    "pace": 86,
+    "qualifying": 86,
+    "start_launch": 84,
+    "racecraft": 85,
+    "wet_skill": 83,
+    "consistency": 87,
+    "tire_management": 85,
+    "race_intelligence": 84,
+    "technical_feedback": 84,
+    "adaptability": 83,
+    "ers_fuel_management": 82,
+    "mentality": 86,
+    "agression": 62,
+    "crash_likelihood": 12,
+    "pressure_handling": 85,
+    "leadership": 78,
+    "team_player": 80,
+    "car_development_impact": 78,
+    "reputation": 88,
+    "market_value": 18000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C40,drivers!$B:$B,0)),\"\")",
+      "result": "d_0008"
+    },
+    "driver_name": "Kimi Räikkönen",
+    "current_ability": 92,
+    "potential_ability": 96,
+    "pace": 94,
+    "qualifying": 93,
+    "start_launch": 90,
+    "racecraft": 92,
+    "wet_skill": 88,
+    "consistency": 92,
+    "tire_management": 86,
+    "race_intelligence": 89,
+    "technical_feedback": 88,
+    "adaptability": 87,
+    "ers_fuel_management": 86,
+    "mentality": 93,
+    "agression": 78,
+    "crash_likelihood": 14,
+    "pressure_handling": 90,
+    "leadership": 80,
+    "team_player": 82,
+    "car_development_impact": 82,
+    "reputation": 92,
+    "market_value": 30000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C41,drivers!$B:$B,0)),\"\")",
+      "result": "d_0046"
+    },
+    "driver_name": "Gianmaria Bruni",
+    "current_ability": 66,
+    "potential_ability": 72,
+    "pace": 70,
+    "qualifying": 68,
+    "start_launch": 68,
+    "racecraft": 66,
+    "wet_skill": 64,
+    "consistency": 66,
+    "tire_management": 65,
+    "race_intelligence": 64,
+    "technical_feedback": 63,
+    "adaptability": 65,
+    "ers_fuel_management": 66,
+    "mentality": 70,
+    "agression": 80,
+    "crash_likelihood": 28,
+    "pressure_handling": 62,
+    "leadership": 55,
+    "team_player": 58,
+    "car_development_impact": 55,
+    "reputation": 60,
+    "market_value": 2000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C42,drivers!$B:$B,0)),\"\")",
+      "result": "d_0047"
+    },
+    "driver_name": "Zsolt Baumgartner",
+    "current_ability": 65,
+    "potential_ability": 70,
+    "pace": 68,
+    "qualifying": 66,
+    "start_launch": 68,
+    "racecraft": 64,
+    "wet_skill": 62,
+    "consistency": 64,
+    "tire_management": 64,
+    "race_intelligence": 63,
+    "technical_feedback": 62,
+    "adaptability": 64,
+    "ers_fuel_management": 65,
+    "mentality": 68,
+    "agression": 82,
+    "crash_likelihood": 30,
+    "pressure_handling": 60,
+    "leadership": 50,
+    "team_player": 55,
+    "car_development_impact": 52,
+    "reputation": 55,
+    "market_value": 1500000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C43,drivers!$B:$B,0)),\"\")",
+      "result": "d_0015"
+    },
+    "driver_name": "Jarno Trulli",
+    "current_ability": 88,
+    "potential_ability": 89,
+    "pace": 87,
+    "qualifying": 91,
+    "start_launch": 80,
+    "racecraft": 86,
+    "wet_skill": 85,
+    "consistency": 88,
+    "tire_management": 84,
+    "race_intelligence": 85,
+    "technical_feedback": 84,
+    "adaptability": 83,
+    "ers_fuel_management": 82,
+    "mentality": 88,
+    "agression": 60,
+    "crash_likelihood": 14,
+    "pressure_handling": 86,
+    "leadership": 72,
+    "team_player": 74,
+    "car_development_impact": 78,
+    "reputation": 88,
+    "market_value": 16000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C44,drivers!$B:$B,0)),\"\")",
+      "result": "d_0004"
+    },
+    "driver_name": "Fernando Alonso",
+    "current_ability": 91,
+    "potential_ability": 96,
+    "pace": 92,
+    "qualifying": 92,
+    "start_launch": 86,
+    "racecraft": 91,
+    "wet_skill": 90,
+    "consistency": 92,
+    "tire_management": 87,
+    "race_intelligence": 89,
+    "technical_feedback": 88,
+    "adaptability": 88,
+    "ers_fuel_management": 86,
+    "mentality": 94,
+    "agression": 74,
+    "crash_likelihood": 12,
+    "pressure_handling": 92,
+    "leadership": 82,
+    "team_player": 84,
+    "car_development_impact": 82,
+    "reputation": 95,
+    "market_value": 28000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C45,drivers!$B:$B,0)),\"\")",
+      "result": "d_0021"
+    },
+    "driver_name": "Giancarlo Fisichella",
+    "current_ability": 86,
+    "potential_ability": 88,
+    "pace": 86,
+    "qualifying": 85,
+    "start_launch": 83,
+    "racecraft": 85,
+    "wet_skill": 85,
+    "consistency": 86,
+    "tire_management": 83,
+    "race_intelligence": 84,
+    "technical_feedback": 84,
+    "adaptability": 83,
+    "ers_fuel_management": 82,
+    "mentality": 87,
+    "agression": 62,
+    "crash_likelihood": 13,
+    "pressure_handling": 84,
+    "leadership": 75,
+    "team_player": 76,
+    "car_development_impact": 78,
+    "reputation": 86,
+    "market_value": 14000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C46,drivers!$B:$B,0)),\"\")",
+      "result": "d_0013"
+    },
+    "driver_name": "Felipe Massa",
+    "current_ability": 82,
+    "potential_ability": 89,
+    "pace": 86,
+    "qualifying": 82,
+    "start_launch": 85,
+    "racecraft": 80,
+    "wet_skill": 80,
+    "consistency": 82,
+    "tire_management": 78,
+    "race_intelligence": 80,
+    "technical_feedback": 80,
+    "adaptability": 80,
+    "ers_fuel_management": 78,
+    "mentality": 85,
+    "agression": 76,
+    "crash_likelihood": 18,
+    "pressure_handling": 80,
+    "leadership": 70,
+    "team_player": 72,
+    "car_development_impact": 75,
+    "reputation": 84,
+    "market_value": 10000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C47,drivers!$B:$B,0)),\"\")",
+      "result": "d_0043"
+    },
+    "driver_name": "Cristiano da Matta",
+    "current_ability": 78,
+    "potential_ability": 80,
+    "pace": 80,
+    "qualifying": 78,
+    "start_launch": 76,
+    "racecraft": 77,
+    "wet_skill": 75,
+    "consistency": 78,
+    "tire_management": 75,
+    "race_intelligence": 76,
+    "technical_feedback": 75,
+    "adaptability": 74,
+    "ers_fuel_management": 74,
+    "mentality": 78,
+    "agression": 66,
+    "crash_likelihood": 15,
+    "pressure_handling": 75,
+    "leadership": 68,
+    "team_player": 70,
+    "car_development_impact": 70,
+    "reputation": 75,
+    "market_value": 7000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C48,drivers!$B:$B,0)),\"\")",
+      "result": "d_0044"
+    },
+    "driver_name": "Olivier Panis",
+    "current_ability": 81,
+    "potential_ability": 81,
+    "pace": 80,
+    "qualifying": 82,
+    "start_launch": 78,
+    "racecraft": 80,
+    "wet_skill": 80,
+    "consistency": 81,
+    "tire_management": 80,
+    "race_intelligence": 80,
+    "technical_feedback": 80,
+    "adaptability": 79,
+    "ers_fuel_management": 78,
+    "mentality": 82,
+    "agression": 58,
+    "crash_likelihood": 10,
+    "pressure_handling": 80,
+    "leadership": 75,
+    "team_player": 75,
+    "car_development_impact": 74,
+    "reputation": 82,
+    "market_value": 9000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C49,drivers!$B:$B,0)),\"\")",
+      "result": "d_0031"
+    },
+    "driver_name": "Juan Pablo Montoya",
+    "current_ability": 92,
+    "potential_ability": 93,
+    "pace": 94,
+    "qualifying": 93,
+    "start_launch": 88,
+    "racecraft": 92,
+    "wet_skill": 88,
+    "consistency": 91,
+    "tire_management": 86,
+    "race_intelligence": 90,
+    "technical_feedback": 87,
+    "adaptability": 87,
+    "ers_fuel_management": 85,
+    "mentality": 93,
+    "agression": 82,
+    "crash_likelihood": 16,
+    "pressure_handling": 91,
+    "leadership": 80,
+    "team_player": 82,
+    "car_development_impact": 80,
+    "reputation": 95,
+    "market_value": 25000000
+  },
+  {
+    "year": 2004,
+    "driver_id": {
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C50,drivers!$B:$B,0)),\"\")",
+      "result": "d_0023"
+    },
+    "driver_name": "Ralf Schumacher",
+    "current_ability": 88,
+    "potential_ability": 89,
+    "pace": 88,
+    "qualifying": 88,
+    "start_launch": 84,
+    "racecraft": 87,
+    "wet_skill": 85,
+    "consistency": 88,
+    "tire_management": 84,
+    "race_intelligence": 85,
+    "technical_feedback": 84,
+    "adaptability": 84,
+    "ers_fuel_management": 83,
+    "mentality": 88,
+    "agression": 70,
+    "crash_likelihood": 14,
+    "pressure_handling": 87,
+    "leadership": 78,
+    "team_player": 80,
+    "car_development_impact": 78,
+    "reputation": 88,
+    "market_value": 20000000
   }
 ]

@@ -9,7 +9,7 @@ const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n) || 0));
 const daysToMs = (d) => (Number(d) || 0) * 24 * 60 * 60 * 1000;
 const fmtMoney = (n) => {
   try {
-    return new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(n));
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n));
   } catch {
     return `${n}`;
   }

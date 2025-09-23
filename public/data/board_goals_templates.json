@@ -1,0 +1,62 @@
+[
+  {
+    "template_id": "board_top",
+    "team_tier": "top",
+    "season_goals_json": "{\"constructors\":\"title_challenge\",\"drivers\":\"win_races\",\"q3_rate\":0.8}",
+    "penalties_json": "{\"fail_minor\":\"-2m\",\"fail_major\":\"-5m\"}",
+    "bonuses_json": "{\"hit\":\" +2m\",\"exceed\":\"+5m\"}",
+    "season_goals": {
+      "constructors": "title_challenge",
+      "drivers": "win_races",
+      "q3_rate": 0.8
+    },
+    "penalties": {
+      "fail_minor": "-2m",
+      "fail_major": "-5m"
+    },
+    "bonuses": {
+      "hit": " +2m",
+      "exceed": "+5m"
+    }
+  },
+  {
+    "template_id": "board_mid",
+    "team_tier": "midfield",
+    "season_goals_json": "{\"constructors\":\"top5\",\"drivers\":\"regular_points\",\"q3_rate\":0.4}",
+    "penalties_json": "{\"fail_minor\":\"-1m\",\"fail_major\":\"-3m\"}",
+    "bonuses_json": "{\"hit\":\"+1m\",\"exceed\":\"+2m\"}",
+    "season_goals": {
+      "constructors": "top5",
+      "drivers": "regular_points",
+      "q3_rate": 0.4
+    },
+    "penalties": {
+      "fail_minor": "-1m",
+      "fail_major": "-3m"
+    },
+    "bonuses": {
+      "hit": "+1m",
+      "exceed": "+2m"
+    }
+  },
+  {
+    "template_id": "board_back",
+    "team_tier": "backmarker",
+    "season_goals_json": "{\"constructors\":\"top8\",\"drivers\":\"score_points\",\"q3_rate\":0.15}",
+    "penalties_json": "{\"fail_minor\":\"-0.5m\",\"fail_major\":\"-1.5m\"}",
+    "bonuses_json": "{\"hit\":\"+0.5m\",\"exceed\":\"+1m\"}",
+    "season_goals": {
+      "constructors": "top8",
+      "drivers": "score_points",
+      "q3_rate": 0.15
+    },
+    "penalties": {
+      "fail_minor": "-0.5m",
+      "fail_major": "-1.5m"
+    },
+    "bonuses": {
+      "hit": "+0.5m",
+      "exceed": "+1m"
+    }
+  }
+]

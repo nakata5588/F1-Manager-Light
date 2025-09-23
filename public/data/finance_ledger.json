@@ -1,0 +1,713 @@
+[
+  {
+    "entry_id": "fin_1980_t_0001_001",
+    "team_id": "t_0001",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 15000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0001:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0001_002",
+    "team_id": "t_0001",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 800000,
+    "memo": "Driver salary – Alan Jones",
+    "source_id": "contract:driver:d_0001:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0001_003",
+    "team_id": "t_0001",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 600000,
+    "memo": "Driver salary – Carlos Reutemann",
+    "source_id": "contract:driver:d_0002:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0001_004",
+    "team_id": "t_0001",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 300000,
+    "memo": "Staff salary – Frank Williams",
+    "source_id": "contract:staff:st_0001:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0001_005",
+    "team_id": "t_0001",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Staff salary – Patrick Head",
+    "source_id": "contract:staff:st_0016:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0001_006",
+    "team_id": "t_0001",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 500000,
+    "memo": "R&D Project Aero +4",
+    "source_id": "rd_project:rd_1980_wil_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0002_001",
+    "team_id": "t_0002",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 13000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0002:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0002_002",
+    "team_id": "t_0002",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 500000,
+    "memo": "Driver salary – Jacques Laffite",
+    "source_id": "contract:driver:d_0006:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0002_003",
+    "team_id": "t_0002",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 350000,
+    "memo": "Driver salary – Didier Pironi",
+    "source_id": "contract:driver:d_0007:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0002_004",
+    "team_id": "t_0002",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 280000,
+    "memo": "Staff salary – Guy Ligier",
+    "source_id": "contract:staff:st_0002:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0002_005",
+    "team_id": "t_0002",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "Staff salary – Gérard Ducarouge",
+    "source_id": "contract:staff:st_0017:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0002_006",
+    "team_id": "t_0002",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 450000,
+    "memo": "R&D Project Chassis +3",
+    "source_id": "rd_project:rd_1980_lig_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0003_001",
+    "team_id": "t_0003",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 14000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0003:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0003_002",
+    "team_id": "t_0003",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 700000,
+    "memo": "Driver salary – Nelson Piquet",
+    "source_id": "contract:driver:d_0005:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0003_003",
+    "team_id": "t_0003",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "Driver salary – Ricardo Zunino",
+    "source_id": "contract:driver:d_0022:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0003_004",
+    "team_id": "t_0003",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 350000,
+    "memo": "Staff salary – Bernie Ecclestone",
+    "source_id": "contract:staff:st_0003:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0003_005",
+    "team_id": "t_0003",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 220000,
+    "memo": "Staff salary – Gordon Murray",
+    "source_id": "contract:staff:st_0025:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0003_006",
+    "team_id": "t_0003",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 400000,
+    "memo": "R&D Project Suspension +3",
+    "source_id": "rd_project:rd_1980_bra_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0004_001",
+    "team_id": "t_0004",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 12000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0004:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0004_002",
+    "team_id": "t_0004",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 500000,
+    "memo": "Driver salary – Jean-Pierre Jabouille",
+    "source_id": "contract:driver:d_0010:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0004_003",
+    "team_id": "t_0004",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 450000,
+    "memo": "Driver salary – René Arnoux",
+    "source_id": "contract:driver:d_0008:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0004_004",
+    "team_id": "t_0004",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 230000,
+    "memo": "Staff salary – François Castaing",
+    "source_id": "contract:staff:st_0018:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0004_005",
+    "team_id": "t_0004",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "Staff salary – Tony Southgate",
+    "source_id": "contract:staff:st_0020:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0004_006",
+    "team_id": "t_0004",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 600000,
+    "memo": "R&D Project Reliability +2",
+    "source_id": "rd_project:rd_1980_ren_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0005_001",
+    "team_id": "t_0005",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 12000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0005:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0005_002",
+    "team_id": "t_0005",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 700000,
+    "memo": "Driver salary – Mario Andretti",
+    "source_id": "contract:driver:d_0020:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0005_003",
+    "team_id": "t_0005",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 300000,
+    "memo": "Driver salary – Elio de Angelis",
+    "source_id": "contract:driver:d_0009:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0005_004",
+    "team_id": "t_0005",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 400000,
+    "memo": "Staff salary – Colin Chapman",
+    "source_id": "contract:staff:st_0005:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0005_005",
+    "team_id": "t_0005",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 450000,
+    "memo": "R&D Project Aero +3",
+    "source_id": "rd_project:rd_1980_lot_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0006_001",
+    "team_id": "t_0006",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 11000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0006:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0006_002",
+    "team_id": "t_0006",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 400000,
+    "memo": "Driver salary – Jean-Pierre Jarier",
+    "source_id": "contract:driver:d_0015:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0006_003",
+    "team_id": "t_0006",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Driver salary – Derek Daly",
+    "source_id": "contract:driver:d_0014:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0006_004",
+    "team_id": "t_0006",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 320000,
+    "memo": "Staff salary – Ken Tyrrell",
+    "source_id": "contract:staff:st_0006:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0006_005",
+    "team_id": "t_0006",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 350000,
+    "memo": "R&D Project Chassis +2",
+    "source_id": "rd_project:rd_1980_tyr_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0007_001",
+    "team_id": "t_0007",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 10000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0007:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0007_002",
+    "team_id": "t_0007",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 450000,
+    "memo": "Driver salary – Riccardo Patrese",
+    "source_id": "contract:driver:d_0011:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0007_003",
+    "team_id": "t_0007",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 300000,
+    "memo": "Driver salary – Jochen Mass",
+    "source_id": "contract:driver:d_0018:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0007_004",
+    "team_id": "t_0007",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Staff salary – Alan Rees",
+    "source_id": "contract:staff:st_0019:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0007_005",
+    "team_id": "t_0007",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "R&D Project Reliability +1",
+    "source_id": "rd_project:rd_1980_arr_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0008_001",
+    "team_id": "t_0008",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 9000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0008:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0008_002",
+    "team_id": "t_0008",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 500000,
+    "memo": "Driver salary – Emerson Fittipaldi",
+    "source_id": "contract:driver:d_0016:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0008_003",
+    "team_id": "t_0008",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "Driver salary – Keke Rosberg",
+    "source_id": "contract:driver:d_0012:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0008_004",
+    "team_id": "t_0008",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 280000,
+    "memo": "Staff salary – Wilson Fittipaldi",
+    "source_id": "contract:staff:st_0008:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0008_005",
+    "team_id": "t_0008",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "R&D Project Aero +2",
+    "source_id": "rd_project:rd_1980_fit_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0009_001",
+    "team_id": "t_0009",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 13000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0009:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0009_002",
+    "team_id": "t_0009",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 600000,
+    "memo": "Driver salary – John Watson",
+    "source_id": "contract:driver:d_0013:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0009_003",
+    "team_id": "t_0009",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Driver salary – Alain Prost",
+    "source_id": "contract:driver:d_0017:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0009_004",
+    "team_id": "t_0009",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 300000,
+    "memo": "Staff salary – Teddy Mayer",
+    "source_id": "contract:staff:st_0021:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0009_005",
+    "team_id": "t_0009",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 180000,
+    "memo": "Staff salary – Steve Nichols",
+    "source_id": "contract:staff:st_0022:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0009_006",
+    "team_id": "t_0009",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 400000,
+    "memo": "R&D Project Suspension +3",
+    "source_id": "rd_project:rd_1980_mcl_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0010_001",
+    "team_id": "t_0010",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 15000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0010:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0010_002",
+    "team_id": "t_0010",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 700000,
+    "memo": "Driver salary – Jody Scheckter",
+    "source_id": "contract:driver:d_0004:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0010_003",
+    "team_id": "t_0010",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 650000,
+    "memo": "Driver salary – Gilles Villeneuve",
+    "source_id": "contract:driver:d_0003:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0010_004",
+    "team_id": "t_0010",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 400000,
+    "memo": "Staff salary – Enzo Ferrari",
+    "source_id": "contract:staff:st_0010:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0010_005",
+    "team_id": "t_0010",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Staff salary – Mauro Forghieri",
+    "source_id": "contract:staff:st_0024:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0010_006",
+    "team_id": "t_0010",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 600000,
+    "memo": "R&D Project Chassis +4",
+    "source_id": "rd_project:rd_1980_fer_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0011_001",
+    "team_id": "t_0011",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 11000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0011:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0011_002",
+    "team_id": "t_0011",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 350000,
+    "memo": "Driver salary – Bruno Giacomelli",
+    "source_id": "contract:driver:d_0019:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0011_003",
+    "team_id": "t_0011",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 400000,
+    "memo": "Driver salary – Patrick Depailler",
+    "source_id": "contract:driver:d_0024:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0011_004",
+    "team_id": "t_0011",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 220000,
+    "memo": "Staff salary – Carlo Chiti",
+    "source_id": "contract:staff:st_0011:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0011_005",
+    "team_id": "t_0011",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 550000,
+    "memo": "R&D Project Engine +3",
+    "source_id": "rd_project:rd_1980_alf_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0012_001",
+    "team_id": "t_0012",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 8000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0012:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0012_002",
+    "team_id": "t_0012",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Driver salary – Marc Surer",
+    "source_id": "contract:driver:d_0023:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0012_003",
+    "team_id": "t_0012",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "Driver salary – Jan Lammers",
+    "source_id": "contract:driver:d_0026:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0012_004",
+    "team_id": "t_0012",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 280000,
+    "memo": "Staff salary – Günter Schmid",
+    "source_id": "contract:staff:st_0012:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0012_005",
+    "team_id": "t_0012",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "R&D Project Reliability +1",
+    "source_id": "rd_project:rd_1980_ats_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0013_001",
+    "team_id": "t_0013",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 8000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0013:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0013_002",
+    "team_id": "t_0013",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 300000,
+    "memo": "Driver salary – Clay Regazzoni",
+    "source_id": "contract:driver:d_0021:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0013_003",
+    "team_id": "t_0013",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 260000,
+    "memo": "Staff salary – Mo Nunn",
+    "source_id": "contract:staff:st_0013:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0013_004",
+    "team_id": "t_0013",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 180000,
+    "memo": "R&D Project Chassis +1",
+    "source_id": "rd_project:rd_1980_ens_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0014_001",
+    "team_id": "t_0014",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 7000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0014:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0014_002",
+    "team_id": "t_0014",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "Driver salary – Eddie Cheever",
+    "source_id": "contract:driver:d_0028:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0014_003",
+    "team_id": "t_0014",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Staff salary – Enzo Osella",
+    "source_id": "contract:staff:st_0014:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0014_004",
+    "team_id": "t_0014",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 150000,
+    "memo": "R&D Project Suspension +1",
+    "source_id": "rd_project:rd_1980_ose_001"
+  },
+  {
+    "entry_id": "fin_1980_t_0015_001",
+    "team_id": "t_0015",
+    "date": "1980-01-01",
+    "type": "income",
+    "amount": 9000000,
+    "memo": "Season budget",
+    "source_id": "teams_by_year:t_0015:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0015_002",
+    "team_id": "t_0015",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 180000,
+    "memo": "Driver salary – Stefan Johansson",
+    "source_id": "contract:driver:d_0027:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0015_003",
+    "team_id": "t_0015",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 100000,
+    "memo": "Driver salary – David Kennedy (test)",
+    "source_id": "contract:driver:d_0025:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0015_004",
+    "team_id": "t_0015",
+    "date": "1980-01-01",
+    "type": "expense",
+    "amount": 250000,
+    "memo": "Staff salary – Don Nichols",
+    "source_id": "contract:staff:st_0015:1980"
+  },
+  {
+    "entry_id": "fin_1980_t_0015_005",
+    "team_id": "t_0015",
+    "date": "1980-02-01",
+    "type": "expense",
+    "amount": 200000,
+    "memo": "R&D Project Aero +1",
+    "source_id": "rd_project:rd_1980_sha_001"
+  }
+]

@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
+import { useEventStore } from "@/state/EventStore";
+import MessageModal from "@/components/inbox/MessageModal.jsx";
 
 const TYPE_STYLES = {
   GP: "bg-cyan-600 text-white",
@@ -16,17 +18,14 @@ const TYPE_STYLES = {
   ACADEMY: "bg-teal-700 text-white",
   OTHER: "bg-zinc-700 text-white",
 };
-
 const CATEGORIES = ["ALL","GP","BOARD","FINANCE","DEV","STAFF","PR","SCOUTING","HQ","ACADEMY","OTHER"];
 
 const asDate = (v) => {
   if (!v) return new Date(NaN);
   if (v instanceof Date) return v;
-  // aceita "YYYY-MM-DD", ISO completo, ou epoch
   if (typeof v === "number") return new Date(v);
   if (typeof v === "string") {
-    // algumas mensagens podem vir com dateISO / created_at
-    const s = v.replace(/T.*/,""); // tolerante
+    const s = v.replace(/T.*/,"");
     const [y,m,d] = s.split("-").map(Number);
     if (y && m && d) return new Date(y, m-1, d);
     return new Date(v);
@@ -35,32 +34,26 @@ const asDate = (v) => {
 };
 
 // Normalizador de mensagens
-function normalizeInbox(gameState, fallbackList) {
-  // prioridade a gameState.inbox
-  let raw = Array.isArray(gameState?.inbox) ? gameState.inbox : null;
-
-  // se não houver, tentar events/agenda como fonte
-  if (!raw && Array.isArray(gameState?.events)) raw = gameState.events;
-  if (!raw && Array.isArray(gameState?.agenda)) raw = gameState.agenda;
-
+function normalizeInbox(gameStateLike, fallbackList) {
+  let raw = Array.isArray(gameStateLike?.inbox) ? gameStateLike.inbox : null;
+  if (!raw && Array.isArray(gameStateLike?.events)) raw = gameStateLike.events;
+  if (!raw && Array.isArray(gameStateLike?.agenda)) raw = gameStateLike.agenda;
   if (!raw && Array.isArray(fallbackList)) raw = fallbackList;
-
   if (!Array.isArray(raw)) return [];
 
   return raw
     .map((m, i) => {
-      const type = (m.type || m.category || "OTHER").toString().toUpperCase();
+      const typeRaw = (m.type || m.category || "OTHER").toString().toUpperCase();
+      const type = CATEGORIES.includes(typeRaw) ? typeRaw : "OTHER";
+      const date = m.date ?? m.dateISO ?? m.created_at ?? m.createdAt ?? m.when ?? m.ts ?? null;
       return {
         id: m.id ?? `MSG_${i}`,
-        type: CATEGORIES.includes(type) ? type : "OTHER",
-        title: m.title ?? m.name ?? "Untitled",
+        type,
+        title: m.title ?? m.name ?? m.headline ?? "Untitled",
         body: m.body ?? m.description ?? "",
-        date: m.date ?? m.dateISO ?? m.created_at ?? m.createdAt ?? m.when ?? null,
-        unread: m.unread ?? m.is_unread ?? m.read === false ? true : false,
-        // meta extra
-        meta: {
-          ...m,
-        },
+        date,
+        unread: m.unread ?? m.is_unread ?? (m.read === false ? true : false) ?? true,
+        meta: { ...m }, // mantém meta.effects, etc.
       };
     })
     .map((m) => ({ ...m, dateObj: asDate(m.date) }))
@@ -68,16 +61,16 @@ function normalizeInbox(gameState, fallbackList) {
 }
 
 export default function Inbox() {
-  const { gameState } = useGame();
+  const { gameState, setGameState } = useGame();
+  const eventNews = useEventStore((s) => s.news);
 
-  const [fallback, setFallback] = useState(null);   // /data/inbox.json
+  const [fallback, setFallback] = useState(null);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("ALL");
   const [onlyUnread, setOnlyUnread] = useState(true);
-  const [active, setActive] = useState(null);       // mensagem aberta no drawer
+  const [active, setActive] = useState(null);
 
   useEffect(() => {
-    // tenta carregar fallback em /public/data/inbox.json
     (async () => {
       try {
         const r = await fetch("/data/inbox.json");
@@ -89,7 +82,25 @@ export default function Inbox() {
     })();
   }, []);
 
-  const items = useMemo(() => normalizeInbox(gameState, fallback), [gameState, fallback]);
+  // Inbox combinado: GameStore + EventStore
+  const combinedInbox = useMemo(() => {
+    const base = Array.isArray(gameState?.inbox) ? gameState.inbox : [];
+    const newsAsInbox = Array.isArray(eventNews) ? eventNews.map((n) => ({
+      id: n.id + "_" + (n.ts || n.dateISO || ""),
+      type: (n.type || "OTHER").toUpperCase(),
+      title: n.title || n.headline || "Untitled",
+      body: n.body || "",
+      date: n.dateISO || n.ts || null,
+      unread: n.unread ?? true,
+      meta: { ...n },
+    })) : [];
+    return [...base, ...newsAsInbox];
+  }, [gameState?.inbox, eventNews]);
+
+  const items = useMemo(
+    () => normalizeInbox({ inbox: combinedInbox }, fallback),
+    [combinedInbox, fallback]
+  );
 
   const filtered = useMemo(() => {
     return items.filter((m) => {
@@ -104,10 +115,25 @@ export default function Inbox() {
     });
   }, [items, onlyUnread, cat, query]);
 
-  const openItem = (m) => setActive(m);
-  const closeItem = () => setActive(null);
-
   const unreadCount = items.filter((m) => m.unread).length;
+
+  function markReadInStore(id) {
+    // marca como lida apenas no GameStore (não mexe nas news do EventStore)
+    const base = Array.isArray(gameState?.inbox) ? gameState.inbox : [];
+    const next = base.map((msg) =>
+      msg.id === id ? { ...msg, read: true, unread: false } : msg
+    );
+    setGameState({ inbox: next });
+  }
+
+  function openItem(m) {
+    setActive(m);
+    if (m.unread) markReadInStore(m.id);
+  }
+
+  function closeItem() {
+    setActive(null);
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -187,44 +213,13 @@ export default function Inbox() {
         </CardContent>
       </Card>
 
-      {/* Drawer / Detail */}
-      {active ? (
-        <div className="fixed inset-0 z-40">
-          <div className="absolute inset-0 bg-black/40" onClick={closeItem} />
-          <div className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-background shadow-xl p-4 overflow-y-auto">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex rounded px-2 py-0.5 text-[11px] ${TYPE_STYLES[active.type] || TYPE_STYLES.OTHER}`}>
-                  {active.type}
-                </span>
-                <div className="text-xs text-muted-foreground">
-                  {active.dateObj.toLocaleString("en-GB", {
-                    weekday: "short", day: "2-digit", month: "short", year: "numeric"
-                  })}
-                </div>
-              </div>
-              <Button variant="outline" onClick={closeItem}>Close</Button>
-            </div>
-
-            <h2 className="text-xl font-semibold mb-2">{active.title}</h2>
-            {active.body ? (
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{active.body}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">No body content.</p>
-            )}
-
-            {/* Meta opcional (útil para debug) */}
-            {active.meta ? (
-              <details className="mt-4 text-xs text-muted-foreground">
-                <summary className="cursor-pointer">Meta</summary>
-                <pre className="mt-2 p-2 bg-muted/40 rounded overflow-x-auto">
-                  {JSON.stringify(active.meta, null, 2)}
-                </pre>
-              </details>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      {/* POP-UP modal */}
+      {active && (
+        <MessageModal
+          message={active}
+          onClose={closeItem}
+        />
+      )}
     </div>
   );
 }

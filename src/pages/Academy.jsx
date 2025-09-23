@@ -19,7 +19,7 @@ const normId = (s) =>
     .replace(/\s+/g, "_")
     .replace(/[^\w\-]+/g, "");
 const fmtMoney = (n) => {
-  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(n||0)); }
+  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n||0)); }
   catch { return `${n}`; }
 };
 const toDate = (v) => {

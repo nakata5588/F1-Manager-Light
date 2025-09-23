@@ -1,0 +1,76 @@
+[
+  {
+    "zone_id": "zone_weu",
+    "name": "Western Europe",
+    "countries_csv": "Portugal,Spain,France,UK,Italy,Germany",
+    "cost_per_week": 15000,
+    "talent_boost": "1.0",
+    "travel_time_days": 3,
+    "countries": [
+      "Portugal",
+      "Spain",
+      "France",
+      "UK",
+      "Italy",
+      "Germany"
+    ]
+  },
+  {
+    "zone_id": "zone_eeu",
+    "name": "Eastern Europe",
+    "countries_csv": "Poland,Hungary,Czech Republic,Serbia,Croatia",
+    "cost_per_week": 10000,
+    "talent_boost": "0.95",
+    "travel_time_days": 4,
+    "countries": [
+      "Poland",
+      "Hungary",
+      "Czech Republic",
+      "Serbia",
+      "Croatia"
+    ]
+  },
+  {
+    "zone_id": "zone_sam",
+    "name": "South America",
+    "countries_csv": "Brazil,Argentina,Chile,Uruguay,Colombia",
+    "cost_per_week": 12000,
+    "talent_boost": "1.05",
+    "travel_time_days": 5,
+    "countries": [
+      "Brazil",
+      "Argentina",
+      "Chile",
+      "Uruguay",
+      "Colombia"
+    ]
+  },
+  {
+    "zone_id": "zone_asia",
+    "name": "Asia",
+    "countries_csv": "Japan,China,India,Thailand,Malaysia,Indonesia",
+    "cost_per_week": 11000,
+    "talent_boost": "0.9",
+    "travel_time_days": 7,
+    "countries": [
+      "Japan",
+      "China",
+      "India",
+      "Thailand",
+      "Malaysia",
+      "Indonesia"
+    ]
+  },
+  {
+    "zone_id": "zone_oce",
+    "name": "Oceania",
+    "countries_csv": "Australia,New Zealand",
+    "cost_per_week": 9000,
+    "talent_boost": "0.85",
+    "travel_time_days": 9,
+    "countries": [
+      "Australia",
+      "New Zealand"
+    ]
+  }
+]

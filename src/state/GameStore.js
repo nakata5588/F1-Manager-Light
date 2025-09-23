@@ -1,69 +1,158 @@
+// src/state/GameStore.js
 import { create } from "zustand";
+import { triggerDailyTick } from "@/engine/EventEngine";
 
-/** Onde vamos guardar o "save" local (opcional) */
+/** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
-
-/* ──────────────────────────────────────────────
-   NOVO: sistema multi-save (convive com o SAVE_KEY)
-   ────────────────────────────────────────────── */
 const SAVE_PREFIX = "f1ml_save_";
 const LAST_SAVE_KEY = "f1ml_last_save_key";
 
-function nowIso() {
-  return new Date().toISOString();
-}
+/** ===== util curto ===== */
+function nowIso() { return new Date().toISOString(); }
 function defaultSaveName(gs) {
   const team = gs?.team?.team_name || gs?.team?.name || "Save";
   const season = gs?.activeYear || gs?.seasonYear || "";
   return `${team}${season ? ` — ${season}` : ""}`;
 }
-function safeJSONParse(str) {
-  try { return JSON.parse(str); } catch { return null; }
-}
+function safeJSONParse(str) { try { return JSON.parse(str); } catch { return null; } }
 
-/** ===== DEFAULT SETTINGS (para a página Settings.jsx) ===== */
+/* ---------- helpers extra para dedupe ---------- */
+function stableStringify(obj) { try { return JSON.stringify(obj); } catch { return String(obj); } }
+function hash32(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16);
+}
+let __savingMutex = false;
+let __lastSaveHash = null;
+let __lastSaveTs = 0;
+let __lastSaveResult = null;
+const DEDUPE_WINDOW_MS = 1200;
+
+/** ===== DEFAULT SETTINGS ===== */
 const defaultSettings = {
-  uiTheme: "auto",              // auto | light | dark
-  language: "en",               // en | pt | es | fr
+  uiTheme: "auto",
+  language: "en",
   dateFormat: "yyyy-MM-dd",
   autosave: true,
   autosaveIntervalMin: 10,
   notifications: true,
   audio: { masterVolume: 70, sfxVolume: 70, musicVolume: 30 },
   gameplay: {
-    difficulty: "normal",       // easy | normal | hard | custom
-    simSpeed: 1,                // 0.25..8
+    difficulty: "normal",
+    simSpeed: 1,
     rulesEra: "1980",
     enableInjuryRandomEvents: true,
     enableWeatherRandomness: true,
+    autoRollover: false,
   },
   data: { datasource: "json", remoteUrl: "" },
-  developer: { showDevTools: false, verboseLogs: false },
+  developer: { showDevTools: true, verboseLogs: true }, // 👈 forçado ON
 };
 
-/** Helper para ler JSON com erro legível na consola (safe: devolve [] se falhar) */
+/** ===== fetch JSON (public/data) ===== */
 async function fetchJsonSafe(path) {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    const head = (await res.text()).slice(0, 120);
+    throw new Error(`Not JSON (${ct}) on ${path}. Head: ${head}`);
+  }
+  return res.json();
+}
+async function fetchOptional(path, fallback = []) {
+  try { return await fetchJsonSafe(path); } catch { return fallback; }
+}
+
+/** ==================== QUOTA-SAFE STORAGE ==================== */
+const HEAVY_KEYS = [
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbStaffRatings",
+  "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
+  "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
+  "dbFacilities","dbStaffContracts",
+  "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
+  "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
+  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear",
+];
+function makeLightSnapshot(gs) {
+  const light = { ...gs };
+  for (const k of HEAVY_KEYS) delete light[k];
+  return light;
+}
+function isQuotaError(e) {
+  return e && (e.name === "QuotaExceededError" || e.code === 22 || String(e).includes("exceeded the quota"));
+}
+function evictOldSaves(minKeep = 3) {
   try {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const items = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(SAVE_PREFIX)) {
+        const raw = localStorage.getItem(k);
+        let ts = 0;
+        try { ts = Date.parse(JSON.parse(raw)?.meta?.savedAt || ""); } catch {}
+        if (!Number.isFinite(ts)) {
+          const m = String(k).match(/(\d{10,})$/);
+          if (m) ts = Number(m[1]);
+        }
+        items.push({ key: k, ts: ts || 0 });
+      }
+    }
+    items.sort((a,b) => a.ts - b.ts);
+    let removed = 0;
+    while (items.length > minKeep) {
+      const it = items.shift();
+      localStorage.removeItem(it.key);
+      removed++;
+    }
+    return removed;
+  } catch { return 0; }
+}
+function setItemQuotaSafe(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
   } catch (e) {
-    console.warn(`fetchJsonSafe: falhou a carregar ${path}:`, e?.message || e);
-    return [];
+    if (!isQuotaError(e)) throw e;
+    evictOldSaves(2);
+    try { localStorage.setItem(key, value); return true; } catch { return false; }
   }
 }
 
-/* =======================
-   Helpers de mapeamento
-   ======================= */
+/** ===== Excel sanitizers ===== */
+function unexcel(v) {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    if (v.result != null && v.result !== "") return v.result;
+    if (v.value  != null && v.value  !== "") return v.value;
+  }
+  return v;
+}
+function unexcelDeep(x) {
+  const u = unexcel(x);
+  if (Array.isArray(u)) return u.map(unexcelDeep);
+  if (u && typeof u === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(u)) out[k] = unexcelDeep(v);
+    return out;
+  }
+  return u;
+}
+
+/* ======================= Helpers de mapeamento ======================= */
 function pick(obj, keys, fallback = undefined) {
   for (const k of keys) {
-    if (obj && obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
+    const raw = obj ? obj[k] : undefined;
+    const val = unexcel(raw);
+    if (val !== undefined && val !== null && val !== "") return val;
   }
   return fallback;
 }
 function canon(val) {
-  return String(val ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").trim();
+  return String(unexcel(val) ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").trim();
 }
 function getTeamId(t) {
   return String(pick(t, ["team_id", "id", "name", "team_name", "short_name"], JSON.stringify(t)));
@@ -83,7 +172,31 @@ function extractGPYear(gp) {
   return Number.isNaN(y) ? NaN : y;
 }
 
-/* ===== datas/idades para drivers ===== */
+/** ===== datas util ===== */
+function firstDayISO(Y) {
+  const y = String(Number(Y)).padStart(4, "0");
+  return `${y}-01-01`;
+}
+const clampISO = (iso) => String(iso || "").slice(0, 10);
+const parseISO = (iso) => {
+  if (!iso) return new Date(NaN);
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y || 0, (m || 1) - 1, d || 1));
+};
+const addDaysISO = (iso, n = 1) => {
+  const d = parseISO(iso);
+  if (isNaN(+d)) return iso;
+  d.setUTCDate(d.getUTCDate() + n);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+};
+const firstDefined = (...vals) => vals.find((v) => v != null && v !== "");
+const gpDateISO = (gp) =>
+  clampISO(firstDefined(gp?.dateISO, gp?.date, gp?.race_date, gp?.start_date, gp?.end_date, gp?.raceDate));
+
+/** ===== atributos/driver logs ===== */
 function yearFrom(val) {
   if (!val && val !== 0) return NaN;
   if (val instanceof Date) return val.getUTCFullYear();
@@ -94,8 +207,6 @@ function ageOnYear(dob, Y) {
   const y = yearFrom(dob);
   return Number.isNaN(y) ? NaN : Y - y;
 }
-
-/** Estado do piloto */
 function computeDriverStatus(selectedYear, driver) {
   const Y = Number(selectedYear);
   const start = Number(driver.career_start_year ?? NaN);
@@ -109,16 +220,12 @@ function computeDriverStatus(selectedYear, driver) {
   if (Number.isFinite(debut)) return Y < debut ? "junior_only" : "eligible";
   return "junior_only";
 }
-
-/** Ativo num ano (para entidades com first/last) */
 function activeInYear(entity, year) {
   const first = pick(entity, ["first_year", "start_year", "founded_year"], -Infinity);
   const last = pick(entity, ["last_year", "end_year", "defunct_year"], Infinity);
   const y = Number(year);
   return y >= Number(first ?? -Infinity) && y <= Number(last ?? Infinity);
 }
-
-/** Filtros por ano / intervalo */
 function filterByYear(records, year) {
   const y = Number(year);
   return (records || []).filter((r) => Number(getYearNumber(r)) === y);
@@ -126,8 +233,8 @@ function filterByYear(records, year) {
 function filterByYearRange(records, year) {
   const y = Number(year);
   return (records || []).filter((r) => {
-    const start = Number(pick(r, ["start_year", "from_year", "first_year", "year_start", "start", "from"], -Infinity));
-    const endRaw = pick(r, ["end_year", "to_year", "last_year", "year_end", "end", "to"], Infinity);
+    const start = Number(pick(r, ["start_year", "from_year", "first_year", "year_start", "start", "from", "year_from"], -Infinity));
+    const endRaw = pick(r, ["end_year", "to_year", "last_year", "year_end", "end", "to", "year_to"], Infinity);
     const end = endRaw == null || endRaw === "" ? Infinity : Number(endRaw);
     if (Number.isNaN(start) && end === Infinity) {
       const yr = Number(getYearNumber(r));
@@ -136,20 +243,12 @@ function filterByYearRange(records, year) {
     return y >= (Number.isNaN(start) ? -Infinity : start) && y <= (Number.isNaN(end) ? Infinity : end);
   });
 }
-
-/** Normaliza equipa (inclui team_base) */
 function normalizeTeam(t) {
-  const base = pick(
-    t,
-    ["team_base", "base", "hq", "headquarters", "country", "location", "nation"],
-    null
-  );
+  const base = pick(t, ["team_base", "base", "hq", "headquarters", "country", "location", "nation"], null);
   const name = pick(t, ["name", "team_name", "short_name"], null);
   const id = getTeamId(t);
   return { ...t, team_id: id, name: name ?? id, base };
 }
-
-/** match flexível */
 function sameTeam(rec, team) {
   const recId = pick(rec, ["team_id", "team", "constructor_id", "constructor", "name", "team_name", "short_name"]);
   if (recId != null && getTeamId(team) === String(recId)) return true;
@@ -158,29 +257,27 @@ function sameTeam(rec, team) {
   return rn && tn && canon(rn) === canon(tn);
 }
 
-/* ===== assets / logos ===== */
-function buildAssetUrl(relPath) {
-  const base = (import.meta?.env?.BASE_URL ?? "/").replace(/\/+$/, "");
-  const rel = String(relPath || "").replace(/^\/+/, "");
-  return `${base}/${rel}`;
+/* ===== Helpers Finance ===== */
+function findTeamBrandForYear(gs, teamId, year) {
+  const pool = gs.dbTeamBrands || [];
+  const exact = pool.filter(r => String(pick(r, ["team_id","team","constructor"])) === String(teamId) && Number(getYearNumber(r)) === Number(year));
+  if (exact.length) return exact[0];
+  const ranged = filterByYearRange(pool, year).find(r => String(pick(r, ["team_id","team","constructor"])) === String(teamId));
+  return ranged || null;
 }
-function buildTeamLogoCandidates(team) {
-  const id = getTeamId(team);
-  const short = (team.short_name || team.team_name || team.name || "")
-    .toString()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-  const cands = [`logos/teams/${id}.png`];
-  if (short && short !== id.toLowerCase()) cands.push(`logos/teams/${short}.png`);
-  return cands.map(buildAssetUrl);
+function computeStartingBudget(gs, teamId, year) {
+  const rec = findTeamBrandForYear(gs, teamId, year);
+  const val = Number(pick(rec || {}, ["starting_budget", "start_budget", "budget_start"], 0)) || 0;
+  return Math.max(0, val);
 }
 
+/* ======================= STORE ======================= */
 export const useGame = create((set, get) => ({
   gameState: {
     currentDateISO: "1980-01-01",
     currentRound: 0,
 
-    // BD bruta
+    // DB bruta
     dbCalendar: [],
     dbDrivers: [],
     dbTeams: [],
@@ -193,8 +290,26 @@ export const useGame = create((set, get) => ({
     dbRules: [],
     dbEraSafety: [],
     dbAccidentModel: [],
+    dbFacilities: [],
+    dbStaffContracts: [],
 
-    // Filtrados
+    // novas DBs
+    dbTyres: [],
+    dbPointsSystems: [],
+    dbPenaltiesRules: [],
+    dbFinancialRules: [],
+    dbBoardGoals: [],
+    dbAgendaBlocks: [],
+    dbLogosIndex: [],
+    dbAIDifficulty: [],
+    dbContractRules: [],
+    dbYouthIntakeRules: [],
+    dbScoutingZones: [],
+    dbTrackLayoutByYear: [],
+
+    yearsAvailable: [],
+
+    // filtrados
     activeYear: 1980,
     calendar: [],
     drivers: [],
@@ -208,22 +323,71 @@ export const useGame = create((set, get) => ({
     rules: [],
     eraSafety: [],
     accidentModel: [],
+    facilities: [],
+    staffContracts: [],
 
-    // Settings (novo)
+    // filtrados novos
+    tyres: [],
+    pointsSystem: null,
+    penaltiesRules: [],
+    financialRules: [],
+    agendaBlocks: [],
+
+    // adicionais
+    driverStats: {},
+    driverCareer: {},
+    driverAttributes: {},
+    dbAchievements: [],
+    achievements: [],
+    dbDriverCareer: [],
+
+    // Settings
     settings: defaultSettings,
 
-    // save
+    // save/ui
     team: null,
     standings: { drivers: [], teams: [] },
+
+    // Inbox e fila
     inbox: [],
+    eventsQueue: [],
+
+    // histórico de atributos por piloto
+    driverAttrLog: {},
+
+    // 💰 Finanças
+    financeLog: [],
+    finances: null,
+
+    // 🔄 Season summary modal flag
+    showSeasonSummary: false,
   },
 
-  /* NOVO: track da key do save multi-slot atualmente carregado (para "Save (overwrite)") */
   currentSaveKey: null,
+
+  /* ==== UI Toaster ==== */
+  uiToasts: [],
+  pushToast: (input) => {
+    const allow = get().gameState?.settings?.notifications !== false;
+    if (!allow) return null;
+    const id = input?.id || `t_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const toast = {
+      id,
+      title: input?.title || "Notification",
+      description: input?.description || "",
+      type: input?.type || "info",
+      ttl: Number.isFinite(input?.ttl) ? input.ttl : 3000,
+    };
+    set((s) => ({ uiToasts: [...(s.uiToasts || []), toast] }));
+    if (toast.ttl > 0) {
+      setTimeout(() => { try { get().dismissToast(id); } catch {} }, toast.ttl);
+    }
+    return id;
+  },
+  dismissToast: (id) => set((s) => ({ uiToasts: (s.uiToasts || []).filter((t) => t.id !== id) })),
 
   setGameState: (partial) => set((s) => ({ gameState: { ...s.gameState, ...partial } })),
 
-  /** Atualiza apenas settings (para Settings.jsx) */
   updateSettings: (next) => {
     set((state) => ({
       gameState: {
@@ -233,34 +397,106 @@ export const useGame = create((set, get) => ({
     }));
   },
 
-  advanceOneDay: () => {
-    const { currentDateISO } = get().gameState;
-    const [y, m, d] = currentDateISO.split("-").map(Number);
-    const dt = new Date(Date.UTC(y, m - 1, d + 1));
-    const nextISO = dt.toISOString().slice(0, 10);
-    set((s) => ({ gameState: { ...s.gameState, currentDateISO: nextISO } }));
+  setActiveYear: (year, opts = { normalizeDate: true }) => {
+    const { normalizeDate = true } = opts || {};
+    get().applyYearFilter(Number(year), { normalizeDate });
   },
 
+  /** ===================== ROLLOVER (NOVA AÇÃO) ===================== */
+  rolloverSeason: async (targetYear) => {
+    const st = get().gameState || {};
+    const nextYear = Number(targetYear ?? (st.activeYear || 1980) + 1);
+
+    // 1) Refiltra/carrega dados do novo ano
+    try { get().applyYearFilter?.(nextYear, { normalizeDate: true }); } catch {}
+
+    // 2) Aplica transformação “pura” de rollover (src/core/season.js)
+    try {
+      const { rolloverSeasonPure } = await import("@/core/season.js");
+      set((s) => ({ gameState: rolloverSeasonPure(s.gameState, nextYear) }));
+    } catch (e) {
+      console.warn("rolloverSeason fallback:", e);
+      set((s) => ({
+        gameState: {
+          ...s.gameState,
+          activeYear: nextYear,
+          currentDateISO: `${nextYear}-01-01`,
+          currentRound: 0,
+          standings: { drivers: [], teams: [] },
+          _seasonFinishedAt: null,
+          showSeasonSummary: false,
+        },
+      }));
+    }
+
+    // 3) feedback
+    get().pushToast?.({
+      title: `Season ${nextYear} started`,
+      description: "Calendar loaded, standings reset.",
+      type: "success",
+      ttl: 3000,
+    });
+  },
+
+  /** ===================== AVANÇAR UM DIA ===================== */
+  advanceOneDay: () => {
+    const s = get().gameState;
+    const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
+    const newISO  = addDaysISO(baseISO, 1);
+    let updated = { ...s, currentDateISO: newISO };
+    try {
+      const res = triggerDailyTick(updated);
+      updated = res?.state || res?.patched || res || updated;
+      const changes = res?.changes || res?.attrChanges || [];
+      if (Array.isArray(changes) && changes.length) {
+        // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
+        if (typeof applyAttrChangesDict === "function") {
+          updated = { ...updated, driverAttrLog: applyAttrChangesDict(updated.driverAttrLog, changes) };
+        }
+      }
+    } catch (e) {
+      console.warn("[EventEngine] daily tick failed:", e);
+    }
+    set({ gameState: updated });
+
+    // ---- Fim de época: se já passámos a última corrida, abre Season Summary ----
+    try {
+      const gs = get().gameState || updated || {};
+      const lastIdx = Math.max(0, (gs.calendar?.length || 1) - 1);
+      const lastRaceISO = gpDateISO(gs.calendar?.[lastIdx]);
+      const todayISO = clampISO(gs.currentDateISO);
+      const yearNow = gs.activeYear || gs.seasonYear || gs.season || null;
+
+      const canTrigger =
+        lastRaceISO &&
+        todayISO > lastRaceISO &&
+        gs._seasonFinishedAt !== yearNow;
+
+      if (canTrigger) {
+        set({ gameState: { ...gs, _seasonFinishedAt: yearNow, showSeasonSummary: true } });
+      }
+    } catch (e) {
+      console.warn("end-of-season check failed:", e);
+    }
+  },
+
+  /** ===================== CARREGAR DB ===================== */
   loadData: async () => {
     try {
       const [
-        drivers,
-        calendar,
-        teams,
-        driverRatings,
-        staffRatings,
-        teamBrands,
-        teamEngines,
-        contracts,
-        sponsorsContracts,
-        rules,
-        eraSafety,
-        accidentModel,
+        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, achievementsRaw,
+        staffRatingsRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
+        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
+        tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
+        agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
         fetchJsonSafe("/data/teams.json"),
         fetchJsonSafe("/data/driver_ratings.json"),
+        fetchJsonSafe("/data/driver_career.json"),
+        fetchJsonSafe("/data/achievements.json"),
         fetchJsonSafe("/data/staff_ratings.json"),
         fetchJsonSafe("/data/team_brands.json"),
         fetchJsonSafe("/data/team_engines.json"),
@@ -268,8 +504,60 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/sponsors_contracts.json"),
         fetchJsonSafe("/data/rules.json"),
         fetchJsonSafe("/data/era_safety.json"),
-        fetchJsonSafe("/data/accident_model.json"),
+        fetchJsonSafe("/data/accident_model.json").catch(() => ({})),
+        fetchJsonSafe("/data/facilities.json"),
+        fetchJsonSafe("/data/staff_contracts.json"),
+
+        fetchOptional("/data/tyres_catalog.json", []),
+        fetchOptional("/data/points_systems.json", []),
+        fetchOptional("/data/penalties_rules.json", []),
+        fetchOptional("/data/financial_rules.json", []),
+        fetchOptional("/data/board_goals_templates.json", []),
+        fetchOptional("/data/agenda_blocks.json", []),
+        fetchOptional("/data/logos_index.json", []),
+        fetchOptional("/data/ai_difficulty.json", []),
+        fetchOptional("/data/contract_rules.json", []),
+        fetchOptional("/data/youth_intake_rules.json", []),
+        fetchOptional("/data/scouting_zones.json", []),
+        fetchOptional("/data/track_layout_by_year.json", []),
       ]);
+
+      const drivers           = unexcelDeep(driversRaw);
+      const calendar          = unexcelDeep(calendarRaw);
+      const teams             = unexcelDeep(teamsRaw);
+      const driverRatings     = unexcelDeep(driverRatingsRaw);
+      const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
+      const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
+      const staffRatings      = unexcelDeep(staffRatingsRaw);
+      const teamBrands        = unexcelDeep(teamBrandsRaw);
+      const teamEngines       = unexcelDeep(teamEnginesRaw);
+      const contracts         = unexcelDeep(contractsRaw);
+      const sponsorsContracts = unexcelDeep(sponsorsContractsRaw);
+      const rules             = unexcelDeep(rulesRaw);
+      const eraSafety         = unexcelDeep(eraSafetyRaw);
+      const accidentModel     = (Array.isArray(accidentModelRaw) || typeof accidentModelRaw === "object") ? unexcelDeep(accidentModelRaw) : {};
+      const facilities        = unexcelDeep(facilitiesRaw);
+      const staffContracts    = unexcelDeep(staffContractsRaw);
+
+      const tyres              = unexcelDeep(tyresRaw);
+      const pointsSystems      = unexcelDeep(pointsSystemsRaw);
+      const penaltiesRules     = unexcelDeep(penaltiesRulesRaw);
+      const financialRules     = unexcelDeep(financialRulesRaw);
+      const boardGoals         = unexcelDeep(boardGoalsRaw);
+      const agendaBlocks       = unexcelDeep(agendaBlocksRaw);
+      const logosIndex         = unexcelDeep(logosIndexRaw);
+      const aiDifficulty       = unexcelDeep(aiDifficultyRaw);
+      const contractRules      = unexcelDeep(contractRulesRaw);
+      const youthIntake        = unexcelDeep(youthIntakeRaw);
+      const scoutingZones      = unexcelDeep(scoutingZonesRaw);
+      const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
+
+      const yearsAvailable = Array.from(
+        new Set((calendar || []).map((gp) => {
+          const yr = gp?.season_year ?? gp?.year ?? (typeof gp?.race_date === "string" ? gp.race_date.slice(0, 4) : null);
+          return yr != null ? Number(yr) : null;
+        }).filter((x) => x != null))
+      ).sort((a, b) => a - b);
 
       set((s) => ({
         gameState: {
@@ -279,6 +567,8 @@ export const useGame = create((set, get) => ({
           dbTeams: teams,
           dbDriverRatings: driverRatings,
           dbStaffRatings: staffRatings,
+          dbDriverCareer: driverCareer,
+          dbAchievements: achievements,
           dbTeamBrands: teamBrands,
           dbTeamEngines: teamEngines,
           dbContracts: contracts,
@@ -286,16 +576,42 @@ export const useGame = create((set, get) => ({
           dbRules: rules,
           dbEraSafety: eraSafety,
           dbAccidentModel: accidentModel,
+          dbFacilities: facilities,
+          dbStaffContracts: staffContracts,
+
+          dbTyres: tyres,
+          dbPointsSystems: pointsSystems,
+          dbPenaltiesRules: penaltiesRules,
+          dbFinancialRules: financialRules,
+          dbBoardGoals: boardGoals,
+          dbAgendaBlocks: agendaBlocks,
+          dbLogosIndex: logosIndex,
+          dbAIDifficulty: aiDifficulty,
+          dbContractRules: contractRules,
+          dbYouthIntakeRules: youthIntake,
+          dbScoutingZones: scoutingZones,
+          dbTrackLayoutByYear: trackLayoutByYear,
+
+          yearsAvailable,
         },
       }));
 
-      const activeY = get().gameState.activeYear || 1980;
+      const activeY = get().gameState.activeYear || (yearsAvailable[0] ?? 1980);
       get().applyYearFilter(activeY);
 
+      set((s) => {
+        const gs = s.gameState;
+        const needsInit = !gs.currentDateISO || String(gs.currentDateISO).length < 10;
+        return needsInit
+          ? { gameState: { ...gs, currentDateISO: firstDayISO(activeY), currentRound: 0 } }
+          : { gameState: gs };
+      });
+
+      // inbox seed mínima
       set((s) => ({
         gameState: {
           ...s.gameState,
-          team: s.gameState.team ?? { name: "McLaren", budget: 12000000 },
+          team: s.gameState.team ?? { name: "McLaren" },
           inbox:
             s.gameState.inbox.length > 0
               ? s.gameState.inbox
@@ -317,6 +633,8 @@ export const useGame = create((set, get) => ({
                     body: "Meeting with partners completed. Expect contract updates soon.",
                   },
                 ],
+          eventsQueue: s.gameState.eventsQueue || [],
+          driverAttrLog: s.gameState.driverAttrLog || {},
         },
       }));
     } catch (err) {
@@ -324,35 +642,43 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  applyYearFilter: (year) => {
+  /** ===================== FILTRO POR ANO ===================== */
+  applyYearFilter: (year, opts = {}) => {
     const prev = get().gameState;
     const y = Number(year);
+    const normalizeDate = Boolean(opts.normalizeDate);
 
     const calendar = (prev.dbCalendar || []).filter((gp) => extractGPYear(gp) === y);
 
-    const teamsRaw = (prev.dbTeams || []).filter((t) => activeInYear(t, y));
-    const teams = teamsRaw.map(normalizeTeam);
+    const contractsExact = filterByYear(prev.dbContracts, y);
+    const contractsRange = filterByYearRange(prev.dbContracts, y);
+    const contracts = contractsExact.length ? contractsExact : contractsRange;
 
-    // === Drivers robustos (suporta Excel: driver_id + driver_name) ===
+    const teamsAll = prev.dbTeams || [];
+    let teams = teamsAll.filter((t) => contracts.some((c) => sameTeam(c, t)));
+    if (teams.length === 0) {
+      teams = teamsAll.filter((t) => activeInYear(t, y));
+    }
+    teams = teams.map(normalizeTeam);
+
+    const driverIdsFromContracts = new Set(
+      (contracts || [])
+        .filter((c) => /driver/i.test(String(pick(c, ["role", "position", "contract_role"], ""))))
+        .map((c) => String(unexcel(pick(c, ["driver_id", "person_id", "id"])))).filter(Boolean)
+    );
+
     const driversWithStatus = (prev.dbDrivers || []).map((d) => {
-      // nome: tentar vários campos, com prioridade ao driver_name do Excel
-      const first =
-        d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
-      const last =
-        d.last_name ?? d.lastname ?? d.family_name ?? d.surname ?? d.last ?? "";
+      const first = d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
+      const last = d.last_name ?? d.lastname ?? d.family_name ?? d.surname ?? d.last ?? "";
       const combo = `${first} ${last}`.trim();
-      const display_name =
-        d.driver_name || // Excel
-        d.name || d.display_name || d.full_name || d.fullname || combo || d.code || "";
-
+      const display_name = d.driver_name || d.name || d.display_name || d.full_name || d.fullname || combo || d.code || "";
       const status = computeDriverStatus(y, d);
       const age = ageOnYear(d.dob, y);
       const canHireF1 = status === "eligible";
       const canHireAcademy = status === "junior_only" || (!Number.isNaN(age) && age <= 16);
-
       return {
         ...d,
-        driver_id: d.driver_id ?? d.id ?? d.code ?? null, // Excel já traz driver_id
+        driver_id: d.driver_id ?? d.id ?? d.code ?? null,
         display_name,
         name: display_name || d.name || "",
         country: d.country_name ?? d.country ?? "",
@@ -368,23 +694,33 @@ export const useGame = create((set, get) => ({
         canHireAcademy,
       };
     });
-    const drivers = driversWithStatus
-      .filter((d) => d.status !== "hidden")
-      .filter((d) => d.driver_id && (d.display_name || d.name));
 
-    // ✅ EXTRACTS
+    let drivers = driversWithStatus.filter((d) => d.status !== "hidden" && d.driver_id && (d.display_name || d.name));
+    if (driverIdsFromContracts.size > 0) {
+      drivers = drivers.filter((d) => driverIdsFromContracts.has(String(d.driver_id)));
+    }
+
     const driverRatingsExact = filterByYear(prev.dbDriverRatings, y);
     const staffRatingsExact  = filterByYear(prev.dbStaffRatings, y);
     const driverRatings = driverRatingsExact.length ? driverRatingsExact : filterByYearRange(prev.dbDriverRatings, y);
     const staffRatings  = staffRatingsExact.length ? staffRatingsExact : filterByYearRange(prev.dbStaffRatings, y);
 
     const teamBrandsExact = filterByYear(prev.dbTeamBrands, y);
-    const teamEnginesExact = filterByYear(prev.dbTeamEngines, y);
     const teamBrands = teamBrandsExact.length ? teamBrandsExact : filterByYearRange(prev.dbTeamBrands, y);
-    const teamEngines = teamEnginesExact.length ? teamEnginesExact : filterByYearRange(prev.dbTeamEngines, y);
 
-    const contractsExact = filterByYear(prev.dbContracts, y);
-    const contracts = contractsExact.length ? contractsExact : filterByYearRange(prev.dbContracts, y);
+    const teamEnginesExact = filterByYear(prev.dbTeamEngines, y);
+    let teamEngines = teamEnginesExact.length ? teamEnginesExact : filterByYearRange(prev.dbTeamEngines, y);
+    const teamSet = new Set(teams.map((t) => getTeamId(t)));
+    teamEngines = teamEngines.filter((e) => {
+      const tid = String(pick(e, ["team_id","team","constructor"]));
+      return teams.some((t) => sameTeam(e, t)) || teamSet.has(tid);
+    });
+
+    const facilitiesExact = filterByYear(prev.dbFacilities, y);
+    const facilities = facilitiesExact.length ? facilitiesExact : filterByYearRange(prev.dbFacilities, y);
+
+    const staffContractsExact = filterByYear(prev.dbStaffContracts || [], y);
+    const staffContracts = staffContractsExact.length ? staffContractsExact : filterByYearRange(prev.dbStaffContracts || [], y);
 
     const sponsorsExact = filterByYear(prev.dbSponsorsContracts, y);
     const sponsorsContracts = sponsorsExact.length ? sponsorsExact : filterByYearRange(prev.dbSponsorsContracts, y);
@@ -397,37 +733,73 @@ export const useGame = create((set, get) => ({
     const eraSafetyRanged = filterByYearRange(prev.dbEraSafety, y);
     const eraSafety = eraSafetyExact.length ? eraSafetyExact : eraSafetyRanged;
 
-    const accidentModelExact = filterByYear(prev.dbAccidentModel, y);
-    const accidentModelRanged = filterByYearRange(prev.dbAccidentModel, y);
-    const accidentModel = accidentModelExact.length ? accidentModelExact : accidentModelRanged;
-
-    if ((drivers || []).length === 0 && (prev.dbDrivers || []).length > 0) {
-      console.warn(
-        `[GameStore] Year ${y}: 0 drivers após filtro. Verifica drivers.json (driver_id, driver_name, career_start_year, f1_rookie_season, career_end_year, death_date, dob).`
-      );
+    let accidentModel = prev.dbAccidentModel;
+    if (Array.isArray(prev.dbAccidentModel)) {
+      const accExact = filterByYear(prev.dbAccidentModel, y);
+      const accRange = filterByYearRange(prev.dbAccidentModel, y);
+      accidentModel = accExact.length ? accExact : (accRange.length ? accRange : prev.dbAccidentModel);
     }
 
-    set(() => ({
-      gameState: {
-        ...prev,
-        activeYear: y,
-        calendar,
-        teams,
-        drivers,
-        driverRatings,
-        staffRatings,
-        teamBrands,
-        teamEngines,
-        contracts,
-        sponsorsContracts,
-        rules,
-        eraSafety,
-        accidentModel,
-      },
-    }));
+    const tyres = filterByYear(prev.dbTyres, y).length
+      ? filterByYear(prev.dbTyres, y)
+      : filterByYearRange(prev.dbTyres, y);
+
+    const pointsSystemRec = (() => {
+      const exact = filterByYear(prev.dbPointsSystems, y);
+      if (exact.length) return exact[0];
+      const ranged = filterByYearRange(prev.dbPointsSystems, y);
+      return ranged.length ? ranged[0] : null;
+    })();
+
+    const penaltiesRules = filterByYear(prev.dbPenaltiesRules, y).length
+      ? filterByYear(prev.dbPenaltiesRules, y)
+      : filterByYearRange(prev.dbPenaltiesRules, y);
+
+    const financialRules = filterByYear(prev.dbFinancialRules, y).length
+      ? filterByYear(prev.dbFinancialRules, y)
+      : filterByYearRange(prev.dbFinancialRules, y);
+
+    const agendaBlocks = filterByYear(prev.dbAgendaBlocks, y).length
+      ? filterByYear(prev.dbAgendaBlocks, y)
+      : filterByYearRange(prev.dbAgendaBlocks, y);
+
+    const nextState = {
+      ...prev,
+      activeYear: y,
+      calendar,
+      teams,
+      drivers,
+      driverRatings,
+      staffRatings,
+      teamBrands,
+      teamEngines,
+      contracts,
+      facilities,
+      staffContracts,
+      sponsorsContracts,
+      rules,
+      eraSafety,
+      accidentModel,
+
+      tyres,
+      pointsSystem: pointsSystemRec,
+      penaltiesRules,
+      financialRules,
+      agendaBlocks,
+    };
+
+    if (normalizeDate) {
+      nextState.currentDateISO = firstDayISO(y);
+      nextState.currentRound = 0;
+    } else if (!nextState.currentDateISO || String(nextState.currentDateISO).length < 10) {
+      nextState.currentDateISO = firstDayISO(y);
+      nextState.currentRound = 0;
+    }
+
+    set(() => ({ gameState: nextState }));
   },
 
-  /** Nome preferencial a partir de team_brands (com fallbacks) */
+  /** ===================== UTIL DE EQUIPA ===================== */
   getTeamDisplayName: (team) => {
     const st = get().gameState;
     const brands = st.teamBrands?.length ? st.teamBrands : st.dbTeamBrands || [];
@@ -445,18 +817,47 @@ export const useGame = create((set, get) => ({
     return brandName ?? teamFallback;
   },
 
-  /** URLs candidatos para o logo (.png), com BASE_URL */
-  getTeamLogoCandidates: (team) => buildTeamLogoCandidates(team),
+  getTeamLogoCandidates: (team) => {
+    const st = get().gameState;
+    const id = getTeamId(team);
+    const year = st.activeYear || 1980;
 
-  // ====== NEW GAME ======
+    const viaIndex = (st.dbLogosIndex || []).filter((r) => {
+      const tid = String(pick(r, ["team_id","id"]));
+      const from = Number(pick(r, ["year_from","from"], -Infinity));
+      const to   = Number(pick(r, ["year_to","to"], Infinity));
+      return tid === String(id) && year >= from && year <= (isNaN(to) ? Infinity : to);
+    }).map((r) => String(pick(r, ["path_rel","path","logo_path"])).replace(/^\/+/, "")).filter(Boolean);
+
+    if (viaIndex.length) {
+      const base = (import.meta?.env?.BASE_URL ?? "/").replace(/\/+$/, "");
+      return viaIndex.map((rel) => `${base}/${rel}`);
+    }
+
+    const short = (team.short_name || team.team_name || team.name || "")
+      .toString()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+    const cands = [`logos/teams/${id}.png`];
+    if (short && short !== id.toLowerCase()) cands.push(`logos/teams/${short}.png`);
+    const base = (import.meta?.env?.BASE_URL ?? "/").replace(/\/+$/, "");
+    return cands.map((rel) => `${base}/${rel.replace(/^\/+/, "")}`);
+  },
+
+  /** ===================== NEW GAME ===================== */
   startNewGame: (cfg) => {
     const { year, team, difficulty } = cfg;
-    get().applyYearFilter(year);
+    get().applyYearFilter(year, { normalizeDate: true });
+
+    const y = Number(year);
+    const teamId = getTeamId(team || {});
+    const db = get().gameState;
+    const startingBudget = computeStartingBudget(db, teamId, y);
 
     const initial = {
-      currentDateISO: `${year}-01-01`,
+      currentDateISO: firstDayISO(y),
       currentRound: 0,
-      team: team ?? null,
+      team: team ? { ...team, budget: startingBudget } : null,
       standings: { drivers: [], teams: [] },
       inbox: [
         {
@@ -464,45 +865,52 @@ export const useGame = create((set, get) => ({
           subject: "Welcome to the paddock",
           from: "FIA",
           tag: "FIA",
-          date: `${year}-01-02`,
+          date: `${y}-01-02`,
           body: `Difficulty set to ${difficulty}. Good luck!`,
         },
       ],
-      // mantém settings existentes ao iniciar novo jogo
+      eventsQueue: [],
+      driverAttrLog: {},
       settings: get().gameState?.settings ?? defaultSettings,
-      activeYear: Number(year),
+      activeYear: y,
+
+      // 💰 snapshot inicial (sem lançar no ledger)
+      financeLog: [],
+      finances: {
+        budget: startingBudget,
+        balance: startingBudget,
+        weekly_burn: 0,
+        season_spend: 0,
+        season_income: 0,
+      },
     };
 
-    set((s) => ({
-      gameState: { ...s.gameState, ...initial },
-    }));
-    // quando iniciamos novo jogo, já não há “save multi-slot” ativo
+    set((s) => ({ gameState: { ...s.gameState, ...initial } }));
     set({ currentSaveKey: null });
   },
 
-  /** ====== NEW GAME — Create Team (wizard) ====== */
   startNewGameFromCreateTeam: (payload) => {
     try {
       const { year, team, drivers, difficulty } = payload;
       const y = Number(year);
+      get().applyYearFilter(y, { normalizeDate: true });
 
-      // 1) Garantir dados filtrados para o ano
-      get().applyYearFilter(y);
+      const teamId = getTeamId(team || {});
+      const db = get().gameState;
+      const startingBudget = computeStartingBudget(db, teamId, y);
 
-      // 2) Construir equipa do utilizador (inclui logo)
       const userTeam = {
         team_id: team.team_id,
         name: team.name,
         short_name: team.short_name,
         colors: team.colors,
         engine_id: team.engine_id,
-        budget: team.starting_budget ?? 5_000_000,
+        budget: startingBudget,
         logo_data_url: team.logo_data_url ?? null,
         logo_file_name: team.logo_file_name ?? null,
         is_user_controlled: true,
       };
 
-      // 3) Inbox inicial
       const inbox = [
         {
           id: Date.now(),
@@ -522,27 +930,32 @@ export const useGame = create((set, get) => ({
         },
       ];
 
-      // 4) Atualizar gameState mantendo a tua estrutura
       set((s) => ({
         gameState: {
           ...s.gameState,
-          currentDateISO: `${y}-01-01`,
+          currentDateISO: firstDayISO(y),
           currentRound: 0,
           activeYear: y,
           team: userTeam,
           selectedDrivers: Array.isArray(drivers) ? drivers : [],
           standings: { drivers: [], teams: [] },
           inbox,
-          // mantém settings
+          eventsQueue: [],
+          driverAttrLog: {},
           settings: s.gameState?.settings ?? defaultSettings,
+
+          financeLog: [],
+          finances: {
+            budget: startingBudget,
+            balance: startingBudget,
+            weekly_burn: 0,
+            season_spend: 0,
+            season_income: 0,
+          },
         },
       }));
-      // reset à key atual (não há overwrite de multi-save ativo)
       set({ currentSaveKey: null });
-
-      // 5) Guardar no SAVE_KEY único já usado no teu projeto
       get().saveLocal?.();
-
       return true;
     } catch (e) {
       console.error("startNewGameFromCreateTeam() failed:", e);
@@ -550,31 +963,25 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  // ====== SAVE / LOAD (LEGADO — slot único, mantém-se) ======
+  /** ===================== SAVE / LOAD ===================== */
   saveLocal: () => {
-  try {
-    const state = get().gameState;
-    // 1) legado (mantém compat)
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    try {
+      const state = get().gameState;
+      const light = makeLightSnapshot(state);
+      localStorage.setItem(SAVE_KEY, JSON.stringify(light));
 
-    // 2) NOVO: espelho em multi-save para aparecer no Load Game
-    const meta = {
-      name: (state?.team?.team_name || state?.team?.name || "Save") +
-            ((state?.activeYear || state?.seasonYear) ? ` — ${state.activeYear || state.seasonYear}` : ""),
-      version: "0.1.0",
-      savedAt: new Date().toISOString(),
-    };
-    const payload = { meta, gameState: state };
-    const key = `f1ml_save_${Date.now()}`;
-    localStorage.setItem(key, JSON.stringify(payload));
-    localStorage.setItem("f1ml_last_save_key", key);
+      const meta = { name: defaultSaveName(state), version: "0.1.0", savedAt: nowIso() };
+      const payload = { meta, gameState: light };
+      const key = `${SAVE_PREFIX}${Date.now()}`;
+      const ok = setItemQuotaSafe(key, JSON.stringify(payload));
+      if (ok) localStorage.setItem(LAST_SAVE_KEY, key);
 
-    return true;
-  } catch (e) {
-    console.error("saveLocal() failed:", e);
-    return false;
-  }
-},
+      return !!ok;
+    } catch (e) {
+      console.error("saveLocal() failed:", e);
+      return false;
+    }
+  },
 
   loadLocal: () => {
     try {
@@ -584,11 +991,15 @@ export const useGame = create((set, get) => ({
       set(() => ({
         gameState: {
           ...saved,
-          // garante defaults de settings se o save for antigo
           settings: { ...defaultSettings, ...(saved.settings || {}) },
+          inbox: saved.inbox || [],
+          eventsQueue: saved.eventsQueue || [],
+          driverAttrLog: saved.driverAttrLog || {},
+          financeLog: Array.isArray(saved.financeLog) ? saved.financeLog : [],
+          finances: saved.finances || null,
+          showSeasonSummary: false,
         },
       }));
-      // quando carregamos do slot único, não há key multi-save
       set({ currentSaveKey: null });
       return true;
     } catch (e) {
@@ -597,11 +1008,9 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  // ====== META MAIN MENU (legado + multi) ======
   hasAnySave: () => {
     try {
-      if (localStorage.getItem(SAVE_KEY)) return true; // legado
-      // procura qualquer chave que comece por SAVE_PREFIX
+      if (localStorage.getItem(SAVE_KEY)) return true;
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (k && k.startsWith(SAVE_PREFIX)) return true;
@@ -625,60 +1034,78 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  /* ──────────────────────────────────────────────
-     NOVO: API multi-save (usada pela Topbar/LoadGame)
-     ────────────────────────────────────────────── */
-
-  /** Carrega um gameState diretamente (ex.: vindo de LoadGame.jsx) */
   loadGame: (gs) => {
     if (!gs || typeof gs !== "object") return;
-    set({ gameState: gs, currentSaveKey: null });
+    set({
+      gameState: {
+        ...gs,
+        inbox: gs.inbox || [],
+        eventsQueue: gs.eventsQueue || [],
+        driverAttrLog: gs.driverAttrLog || {},
+        financeLog: Array.isArray(gs.financeLog) ? gs.financeLog : [],
+        finances: gs.finances || null,
+        showSeasonSummary: false,
+      },
+      currentSaveKey: null
+    });
   },
 
-  /** Guarda o gameState atual em um novo slot (ou overwrite se passar a key) */
   saveGame: (options) => {
-    // compat: se chamarem sem argumentos (ex.: Settings.jsx), usa legado
-    if (options == null) {
-      return get().saveLocal();
-    }
-
-    const { name, overwriteKey } = options || {};
-    const state = get();
-    const gs = state.gameState || {};
-    const meta = {
-      name: (name || "").trim() || defaultSaveName(gs),
-      version: "0.1.0",
-      savedAt: nowIso(),
-    };
-
-    const payload = { meta, gameState: gs };
-    const key = overwriteKey || state.currentSaveKey || `${SAVE_PREFIX}${Date.now()}`;
-
+    if (__savingMutex) return __lastSaveResult;
+    __savingMutex = true;
     try {
-      localStorage.setItem(key, JSON.stringify(payload));
-      localStorage.setItem(LAST_SAVE_KEY, key);
-      set({ currentSaveKey: key });
-    } catch (e) {
-      console.warn("saveGame (multi) failed:", e);
-    }
+      const state = get();
+      const gs = state.gameState || {};
+      const light = makeLightSnapshot(gs);
 
-    return { key, meta };
+      const nameIn = options?.name;
+      const overwriteKeyIn = options?.overwriteKey;
+      const meta = { name: (nameIn || "").trim() || defaultSaveName(gs), version: "0.1.0", savedAt: nowIso() };
+      const payload = { meta, gameState: light };
+
+      const now = Date.now();
+      const h = hash32(stableStringify({ k: overwriteKeyIn, n: meta.name, d: gs.currentDateISO, r: gs.currentRound }));
+      if (__lastSaveHash === h && now - __lastSaveTs < DEDUPE_WINDOW_MS) {
+        __savingMutex = false;
+        return __lastSaveResult;
+      }
+
+      const lastKey = (() => { try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; } })();
+      const key = overwriteKeyIn || state.currentSaveKey || lastKey || `${SAVE_PREFIX}${now}`;
+
+      try {
+        const ok = setItemQuotaSafe(key, JSON.stringify(payload));
+        if (ok) {
+          localStorage.setItem(LAST_SAVE_KEY, key);
+          set({ currentSaveKey: key });
+        } else {
+          console.warn("saveGame: quota still exceeded after eviction.");
+        }
+      } catch (e) {
+        console.warn("saveGame (multi) failed:", e);
+      }
+
+      __lastSaveHash = h;
+      __lastSaveTs = now;
+      __lastSaveResult = { key, meta };
+      return __lastSaveResult;
+    } finally {
+      setTimeout(() => { __savingMutex = false; }, 0);
+    }
   },
 
-  /** Guarda rápido com nome automático (team + hora) */
   quickSave: () => {
     const gs = get().gameState || {};
     const base = defaultSaveName(gs);
     const hhmm = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    return get().saveGame({ name: `${base} — ${hhmm}` });
+    const overwrite = get().currentSaveKey || (function(){ try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; } })();
+    return get().saveGame({ name: `${base} — ${hhmm}`, overwriteKey: overwrite || undefined });
   },
 
-  /** Devolve a key do último save multi-slot (para botão Continue) */
   getLastSaveKey: () => {
     try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; }
   },
 
-  /** Lê um save por key (multi-slot) e aplica ao jogo */
   loadFromKey: (key) => {
     if (!key) return null;
     try {
@@ -687,7 +1114,18 @@ export const useGame = create((set, get) => ({
       const obj = safeJSONParse(raw);
       const gs = obj?.gameState || obj;
       if (gs && typeof gs === "object") {
-        set({ gameState: gs, currentSaveKey: key });
+        set({
+          gameState: {
+            ...gs,
+            inbox: gs.inbox || [],
+            eventsQueue: gs.eventsQueue || [],
+            driverAttrLog: gs.driverAttrLog || {},
+            financeLog: Array.isArray(gs.financeLog) ? gs.financeLog : [],
+            finances: gs.finances || null,
+            showSeasonSummary: false,
+          },
+          currentSaveKey: key
+        });
         try { localStorage.setItem(LAST_SAVE_KEY, key); } catch {}
         return gs;
       }
@@ -695,5 +1133,188 @@ export const useGame = create((set, get) => ({
       console.warn("loadFromKey failed:", e);
     }
     return null;
+  },
+
+  // ====== Queue de eventos (ex.: ações de piloto) ======
+  queueEvent: (ev) => {
+    const getS = get;
+    const setS = set;
+
+    const gs = getS().gameState;
+    const today = (gs?.currentDateISO || new Date().toISOString()).slice(0,10);
+
+    const scheduled = {
+      id: ev.id || `ev_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+      type: ev.type || "driver_action",
+      title: ev.title || "Action",
+      participants: Array.isArray(ev.participants) ? ev.participants : (ev.participants ? [ev.participants] : []),
+      meta: ev.meta || {},
+      effects: Array.isArray(ev.effects) ? ev.effects : [],
+      dateISO: ev.dateISO || addDaysISO(today, 1),
+      done: false,
+    };
+
+    const queue = Array.isArray(gs.eventsQueue) ? gs.eventsQueue.slice() : [];
+    queue.push(scheduled);
+
+    setS((state) => ({
+      gameState: {
+        ...state.gameState,
+        eventsQueue: queue,
+      }
+    }));
+
+    const who = scheduled?.meta?.driverName || "";
+    getS().pushToast({
+      title: "Action scheduled for tomorrow",
+      description: `${scheduled.title}${who ? ` • ${who}` : ""} → ${scheduled.dateISO}`,
+      type: "success",
+      ttl: 2600,
+    });
+  },
+
+  /** ===================== AVANÇAR ATÉ BREAK ===================== */
+  advanceOneDayUntilBreak: async () => {
+    const s = get().gameState;
+    if (!s) return { oldDate: null, newDate: null, roundChanged: false, round: 0 };
+
+    const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
+    const newISO  = addDaysISO(baseISO, 1);
+
+    const round = s.currentRound ?? 0;
+    const nextGP = s.calendar?.[round] ?? null;
+    const nextISO = gpDateISO(nextGP);
+
+    let roundChanged = false;
+    let newRound = round;
+
+    if (nextISO) {
+      const tNew  = parseISO(newISO).getTime();
+      const tNext = parseISO(nextISO).getTime();
+      if (isFinite(tNew) && isFinite(tNext) && tNew > tNext) {
+        const lastIdx = Math.max(0, (s.calendar?.length || 1) - 1);
+        newRound = Math.min(round + 1, lastIdx);
+        roundChanged = newRound !== round;
+      }
+    }
+
+    let updated = { ...s, currentDateISO: newISO, currentRound: newRound };
+
+    try {
+      const res = triggerDailyTick(updated);
+      const { state: next1, patched, changes, attrChanges } = res || {};
+      updated = next1 || patched || res || updated;
+      const ch = changes || attrChanges || [];
+      if (Array.isArray(ch) && ch.length) {
+        if (typeof applyAttrChangesDict === "function") {
+          updated = { ...updated, driverAttrLog: applyAttrChangesDict(updated.driverAttrLog, ch) };
+        }
+      }
+    } catch (e) {
+      console.warn("[EventEngine] daily tick failed:", e);
+    }
+
+    // ticks extra
+    try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
+
+    // corre GP se for o dia
+    try {
+      const roundNow = updated.currentRound ?? 0;
+      const gp = updated.calendar?.[roundNow];
+      const raceISO = gpDateISO(gp);
+      if (raceISO && clampISO(updated.currentDateISO) === raceISO) {
+        const mod = await import("@/engine/GPEngine");
+        if (typeof mod.runRaceWeekend === "function") {
+          updated = (await mod.runRaceWeekend(updated, { roundIndex: roundNow, gp })) || updated;
+        }
+      }
+    } catch (e) {
+      console.warn("[GPEngine] runRaceWeekend failed:", e);
+    }
+
+    set({ gameState: updated });
+
+    // ---- Fim de época: abre Season Summary quando passas a última corrida ----
+    try {
+      const gs = get().gameState || updated || {};
+      const lastIdx = Math.max(0, (gs.calendar?.length || 1) - 1);
+      const lastRaceISO = gpDateISO(gs.calendar?.[lastIdx]);
+      const todayISO = clampISO(gs.currentDateISO);
+      const yearNow = gs.activeYear || gs.seasonYear || gs.season || null;
+
+      const canTrigger =
+        lastRaceISO &&
+        todayISO > lastRaceISO &&
+        gs._seasonFinishedAt !== yearNow;
+
+      if (canTrigger) {
+        set({ gameState: { ...gs, _seasonFinishedAt: yearNow, showSeasonSummary: true } });
+      }
+    } catch (e) {
+      console.warn("end-of-season check failed:", e);
+    }
+
+    try {
+      localStorage.setItem("f1ml.autosave", JSON.stringify({ gameState: makeLightSnapshot(updated), ts: Date.now() }));
+    } catch {}
+    return { oldDate: baseISO, newDate: newISO, roundChanged, round: newRound };
+  },
+
+  /* ======================= SELECTORS ======================= */
+  selectDriverById: (id) => {
+    const s = get().gameState;
+    return (s.drivers || []).find(d => String(d.driver_id) === String(id));
+  },
+  selectContractByDriverId: (id) => {
+    const s = get().gameState;
+    return (s.contracts || []).find(c =>
+      String(pick(c, ["driver_id"])) === String(id) &&
+      String(getYearNumber(c)) === String(s.activeYear) &&
+      (c.status || "active") === "active"
+    );
+  },
+  selectDriverStats: (id) => get().gameState.driverStats?.[id],
+  selectDriverCareer: (id) => get().gameState.driverCareer?.[id] || [],
+  selectDriverAttributes: (id) => {
+    const dict = get().gameState.driverAttributes;
+    if (dict && dict[id]) return dict[id];
+    const ratings = get().gameState.driverRatings || [];
+    const rec = ratings.find(r => String(r.driver_id) === String(id));
+    return rec || null;
+  },
+  selectDriverAttrLog: (id) => {
+    const s = get().gameState;
+    const dict = s.driverAttrLog || {};
+    const key = String(id).match(/(\d+)/)?.[1]?.padStart(4, "0") || String(id);
+    return Array.isArray(dict[key]) ? dict[key] : [];
+  },
+  getTyresForYear: (year, category) => {
+    const st = get().gameState;
+    const list = filterByYear(st.dbTyres || [], year).length
+      ? filterByYear(st.dbTyres || [], year)
+      : filterByYearRange(st.dbTyres || [], year);
+    return category ? list.filter(t => String(t.category).toLowerCase() === String(category).toLowerCase()) : list;
+  },
+  getPointsForYear: (year) => {
+    const st = get().gameState;
+    const rec = (() => {
+      const ex = filterByYear(st.dbPointsSystems || [], year);
+      if (ex.length) return ex[0];
+      const rg = filterByYearRange(st.dbPointsSystems || [], year);
+      return rg.length ? rg[0] : null;
+    })();
+    if (!rec) return [9,6,4,3,2,1];
+    const places = Array.isArray(rec.places_csv) ? rec.places_csv : String(rec.places_csv || "").split(",").map(s => s.trim()).filter(Boolean);
+    return places.map(Number).filter(n => Number.isFinite(n));
+  },
+  getAgendaBlocksForYear: (year) => {
+    const st = get().gameState;
+    const ex = filterByYear(st.dbAgendaBlocks || [], year);
+    const rg = filterByYearRange(st.dbAgendaBlocks || [], year);
+    return ex.length ? ex : rg;
   },
 }));

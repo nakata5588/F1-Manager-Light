@@ -5,10 +5,11 @@ import ExcelJS from "exceljs";
 
 const ROOT = process.cwd();
 const SRC_XLSX = process.env.DB_XLSX || path.join(ROOT, "data", "f1_db.xlsx");
-const OUT_DIR = path.join(ROOT, "public", "data");
+const OUT_DIR = path.join(ROOT, "public", "data"); // único output
 
 // ---------- Utils ----------
 function ensureDir(p) { fs.mkdirSync(p, { recursive: true }); }
+function deleteIfExists(p) { if (fs.existsSync(p)) fs.unlinkSync(p); }
 
 function norm(s) {
   return String(s ?? "")
@@ -42,6 +43,7 @@ function isEmptyRow(row) {
   return true;
 }
 
+/** Converte Excel date-like p/ ISO (yyyy-mm-dd). NÃO usar para colunas que só têm ano. */
 function toISO(dateLike) {
   if (!dateLike) return null;
   if (dateLike instanceof Date) {
@@ -53,8 +55,7 @@ function toISO(dateLike) {
     return d.toISOString().slice(0, 10);
   }
   if (typeof dateLike === "number") {
-    // Excel 1900 date system (base 1899-12-30)
-    const base = new Date(Date.UTC(1899, 11, 30));
+    const base = new Date(Date.UTC(1899, 11, 30)); // Excel 1900
     const ms = dateLike * 86400000;
     return new Date(base.getTime() + ms).toISOString().slice(0, 10);
   }
@@ -66,6 +67,10 @@ function toISO(dateLike) {
   return null;
 }
 
+/**
+ * DETEÇÃO genérica de colunas de data (para outras sheets).
+ * IMPORTANTE: NÃO inclui contract_until/contract_end para evitar inventar datas.
+ */
 function looksLikeDateHeader(h) {
   const n = norm(h);
   return (
@@ -73,32 +78,63 @@ function looksLikeDateHeader(h) {
     n.endsWith("dob") ||
     n.endsWith("_dt") ||
     n.endsWith("_iso") ||
-    n.includes("race_date") ||
-    n.includes("contract_end") ||
-    n.includes("contract_until") ||
+    n.includes("racedate") ||
     n.includes("nascimento") ||
     n.includes("falecimento")
   );
 }
 
 function cleanHeader(h) {
-  if (!h || /^Unnamed:\s*\d+$/i.test(h) || h === "-" ) return null;
+  if (!h || /^Unnamed:\s*\d+$/i.test(h) || h === "-") return null;
   return h;
 }
 
-/**
- * rowToObjExpanded
- * - parte de TODAS as colunas originais (pass-through)
- * - aplica renomes/synonyms para gerar chaves canónicas (sem perder as originais)
- * - normaliza datas
- */
+function parseMaybe(val) {
+  if (val === null || val === undefined) return undefined;
+  if (typeof val !== "string") return val;
+  const s = val.trim();
+  if (!s) return undefined;
+  // JSON?
+  if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+    try { return JSON.parse(s); } catch {}
+  }
+  // CSV
+  if (s.includes(";")) return s.split(";").map(x => x.trim()).filter(Boolean);
+  if (s.includes(",")) return s.split(",").map(x => x.trim()).filter(Boolean);
+  // boolean
+  if (s.toLowerCase() === "true") return true;
+  if (s.toLowerCase() === "false") return false;
+  // número
+  const num = Number(s);
+  if (!Number.isNaN(num) && String(num) === s) return num;
+  return s;
+}
+
+/** Normaliza um ano: aceita 2004, "2004", 4, "04" → 2004; 88 → 1988; retorna null se inválido. */
+function normalizeYear(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  if (Number.isNaN(n)) return null;
+  if (n >= 1000) return n;       // já é ano completo
+  if (n < 0) return null;
+  if (n < 50) return 2000 + n;   // "04" → 2004
+  if (n < 100) return 1900 + n;  // "88" → 1988
+  return null;
+}
+
+/** Converte em número ou null. */
+function numOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function rowToObjExpanded(row, headers, cfg) {
   const obj = {};
-  // 1) Pass-through das colunas originais
   headers.forEach((h, idx) => {
     if (!h) return;
     let v = row.getCell(idx + 1)?.value;
     if (v && typeof v === "object" && "text" in v) v = v.text;
+    // só auto-converter para ISO quando o header parece data (contratos NÃO entram aqui)
     if (v instanceof Date) v = toISO(v);
     if (typeof v === "number" && looksLikeDateHeader(h)) {
       const iso = toISO(v);
@@ -107,7 +143,7 @@ function rowToObjExpanded(row, headers, cfg) {
     obj[h] = v;
   });
 
-  // 2) Renomes/synonyms → canónicas (não remove as originais)
+  // Mapear colunas canónicas
   if (cfg?.columns) {
     for (const [canonical, variants] of Object.entries(cfg.columns)) {
       let found = null;
@@ -118,20 +154,20 @@ function rowToObjExpanded(row, headers, cfg) {
     }
   }
 
-  // 3) Normalizações extras
-  if (cfg?.post) return cfg.post(obj);
+  // Post-processar
+  if (cfg?.post) {
+    const out = cfg.post(obj);
+    // remover undefined para JSON limpinho
+    Object.keys(out).forEach(k => out[k] === undefined && delete out[k]);
+    return out;
+  }
+  Object.keys(obj).forEach(k => obj[k] === undefined && delete obj[k]);
   return obj;
 }
 
-// ---------- Config por sheet (synonyms + normalizações) ----------
-/**
- * Nota:
- * - Mantemos os nomes originais de coluna no JSON (pass-through).
- * - Adicionalmente criamos campos canónicos quando úteis (ex.: "id", "name", "dateISO"...).
- * - Se uma folha não estiver listada em SHEET_CONFIG, é processada genericamente.
- */
+// ---------- Config por sheet ----------
 const SHEET_CONFIG = {
-  // Drivers master
+  // === folhas já existentes (ajusta conforme o teu Excel) ===
   drivers: {
     out: "drivers.json",
     columns: {
@@ -147,10 +183,8 @@ const SHEET_CONFIG = {
       active_1980: ["1980","active_1980","activein1980"],
     },
     post(row) {
-      // datas
       row.birthdate_iso = toISO(row.birthdate) ?? toISO(row.dob) ?? null;
       if ("dob" in row && !row.birthdate) row.birthdate = row.dob;
-      // coerções
       if (row.prefered_number != null) row.prefered_number = Number(row.prefered_number);
       if (typeof row.active_1980 === "string") {
         row.active_1980 = row.active_1980.trim().toLowerCase() === "true";
@@ -161,7 +195,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Driver ratings por ano
   driver_ratings: {
     out: "driver_ratings.json",
     columns: {
@@ -170,11 +203,9 @@ const SHEET_CONFIG = {
       driver_name: ["driver_name","display_name","name"],
       current_ability: ["current_ability","overall","rating","ovr"],
       potential_ability: ["potential_ability","pa"],
-      // atributos longos: mantemos pass-through; canónicos acima já chegam
     }
   },
 
-  // Histórico/Carreira
   driver_career: {
     out: "driver_career.json",
     columns: {
@@ -195,7 +226,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Staff master
   staff_core: {
     out: "staff_core.json",
     columns: {
@@ -206,18 +236,15 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Staff ratings
   staff_ratings: {
     out: "staff_ratings.json",
     columns: {
       year: ["year"],
       staff_id: ["staff_id","id"],
       staff_name: ["staff_name","name","display_name"],
-      // atributos mantêm pass-through
     }
   },
 
-  // Teams
   teams: {
     out: "teams.json",
     columns: {
@@ -226,7 +253,6 @@ const SHEET_CONFIG = {
       team_base: ["team_base","base","hq","headquarters","city","location"]
     },
     post(row) {
-      // short_name gerado se não existir
       if (!row.short_name && row.team_name) {
         row.short_name = String(row.team_name).split(" ")[0];
       }
@@ -237,24 +263,56 @@ const SHEET_CONFIG = {
   team_brands: { out: "team_brands.json" },
   team_engines: { out: "team_engines.json" },
 
-  // Contratos (genérico)
+  // === CONTRATOS (corrigido para usar apenas anos) ===
   contracts: {
     out: "contracts.json",
     columns: {
-      year: ["year"],
-      team_id: ["team_id"],
-      team_name: ["team_name"],
-      driver_id: ["driver_id"],
+      year: ["year","season","ano"],
+      team_id: ["team_id","constructor_id","team"],
+      team_name: ["team_name","team"],
+      driver_id: ["driver_id","id"],
       driver_name: ["driver_name","display_name","name"],
-      contract_end: ["contract_end","contract_until","end_date"],
+      role: ["role","driver_role","papel"],
+      driver_number: ["driver_number","number","race_number"],
+      salary: ["salary","base_salary"],
+      bonus_win: ["bonus_win","win_bonus"],
+      bonus_podium: ["bonus_podium","podium_bonus"],
+      bonus_championship: ["bonus_championship","championship_bonus","title_bonus"],
+      // Na tua base só tens ANOS — mapeamos como tal:
+      contract_start: ["contract_start","start","start_year","from","inicio"],
+      contract_until: ["contract_until","end","end_year","to","fim"]
     },
     post(row) {
-      if (row.contract_end) row.contract_end_iso = toISO(row.contract_end);
-      return row;
+      const startY = normalizeYear(row.contract_start ?? row.start_year ?? row.from ?? row.year);
+      const endY   = normalizeYear(row.contract_until ?? row.end_year ?? row.to ?? row.year);
+
+      const out = {
+        year: normalizeYear(row.year) ?? null,
+        team_id: row.team_id,
+        team_name: row.team_name,
+        driver_id: row.driver_id,
+        driver_name: row.driver_name,
+        role: row.role,
+        driver_number: numOrNull(row.driver_number),
+        salary: numOrNull(row.salary),
+        bonus_win: numOrNull(row.bonus_win),
+        bonus_podium: numOrNull(row.bonus_podium),
+        bonus_championship: numOrNull(row.bonus_championship),
+        // Exportar apenas anos:
+        contract_start_year: startY,
+        contract_until_year: endY,
+        // Campo opcional para ordenação no UI (fim do ano)
+        contract_end_sort: endY ? `${endY}-12-31` : (startY ? `${startY}-12-31` : null)
+      };
+
+      // Não exportar quaisquer datas completas (para evitar 1905-06-xx, etc.)
+      delete out.contract_end;
+      delete out.contract_end_iso;
+
+      return out;
     }
   },
 
-  // Pistas base
   core_tracks: {
     out: "core_tracks.json",
     columns: {
@@ -264,7 +322,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Calendário
   calendar: {
     out: "calendar.json",
     columns: {
@@ -277,12 +334,11 @@ const SHEET_CONFIG = {
     },
     post(row) {
       row.dateISO = toISO(row.race_date) ?? toISO(row.date) ?? null;
-      if (!row.country && row.Country) row.country = row.Country; // normalização simples
+      if (!row.country && row.Country) row.country = row.Country;
       return row;
     }
   },
 
-  // Resultados de corrida
   race_results: {
     out: "race_results.json",
     columns: {
@@ -301,18 +357,15 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Motores base
   core_engines: {
     out: "core_engines.json",
     columns: {
       engine_id: ["engine_id","id"],
       engine_name: ["engine_name","name"],
       aspiration: ["aspiration"]
-      // restantes métricas mantêm pass-through
     }
   },
 
-  // Sponsors catálogo (com correção de coluna "sposor_name")
   core_sponsors_catalog: {
     out: "core_sponsors_catalog.json",
     columns: {
@@ -322,7 +375,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Sponsors contratos
   sponsors_contracts: {
     out: "sponsors_contracts.json",
     columns: {
@@ -336,7 +388,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Regras
   rules: {
     out: "rules.json",
     columns: {
@@ -347,7 +398,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Qualifying rules (tem "Year" capitalizado)
   qualifying_rules: {
     out: "qualifying_rules.json",
     columns: {
@@ -358,7 +408,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Segurança por era
   era_safety: {
     out: "era_safety.json",
     columns: {
@@ -370,7 +419,6 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Modelo de acidentes
   accident_model: {
     out: "accident_model.json",
     columns: {
@@ -382,12 +430,10 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Atributos base
   core_driver_attributes: { out: "core_driver_attributes.json" },
   core_staff_attributes: { out: "core_staff_attributes.json" },
   core_roles: { out: "core_roles.json" },
 
-  // Séries (limpamos colunas Unnamed/-)
   Series: {
     out: "series.json",
     columns: {
@@ -398,41 +444,223 @@ const SHEET_CONFIG = {
     }
   },
 
-  // Pesos de atributos de piloto
   driver_attribute_weights: {
     out: "driver_attribute_weights.json",
     columns: {
       attribute: ["attribute","key","attr"],
-      // restantes colunas ficam pass-through
     }
-  }
+  },
+
+  // ======= NOVAS ABAS =======
+  tyres_catalog: {
+    out: "tyres_catalog.json",
+    columns: {
+      tyre_id: ["tyre_id","id"],
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      supplier: ["supplier","brand"],
+      compound_name: ["compound_name","compound","name"],
+      category: ["category","type"],
+      grip_index: ["grip_index","grip"],
+      wear_rate: ["wear_rate","wear"],
+      warmup_time_s: ["warmup_time_s","warmup","warmup_s"],
+      wet_efficiency: ["wet_efficiency","wet_eff"],
+      notes: ["notes","obs","observations"]
+    }
+  },
+
+  points_systems: {
+    out: "points_systems.json",
+    columns: {
+      points_system_id: ["points_system_id","id"],
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      places_csv: ["places_csv","places"],
+      fastest_lap_bonus: ["fastest_lap_bonus","fl_bonus"],
+      pole_bonus: ["pole_bonus"],
+      notes: ["notes"]
+    }
+  },
+
+  penalties_rules: {
+    out: "penalties_rules.json",
+    columns: {
+      rule_id: ["rule_id","id"],
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      type: ["type"],
+      trigger: ["trigger","reason"],
+      value: ["value"],
+      units: ["units"],
+      applies_to: ["applies_to","target"],
+      during: ["during","scope"],
+      notes: ["notes"]
+    }
+  },
+
+  financial_rules: {
+    out: "financial_rules.json",
+    columns: {
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      currency: ["currency"],
+      min_salary_driver: ["min_salary_driver"],
+      max_salary_driver: ["max_salary_driver"],
+      min_salary_staff: ["min_salary_staff"],
+      max_salary_staff: ["max_salary_staff"],
+      prize_money_per_point: ["prize_money_per_point","prize_per_point"],
+      win_bonus: ["win_bonus"],
+      pole_bonus: ["pole_bonus"],
+      fastest_lap_bonus: ["fastest_lap_bonus"],
+      notes: ["notes"]
+    }
+  },
+
+  board_goals_templates: {
+    out: "board_goals_templates.json",
+    columns: {
+      template_id: ["template_id","id"],
+      team_tier: ["team_tier","tier"],
+      season_goals_json: ["season_goals_json","season_goals"],
+      penalties_json: ["penalties_json","penalties"],
+      bonuses_json: ["bonuses_json","bonuses"]
+    },
+    post(row) {
+      // parse JSON-like columns
+      row.season_goals = parseMaybe(row.season_goals_json);
+      row.penalties = parseMaybe(row.penalties_json);
+      row.bonuses = parseMaybe(row.bonuses_json);
+      return row;
+    }
+  },
+
+  agenda_blocks: {
+    out: "agenda_blocks.json",
+    columns: {
+      block_id: ["block_id","id"],
+      name: ["name","title"],
+      allowed_days_csv: ["allowed_days_csv","allowed_days"],
+      duration_h: ["duration_h","duration","hours"],
+      slot_type: ["slot_type","type"],
+      effects_json: ["effects_json","effects"],
+      cooldown_days: ["cooldown_days","cooldown"]
+    },
+    post(row) {
+      row.allowed_days = parseMaybe(row.allowed_days_csv);
+      row.effects = parseMaybe(row.effects_json);
+      return row;
+    }
+  },
+
+  logos_index: {
+    out: "logos_index.json",
+    columns: {
+      team_id: ["team_id","id"],
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      path_rel: ["path_rel","path","logo_path"]
+    }
+  },
+
+  ai_difficulty: {
+    out: "ai_difficulty.json",
+    columns: {
+      level_id: ["level_id","id"],
+      label: ["label","name"],
+      driver_attr_multiplier: ["driver_attr_multiplier"],
+      team_budget_multiplier: ["team_budget_multiplier"],
+      strategy_error_prob: ["strategy_error_prob"],
+      ai_overtake_bias: ["ai_overtake_bias"],
+      ai_defense_bias: ["ai_defense_bias"],
+      pit_error_mult: ["pit_error_mult"]
+    }
+  },
+
+  contract_rules: {
+    out: "contract_rules.json",
+    columns: {
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      buyout_allowed: ["buyout_allowed"],
+      options_allowed_csv: ["options_allowed_csv","options_allowed"],
+      min_length_y: ["min_length_y","min_length"],
+      max_length_y: ["max_length_y","max_length"],
+      max_drivers_contracts: ["max_drivers_contracts","max_drivers"],
+      clauses_json: ["clauses_json","clauses"]
+    },
+    post(row) {
+      row.options_allowed = parseMaybe(row.options_allowed_csv);
+      row.clauses = parseMaybe(row.clauses_json);
+      return row;
+    }
+  },
+
+  youth_intake_rules: {
+    out: "youth_intake_rules.json",
+    columns: {
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      regions_csv: ["regions_csv","regions"],
+      min_age: ["min_age"],
+      max_age: ["max_age"],
+      n_candidates: ["n_candidates","candidates"],
+      attr_min: ["attr_min","min_attr"],
+      attr_max: ["attr_max","max_attr"],
+      hidden_gem_prob: ["hidden_gem_prob","gem_prob"]
+    },
+    post(row) {
+      row.regions = parseMaybe(row.regions_csv);
+      return row;
+    }
+  },
+
+  scouting_zones: {
+    out: "scouting_zones.json",
+    columns: {
+      zone_id: ["zone_id","id"],
+      name: ["name","zone_name","title"],
+      countries_csv: ["countries_csv","countries"],
+      cost_per_week: ["cost_per_week","cost_week"],
+      talent_boost: ["talent_boost","boost"],
+      travel_time_days: ["travel_time_days","travel_days"]
+    },
+    post(row) {
+      row.countries = parseMaybe(row.countries_csv);
+      return row;
+    }
+  },
+
+  track_layout_by_year: {
+    out: "track_layout_by_year.json",
+    columns: {
+      track_id: ["track_id","id","circuit_id"],
+      year_from: ["year_from","from"],
+      year_to: ["year_to","to"],
+      laps: ["laps"],
+      lap_length_km: ["lap_length_km","lap_km","length_km"],
+      drs_zones: ["drs_zones","drs"],
+      pit_lane_loss_s: ["pit_lane_loss_s","pit_lane_loss","pit_loss_s"]
+    }
+  },
 };
 
 // ---------- Pipeline ----------
-async function processSheet(wb, ws) {
-  const name = ws.name;
-  const cfg = SHEET_CONFIG[name] || null;
-
-  // 1) headers limpos
+async function processSheet(ws, cfg) {
   const rawHeaders = readHeader(ws);
   const headers = rawHeaders.map(cleanHeader).map((h, i) => h ?? `col_${i+1}`);
   const dropIdx = rawHeaders.map((h, i) => cleanHeader(h) ? null : i);
 
-  // 2) rows
   const rows = [];
   for (let r = 2; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     if (isEmptyRow(row)) continue;
-    const obj = rowToObjExpanded(row, headers, cfg);
-    // remove chaves col_* que correspondem a Unnamed/- (se ficaram vazias)
+    let obj = rowToObjExpanded(row, headers, cfg);
     for (const di of dropIdx) {
       if (di != null) delete obj[`col_${di+1}`];
     }
     rows.push(obj);
   }
-
-  const outName = cfg?.out || `${slug(name)}.json`;
-  return { outName, rows };
+  return rows;
 }
 
 async function main() {
@@ -440,23 +668,39 @@ async function main() {
     console.error(`[convert-excel] Excel not found at: ${SRC_XLSX}`);
     process.exit(1);
   }
-
   ensureDir(OUT_DIR);
 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(SRC_XLSX);
 
-  const sheets = wb.worksheets;
-  console.log(`[convert-excel] Sheets detected: ${sheets.map(s => s.name).join(", ")}`);
+  // índice de folhas existentes
+  const wsByName = {};
+  for (const ws of wb.worksheets) wsByName[ws.name] = ws;
+  console.log(`[convert-excel] Sheets in workbook: ${Object.keys(wsByName).join(", ")}`);
 
-  for (const ws of sheets) {
-    const { outName, rows } = await processSheet(wb, ws);
+  // correr apenas as folhas do SHEET_CONFIG; apagar outputs quando faltarem
+  const results = [];
+  for (const [sheetName, cfg] of Object.entries(SHEET_CONFIG)) {
+    const outName = cfg?.out || `${slug(sheetName)}.json`;
     const outPath = path.join(OUT_DIR, outName);
+
+    const ws = wsByName[sheetName];
+    if (!ws) {
+      // apagar se existir
+      deleteIfExists(outPath);
+      console.warn(`[convert-excel] Sheet "${sheetName}" NOT FOUND → deleted ${outName} if it existed.`);
+      continue;
+    }
+
+    const rows = await processSheet(ws, cfg);
     fs.writeFileSync(outPath, JSON.stringify(rows, null, 2), "utf8");
+    results.push({ outName, count: rows.length });
     console.log(`[convert-excel] Wrote ${outName} (${rows.length} rows)`);
   }
 
-  console.log(`[convert-excel] Done.`);
+  // relatório curto
+  const total = results.reduce((a, r) => a + r.count, 0);
+  console.log(`[convert-excel] Done. ${results.length} files written, ${total} rows total.`);
 }
 
 main().catch((e) => {

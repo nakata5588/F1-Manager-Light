@@ -1,0 +1,39 @@
+[
+  {
+    "year_from": 1979,
+    "year_to": 1985,
+    "buyout_allowed": "TRUE",
+    "options_allowed_csv": "team_option,performance_clause",
+    "min_length_y": 1,
+    "max_length_y": 3,
+    "max_drivers_contracts": 3,
+    "clauses_json": "{\"buyout_fee_min\":50000,\"buyout_fee_max\":500000}",
+    "options_allowed": [
+      "team_option",
+      "performance_clause"
+    ],
+    "clauses": {
+      "buyout_fee_min": 50000,
+      "buyout_fee_max": 500000
+    }
+  },
+  {
+    "year_from": 2004,
+    "year_to": 2005,
+    "buyout_allowed": "TRUE",
+    "options_allowed_csv": "team_option,driver_option,performance_clause",
+    "min_length_y": 1,
+    "max_length_y": 4,
+    "max_drivers_contracts": 3,
+    "clauses_json": "{\"buyout_fee_min\":150000,\"buyout_fee_max\":3000000}",
+    "options_allowed": [
+      "team_option",
+      "driver_option",
+      "performance_clause"
+    ],
+    "clauses": {
+      "buyout_fee_min": 150000,
+      "buyout_fee_max": 3000000
+    }
+  }
+]

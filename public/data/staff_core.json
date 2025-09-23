@@ -2,151 +2,426 @@
   {
     "staff_id": "st_0001",
     "staff_name": "Frank Williams",
-    "country": null,
-    "dob": "1942-04-16"
-  },
-  {
-    "staff_id": "st_0016",
-    "staff_name": "Patrick Head",
-    "country": null,
-    "dob": "1945-06-05"
-  },
-  {
-    "staff_id": "st_0017",
-    "staff_name": "Gérard Ducarouge",
-    "country": null,
-    "dob": "1941-10-01"
+    "country": "United Kingdom",
+    "dob": "1942-04-16",
+    "role_primary": "team_principal",
+    "death_date": "2021-11-28",
+    "country_name": "United Kingdom"
   },
   {
     "staff_id": "st_0002",
     "staff_name": "Guy Ligier",
-    "country": null,
-    "dob": "1930-07-12"
+    "country": "France",
+    "dob": "1930-07-12",
+    "role_primary": "team_principal",
+    "death_date": "2015-08-23",
+    "country_name": "France"
   },
   {
     "staff_id": "st_0003",
     "staff_name": "Bernie Ecclestone",
-    "country": null,
-    "dob": "1930-10-28"
-  },
-  {
-    "staff_id": "st_0025",
-    "staff_name": "Gordon Murray",
-    "country": null,
-    "dob": "1946-06-18"
-  },
-  {
-    "staff_id": "st_0018",
-    "staff_name": "François Castaing",
-    "country": null,
-    "dob": "1945-03-18"
+    "country": "United Kingdom",
+    "dob": "1930-10-28",
+    "role_primary": "owner",
+    "death_date": null,
+    "country_name": "United Kingdom"
   },
   {
     "staff_id": "st_0004",
     "staff_name": "Jean Sage",
-    "country": null,
-    "dob": "1945-03-27"
+    "country": "France",
+    "dob": "1945-03-27",
+    "role_primary": "chief_strategist",
+    "death_date": "2009-10-01",
+    "country_name": "France"
   },
   {
     "staff_id": "st_0005",
     "staff_name": "Colin Chapman",
-    "country": null,
-    "dob": "1928-05-19"
+    "country": "United Kingdom",
+    "dob": "1928-05-19",
+    "role_primary": "team_principal",
+    "death_date": "1982-12-16",
+    "country_name": "United Kingdom"
   },
   {
     "staff_id": "st_0006",
     "staff_name": "Ken Tyrrell",
-    "country": null,
-    "dob": "1924-05-03"
-  },
-  {
-    "staff_id": "st_0019",
-    "staff_name": "Alan Rees",
-    "country": null,
-    "dob": "1938-01-12"
+    "country": "United Kingdom",
+    "dob": "1924-05-03",
+    "role_primary": "team_principal",
+    "death_date": "2001-08-25",
+    "country_name": "United Kingdom"
   },
   {
     "staff_id": "st_0007",
     "staff_name": "Franco Ambrosio",
-    "country": null,
-    "dob": null
-  },
-  {
-    "staff_id": "st_0020",
-    "staff_name": "Tony Southgate",
-    "country": null,
-    "dob": "1940-05-25"
+    "country": "Italy",
+    "dob": "1932-12-02",
+    "role_primary": "sponsor_backer",
+    "death_date": "1992-04-15",
+    "country_name": "Italy"
   },
   {
     "staff_id": "st_0008",
     "staff_name": "Wilson Fittipaldi",
-    "country": null,
-    "dob": "1943-12-25"
+    "country": "Brazil",
+    "dob": "1943-12-25",
+    "role_primary": "team_principal",
+    "death_date": null,
+    "country_name": "Brazil"
   },
   {
     "staff_id": "st_0009",
     "staff_name": "Bruce McLaren",
-    "country": null,
-    "dob": null
-  },
-  {
-    "staff_id": "st_0022",
-    "staff_name": "Steve Nichols",
-    "country": null,
-    "dob": "1950-01-01"
-  },
-  {
-    "staff_id": "st_0021",
-    "staff_name": "Teddy Mayer",
-    "country": null,
-    "dob": "1935-09-08"
+    "country": "New Zealand",
+    "dob": "1937-08-30",
+    "role_primary": "owner",
+    "death_date": "1970-06-02",
+    "country_name": "New Zealand"
   },
   {
     "staff_id": "st_0010",
     "staff_name": "Enzo Ferrari",
-    "country": null,
-    "dob": null
-  },
-  {
-    "staff_id": "st_0023",
-    "staff_name": "Marco Piccinini",
-    "country": null,
-    "dob": null
-  },
-  {
-    "staff_id": "st_0024",
-    "staff_name": "Mauro Forghieri",
-    "country": null,
-    "dob": null
+    "country": "Italy",
+    "dob": "1898-02-20",
+    "role_primary": "owner",
+    "death_date": "1988-08-14",
+    "country_name": "Italy"
   },
   {
     "staff_id": "st_0011",
     "staff_name": "Carlo Chiti",
-    "country": null,
-    "dob": null
+    "country": "Italy",
+    "dob": "1924-12-19",
+    "role_primary": "technical_director",
+    "death_date": "1994-07-07",
+    "country_name": "Italy"
   },
   {
     "staff_id": "st_0012",
     "staff_name": "Günter Schmid",
-    "country": null,
-    "dob": null
+    "country": "Germany",
+    "dob": "1932-07-13",
+    "role_primary": "owner",
+    "death_date": "2005-05-29",
+    "country_name": "Germany"
   },
   {
     "staff_id": "st_0013",
     "staff_name": "Mo Nunn",
-    "country": null,
-    "dob": null
+    "country": "United Kingdom",
+    "dob": "1938-04-27",
+    "role_primary": "team_principal",
+    "death_date": "2018-07-18",
+    "country_name": "United Kingdom"
   },
   {
     "staff_id": "st_0014",
     "staff_name": "Enzo Osella",
-    "country": null,
-    "dob": null
+    "country": "Italy",
+    "dob": "1939-08-26",
+    "role_primary": "team_principal",
+    "death_date": null,
+    "country_name": "Italy"
   },
   {
     "staff_id": "st_0015",
     "staff_name": "Don Nichols",
+    "country": "United States",
+    "dob": "1924-11-23",
+    "role_primary": "owner",
+    "death_date": "2017-08-21",
+    "country_name": "United States"
+  },
+  {
+    "staff_id": "st_0016",
+    "staff_name": "Patrick Head",
+    "country": "United Kingdom",
+    "dob": "1945-06-05",
+    "role_primary": "technical_director",
+    "death_date": null,
+    "country_name": "United Kingdom"
+  },
+  {
+    "staff_id": "st_0017",
+    "staff_name": "Gérard Ducarouge",
+    "country": "France",
+    "dob": "1941-10-01",
+    "role_primary": "chief_designer",
+    "death_date": "2015-02-19",
+    "country_name": "France"
+  },
+  {
+    "staff_id": "st_0018",
+    "staff_name": "François Castaing",
+    "country": "France",
+    "dob": "1945-03-18",
+    "role_primary": "technical_director",
+    "death_date": null,
+    "country_name": "France"
+  },
+  {
+    "staff_id": "st_0019",
+    "staff_name": "Alan Rees",
+    "country": "United Kingdom",
+    "dob": "1938-01-12",
+    "role_primary": "chief_strategist",
+    "death_date": "2016-10-03",
+    "country_name": "United Kingdom"
+  },
+  {
+    "staff_id": "st_0020",
+    "staff_name": "Tony Southgate",
+    "country": "United Kingdom",
+    "dob": "1940-05-25",
+    "role_primary": "chief_engineer",
+    "death_date": null,
+    "country_name": "United Kingdom"
+  },
+  {
+    "staff_id": "st_0021",
+    "staff_name": "Teddy Mayer",
+    "country": "United States",
+    "dob": "1935-09-08",
+    "role_primary": "team_principal",
+    "death_date": "2009-01-30",
+    "country_name": "United States"
+  },
+  {
+    "staff_id": "st_0022",
+    "staff_name": "Steve Nichols",
+    "country": "United States",
+    "dob": "1950-01-01",
+    "role_primary": "race_engineer",
+    "death_date": null,
+    "country_name": "United States"
+  },
+  {
+    "staff_id": "st_0023",
+    "staff_name": "Marco Piccinini",
+    "country": "Italy",
+    "dob": "1950-09-24",
+    "role_primary": "chief_strategist",
+    "death_date": null,
+    "country_name": "Italy"
+  },
+  {
+    "staff_id": "st_0024",
+    "staff_name": "Mauro Forghieri",
+    "country": "Italy",
+    "dob": "1935-01-13",
+    "role_primary": "technical_director",
+    "death_date": "2022-11-02",
+    "country_name": "Italy"
+  },
+  {
+    "staff_id": "st_0025",
+    "staff_name": "Gordon Murray",
+    "country": "South Africa",
+    "dob": "1946-06-18",
+    "role_primary": "chief_designer",
+    "death_date": null,
+    "country_name": "South Africa"
+  },
+  {
+    "staff_id": "st_0026",
+    "staff_name": "Gavin Fisher",
     "country": null,
-    "dob": null
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0027",
+    "staff_name": "Mike Coughlan",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0028",
+    "staff_name": "Rory Byrne",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0029",
+    "staff_name": "Sam Michael",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0030",
+    "staff_name": "Pat Symonds",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0031",
+    "staff_name": "Paolo Martinelli",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0032",
+    "staff_name": "Mark Gillan",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0033",
+    "staff_name": "Paul Stoddart",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0034",
+    "staff_name": "John Walton",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0035",
+    "staff_name": "David Richards",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0036",
+    "staff_name": "Eddie Jordan",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0037",
+    "staff_name": "Flavio Briatore",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0038",
+    "staff_name": "Jean Todt",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0039",
+    "staff_name": "Peter Sauber",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0040",
+    "staff_name": "Ron Dennis",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0041",
+    "staff_name": "Tsutomu Tomita",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0042",
+    "staff_name": "Adrian Newey",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0043",
+    "staff_name": "Bob Bell",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0044",
+    "staff_name": "David Pitchforth",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0045",
+    "staff_name": "Gabriele Tredozi",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0046",
+    "staff_name": "Geoff Willis",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0047",
+    "staff_name": "Mark Smith",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0048",
+    "staff_name": "Mike Gascoyne",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0049",
+    "staff_name": "Ross Brawn",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
+  },
+  {
+    "staff_id": "st_0050",
+    "staff_name": "Willy Rampf",
+    "country": null,
+    "dob": null,
+    "role_primary": null,
+    "death_date": null
   }
 ]

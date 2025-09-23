@@ -4,10 +4,10 @@
   "description": "A clean, GitHub-ready bundle containing: - **/data**: normalized JSONs (drivers, teams, staff, tracks, calendar 1980, rules/era, attributes dictionaries, etc.). - **/data/seeds**: gameplay seeds (events, inbox, sponsors). - **/scripts**: helpers to validate and (optionally) ingest a single Excel file into JSONs. - **/src**: minimal loader utilities (JS) that read the JSONs.",
   "main": "index.js",
   "scripts": {
-    "build:data": "node scripts/convert-excel.mjs data/f1_data.xlsx public/data",
-    "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\"",
-    "dev": "vite",
-    "dev:all": "npm-run-all -p dev watch:data"
+  "build:data": "node scripts/convert-excel.mjs",
+  "dev": "vite",
+  "dev:all": "npm-run-all -p dev watch:data",
+  "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\""
   },
   "keywords": [],
   "author": "",

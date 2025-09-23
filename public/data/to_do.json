@@ -1,15 +1,11 @@
 [
   {
-    "TODO": "Forçar data de início para 01.01.1980",
-    "WHERE": "Game"
-  },
-  {
     "TODO": "Escolher Cards em Home",
     "WHERE": "Home"
   },
   {
     "TODO": "Fazer Budgets",
-    "WHERE": null
+    "WHERE": "Database"
   },
   {
     "TODO": "Colocar \"days left\" no Calendar",
@@ -42,5 +38,9 @@
   {
     "TODO": "Criar Base de Dados de HQ",
     "WHERE": "HQ"
+  },
+  {
+    "TODO": "Eventos Fixos",
+    "WHERE": "Development Period, Transfer Window, Car Reveal, Main Sponsor Signing"
   }
 ]

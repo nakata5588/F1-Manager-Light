@@ -21,7 +21,7 @@ const normId = (s) =>
 const safeNum = (x, d = 0) => (Number.isFinite(Number(x)) ? Number(x) : d);
 const titleCase = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "");
 const fmtMoney = (n) => {
-  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(n||0)); }
+  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n||0)); }
   catch { return `${n}`; }
 };
 const toDate = (v) => {

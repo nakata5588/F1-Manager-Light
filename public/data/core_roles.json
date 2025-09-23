@@ -1,5 +1,9 @@
 [
   {
+    "role_id": "owner",
+    "name": "Owner"
+  },
+  {
     "role_id": "team_principal",
     "name": "Team Principal"
   },
@@ -20,6 +24,14 @@
     "name": "Chief Strategist"
   },
   {
+    "role_id": "chief_designer",
+    "name": "Chief Designer"
+  },
+  {
+    "role_id": "sponsor_backer",
+    "name": "Sponsor Backer"
+  },
+  {
     "role_id": "main_driver",
     "name": "Driver"
   },
@@ -34,9 +46,5 @@
   {
     "role_id": "junior",
     "name": "Academy Driver"
-  },
-  {
-    "role_id": "owner",
-    "name": "Owner"
   }
 ]

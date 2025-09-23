@@ -1,0 +1,66 @@
+[
+  {
+    "facility_id": "f_001",
+    "facility_name": "wind_tunnel",
+    "start_year": 1970,
+    "impact_area": "aero",
+    "impact_per_level": "+0.5% aero_spec",
+    "description": "Improves aerodynamic development accuracy."
+  },
+  {
+    "facility_id": "f_002",
+    "facility_name": "simulator",
+    "start_year": 1997,
+    "impact_area": "driver_dev",
+    "impact_per_level": "+0.3% skill/consistency",
+    "description": "Driver training and performance simulation center."
+  },
+  {
+    "facility_id": "f_003",
+    "facility_name": "aero_dept",
+    "start_year": 1960,
+    "impact_area": "aero",
+    "impact_per_level": "+0.4% aero_spec",
+    "description": "Dedicated aerodynamics engineering department."
+  },
+  {
+    "facility_id": "f_004",
+    "facility_name": "chassis_shop",
+    "start_year": 1950,
+    "impact_area": "chassis",
+    "impact_per_level": "+0.5% chassis_spec",
+    "description": "Workshop for chassis production and refinement."
+  },
+  {
+    "facility_id": "f_005",
+    "facility_name": "manufacturing",
+    "start_year": 1950,
+    "impact_area": "reliability",
+    "impact_per_level": "+0.4% reliability",
+    "description": "Car assembly and manufacturing line."
+  },
+  {
+    "facility_id": "f_006",
+    "facility_name": "pitcrew_training",
+    "start_year": 1975,
+    "impact_area": "pitstops",
+    "impact_per_level": "−0.1s pitstop_time",
+    "description": "Training program to improve pit stop performance."
+  },
+  {
+    "facility_id": "f_007",
+    "facility_name": "youth_program",
+    "start_year": 1990,
+    "impact_area": "driver_dev",
+    "impact_per_level": "+0.2 potential",
+    "description": "Young driver academy to nurture future talent."
+  },
+  {
+    "facility_id": "f_008",
+    "facility_name": "electronics_lab",
+    "start_year": 1990,
+    "impact_area": "reliability",
+    "impact_per_level": "+0.3% electronics_spec",
+    "description": "Development of ECU, sensors, and telemetry systems."
+  }
+]

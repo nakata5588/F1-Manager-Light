@@ -3,18 +3,27 @@
     "year": 1980,
     "points_system": "9,6,4,3,2,1",
     "fastest_lap_points": 0,
-    "currency": "USD"
+    "currency": "USD",
+    "pit_speed_limit": null,
+    "refueling_allowed": null,
+    "safety_car_rules": null
   },
   {
     "year": 2003,
     "points_system": "10,8,6,5,4,3,2,1",
     "fastest_lap_points": 0,
-    "currency": "USD"
+    "currency": "USD",
+    "pit_speed_limit": null,
+    "refueling_allowed": null,
+    "safety_car_rules": null
   },
   {
     "year": 2010,
     "points_system": "25,18,15,12,10,8,6,4,2,1",
     "fastest_lap_points": 1,
-    "currency": "USD"
+    "currency": "USD",
+    "pit_speed_limit": null,
+    "refueling_allowed": null,
+    "safety_car_rules": null
   }
 ]

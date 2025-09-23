@@ -1,0 +1,29 @@
+[
+  {
+    "year_from": 1979,
+    "year_to": 1985,
+    "regions_csv": "Europe,South America",
+    "min_age": 16,
+    "max_age": 19,
+    "n_candidates": "1900-01-05",
+    "attr_min": 35,
+    "attr_max": 65,
+    "hidden_gem_prob": "0.05",
+    "regions": [
+      "Europe",
+      "South America"
+    ]
+  },
+  {
+    "year_from": 2004,
+    "year_to": 2005,
+    "regions_csv": "Global",
+    "min_age": 16,
+    "max_age": 19,
+    "n_candidates": "1900-01-07",
+    "attr_min": 40,
+    "attr_max": 75,
+    "hidden_gem_prob": "0.07",
+    "regions": "Global"
+  }
+]

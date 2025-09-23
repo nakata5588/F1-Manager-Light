@@ -265,7 +265,7 @@ export default function CalendarPage() {
                   <div className="flex items-center justify-between">
                     <div className={`${currentDensity.dateSize} font-medium`}>{dateObj.getDate()}</div>
                     {isToday && (
-                      <span className="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-primary text-primary-foreground">
+                      <span className="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-yellow-400 text-black font-semibold">
                         Today
                       </span>
                     )}

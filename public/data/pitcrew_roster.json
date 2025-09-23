@@ -1,0 +1,122 @@
+[
+  {
+    "team_id": "t_0001",
+    "year": 1980,
+    "avg_time": "6.2",
+    "consistency": 85,
+    "error_rate": "0.02",
+    "training_load": 7
+  },
+  {
+    "team_id": "t_0002",
+    "year": 1980,
+    "avg_time": "6.4",
+    "consistency": 82,
+    "error_rate": "0.03",
+    "training_load": 6
+  },
+  {
+    "team_id": "t_0003",
+    "year": 1980,
+    "avg_time": "6.3",
+    "consistency": 83,
+    "error_rate": "0.03",
+    "training_load": 6
+  },
+  {
+    "team_id": "t_0004",
+    "year": 1980,
+    "avg_time": "6.5",
+    "consistency": 80,
+    "error_rate": "0.04",
+    "training_load": 6
+  },
+  {
+    "team_id": "t_0005",
+    "year": 1980,
+    "avg_time": "6.6",
+    "consistency": 78,
+    "error_rate": "0.04",
+    "training_load": 5
+  },
+  {
+    "team_id": "t_0006",
+    "year": 1980,
+    "avg_time": "6.7",
+    "consistency": 76,
+    "error_rate": "0.05",
+    "training_load": 5
+  },
+  {
+    "team_id": "t_0007",
+    "year": 1980,
+    "avg_time": "6.8",
+    "consistency": 72,
+    "error_rate": "0.06",
+    "training_load": 4
+  },
+  {
+    "team_id": "t_0008",
+    "year": 1980,
+    "avg_time": "6.9",
+    "consistency": 70,
+    "error_rate": "0.06",
+    "training_load": 4
+  },
+  {
+    "team_id": "t_0009",
+    "year": 1980,
+    "avg_time": "6.6",
+    "consistency": 77,
+    "error_rate": "0.05",
+    "training_load": 5
+  },
+  {
+    "team_id": "t_0010",
+    "year": 1980,
+    "avg_time": "6.3",
+    "consistency": 84,
+    "error_rate": "0.03",
+    "training_load": 7
+  },
+  {
+    "team_id": "t_0011",
+    "year": 1980,
+    "avg_time": "6.7",
+    "consistency": 75,
+    "error_rate": "0.05",
+    "training_load": 5
+  },
+  {
+    "team_id": "t_0012",
+    "year": 1980,
+    "avg_time": "7.0",
+    "consistency": 68,
+    "error_rate": "0.07",
+    "training_load": 3
+  },
+  {
+    "team_id": "t_0013",
+    "year": 1980,
+    "avg_time": "7.1",
+    "consistency": 65,
+    "error_rate": "0.08",
+    "training_load": 3
+  },
+  {
+    "team_id": "t_0014",
+    "year": 1980,
+    "avg_time": "7.2",
+    "consistency": 62,
+    "error_rate": "0.09",
+    "training_load": 2
+  },
+  {
+    "team_id": "t_0015",
+    "year": 1980,
+    "avg_time": "7.0",
+    "consistency": 66,
+    "error_rate": "0.08",
+    "training_load": 3
+  }
+]

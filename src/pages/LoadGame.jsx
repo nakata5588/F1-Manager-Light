@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { useNavigate } from "react-router-dom";
 
+/* ---------------- routing target após carregar um save ---------------- */
+const AFTER_LOAD_ROUTE = "/Home"; // 🧭 ajusta para a tua página do Hub ("/hub", "/game", etc.)
+
 /* ---------------- utils ---------------- */
 const SAVE_PREFIXES = ["f1ml_save_", "save_", "f1manager_"];
 
@@ -37,6 +40,17 @@ const fmtDateTime = (d) =>
       })
     : "—";
 
+const fmtDateOnly = (d) =>
+  d
+    ? d.toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "—";
+
 const bytesToStr = (b) => {
   const n = Number(b || 0);
   if (n < 1024) return `${n} B`;
@@ -44,35 +58,100 @@ const bytesToStr = (b) => {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const ordinalShort = (n) => {
+  if (n == null || !Number.isFinite(+n)) return "—";
+  const num = +n;
+  const s = ["th", "st", "nd", "rd"], v = num % 100;
+  return num + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+/* Date parsing robusto */
+const toDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value); // timestamp ms
+  const s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+    return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1)); // evita drift TZ
+  }
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? null : new Date(t);
+};
+
+const pickFirst = (...vals) =>
+  vals.find((v) => v !== undefined && v !== null && v !== "");
+
+const extractCurrentDayValue = (gs, raw) =>
+  pickFirst(
+    // alguns exports podem gravar na meta
+    raw?.meta?.currentDateISO,
+    raw?.meta?.current_day,
+    // chaves comuns no gameState
+    gs?.currentDateISO,
+    gs?.currentDate,
+    gs?.dateISO,
+    gs?.date,
+    gs?.gameDate,
+    gs?.dayISO,
+    // por vezes aninhado num objeto time
+    gs?.time?.currentDateISO,
+    gs?.time?.dateISO,
+    gs?.time?.currentDate
+  );
+
 function isLikelySave(obj) {
   if (!obj || typeof obj !== "object") return false;
-  // heurísticas leves
   if ("team" in obj || "calendar" in obj || "seasonYear" in obj) return true;
   if ("gameState" in obj && typeof obj.gameState === "object") return true;
   return false;
 }
 
-/** Normaliza um save para render */
+/** Normaliza um save para render + extrai campos pedidos */
 function normalizeSave(key, raw) {
   // pode vir {gameState, meta} ou o state direto
   const gs = raw?.gameState && typeof raw.gameState === "object" ? raw.gameState : raw;
+
   const team = gs?.team || {};
-  const teamId = team?.team_id ?? team?.id ?? normId(team?.team_name || team?.name || "");
-  const season = gs?.seasonYear ?? gs?.calendar?.[0]?.year ?? null;
+  const teamName = team?.team_name ?? team?.name ?? "Team";
+  const teamId =
+    team?.team_id ?? team?.id ?? normId(team?.team_name || team?.name || "");
+
+  // Season: tenta vários campos
+  const seasonYear =
+    gs?.activeYear ??
+    gs?.seasonYear ??
+    gs?.calendar?.[0]?.year ??
+    null;
+
+  // Team Position (standings construtores)
+  let teamPosition = "—";
+  try {
+    const row = (gs?.standings?.constructors ?? []).find(
+      (c) => String(c?.name ?? "").toLowerCase() === String(teamName).toLowerCase()
+    );
+    if (row?.pos != null) teamPosition = row.pos;
+  } catch {}
+
+  // Current Day (in-game)
+  const currentDayRaw = extractCurrentDayValue(gs, raw);
+  const currentDayDate = toDate(currentDayRaw);
 
   const meta = {
     key,
-    name: raw?.meta?.name ?? gs?.save_name ?? team?.team_name ?? team?.name ?? "Save",
-    seasonYear: season,
-    teamName: team?.team_name ?? team?.name ?? "Team",
+    name: raw?.meta?.name ?? gs?.save_name ?? teamName ?? "Save",
+    seasonYear,
+    teamName,
     teamId,
-    progressText:
-      raw?.meta?.progress ??
-      `${(gs?.calendar?.filter?.((x) => x?.done)?.length ?? 0)}/${gs?.calendar?.length ?? 0} events`,
+    teamPosition,                         // <- novo
+    currentDayISO: currentDayRaw || null, // <- novo
     savedAt: new Date(raw?.meta?.savedAt ?? raw?.savedAt ?? raw?.timestamp ?? Date.now()),
     version: raw?.meta?.version ?? gs?.version ?? "—",
     size: raw?.meta?.size ?? null,
     logo: teamId ? `/logos/teams/${String(teamId).toLowerCase()}.png` : null,
+    progressText:
+      raw?.meta?.progress ??
+      `${(gs?.calendar?.filter?.((x) => x?.done)?.length ?? 0)}/${gs?.calendar?.length ?? 0} events`,
   };
 
   return {
@@ -80,6 +159,7 @@ function normalizeSave(key, raw) {
     raw,
     gameState: gs,
     meta,
+    __currentDayDate: currentDayDate, // opcional (não usado fora)
   };
 }
 
@@ -89,18 +169,22 @@ function readLocalSaves() {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
-      if (!SAVE_PREFIXES.some((p) => k.startsWith(p))) continue;
+
+      const hasKnownPrefix = SAVE_PREFIXES.some((p) => k.startsWith(p));
+
       try {
         const s = localStorage.getItem(k) || "";
         const obj = JSON.parse(s);
         if (isLikelySave(obj)) {
+          if (!hasKnownPrefix) {
+            obj.meta = { ...(obj.meta || {}), detectedWithoutPrefix: true };
+          }
           const norm = normalizeSave(k, obj);
           norm.meta.size = bytesToStr(s.length);
           out.push(norm);
         }
       } catch {}
     }
-    // ordenar por data desc (quando disponível)
     out.sort((a, b) => (b.meta.savedAt?.getTime?.() || 0) - (a.meta.savedAt?.getTime?.() || 0));
     return out;
   } catch {
@@ -110,17 +194,24 @@ function readLocalSaves() {
 
 /* ---------------- component ---------------- */
 export default function LoadGame() {
-  const { gameState, setGameState, loadGame } = useGame();
+  const {
+    gameState,
+    setGameState,
+    loadGame,
+    // opcional em alguns stores:
+    loadGameFromSlot, // (id) => void
+  } = useGame();
   const navigate = useNavigate();
 
   const [localSaves, setLocalSaves] = useState([]);
   const [demoSaves, setDemoSaves] = useState([]);
   const [q, setQ] = useState("");
-  const [sortBy, setSortBy] = useState("lastPlayedDesc"); // novo
+  const [sortBy, setSortBy] = useState("lastPlayedDesc");
   const [dragOver, setDragOver] = useState(false);
-  const [confirmingKey, setConfirmingKey] = useState(null); // novo (confirm delete)
-  const [renamingKey, setRenamingKey] = useState(null); // novo (rename)
+  const [confirmingKey, setConfirmingKey] = useState(null);
+  const [renamingKey, setRenamingKey] = useState(null);
   const [newName, setNewName] = useState("");
+  const [loadingKey, setLoadingKey] = useState(null); // 🔒 evita duplos cliques
   const fileInputRef = useRef(null);
 
   // ler localStorage
@@ -144,7 +235,6 @@ export default function LoadGame() {
 
   const filteredLocal = useMemo(() => {
     let arr = localSaves;
-    // search
     if (q) {
       const qq = q.toLowerCase();
       arr = arr.filter((s) => {
@@ -152,7 +242,6 @@ export default function LoadGame() {
         return hay.includes(qq);
       });
     }
-    // sort
     arr = [...arr].sort((a, b) => {
       const da = a.meta?.savedAt?.getTime?.() || 0;
       const db = b.meta?.savedAt?.getTime?.() || 0;
@@ -175,28 +264,30 @@ export default function LoadGame() {
     return arr;
   }, [localSaves, q, sortBy]);
 
-  const handleLoad = (save) => {
-    // tenta métodos do GameStore
+  const handleLoad = async (save) => {
+    if (!save) return;
+    setLoadingKey(save.key);
     try {
-      if (typeof loadGame === "function") {
-        loadGame(save.gameState);
-        navigate("/");
-        return;
-      }
-      if (typeof setGameState === "function") {
+      if (typeof loadGameFromSlot === "function") {
+        await Promise.resolve(loadGameFromSlot(save.key));
+      } else if (typeof loadGame === "function") {
+        await Promise.resolve(loadGame(save.gameState));
+      } else if (typeof setGameState === "function") {
         setGameState(save.gameState);
-        navigate("/");
-        return;
       }
-    } catch {}
-    // fallback: guardar num staging e recarregar
-    try {
-      localStorage.setItem("f1ml_current_game", JSON.stringify(save));
-      window.location.assign("/");
-    } catch {
-      alert("Could not load the save automatically. Check console.");
+
+      try {
+        localStorage.setItem("f1ml_current_save_key", save.key);
+        localStorage.setItem("f1ml_current_game_state", JSON.stringify(save.gameState));
+      } catch {}
+
+      navigate(AFTER_LOAD_ROUTE);
+    } catch (e) {
+      alert("Falha ao carregar o save. Ver consola para detalhes.");
       // eslint-disable-next-line no-console
-      console.log("Save to load:", save);
+      console.error("Load error:", e, save);
+    } finally {
+      setLoadingKey(null);
     }
   };
 
@@ -223,7 +314,6 @@ export default function LoadGame() {
       };
       const updated = { ...raw, meta };
       localStorage.setItem(key, JSON.stringify(updated));
-      // atualizar estado
       setLocalSaves((prev) =>
         prev.map((s) => (s.key === key ? normalizeSave(key, updated) : s))
       );
@@ -245,12 +335,11 @@ export default function LoadGame() {
       const key = `import_${Date.now()}`;
       const norm = normalizeSave(key, obj);
       norm.meta.size = bytesToStr(text.length);
-      // guardar local
       try {
         localStorage.setItem(norm.key, JSON.stringify(obj));
       } catch {}
       setLocalSaves((prev) => [norm, ...prev]);
-    } catch (e) {
+    } catch {
       alert("Falha a ler o ficheiro JSON.");
     }
   };
@@ -354,6 +443,7 @@ export default function LoadGame() {
               <div key={s.key} className="group relative">
                 <SaveCard
                   save={s}
+                  loading={loadingKey === s.key}
                   onLoad={() => handleLoad(s)}
                   onDelete={() => setConfirmingKey(s.key)}
                   onStartRename={() => {
@@ -421,7 +511,7 @@ export default function LoadGame() {
           <div className="text-sm text-muted-foreground">Demo Saves (from /data/saves.json)</div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {demoSaves.map((s) => (
-              <SaveCard key={s.key} save={s} onLoad={() => handleLoad(s)} onDelete={null} />
+              <SaveCard key={s.key} save={s} loading={loadingKey === s.key} onLoad={() => handleLoad(s)} onDelete={null} />
             ))}
           </div>
         </section>
@@ -431,11 +521,17 @@ export default function LoadGame() {
 }
 
 /* ---------------- UI bits ---------------- */
-function SaveCard({ save, onLoad, onDelete, onStartRename }) {
+function SaveCard({ save, onLoad, onDelete, onStartRename, loading }) {
   const m = save.meta || {};
+  const currentDay = toDate(m.currentDayISO);
+  const teamPosReadable = Number.isFinite(+m.teamPosition)
+    ? ordinalShort(+m.teamPosition)
+    : "—";
+
   return (
     <Card className="border-slate-200 shadow-sm hover:shadow-md transition">
       <CardContent className="p-4 space-y-3">
+        {/* Header com logo e nome do save */}
         <div className="flex items-start gap-3">
           <div className="h-12 w-12 rounded-lg overflow-hidden bg-muted/40 flex items-center justify-center ring-1 ring-black/5 shrink-0">
             {m.logo ? (
@@ -453,33 +549,47 @@ function SaveCard({ save, onLoad, onDelete, onStartRename }) {
           </div>
           <div className="min-w-0">
             <div className="font-medium leading-tight truncate">{m.name}</div>
+            {/* Team name + season */}
             <div className="text-xs text-muted-foreground truncate">
               {m.teamName}
               {m.seasonYear ? ` • ${m.seasonYear}` : ""}
             </div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">
-              Saved: {fmtDateTime(m.savedAt)}
-              {m.size ? ` • ${m.size}` : ""}
-              {m.version ? ` • v${m.version}` : ""}
-            </div>
           </div>
         </div>
 
-        <div className="text-xs text-muted-foreground">{m.progressText || "—"}</div>
+        {/* Linhas de informação pedidas */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px]">
+          <div className="text-muted-foreground">Team Position</div>
+          <div className="font-medium">{teamPosReadable}</div>
 
+          <div className="text-muted-foreground">Current Day (in-game)</div>
+          <div className="font-medium">{fmtDateOnly(currentDay)}</div>
+
+          <div className="text-muted-foreground">Save Game Date</div>
+          <div className="font-medium">{fmtDateTime(m.savedAt)}</div>
+        </div>
+
+        {/* progress / meta extra */}
+        <div className="text-xs text-muted-foreground">
+          {m.progressText || "—"}
+          {m.size ? ` • ${m.size}` : ""}
+          {m.version ? ` • v${m.version}` : ""}
+        </div>
+
+        {/* Ações */}
         <div className="flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={onLoad}>
-              Load
+            <Button size="sm" onClick={onLoad} disabled={loading}>
+              {loading ? "Loading…" : "Load"}
             </Button>
             {onDelete ? (
-              <Button size="sm" variant="outline" onClick={onDelete}>
+              <Button size="sm" variant="outline" onClick={onDelete} disabled={loading}>
                 Delete
               </Button>
             ) : null}
           </div>
           {onStartRename && (
-            <Button size="sm" variant="outline" onClick={onStartRename}>
+            <Button size="sm" variant="outline" onClick={onStartRename} disabled={loading}>
               Rename
             </Button>
           )}
