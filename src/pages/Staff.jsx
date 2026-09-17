@@ -1,380 +1,108 @@
-// src/pages/Staff.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useGame } from "@/state/GameStore";
+import React, { useMemo, useState } from "react";
+import { useGame } from "../state/GameStore.js";
+import { flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 
-/* ---------------- utils ---------------- */
-const tryFetchJSON = async (paths) => {
-  for (const p of paths) {
-    try { const r = await fetch(p); if (r.ok) return await r.json(); } catch {}
-  }
-  return null;
-};
-const normId = (s) =>
-  (s ?? "")
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^\w\-]+/g, "");
-const safeNum = (x, d = 0) => (Number.isFinite(Number(x)) ? Number(x) : d);
-const titleCase = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "");
-const fmtMoney = (n) => {
-  try { return new Intl.NumberFormat("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n||0)); }
-  catch { return `${n}`; }
-};
-const toDate = (v) => {
-  if (!v) return null;
-  if (v instanceof Date) return v;
-  if (typeof v === "number") return new Date(v);
-  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : new Date(v);
-};
+const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
+const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
+const staffIdOf=(o)=>String(pick(o,["staff_id","person_id","id"],""));
+const teamIdOf=(o)=>String(pick(o,["team_id","team","constructor_id","constructor"],""));
+const nice=(s)=>String(s||"Staff").replace(/_/g," ").replace(/\b\w/g,m=>m.toUpperCase());
 
-/* -------------- normalization -------------- */
-function normalizeSkills(raw) {
-  if (!raw) return {};
-  if (Array.isArray(raw)) {
-    // array tipo [{key:"leadership", val:78}, ...] ou ["leadership","strategy"]
-    const obj = {};
-    raw.forEach((e) => {
-      if (e && typeof e === "object") {
-        const k = normId(e.key ?? e.name);
-        obj[k] = safeNum(e.val ?? e.value ?? e.rating ?? 0);
-      } else if (typeof e === "string") {
-        obj[normId(e)] = 50; // default mid
-      }
-    });
-    return obj;
-  }
-  if (typeof raw === "object") {
-    // já é objeto {leadership: 75, strategy: 80, ...}
-    const obj = {};
-    Object.entries(raw).forEach(([k, v]) => (obj[normId(k)] = safeNum(v, 0)));
-    return obj;
-  }
-  return {};
+function overallOf(rating){
+  const ignored=new Set(["staff_id","staff_name","year"]);
+  const vals=Object.entries(rating||{}).filter(([k,v])=>!ignored.has(k)&&Number.isFinite(Number(v))).map(([,v])=>Number(v));
+  return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):"—";
 }
 
-function normalizeStaffEntry(s, i, contractsIndex) {
-  const id = s.staff_id ?? s.id ?? `S_${i + 1}`;
-  const name = s.display_name ?? s.name ?? "Staff";
-  const role = s.role ?? s.title ?? s.position ?? "Staff";
-  const dept = (s.dept ?? s.department ?? s.category ?? guessDeptByRole(role)).toString();
-  const skills = normalizeSkills(s.skills ?? s.attributes ?? s.stats);
-  const overall =
-    Object.keys(skills).length === 0
-      ? safeNum(s.overall ?? s.rating ?? 0, 0)
-      : Math.round(
-          Object.values(skills).reduce((a, b) => a + safeNum(b, 0), 0) /
-            Math.max(1, Object.values(skills).length)
-        );
-
-  // contract enrichment (optional)
-  const c = contractsIndex[normId(id)] || null;
-  const weekly = safeNum(s.salary_weekly ?? s.weekly ?? (s.salary_yearly ? s.salary_yearly/52 : c?.weekly), null);
-  const yearly = safeNum(s.salary_yearly ?? s.yearly ?? (weekly ? weekly*52 : c?.yearly), null);
-  const since = toDate(s.since ?? s.start_date ?? c?.since);
-  const until = toDate(s.until ?? s.end_date ?? c?.until);
-
-  return {
-    staff_id: id,
-    display_name: name,
-    role,
-    dept,
-    nationality: s.country_name ?? s.nationality ?? "",
-    age: safeNum(s.age, null),
-    portrait_path: s.portrait_path ?? guessPortraitById(id),
-    overall,
-    skills,
-    // contract-ish
-    salary_weekly: weekly,
-    salary_yearly: yearly,
-    since,
-    until,
-    meta: s
-  };
-}
-
-function guessDeptByRole(role) {
-  const r = String(role || "").toLowerCase();
-  if (r.includes("principal")) return "Leadership";
-  if (r.includes("technical") || r.includes("chief engineer") || r.includes("engineer")) return "Technical";
-  if (r.includes("aero") || r.includes("cfd") || r.includes("wind")) return "Aero";
-  if (r.includes("pit")) return "Operations";
-  if (r.includes("scout")) return "Scouting";
-  if (r.includes("academy")) return "Academy";
-  if (r.includes("mechanic")) return "Operations";
+function department(role){
+  const r=String(role||"").toLowerCase();
+  if(/principal|owner|manager|director/.test(r)) return "Leadership";
+  if(/aero|cfd|wind/.test(r)) return "Aero";
+  if(/engineer|designer|technical|chassis/.test(r)) return "Technical";
+  if(/mechanic|pit|operations/.test(r)) return "Operations";
+  if(/scout/.test(r)) return "Scouting";
+  if(/academy|youth/.test(r)) return "Academy";
   return "Staff";
 }
 
-function guessPortraitById(id) {
-  const n = normId(id);
-  return `/portraits/staff/${n}.png`;
-}
+export default function Staff(){
+  const gs=useGame(s=>s.gameState);
+  const year=Number(gs?.activeYear);
+  const core=gs?.staffCore?.length?gs.staffCore:gs?.dbStaffCore||[];
+  const ratings=gs?.staffRatings?.length?gs.staffRatings:gs?.dbStaffRatings||[];
+  const contracts=gs?.staffContracts?.length?gs.staffContracts:gs?.dbStaffContracts||[];
+  const teams=gs?.teams?.length?gs.teams:gs?.dbTeams||[];
 
-function buildContractsIndex(list) {
-  const idx = {};
-  if (!Array.isArray(list)) return idx;
-  list.forEach((c) => {
-    const sid = normId(c.staff_id ?? c.id ?? c.person_id ?? c.name);
-    idx[sid] = {
-      weekly: safeNum(c.weekly ?? c.salary_weekly ?? (c.yearly ? c.yearly/52 : null), null),
-      yearly: safeNum(c.yearly ?? c.salary_yearly ?? (c.weekly ? c.weekly*52 : null), null),
-      since: c.since ?? c.start ?? c.start_date ?? null,
-      until: c.until ?? c.end ?? c.end_date ?? null
-    };
-  });
-  return idx;
-}
+  const [q,setQ]=useState("");
+  const [dept,setDept]=useState("ALL");
+  const [team,setTeam]=useState("ALL");
+  const [sort,setSort]=useState("overall");
 
-/* -------------------- component -------------------- */
-export default function Staff() {
-  const { gameState } = useGame();
+  const coreById=useMemo(()=>new Map(core.map(s=>[staffIdOf(s),s])),[core]);
+  const ratingById=useMemo(()=>new Map(ratings.map(r=>[staffIdOf(r),r])),[ratings]);
+  const teamNameById=useMemo(()=>new Map(teams.map(t=>[String(t?.team_id??t?.id??""),t?.team_name||t?.name||"—"])),[teams]);
 
-  const [fallbackStaff, setFallbackStaff] = useState(null);
-  const [fallbackContracts, setFallbackContracts] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      const [s, c] = await Promise.all([
-        tryFetchJSON(["/data/staff.json", "/data/team_staff.json", "/data/all_staff.json"]),
-        tryFetchJSON(["/data/contracts_staff.json", "/data/staff_contracts.json"]),
-      ]);
-      setFallbackStaff(s);
-      setFallbackContracts(c);
-    })();
-  }, []);
-
-  const contractsIndex = useMemo(
-    () => buildContractsIndex((gameState?.staff && gameState.staff.contracts) || fallbackContracts || []),
-    [gameState?.staff, fallbackContracts]
-  );
-
-  const staffRaw = useMemo(() => {
-    const fromState = Array.isArray(gameState?.staff?.list) ? gameState.staff.list
-      : Array.isArray(gameState?.staff) ? gameState.staff
-      : [];
-    const fromFile = Array.isArray(fallbackStaff?.list) ? fallbackStaff.list
-      : Array.isArray(fallbackStaff) ? fallbackStaff
-      : [];
-    return fromState.length ? fromState : fromFile;
-  }, [gameState?.staff, fallbackStaff]);
-
-  const staff = useMemo(
-    () => staffRaw.map((s, i) => normalizeStaffEntry(s, i, contractsIndex)),
-    [staffRaw, contractsIndex]
-  );
-
-  // team primary color (for accents)
-  const teamPrimary = gameState?.team?.primary_color || gameState?.team?.color_primary || "#111827";
-
-  /* --------------- filters & sorting --------------- */
-  const DEPTS = useMemo(() => {
-    const set = new Set(["All","Leadership","Technical","Aero","Operations","Scouting","Academy","Staff"]);
-    staff.forEach(s => set.add(s.dept));
-    return Array.from(set);
-  }, [staff]);
-
-  const [dept, setDept] = useState("All");
-  const [q, setQ] = useState("");
-  const [minRating, setMinRating] = useState(0);
-  const [sort, setSort] = useState("overall"); // overall|role|salary
-
-  const filtered = useMemo(() => {
-    let list = staff.filter(s => {
-      if (dept !== "All" && String(s.dept) !== String(dept)) return false;
-      if (minRating && (s.overall || 0) < minRating) return false;
-      if (q) {
-        const hay = `${s.display_name} ${s.role} ${s.dept} ${s.nationality}`.toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
+  const rows=useMemo(()=>{
+    const ids=new Set([...core.map(staffIdOf),...ratings.map(staffIdOf),...contracts.map(staffIdOf)]);
+    return [...ids].filter(Boolean).map(id=>{
+      const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
+      const contract=contracts.find(c=>{
+        const cy=Number(pick(c,["year","season_year"],year));
+        return staffIdOf(c)===id&&(!Number.isFinite(year)||!Number.isFinite(cy)||cy===year);
+      })||null;
+      const role=pick(contract,["role","position"],pick(s,["role_primary"],"Staff"));
+      const tid=teamIdOf(contract);
+      return {
+        id,
+        name:pick(s,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id)),
+        role:nice(role),
+        dept:department(role),
+        country:pick(s,["country_name","country","nationality"],"—"),
+        code:pick(s,["country_code"],""),
+        overall:overallOf(rating),
+        team:contract?(teamNameById.get(tid)||pick(contract,["team_name"],"—")):"Free",
+        salary:Number(pick(contract,["salary","salary_yearly"],0))||0,
+        until:contract?pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—"):"—",
+      };
     });
-    if (sort === "overall") list.sort((a, b) => (b.overall - a.overall) || a.display_name.localeCompare(b.display_name));
-    if (sort === "role") list.sort((a, b) => a.role.localeCompare(b.role) || b.overall - a.overall);
-    if (sort === "salary") list.sort((a, b) => (b.salary_yearly || 0) - (a.salary_yearly || 0));
-    return list;
-  }, [staff, dept, q, minRating, sort]);
+  },[core,ratings,contracts,coreById,ratingById,year,teamNameById]);
 
-  // key roles (prefer show-first if present)
-  const KEY_ROLES = [
-    "Team Principal","Technical Director","Chief Engineer","Chief Mechanic",
-    "Pit Crew Chief","Head of Aero","Head of Scouting","Academy Director","Race Engineer"
-  ];
-  const keyStaff = filtered.filter(s => KEY_ROLES.some(kr => s.role.toLowerCase().includes(kr.toLowerCase())));
-  const others = filtered.filter(s => !keyStaff.includes(s));
+  const depts=["ALL",...Array.from(new Set(rows.map(r=>r.dept))).sort()];
+  const teamsOpt=["ALL",...Array.from(new Set(rows.map(r=>r.team))).sort()];
+  const filtered=rows.filter(r=>{
+    if(dept!=="ALL"&&r.dept!==dept)return false;
+    if(team!=="ALL"&&r.team!==team)return false;
+    if(q&&![r.name,r.role,r.dept,r.country,r.team].some(v=>String(v).toLowerCase().includes(q.toLowerCase())))return false;
+    return true;
+  }).sort((a,b)=>{
+    if(sort==="overall") return (Number(b.overall)||0)-(Number(a.overall)||0)||a.name.localeCompare(b.name);
+    if(sort==="role") return a.role.localeCompare(b.role)||a.name.localeCompare(b.name);
+    if(sort==="team") return a.team.localeCompare(b.team)||a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name);
+  });
 
-  return (
-    <div className="p-4 md:p-6 space-y-4" style={{ ["--primary"]: teamPrimary }}>
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold">Staff</h1>
-        <div className="text-sm text-muted-foreground">{staff.length} total</div>
+  return <div className="grid gap-4">
+    <div className="bg-white rounded-xl shadow p-4">
+      <h2 className="text-lg font-semibold">All Staff</h2>
+      <p className="text-sm text-gray-500">Season {year||"—"} · click a staff member to open the profile.</p>
+      <div className="mt-3 flex flex-col lg:flex-row gap-2">
+        <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search name/role/team/nationality…" value={q} onChange={e=>setQ(e.target.value)}/>
+        <select className="border rounded-md px-3 py-2 text-sm" value={dept} onChange={e=>setDept(e.target.value)}>{depts.map(v=><option key={v}>{v}</option>)}</select>
+        <select className="border rounded-md px-3 py-2 text-sm" value={team} onChange={e=>setTeam(e.target.value)}>{teamsOpt.map(v=><option key={v}>{v}</option>)}</select>
+        <select className="border rounded-md px-3 py-2 text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="overall">Sort: Overall</option><option value="role">Sort: Role</option><option value="team">Sort: Team</option><option value="name">Sort: Name</option></select>
       </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <select value={dept} onChange={(e)=>setDept(e.target.value)} className="border rounded px-2 py-1">
-              {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-
-            <div className="flex items-center gap-2">
-              <label className="text-sm">Min rating</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={minRating}
-                onChange={(e)=>setMinRating(Number(e.target.value))}
-                className="border rounded px-2 py-1 w-20"
-              />
-            </div>
-
-            <select value={sort} onChange={(e)=>setSort(e.target.value)} className="border rounded px-2 py-1">
-              <option value="overall">Sort: Overall</option>
-              <option value="role">Sort: Role</option>
-              <option value="salary">Sort: Salary</option>
-            </select>
-
-            <input
-              type="text"
-              placeholder="Search name/role/nationality…"
-              value={q}
-              onChange={(e)=>setQ(e.target.value)}
-              className="border rounded px-3 py-1.5 w-full md:flex-1"
-            />
-
-            <div className="flex-1" />
-
-            <Button variant="outline" onClick={()=>{ setDept("All"); setQ(""); setMinRating(0); setSort("overall"); }}>
-              Clear filters
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Key roles */}
-      {keyStaff.length > 0 && (
-        <>
-          <div className="text-sm text-muted-foreground">Key Roles</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {keyStaff.map((s) => <StaffCard key={s.staff_id} s={s} />)}
-          </div>
-        </>
-      )}
-
-      {/* Others */}
-      <div className="text-sm text-muted-foreground">All Staff</div>
-      <Card>
-        <CardContent className="p-0">
-          {others.length === 0 && keyStaff.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">No staff found.</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/60">
-                <tr className="text-left">
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Role</th>
-                  <th className="px-3 py-2">Dept</th>
-                  <th className="px-3 py-2">Nationality</th>
-                  <th className="px-3 py-2 text-right">Overall</th>
-                  <th className="px-3 py-2 text-right">Weekly</th>
-                  <th className="px-3 py-2 text-right">Yearly</th>
-                  <th className="px-3 py-2">Term</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...keyStaff, ...others].map((s) => (
-                  <tr key={s.staff_id} className="border-t">
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Avatar src={s.portrait_path} name={s.display_name} />
-                        <div className="font-medium">{s.display_name}</div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">{s.role}</td>
-                    <td className="px-3 py-2">{s.dept}</td>
-                    <td className="px-3 py-2">{s.nationality || "—"}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{s.overall || "—"}</td>
-                    <td className="px-3 py-2 text-right">{s.salary_weekly != null ? fmtMoney(s.salary_weekly) : "—"}</td>
-                    <td className="px-3 py-2 text-right">{s.salary_yearly != null ? fmtMoney(s.salary_yearly) : "—"}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {s.since ? s.since.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"2-digit" }) : "—"}
-                      {" → "}
-                      {s.until ? s.until.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"2-digit" }) : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
     </div>
-  );
-}
 
-/* ------------------ UI bits ------------------ */
-function StaffCard({ s }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3">
-          <Avatar src={s.portrait_path} name={s.display_name} />
-          <div className="flex-1">
-            <div className="font-medium leading-tight">{s.display_name}</div>
-            <div className="text-xs text-muted-foreground">{s.role} • {s.dept}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xl font-semibold">{s.overall || "—"}</div>
-            <div className="text-[11px] text-muted-foreground">Overall</div>
-          </div>
-        </div>
-
-        {/* Skills grid */}
-        {s.skills && Object.keys(s.skills).length > 0 ? (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {Object.entries(s.skills)
-              .sort((a,b)=>b[1]-a[1])
-              .slice(0,6)
-              .map(([k,v]) => (
-              <div key={k} className="rounded-lg border p-2">
-                <div className="text-[11px] text-muted-foreground">{titleCase(k.replace(/_/g," "))}</div>
-                <div className="text-sm font-medium">{v}</div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Salary quick line */}
-        {(s.salary_weekly != null || s.salary_yearly != null) ? (
-          <div className="mt-3 text-xs text-muted-foreground">
-            {s.salary_weekly != null ? `Weekly: ${fmtMoney(s.salary_weekly)}` : ""}
-            {s.salary_yearly != null ? ` • Yearly: ${fmtMoney(s.salary_yearly)}` : ""}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Avatar({ src, name }) {
-  return (
-    <div className="h-10 w-10 rounded-lg overflow-hidden bg-muted/40 flex items-center justify-center ring-1 ring-black/5">
-      {src ? (
-        <img
-          src={src}
-          alt={name}
-          className="h-full w-full object-cover"
-          onError={(e)=>{ e.currentTarget.style.display = "none"; }}
-        />
-      ) : (
-        <span className="text-xs px-1 text-muted-foreground">{(name||"").split(" ").map(x=>x[0]).join("").slice(0,2)}</span>
-      )}
-    </div>
-  );
+    <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
+      <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Role</th><th className="px-4 py-3 text-left">Dept</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Nationality</th><th className="px-4 py-3 text-right">Overall</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 text-left">Contract</th></tr></thead>
+      <tbody>{filtered.map(s=><tr key={s.id} className="border-t hover:bg-gray-50">
+        <td className="px-4 py-2"><button type="button" data-entity="staff" data-id={s.id} className="font-medium hover:underline text-left">{s.name}</button></td>
+        <td className="px-4 py-2">{s.role}</td><td className="px-4 py-2">{s.dept}</td><td className="px-4 py-2">{s.team}</td>
+        <td className="px-4 py-2">{flagFromCountry(s.country,s.code)} {s.country}</td><td className="px-4 py-2 text-right font-semibold">{s.overall}</td>
+        <td className="px-4 py-2 text-right">{s.salary?new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(s.salary):"—"}</td>
+        <td className="px-4 py-2">{s.until}</td>
+      </tr>)}
+      {!filtered.length&&<tr><td colSpan={8} className="px-4 py-6 text-center text-gray-500">No staff found.</td></tr>}</tbody>
+    </table></div>
+  </div>;
 }
