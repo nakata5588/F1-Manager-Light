@@ -1,42 +1,81 @@
-# F1 Manager Light — JSON Pack
+# F1 Manager Light
 
-A clean, GitHub‑ready bundle containing:
-- **/data**: normalized JSONs (drivers, teams, staff, tracks, calendar 1980, rules/era, attributes dictionaries, etc.).
-- **/data/seeds**: gameplay seeds (events, inbox, sponsors).
-- **/scripts**: helpers to validate and (optionally) ingest a single Excel file into JSONs.
-- **/src**: minimal loader utilities (JS) that read the JSONs.
+Historical Formula 1 management game built with React, Vite, Zustand and a JSON-backed simulation database.
 
-> Drop your existing React project here or start fresh. Commit and push to GitHub.
+## Development
 
-## Quick Start
-1. Unzip this package.
-2. (Optional) Put your Excel file at the repo root as `database.xlsx`.
-3. Run the Excel→JSON export:
-   ```bash
-   python3 -m venv .venv && source .venv/bin/activate
-   pip install -r scripts/requirements.txt
-   python scripts/ingest_xlsx_to_json.py
-   ```
-4. Validate:
-   ```bash
-   npm i ajv
-   node scripts/validate_json.js
-   ```
-5. Commit and push:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: initial JSON pack for F1 Manager Light"
-   git branch -M main
-   git remote add origin <YOUR_GITHUB_REPO_URL>
-   git push -u origin main
-   ```
+Requirements: Node.js 22+.
 
-## Data Contracts (IDs are stable)
-- `driver_id`: string (e.g., `D_0001`) + `slug` (e.g., `alan_jones`).
-- `team_id`: string stable across renames (e.g., `T_WILLIAMS`).
-- `track_id`: string (e.g., `TR_ARGENTINA_BUENOS_AIRES_1980`).
-- `season`: number (e.g., `1980`).
-- `round`: 1-based index.
+```bash
+npm ci
+npm run dev
+```
 
-All JSONs are arrays except `attributes.json` and dictionaries which are maps.
+Vite starts the development server on port `5173` by default.
+
+Before committing runtime changes, run:
+
+```bash
+npm run check
+```
+
+This validates the runtime data contracts and performs a production build.
+
+## Data pipeline
+
+The maintained database source is:
+
+```text
+data/f1_db.xlsx
+```
+
+Runtime JSON is generated into:
+
+```text
+public/data/
+```
+
+To rebuild it:
+
+```bash
+npm run build:data
+npm run validate:data
+```
+
+`scripts/convert-excel.mjs` is the canonical Excel → JSON converter. The application reads its data from `public/data` through `GameStore`.
+
+## Runtime architecture
+
+The game deliberately distinguishes two kinds of state:
+
+- **Database state** (`dbDrivers`, `dbTeams`, `dbCalendar`, contracts, rules, points systems, etc.): static source data loaded from `public/data`.
+- **Career state** (date, player team, standings, race results, inbox, events, finances, etc.): mutable state that belongs to an individual save.
+
+Saves use lightweight snapshots and omit the large `db*` collections. When a save is loaded, the app automatically reloads the static database before continuing the career.
+
+### Race results
+
+`gameState.results` is the canonical career race history. Each event stores its season, round, race identity and classification, including the driver's team at the time of the race. Championship standings are maintained by the race engine and `Results` / `Standings` consume that saved career state.
+
+### Historical points systems
+
+Race scoring must come from `public/data/points_systems.json`; do not hard-code one points table into gameplay code.
+
+## Useful scripts
+
+```bash
+npm run dev            # development server
+npm run build          # production build
+npm run preview        # preview the production build
+npm run build:data     # regenerate public/data from data/f1_db.xlsx
+npm run validate:data  # validate required runtime JSON
+npm run check          # validate data + production build
+```
+
+## CI
+
+GitHub Actions validates runtime JSON and builds the application for pull requests. Changes to the source workbook or converter can regenerate `public/data` on the main branch.
+
+## Stable IDs
+
+Core entities use stable IDs such as `driver_id`, `team_id`, `track_id` and race/event identifiers. UI code should resolve display names separately and must not use display names as persistent identity.
