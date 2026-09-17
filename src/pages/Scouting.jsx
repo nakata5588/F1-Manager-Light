@@ -1,484 +1,191 @@
-// src/pages/Scouting.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useGame } from "@/state/GameStore";
+import { DriverPortrait, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
 
-/* ---------------- utils ---------------- */
-const tryFetchJSON = async (paths) => {
-  for (const p of paths) {
-    try { const r = await fetch(p); if (r.ok) return await r.json(); } catch {}
-  }
-  return null;
-};
-const normId = (s) =>
-  (s ?? "")
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^\w\-]+/g, "");
-const titleCase = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "");
-const fmtDate = (d) => d ? d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"2-digit" }) : "—";
-const toDate = (v) => {
-  if (!v) return null;
-  if (v instanceof Date) return v;
-  if (typeof v === "number") return new Date(v);
-  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(v);
-};
-const daysToMs = (d) => (Number(d) || 0) * 24 * 60 * 60 * 1000;
-const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
+const DAY=86_400_000;
+const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
+const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
+const idOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
+const fmtMoney=(n)=>new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(n||0));
+function parseISO(value){const [y,m,d]=String(value||"").slice(0,10).split("-").map(Number);return new Date(Date.UTC(y||1970,(m||1)-1,d||1));}
+function addDaysISO(value,days){const d=parseISO(value);d.setUTCDate(d.getUTCDate()+Number(days||0));return d.toISOString().slice(0,10);}
+function daysBetween(a,b){return Math.max(0,Math.ceil((+parseISO(b)-+parseISO(a))/DAY));}
+function progress(a,b,n){if(!a||!b||!n)return 0;const x=+parseISO(a),y=+parseISO(b),z=+parseISO(n);return y<=x?1:Math.max(0,Math.min(1,(z-x)/(y-x)));}
+function nice(s){return String(s||"").replace(/_/g," ").replace(/\b\w/g,m=>m.toUpperCase());}
 
-/* ------------- normalization -------------- */
-function normalizeAssignments(raw) {
-  // aceita: raw.assignments || raw.tasks || array direto
-  const arr = Array.isArray(raw?.assignments) ? raw.assignments
-    : Array.isArray(raw?.tasks) ? raw.tasks
-    : Array.isArray(raw) ? raw
-    : Array.isArray(raw?.items) ? raw.items
-    : [];
-  return arr.map((a, i) => {
-    const id = a.id ?? `A_${i + 1}`;
-    const scout_id = a.scout_id ?? a.staff_id ?? a.scout ?? null;
-    const prospect_id = a.prospect_id ?? a.driver_id ?? a.target_id ?? null;
-    const started_at = toDate(a.started_at ?? a.start ?? a.date_start ?? null);
-    const duration_days = Number(a.duration_days ?? a.days ?? 14);
-    const finishes_at = toDate(a.finishes_at ?? a.finish ?? a.date_end ?? (started_at ? new Date(started_at.getTime() + daysToMs(duration_days)) : null));
-    const status = (a.status ?? (finishes_at && finishes_at < new Date() ? "completed" : "active")).toLowerCase(); // active|paused|completed|failed
-    const progress = a.progress != null ? clamp01(a.progress) : estimateProgress(started_at, finishes_at);
-    return {
-      id,
-      title: a.title ?? a.name ?? "Assignment",
-      region: a.region ?? a.area ?? a.country ?? "Global",
-      role: (a.role ?? a.type ?? "Scouting").toString(),
-      status,
-      priority: Number(a.priority ?? 2),
-      started_at,
-      finishes_at,
-      duration_days,
-      progress,
-      scout_id,
-      prospect_id,
-      meta: a
+export default function Scouting(){
+  const gameState=useGame(s=>s.gameState);
+  const setGameState=useGame(s=>s.setGameState);
+  const date=String(gameState?.currentDateISO||"").slice(0,10);
+  const year=Number(gameState?.activeYear)||1980;
+  const scouting=gameState?.scouting||{};
+  const assignments=Array.isArray(scouting.assignments)?scouting.assignments:[];
+  const shortlist=Array.isArray(scouting.shortlist)?scouting.shortlist:[];
+  const zones=gameState?.dbScoutingZones||[];
+  const drivers=gameState?.drivers?.length?gameState.drivers:gameState?.dbDrivers||[];
+  const ratings=gameState?.driverRatings?.length?gameState.driverRatings:gameState?.dbDriverRatings||[];
+  const contracts=gameState?.contracts?.length?gameState.contracts:gameState?.dbContracts||[];
+  const staffContracts=gameState?.staffContracts?.length?gameState.staffContracts:gameState?.dbStaffContracts||[];
+  const staffCore=gameState?.staffCore?.length?gameState.staffCore:gameState?.dbStaffCore||[];
+  const staffRatings=gameState?.staffRatings?.length?gameState.staffRatings:gameState?.dbStaffRatings||[];
+
+  const [tab,setTab]=useState("assignments");
+  const [showStart,setShowStart]=useState(false);
+  const [target,setTarget]=useState("");
+  const [zoneId,setZoneId]=useState(zones?.[0]?.zone_id||"");
+  const [q,setQ]=useState("");
+
+  useEffect(()=>{if(!zoneId&&zones.length)setZoneId(String(zones[0].zone_id));},[zones,zoneId]);
+
+  const ratingById=useMemo(()=>new Map(ratings.map(r=>[idOf(r),r])),[ratings]);
+  const contractedIds=useMemo(()=>new Set(contracts.filter(c=>String(pick(c,["role","position","contract_role"],"")).toLowerCase().includes("driver")).map(idOf)),[contracts]);
+  const prospects=useMemo(()=>drivers.filter(d=>{
+    const id=idOf(d); if(!id)return false;
+    const status=String(d?.status||"");
+    const marketVisible = status==="junior_only" || status==="eligible" || Boolean(d?.canHireF1) || Boolean(d?.canHireAcademy);
+    if(!marketVisible || ["retired","deceased","hidden"].includes(status)) return false;
+    return !contractedIds.has(id) || status==="junior_only";
+  }).filter(d=>!q||[d.display_name,d.name,d.country_name,d.nationality].some(v=>String(v||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>{
+    const ap=Number(pick(ratingById.get(idOf(a)),["potential_ability","potential"],0));
+    const bp=Number(pick(ratingById.get(idOf(b)),["potential_ability","potential"],0));
+    return bp-ap;
+  }),[drivers,contractedIds,ratingById,q]);
+
+  const driverById=useMemo(()=>new Map(drivers.map(d=>[idOf(d),d])),[drivers]);
+
+  const scouts=useMemo(()=>{
+    const myTeam=String(gameState?.team?.team_id??gameState?.team?.id??"");
+    const coreById=new Map(staffCore.map(s=>[String(s?.staff_id??s?.id??""),s]));
+    const ratingByStaff=new Map(staffRatings.map(r=>[String(unbox(r?.staff_id)??""),r]));
+    return staffContracts.filter(c=>String(unbox(c?.team_id)??"")===myTeam && /scout|manager|principal/i.test(String(c?.role||"")))
+      .map(c=>{
+        const id=String(unbox(c?.staff_id)??"");
+        const core=coreById.get(id)||{};
+        const rt=ratingByStaff.get(id)||{};
+        return {id,name:core.staff_name||c.staff_name||id,rating:Math.round((Number(rt.data_analysis||0)+Number(rt.communication||0)+Number(rt.negotiation||0))/3)||"—",role:nice(c.role)};
+      });
+  },[staffContracts,staffCore,staffRatings,gameState?.team]);
+
+  useEffect(()=>{
+    if(!date)return;
+    const due=assignments.some(a=>a.status==="active"&&a.finishes_at&&a.finishes_at<=date);
+    if(!due)return;
+    setGameState({scouting:{...scouting,assignments:assignments.map(a=>a.status==="active"&&a.finishes_at&&a.finishes_at<=date?{...a,status:"completed",completed_at:date}:a),shortlist}});
+  },[date,assignments,scouting,shortlist,setGameState]);
+
+  const selectedZone=zones.find(z=>String(z.zone_id)===String(zoneId))||null;
+  const duration=selectedZone?Number(selectedZone.travel_time_days||0)+10:14;
+  const cost=selectedZone?Math.ceil(duration/7)*Number(selectedZone.cost_per_week||0):0;
+  const budget=Number(gameState?.team?.budget??gameState?.finances?.balance??0);
+
+  const startAssignment=(driverId=target,zid=zoneId)=>{
+    if(!driverId||!zid||!date)return;
+    const zone=zones.find(z=>String(z.zone_id)===String(zid));
+    if(!zone)return;
+    const days=Number(zone.travel_time_days||0)+10;
+    const assignmentCost=Math.ceil(days/7)*Number(zone.cost_per_week||0);
+    if(budget<assignmentCost)return;
+    const d=driverById.get(String(driverId));
+    const a={
+      id:`scout_${Date.now()}`,
+      title:`Report: ${d?.display_name||d?.name||driverId}`,
+      prospect_id:String(driverId),
+      zone_id:String(zid),
+      region:zone.name||zid,
+      status:"active",
+      priority:2,
+      started_at:date,
+      finishes_at:addDaysISO(date,days),
+      duration_days:days,
+      cost:assignmentCost,
     };
-  }).sort((a,b)=> (a.status===b.status ? (a.priority-b.priority) : (a.status==="active"?-1:1)));
-}
-function estimateProgress(start, end) {
-  if (!start || !end) return 0;
-  const now = new Date();
-  const total = end - start;
-  const done = now - start;
-  if (total <= 0) return 1;
-  return clamp01(done / total);
-}
+    applyExpense(assignmentCost,`Scouting — ${a.title} (${a.region})`);
+    setGameState({scouting:{...scouting,assignments:[...assignments,a],shortlist}});
+    setShowStart(false);
+  };
 
-function normalizeScouts(raw) {
-  const arr = Array.isArray(raw?.scouts) ? raw.scouts
-    : Array.isArray(raw) ? raw
-    : Array.isArray(raw?.items) ? raw.items
-    : [];
-  return arr.map((s, i) => {
-    const id = s.staff_id ?? s.id ?? `SC_${i + 1}`;
-    const skills = s.skills || s.attributes || {};
-    const rating =
-      Number(s.rating ?? s.overall) ||
-      (typeof skills === "object" ? Math.round(Object.values(skills).reduce((a,b)=>a+Number(b||0),0)/Math.max(1,Object.keys(skills).length)) : 0);
-    return {
-      staff_id: id,
-      display_name: s.display_name ?? s.name ?? "Scout",
-      role: s.role ?? "Scout",
-      region: s.region ?? s.country ?? "Global",
-      rating,
-      portrait_path: s.portrait_path ?? `/portraits/staff/${normId(id)}.png`,
-      meta: s
-    };
-  });
-}
+  const patchAssignment=(id,patch)=>{
+    setGameState({scouting:{...scouting,assignments:assignments.map(a=>a.id===id?{...a,...patch}:a),shortlist}});
+  };
+  const pauseResume=(a)=>{
+    if(a.status==="paused"){
+      patchAssignment(a.id,{status:"active",started_at:date,finishes_at:addDaysISO(date,Number(a.remaining_days||7)),remaining_days:null});
+    }else{
+      patchAssignment(a.id,{status:"paused",remaining_days:daysBetween(date,a.finishes_at),paused_at:date});
+    }
+  };
+  const cancel=(a)=>patchAssignment(a.id,{status:"cancelled",cancelled_at:date});
+  const toggleShortlist=(id)=>{
+    const sid=String(id);
+    const next=shortlist.includes(sid)?shortlist.filter(x=>String(x)!==sid):[...shortlist,sid];
+    setGameState({scouting:{...scouting,assignments,shortlist:next}});
+  };
 
-function normalizeProspects(raw) {
-  const arr = Array.isArray(raw?.prospects) ? raw.prospects
-    : Array.isArray(raw) ? raw
-    : Array.isArray(raw?.items) ? raw.items
-    : [];
-  return arr.map((p, i) => {
-    const id = p.driver_id ?? p.id ?? `P_${i + 1}`;
-    const rating = Number(p.rating ?? p.potential ?? 0);
-    return {
-      driver_id: id,
-      display_name: p.display_name ?? p.name ?? "Driver",
-      age: Number(p.age ?? 0) || null,
-      nationality: p.country_name ?? p.nationality ?? "",
-      team: p.team_name ?? p.team ?? "",
-      rating,
-      portrait_path: p.portrait_path ?? `/portraits/drivers/${normId(id)}.png`,
-      notes: p.notes ?? "",
-      meta: p
-    };
-  });
-}
-
-/* ---------------- component ---------------- */
-export default function Scouting() {
-  const { gameState } = useGame();
-
-  const [fallbackScouting, setFallbackScouting] = useState(null);
-  const [fallbackScouts, setFallbackScouts] = useState(null);
-  const [fallbackProspects, setFallbackProspects] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      const [sc, scs, pr] = await Promise.all([
-        tryFetchJSON(["/data/scouting.json"]),
-        tryFetchJSON(["/data/scouts.json", "/data/staff_scouts.json"]),
-        tryFetchJSON(["/data/prospects.json", "/data/driver_prospects.json"]),
-      ]);
-      setFallbackScouting(sc);
-      setFallbackScouts(scs);
-      setFallbackProspects(pr);
-    })();
-  }, []);
-
-  // sources
-  const rawScouting = gameState?.scouting || fallbackScouting || {};
-  const assignments = useMemo(
-    () => normalizeAssignments(rawScouting.assignments || rawScouting.tasks || rawScouting),
-    [rawScouting]
-  );
-  const scouts = useMemo(
-    () => normalizeScouts(gameState?.scouting?.scouts || fallbackScouts || []),
-    [gameState?.scouting, fallbackScouts]
-  );
-  const prospects = useMemo(
-    () => normalizeProspects(gameState?.scouting?.prospects || fallbackProspects || []),
-    [gameState?.scouting, fallbackProspects]
-  );
-
-  // tabs
-  const [tab, setTab] = useState("assignments");
-
-  return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold">Scouting</h1>
-        <div className="text-sm text-muted-foreground">
-          {assignments.length} assignments • {scouts.length} scouts • {prospects.length} prospects
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-2">
-        {[
-          ["assignments","Assignments"],
-          ["prospects","Prospects"],
-          ["scouts","Scouts"],
-        ].map(([k,label]) => (
-          <Button key={k} variant={tab===k ? "default":"outline"} onClick={()=>setTab(k)}>{label}</Button>
-        ))}
-        <div className="flex-1" />
-        <Button disabled variant="outline">Start assignment</Button>
-      </div>
-
-      {tab === "assignments" && <AssignmentsTab assignments={assignments} scouts={scouts} prospects={prospects} />}
-      {tab === "prospects" && <ProspectsTab prospects={prospects} />}
-      {tab === "scouts" && <ScoutsTab scouts={scouts} />}
-    </div>
-  );
-}
-
-/* ---------------- tabs content --------------- */
-function AssignmentsTab({ assignments, scouts, prospects }) {
-  const [status, setStatus] = useState("active"); // active|completed|paused|failed|all
-  const [region, setRegion] = useState("ALL");
-  const [q, setQ] = useState("");
-
-  const REGIONS = useMemo(() => {
-    const set = new Set(["ALL"]);
-    assignments.forEach(a => a.region && set.add(a.region));
-    return Array.from(set);
-  }, [assignments]);
-
-  const filtered = useMemo(() => {
-    return assignments.filter(a => {
-      if (status !== "all" && a.status !== status) return false;
-      if (region !== "ALL" && a.region !== region) return false;
-      if (q) {
-        const hay = `${a.title} ${a.region} ${a.role}`.toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
+  function applyExpense(amount,desc){
+    const value=Math.abs(Number(amount||0)), oldBudget=Number(gameState?.team?.budget??gameState?.finances?.balance??0),oldBalance=Number(gameState?.finances?.balance??oldBudget);
+    setGameState({
+      team:{...(gameState?.team||{}),budget:oldBudget-value},
+      finances:{...(gameState?.finances||{}),budget:oldBudget-value,balance:oldBalance-value,season_spend:Number(gameState?.finances?.season_spend||0)+value},
+      financeLog:[...(gameState?.financeLog||[]),{id:`tx_scout_${Date.now()}`,dateISO:date,type:"expense",category:"Scouting",desc,amount:-value}],
     });
-  }, [assignments, status, region, q]);
+  }
 
-  const findScout = (id) => id ? scouts.find(s => normId(s.staff_id) === normId(id)) : null;
-  const findProspect = (id) => id ? prospects.find(p => normId(p.driver_id) === normId(id)) : null;
+  return <div className="p-4 md:p-6 space-y-4">
+    <div className="flex flex-col md:flex-row md:items-center gap-3">
+      <div><h1 className="text-2xl md:text-3xl font-semibold">Scouting</h1><p className="text-sm text-muted-foreground">Scout visible free and junior talent using the regional network available in the database.</p></div>
+      <div className="flex-1"/><div className="text-sm">Budget: <strong>{fmtMoney(budget)}</strong></div><Button onClick={()=>setShowStart(v=>!v)}>{showStart?"Close":"Start Assignment"}</Button>
+    </div>
 
-  return (
-    <>
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <select value={status} onChange={(e)=>setStatus(e.target.value)} className="border rounded px-2 py-1">
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-              <option value="all">All</option>
-            </select>
-            <select value={region} onChange={(e)=>setRegion(e.target.value)} className="border rounded px-2 py-1">
-              {REGIONS.map(r => <option key={r} value={r}>{r==="ALL" ? "All regions" : r}</option>)}
-            </select>
-            <input
-              type="text"
-              placeholder="Search title/role/region…"
-              value={q}
-              onChange={(e)=>setQ(e.target.value)}
-              className="border rounded px-3 py-1.5 w-full md:flex-1"
-            />
-            <div className="flex-1" />
-            <Button variant="outline" onClick={()=>{ setStatus("active"); setRegion("ALL"); setQ(""); }}>
-              Clear filters
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    {showStart&&<Card><CardContent className="p-4 grid gap-3">
+      <div className="font-semibold">New scouting assignment</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label className="text-sm">Prospect<select className="mt-1 border rounded px-3 py-2 w-full" value={target} onChange={e=>setTarget(e.target.value)}><option value="">Select driver…</option>{prospects.map(d=><option key={idOf(d)} value={idOf(d)}>{d.display_name||d.name}</option>)}</select></label>
+        <label className="text-sm">Region<select className="mt-1 border rounded px-3 py-2 w-full" value={zoneId} onChange={e=>setZoneId(e.target.value)}>{zones.map(z=><option key={z.zone_id} value={z.zone_id}>{z.name} · {fmtMoney(z.cost_per_week)}/week</option>)}</select></label>
+      </div>
+      <div className="flex flex-wrap gap-4 text-sm"><span>Duration: <strong>{duration} days</strong></span><span>Cost: <strong>{fmtMoney(cost)}</strong></span><span>ETA: <strong>{date?addDaysISO(date,duration):"—"}</strong></span><Button disabled={!target||!zoneId||budget<cost} onClick={()=>startAssignment()}>Dispatch Scouting</Button></div>
+    </CardContent></Card>}
 
-      {/* List */}
+    <div className="flex flex-wrap gap-2">
+      {["assignments","prospects","shortlist","scouts"].map(k=><Button key={k} variant={tab===k?"default":"outline"} onClick={()=>setTab(k)}>{nice(k)}</Button>)}
+    </div>
+
+    {tab==="assignments"&&<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {[...assignments].reverse().map(a=>{
+        const d=driverById.get(String(a.prospect_id));
+        const rt=ratingById.get(String(a.prospect_id))||{};
+        const pct=a.status==="completed"?1:a.status==="paused"?Number(a.progress||progress(a.started_at,a.finishes_at,a.paused_at||date)):progress(a.started_at,a.finishes_at,date);
+        return <Card key={a.id}><CardContent className="p-4 space-y-3">
+          <div className="flex justify-between gap-2"><div><div className="text-xs text-muted-foreground">{a.region}</div><div className="font-semibold">{a.title}</div></div><span className="text-xs bg-gray-100 px-2 py-1 rounded h-fit">{nice(a.status)}</span></div>
+          <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(pct*100)}%</strong></div><div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${pct*100}%`}}/></div></div>
+          <div className="text-xs text-muted-foreground">{a.started_at} → {a.finishes_at} · {fmtMoney(a.cost)}</div>
+          {a.status==="completed"&&<div className="grid grid-cols-2 gap-2"><Mini label="Current Ability" value={pick(rt,["current_ability","overall","pace"],"—")}/><Mini label="Potential" value={pick(rt,["potential_ability","potential"],"—")}/></div>}
+          {d&&<button type="button" data-entity="driver" data-id={idOf(d)} className="text-sm font-medium hover:underline">Open {d.display_name||d.name}</button>}
+          {["active","paused"].includes(a.status)&&<div className="flex gap-2"><Button size="sm" onClick={()=>pauseResume(a)}>{a.status==="paused"?"Resume":"Pause"}</Button><Button size="sm" variant="outline" onClick={()=>cancel(a)}>Cancel</Button></div>}
+        </CardContent></Card>;
+      })}
+      {!assignments.length&&<Card><CardContent className="p-5 text-sm text-muted-foreground">No scouting assignments yet.</CardContent></Card>}
+    </div>}
+
+    {(tab==="prospects"||tab==="shortlist")&&<>
+      <Card><CardContent className="p-4"><input className="border rounded px-3 py-2 w-full" value={q} onChange={e=>setQ(e.target.value)} placeholder="Search driver or nationality…"/></CardContent></Card>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {filtered.length === 0 ? (
-          <Card><CardContent className="p-4 text-sm text-muted-foreground">No assignments.</CardContent></Card>
-        ) : filtered.map((a) => {
-          const scout = findScout(a.scout_id);
-          const prospect = findProspect(a.prospect_id);
-          return (
-            <Card key={a.id}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm text-muted-foreground">{a.role} • {a.region}</div>
-                    <div className="text-lg font-medium">{a.title}</div>
-                  </div>
-                  <StatusPill status={a.status} />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div>Progress</div>
-                    <div className="font-medium">{Math.round(a.progress*100)}%</div>
-                  </div>
-                  <div className="mt-1"><Progress value={a.progress} /></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <MiniPerson label="Scout" name={scout?.display_name} img={scout?.portrait_path} fallback={scout ? null : "—"} />
-                  <MiniPerson label="Prospect" name={prospect?.display_name} img={prospect?.portrait_path} fallback={prospect ? null : "—"} />
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  {a.started_at ? `Started: ${fmtDate(a.started_at)}` : "Started: —"}
-                  {" • "}
-                  {a.finishes_at ? `ETA: ${fmtDate(a.finishes_at)}` : "ETA: —"}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button size="sm" disabled>Pause</Button>
-                  <Button size="sm" variant="outline" disabled>Cancel</Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
+        {(tab==="shortlist"?prospects.filter(d=>shortlist.includes(idOf(d))):prospects).map(d=>{
+          const id=idOf(d),rt=ratingById.get(id)||{},hasReport=assignments.some(a=>String(a.prospect_id)===id&&a.status==="completed"),active=assignments.some(a=>String(a.prospect_id)===id&&["active","paused"].includes(a.status));
+          return <Card key={id}><CardContent className="p-4 space-y-3">
+            <button type="button" data-entity="driver" data-id={id} className="flex items-center gap-3 w-full text-left hover:underline"><DriverPortrait driver={d} size="h-14 w-14"/><div><div className="font-semibold">{d.display_name||d.name}</div><div className="text-xs text-muted-foreground">{flagFromCountry(d.country_name||d.nationality,d.country_code)} {d.country_name||d.nationality||"—"} · Age {d.age??"—"}</div></div></button>
+            <div className="grid grid-cols-2 gap-2"><Mini label="Ability" value={hasReport?pick(rt,["current_ability","overall","pace"],"—"):"?"}/><Mini label="Potential" value={hasReport?pick(rt,["potential_ability","potential"],"—"):"?"}/></div>
+            <div className="flex flex-wrap gap-2"><Button size="sm" disabled={active||!zones.length} onClick={()=>{setTarget(id);setShowStart(true);setTab("assignments");}}>{hasReport?"New Report":active?"Scouting…":"Request Report"}</Button><Button size="sm" variant="outline" onClick={()=>toggleShortlist(id)}>{shortlist.includes(id)?"Remove Shortlist":"Add Shortlist"}</Button></div>
+          </CardContent></Card>;
         })}
       </div>
-    </>
-  );
+    </>}
+
+    {tab==="scouts"&&<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {scouts.map(s=><Card key={s.id}><CardContent className="p-4"><div className="font-semibold">{s.name}</div><div className="text-sm text-muted-foreground">{s.role}</div><div className="mt-2 text-sm">Scouting effectiveness: <strong>{s.rating}</strong></div></CardContent></Card>)}
+      {!scouts.length&&<Card><CardContent className="p-5"><div className="font-semibold">Team Scouting Network</div><p className="text-sm text-muted-foreground mt-1">No dedicated scout role exists in the current staff database for this team. Assignments therefore use the team’s general management/technical network.</p></CardContent></Card>}
+    </div>}
+  </div>;
 }
-
-function ProspectsTab({ prospects }) {
-  const [q, setQ] = useState("");
-  const [minRating, setMinRating] = useState(0);
-
-  const filtered = useMemo(() => {
-    return prospects.filter(p => {
-      if (minRating && (p.rating || 0) < minRating) return false;
-      if (q) {
-        const hay = `${p.display_name} ${p.nationality} ${p.team}`.toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
-    });
-  }, [prospects, q, minRating]);
-
-  return (
-    <>
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-sm">Min rating</label>
-              <input type="number" min={0} max={100} value={minRating} onChange={(e)=>setMinRating(Number(e.target.value))} className="border rounded px-2 py-1 w-20" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search prospect…"
-              value={q}
-              onChange={(e)=>setQ(e.target.value)}
-              className="border rounded px-3 py-1.5 w-full md:flex-1"
-            />
-            <div className="flex-1" />
-            <Button variant="outline" onClick={()=>{ setQ(""); setMinRating(0); }}>Clear</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {filtered.length === 0 ? (
-          <Card><CardContent className="p-4 text-sm text-muted-foreground">No prospects.</CardContent></Card>
-        ) : filtered.map((p) => (
-          <Card key={p.driver_id}>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Avatar src={p.portrait_path} name={p.display_name} />
-                <div className="flex-1">
-                  <div className="font-medium leading-tight">{p.display_name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {p.nationality || "—"} {p.age ? `• ${p.age}y` : ""} {p.team ? `• ${p.team}` : ""}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-semibold">{p.rating || "—"}</div>
-                  <div className="text-[11px] text-muted-foreground">Rating</div>
-                </div>
-              </div>
-              {p.notes ? <div className="text-xs text-muted-foreground">{p.notes}</div> : null}
-              <div className="flex items-center gap-2">
-                <Button size="sm" disabled>Request Report</Button>
-                <Button size="sm" variant="outline" disabled>Add to Shortlist</Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function ScoutsTab({ scouts }) {
-  const [region, setRegion] = useState("ALL");
-  const [q, setQ] = useState("");
-  const REGIONS = useMemo(() => {
-    const set = new Set(["ALL"]);
-    scouts.forEach(s => s.region && set.add(s.region));
-    return Array.from(set);
-  }, [scouts]);
-
-  const filtered = useMemo(() => {
-    return scouts.filter(s => {
-      if (region !== "ALL" && s.region !== region) return false;
-      if (q) {
-        const hay = `${s.display_name} ${s.region}`.toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
-    });
-  }, [scouts, region, q]);
-
-  return (
-    <>
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <select value={region} onChange={(e)=>setRegion(e.target.value)} className="border rounded px-2 py-1">
-              {REGIONS.map(r => <option key={r} value={r}>{r==="ALL" ? "All regions" : r}</option>)}
-            </select>
-            <input
-              type="text"
-              placeholder="Search scout…"
-              value={q}
-              onChange={(e)=>setQ(e.target.value)}
-              className="border rounded px-3 py-1.5 w-full md:flex-1"
-            />
-            <div className="flex-1" />
-            <Button variant="outline" onClick={()=>{ setRegion("ALL"); setQ(""); }}>Clear</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {filtered.length === 0 ? (
-          <Card><CardContent className="p-4 text-sm text-muted-foreground">No scouts.</CardContent></Card>
-        ) : filtered.map((s) => (
-          <Card key={s.staff_id}>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Avatar src={s.portrait_path} name={s.display_name} />
-                <div className="flex-1">
-                  <div className="font-medium leading-tight">{s.display_name}</div>
-                  <div className="text-xs text-muted-foreground">{s.region || "Global"}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-semibold">{s.rating || "—"}</div>
-                  <div className="text-[11px] text-muted-foreground">Rating</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" disabled>Assign</Button>
-                <Button size="sm" variant="outline" disabled>Details</Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </>
-  );
-}
-
-/* ---------------- small UI bits ---------------- */
-function Avatar({ src, name }) {
-  return (
-    <div className="h-10 w-10 rounded-lg overflow-hidden bg-muted/40 flex items-center justify-center ring-1 ring-black/5">
-      {src ? (
-        <img
-          src={src}
-          alt={name}
-          className="h-full w-full object-cover"
-          onError={(e)=>{ e.currentTarget.style.display = "none"; }}
-        />
-      ) : (
-        <span className="text-xs px-1 text-muted-foreground">{(name||"").split(" ").map(x=>x[0]).join("").slice(0,2)}</span>
-      )}
-    </div>
-  );
-}
-
-function Progress({ value }) {
-  const v = clamp01(value);
-  return (
-    <div className="h-2 w-full rounded bg-muted/50 overflow-hidden ring-1 ring-black/5">
-      <div className="h-full rounded" style={{ width: `${Math.round(v*100)}%`, background: "var(--primary, #111827)" }} />
-    </div>
-  );
-}
-
-function StatusPill({ status }) {
-  const map = {
-    active: "bg-sky-600 text-white",
-    paused: "bg-slate-600 text-white",
-    completed: "bg-emerald-600 text-white",
-    failed: "bg-rose-600 text-white",
-  };
-  return <span className={`inline-flex px-2 py-0.5 rounded text-[11px] ${map[status] || "bg-zinc-600 text-white"}`}>{titleCase(status)}</span>;
-}
-
-function MiniPerson({ label, name, img, fallback = "—" }) {
-  return (
-    <div className="rounded-lg border p-2 flex items-center gap-2">
-      <Avatar src={img} name={name} />
-      <div className="min-w-0">
-        <div className="text-[11px] text-muted-foreground">{label}</div>
-        <div className="text-sm font-medium truncate">{name || fallback}</div>
-      </div>
-    </div>
-  );
-}
+function Mini({label,value}){return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium">{value??"—"}</div></div>;}

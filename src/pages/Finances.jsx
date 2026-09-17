@@ -25,13 +25,20 @@ const toDate = (v) => {
 const monthKey = (d) =>
   `${d.getUTCFullYear?.() ?? d.getFullYear()}-${String((d.getUTCMonth?.() ?? d.getMonth()) + 1).padStart(2, "0")}`;
 const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+const unbox = (v) => {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    if (v.result !== undefined && v.result !== null && v.result !== "") return v.result;
+    if (v.value !== undefined && v.value !== null && v.value !== "") return v.value;
+  }
+  return v;
+};
 const N = (v, def = 0) => {
-  const n = Number(v);
+  const n = Number(unbox(v));
   return Number.isFinite(n) ? n : def;
 };
 const pick = (obj, keys, fb) => {
   for (const k of keys) {
-    const v = obj ? obj[k] : undefined;
+    const v = unbox(obj ? obj[k] : undefined);
     if (v !== undefined && v !== null && v !== "") return v;
   }
   return fb;
@@ -70,15 +77,18 @@ function buildSnapshot(gameState) {
   }
   const cashflow = Array.from(cashflowMap.values()).sort((a, b) => a.month.localeCompare(b.month));
 
-  const budget0 = Number(gameState?.finances?.budget || 0);
-  const balance = budget0 + seasonNet;
+  const storedBudget = Number(gameState?.team?.budget ?? gameState?.finances?.budget ?? 0);
+  const storedBalance = Number(gameState?.finances?.balance);
+  const balance = Number.isFinite(storedBalance) ? storedBalance : storedBudget;
 
   const fin = {
-    budget: budget0,
+    ...(gameState?.finances || {}),
+    budget: storedBudget,
     balance,
-    weekly_burn: 0,
-    season_spend: expense,
-    season_income: income,
+    weekly_burn: Number(gameState?.finances?.weekly_burn || 0),
+    season_spend: expense || Number(gameState?.finances?.season_spend || 0),
+    season_income: income || Number(gameState?.finances?.season_income || 0),
+    season_net: seasonNet,
   };
 
   return {
@@ -117,7 +127,7 @@ function deriveSponsors(gameState) {
     const start = toDate(startISO);
     const end = toDate(endISO);
 
-    const annual_income = N(pick(sp, ["annual_income", "value_year"], 0), 0);
+    const annual_income = N(pick(sp, ["annual_income", "anual_income", "value_year"], 0), 0);
     const monthly_fee = N(pick(sp, ["monthly_fee", "monthly", "per_month"], NaN), NaN) || annual_income / 12;
     const cash_upfront = N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0);
 
@@ -129,7 +139,7 @@ function deriveSponsors(gameState) {
     if (today >= start && today <= end) status = "active";
     else if (today > end) status = "expired";
 
-    const sType = String(pick(sp, ["type", "tier", "category"], "secondary")).toLowerCase();
+    const sType = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
 
     return {
       sponsor_id: sid,
@@ -394,7 +404,7 @@ function SponsorsTab({ sponsors }) {
   const loadCatalog = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/data/core_sponsor_catalog.json", { cache: "no-store" });
+      const res = await fetch("/data/core_sponsors_catalog.json", { cache: "no-store" });
       const json = await res.json();
       const pool = Array.isArray(json) ? json : json?.list || [];
 
@@ -411,7 +421,7 @@ function SponsorsTab({ sponsors }) {
 
       // respeitar slots
       const filteredBySlots = avail.filter((sp) => {
-        const t = String(pick(sp, ["type", "tier", "category"], "secondary")).toLowerCase();
+        const t = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
         return t === "main" ? canAddMain : canAddSecondary;
       });
 
@@ -426,7 +436,7 @@ function SponsorsTab({ sponsors }) {
 
   const signSponsor = useCallback(
     (sp) => {
-      const type = String(pick(sp, ["type", "tier", "category"], "secondary")).toLowerCase();
+      const type = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
       if (type === "main" && !canAddMain) return;
       if (type !== "main" && !canAddSecondary) return;
 
@@ -437,7 +447,7 @@ function SponsorsTab({ sponsors }) {
       const monthly_fee =
         N(pick(sp, ["monthly_fee", "monthly", "per_month"], NaN), NaN) ||
         N(pick(sp, ["annual_income", "value_year"], 0), 0) / 12;
-      const annual_income = N(pick(sp, ["annual_income", "value_year"], Math.round((monthly_fee || 0) * 12)), 0);
+      const annual_income = N(pick(sp, ["annual_income", "anual_income", "value_year"], Math.round((monthly_fee || 0) * 12)), 0);
       const cash_upfront = N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0);
 
       const bonus_win = N(pick(sp, ["bonus_win", "win_bonus"], 0), 0);
@@ -451,7 +461,7 @@ function SponsorsTab({ sponsors }) {
         type,
         start_year: Y,
         end_year: Y,
-        start_date: `${Y}-01-02`, // upfront a 02/01
+        start_date: todayISO,
         end_date: `${Y}-12-31`,
         monthly_fee: Math.round(monthly_fee || 0),
         annual_income: Math.round(annual_income || 0),
@@ -462,33 +472,40 @@ function SponsorsTab({ sponsors }) {
         status: "active",
       };
 
-      // atualizar state: sponsorsContracts + financeLog (upfront imediato)
-      setGameState((prev) => {
-        const gs = typeof prev === "function" ? prev : prev; // compat
-        const state = (gs && gs.gameState) || gs; // aceita ambos patterns do setGameState
-        const base = state || gameState;
+      const sponsorsContracts = Array.isArray(gameState?.sponsorsContracts)
+        ? [...gameState.sponsorsContracts, newContract]
+        : [newContract];
 
-        const sponsorsContracts = Array.isArray(base.sponsorsContracts)
-          ? [...base.sponsorsContracts, newContract]
-          : [newContract];
+      const upfront = Number(newContract.cash_upfront || 0);
+      const tx = {
+        id: `tx_sp_upfront_${Date.now()}`,
+        dateISO: todayISO,
+        type: "income",
+        category: "Sponsor Upfront",
+        desc: sponsor_name,
+        amount: upfront,
+        sig: `sponsor-upfront:${teamId}:${Y}:${sponsor_id}`,
+      };
+      const financeLog = upfront
+        ? [...(Array.isArray(gameState?.financeLog) ? gameState.financeLog : []), tx]
+        : (Array.isArray(gameState?.financeLog) ? gameState.financeLog : []);
 
-        const tx = {
-          id: `tx_sp_upfront_${Date.now()}`,
-          dateISO: todayISO,
-          type: "income",
-          category: "Sponsor Upfront",
-          desc: sponsor_name,
-          amount: newContract.cash_upfront,
-        };
-        const financeLog = Array.isArray(base.financeLog) ? [...base.financeLog, tx] : [tx];
+      const currentBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
+      const nextBudget = currentBudget + upfront;
+      const team = { ...(gameState?.team || {}), budget: nextBudget };
+      const finances = {
+        ...(gameState?.finances || {}),
+        budget: nextBudget,
+        balance: Number(gameState?.finances?.balance ?? currentBudget) + upfront,
+        season_income: Number(gameState?.finances?.season_income || 0) + upfront,
+      };
 
-        const nextBudget = Number(base?.team?.budget || 0) + Number(newContract.cash_upfront || 0);
-        const team = { ...(base.team || {}), budget: nextBudget };
+      setGameState({ sponsorsContracts, financeLog, team, finances });
+      setCatalog((prev) => Array.isArray(prev)
+        ? prev.filter((item) => String(pick(item, ["sponsor_id", "id", "name"])) !== sponsor_id)
+        : prev
+      );
 
-        return { ...base, sponsorsContracts, financeLog, team };
-      });
-
-      // feedback local
       alert(`Signed sponsor: ${sponsor_name} (${titleCase(type)})`);
     },
     [Y, teamId, todayISO, setGameState, gameState, canAddMain, canAddSecondary]
@@ -584,7 +601,7 @@ function SponsorsTab({ sponsors }) {
                 </thead>
                 <tbody>
                   {catalog.map((sp) => {
-                    const t = String(pick(sp, ["type", "tier", "category"], "secondary")).toLowerCase();
+                    const t = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
                     const block =
                       (t === "main" && !canAddMain) || (t !== "main" && !canAddSecondary);
                     const monthly =
