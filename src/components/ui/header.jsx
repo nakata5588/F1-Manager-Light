@@ -184,10 +184,17 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
   }, [currentDateISO]);
 
   const teamStanding = useMemo(() => {
-    const row = (standings?.constructors ?? []).find(
-      (c) => c.name === (team?.name ?? "")
-    );
-    return { position: row?.pos ?? "—", points: row?.pts ?? 0 };
+    const teamId = String(team?.team_id ?? team?.id ?? "");
+    const teamName = String(team?.team_name ?? team?.name ?? "");
+    const row = (standings?.teams ?? standings?.constructors ?? []).find((item) => {
+      const rowId = String(item?.team_id ?? item?.constructor_id ?? item?.id ?? "");
+      const rowName = String(item?.team_name ?? item?.name ?? "");
+      return (teamId && rowId === teamId) || (teamName && rowName === teamName);
+    });
+    return {
+      position: row?.position ?? row?.pos ?? "—",
+      points: row?.points ?? row?.pts ?? 0,
+    };
   }, [standings, team]);
 
   const teamDriversResolved = useMemo(() => {
@@ -245,11 +252,21 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
   }, [contracts, team]);
 
   const driversRows = useMemo(() => {
-    const table = new Map(
-      (standings?.drivers ?? []).map((d) => [d.name, { pos: d.pos, pts: d.pts }])
-    );
-    return teamDriversResolved.map(({ name }) => {
-      const stats = table.get(name);
+    const byId = new Map();
+    const byName = new Map();
+    for (const d of standings?.drivers ?? []) {
+      const stats = {
+        pos: d?.position ?? d?.pos ?? "—",
+        pts: d?.points ?? d?.pts ?? 0,
+      };
+      const id = String(d?.driver_id ?? d?.id ?? "");
+      const name = String(d?.name ?? "");
+      if (id) byId.set(id, stats);
+      if (name) byName.set(name, stats);
+    }
+    return teamDriversResolved.map(({ name, contract }) => {
+      const driverId = String(pick(contract, ["driver_id", "person_id", "id"], ""));
+      const stats = byId.get(driverId) || byName.get(name);
       return { name, pos: stats?.pos ?? "—", pts: stats?.pts ?? 0 };
     });
   }, [teamDriversResolved, standings]);

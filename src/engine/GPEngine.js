@@ -5,9 +5,17 @@ function basePace(d, ratings){
   return Number(rec?.pace ?? rec?.overall ?? 60);
 }
 
+const unwrap = (value) => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    if (value.result !== undefined && value.result !== null && value.result !== "") return value.result;
+    if (value.value !== undefined && value.value !== null && value.value !== "") return value.value;
+  }
+  return value;
+};
+
 const pick = (obj, keys, fb = undefined) => {
   for (const k of keys) {
-    const v = obj ? obj[k] : undefined;
+    const v = unwrap(obj ? obj[k] : undefined);
     if (v !== undefined && v !== null && v !== "") return v;
   }
   return fb;
@@ -40,9 +48,63 @@ function rPos(row) {
   return row?.pos ?? row?.position ?? null;
 }
 
-function resolveDriverTeamId(driver) {
-  const id = pick(driver || {}, ["team_id", "constructor_id", "team"], null);
-  return id == null || id === "" ? null : String(id);
+function resolveDriverTeamId(gs, driver) {
+  const explicit = pick(driver || {}, ["team_id", "constructor_id", "team"], null);
+  if (explicit != null && explicit !== "") return String(explicit);
+
+  const driverId = pick(driver || {}, ["driver_id", "id"], null);
+  if (driverId == null || driverId === "") return null;
+
+  const activeYear = Number(gs?.activeYear);
+  const contracts = gs?.contracts || gs?.dbContracts || [];
+  const contract = contracts.find((row) => {
+    const contractDriverId = pick(row, ["driver_id", "person_id", "id"], null);
+    if (String(contractDriverId ?? "") !== String(driverId)) return false;
+
+    const role = String(pick(row, ["role", "position", "contract_role", "type"], "")).toLowerCase();
+    if (role && !role.includes("driver")) return false;
+
+    const contractYear = Number(pick(row, ["year", "season_year"], NaN));
+    return !Number.isFinite(activeYear) || !Number.isFinite(contractYear) || contractYear === activeYear;
+  });
+
+  const teamId = pick(contract || {}, ["team_id", "team", "constructor", "constructor_id"], null);
+  return teamId == null || teamId === "" ? null : String(teamId);
+}
+
+function buildRaceTiming(race, ratings, roundIndex) {
+  if (!race.length) return race;
+
+  // Synthetic simulation timing. The engine does not yet simulate individual laps,
+  // so keep these values as race-output baselines rather than historical facts.
+  const winnerTimeMs = Math.round((5100 + (roundIndex % 7) * 35 + Math.random() * 420) * 1000);
+  let gapToWinnerMs = 0;
+  let previousGapToWinnerMs = 0;
+
+  const timed = race.map((row, index) => {
+    const pace = basePace(row.driver, ratings);
+    if (index > 0) {
+      const stepSeconds = 0.65 + Math.random() * 4.8 + Math.max(0, 90 - pace) * 0.035;
+      gapToWinnerMs += Math.round(stepSeconds * 1000);
+    }
+    const gapToPreviousMs = index === 0 ? 0 : Math.max(0, gapToWinnerMs - previousGapToWinnerMs);
+    previousGapToWinnerMs = gapToWinnerMs;
+
+    const bestLapMs = Math.round((72.5 + Math.max(0, 100 - pace) * 0.13 + Math.random() * 1.8) * 1000);
+    return {
+      ...row,
+      total_time_ms: winnerTimeMs + gapToWinnerMs,
+      gap_to_winner_ms: gapToWinnerMs,
+      gap_to_previous_ms: gapToPreviousMs,
+      best_lap_ms: bestLapMs,
+      fastest_lap: false,
+    };
+  });
+
+  const fastest = timed.reduce((best, row, index, arr) =>
+    row.best_lap_ms < arr[best].best_lap_ms ? index : best, 0);
+  timed[fastest] = { ...timed[fastest], fastest_lap: true };
+  return timed;
 }
 
 function awardRaceBonuses(next, race, gpName) {
@@ -100,7 +162,7 @@ function awardRaceBonuses(next, race, gpName) {
     return y === year && tid === String(teamId);
   });
 
-  const teamDriverIds = (next.drivers || []).filter(d => resolveDriverTeamId(d) === String(teamId))
+  const teamDriverIds = (next.drivers || []).filter(d => resolveDriverTeamId(next, d) === String(teamId))
     .map(d => String(d.driver_id));
 
   const anyWin = race.some(r => rPos(r) === 1 && teamDriverIds.includes(String(r.driver?.driver_id)));
@@ -154,10 +216,12 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     .sort((a,b) => b.score - a.score)
     .map((x,i) => ({ pos: i+1, driver: x.d }));
 
-  const race = qualy
+  const raceOrder = qualy
     .map(q => ({ ...q, raceDelta: Math.round(rnorm()*4) }))
     .sort((a,b) => (a.pos + a.raceDelta) - (b.pos + b.raceDelta))
     .map((x,i) => ({ pos: i+1, driver: x.driver }));
+
+  const race = buildRaceTiming(raceOrder, ratings, roundIndex);
 
   const prevDrv = new Map((gs.standings?.drivers||[]).map(x => [String(x.driver_id), Number(x.points||0)]));
   race.forEach((r,i) => {
@@ -168,12 +232,23 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const driverStandings = drivers.map(d => ({
     driver_id: d.driver_id,
     name: d.display_name || d.name || `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim(),
+    team_id: resolveDriverTeamId(gs, d),
     points: prevDrv.get(String(d.driver_id)) || 0
-  })).sort((a,b) => b.points - a.points || String(a.name || "").localeCompare(String(b.name || "")));
+  }))
+    .sort((a,b) => b.points - a.points || String(a.name || "").localeCompare(String(b.name || "")))
+    .map((row, index) => ({ ...row, position: index + 1 }));
 
-  const teamPts = new Map((gs.standings?.teams || []).map((x) => [String(x.team_id), Number(x.points || 0)]));
+  const teamPts = new Map();
+  for (const team of gs.teams || []) {
+    const id = getTeamId(team);
+    if (id) teamPts.set(id, 0);
+  }
+  for (const row of gs.standings?.teams || []) {
+    const id = String(row?.team_id ?? row?.constructor_id ?? "");
+    if (id) teamPts.set(id, Number(row?.points || 0));
+  }
   race.forEach((row, i) => {
-    const teamId = resolveDriverTeamId(row.driver);
+    const teamId = resolveDriverTeamId(gs, row.driver);
     if (!teamId) return;
     const pts = Number(pointsTable[i] || 0);
     teamPts.set(teamId, (teamPts.get(teamId) || 0) + pts);
@@ -184,7 +259,8 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       team_name: teamsById.get(team_id)?.team_name || teamsById.get(team_id)?.name || team_id,
       points
     }))
-    .sort((a,b) => b.points - a.points || String(a.team_name || "").localeCompare(String(b.team_name || "")));
+    .sort((a,b) => b.points - a.points || String(a.team_name || "").localeCompare(String(b.team_name || "")))
+    .map((row, index) => ({ ...row, position: index + 1 }));
 
   next.standings = { drivers: driverStandings, teams: teamStandings };
 
@@ -193,11 +269,16 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const round = Number(roundIndex) + 1;
   const gpId = gp?.gp_id || gp?.id || gp?.track_id || `round_${round}`;
   const resultKey = `${year ?? "season"}_${round}_${gpId}`;
-  const classification = race.map((row) => ({
+  const classification = race.map((row, index) => ({
     position: row.pos,
     driver_id: row.driver?.driver_id ?? null,
-    team_id: resolveDriverTeamId(row.driver),
-    fastest_lap: false,
+    team_id: resolveDriverTeamId(gs, row.driver),
+    points: Number(pointsTable[index] || 0),
+    total_time_ms: row.total_time_ms,
+    gap_to_winner_ms: row.gap_to_winner_ms,
+    gap_to_previous_ms: row.gap_to_previous_ms,
+    best_lap_ms: row.best_lap_ms,
+    fastest_lap: Boolean(row.fastest_lap),
   }));
 
   const resultEntry = {
@@ -210,7 +291,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     qualifying: qualy.map((row) => ({
       position: row.pos,
       driver_id: row.driver?.driver_id ?? null,
-      team_id: resolveDriverTeamId(row.driver),
+      team_id: resolveDriverTeamId(gs, row.driver),
     })),
     classification,
   };

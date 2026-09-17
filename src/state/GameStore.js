@@ -968,15 +968,9 @@ export const useGame = create((set, get) => ({
     try {
       const state = get().gameState;
       const light = makeLightSnapshot(state);
-      localStorage.setItem(SAVE_KEY, JSON.stringify(light));
-
-      const meta = { name: defaultSaveName(state), version: "0.1.0", savedAt: nowIso() };
-      const payload = { meta, gameState: light };
-      const key = `${SAVE_PREFIX}${Date.now()}`;
-      const ok = setItemQuotaSafe(key, JSON.stringify(payload));
-      if (ok) localStorage.setItem(LAST_SAVE_KEY, key);
-
-      return !!ok;
+      // SAVE_KEY is the rolling "Continue" snapshot. It must not create a
+      // visible/manual save slot every time a new career starts or autosaves.
+      return setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
     } catch (e) {
       console.error("saveLocal() failed:", e);
       return false;
@@ -1070,13 +1064,17 @@ export const useGame = create((set, get) => ({
         return __lastSaveResult;
       }
 
-      const lastKey = (() => { try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; } })();
-      const key = overwriteKeyIn || state.currentSaveKey || lastKey || `${SAVE_PREFIX}${now}`;
+      // Save As / Save to slot always create a new manual save unless the
+      // caller explicitly supplies overwriteKey. This avoids overwriting a
+      // previous career just because it happened to be the last save used.
+      const key = overwriteKeyIn || `${SAVE_PREFIX}${now}`;
 
       try {
         const ok = setItemQuotaSafe(key, JSON.stringify(payload));
         if (ok) {
           localStorage.setItem(LAST_SAVE_KEY, key);
+          // Keep Continue in sync with the most recently saved career.
+          setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
           set({ currentSaveKey: key });
         } else {
           console.warn("saveGame: quota still exceeded after eviction.");
@@ -1098,7 +1096,7 @@ export const useGame = create((set, get) => ({
     const gs = get().gameState || {};
     const base = defaultSaveName(gs);
     const hhmm = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    const overwrite = get().currentSaveKey || (function(){ try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; } })();
+    const overwrite = get().currentSaveKey;
     return get().saveGame({ name: `${base} — ${hhmm}`, overwriteKey: overwrite || undefined });
   },
 
@@ -1259,7 +1257,13 @@ export const useGame = create((set, get) => ({
     }
 
     try {
-      localStorage.setItem("f1ml.autosave", JSON.stringify({ gameState: makeLightSnapshot(updated), ts: Date.now() }));
+      if (updated?.settings?.autosave !== false) {
+        const light = makeLightSnapshot(updated);
+        localStorage.setItem("f1ml.autosave", JSON.stringify({ gameState: light, ts: Date.now() }));
+        // Continue always resumes the latest autosaved state, without adding a
+        // second card to the Load Game screen.
+        setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
+      }
     } catch {}
     return { oldDate: baseISO, newDate: newISO, roundChanged, round: newRound };
   },

@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 const AFTER_LOAD_ROUTE = "/Home"; // 🧭 ajusta para a tua página do Hub ("/hub", "/game", etc.)
 
 /* ---------------- utils ---------------- */
-const SAVE_PREFIXES = ["f1ml_save_", "save_", "f1manager_"];
+const SAVE_PREFIXES = ["f1ml_save_", "save_", "f1manager_", "import_"];
 
 const tryFetchJSON = async (paths) => {
   for (const p of paths) {
@@ -124,13 +124,17 @@ function normalizeSave(key, raw) {
     gs?.calendar?.[0]?.year ??
     null;
 
-  // Team Position (standings construtores)
+  // Team Position (supports current `standings.teams` and legacy constructors)
   let teamPosition = "—";
   try {
-    const row = (gs?.standings?.constructors ?? []).find(
-      (c) => String(c?.name ?? "").toLowerCase() === String(teamName).toLowerCase()
-    );
-    if (row?.pos != null) teamPosition = row.pos;
+    const rows = gs?.standings?.teams ?? gs?.standings?.constructors ?? [];
+    const row = rows.find((item) => {
+      const rowId = item?.team_id ?? item?.constructor_id ?? item?.id ?? null;
+      const rowName = item?.team_name ?? item?.name ?? null;
+      return (rowId != null && String(rowId) === String(teamId)) ||
+        (rowName && String(rowName).toLowerCase() === String(teamName).toLowerCase());
+    });
+    if (row?.position != null || row?.pos != null) teamPosition = row?.position ?? row?.pos;
   } catch {}
 
   // Current Day (in-game)
@@ -171,14 +175,14 @@ function readLocalSaves() {
       if (!k) continue;
 
       const hasKnownPrefix = SAVE_PREFIXES.some((p) => k.startsWith(p));
+      // Internal rolling snapshots (Continue/autosave) are intentionally not
+      // shown as manual save cards.
+      if (!hasKnownPrefix) continue;
 
       try {
         const s = localStorage.getItem(k) || "";
         const obj = JSON.parse(s);
         if (isLikelySave(obj)) {
-          if (!hasKnownPrefix) {
-            obj.meta = { ...(obj.meta || {}), detectedWithoutPrefix: true };
-          }
           const norm = normalizeSave(k, obj);
           norm.meta.size = bytesToStr(s.length);
           out.push(norm);
@@ -198,6 +202,7 @@ export default function LoadGame() {
     gameState,
     setGameState,
     loadGame,
+    loadFromKey,
     // opcional em alguns stores:
     loadGameFromSlot, // (id) => void
   } = useGame();
@@ -268,18 +273,15 @@ export default function LoadGame() {
     if (!save) return;
     setLoadingKey(save.key);
     try {
-      if (typeof loadGameFromSlot === "function") {
+      if (typeof loadFromKey === "function" && SAVE_PREFIXES.some((p) => save.key.startsWith(p))) {
+        await Promise.resolve(loadFromKey(save.key));
+      } else if (typeof loadGameFromSlot === "function") {
         await Promise.resolve(loadGameFromSlot(save.key));
       } else if (typeof loadGame === "function") {
         await Promise.resolve(loadGame(save.gameState));
       } else if (typeof setGameState === "function") {
         setGameState(save.gameState);
       }
-
-      try {
-        localStorage.setItem("f1ml_current_save_key", save.key);
-        localStorage.setItem("f1ml_current_game_state", JSON.stringify(save.gameState));
-      } catch {}
 
       navigate(AFTER_LOAD_ROUTE);
     } catch (e) {
@@ -355,7 +357,10 @@ export default function LoadGame() {
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold">Load Game</h1>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => navigate("/")}>← Main Menu</Button>
+          <h1 className="text-2xl md:text-3xl font-semibold">Load Game</h1>
+        </div>
         <div className="text-sm text-muted-foreground">
           Current:{" "}
           <span className="font-medium">
