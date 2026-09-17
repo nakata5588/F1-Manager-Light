@@ -461,7 +461,7 @@ function SponsorsTab({ sponsors }) {
         type,
         start_year: Y,
         end_year: Y,
-        start_date: `${Y}-01-02`, // upfront a 02/01
+        start_date: todayISO,
         end_date: `${Y}-12-31`,
         monthly_fee: Math.round(monthly_fee || 0),
         annual_income: Math.round(annual_income || 0),
