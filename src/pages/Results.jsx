@@ -20,6 +20,47 @@ function resolveTeamNameById(teams, id) {
   return t?.team_name || t?.name || id || "—";
 }
 
+function pointsTableFromState(gameState) {
+  const rec = gameState?.pointsSystem;
+  if (Array.isArray(rec?.table) && rec.table.length) return rec.table.map(Number);
+  if (rec?.table && typeof rec.table === "object") {
+    return Object.keys(rec.table)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => Number(rec.table[k]) || 0);
+  }
+  const places = Array.isArray(rec?.places_csv)
+    ? rec.places_csv
+    : String(rec?.places_csv || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const parsed = places.map(Number).filter(Number.isFinite);
+  return parsed.length ? parsed : [9, 6, 4, 3, 2, 1];
+}
+
+function formatRaceTime(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n < 0) return "—";
+  const totalSeconds = n / 1000;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${seconds.toFixed(3).padStart(6, "0")}`;
+}
+
+function formatLapTime(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n < 0) return "—";
+  const totalSeconds = n / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`;
+}
+
+function formatGap(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n === 0) return "—";
+  return `+${(n / 1000).toFixed(3)}`;
+}
+
 function resolveTeamIdForYear(contracts, year, driverId) {
   for (const c of contracts || []) {
     const y = Number(pick(c, ["year", "season_year"], NaN));
@@ -60,6 +101,7 @@ export default function ResultsPage() {
   const teamsDb = useMemo(() => gameState?.teams || gameState?.dbTeams || [], [gameState]);
   const contractsDb = useMemo(() => gameState?.contracts || gameState?.dbContracts || [], [gameState]);
   const activeYear = gameState?.activeYear;
+  const pointsTable = useMemo(() => pointsTableFromState(gameState), [gameState?.pointsSystem]);
 
   const resultsRaw = useMemo(() => {
     if (Array.isArray(gameState?.results) && gameState.results.length) return gameState.results;
@@ -152,7 +194,11 @@ export default function ResultsPage() {
                   <th className="px-3 py-2 text-right w-16">Pos</th>
                   <th className="px-3 py-2 text-left">Driver</th>
                   <th className="px-3 py-2 text-left">Team</th>
-                  <th className="px-3 py-2 text-left">Notas</th>
+                  <th className="px-3 py-2 text-right">Time</th>
+                  <th className="px-3 py-2 text-right">To Winner</th>
+                  <th className="px-3 py-2 text-right">Gap</th>
+                  <th className="px-3 py-2 text-right">Best Lap</th>
+                  <th className="px-3 py-2 text-right">Pts</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,18 +210,28 @@ export default function ResultsPage() {
                     const name = resolveDriverName(driversDb, did);
                     const tid = row.team_id || resolveTeamIdForYear(contractsDb, selected.year ?? activeYear, did);
                     const team = resolveTeamNameById(teamsDb, tid);
+                    const position = Number(row.position);
+                    const points = Number.isFinite(Number(row.points))
+                      ? Number(row.points)
+                      : Number(pointsTable[position - 1] || 0);
                     return (
                       <tr key={`${did}_${idx}`} className="border-t">
                         <td className="px-3 py-2 text-right font-medium">{row.position ?? "—"}</td>
                         <td className="px-3 py-2">{name}</td>
                         <td className="px-3 py-2">{team}</td>
-                        <td className="px-3 py-2">{row.fastest_lap ? "FL" : "—"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatRaceTime(row.total_time_ms)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_winner_ms)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_previous_ms)}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${row.fastest_lap ? "font-semibold text-purple-700" : ""}`}>
+                          {formatLapTime(row.best_lap_ms)}{row.fastest_lap ? " FL" : ""}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold">{points}</td>
                       </tr>
                     );
                   })}
                 {!selected.classification?.length && (
                   <tr>
-                    <td className="px-3 py-3 text-gray-600" colSpan={4}>Sem classificação nesta corrida.</td>
+                    <td className="px-3 py-3 text-gray-600" colSpan={8}>Sem classificação nesta corrida.</td>
                   </tr>
                 )}
               </tbody>
