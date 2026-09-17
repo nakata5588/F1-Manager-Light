@@ -6,8 +6,8 @@ export default function DebugToolbar() {
   const { gameState, fastForwardDays, fastForwardToNextGP, advanceOneDayUntilBreak } = useGame();
   const [nDays, setNDays] = useState(7);
 
-  // só mostra se tiver ativado via settings.developer.showDevTools
-  if (!gameState?.settings?.developer?.showDevTools) return null;
+  // Never expose simulation/debug controls in a production build.
+  if (!import.meta?.env?.DEV || !gameState?.settings?.developer?.showDevTools) return null;
 
   return (
     <div style={{
@@ -36,7 +36,7 @@ export default function DebugToolbar() {
       </div>
 
       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-        Data: <b>{(gameState.currentDateISO || "").slice(0,10)}</b> • Ronda: <b>{(gameState.currentRound+1)}</b>
+        Data: <b>{(gameState.currentDateISO || "").slice(0,10)}</b> • Ronda: <b>{gameState.currentRound + 1}</b>
         <br/>Inbox: <b>{gameState.inbox?.length || 0}</b> • Budget: <b>{(gameState.team?.budget ?? 0).toLocaleString()}</b>
       </div>
     </div>
