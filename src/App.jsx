@@ -1,21 +1,15 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useGame } from "./state/GameStore";
-import { useEventStore } from "./state/EventStore"; // ⬅️ mantém
+import { useEventStore } from "./state/EventStore";
 import HubLayout from "./layouts/HubLayout.jsx";
 
-/* Entity system (modal + click bus) */
 import EntityModalRoot from "./components/entity/EntityModalRoot.jsx";
 import EntityClickBus from "./components/entity/EntityClickBus.jsx";
 import { bindEntityDeepLinkOnce } from "./state/ModalStore.js";
-
-/* Season: resumo + botão Start {nextYear} */
 import SeasonSummaryModal from "./components/entity/SeasonSummaryModal.jsx";
-
-/* UI: Toaster */
 import { Toaster } from "./components/ui/Toaster.jsx";
 
-/* Páginas */
 import Academy from "./pages/Academy.jsx";
 import AssetTest from "./pages/AssetTest.jsx";
 import Board from "./pages/Board.jsx";
@@ -35,11 +29,32 @@ import Settings from "./pages/Settings.jsx";
 import Staff from "./pages/Staff.jsx";
 import Standings from "./pages/Standings.jsx";
 import Team from "./pages/Team.jsx";
-import Results from "./pages/Results.jsx"; // ✅ NOVO
+import Results from "./pages/Results.jsx";
 
 import DebugToolbar from "@/components/dev/DebugToolbar";
 
-/** Aplica a preferência de tema à <html> */
+let databaseLoadPromise = null;
+
+function DatabaseBinder() {
+  const loadData = useGame((s) => s.loadData);
+  const dbReady = useGame((s) => Boolean(
+    s.gameState?.dbDrivers?.length &&
+    s.gameState?.dbTeams?.length &&
+    s.gameState?.dbCalendar?.length
+  ));
+
+  useEffect(() => {
+    if (dbReady) return;
+    if (!databaseLoadPromise) {
+      databaseLoadPromise = Promise.resolve(loadData())
+        .catch((error) => console.error("[Database] loadData failed:", error))
+        .finally(() => { databaseLoadPromise = null; });
+    }
+  }, [dbReady, loadData]);
+
+  return null;
+}
+
 function ThemeBinder() {
   const uiTheme = useGame((s) => s.gameState?.settings?.uiTheme);
   useEffect(() => {
@@ -59,20 +74,17 @@ function ThemeBinder() {
 }
 
 export default function App() {
-  // Ativa deep-link (?e=driver:ID&tab=overview) uma ÚNICA vez
   useEffect(() => {
     const unbind = bindEntityDeepLinkOnce();
     return () => unbind?.();
   }, []);
 
-  // 🔁 Carrega templates de eventos/news no arranque
   useEffect(() => {
     useEventStore.getState().loadTemplates().catch((e) => {
       console.error("[EventStore] loadTemplates failed:", e);
     });
   }, []);
 
-  // 🔧 Liga ferramentas de developer só em ambiente de desenvolvimento
   const updateSettings = useGame((s) => s.updateSettings);
   useEffect(() => {
     try {
@@ -80,42 +92,33 @@ export default function App() {
         updateSettings({ developer: { showDevTools: true, verboseLogs: true } });
       }
     } catch {
-      // ambiente sem import.meta.env (no-ops)
+      // no-op outside Vite
     }
   }, [updateSettings]);
 
   return (
     <BrowserRouter>
+      <DatabaseBinder />
       <ThemeBinder />
-
-      {/* ==== Entity system (fora das Routes) ==== */}
       <EntityModalRoot />
       <EntityClickBus />
-
-      {/* 🔔 Toaster global (feedback de ações, etc.) */}
       <Toaster />
-
-      {/* 🧪 Toolbar de Debug (aparece se settings.developer.showDevTools === true) */}
       <DebugToolbar />
-
-      {/* 🏁 Season Summary (abre quando o GameStore define showSeasonSummary=true) */}
       <SeasonSummaryModal />
 
       <Routes>
-        {/* === Pré-jogo (SEM HubLayout) === */}
         <Route path="/" element={<MainMenu />} />
         <Route path="/NewGame" element={<NewGame />} />
         <Route path="/CreateTeam" element={<CreateTeam />} />
         <Route path="/LoadGame" element={<LoadGame />} />
 
-        {/* === Jogo (COM HubLayout) === */}
         <Route element={<HubLayout />}>
           <Route path="/Home" element={<Home />} />
           <Route path="/Inbox" element={<Inbox />} />
           <Route path="/Drivers" element={<Drivers />} />
           <Route path="/Team" element={<Team />} />
           <Route path="/Standings" element={<Standings />} />
-          <Route path="/Results" element={<Results />} /> {/* ✅ NOVO */}
+          <Route path="/Results" element={<Results />} />
           <Route path="/Settings" element={<Settings />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
           <Route path="/Development" element={<Development />} />
@@ -128,7 +131,6 @@ export default function App() {
           <Route path="/AssetTest" element={<AssetTest />} />
         </Route>
 
-        {/* fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

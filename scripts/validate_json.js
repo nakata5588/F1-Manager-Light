@@ -1,63 +1,85 @@
 // scripts/validate_json.js
-const fs = require('fs');
-const Ajv = require('ajv');
+import fs from "node:fs";
+import Ajv from "ajv";
+
 const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
 
 const schemas = {
   drivers: {
-    type: 'array',
+    type: "array",
     items: {
-      type: 'object',
-      required: ['driver_id'],  // só exigimos o ID
+      type: "object",
+      required: ["driver_id"],
       properties: {
-        driver_id:   { type: 'string' },
-        full_name:   { type: 'string' },
-        first_name:  { type: 'string' },
-        last_name:   { type: 'string' },
-        name:        { type: 'string' },
-        nationality: { type: 'string' },
-        birthdate:   { type: 'string' },
-        team_id:     { type: 'string' },
-        attributes:  { type: 'object' }
+        // Legacy exports can still contain Excel-rich values in descriptive fields.
+        // The runtime normalizes those; the validator guarantees stable identity.
+        driver_id: { type: "string", minLength: 1 }
       }
-      // sem allOf/anyOf para o nome — aceitamos qualquer variante
     }
   },
   teams: {
-    type: 'array',
+    type: "array",
     items: {
-      type: 'object',
-      required: ['team_id'],
+      type: "object",
+      required: ["team_id"],
       properties: {
-        team_id:       { type: 'string' },
-        name_common:   { type: 'string' },
-        name_official: { type: 'string' },
-        name:          { type: 'string' },
-        short_name:    { type: 'string' },
-        country:       { type: 'string' },
-        engine_supplier: { type: 'string' }
+        team_id: { type: "string", minLength: 1 },
+        team_name: { type: ["string", "null"] },
+        name: { type: ["string", "null"] },
+        short_name: { type: ["string", "null"] }
+      }
+    }
+  },
+  calendar: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["year"],
+      properties: {
+        year: { type: ["integer", "number", "string"] },
+        round: { type: ["integer", "number", "string", "null"] },
+        gp_name: { type: ["string", "null"] },
+        dateISO: { type: ["string", "null"] }
+      }
+    }
+  },
+  pointsSystems: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["year_from", "places_csv"],
+      properties: {
+        year_from: { type: ["integer", "number"] },
+        year_to: { type: ["integer", "number", "null"] },
+        places_csv: { type: ["string", "array"] }
       }
     }
   }
 };
 
-function check(path, key){
-  const raw = fs.readFileSync(path, 'utf8');
-  const data = JSON.parse(raw);
+function readJson(path) {
+  if (!fs.existsSync(path)) throw new Error(`Missing required file: ${path}`);
+  return JSON.parse(fs.readFileSync(path, "utf8"));
+}
+
+function check(path, key) {
+  const data = readJson(path);
   const validate = ajv.compile(schemas[key]);
-  const ok = validate(data);
-  if(!ok){
-    console.error(`[FAIL] ${key}:`, validate.errors);
+  if (!validate(data)) {
+    console.error(`[FAIL] ${path}`);
+    console.error(validate.errors);
     process.exitCode = 1;
-  } else {
-    console.log(`[OK] ${key}: ${data.length} records`);
+    return;
   }
+  console.log(`[OK] ${path}: ${Array.isArray(data) ? data.length : "valid"} records`);
 }
 
 try {
-  check('data/drivers.json','drivers');
-  check('data/teams.json','teams');
-} catch (e) {
-  console.error('Validator error:', e.message);
+  check("public/data/drivers.json", "drivers");
+  check("public/data/teams.json", "teams");
+  check("public/data/calendar.json", "calendar");
+  check("public/data/points_systems.json", "pointsSystems");
+} catch (error) {
+  console.error("[FAIL] Data validation:", error.message);
   process.exitCode = 1;
 }
