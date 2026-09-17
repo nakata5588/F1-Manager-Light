@@ -1,278 +1,148 @@
-// src/pages/HQ.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
+import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useGame } from "@/state/GameStore";
 
-/** Utils */
-const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n) || 0));
-const daysToMs = (d) => (Number(d) || 0) * 24 * 60 * 60 * 1000;
-const fmtMoney = (n) => {
-  try {
-    return new Intl.NumberFormat("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(Number(n));
-  } catch {
-    return `${n}`;
-  }
-};
-const titleCase = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "");
-const toDate = (v) => {
-  if (!v) return null;
-  if (v instanceof Date) return v;
-  if (typeof v === "number") return new Date(v);
-  // accept YYYY-MM-DD or ISO
-  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  const d = new Date(v);
-  return isNaN(d) ? null : d;
-};
+const FACILITIES = [
+  { key:"wind_tunnel_level", name:"Wind Tunnel", category:"Aerodynamics", desc:"Physical aerodynamic testing. Improves the effectiveness of aero development." },
+  { key:"aero_dept_level", name:"Aerodynamics Department", category:"Technical", desc:"Design capability for wings, bodywork and ground-effect concepts." },
+  { key:"_chassis_shop_level", name:"Chassis Workshop", category:"Technical", desc:"Design and construction capability for the chassis and structural components." },
+  { key:"manufacturing_leve", name:"Manufacturing", category:"Production", desc:"Workshop capacity, tooling and quality control for producing car parts." },
+  { key:"pitcrew_training_level", name:"Pit Crew Training", category:"Operations", desc:"Preparation of mechanics and race crew for reliable pit operations." },
+  { key:"simulator_level", name:"Driver Simulator", category:"Simulation", desc:"Driver-in-the-loop simulation infrastructure." },
+  { key:"youth_program_level", name:"Youth Programme", category:"Driver Development", desc:"Formal junior-driver development programme." },
+];
 
-/** Normalização ultra-tolerante */
-function normalizeHQ(raw) {
-  const arr = Array.isArray(raw?.facilities) ? raw.facilities
-    : Array.isArray(raw) ? raw
-    : Array.isArray(raw?.items) ? raw.items
-    : [];
+const fmtMoney=(n)=>new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(n||0));
+const niceDate=(iso)=>iso||"—";
+function parseISO(value){const [y,m,d]=String(value||"").slice(0,10).split("-").map(Number);return new Date(Date.UTC(y||1970,(m||1)-1,d||1));}
+function addDaysISO(value,days){const d=parseISO(value);d.setUTCDate(d.getUTCDate()+Number(days||0));return d.toISOString().slice(0,10);}
+function progress(start,finish,now){if(!start||!finish||!now)return 0;const a=+parseISO(start),b=+parseISO(finish),n=+parseISO(now);return b<=a?1:Math.max(0,Math.min(1,(n-a)/(b-a)));}
 
-  const facilities = arr.map((f, i) => {
-    const level = f.level ?? f.lvl ?? f.tier ?? 0;
-    const max = f.max_level ?? f.max ?? 5;
-    const status = (f.status ?? f.state ?? "active").toString().toLowerCase(); // active|upgrading|disabled
-    const upCost = f.upgrade_cost ?? f.cost ?? f.upgrade?.cost ?? null;
-    const upDays = f.upgrade_time_days ?? f.upgrade_days ?? f.duration_days ?? f.upgrade?.days ?? null;
-    const name = f.name ?? f.id ?? `Facility ${i + 1}`;
+export default function HQ(){
+  const gameState=useGame(s=>s.gameState);
+  const setGameState=useGame(s=>s.setGameState);
+  const year=Number(gameState?.activeYear)||1980;
+  const date=String(gameState?.currentDateISO||"").slice(0,10);
+  const teamId=String(gameState?.team?.team_id??gameState?.team?.id??"");
+  const facilities=gameState?.facilities?.length?gameState.facilities:gameState?.dbFacilities||[];
+  const baseRow=useMemo(()=>facilities.find((r)=>String(r?.team_id??r?.team??"")===teamId && Number(r?.year??year)===year)||null,[facilities,teamId,year]);
+  const hq=gameState?.hq||{};
+  const levels=hq.facilityLevels||{};
+  const upgrades=Array.isArray(hq.upgrades)?hq.upgrades:[];
+  const budget=Number(gameState?.team?.budget??gameState?.finances?.balance??0);
 
-    return {
-      id: f.id ?? name.toLowerCase().replace(/\s+/g, "_"),
-      name,
-      category: (f.category ?? f.type ?? name).toString(),
-      level: clamp(level, 0, max),
-      maxLevel: Number(max) || 5,
-      status,
-      effects: f.effects ?? f.bonus ?? null, // livre: {attr:+x, dnf:-y} etc
-      upgrade_cost: upCost,
-      upgrade_time_days: upDays,
-      // dates
-      started_at: toDate(f.started_at ?? f.upgrade_started_at ?? null),
-      finishes_at: toDate(f.finishes_at ?? f.upgrade_finishes_at ?? null),
-      // free-form meta
-      meta: f
+  const available=useMemo(()=>FACILITIES.filter((f)=>baseRow && baseRow[f.key]!==null && baseRow[f.key]!==undefined && baseRow[f.key]!==""),[baseRow]);
+  const unavailable=useMemo(()=>FACILITIES.filter((f)=>!baseRow || baseRow[f.key]===null || baseRow[f.key]===undefined || baseRow[f.key]===""),[baseRow]);
+
+  useEffect(()=>{
+    if(!date||!upgrades.length)return;
+    const completed=upgrades.filter((u)=>u.status==="active"&&u.finishes_at&&u.finishes_at<=date);
+    if(!completed.length)return;
+    const nextLevels={...levels};
+    for(const u of completed) nextLevels[u.facility_key]=Math.max(Number(nextLevels[u.facility_key]??baseRow?.[u.facility_key]??0),Number(u.target_level||0));
+    setGameState({hq:{...hq,facilityLevels:nextLevels,upgrades:upgrades.map((u)=>completed.some((x)=>x.id===u.id)?{...u,status:"completed",completed_at:date}:u)}});
+  },[date,upgrades,levels,baseRow,hq,setGameState]);
+
+  const levelOf=(key)=>Number(levels[key]??baseRow?.[key]??0);
+  const activeUpgrade=(key)=>upgrades.find((u)=>u.facility_key===key&&u.status==="active")||null;
+
+  const startUpgrade=(facility)=>{
+    if(!date||activeUpgrade(facility.key))return;
+    const level=levelOf(facility.key);
+    if(level>=10)return;
+    const maintenance=Number(baseRow?.maintenance_cost||1_000_000);
+    const cost=Math.round(maintenance*(0.18+level*0.035));
+    const days=28+level*6;
+    if(budget<cost)return;
+    const upgrade={
+      id:`hq_${facility.key}_${Date.now()}`,
+      facility_key:facility.key,
+      name:facility.name,
+      from_level:level,
+      target_level:level+1,
+      cost,
+      started_at:date,
+      finishes_at:addDaysISO(date,days),
+      status:"active",
     };
-  });
+    const oldBalance=Number(gameState?.finances?.balance??budget);
+    setGameState({
+      hq:{...hq,facilityLevels:levels,upgrades:[...upgrades,upgrade]},
+      team:{...(gameState?.team||{}),budget:budget-cost},
+      finances:{...(gameState?.finances||{}),budget:budget-cost,balance:oldBalance-cost,season_spend:Number(gameState?.finances?.season_spend||0)+cost},
+      financeLog:[...(gameState?.financeLog||[]),{
+        id:`tx_hq_${Date.now()}`,dateISO:date,type:"expense",category:"Facilities",desc:`${facility.name} upgrade to level ${level+1}`,amount:-cost,
+      }],
+    });
+  };
 
-  // queue (opcional)
-  const queueRaw = raw?.queue ?? raw?.upgrades ?? [];
-  const queue = Array.isArray(queueRaw) ? queueRaw.map((q, i) => ({
-    id: q.id ?? `Q_${i}`,
-    facility_id: q.facility_id ?? q.facility ?? null,
-    name: q.name ?? q.title ?? q.facility_name ?? "Upgrade",
-    started_at: toDate(q.started_at ?? q.start ?? null),
-    finishes_at: toDate(q.finishes_at ?? q.finish ?? q.until ?? null),
-    cost: q.cost ?? q.budget ?? null
-  })) : [];
+  const cancelUpgrade=(id)=>{
+    const u=upgrades.find((x)=>x.id===id);
+    if(!u||u.status!=="active")return;
+    // 50% refund reflects committed design/construction costs.
+    const refund=Math.round(Number(u.cost||0)*0.5);
+    const oldBalance=Number(gameState?.finances?.balance??budget);
+    setGameState({
+      hq:{...hq,facilityLevels:levels,upgrades:upgrades.map((x)=>x.id===id?{...x,status:"cancelled",cancelled_at:date}:x)},
+      team:{...(gameState?.team||{}),budget:budget+refund},
+      finances:{...(gameState?.finances||{}),budget:budget+refund,balance:oldBalance+refund,season_income:Number(gameState?.finances?.season_income||0)+refund},
+      financeLog:[...(gameState?.financeLog||[]),{id:`tx_hq_refund_${Date.now()}`,dateISO:date,type:"income",category:"Facilities Refund",desc:`${u.name} cancellation refund`,amount:refund}],
+    });
+  };
 
-  return { facilities, queue };
-}
+  const avg=available.length?available.reduce((s,f)=>s+levelOf(f.key),0)/available.length:0;
 
-function ProgressBar({ value, max = 1 }) {
-  const v = clamp(value / max, 0, 1);
-  return (
-    <div className="h-2 w-full rounded bg-muted/50 overflow-hidden ring-1 ring-black/5">
-      <div className="h-full rounded" style={{ width: `${v * 100}%`, background: "var(--primary, #111827)" }} />
+  return <div className="p-4 md:p-6 space-y-4">
+    <div className="flex flex-col md:flex-row md:items-center gap-3">
+      <div><h1 className="text-2xl md:text-3xl font-semibold">HQ</h1><p className="text-sm text-muted-foreground">Facilities available to your team in {year}. Infrastructure that does not exist in this era is hidden.</p></div>
+      <div className="flex-1"/><div className="text-sm">Budget: <strong>{fmtMoney(budget)}</strong></div>
     </div>
-  );
-}
 
-function Pill({ children, className = "" }) {
-  return <span className={`inline-flex px-2 py-0.5 rounded text-[11px] ${className}`}>{children}</span>;
-}
+    {!baseRow&&<Card><CardContent className="p-4 text-sm text-amber-700">No facility record is available for this team in {year}.</CardContent></Card>}
 
-const STATUS_COLORS = {
-  active: "bg-emerald-600 text-white",
-  upgrading: "bg-sky-600 text-white",
-  disabled: "bg-zinc-600 text-white"
-};
-
-export default function HQ() {
-  const { gameState } = useGame();
-  const [fallback, setFallback] = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch("/data/hq.json");
-        if (r.ok) setFallback(await r.json());
-      } catch {}
-    })();
-  }, []);
-
-  const { facilities, queue } = useMemo(
-    () => normalizeHQ(gameState?.hq || fallback || {}),
-    [gameState?.hq, fallback]
-  );
-
-  const summary = useMemo(() => {
-    const total = facilities.length || 1;
-    const avgLevel = facilities.reduce((s, f) => s + (Number(f.level) || 0), 0) / total;
-    const actives = facilities.filter((f) => f.status === "active").length;
-    const upgs = facilities.filter((f) => f.status === "upgrading").length;
-    return { avgLevel, actives, upgs, total };
-  }, [facilities]);
-
-  return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold">HQ</h1>
-        <div className="text-sm text-muted-foreground">
-          Facilities: <span className="font-medium">{summary.total}</span> • Active: <span className="font-medium">{summary.actives}</span> • Upgrading: <span className="font-medium">{summary.upgs}</span>
-        </div>
-      </div>
-
-      {/* Snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground mb-1">Average Level</div>
-            <div className="text-xl font-semibold">{summary.avgLevel.toFixed(1)} / 5</div>
-            <div className="mt-2"><ProgressBar value={summary.avgLevel} max={5} /></div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground mb-1">Active Facilities</div>
-            <div className="text-xl font-semibold">{summary.actives}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground mb-1">Upgrades In Progress</div>
-            <div className="text-xl font-semibold">{summary.upgs}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Facilities grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {facilities.length === 0 ? (
-          <Card><CardContent className="p-4 text-sm text-muted-foreground">No facilities configured.</CardContent></Card>
-        ) : (
-          facilities.map((f) => (
-            <Card key={f.id}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm text-muted-foreground">{f.category}</div>
-                    <div className="text-lg font-medium">{f.name}</div>
-                  </div>
-                  <Pill className={`${STATUS_COLORS[f.status] || STATUS_COLORS.active}`}>{titleCase(f.status)}</Pill>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div>Level</div>
-                    <div className="font-medium">{f.level} / {f.maxLevel}</div>
-                  </div>
-                  <div className="mt-1"><ProgressBar value={f.level} max={f.maxLevel} /></div>
-                </div>
-
-                {f.effects ? (
-                  <div className="text-xs text-muted-foreground">
-                    {/* efeitos livres em formato chave:valor */}
-                    <EffectsList effects={f.effects} />
-                  </div>
-                ) : null}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border p-2">
-                    <div className="text-[11px] text-muted-foreground">Upgrade Cost</div>
-                    <div className="text-sm font-medium">{f.upgrade_cost != null ? fmtMoney(f.upgrade_cost) : "—"}</div>
-                  </div>
-                  <div className="rounded-lg border p-2">
-                    <div className="text-[11px] text-muted-foreground">Upgrade Time</div>
-                    <div className="text-sm font-medium">{f.upgrade_time_days ? `${f.upgrade_time_days} days` : "—"}</div>
-                  </div>
-                </div>
-
-                {/* Upgrading ETA */}
-                {f.status === "upgrading" ? (
-                  <div className="text-xs text-muted-foreground">
-                    {renderETA(f.started_at, f.finishes_at, f.upgrade_time_days)}
-                  </div>
-                ) : null}
-
-                <div className="flex items-center gap-2 pt-1">
-                  <Button size="sm" disabled>Upgrade</Button>
-                  <Button size="sm" variant="outline" disabled>Pause</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-
-      {/* Upgrade Queue */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-lg font-medium">Upgrade Queue</div>
-            <Button size="sm" variant="outline" disabled>Prioritize</Button>
-          </div>
-          {queue.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No queued upgrades.</div>
-          ) : (
-            <ul className="divide-y">
-              {queue.map((q) => (
-                <li key={q.id} className="py-2 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="font-medium leading-tight">{q.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {q.started_at ? q.started_at.toLocaleDateString("en-GB", { day:"2-digit", month:"short" }) : "—"}
-                      {" → "}
-                      {q.finishes_at ? q.finishes_at.toLocaleDateString("en-GB", { day:"2-digit", month:"short" }) : "—"}
-                      {q.cost != null ? ` • ${fmtMoney(q.cost)}` : ""}
-                    </div>
-                  </div>
-                  <Button size="sm" disabled>Cancel</Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <Stat label="Available Facilities" value={available.length}/>
+      <Stat label="Average Level" value={avg.toFixed(1)}/>
+      <Stat label="Upgrading" value={upgrades.filter((u)=>u.status==="active").length}/>
+      <Stat label="Annual Maintenance" value={fmtMoney(baseRow?.maintenance_cost||0)}/>
     </div>
-  );
+
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {available.map((f)=>{
+        const level=levelOf(f.key);
+        const u=activeUpgrade(f.key);
+        const maintenance=Number(baseRow?.maintenance_cost||1_000_000);
+        const nextCost=Math.round(maintenance*(0.18+level*0.035));
+        const pct=u?progress(u.started_at,u.finishes_at,date):0;
+        return <Card key={f.key}><CardContent className="p-4 space-y-3">
+          <div><div className="text-xs text-muted-foreground">{f.category}</div><div className="text-lg font-semibold">{f.name}</div></div>
+          <p className="text-sm text-muted-foreground min-h-[2.5rem]">{f.desc}</p>
+          <div><div className="flex justify-between text-sm"><span>Level</span><strong>{level} / 10</strong></div><div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${level*10}%`}}/></div></div>
+          {u?<div className="border rounded-lg p-3 space-y-2">
+            <div className="flex justify-between text-sm"><span>Upgrade to level {u.target_level}</span><strong>{Math.round(pct*100)}%</strong></div>
+            <div className="h-2 bg-gray-100 rounded overflow-hidden"><div className="h-full bg-blue-600" style={{width:`${pct*100}%`}}/></div>
+            <div className="text-xs text-muted-foreground">{niceDate(u.started_at)} → {niceDate(u.finishes_at)} · {fmtMoney(u.cost)}</div>
+            <Button size="sm" variant="outline" onClick={()=>cancelUpgrade(u.id)}>Cancel (50% refund)</Button>
+          </div>:<div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-muted-foreground">Next level: {fmtMoney(nextCost)}</div>
+            <Button size="sm" onClick={()=>startUpgrade(f)} disabled={level>=10||budget<nextCost}>{level>=10?"Max level":"Upgrade"}</Button>
+          </div>}
+        </CardContent></Card>;
+      })}
+    </div>
+
+    {unavailable.length>0&&<Card><CardContent className="p-4">
+      <div className="font-semibold">Not available in {year}</div>
+      <div className="mt-2 flex flex-wrap gap-2">{unavailable.map((f)=><span key={f.key} className="px-2 py-1 rounded bg-gray-100 text-xs text-gray-600">{f.name}</span>)}</div>
+      <p className="text-xs text-muted-foreground mt-2">These facilities are not shown as upgradeable because the historical database marks them as unavailable for this team/era.</p>
+    </CardContent></Card>}
+
+    <Card><CardContent className="p-4">
+      <div className="font-semibold mb-3">Upgrade History</div>
+      {upgrades.length?<div className="space-y-2">{[...upgrades].reverse().map((u)=><div key={u.id} className="flex flex-col md:flex-row md:items-center gap-2 border rounded-lg p-3 text-sm"><strong>{u.name}</strong><span>Level {u.from_level} → {u.target_level}</span><span className="text-muted-foreground">{u.started_at} → {u.finishes_at}</span><span className="md:ml-auto">{fmtMoney(u.cost)} · {u.status}</span></div>)}</div>:<div className="text-sm text-muted-foreground">No facility upgrades in this career.</div>}
+    </CardContent></Card>
+  </div>;
 }
 
-/** Renders effect list regardless of structure (string | array | object) */
-function EffectsList({ effects }) {
-  if (!effects) return null;
-  if (typeof effects === "string") return <div>{effects}</div>;
-  if (Array.isArray(effects)) {
-    return (
-      <ul className="list-disc pl-5 space-y-0.5">
-        {effects.map((e, i) => <li key={i}>{typeof e === "string" ? e : JSON.stringify(e)}</li>)}
-      </ul>
-    );
-  }
-  // object
-  return (
-    <ul className="list-disc pl-5 space-y-0.5">
-      {Object.entries(effects).map(([k, v]) => (
-        <li key={k}><span className="text-foreground">{titleCase(k)}:</span> {typeof v === "number" ? v : String(v)}</li>
-      ))}
-    </ul>
-  );
-}
-
-function renderETA(started_at, finishes_at, upgrade_time_days) {
-  const now = new Date();
-  const start = started_at || now;
-  const end = finishes_at || (upgrade_time_days ? new Date(start.getTime() + daysToMs(upgrade_time_days)) : null);
-  if (!end) return "Upgrading…";
-  const msLeft = end.getTime() - now.getTime();
-  const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
-  if (daysLeft >= 0) {
-    return `ETA: ${end.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} (${daysLeft} day${daysLeft === 1 ? "" : "s"} left)`;
-  }
-  return `Completed on ${end.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`;
-}
+function Stat({label,value}){return <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
