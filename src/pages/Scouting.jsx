@@ -43,7 +43,10 @@ export default function Scouting(){
   const contractedIds=useMemo(()=>new Set(contracts.filter(c=>String(pick(c,["role","position","contract_role"],"")).toLowerCase().includes("driver")).map(idOf)),[contracts]);
   const prospects=useMemo(()=>drivers.filter(d=>{
     const id=idOf(d); if(!id)return false;
-    return !contractedIds.has(id)||d?.status==="junior_only";
+    const status=String(d?.status||"");
+    const marketVisible = status==="junior_only" || status==="eligible" || Boolean(d?.canHireF1) || Boolean(d?.canHireAcademy);
+    if(!marketVisible || ["retired","deceased","hidden"].includes(status)) return false;
+    return !contractedIds.has(id) || status==="junior_only";
   }).filter(d=>!q||[d.display_name,d.name,d.country_name,d.nationality].some(v=>String(v||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>{
     const ap=Number(pick(ratingById.get(idOf(a)),["potential_ability","potential"],0));
     const bp=Number(pick(ratingById.get(idOf(b)),["potential_ability","potential"],0));
