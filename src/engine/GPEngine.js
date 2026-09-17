@@ -4,7 +4,6 @@ function basePace(d, ratings){
   const rec = (ratings || []).find(r => String(r.driver_id) === String(d.driver_id));
   return Number(rec?.pace ?? rec?.overall ?? 60);
 }
-const POINTS = [10,8,6,5,4,3,2,1];
 
 const pick = (obj, keys, fb = undefined) => {
   for (const k of keys) {
@@ -16,9 +15,34 @@ const pick = (obj, keys, fb = undefined) => {
 const clampISO = (iso) => String(iso || "").slice(0, 10);
 const getTeamId = (t) => String(pick(t, ["team_id","id","name","team_name","short_name"], JSON.stringify(t)));
 
+function getActivePointsTable(gs) {
+  const rec = gs?.pointsSystem;
+  if (Array.isArray(rec?.table) && rec.table.length) return rec.table.map(Number);
+  if (rec?.table && typeof rec.table === "object") {
+    return Object.keys(rec.table)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => Number(rec.table[k]) || 0);
+  }
+  if (Array.isArray(rec?.places_csv)) return rec.places_csv.map(Number).filter(Number.isFinite);
+  if (rec?.places_csv != null) {
+    const out = String(rec.places_csv).split(",").map((s) => Number(s.trim())).filter(Number.isFinite);
+    if (out.length) return out;
+  }
+  return [9,6,4,3,2,1];
+}
+
 function findDriverFinishPos(raceArr, driverId) {
   const row = raceArr.find(r => String(r.driver?.driver_id) === String(driverId));
-  return row ? row.pos : null;
+  return row ? rPos(row) : null;
+}
+
+function rPos(row) {
+  return row?.pos ?? row?.position ?? null;
+}
+
+function resolveDriverTeamId(driver) {
+  const id = pick(driver || {}, ["team_id", "constructor_id", "team"], null);
+  return id == null || id === "" ? null : String(id);
 }
 
 function awardRaceBonuses(next, race, gpName) {
@@ -28,7 +52,6 @@ function awardRaceBonuses(next, race, gpName) {
 
   const financeLog = Array.isArray(next.financeLog) ? next.financeLog.slice() : [];
 
-  // --- Pilotos: bónus win/podium
   const contracts = next.contracts || next.dbContracts || [];
   const driverRows = contracts.filter(r => {
     const y = Number(pick(r, ["year","season_year"], NaN));
@@ -70,7 +93,6 @@ function awardRaceBonuses(next, race, gpName) {
     }
   }
 
-  // --- Sponsors: bónus win/podium por GP (se definido no contrato)
   const sponsors = next.sponsorsContracts || next.dbSponsorsContracts || [];
   const spRows = sponsors.filter(r => {
     const y = Number(pick(r, ["year","season_year"], NaN));
@@ -78,12 +100,11 @@ function awardRaceBonuses(next, race, gpName) {
     return y === year && tid === String(teamId);
   });
 
-  // Se QUALQUER piloto da equipa ganhou/pódio, aplicar bónus sponsor correspondente
-  const teamDriverIds = (next.drivers || []).filter(d => String(d.team_id || d.constructor_id || d.team || "") === String(teamId))
+  const teamDriverIds = (next.drivers || []).filter(d => resolveDriverTeamId(d) === String(teamId))
     .map(d => String(d.driver_id));
 
-  const anyWin = race.some(r => r.pos === 1 && teamDriverIds.includes(String(r.driver?.driver_id)));
-  const anyPod = race.some(r => (r.pos === 2 || r.pos === 3) && teamDriverIds.includes(String(r.driver?.driver_id)));
+  const anyWin = race.some(r => rPos(r) === 1 && teamDriverIds.includes(String(r.driver?.driver_id)));
+  const anyPod = race.some(r => (rPos(r) === 2 || rPos(r) === 3) && teamDriverIds.includes(String(r.driver?.driver_id)));
 
   const txSponsor = [];
   for (const s of spRows) {
@@ -114,12 +135,9 @@ function awardRaceBonuses(next, race, gpName) {
     }
   }
 
-  // anexar (com dedupe simples por sig)
   const sigs = new Set(financeLog.map(t => t.sig));
   const fresh = [...txPilot, ...txSponsor].filter(t => !sigs.has(t.sig));
-  if (fresh.length) {
-    next.financeLog = [...fresh, ...financeLog];
-  }
+  if (fresh.length) next.financeLog = [...fresh, ...financeLog];
 
   return next;
 }
@@ -129,50 +147,79 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const drivers = (gs.drivers || []).slice();
   const ratings = gs.driverRatings || [];
   const teamsById = new Map((gs.teams||[]).map(t => [String(t.team_id||t.id||t.name), t]));
+  const pointsTable = getActivePointsTable(gs);
 
-  // QUALIFYING
   const qualy = drivers
     .map(d => ({ d, score: basePace(d, ratings) + rnorm()*5 }))
     .sort((a,b) => b.score - a.score)
     .map((x,i) => ({ pos: i+1, driver: x.d }));
 
-  // RACE
   const race = qualy
     .map(q => ({ ...q, raceDelta: Math.round(rnorm()*4) }))
     .sort((a,b) => (a.pos + a.raceDelta) - (b.pos + b.raceDelta))
     .map((x,i) => ({ pos: i+1, driver: x.driver }));
 
-  // STANDINGS (drivers)
   const prevDrv = new Map((gs.standings?.drivers||[]).map(x => [String(x.driver_id), Number(x.points||0)]));
   race.forEach((r,i) => {
-    const pts = POINTS[i] || 0;
+    const pts = Number(pointsTable[i] || 0);
     const id = String(r.driver.driver_id);
     prevDrv.set(id, (prevDrv.get(id)||0) + pts);
   });
   const driverStandings = drivers.map(d => ({
     driver_id: d.driver_id,
-    name: d.display_name || d.name,
+    name: d.display_name || d.name || `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim(),
     points: prevDrv.get(String(d.driver_id)) || 0
-  })).sort((a,b) => b.points - a.points || a.name.localeCompare(b.name));
+  })).sort((a,b) => b.points - a.points || String(a.name || "").localeCompare(String(b.name || "")));
 
-  // STANDINGS (teams) — soma simples
-  const teamPts = new Map();
-  for (const row of driverStandings) {
-    const drv = drivers.find(x => String(x.driver_id) === String(row.driver_id));
-    const teamId = String(drv?.team_id || drv?.constructor_id || drv?.team || "");
-    if (!teamId) continue;
-    teamPts.set(teamId, (teamPts.get(teamId)||0) + (row.points||0));
-  }
+  const teamPts = new Map((gs.standings?.teams || []).map((x) => [String(x.team_id), Number(x.points || 0)]));
+  race.forEach((row, i) => {
+    const teamId = resolveDriverTeamId(row.driver);
+    if (!teamId) return;
+    const pts = Number(pointsTable[i] || 0);
+    teamPts.set(teamId, (teamPts.get(teamId) || 0) + pts);
+  });
   const teamStandings = Array.from(teamPts.entries())
     .map(([team_id, points]) => ({
-      team_id, team_name: teamsById.get(team_id)?.team_name || teamsById.get(team_id)?.name || team_id, points
+      team_id,
+      team_name: teamsById.get(team_id)?.team_name || teamsById.get(team_id)?.name || team_id,
+      points
     }))
-    .sort((a,b) => b.points - a.points || a.team_name.localeCompare(b.team_name));
+    .sort((a,b) => b.points - a.points || String(a.team_name || "").localeCompare(String(b.team_name || "")));
 
   next.standings = { drivers: driverStandings, teams: teamStandings };
 
-  // Guardar um "lastRace" para uma página/relatório
   const gpName = gp?.gp_name || gp?.name || `Round ${roundIndex+1}`;
+  const year = Number(gs.activeYear) || Number(gp?.year) || null;
+  const round = Number(roundIndex) + 1;
+  const gpId = gp?.gp_id || gp?.id || gp?.track_id || `round_${round}`;
+  const resultKey = `${year ?? "season"}_${round}_${gpId}`;
+  const classification = race.map((row) => ({
+    position: row.pos,
+    driver_id: row.driver?.driver_id ?? null,
+    team_id: resolveDriverTeamId(row.driver),
+    fastest_lap: false,
+  }));
+
+  const resultEntry = {
+    key: resultKey,
+    year,
+    round,
+    gp_id: gpId,
+    name: gpName,
+    dateISO: clampISO(gs.currentDateISO),
+    qualifying: qualy.map((row) => ({
+      position: row.pos,
+      driver_id: row.driver?.driver_id ?? null,
+      team_id: resolveDriverTeamId(row.driver),
+    })),
+    classification,
+  };
+
+  next.results = [
+    ...(Array.isArray(gs.results) ? gs.results.filter((r) => r?.key !== resultKey) : []),
+    resultEntry,
+  ];
+
   next.lastRace = {
     roundIndex,
     gpName,
@@ -181,12 +228,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     race,
     driverStandings,
     teamStandings,
+    resultKey,
   };
 
-  // === NOVO: aplicar bónus financeiros por corrida ===
   const afterBonuses = awardRaceBonuses(next, race, gpName);
 
-  // Mensagem com link
   afterBonuses.inbox = [
     {
       id: `gp_${Date.now()}`,
@@ -194,10 +240,10 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       from: "Race Control",
       tag: "Race",
       subject: `${gpName} — Resultados`,
-      body: `Vencedor: ${race[0]?.driver?.display_name || race[0]?.driver?.name}. Pontos atualizados.`,
+      body: `Vencedor: ${race[0]?.driver?.display_name || race[0]?.driver?.name || "—"}. Pontos atualizados.`,
       actions: [
-        { label: "Ver relatório do GP", route: "/gp-report" },
-        { label: "Ver classificação", route: "/standings" },
+        { label: "Ver resultados", route: "/Results" },
+        { label: "Ver classificação", route: "/Standings" },
       ],
     },
     ...(gs.inbox || []),
