@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
+import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 
 const str = (v) => (v == null ? "" : String(v));
 const firstArray = (...items) => items.find(Array.isArray) || [];
@@ -119,6 +120,7 @@ export default function Standings() {
           wins: Number(row?.wins ?? st.wins ?? 0),
           podiums: Number(row?.podiums ?? row?.pods ?? st.podiums ?? 0),
           fastestLaps: Number(row?.fastest_laps ?? row?.fastestLaps ?? st.fastestLaps ?? 0),
+          driver: db || { driver_id: id, display_name: row?.name || id },
         };
       })
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
@@ -153,6 +155,7 @@ export default function Standings() {
           races: Number(row?.races ?? st?.races?.size ?? 0),
           wins: Number(row?.wins ?? st?.wins ?? 0),
           podiums: Number(row?.podiums ?? st?.podiums ?? 0),
+          team: db || { team_id: id, team_name: row?.team_name || row?.name || id },
         };
       })
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
@@ -193,16 +196,18 @@ export default function Standings() {
                 <td className="px-4 py-2 text-right font-medium">{index + 1}</td>
                 <td className="px-4 py-2">
                   {tab === "drivers" && row.id ? (
-                    <button type="button" data-entity="driver" data-id={row.id} className="text-left font-medium hover:underline">
-                      {row.name}
+                    <button type="button" data-entity="driver" data-id={row.id} className="flex items-center gap-3 text-left font-medium hover:underline">
+                      <DriverPortrait driver={row.driver} size="h-9 w-9" />
+                      <span>{row.name}</span>
                     </button>
                   ) : row.id ? (
-                    <button type="button" data-entity="team" data-id={row.id} className="text-left font-medium hover:underline">
-                      {row.name}
+                    <button type="button" data-entity="team" data-id={row.id} className="flex items-center gap-3 text-left font-medium hover:underline">
+                      <TeamLogo teamId={row.id} name={row.name} size="h-9 w-9" />
+                      <span>{row.name}</span>
                     </button>
                   ) : row.name}
                 </td>
-                {tab === "drivers" && <td className="px-4 py-2">{row.teamName}</td>}
+                {tab === "drivers" && <td className="px-4 py-2"><span className="inline-flex items-center gap-2"><TeamLogo teamId={row.teamId} name={row.teamName} size="h-7 w-7" />{row.teamName}</span></td>}
                 <td className="px-4 py-2 text-right">{row.races}</td>
                 <td className="px-4 py-2 text-right">{row.wins}</td>
                 <td className="px-4 py-2 text-right">{row.podiums}</td>

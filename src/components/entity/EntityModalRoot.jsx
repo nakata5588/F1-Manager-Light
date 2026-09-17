@@ -4,12 +4,13 @@ import { useEffect, useRef } from "react";
 import { useModalStore } from "../../state/ModalStore.js";
 import DriverModal from "./DriverModal.jsx";
 import TeamModal from "./TeamModal.jsx";
+import StaffModal from "./StaffModal.jsx";
 import EntityErrorBoundary from "./EntityErrorBoundary.jsx";
 
 const MODALS = {
   driver: DriverModal,
   team: TeamModal,
-  // staff: StaffModal,
+  staff: StaffModal,
   // gp: GpModal,
   // sponsor: SponsorModal,
 };

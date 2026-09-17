@@ -73,7 +73,7 @@ const HEAVY_KEYS = [
   "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
-  "dbFacilities","dbStaffContracts",
+  "dbFacilities","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
   "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear",
@@ -292,6 +292,7 @@ export const useGame = create((set, get) => ({
     dbAccidentModel: [],
     dbFacilities: [],
     dbStaffContracts: [],
+    dbStaffCore: [],
 
     // novas DBs
     dbTyres: [],
@@ -316,6 +317,7 @@ export const useGame = create((set, get) => ({
     teams: [],
     driverRatings: [],
     staffRatings: [],
+    staffCore: [],
     teamBrands: [],
     teamEngines: [],
     contracts: [],
@@ -485,7 +487,7 @@ export const useGame = create((set, get) => ({
     try {
       const [
         driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, achievementsRaw,
-        staffRatingsRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
+        staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
@@ -498,6 +500,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/driver_career.json"),
         fetchJsonSafe("/data/achievements.json"),
         fetchJsonSafe("/data/staff_ratings.json"),
+        fetchOptional("/data/staff_core.json", []),
         fetchJsonSafe("/data/team_brands.json"),
         fetchJsonSafe("/data/team_engines.json"),
         fetchJsonSafe("/data/contracts.json"),
@@ -529,6 +532,7 @@ export const useGame = create((set, get) => ({
       const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
       const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
       const staffRatings      = unexcelDeep(staffRatingsRaw);
+      const staffCore         = unexcelDeep(staffCoreRaw);
       const teamBrands        = unexcelDeep(teamBrandsRaw);
       const teamEngines       = unexcelDeep(teamEnginesRaw);
       const contracts         = unexcelDeep(contractsRaw);
@@ -567,6 +571,7 @@ export const useGame = create((set, get) => ({
           dbTeams: teams,
           dbDriverRatings: driverRatings,
           dbStaffRatings: staffRatings,
+          dbStaffCore: staffCore,
           dbDriverCareer: driverCareer,
           dbAchievements: achievements,
           dbTeamBrands: teamBrands,
@@ -695,15 +700,19 @@ export const useGame = create((set, get) => ({
       };
     });
 
-    let drivers = driversWithStatus.filter((d) => d.status !== "hidden" && d.driver_id && (d.display_name || d.name));
-    if (driverIdsFromContracts.size > 0) {
-      drivers = drivers.filter((d) => driverIdsFromContracts.has(String(d.driver_id)));
-    }
+    const drivers = driversWithStatus.filter(
+      (d) => d.status !== "hidden" && d.driver_id && (d.display_name || d.name)
+    );
 
     const driverRatingsExact = filterByYear(prev.dbDriverRatings, y);
     const staffRatingsExact  = filterByYear(prev.dbStaffRatings, y);
     const driverRatings = driverRatingsExact.length ? driverRatingsExact : filterByYearRange(prev.dbDriverRatings, y);
     const staffRatings  = staffRatingsExact.length ? staffRatingsExact : filterByYearRange(prev.dbStaffRatings, y);
+    const staffCore = (prev.dbStaffCore || []).filter((s) => {
+      const born = yearFrom(pick(s, ["dob", "birthdate"], null));
+      const died = yearFrom(pick(s, ["death_date"], null));
+      return (!Number.isFinite(born) || born <= y) && (!Number.isFinite(died) || died >= y);
+    });
 
     const teamBrandsExact = filterByYear(prev.dbTeamBrands, y);
     const teamBrands = teamBrandsExact.length ? teamBrandsExact : filterByYearRange(prev.dbTeamBrands, y);
@@ -771,6 +780,7 @@ export const useGame = create((set, get) => ({
       drivers,
       driverRatings,
       staffRatings,
+      staffCore,
       teamBrands,
       teamEngines,
       contracts,
