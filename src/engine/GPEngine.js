@@ -206,7 +206,21 @@ function awardRaceBonuses(next, race, gpName) {
 
 export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const next = { ...gs };
-  const drivers = (gs.drivers || []).slice();
+  const allDrivers = (gs.drivers || []).slice();
+  const activeYear = Number(gs?.activeYear);
+  const contractedIds = new Set(
+    (gs.contracts || gs.dbContracts || [])
+      .filter((row) => {
+        const role = String(pick(row, ["role", "position", "contract_role", "type"], "")).toLowerCase();
+        const year = Number(pick(row, ["year", "season_year"], NaN));
+        return role.includes("driver") && (!Number.isFinite(activeYear) || !Number.isFinite(year) || year === activeYear);
+      })
+      .map((row) => String(pick(row, ["driver_id", "person_id", "id"], "")))
+      .filter(Boolean)
+  );
+  const drivers = contractedIds.size
+    ? allDrivers.filter((d) => contractedIds.has(String(d?.driver_id ?? d?.id ?? "")))
+    : allDrivers.filter((d) => d?.status !== "junior_only" && d?.status !== "hidden");
   const ratings = gs.driverRatings || [];
   const teamsById = new Map((gs.teams||[]).map(t => [String(t.team_id||t.id||t.name), t]));
   const pointsTable = getActivePointsTable(gs);
