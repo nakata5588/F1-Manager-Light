@@ -1,6 +1,7 @@
 // src/pages/Results.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameStore";
+import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 
 const pick = (obj, keys, fb = undefined) => {
   for (const k of keys) {
@@ -123,21 +124,50 @@ export default function ResultsPage() {
     return arr;
   }, [resultsRaw]);
 
+  const [yearFilter, setYearFilter] = useState("ALL");
+  const [driverFilter, setDriverFilter] = useState("ALL");
+  const [gpFilter, setGpFilter] = useState("ALL");
   const [selectedKey, setSelectedKey] = useState(null);
 
+  const yearOptions = useMemo(
+    () => ["ALL", ...Array.from(new Set(results.map((r) => Number(r.year)).filter(Number.isFinite))).sort((a,b)=>a-b)],
+    [results]
+  );
+  const gpOptions = useMemo(() => {
+    const map = new Map();
+    for (const r of results) {
+      const key = String(r.gp_id ?? r.name ?? r.gp_name ?? "");
+      if (key) map.set(key, r.name ?? r.gp_name ?? key);
+    }
+    return [["ALL","All Grands Prix"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
+  }, [results]);
+  const driverOptions = useMemo(() => {
+    const ids = new Set();
+    for (const r of results) for (const row of r.classification || []) if (row?.driver_id != null) ids.add(String(row.driver_id));
+    return [["ALL","All Drivers"], ...Array.from(ids).map((id)=>[id,resolveDriverName(driversDb,id)]).sort((a,b)=>a[1].localeCompare(b[1]))];
+  }, [results, driversDb]);
+
+  const filteredResults = useMemo(() => results.filter((r) => {
+    if (yearFilter !== "ALL" && Number(r.year) !== Number(yearFilter)) return false;
+    const gpKey = String(r.gp_id ?? r.name ?? r.gp_name ?? "");
+    if (gpFilter !== "ALL" && gpKey !== gpFilter) return false;
+    if (driverFilter !== "ALL" && !(r.classification || []).some((row) => String(row?.driver_id) === String(driverFilter))) return false;
+    return true;
+  }), [results, yearFilter, driverFilter, gpFilter]);
+
   useEffect(() => {
-    if (!results.length) {
+    if (!filteredResults.length) {
       setSelectedKey(null);
       return;
     }
-    if (!selectedKey || !results.some((r) => r.key === selectedKey)) {
-      setSelectedKey(results[results.length - 1]?.key ?? null);
+    if (!selectedKey || !filteredResults.some((r) => r.key === selectedKey)) {
+      setSelectedKey(filteredResults[filteredResults.length - 1]?.key ?? null);
     }
-  }, [results, selectedKey]);
+  }, [filteredResults, selectedKey]);
 
   const selected = useMemo(
-    () => results.find((r) => r.key === selectedKey) || results[results.length - 1] || null,
-    [results, selectedKey]
+    () => filteredResults.find((r) => r.key === selectedKey) || filteredResults[filteredResults.length - 1] || null,
+    [filteredResults, selectedKey]
   );
 
   return (
@@ -147,6 +177,18 @@ export default function ResultsPage() {
         <p className="text-sm text-gray-600">
           Todas as corridas disputadas nesta carreira. Seleciona uma corrida para ver a classificação.
         </p>
+
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+          <select className="border rounded-md px-3 py-2 text-sm" value={yearFilter} onChange={(e)=>setYearFilter(e.target.value)}>
+            {yearOptions.map((y)=><option key={y} value={y}>{y==="ALL"?"All years":y}</option>)}
+          </select>
+          <select className="border rounded-md px-3 py-2 text-sm" value={driverFilter} onChange={(e)=>setDriverFilter(e.target.value)}>
+            {driverOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
+          </select>
+          <select className="border rounded-md px-3 py-2 text-sm" value={gpFilter} onChange={(e)=>setGpFilter(e.target.value)}>
+            {gpOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
 
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -159,7 +201,7 @@ export default function ResultsPage() {
               </tr>
             </thead>
             <tbody>
-              {results.map((r) => (
+              {filteredResults.map((r) => (
                 <tr
                   key={r.key}
                   className={`border-t cursor-pointer ${selected?.key === r.key ? "bg-blue-50" : "hover:bg-gray-50"}`}
@@ -171,7 +213,7 @@ export default function ResultsPage() {
                   <td className="px-3 py-2 text-right">{r.classification?.length ?? 0}</td>
                 </tr>
               ))}
-              {!results.length && (
+              {!filteredResults.length && (
                 <tr>
                   <td className="px-3 py-3 text-gray-600" colSpan={4}>Sem resultados ainda.</td>
                 </tr>
@@ -217,8 +259,18 @@ export default function ResultsPage() {
                     return (
                       <tr key={`${did}_${idx}`} className="border-t">
                         <td className="px-3 py-2 text-right font-medium">{row.position ?? "—"}</td>
-                        <td className="px-3 py-2">{name}</td>
-                        <td className="px-3 py-2">{team}</td>
+                        <td className="px-3 py-2">
+                          <button type="button" data-entity="driver" data-id={did} className="flex items-center gap-3 font-medium hover:underline text-left">
+                            <DriverPortrait driver={(driversDb || []).find((d)=>String(d?.driver_id ?? d?.id)===did) || { display_name:name }} size="h-9 w-9" />
+                            <span>{name}</span>
+                          </button>
+                        </td>
+                        <td className="px-3 py-2">
+                          <button type="button" data-entity="team" data-id={tid} className="inline-flex items-center gap-2 hover:underline">
+                            <TeamLogo teamId={tid} name={team} size="h-8 w-8" />
+                            <span>{team}</span>
+                          </button>
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatRaceTime(row.total_time_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_winner_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_previous_ms)}</td>
