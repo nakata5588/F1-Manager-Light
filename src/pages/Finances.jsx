@@ -394,7 +394,7 @@ function SponsorsTab({ sponsors }) {
   const loadCatalog = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/data/core_sponsor_catalog.json", { cache: "no-store" });
+      const res = await fetch("/data/core_sponsors_catalog.json", { cache: "no-store" });
       const json = await res.json();
       const pool = Array.isArray(json) ? json : json?.list || [];
 
@@ -462,33 +462,40 @@ function SponsorsTab({ sponsors }) {
         status: "active",
       };
 
-      // atualizar state: sponsorsContracts + financeLog (upfront imediato)
-      setGameState((prev) => {
-        const gs = typeof prev === "function" ? prev : prev; // compat
-        const state = (gs && gs.gameState) || gs; // aceita ambos patterns do setGameState
-        const base = state || gameState;
+      const sponsorsContracts = Array.isArray(gameState?.sponsorsContracts)
+        ? [...gameState.sponsorsContracts, newContract]
+        : [newContract];
 
-        const sponsorsContracts = Array.isArray(base.sponsorsContracts)
-          ? [...base.sponsorsContracts, newContract]
-          : [newContract];
+      const upfront = Number(newContract.cash_upfront || 0);
+      const tx = {
+        id: `tx_sp_upfront_${Date.now()}`,
+        dateISO: todayISO,
+        type: "income",
+        category: "Sponsor Upfront",
+        desc: sponsor_name,
+        amount: upfront,
+        sig: `sponsor-upfront:${teamId}:${Y}:${sponsor_id}`,
+      };
+      const financeLog = upfront
+        ? [...(Array.isArray(gameState?.financeLog) ? gameState.financeLog : []), tx]
+        : (Array.isArray(gameState?.financeLog) ? gameState.financeLog : []);
 
-        const tx = {
-          id: `tx_sp_upfront_${Date.now()}`,
-          dateISO: todayISO,
-          type: "income",
-          category: "Sponsor Upfront",
-          desc: sponsor_name,
-          amount: newContract.cash_upfront,
-        };
-        const financeLog = Array.isArray(base.financeLog) ? [...base.financeLog, tx] : [tx];
+      const currentBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
+      const nextBudget = currentBudget + upfront;
+      const team = { ...(gameState?.team || {}), budget: nextBudget };
+      const finances = {
+        ...(gameState?.finances || {}),
+        budget: nextBudget,
+        balance: Number(gameState?.finances?.balance ?? currentBudget) + upfront,
+        season_income: Number(gameState?.finances?.season_income || 0) + upfront,
+      };
 
-        const nextBudget = Number(base?.team?.budget || 0) + Number(newContract.cash_upfront || 0);
-        const team = { ...(base.team || {}), budget: nextBudget };
+      setGameState({ sponsorsContracts, financeLog, team, finances });
+      setCatalog((prev) => Array.isArray(prev)
+        ? prev.filter((item) => String(pick(item, ["sponsor_id", "id", "name"])) !== sponsor_id)
+        : prev
+      );
 
-        return { ...base, sponsorsContracts, financeLog, team };
-      });
-
-      // feedback local
       alert(`Signed sponsor: ${sponsor_name} (${titleCase(type)})`);
     },
     [Y, teamId, todayISO, setGameState, gameState, canAddMain, canAddSecondary]
