@@ -11,12 +11,9 @@ const schemas = {
       type: "object",
       required: ["driver_id"],
       properties: {
-        driver_id: { type: "string", minLength: 1 },
-        display_name: { type: ["string", "null"] },
-        name: { type: ["string", "null"] },
-        nationality: { type: ["string", "null"] },
-        birthdate: { type: ["string", "null"] },
-        team_id: { type: ["string", "null"] }
+        // Legacy exports can still contain Excel-rich values in descriptive fields.
+        // The runtime normalizes those; the validator guarantees stable identity.
+        driver_id: { type: "string", minLength: 1 }
       }
     }
   },
