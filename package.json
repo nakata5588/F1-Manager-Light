@@ -1,15 +1,19 @@
 {
   "name": "f1-manager-light",
-  "version": "1.0.0",
-  "description": "A clean, GitHub-ready bundle containing: - **/data**: normalized JSONs (drivers, teams, staff, tracks, calendar 1980, rules/era, attributes dictionaries, etc.). - **/data/seeds**: gameplay seeds (events, inbox, sponsors). - **/scripts**: helpers to validate and (optionally) ingest a single Excel file into JSONs. - **/src**: minimal loader utilities (JS) that read the JSONs.",
+  "version": "1.0.1",
+  "description": "Historical Formula 1 management game built with React, Vite and a JSON-backed simulation database.",
   "main": "index.js",
   "scripts": {
-  "build:data": "node scripts/convert-excel.mjs",
-  "dev": "vite",
-  "dev:all": "npm-run-all -p dev watch:data",
-  "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\""
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:data": "node scripts/convert-excel.mjs",
+    "validate:data": "node scripts/validate_json.js",
+    "check": "npm run validate:data && npm run build",
+    "dev:all": "npm-run-all -p dev watch:data",
+    "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\""
   },
-  "keywords": [],
+  "keywords": ["f1", "manager", "simulation", "react"],
   "author": "",
   "license": "ISC",
   "dependencies": {
