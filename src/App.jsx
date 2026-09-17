@@ -18,6 +18,9 @@ import Development from "./pages/Development.jsx";
 import Drivers from "./pages/Drivers.jsx";
 import Finances from "./pages/Finances.jsx";
 import Home from "./pages/Home.jsx";
+import MyDrivers from "./pages/MyDrivers.jsx";
+import MyStaff from "./pages/MyStaff.jsx";
+import Teams from "./pages/Teams.jsx";
 import HQ from "./pages/HQ.jsx";
 import Inbox from "./pages/Inbox.jsx";
 import LoadGame from "./pages/LoadGame.jsx";
@@ -116,7 +119,10 @@ export default function App() {
           <Route path="/Home" element={<Home />} />
           <Route path="/Inbox" element={<Inbox />} />
           <Route path="/Drivers" element={<Drivers />} />
+          <Route path="/Teams" element={<Teams />} />
           <Route path="/Team" element={<Team />} />
+          <Route path="/MyDrivers" element={<MyDrivers />} />
+          <Route path="/MyStaff" element={<MyStaff />} />
           <Route path="/Standings" element={<Standings />} />
           <Route path="/Results" element={<Results />} />
           <Route path="/Settings" element={<Settings />} />
