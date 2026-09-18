@@ -82,6 +82,7 @@ function activeContractRows(rows,year){
 function teamIdsForSeason(g,year){
   const ids=new Set();
   for(const row of rowsAtYear(g.teamSeasons,year)){const id=teamId(row);if(id)ids.add(id);}
+  for(const row of rowsAtYear(g.carStats,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of rowsAtYear(g.teamBrands,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of activeContractRows(g.contracts,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of rowsAtYear(g.driverCareer,year)){
@@ -207,6 +208,7 @@ export function materializeSeasonPack(globalData,yearInput){
   const teamBrands=exactOrLatestTeamRows(g.teamBrands,year,teamIds);
   const teamEngines=exactOrLatestTeamRows(g.teamEngines,year,teamIds);
   const facilities=exactOrLatestTeamRows(g.facilities,year,teamIds);
+  const carStats=exactOrLatestTeamRows(g.carStats,year,teamIds);
   const sponsorsContracts=activeContractRows(g.sponsorsContracts,year).filter((r)=>teamIds.has(teamId(r))).map(clean);
   const calendar=calendarRows(g.calendar,year);
 
@@ -229,6 +231,7 @@ export function materializeSeasonPack(globalData,yearInput){
       teamBrands,
       teamEngines,
       facilities,
+      carStats,
       sponsorsContracts,
       rules:effectiveSingle(g.rules,year),
       eraSafety:effectiveSingle(g.eraSafety,year),
