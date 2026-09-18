@@ -63,6 +63,11 @@ function normalizeExpectation(raw){
   if(/survive|debut|qualify|stay in|avoid last/.test(s))return "survive";
   return "midfield";
 }
+function expectationTier(exp){
+  if(["championship","race_wins"].includes(exp))return "top";
+  if(["podiums","midfield","points"].includes(exp))return "midfield";
+  return "backmarker";
+}
 function boardMetrics(gs,teamId){
   const year=Number(gs?.activeYear);
   const events=(gs?.results||[]).filter((r)=>Number(r?.year)===year);
@@ -142,7 +147,15 @@ export default function Board() {
     ? normalizeExpectation(storedBoard.expectation)
     : normalizeExpectation(brand?.board_expectation || "midfield");
   const metrics = useMemo(()=>boardMetrics(gameState,teamId),[gameState,teamId]);
-  const liveObjectives = useMemo(()=>makeObjectives(expectation,metrics),[expectation,metrics]);
+  const rewardProfile = useMemo(() => {
+    const tier=expectationTier(expectation);
+    return (gameState?.dbBoardGoals||[]).find((row)=>String(row?.team_tier||"").toLowerCase()===tier)||null;
+  },[gameState?.dbBoardGoals,expectation]);
+  const liveObjectives = useMemo(()=>makeObjectives(expectation,metrics).map((o)=>({
+    ...o,
+    reward:rewardProfile?.bonuses?.hit || null,
+    penalty:o.priority===1 ? (rewardProfile?.penalties?.fail_major||null) : (rewardProfile?.penalties?.fail_minor||null),
+  })),[expectation,metrics,rewardProfile]);
   const board = useMemo(()=>({
     ...storedBoard,
     profile_version:2,
