@@ -612,7 +612,15 @@ export const useGame = create((set, get) => ({
       }));
 
       const activeY = get().gameState.activeYear || (yearsAvailable[0] ?? 1980);
-      get().applyYearFilter(activeY);
+      const hydrated = get().gameState;
+      const hasActiveCareer = Boolean(
+        hydrated?.careerMeta?.started &&
+        Array.isArray(hydrated?.teams) && hydrated.teams.length &&
+        Array.isArray(hydrated?.drivers) && hydrated.drivers.length
+      );
+      // Rehydrating db* for a lightweight save must never replace the active
+      // simulated world with the historical database for the same year.
+      if (!hasActiveCareer) get().applyYearFilter(activeY);
 
       set((s) => {
         const gs = s.gameState;
