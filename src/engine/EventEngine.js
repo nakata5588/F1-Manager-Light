@@ -1,4 +1,5 @@
 // src/engine/EventEngine.js
+import { ensureAbilityAnchor, recalculateCurrentAbility } from "../domain/driverRating.js";
 
 /** Pequenas utils */
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -112,6 +113,7 @@ function applyEffects(gs, ev, ctx) {
   const ratingsRef = gs.driverRatings && gs.driverRatings.length ? "driverRatings" :
                      (gs.dbDriverRatings && gs.dbDriverRatings.length ? "dbDriverRatings" : null);
   const ratings = ratingsRef ? gs[ratingsRef].slice() : [];
+  const driverAttributes = { ...(gs.driverAttributes || {}) };
 
   // histórico por piloto (dicionário)
   const driverAttrLog = { ...(gs.driverAttrLog || {}) };
@@ -134,13 +136,18 @@ function applyEffects(gs, ev, ctx) {
         const idn = normDriverId(driverIdRaw);
         const { attr, delta = 0 } = fx;
 
-        const rr = findDriverRating(ratings, driverIdRaw);
+        const ratingIndex = ratings.findIndex(r => normDriverId(r?.driver_id ?? r?.id ?? r?.driverId) === idn);
         const drv = findDriver(drivers, driverIdRaw);
 
-        if (rr && attr && typeof rr[attr] !== "undefined") {
+        if (ratingIndex >= 0 && attr && typeof ratings[ratingIndex]?.[attr] !== "undefined") {
+          let rr = ensureAbilityAnchor({ ...ratings[ratingIndex] });
           const before = Number(rr[attr] ?? 0);
+          const overallBefore = Number(rr.current_ability);
           const after  = Math.max(0, Math.min(100, before + Number(delta)));
           rr[attr] = after;
+          rr = recalculateCurrentAbility(rr);
+          ratings[ratingIndex] = rr;
+          const overallAfter = Number(rr.current_ability);
 
           const entry = {
             dateISO: ctx.today,
@@ -149,6 +156,8 @@ function applyEffects(gs, ev, ctx) {
             before,
             after,
             delta: Number(delta),
+            overallBefore: Number.isFinite(overallBefore) ? overallBefore : null,
+            overallAfter: Number.isFinite(overallAfter) ? overallAfter : null,
             source: ev.title || ev.type || "event",
             eventId: ev.id || null,
             note: ev.meta?.note ?? null,
@@ -161,7 +170,10 @@ function applyEffects(gs, ev, ctx) {
           if (driverAttrLog[idn].length > 200) driverAttrLog[idn] = driverAttrLog[idn].slice(-200);
 
           const who = drv?.display_name || "Driver";
-          logLines.push(`• ${who}: ${attr.replaceAll("_"," ")} ${before} → ${after} (${delta>0?"+":""}${delta})`);
+          const overallNote = Number.isFinite(overallBefore) && Number.isFinite(overallAfter) && overallAfter !== overallBefore
+            ? ` · OVR ${overallBefore.toFixed(1)} → ${overallAfter.toFixed(1)}`
+            : "";
+          logLines.push(`• ${who}: ${attr.replaceAll("_"," ")} ${before} → ${after} (${delta>0?"+":""}${delta})${overallNote}`);
         } else {
           logLines.push(`• (nota) não consegui aplicar driver_attr em ${attr} (rating não encontrado).`);
         }
@@ -169,16 +181,31 @@ function applyEffects(gs, ev, ctx) {
       }
 
       case "fatigue": {
-        // Se tiveres um atributo explícito de fadiga noutro engine, apenas registamos o log aqui.
         const driverIdRaw = fx.driverId ?? ev.meta?.driverId ?? ev.participants?.[0];
         const idn = normDriverId(driverIdRaw);
+        const drv = findDriver(drivers, driverIdRaw);
+        const driverKey = String(drv?.driver_id ?? driverIdRaw ?? idn ?? "");
+        const compat = idn ? driverAttributes[idn] : null;
+        const curr = {
+          confidence: 50,
+          fatigue: 20,
+          morale: 50,
+          preparation: 40,
+          ...(compat || {}),
+          ...(driverAttributes[driverKey] || {}),
+        };
+        const before = Number(curr.fatigue ?? 20);
+        const after = Math.max(0, Math.min(100, before + Number(fx.delta || 0)));
+        driverAttributes[driverKey] = { ...curr, fatigue: after };
+        if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];
+
         const entry = {
           dateISO: ctx.today,
           driverId: idn,
           attr: "fatigue",
-          before: null,
-          after: null,
-          delta: Number(fx.delta || 0),
+          before,
+          after,
+          delta: after-before,
           source: ev.title || ev.type || "event",
           eventId: ev.id || null,
           note: ev.meta?.note ?? null,
@@ -188,7 +215,8 @@ function applyEffects(gs, ev, ctx) {
         driverAttrLog[idn] = driverAttrLog[idn].concat(entry);
         if (driverAttrLog[idn].length > 200) driverAttrLog[idn] = driverAttrLog[idn].slice(-200);
 
-        logLines.push(`• Fadiga do piloto ${idn} ${fx.delta>0?"+":""}${fx.delta}`);
+        const who = drv?.display_name || drv?.name || driverKey;
+        logLines.push(`• ${who}: fatigue ${before.toFixed(0)} → ${after.toFixed(0)} (${after-before>0?"+":""}${(after-before).toFixed(0)})`);
         break;
       }
 
@@ -264,6 +292,7 @@ function applyEffects(gs, ev, ctx) {
   // devolve gs “patchado”
   const patched = { ...gs };
   if (ratingsRef) patched[ratingsRef] = ratings;
+  patched.driverAttributes = driverAttributes;
   patched.driverAttrLog = driverAttrLog;
 
   return { patched, logLines, changes };
