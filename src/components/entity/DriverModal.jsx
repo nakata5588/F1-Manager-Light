@@ -178,6 +178,14 @@ export default function DriverModal({ entity, onClose }) {
     [contractsList, idNorm]
   );
 
+  // Contract values are needed by the live-season memo below. Keep these
+  // declarations before any memo that references them to avoid TDZ crashes.
+  const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
+  const contractEnd = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
+  const contractTeam = unbox(contract?.team_name) ?? null;
+  const contractRole = niceRole(contract?.role);
+  const contractSalary = unbox(contract?.salary);
+
   const futureTransfer = useMemo(() => {
     const list = (contractsList || []).filter((c) => sameDriver(c?.driver_id ?? c?.person_id ?? c?.id, idNorm));
     if (!list.length || !gameDateISO) return null;
@@ -388,12 +396,6 @@ export default function DriverModal({ entity, onClose }) {
 
   const overall       = attrs?.current_ability != null ? Math.round(Number(unbox(attrs.current_ability))) : null;
   const marketValue   = unbox(attrs?.market_value);
-  const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
-  const contractEnd   = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
-  const contractTeam  = unbox(contract?.team_name) ?? null;
-  const contractRole  = niceRole(contract?.role);
-  const contractSalary= unbox(contract?.salary);
-
   const driverName    = unbox(driver?.display_name) || unbox(driver?.name);
   const driverNumber  = unbox(driver?.prefered_number);
   const driverCountry = unbox(driver?.country_name);
