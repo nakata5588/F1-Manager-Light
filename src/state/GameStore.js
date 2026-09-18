@@ -488,7 +488,7 @@ export const useGame = create((set, get) => ({
   },
 
   /** ===================== AVANÇAR UM DIA ===================== */
-  advanceOneDay: () => {
+  advanceOneDay: async () => {
     const s = get().gameState;
     const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
     const newISO  = addDaysISO(baseISO, 1);
@@ -511,6 +511,14 @@ export const useGame = create((set, get) => ({
     } catch (e) {
       console.warn("[EventEngine] daily tick failed:", e);
     }
+
+    // Keep single-day advance behavior aligned with "advance until break".
+    try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
+
     set({ gameState: updated });
 
     // ---- Fim de época: se já passámos a última corrida, abre Season Summary ----
