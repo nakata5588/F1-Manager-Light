@@ -72,3 +72,13 @@ test("Season Pack index exposes the requested multi-era validation years",async(
     assert.equal(years.get(year).ready,true,`${year} is not ready: ${JSON.stringify(years.get(year))}`);
   }
 });
+
+
+test("derived F1 history covers the sparse manual-career eras",async()=>{
+  const file=path.join(root,"public","data","driver_f1_history.json");
+  const rows=JSON.parse(await fs.readFile(file,"utf8"));
+  for(const year of [1980,1987,1989,1999,2014,2020]){
+    const ids=new Set(rows.filter((r)=>Number(r.year)===year).map((r)=>String(r.driver_id)));
+    assert.ok(ids.size>=20,`${year} historical profile coverage is too sparse: ${ids.size} drivers`);
+  }
+});
