@@ -1,14 +1,8 @@
 // src/engine/GPEngine.js
-import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
+import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
+import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
 
 function rnorm() { return (Math.random() - 0.5) * 0.6; }
-function basePace(d, ratings, gs){
-  const rec = (ratings || []).find(r => String(r.driver_id) === String(d.driver_id));
-  const pace = Number(rec?.pace ?? rec?.overall ?? rec?.current_ability ?? 60);
-  const overall = Number(rec?.current_ability ?? pace);
-  const blended = Number.isFinite(overall) ? pace * 0.80 + overall * 0.20 : pace;
-  return blended - fatiguePenalty(gs, d?.driver_id ?? d?.id);
-}
 
 const unwrap = (value) => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -25,6 +19,16 @@ const pick = (obj, keys, fb = undefined) => {
   }
   return fb;
 };
+function ratingFor(ratings,driver){
+  return (ratings||[]).find((r)=>String(r?.driver_id??r?.id??"")===String(driver?.driver_id??driver?.id??""))||{};
+}
+function isWetGP(gp){
+  const raw=String(
+    gp?.weather ?? gp?.conditions ?? gp?.condition ?? gp?.forecast ?? ""
+  ).toLowerCase();
+  return /wet|rain|storm|shower/.test(raw);
+}
+
 const clampISO = (iso) => String(iso || "").slice(0, 10);
 const getTeamId = (t) => String(pick(t, ["team_id","id","name","team_name","short_name"], JSON.stringify(t)));
 
@@ -149,7 +153,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex) {
     const rating=(ratings||[]).find((r)=>String(r?.driver_id)===String(driver?.driver_id))||{};
     const rel=teamReliability(gs,driver);
     const crashLik=clamp(Number(pick(rating,["crash_likelihood"],35))/100,0.05,0.95);
-    const fatigue=Number(driverCondition(gs,driver?.driver_id)?.fatigue ?? 20);
+    const fatigue=Number(driverCondition(gs,driver?.driver_id)?.fatigue ?? 0);
 
     // Older/less reliable cars fail more often. Crash likelihood is a separate route to DNF.
     const mechanicalChance=clamp((1-rel)*0.68,0.015,0.28);
@@ -204,7 +208,13 @@ function buildRaceTiming(race, ratings, roundIndex, gs) {
   let previousGapToWinnerMs = 0;
 
   const timed = race.map((row, index) => {
-    const pace = basePace(row.driver, ratings, gs);
+    const pace = Number(row.performance ?? combinedRacePerformance({
+      gs,
+      driver:row.driver,
+      rating:ratingFor(ratings,row.driver),
+      teamId:resolveDriverTeamId(gs,row.driver),
+      wet:false,
+    }));
     if (index > 0) {
       const stepSeconds = 0.65 + Math.random() * 4.8 + Math.max(0, 90 - pace) * 0.035;
       gapToWinnerMs += Math.round(stepSeconds * 1000);
@@ -533,19 +543,33 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const teamsById = new Map((gs.teams||[]).map(t => [String(t.team_id||t.id||t.name), t]));
   const pointsTable = getActivePointsTable(gs);
 
+  const wet=isWetGP(gp);
   const qualy = drivers
-    .map(d => ({ d, score: basePace(d, ratings, gs) + rnorm()*5 }))
+    .map((d) => {
+      const rating=ratingFor(ratings,d);
+      const teamId=resolveDriverTeamId(gs,d);
+      const score=combinedQualifyingPerformance({gs,driver:d,rating,teamId,wet}) + rnorm()*4;
+      return {d,score};
+    })
     .sort((a,b) => b.score - a.score)
-    .map((x,i) => ({ pos: i+1, driver: x.d }));
+    .map((x,i) => ({ pos:i+1, driver:x.d, performance:x.score }));
 
+  const fieldSize=Math.max(1,qualy.length);
   const raceOrder = qualy
-    .map((q) => ({
-      ...q,
-      raceDelta: rnorm() * 4,
-      opsBonus: raceOperationsBonus(gs, q.driver),
-    }))
-    .sort((a,b) => (a.pos + a.raceDelta - a.opsBonus) - (b.pos + b.raceDelta - b.opsBonus))
-    .map((x,i) => ({ pos: i+1, driver: x.driver }));
+    .map((q) => {
+      const rating=ratingFor(ratings,q.driver);
+      const teamId=resolveDriverTeamId(gs,q.driver);
+      const racePerf=combinedRacePerformance({gs,driver:q.driver,rating,teamId,wet});
+      const gridBonus=(fieldSize-q.pos)*0.18;
+      const launchBonus=(Number(rating?.start_launch??60)-60)*0.025;
+      const opsBonus=raceOperationsBonus(gs,q.driver);
+      return {
+        ...q,
+        raceScore:racePerf+gridBonus+launchBonus+opsBonus+rnorm()*6,
+      };
+    })
+    .sort((a,b)=>b.raceScore-a.raceScore)
+    .map((x,i)=>({pos:i+1,driver:x.driver,performance:x.raceScore}));
 
   const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex, gs);
   const race = applyRetirements(gs, timedRace, ratings, roundIndex);
@@ -646,20 +670,41 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
 
-  // A race weekend creates real physical load. Daily progression/rest then
-  // brings this back down between events.
+  // Race weekends change physical and psychological condition. Conditions are
+  // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
   const conditionDict={...(afterRelations.driverAttributes||{})};
+  const qualifyingPos=new Map(qualy.map((row)=>[String(row?.driver?.driver_id??""),Number(row.pos)]));
   for(const row of race){
     const did=String(row?.driver?.driver_id??"");
     if(!did)continue;
-    const curr={
-      confidence:50,
-      fatigue:20,
-      morale:50,
-      preparation:40,
-      ...(conditionDict[did]||{}),
+    const curr={...defaultDriverCondition(),...(conditionDict[did]||{})};
+    const finish=Number(row.pos);
+    const start=Number(qualifyingPos.get(did)??finish);
+    const positionDelta=Number.isFinite(start)&&Number.isFinite(finish)?start-finish:0;
+
+    let confidenceDelta=Math.max(-2,Math.min(2,positionDelta*0.35));
+    let moraleDelta=Math.max(-1.5,Math.min(1.5,positionDelta*0.25));
+    if(row.retired){
+      confidenceDelta-=4;
+      moraleDelta-=2;
+    }else if(finish===1){
+      confidenceDelta+=5;
+      moraleDelta+=4;
+    }else if(finish<=3){
+      confidenceDelta+=3;
+      moraleDelta+=2;
+    }else if(finish<=Math.max(5,Math.ceil(race.length/2))){
+      confidenceDelta+=1;
+      moraleDelta+=0.5;
+    }
+
+    conditionDict[did]={
+      ...curr,
+      fatigue:clamp(Number(curr.fatigue||0)+8,0,100),
+      preparation:clamp(Number(curr.preparation||50)-8,0,100),
+      confidence:clamp(Number(curr.confidence||50)+confidenceDelta,0,100),
+      morale:clamp(Number(curr.morale||50)+moraleDelta,0,100),
     };
-    conditionDict[did]={...curr,fatigue:clamp(Number(curr.fatigue||0)+6,0,100)};
   }
   afterRelations.driverAttributes=conditionDict;
 
