@@ -70,6 +70,18 @@ function resolveDriver(row){
   return driverNameToId.get(canon(name))||"";
 }
 
+const diagnosticRows=(Array.isArray(rows)?rows:[])
+  .filter((r)=>[2014,2020].includes(Number(unwrap(r?.year??r?.season_year))))
+  .slice(0,8)
+  .map((r)=>({
+    year:unwrap(r?.year??r?.season_year),
+    keys:Object.keys(r).filter((k)=>/team|constructor/i.test(k)),
+    values:Object.fromEntries(Object.entries(r).filter(([k])=>/team|constructor/i.test(k))),
+    driver_id:unwrap(r?.driver_id),
+    driver_name:unwrap(r?.driver_name),
+  }));
+if(diagnosticRows.length) console.log("[team-seasons diagnostic]",JSON.stringify(diagnosticRows));
+
 const byKey = new Map();
 for(const r of Array.isArray(rows) ? rows : []) {
   const year=Number(unwrap(r?.year??r?.season_year));
