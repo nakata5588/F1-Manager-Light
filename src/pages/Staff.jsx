@@ -28,10 +28,10 @@ function department(role){
 export default function Staff(){
   const gs=useGame(s=>s.gameState);
   const year=Number(gs?.activeYear);
-  const core=gs?.staffCore?.length?gs.staffCore:gs?.dbStaffCore||[];
-  const ratings=gs?.staffRatings?.length?gs.staffRatings:gs?.dbStaffRatings||[];
-  const contracts=gs?.staffContracts?.length?gs.staffContracts:gs?.dbStaffContracts||[];
-  const teams=gs?.teams?.length?gs.teams:gs?.dbTeams||[];
+  const core=Array.isArray(gs?.staffCore)?gs.staffCore:[];
+  const ratings=Array.isArray(gs?.staffRatings)?gs.staffRatings:[];
+  const contracts=Array.isArray(gs?.staffContracts)?gs.staffContracts:[];
+  const teams=Array.isArray(gs?.teams)?gs.teams:[];
 
   const [q,setQ]=useState("");
   const [dept,setDept]=useState("ALL");
@@ -43,7 +43,9 @@ export default function Staff(){
   const teamNameById=useMemo(()=>new Map(teams.map(t=>[String(t?.team_id??t?.id??""),t?.team_name||t?.name||"—"])),[teams]);
 
   const rows=useMemo(()=>{
-    const ids=new Set([...core.map(staffIdOf),...ratings.map(staffIdOf),...contracts.map(staffIdOf)]);
+    // Only people with a current-season rating or contract are considered active.
+    // staff_core is identity metadata and must not make every living person "active".
+    const ids=new Set([...ratings.map(staffIdOf),...contracts.map(staffIdOf)]);
     return [...ids].filter(Boolean).map(id=>{
       const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
       const contract=contracts.find(c=>{
