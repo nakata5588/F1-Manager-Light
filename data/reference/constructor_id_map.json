@@ -1286,5 +1286,7 @@
       "constructorName": "Audi",
       "nationality": "German"
     }
-  ]
+  ],
+  "source_url": "https://github.com/TracingInsights/RaceData/blob/main/data/constructors.csv",
+  "source_note": "Reference identity bridge only; gameplay team identity remains controlled by the F1 Manager Light Global Database."
 }
