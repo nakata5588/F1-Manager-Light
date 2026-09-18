@@ -507,17 +507,18 @@ function SponsorsTab({ sponsors }) {
     }[objective] ?? 0.25;
     const valuePremium = annual >= 3_500_000 ? 0.05 : annual >= 2_500_000 ? 0.025 : 0;
     const required = Math.min(0.85, baseThreshold + valuePremium);
-    const eligible = commercialProfile.score >= required;
+    const relationshipScore = commercialScore / 100;
+    const eligible = relationshipScore >= required;
     const objectiveLabel = objective ? objective.replace(/_/g, " ") : "brand fit";
     return {
       eligible,
       required,
-      score: commercialProfile.score,
+      score: relationshipScore,
       text: eligible
         ? `Eligible · ${objectiveLabel} requirement met`
-        : `Needs commercial score ${Math.round(required*100)}% for ${objectiveLabel} (current ${Math.round(commercialProfile.score*100)}%)`,
+        : `Needs Commercial Score ${Math.round(required*100)} for ${objectiveLabel} (current ${commercialScore})`,
     };
-  }, [commercialProfile]);
+  }, [commercialScore]);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -569,7 +570,7 @@ function SponsorsTab({ sponsors }) {
       // construir contrato para sponsors_contracts
       const monthly_fee =
         N(pick(sp, ["monthly_fee", "monthly", "per_month"], NaN), NaN) ||
-        N(pick(sp, ["annual_income", "value_year"], 0), 0) / 12;
+        N(pick(sp, ["annual_income", "anual_income", "value_year"], 0), 0) / 12;
       const annual_income = N(pick(sp, ["annual_income", "anual_income", "value_year"], Math.round((monthly_fee || 0) * 12)), 0);
       const cash_upfront = N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0);
 
@@ -653,6 +654,7 @@ function SponsorsTab({ sponsors }) {
               <option value="active">Active</option>
               <option value="expired">Expired</option>
               <option value="pending">Pending</option>
+              <option value="terminated">Terminated</option>
             </select>
             <div className="text-sm text-muted-foreground">
               {filtered.length} sponsors • Main {activeMains.length}/1 • Secondary {activeSeconds.length}/3 • Commercial Score <strong>{commercialScore}/100</strong>
