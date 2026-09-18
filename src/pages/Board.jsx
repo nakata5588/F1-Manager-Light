@@ -81,9 +81,7 @@ function boardMetrics(gs,teamId){
 }
 function makeObjectives(expectation,metrics){
   const maxPos=Math.max(1,metrics.totalTeams||12);
-  const defs=expectation==="championship"[
-    ? null:null];
-  let rows=[];
+   let rows=[];
   if(expectation==="championship")rows=[
     {id:"constructors",type:"constructor_position",target:2,title:"Championship challenge",desc:"Finish P2 or better in the Constructors' Championship.",weight:1.35,priority:1},
     {id:"wins",type:"wins",target:2,title:"Win races",desc:"Win at least 2 Grands Prix.",weight:1.10,priority:1},
@@ -139,12 +137,20 @@ export default function Board() {
   const brand = (gameState?.teamBrands || []).find(
     (b)=>String(b?.team_id ?? "") === teamId
   );
-  const source = gameState?.board || fallback || {
-    reputation:0.5,
-    expectation:brand?.board_expectation || "Competitive season",
-    objectives:[],
-  };
-  const board = useMemo(()=>normalizeBoard(source),[source]);
+  const storedBoard = useMemo(()=>normalizeBoard(gameState?.board || {}),[gameState?.board]);
+  const expectation = storedBoard?.profile_version===2
+    ? normalizeExpectation(storedBoard.expectation)
+    : normalizeExpectation(brand?.board_expectation || "midfield");
+  const metrics = useMemo(()=>boardMetrics(gameState,teamId),[gameState,teamId]);
+  const liveObjectives = useMemo(()=>makeObjectives(expectation,metrics),[expectation,metrics]);
+  const board = useMemo(()=>({
+    ...storedBoard,
+    profile_version:2,
+    expectation,
+    reputation:clamp01(storedBoard.reputation ?? 0.55),
+    objectives:liveObjectives,
+    actions:Array.isArray(storedBoard.actions)?storedBoard.actions:[],
+  }),[storedBoard,expectation,liveObjectives]);
 
   const objectiveScore = useMemo(() => {
     if (!board.objectives.length) return 0.5;
@@ -160,6 +166,13 @@ export default function Board() {
     [board.reputation,objectiveScore]
   );
 
+  const seasonProgress = clamp01(metrics.races / metrics.totalRaces);
+  const reviews = board.actions
+    .filter((a)=>a.type==="board_review")
+    .sort((a,b)=>Number(b.race_count||0)-Number(a.race_count||0));
+  const lastReviewRace = Number(reviews[0]?.race_count ?? -99);
+  const reviewCooldown = metrics.races - lastReviewRace < 3;
+
   const rows = useMemo(
     ()=>board.objectives
       .filter((o)=>status==="all" || o.status===status)
@@ -168,9 +181,6 @@ export default function Board() {
     [board.objectives,status,category]
   );
 
-  const pendingGoal = board.actions.find(
-    (a)=>a.type==="goal_change" && a.status==="pending" && Number(a.year)===year
-  );
   const budgetRequests = board.actions
     .filter((a)=>a.type==="budget_request")
     .sort((a,b)=>String(b.date || "").localeCompare(String(a.date || "")));
@@ -198,22 +208,38 @@ export default function Board() {
   const persist = (next)=>setGameState({board:next});
 
   const proposeGoal = () => {
-    const proposal = window.prompt("Propose a revised season expectation:",String(board.expectation || ""));
-    if (!proposal || proposal.trim() === String(board.expectation || "").trim()) return;
+    const proposal = normalizeExpectation(goalProposal);
+    if (!goalProposal || proposal === expectation) return;
+    const currentRank = EXPECTATION_ORDER.indexOf(expectation);
+    const proposalRank = EXPECTATION_ORDER.indexOf(proposal);
+    const easier = proposalRank < currentRank;
+    const performanceRatio = seasonProgress > 0 ? objectiveScore / seasonProgress : 1;
+    const approved = easier
+      ? (performanceRatio < 0.80 || overallConfidence < 0.48)
+      : overallConfidence >= 0.58;
+    const explanation = approved
+      ? "Approved: the official season expectation changes from " + EXPECTATION_LABEL[expectation] + " to " + EXPECTATION_LABEL[proposal] + "."
+      : easier
+        ? "Declined: current results do not yet justify lowering the official season target."
+        : "Declined: Board Confidence must be at least 58% before raising the official season target.";
     const action = {
       id:`board_goal_${Date.now()}`,
       type:"goal_change",
       year,
       date,
-      status:"pending",
-      proposal:proposal.trim(),
+      status:approved ? "approved" : "declined",
+      from:expectation,
+      to:proposal,
+      explanation,
     };
-    persist({...board,actions:[...board.actions,action],pendingExpectation:proposal.trim()});
-    addInbox(
-      "Board",
-      "Goal-change proposal submitted",
-      `You asked the board to revise the season expectation to: ${proposal.trim()}. The request is pending review.`
-    );
+    persist({
+      ...board,
+      expectation:approved ? proposal : expectation,
+      reputation:clamp01(board.reputation + (approved ? 0.005 : -0.005)),
+      actions:[...board.actions,action],
+    });
+    addInbox("Board", approved ? "Goal change approved" : "Goal change declined", explanation);
+    setGoalProposal("");
   };
 
   const submitBudgetRequest = () => {
@@ -285,38 +311,40 @@ export default function Board() {
     setShowBudget(false);
   };
 
-  const reportProgress = () => {
-    const previousReports = board.actions
-      .filter((a)=>a.type==="progress_report")
-      .sort((a,b)=>String(b.date || "").localeCompare(String(a.date || "")));
-    const previousScore = Number(previousReports[0]?.objective_score ?? 0.5);
-    const improvement = objectiveScore - previousScore;
-    const delta = Math.max(-0.02,Math.min(0.02,improvement * 0.08));
+  const requestBoardReview = () => {
+    if (metrics.races === 0 || reviewCooldown) return;
+    const expected = Math.max(0.10, seasonProgress);
+    let delta = 0;
+    if (objectiveScore >= Math.min(1, expected + 0.15)) delta = 0.02;
+    else if (objectiveScore >= expected) delta = 0.01;
+    else if (objectiveScore < expected * 0.55) delta = -0.02;
+    else if (objectiveScore < expected * 0.80) delta = -0.01;
+
+    const explanation =
+      "Review after " + metrics.races + "/" + metrics.totalRaces +
+      " races: objective score " + pct(objectiveScore) +
+      " vs expected season progress " + pct(expected) + ". " +
+      "Board Reputation " + (delta > 0 ? "increased" : delta < 0 ? "decreased" : "was unchanged") +
+      " by " + Math.abs(Math.round(delta * 100)) + " point(s).";
 
     const action = {
-      id:`board_report_${Date.now()}`,
-      type:"progress_report",
+      id:`board_review_${Date.now()}`,
+      type:"board_review",
       year,
       date,
-      status:"submitted",
-      confidence:overallConfidence,
+      status:"completed",
+      race_count:metrics.races,
       objective_score:objectiveScore,
-      previous_objective_score:previousScore,
+      expected_score:expected,
       reputation_delta:delta,
+      explanation,
     };
-
     persist({
       ...board,
       reputation:clamp01(board.reputation + delta),
       actions:[...board.actions,action],
     });
-
-    const direction = delta > 0 ? "improved" : delta < 0 ? "reduced" : "did not change";
-    addInbox(
-      "Board",
-      "Progress report received",
-      `The report recorded objective completion at ${pct(objectiveScore)} versus ${pct(previousScore)} in the previous report baseline. Board reputation ${direction} by ${Math.abs(Math.round(delta*100))} point(s).`
-    );
+    addInbox("Board","Board review completed",explanation);
   };
 
   function addInbox(from,subject,body) {
