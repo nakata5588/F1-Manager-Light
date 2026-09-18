@@ -6,6 +6,11 @@ import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
+import {
+  approachDriverAgentState,
+  submitDriverContractOfferState,
+  terminateDriverContractState,
+} from "@/domain/contractState";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -370,6 +375,9 @@ export const useGame = create((set, get) => ({
     // Inbox e fila
     inbox: [],
     eventsQueue: [],
+
+    // Driver employment negotiations
+    driverNegotiations: {},
 
     // histórico de atributos por piloto
     driverAttrLog: {},
@@ -1348,6 +1356,25 @@ export const useGame = create((set, get) => ({
       console.warn("loadFromKey failed:", e);
     }
     return null;
+  },
+
+  // ====== DRIVER CONTRACT MARKET ======
+  approachDriverAgent: (driverId) => {
+    const { state, result } = approachDriverAgentState(get().gameState, driverId);
+    set({ gameState: state });
+    return result;
+  },
+
+  submitDriverContractOffer: (driverId, offer) => {
+    const { state, result } = submitDriverContractOfferState(get().gameState, driverId, offer);
+    if (state !== get().gameState) set({ gameState: state });
+    return result;
+  },
+
+  terminateDriverContract: (driverId) => {
+    const { state, result } = terminateDriverContractState(get().gameState, driverId);
+    if (state !== get().gameState) set({ gameState: state });
+    return result;
   },
 
   // ====== Queue de eventos (ex.: ações de piloto) ======
