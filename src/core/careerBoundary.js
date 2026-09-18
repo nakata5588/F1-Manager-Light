@@ -365,7 +365,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     careerMeta:meta,
 
     // Mutable active people/teams survive the boundary.
-    teams:updateAges(state.teams||[],targetYear),
+    teams:(state.teams||[]).map((row)=>({...row})),
     drivers:uniqueBy([...updateAges(state.drivers||[],targetYear),...unlockedDrivers],idOfDriver),
     driverRatings:[...activeRatings.values()],
     contracts:carryContracts(state.contracts||[],targetYear),
