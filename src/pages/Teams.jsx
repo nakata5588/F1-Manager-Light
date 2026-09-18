@@ -18,13 +18,17 @@ export default function Teams(){
   const brands=gs?.dbTeamBrands||[];
   const career=gs?.dbDriverCareer||[];
   const achievements=Array.isArray(gs?.dbAchievements)?gs.dbAchievements:(gs?.dbAchievements?.list||[]);
+  const teamSeasons=Array.isArray(gs?.dbTeamSeasons)?gs.dbTeamSeasons:[];
 
   const rows=useMemo(()=>{
     const y=Number(year);
     const teamIds=new Set();
 
+    const seasonRows=teamSeasons.filter((r)=>Number(pick(r,["year","season_year"],NaN))===y);
+    for(const row of seasonRows){ const tid=teamIdOf(row); if(tid) teamIds.add(tid); }
+
     const brandRows=brands.filter((b)=>Number(pick(b,["year","season_year"],NaN))===y);
-    for(const b of brandRows){ const tid=teamIdOf(b); if(tid) teamIds.add(tid); }
+    if(!teamIds.size) for(const b of brandRows){ const tid=teamIdOf(b); if(tid) teamIds.add(tid); }
 
     if(!teamIds.size){
       for(const row of career){
@@ -55,14 +59,16 @@ export default function Teams(){
         });
 
     const brandById=new Map(brandRows.map((b)=>[teamIdOf(b),b]));
+    const seasonById=new Map(seasonRows.map((r)=>[teamIdOf(r),r]));
     return source.map(t=>{
       const id=teamIdOf(t);
       const driverCount=contracts.filter(c=>Number(pick(c,["year","season_year"],NaN))===Number(year)&&teamIdOf(c)===id&&String(pick(c,["role","position"],"")).toLowerCase().includes("driver")).length;
       const principal=staffContracts.find(c=>Number(pick(c,["year","season_year"],NaN))===Number(year)&&teamIdOf(c)===id&&/principal|owner/i.test(String(pick(c,["role","position"],""))));
       const brand=brandById.get(id)||{};
+      const seasonRec=seasonById.get(id)||{};
       return {
         id,
-        name:pick(brand,["team_name","team_official_name","short_name"],pick(t,["team_name","name","short_name"],id)),
+        name:pick(brand,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id))),
         shortName:pick(brand,["short_name"],pick(t,["short_name"],"")),
         country:pick(t,["team_base","country","base"],""),
         code:pick(t,["country_code"],""),
@@ -75,7 +81,7 @@ export default function Teams(){
         principal:pick(principal,["staff_name","name"],"—"),
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
-  },[teams,contracts,staffContracts,brands,career,achievements,year]);
+  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,year]);
 
   const filtered=rows.filter(r=>!q||[`${r.name}`,`${r.country}`,`${r.principal}`].some(v=>v.toLowerCase().includes(q.toLowerCase())));
 
