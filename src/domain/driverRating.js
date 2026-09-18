@@ -77,18 +77,33 @@ export function recalculateCurrentAbility(rating){
   };
 }
 
+export function defaultDriverCondition(){
+  return { confidence:50, fatigue:0, morale:50, preparation:50 };
+}
+
+export function normalizeDriverCondition(value){
+  const base=defaultDriverCondition();
+  const src=value&&typeof value==="object"?value:{};
+  return {
+    confidence:clamp(Number.isFinite(Number(src.confidence))?Number(src.confidence):base.confidence),
+    fatigue:clamp(Number.isFinite(Number(src.fatigue))?Number(src.fatigue):base.fatigue),
+    morale:clamp(Number.isFinite(Number(src.morale))?Number(src.morale):base.morale),
+    preparation:clamp(Number.isFinite(Number(src.preparation))?Number(src.preparation):base.preparation),
+  };
+}
+
 export function driverCondition(gs,driverId){
   const dict=gs?.driverAttributes||{};
   const direct=dict[String(driverId)];
-  if(direct)return direct;
+  if(direct)return normalizeDriverCondition(direct);
   const digits=String(driverId??"").match(/(\d+)/)?.[1]?.padStart(4,"0");
-  return digits ? (dict[digits]||null) : null;
+  return normalizeDriverCondition(digits ? dict[digits] : null);
 }
 
 export function fatiguePenalty(gs,driverId){
-  const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 20);
-  // No material race penalty under normal workload. Above 40 fatigue, the
-  // effect ramps gently to a maximum -6 pace points at 100.
-  if(!Number.isFinite(fatigue)||fatigue<=40)return 0;
-  return Math.min(6,(fatigue-40)*0.10);
+  const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
+  // 0 means fully fresh. Normal workload is effectively free; sustained load
+  // above 25 starts to reduce performance and reaches -6 at extreme fatigue.
+  if(!Number.isFinite(fatigue)||fatigue<=25)return 0;
+  return Math.min(6,(fatigue-25)*0.08);
 }
