@@ -336,3 +336,26 @@ export function ensureAIDriverLineups(gs,{minimumRaceDrivers=2}={}){
   }
   return {contracts,signings};
 }
+
+
+export function carryActiveDriverContractsToSeason(gs,targetYear){
+  const year=Number(targetYear);
+  return (gs?.contracts||[])
+    .filter((c)=>{
+      if(!isDriverContract(c))return true;
+      const status=String(c?.status||"active").toLowerCase();
+      if(["terminated","expired","rejected"].includes(status))return false;
+      const start=num(pick(c,["contract_start_year","start_year","year"],year),year);
+      const end=num(pick(c,["contract_until_year","end_year","year"],year-1),year-1);
+      return start<=year&&end>=year;
+    })
+    .map((c)=>isDriverContract(c)?{...c,year,season_year:year}:{...c});
+}
+
+export function expiringDriverContracts(gs,{withinYears=0}={}){
+  const year=Number(gs?.activeYear);
+  return activeDriverContracts(gs).filter((c)=>{
+    const end=num(pick(c,["contract_until_year","end_year","year"],year),year);
+    return end<=year+Number(withinYears||0);
+  });
+}
