@@ -92,7 +92,7 @@ export default function Scouting() {
 
   const allProspects = useMemo(() => drivers
     .filter((d) => Boolean(d?.active_lower_series))
-    .filter((d) => ["junior_only","lower_series","eligible"].includes(String(d?.status || "")))
+    .filter((d) => ["junior_only","lower_series"].includes(String(d?.status || "")))
     .sort((a,b) => {
       const ar = ratingById.get(idOf(a)) || {};
       const br = ratingById.get(idOf(b)) || {};
