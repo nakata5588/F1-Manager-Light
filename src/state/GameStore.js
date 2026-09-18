@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { triggerDailyTick } from "@/engine/EventEngine";
 import { processScoutingTick } from "@/engine/ScoutingEngine";
+import { createCareerMeta } from "@/core/careerBoundary";
+import { rolloverSeasonPure } from "@/core/season";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
