@@ -11,18 +11,18 @@ const nameOf=(d)=>d?.display_name||d?.name||d?.driver_name||`${d?.first_name??""
 
 function marketStatus(driver, contract){
   if(contract) return "Contracted";
-  if(driver?.status==="junior_only"||driver?.canHireAcademy) return "Youth";
-  if(driver?.status==="retired") return "Retired";
-  if(driver?.canHireF1||driver?.status==="eligible") return "Free";
+  if(driver?.status==="junior_only" || driver?.canHireAcademy) return "Youth";
+  if(driver?.status==="lower_series") return "Lower Series";
+  if(driver?.canHireF1 || driver?.status==="eligible") return "Free";
   return "Available";
 }
 
 export default function Drivers(){
   const gs=useGame(s=>s.gameState);
-  const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
-  const ratings=gs?.driverRatings?.length?gs.driverRatings:gs?.dbDriverRatings||[];
-  const contracts=gs?.contracts?.length?gs.contracts:gs?.dbContracts||[];
-  const teams=gs?.teams?.length?gs.teams:gs?.dbTeams||[];
+  const drivers=Array.isArray(gs?.drivers)?gs.drivers:[];
+  const ratings=Array.isArray(gs?.driverRatings)?gs.driverRatings:[];
+  const contracts=Array.isArray(gs?.contracts)?gs.contracts:[];
+  const teams=Array.isArray(gs?.teams)?gs.teams:[];
   const activeYear=Number(gs?.activeYear);
 
   const [q,setQ]=useState("");
@@ -66,7 +66,7 @@ export default function Drivers(){
   }),[drivers,ratingById,contractById,teamNames,gs?.currentDateISO]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
-  const statusOptions=["ALL","Contracted","Free","Youth","Retired","Available"];
+  const statusOptions=["ALL","Contracted","Free","Youth","Lower Series","Available"];
 
   const filtered=useMemo(()=>{
     const n=q.trim().toLowerCase();
