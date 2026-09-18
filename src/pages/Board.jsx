@@ -364,26 +364,42 @@ export default function Board() {
       <div className="flex flex-col md:flex-row md:items-center gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold">Board</h1>
-          <p className="text-sm text-muted-foreground">Season {year} · expectation: <strong>{board.expectation}</strong></p>
+          <p className="text-sm text-muted-foreground">Season {year} · official expectation: <strong>{EXPECTATION_LABEL[expectation]}</strong></p>
         </div>
         <div className="flex-1"/>
-        {pendingGoal && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">Goal proposal pending</span>}
+        <span className="text-xs bg-gray-100 px-2 py-1 rounded">Based on team/season database</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Metric title="Overall Confidence" value={pct(overallConfidence)} progress={overallConfidence}/>
         <Metric title="Objective Score" value={pct(objectiveScore)} progress={objectiveScore}/>
+        <Metric title="Season Progress" value={pct(seasonProgress)} progress={seasonProgress}/>
         <Metric title="Board Reputation" value={pct(board.reputation)} progress={board.reputation}/>
       </div>
+
+      <Card><CardContent className="p-4">
+        <div className="font-semibold mb-3">Current Sporting Position</div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <Mini label="Races" value={metrics.races + "/" + metrics.totalRaces}/>
+          <Mini label="Constructors" value={metrics.constructorPosition ? "P" + metrics.constructorPosition : "—"}/>
+          <Mini label="Points" value={metrics.points}/>
+          <Mini label="Wins" value={metrics.wins}/>
+          <Mini label="Podiums" value={metrics.podiums}/>
+        </div>
+      </CardContent></Card>
 
       <Card><CardContent className="p-4">
         <div className="font-semibold mb-3">Board Actions</div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <ActionInfo
             title="Propose Goal Change"
-            text="Ask the board to revise the current season expectation. The proposal is recorded as pending rather than changing the target immediately."
+            text="Choose one of the predefined sporting expectations. The board accepts or rejects it using current results and confidence."
           >
-            <Button size="sm" variant="outline" onClick={proposeGoal} disabled={Boolean(pendingGoal)}>Propose Goal Change</Button>
+            <select className="border rounded px-2 py-1 text-sm w-full mb-2" value={goalProposal} onChange={(e)=>setGoalProposal(e.target.value)}>
+              <option value="">Choose target…</option>
+              {EXPECTATION_ORDER.filter((x)=>x!==expectation).map((x)=><option key={x} value={x}>{EXPECTATION_LABEL[x]}</option>)}
+            </select>
+            <Button size="sm" variant="outline" onClick={proposeGoal} disabled={!goalProposal}>Submit Proposal</Button>
           </ActionInfo>
 
           <ActionInfo
@@ -396,10 +412,14 @@ export default function Board() {
           </ActionInfo>
 
           <ActionInfo
-            title="Report Progress"
-            text="Send a formal snapshot of objective progress to the board. Reputation moves slightly depending on whether your objective score improved since the previous report."
+            title="Request Board Review"
+            text={metrics.races===0
+              ? "Available after the first Grand Prix."
+              : reviewCooldown
+                ? "A Board Review can be requested once every 3 races."
+                : `Compares objective score (${pct(objectiveScore)}) with expected season progress (${pct(Math.max(0.10,seasonProgress))}) and updates Board Reputation.`}
           >
-            <Button size="sm" variant="outline" onClick={reportProgress}>Report Progress</Button>
+            <Button size="sm" variant="outline" onClick={requestBoardReview} disabled={metrics.races===0||reviewCooldown}>Request Board Review</Button>
           </ActionInfo>
         </div>
       </CardContent></Card>
@@ -514,4 +534,7 @@ function Metric({title,value,progress}) {
 }
 function Bar({value}) {
   return <div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${clamp01(value)*100}%`}}/></div>;
+}
+function Mini({label,value}) {
+  return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium">{value??"—"}</div></div>;
 }
