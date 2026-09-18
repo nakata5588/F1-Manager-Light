@@ -67,7 +67,7 @@ export default function Inbox() {
   const [fallback, setFallback] = useState(null);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("ALL");
-  const [onlyUnread, setOnlyUnread] = useState(true);
+  const [onlyUnread, setOnlyUnread] = useState(false);
   const [active, setActive] = useState(null);
 
   useEffect(() => {
