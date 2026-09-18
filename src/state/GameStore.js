@@ -998,6 +998,7 @@ export const useGame = create((set, get) => ({
       driverAttrLog: {},
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
+      careerMeta: createCareerMeta(db, y),
 
       // 💰 snapshot inicial (sem lançar no ledger)
       financeLog: [],
@@ -1067,6 +1068,7 @@ export const useGame = create((set, get) => ({
           currentDateISO: firstDayISO(y),
           currentRound: 0,
           activeYear: y,
+          careerMeta: createCareerMeta(db, y),
           team: userTeam,
           selectedDrivers: Array.isArray(drivers) ? drivers : [],
           standings: { drivers: [], teams: [] },
