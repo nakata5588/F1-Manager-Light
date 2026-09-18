@@ -77,7 +77,7 @@ const HEAVY_KEYS = [
   "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
-  "dbFacilities","dbStaffContracts","dbStaffCore",
+  "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
   "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons",
@@ -302,6 +302,7 @@ export const useGame = create((set, get) => ({
     dbEraSafety: [],
     dbAccidentModel: [],
     dbFacilities: [],
+    dbCarStats: [],
     dbStaffContracts: [],
     dbStaffCore: [],
 
@@ -340,6 +341,7 @@ export const useGame = create((set, get) => ({
     eraSafety: [],
     accidentModel: [],
     facilities: [],
+    carStats: [],
     staffContracts: [],
 
     // filtrados novos
@@ -537,7 +539,7 @@ export const useGame = create((set, get) => ({
       const [
         driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
-        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
+        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
         scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, seasonIndexRaw,
@@ -559,6 +561,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/era_safety.json"),
         fetchJsonSafe("/data/accident_model.json").catch(() => ({})),
         fetchJsonSafe("/data/facilities.json"),
+        fetchOptional("/data/car_stats_by_year.json", []),
         fetchJsonSafe("/data/staff_contracts.json"),
 
         fetchOptional("/data/tyres_catalog.json", []),
@@ -594,6 +597,7 @@ export const useGame = create((set, get) => ({
       const eraSafety         = unexcelDeep(eraSafetyRaw);
       const accidentModel     = (Array.isArray(accidentModelRaw) || typeof accidentModelRaw === "object") ? unexcelDeep(accidentModelRaw) : {};
       const facilities        = unexcelDeep(facilitiesRaw);
+      const carStats          = unexcelDeep(carStatsRaw);
       const staffContracts    = unexcelDeep(staffContractsRaw);
 
       const tyres              = unexcelDeep(tyresRaw);
@@ -644,6 +648,7 @@ export const useGame = create((set, get) => ({
           dbEraSafety: eraSafety,
           dbAccidentModel: accidentModel,
           dbFacilities: facilities,
+          dbCarStats: carStats,
           dbStaffContracts: staffContracts,
 
           dbTyres: tyres,
@@ -958,6 +963,7 @@ export const useGame = create((set, get) => ({
       teamEngines,
       contracts,
       facilities,
+      carStats,
       staffContracts,
       sponsorsContracts,
       rules,
