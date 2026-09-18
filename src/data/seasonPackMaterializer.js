@@ -112,8 +112,11 @@ function driverStatus(driver,year,contracted){
   const death=asNum(String(pick(driver,["death_date"],"")).slice(0,4),Infinity);
   if(Number.isFinite(born)&&year<born)return null;
   if(year>=death)return null;
-  if(Number.isFinite(end)&&year>end)return null;
+  // Exact season participation/contract evidence outranks stale career-end
+  // metadata. This is especially important in later eras where the master
+  // career range is not yet fully curated.
   if(contracted)return {status:"eligible",active_lower_series:false,canHireF1:true,canHireAcademy:false,youth_eligible:false};
+  if(Number.isFinite(end)&&year>end)return null;
   const explicit=Number.isFinite(start)&&start<=year&&Number.isFinite(debut)&&year<debut;
   const inferred=!Number.isFinite(start)&&Number.isFinite(debut)&&year<debut&&(debut-year)<=3&&age!==null&&age>=16;
   const lower=explicit||inferred;
