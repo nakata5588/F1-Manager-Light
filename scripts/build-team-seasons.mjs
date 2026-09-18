@@ -31,10 +31,11 @@ if (await isFresh()) {
   process.exit(0);
 }
 
-const [rows,teams,drivers] = await Promise.all([
+const [rows,teams,drivers,constructorReference] = await Promise.all([
   readJson(source,[]),
   readJson(path.join(root,"public","data","teams.json"),[]),
   readJson(path.join(root,"public","data","drivers.json"),[]),
+  readJson(path.join(root,"data","reference","constructor_id_map.json"),{constructors:[]}),
 ]);
 
 const teamNameToId=new Map();
@@ -54,39 +55,46 @@ for(const d of drivers){
   }
 }
 
+const constructorNumericToName=new Map(
+  (constructorReference?.constructors||[]).map((row)=>[Number(row.constructorId),String(row.constructorName||"")])
+);
+const driverArchiveIdToId=new Map();
+for(const d of drivers){
+  const id=String(unwrap(d.driver_id??d.id)??"");
+  const archiveId=Number(unwrap(d.driverID_arch??d.driverId_arch??d.driverId));
+  if(id&&Number.isFinite(archiveId))driverArchiveIdToId.set(archiveId,id);
+}
+
 function resolveTeam(row){
-  const direct=String(unwrap(row?.team_id??row?.constructor_id)??"");
-  if(direct)return direct;
-  const name=unwrap(row?.team_name??row?.constructor_name??row?.constructor??row?.team);
+  const canonicalDirect=String(unwrap(row?.team_id??row?.constructor_id)??"");
+  if(canonicalDirect)return canonicalDirect;
+
+  const numericConstructorId=Number(unwrap(row?.constructorId));
+  const refName=Number.isFinite(numericConstructorId) ? constructorNumericToName.get(numericConstructorId) : "";
+  const name=unwrap(row?.team_name??row?.constructor_name??row?.constructorName??row?.constructor??row?.team) || refName;
   const mapped=teamNameToId.get(canon(name));
   if(mapped)return mapped;
+
+  if(Number.isFinite(numericConstructorId)) return "archive_constructor_" + numericConstructorId;
   const key=canon(name);
   return key ? "legacy_team_" + key : "";
 }
 function resolveDriver(row){
   const direct=String(unwrap(row?.driver_id??row?.person_id)??"");
   if(direct)return direct;
-  const name=unwrap(row?.driver_name??row?.display_name??row?.name);
+  const archiveId=Number(unwrap(row?.driverId));
+  if(Number.isFinite(archiveId)&&driverArchiveIdToId.has(archiveId))return driverArchiveIdToId.get(archiveId);
+  const name=unwrap(row?.driver_name??row?.display_name??row?.driverName??row?.name);
   return driverNameToId.get(canon(name))||"";
 }
-
-const diagnosticRows=(Array.isArray(rows)?rows:[])
-  .filter((r)=>[2014,2020].includes(Number(unwrap(r?.year??r?.season_year))))
-  .slice(0,8)
-  .map((r)=>({
-    year:unwrap(r?.year??r?.season_year),
-    keys:Object.keys(r).filter((k)=>/team|constructor/i.test(k)),
-    values:Object.fromEntries(Object.entries(r).filter(([k])=>/team|constructor/i.test(k))),
-    driver_id:unwrap(r?.driver_id),
-    driver_name:unwrap(r?.driver_name),
-  }));
-if(diagnosticRows.length) console.log("[team-seasons diagnostic]",JSON.stringify(diagnosticRows));
 
 const byKey = new Map();
 for(const r of Array.isArray(rows) ? rows : []) {
   const year=Number(unwrap(r?.year??r?.season_year));
   const team_id=resolveTeam(r);
-  const team_name=String(unwrap(r?.team_name??r?.constructor_name??r?.constructor??r?.team)??"");
+  const numericConstructorId=Number(unwrap(r?.constructorId));
+  const refName=Number.isFinite(numericConstructorId)?constructorNumericToName.get(numericConstructorId):"";
+  const team_name=String(unwrap(r?.team_name??r?.constructor_name??r?.constructorName??r?.constructor??r?.team)??refName??"");
   const driver_id=resolveDriver(r);
   if(!Number.isFinite(year)||!team_id)continue;
   const key=String(year)+"|"+team_id;
