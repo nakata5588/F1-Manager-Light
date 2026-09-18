@@ -76,7 +76,7 @@ const HEAVY_KEYS = [
   "dbFacilities","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
-  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear",
+  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons",
 ];
 function makeLightSnapshot(gs) {
   const light = { ...gs };
@@ -313,6 +313,7 @@ export const useGame = create((set, get) => ({
     dbYouthIntakeRules: [],
     dbScoutingZones: [],
     dbTrackLayoutByYear: [],
+    dbTeamSeasons: [],
 
     yearsAvailable: [],
 
@@ -497,7 +498,7 @@ export const useGame = create((set, get) => ({
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
-        scoutingZonesRaw, trackLayoutByYearRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
@@ -529,6 +530,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/youth_intake_rules.json", []),
         fetchOptional("/data/scouting_zones.json", []),
         fetchOptional("/data/track_layout_by_year.json", []),
+        fetchOptional("/data/team_seasons.json", []),
       ]);
 
       const drivers           = unexcelDeep(driversRaw);
@@ -561,6 +563,7 @@ export const useGame = create((set, get) => ({
       const youthIntake        = unexcelDeep(youthIntakeRaw);
       const scoutingZones      = unexcelDeep(scoutingZonesRaw);
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
+      const teamSeasons         = unexcelDeep(teamSeasonsRaw);
 
       const yearsAvailable = Array.from(
         new Set((calendar || []).map((gp) => {
@@ -602,6 +605,7 @@ export const useGame = create((set, get) => ({
           dbYouthIntakeRules: youthIntake,
           dbScoutingZones: scoutingZones,
           dbTrackLayoutByYear: trackLayoutByYear,
+          dbTeamSeasons: teamSeasons,
 
           yearsAvailable,
         },
