@@ -45,6 +45,44 @@ const pick = (obj, keys, fb) => {
 };
 const getTeamId = (t) => String(pick(t, ["team_id", "id", "name", "team_name", "short_name"], ""));
 
+function normalizeSponsorTier(value) {
+  const t = String(value || "").toLowerCase();
+  return /main|major|title/.test(t) ? "main" : "secondary";
+}
+function sponsorObjectiveInfo(sp) {
+  const raw = String(pick(sp, ["objective_type"], "") || "").toLowerCase().replace(/\s+/g,"_");
+  const penalties = String(pick(sp, ["penalties"], "") || "").toLowerCase();
+  let type = raw;
+  let target = Number(pick(sp, ["objective_target","target_value"], NaN));
+
+  if (!type || type === "performance") {
+    if (/no wins?|win/.test(penalties)) { type = "wins"; target = Number.isFinite(target) ? target : 1; }
+    else if (/no podium|podium/.test(penalties)) { type = "podiums"; target = Number.isFinite(target) ? target : 1; }
+    else if (/outside top\s*5/.test(penalties)) { type = "constructor_position"; target = 5; }
+    else if (/outside top\s*6/.test(penalties)) { type = "constructor_position"; target = 6; }
+    else if (/no points?|points?/.test(penalties)) { type = "points"; target = Number.isFinite(target) ? target : 1; }
+    else { type = "points"; target = Number.isFinite(target) ? target : 5; }
+  }
+  if (type === "top_6" || type === "top6") { type = "constructor_position"; target = 6; }
+  if (type === "top_10" || type === "top10") { type = "constructor_position"; target = 10; }
+  if (type === "wins") target = Number.isFinite(target) ? target : 1;
+  if (type === "podiums") target = Number.isFinite(target) ? target : 2;
+  if (type === "points") target = Number.isFinite(target) ? target : 10;
+  if (type === "qualifying") target = Number.isFinite(target) ? target : 3;
+  if (type === "branding") target = 1;
+
+  const label = {
+    wins: `Win ${target} Grand Prix`,
+    podiums: `Achieve ${target} podium${target===1?"":"s"}`,
+    points: `Score ${target} championship points`,
+    constructor_position: `Finish P${target} or better in Constructors`,
+    qualifying: `Achieve ${target} top-10 qualifying result${target===1?"":"s"}`,
+    branding: "Maintain sponsor visibility and relationship",
+  }[type] || "Maintain sponsor relationship";
+
+  return { type:type || "branding", target:Number(target || 1), label };
+}
+
 /* ------------- derive from ledger -------------- */
 function buildSnapshot(gameState) {
   const activeYear = Number(gameState?.activeYear) || 0;
@@ -139,7 +177,8 @@ function deriveSponsors(gameState) {
     if (today >= start && today <= end) status = "active";
     else if (today > end) status = "expired";
 
-    const sType = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
+    const sType = normalizeSponsorTier(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary"));
+    const objective = sponsorObjectiveInfo(sp);
 
     return {
       sponsor_id: sid,
@@ -155,7 +194,12 @@ function deriveSponsors(gameState) {
       bonus_win,
       bonus_podium,
       bonus_championship,
-      status,
+      status: String(pick(sp, ["status"], status)).toLowerCase(),
+      objective_type: objective.type,
+      objective_target: objective.target,
+      objective_label: objective.label,
+      satisfaction: Math.max(0,Math.min(100,N(pick(sp, ["satisfaction"], 70),70))),
+      relationship_note: String(pick(sp, ["relationship_note"], "")),
     };
   });
 }
@@ -394,10 +438,11 @@ function SponsorsTab({ sponsors }) {
 
   const totalMonthly = filtered.reduce((s, r) => s + (r.monthly_fee || 0), 0);
   const totalUpfront = filtered.reduce((s, r) => s + (r.cash_upfront || 0), 0);
+  const commercialScore = Math.round(Number(gameState?.commercialScore ?? commercialProfile?.score * 100 ?? 50));
 
   // slots: 1 main, 3 secondary (ativos no ano)
-  const activeMains = sponsors.filter((s) => s.type === "main" && s.status !== "expired");
-  const activeSeconds = sponsors.filter((s) => s.type !== "main" && s.status !== "expired");
+  const activeMains = sponsors.filter((s) => s.type === "main" && !["expired","terminated"].includes(s.status));
+  const activeSeconds = sponsors.filter((s) => s.type === "secondary" && !["expired","terminated"].includes(s.status));
   const canAddMain = activeMains.length < 1;
   const canAddSecondary = activeSeconds.length < 3;
 
@@ -489,7 +534,7 @@ function SponsorsTab({ sponsors }) {
 
       // Keep ineligible sponsors visible so the player can see what is required.
       const filteredBySlots = avail.filter((sp) => {
-        const t = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
+        const t = normalizeSponsorTier(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary"));
         return t === "main" ? canAddMain : canAddSecondary;
       });
 
@@ -504,7 +549,7 @@ function SponsorsTab({ sponsors }) {
 
   const signSponsor = useCallback(
     (sp) => {
-      const type = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
+      const type = normalizeSponsorTier(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary"));
       if (type === "main" && !canAddMain) return;
       if (type !== "main" && !canAddSecondary) return;
       const eligibility = sponsorEligibility(sp);
@@ -527,6 +572,7 @@ function SponsorsTab({ sponsors }) {
       const bonus_podium = N(pick(sp, ["bonus_podium", "podium_bonus"], 0), 0);
       const bonus_championship = N(pick(sp, ["bonus_championship", "championship_bonus"], 0), 0);
 
+      const objective = sponsorObjectiveInfo(sp);
       const newContract = {
         sponsor_id,
         sponsor_name,
@@ -542,6 +588,10 @@ function SponsorsTab({ sponsors }) {
         bonus_win,
         bonus_podium,
         bonus_championship,
+        objective_type: objective.type,
+        objective_target: objective.target,
+        satisfaction: 70,
+        relationship_note: `New partnership · objective: ${objective.label}`,
         status: "active",
       };
 
@@ -600,7 +650,7 @@ function SponsorsTab({ sponsors }) {
               <option value="pending">Pending</option>
             </select>
             <div className="text-sm text-muted-foreground">
-              {filtered.length} sponsors • Monthly {fmtMoney(totalMonthly)} • Upfront {fmtMoney(totalUpfront)}
+              {filtered.length} sponsors • Main {activeMains.length}/1 • Secondary {activeSeconds.length}/3 • Commercial Score <strong>{commercialScore}/100</strong>
             </div>
           </div>
           <div className="flex-1" />
@@ -625,6 +675,8 @@ function SponsorsTab({ sponsors }) {
                   <th className="px-3 py-2 text-right">Monthly</th>
                   <th className="px-3 py-2 text-right">Annual (info)</th>
                   <th className="px-3 py-2 text-right">Upfront</th>
+                  <th className="px-3 py-2">Objective</th>
+                  <th className="px-3 py-2 text-right">Satisfaction</th>
                   <th className="px-3 py-2 text-right">Bonus (W / P / Ch)</th>
                 </tr>
               </thead>
@@ -640,6 +692,8 @@ function SponsorsTab({ sponsors }) {
                     <td className="px-3 py-2 text-right">{fmtMoney(s.monthly_fee)}</td>
                     <td className="px-3 py-2 text-right">{fmtMoney(s.annual_income)}</td>
                     <td className="px-3 py-2 text-right">{fmtMoney(s.cash_upfront)}</td>
+                    <td className="px-3 py-2 max-w-[240px]"><div>{s.objective_label}</div>{s.relationship_note&&<div className="text-xs text-muted-foreground mt-1">{s.relationship_note}</div>}</td>
+                    <td className="px-3 py-2 text-right"><span className={s.satisfaction<35?"text-rose-700":s.satisfaction<60?"text-amber-700":"text-emerald-700"}>{Math.round(s.satisfaction)}%</span></td>
                     <td className="px-3 py-2 text-right">
                       {fmtMoney(s.bonus_win)} / {fmtMoney(s.bonus_podium)} / {fmtMoney(s.bonus_championship)}
                     </td>
@@ -675,7 +729,7 @@ function SponsorsTab({ sponsors }) {
                 </thead>
                 <tbody>
                   {catalog.map((sp) => {
-                    const t = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
+                    const t = normalizeSponsorTier(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary"));
                     const slotBlocked =
                       (t === "main" && !canAddMain) || (t !== "main" && !canAddSecondary);
                     const eligibility = sponsorEligibility(sp);
