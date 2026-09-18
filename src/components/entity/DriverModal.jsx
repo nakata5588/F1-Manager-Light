@@ -182,9 +182,9 @@ export default function DriverModal({ entity, onClose }) {
     const compat = idNorm ? driverAttributesDict?.[idNorm] : null;
     return {
       confidence: 50,
-      fatigue: 20,
+      fatigue: 0,
       morale: 50,
-      preparation: 40,
+      preparation: 50,
       ...(compat || {}),
       ...(direct || {}),
     };
