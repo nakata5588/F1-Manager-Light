@@ -192,7 +192,7 @@ export function materializeSeasonPack(globalData,yearInput){
     return {
       ...clean(base),
       team_id:id,
-      team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(base,["team_name","name","short_name"],id))),
+      team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(base,["team_name","name","short_name"],pick(seasonRec,["team_name"],id))),
     };
   });
   // Race-result participation and F1 career rows repair incomplete contract data.
@@ -277,6 +277,9 @@ export function materializeSeasonPack(globalData,yearInput){
 
   // Last-resort playable-grid bootstrap. This should only be used when the
   // historical source lacks a resolvable second seat.
+  const bootstrapRatings=new Map(
+    exactOrLatest(g.driverRatings||[],year,driverId,null).map((r)=>[driverId(r),r])
+  );
   const fallbackDrivers=(g.drivers||[])
     .filter((d)=>{
       const id=driverId(d);
@@ -287,8 +290,8 @@ export function materializeSeasonPack(globalData,yearInput){
       return Number.isFinite(debut)&&debut<=year&&year<=end&&year<death;
     })
     .sort((a,b)=>{
-      const ar=asNum(pick(a,["reputation"],0),0);
-      const br=asNum(pick(b,["reputation"],0),0);
+      const ar=asNum(pick(bootstrapRatings.get(driverId(a))||{},["current_ability","pace"],0),0);
+      const br=asNum(pick(bootstrapRatings.get(driverId(b))||{},["current_ability","pace"],0),0);
       return br-ar || driverId(a).localeCompare(driverId(b));
     });
   for(const tid of teamIds){
