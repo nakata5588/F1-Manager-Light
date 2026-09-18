@@ -126,8 +126,12 @@ function setItemQuotaSafe(key, value) {
 /** ===== Excel sanitizers ===== */
 function unexcel(v) {
   if (v && typeof v === "object" && !Array.isArray(v)) {
-    if (v.result != null && v.result !== "") return v.result;
-    if (v.value  != null && v.value  !== "") return v.value;
+    // ExcelJS can export formula failures as { error: "#N/A" }. Those objects
+    // must never reach React as renderable values.
+    if ("error" in v && !("result" in v) && !("value" in v)) return null;
+    if (v.result != null && v.result !== "") return unexcel(v.result);
+    if (v.value  != null && v.value  !== "") return unexcel(v.value);
+    if ("error" in v) return null;
   }
   return v;
 }
@@ -209,16 +213,18 @@ function ageOnYear(dob, Y) {
 }
 function computeDriverStatus(selectedYear, driver) {
   const Y = Number(selectedYear);
+  const birthYear = yearFrom(driver.dob ?? driver.date_of_birth);
   const start = Number(driver.career_start_year ?? NaN);
   const debut = Number(driver.f1_rookie_season ?? NaN);
   const retire = driver.career_end_year == null || driver.career_end_year === "" ? null : Number(driver.career_end_year);
   const deceasedYear = yearFrom(driver.death_date);
 
+  if (Number.isFinite(birthYear) && Y < birthYear) return "hidden";
   if (!Number.isNaN(deceasedYear) && deceasedYear <= Y) return "deceased";
   if (Number.isFinite(start) && Y < start) return "hidden";
   if (retire !== null && Y > retire) return "retired";
-  if (Number.isFinite(debut)) return Y < debut ? "junior_only" : "eligible";
-  return "junior_only";
+  if (Number.isFinite(debut)) return Y < debut ? "pre_f1" : "eligible";
+  return "pre_f1";
 }
 function activeInYear(entity, year) {
   const first = pick(entity, ["first_year", "start_year", "founded_year"], -Infinity);
@@ -672,18 +678,50 @@ export const useGame = create((set, get) => ({
         .map((c) => String(unexcel(pick(c, ["driver_id", "person_id", "id"])))).filter(Boolean)
     );
 
+    const careerRowsThisYear = filterByYear(prev.dbDriverCareer || [], y);
+    const lowerSeriesIds = new Set(
+      careerRowsThisYear
+        .filter((row) => String(pick(row, ["series_division", "division", "series"], "")).toUpperCase() !== "F1")
+        .map((row) => String(pick(row, ["driver_id", "person_id", "id"], "")))
+        .filter(Boolean)
+    );
+
+    const youthRule = filterByYearRange(prev.dbYouthIntakeRules || [], y)[0] || {};
+    const youthMinAge = Number(pick(youthRule, ["min_age"], 16));
+    const youthMaxAge = Number(pick(youthRule, ["max_age"], 21));
+
     const driversWithStatus = (prev.dbDrivers || []).map((d) => {
       const first = d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
       const last = d.last_name ?? d.lastname ?? d.family_name ?? d.surname ?? d.last ?? "";
       const combo = `${first} ${last}`.trim();
       const display_name = d.driver_name || d.name || d.display_name || d.full_name || d.fullname || combo || d.code || "";
-      const status = computeDriverStatus(y, d);
-      const age = ageOnYear(d.dob, y);
-      const canHireF1 = status === "eligible";
-      const canHireAcademy = status === "junior_only" || (!Number.isNaN(age) && age <= 16);
+      const driverId = String(d.driver_id ?? d.id ?? d.code ?? "");
+      const baseStatus = computeDriverStatus(y, d);
+      const age = ageOnYear(d.dob ?? d.date_of_birth, y);
+      const hasF1Contract = driverIdsFromContracts.has(driverId);
+      const inLowerSeries = lowerSeriesIds.has(driverId);
+
+      let status = baseStatus;
+      if (hasF1Contract && baseStatus !== "deceased" && baseStatus !== "hidden") {
+        status = "eligible";
+      } else if (baseStatus === "pre_f1") {
+        status = inLowerSeries ? "lower_series" : "hidden";
+      } else if (baseStatus === "eligible" && inLowerSeries && !hasF1Contract) {
+        status = "lower_series";
+      }
+
+      const canHireAcademy =
+        inLowerSeries &&
+        Number.isFinite(age) &&
+        age >= youthMinAge &&
+        age <= youthMaxAge;
+      if (canHireAcademy && !hasF1Contract) status = "junior_only";
+
+      const canHireF1 = status === "eligible" || status === "lower_series" || status === "junior_only";
+
       return {
         ...d,
-        driver_id: d.driver_id ?? d.id ?? d.code ?? null,
+        driver_id: driverId || null,
         display_name,
         name: display_name || d.name || "",
         country: d.country_name ?? d.country ?? "",
@@ -695,13 +733,17 @@ export const useGame = create((set, get) => ({
         helmet_color_secondary: d.helmet_color_secondary ?? "",
         status,
         age,
+        active_lower_series: inLowerSeries,
         canHireF1,
         canHireAcademy,
       };
     });
 
     const drivers = driversWithStatus.filter(
-      (d) => d.status !== "hidden" && d.driver_id && (d.display_name || d.name)
+      (d) =>
+        ["eligible", "lower_series", "junior_only"].includes(d.status) &&
+        d.driver_id &&
+        (d.display_name || d.name)
     );
 
     const driverRatingsExact = filterByYear(prev.dbDriverRatings, y);
@@ -839,19 +881,15 @@ export const useGame = create((set, get) => ({
       return tid === String(id) && year >= from && year <= (isNaN(to) ? Infinity : to);
     }).map((r) => String(pick(r, ["path_rel","path","logo_path"])).replace(/^\/+/, "")).filter(Boolean);
 
-    if (viaIndex.length) {
-      const base = (import.meta?.env?.BASE_URL ?? "/").replace(/\/+$/, "");
-      return viaIndex.map((rel) => `${base}/${rel}`);
-    }
-
     const short = (team.short_name || team.team_name || team.name || "")
       .toString()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "");
-    const cands = [`logos/teams/${id}.png`];
+    const cands = [...viaIndex, `logos/teams/${id}.png`];
     if (short && short !== id.toLowerCase()) cands.push(`logos/teams/${short}.png`);
     const base = (import.meta?.env?.BASE_URL ?? "/").replace(/\/+$/, "");
-    return cands.map((rel) => `${base}/${rel.replace(/^\/+/, "")}`);
+    return Array.from(new Set(cands.filter(Boolean)))
+      .map((rel) => `${base}/${String(rel).replace(/^\/+/, "")}`);
   },
 
   /** ===================== NEW GAME ===================== */
