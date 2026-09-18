@@ -5,6 +5,14 @@ import path from "node:path";
 
 const root=process.cwd();
 const targetYears=[1975,1980,1989,1999,2014,2020];
+const expectedTeamCounts={
+  1975:19,
+  1980:15,
+  1989:20,
+  1999:11,
+  2014:11,
+  2020:10,
+};
 
 async function readPack(year){
   const file=path.join(root,"public","data","seasons",String(year),"season.json");
@@ -20,7 +28,11 @@ for(const year of targetYears){
 
     const state=pack.state||{};
     assert.ok(state.calendar.length>0,`${year} must have a calendar`);
-    assert.ok(state.teams.length>=2,`${year} must have at least 2 teams`);
+    assert.equal(
+      state.teams.length,
+      expectedTeamCounts[year],
+      `${year} managerial team identity count changed unexpectedly`
+    );
     assert.ok(state.drivers.length>=4,`${year} must have at least 4 visible drivers`);
 
     const teamIds=new Set(state.teams.map((t)=>String(t.team_id)));
