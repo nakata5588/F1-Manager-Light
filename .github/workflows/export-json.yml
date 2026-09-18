@@ -49,7 +49,6 @@ jobs:
         run: npm ci
 
       - name: Export Excel to runtime JSON
-        if: github.event_name != 'pull_request'
         run: npm run build:data
 
       - name: Test career season boundary
