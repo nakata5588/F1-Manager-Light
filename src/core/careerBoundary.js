@@ -114,7 +114,7 @@ function driverWorldVisibleFrom(driver){
   const explicit=num(pick(driver,["world_visible_from","career_start_year"],NaN));
   if(Number.isFinite(explicit))return explicit;
   const debut=num(pick(driver,["f1_rookie_season","f1_debut_year"],NaN));
-  if(Number.isFinite(debut))return Math.max(16,0)+debut-3;
+  if(Number.isFinite(debut))return debut-3;
   const born=birthYear(driver);
   return Number.isFinite(born)?born+16:Infinity;
 }
