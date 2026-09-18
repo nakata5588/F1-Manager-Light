@@ -734,7 +734,7 @@ export const useGame = create((set, get) => ({
         !Number.isFinite(careerStart) &&
         Number.isFinite(f1Debut) &&
         y < f1Debut &&
-        (f1Debut - y) <= 4 &&
+        (f1Debut - y) <= 3 &&
         Number.isFinite(age) &&
         age >= 16;
       const inferredPreF1Active = explicitPreF1Active || inferredFromDebut;
