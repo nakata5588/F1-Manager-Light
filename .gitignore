@@ -42,3 +42,6 @@ data/output/
 # Public assets gerados ou temporários
 public/assets/tmp/
 public/assets/generated/
+
+# Derived lightweight runtime indexes
+public/data/team_seasons.json
