@@ -11,9 +11,16 @@
     "validate:data": "node scripts/validate_json.js",
     "check": "npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
-    "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\""
+    "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\"",
+    "predev": "node scripts/build-team-seasons.mjs",
+    "prebuild": "node scripts/build-team-seasons.mjs"
   },
-  "keywords": ["f1", "manager", "simulation", "react"],
+  "keywords": [
+    "f1",
+    "manager",
+    "simulation",
+    "react"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {

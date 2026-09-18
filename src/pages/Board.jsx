@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
@@ -44,23 +44,95 @@ function normalizeBoard(raw) {
   };
 }
 
+const EXPECTATION_ORDER=["survive","points","midfield","podiums","race_wins","championship"];
+const EXPECTATION_LABEL={
+  survive:"Survive / establish the team",
+  points:"Score points",
+  midfield:"Competitive midfield",
+  podiums:"Fight for podiums",
+  race_wins:"Win races",
+  championship:"Challenge for the championship",
+};
+function normalizeExpectation(raw){
+  const s=String(raw||"").toLowerCase();
+  if(/championship|title/.test(s))return "championship";
+  if(/race[_ ]?wins?|win one|wins?/.test(s))return "race_wins";
+  if(/podium/.test(s))return "podiums";
+  if(/midfield|mid-table|top 5|top5|top 6|top6/.test(s))return "midfield";
+  if(/points?/.test(s))return "points";
+  if(/survive|debut|qualify|stay in|avoid last/.test(s))return "survive";
+  return "midfield";
+}
+function expectationTier(exp){
+  if(["championship","race_wins"].includes(exp))return "top";
+  if(["podiums","midfield","points"].includes(exp))return "midfield";
+  return "backmarker";
+}
+function boardMetrics(gs,teamId){
+  const year=Number(gs?.activeYear);
+  const events=(gs?.results||[]).filter((r)=>Number(r?.year)===year);
+  let wins=0,podiums=0,points=0;
+  for(const event of events){
+    for(const row of event?.classification||[]){
+      if(String(row?.team_id||"")!==String(teamId))continue;
+      const p=Number(row?.position);
+      points+=Number(row?.points||0);
+      if(p===1)wins++;
+      if(p>=1&&p<=3)podiums++;
+    }
+  }
+  const standing=(gs?.standings?.teams||[]).find((r)=>String(r?.team_id??r?.constructor_id??"")===String(teamId));
+  return {races:events.length,totalRaces:Math.max(1,(gs?.calendar||[]).length||1),wins,podiums,points,constructorPosition:Number(standing?.position||0)||null,totalTeams:Math.max(1,(gs?.teams||[]).length||1)};
+}
+function makeObjectives(expectation,metrics){
+  const maxPos=Math.max(1,metrics.totalTeams||12);
+   let rows=[];
+  if(expectation==="championship")rows=[
+    {id:"constructors",type:"constructor_position",target:2,title:"Championship challenge",desc:"Finish P2 or better in the Constructors' Championship.",weight:1.35,priority:1},
+    {id:"wins",type:"wins",target:2,title:"Win races",desc:"Win at least 2 Grands Prix.",weight:1.10,priority:1},
+    {id:"podiums",type:"podiums",target:6,title:"Regular podiums",desc:"Achieve at least 6 podium finishes.",weight:0.85,priority:2},
+  ];
+  else if(expectation==="race_wins")rows=[
+    {id:"constructors",type:"constructor_position",target:4,title:"Leading group",desc:"Finish P4 or better in the Constructors' Championship.",weight:1.15,priority:1},
+    {id:"wins",type:"wins",target:1,title:"Win a Grand Prix",desc:"Take at least one victory.",weight:1.10,priority:1},
+    {id:"podiums",type:"podiums",target:3,title:"Fight for podiums",desc:"Achieve at least 3 podium finishes.",weight:0.80,priority:2},
+  ];
+  else if(expectation==="podiums")rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(5,maxPos),title:"Upper midfield finish",desc:"Finish P5 or better in the Constructors' Championship.",weight:1.05,priority:1},
+    {id:"podiums",type:"podiums",target:2,title:"Reach the podium",desc:"Achieve at least 2 podium finishes.",weight:1.00,priority:1},
+    {id:"points",type:"points",target:15,title:"Score consistently",desc:"Score at least 15 championship points.",weight:0.75,priority:2},
+  ];
+  else if(expectation==="points")rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(8,maxPos),title:"Avoid the back",desc:"Finish P8 or better in the Constructors' Championship.",weight:1.00,priority:1},
+    {id:"points",type:"points",target:10,title:"Score points",desc:"Score at least 10 championship points.",weight:1.00,priority:1},
+  ];
+  else if(expectation==="midfield")rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(7,maxPos),title:"Competitive midfield",desc:"Finish P7 or better in the Constructors' Championship.",weight:1.05,priority:1},
+    {id:"points",type:"points",target:6,title:"Regular points challenge",desc:"Score at least 6 championship points.",weight:0.95,priority:1},
+  ];
+  else rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(10,maxPos),title:"Establish the team",desc:"Finish P"+Math.min(10,maxPos)+" or better in the Constructors' Championship.",weight:1.00,priority:1},
+    {id:"points",type:"points",target:1,title:"Score a point",desc:"Score at least one championship point.",weight:0.90,priority:2},
+  ];
+  return rows.map((o)=>{
+    let progress=0;
+    if(o.type==="constructor_position"){
+      progress=metrics.constructorPosition?(metrics.constructorPosition<=o.target?1:clamp01(o.target/metrics.constructorPosition)):0;
+    }else progress=clamp01(Number(metrics[o.type]||0)/Math.max(1,o.target));
+    return {...o,category:"PERFORMANCE",progress,status:progress>=1?"completed":"active",deadline:"Season end"};
+  });
+}
+
 export default function Board() {
   const gameState = useGame((s)=>s.gameState);
   const setGameState = useGame((s)=>s.setGameState);
 
-  const [fallback,setFallback] = useState(null);
   const [status,setStatus] = useState("all");
   const [category,setCategory] = useState("ALL");
   const [showBudget,setShowBudget] = useState(false);
   const [requestedAmount,setRequestedAmount] = useState(500000);
   const [requestReason,setRequestReason] = useState("Development");
-
-  useEffect(() => {
-    fetch("/data/board.json")
-      .then((r)=>r.ok ? r.json() : null)
-      .then(setFallback)
-      .catch(()=>setFallback(null));
-  },[]);
+  const [goalProposal,setGoalProposal] = useState("");
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
   const year = Number(gameState?.activeYear) || 1980;
@@ -70,26 +142,49 @@ export default function Board() {
   const brand = (gameState?.teamBrands || []).find(
     (b)=>String(b?.team_id ?? "") === teamId
   );
-  const source = gameState?.board || fallback || {
-    reputation:0.5,
-    expectation:brand?.board_expectation || "Competitive season",
-    objectives:[],
-  };
-  const board = useMemo(()=>normalizeBoard(source),[source]);
+  const storedBoard = useMemo(()=>normalizeBoard(gameState?.board || {}),[gameState?.board]);
+  const expectation = storedBoard?.profile_version===2
+    ? normalizeExpectation(storedBoard.expectation)
+    : normalizeExpectation(brand?.board_expectation || "midfield");
+  const metrics = useMemo(()=>boardMetrics(gameState,teamId),[gameState,teamId]);
+  const rewardProfile = useMemo(() => {
+    const tier=expectationTier(expectation);
+    return (gameState?.dbBoardGoals||[]).find((row)=>String(row?.team_tier||"").toLowerCase()===tier)||null;
+  },[gameState?.dbBoardGoals,expectation]);
+  const liveObjectives = useMemo(()=>makeObjectives(expectation,metrics).map((o)=>({
+    ...o,
+    reward:rewardProfile?.bonuses?.hit || null,
+    penalty:o.priority===1 ? (rewardProfile?.penalties?.fail_major||null) : (rewardProfile?.penalties?.fail_minor||null),
+  })),[expectation,metrics,rewardProfile]);
+  const board = useMemo(()=>({
+    ...storedBoard,
+    profile_version:2,
+    expectation,
+    reputation:clamp01(storedBoard.reputation ?? 0.55),
+    objectives:liveObjectives,
+    actions:Array.isArray(storedBoard.actions)?storedBoard.actions:[],
+  }),[storedBoard,expectation,liveObjectives]);
 
   const objectiveScore = useMemo(() => {
-    if (!board.objectives.length) return 0.5;
+    if (!board.objectives.length || metrics.races === 0) return 0.5;
     const sumW = board.objectives.reduce((s,o)=>s + Number(o.weight || 1),0) || 1;
     return clamp01(board.objectives.reduce((s,o)=>{
       const score = o.status === "completed" ? 1 : o.status === "failed" ? 0 : clamp01(o.progress);
       return s + score * Number(o.weight || 1);
     },0) / sumW);
-  },[board.objectives]);
+  },[board.objectives,metrics.races]);
 
   const overallConfidence = useMemo(
     ()=>clamp01(board.reputation * 0.45 + objectiveScore * 0.55),
     [board.reputation,objectiveScore]
   );
+
+  const seasonProgress = clamp01(metrics.races / metrics.totalRaces);
+  const reviews = board.actions
+    .filter((a)=>a.type==="board_review")
+    .sort((a,b)=>Number(b.race_count||0)-Number(a.race_count||0));
+  const lastReviewRace = Number(reviews[0]?.race_count ?? -99);
+  const reviewCooldown = metrics.races - lastReviewRace < 3;
 
   const rows = useMemo(
     ()=>board.objectives
@@ -99,9 +194,6 @@ export default function Board() {
     [board.objectives,status,category]
   );
 
-  const pendingGoal = board.actions.find(
-    (a)=>a.type==="goal_change" && a.status==="pending" && Number(a.year)===year
-  );
   const budgetRequests = board.actions
     .filter((a)=>a.type==="budget_request")
     .sort((a,b)=>String(b.date || "").localeCompare(String(a.date || "")));
@@ -129,22 +221,38 @@ export default function Board() {
   const persist = (next)=>setGameState({board:next});
 
   const proposeGoal = () => {
-    const proposal = window.prompt("Propose a revised season expectation:",String(board.expectation || ""));
-    if (!proposal || proposal.trim() === String(board.expectation || "").trim()) return;
+    const proposal = normalizeExpectation(goalProposal);
+    if (!goalProposal || proposal === expectation) return;
+    const currentRank = EXPECTATION_ORDER.indexOf(expectation);
+    const proposalRank = EXPECTATION_ORDER.indexOf(proposal);
+    const easier = proposalRank < currentRank;
+    const performanceRatio = seasonProgress > 0 ? objectiveScore / seasonProgress : 1;
+    const approved = easier
+      ? (performanceRatio < 0.80 || overallConfidence < 0.48)
+      : overallConfidence >= 0.58;
+    const explanation = approved
+      ? "Approved: the official season expectation changes from " + EXPECTATION_LABEL[expectation] + " to " + EXPECTATION_LABEL[proposal] + "."
+      : easier
+        ? "Declined: current results do not yet justify lowering the official season target."
+        : "Declined: Board Confidence must be at least 58% before raising the official season target.";
     const action = {
       id:`board_goal_${Date.now()}`,
       type:"goal_change",
       year,
       date,
-      status:"pending",
-      proposal:proposal.trim(),
+      status:approved ? "approved" : "declined",
+      from:expectation,
+      to:proposal,
+      explanation,
     };
-    persist({...board,actions:[...board.actions,action],pendingExpectation:proposal.trim()});
-    addInbox(
-      "Board",
-      "Goal-change proposal submitted",
-      `You asked the board to revise the season expectation to: ${proposal.trim()}. The request is pending review.`
-    );
+    persist({
+      ...board,
+      expectation:approved ? proposal : expectation,
+      reputation:clamp01(board.reputation + (approved ? 0.005 : -0.005)),
+      actions:[...board.actions,action],
+    });
+    addInbox("Board", approved ? "Goal change approved" : "Goal change declined", explanation);
+    setGoalProposal("");
   };
 
   const submitBudgetRequest = () => {
@@ -216,38 +324,40 @@ export default function Board() {
     setShowBudget(false);
   };
 
-  const reportProgress = () => {
-    const previousReports = board.actions
-      .filter((a)=>a.type==="progress_report")
-      .sort((a,b)=>String(b.date || "").localeCompare(String(a.date || "")));
-    const previousScore = Number(previousReports[0]?.objective_score ?? 0.5);
-    const improvement = objectiveScore - previousScore;
-    const delta = Math.max(-0.02,Math.min(0.02,improvement * 0.08));
+  const requestBoardReview = () => {
+    if (metrics.races === 0 || reviewCooldown) return;
+    const expected = Math.max(0.10, seasonProgress);
+    let delta = 0;
+    if (objectiveScore >= Math.min(1, expected + 0.15)) delta = 0.02;
+    else if (objectiveScore >= expected) delta = 0.01;
+    else if (objectiveScore < expected * 0.55) delta = -0.02;
+    else if (objectiveScore < expected * 0.80) delta = -0.01;
+
+    const explanation =
+      "Review after " + metrics.races + "/" + metrics.totalRaces +
+      " races: objective score " + pct(objectiveScore) +
+      " vs expected season progress " + pct(expected) + ". " +
+      "Board Reputation " + (delta > 0 ? "increased" : delta < 0 ? "decreased" : "was unchanged") +
+      " by " + Math.abs(Math.round(delta * 100)) + " point(s).";
 
     const action = {
-      id:`board_report_${Date.now()}`,
-      type:"progress_report",
+      id:`board_review_${Date.now()}`,
+      type:"board_review",
       year,
       date,
-      status:"submitted",
-      confidence:overallConfidence,
+      status:"completed",
+      race_count:metrics.races,
       objective_score:objectiveScore,
-      previous_objective_score:previousScore,
+      expected_score:expected,
       reputation_delta:delta,
+      explanation,
     };
-
     persist({
       ...board,
       reputation:clamp01(board.reputation + delta),
       actions:[...board.actions,action],
     });
-
-    const direction = delta > 0 ? "improved" : delta < 0 ? "reduced" : "did not change";
-    addInbox(
-      "Board",
-      "Progress report received",
-      `The report recorded objective completion at ${pct(objectiveScore)} versus ${pct(previousScore)} in the previous report baseline. Board reputation ${direction} by ${Math.abs(Math.round(delta*100))} point(s).`
-    );
+    addInbox("Board","Board review completed",explanation);
   };
 
   function addInbox(from,subject,body) {
@@ -267,26 +377,42 @@ export default function Board() {
       <div className="flex flex-col md:flex-row md:items-center gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold">Board</h1>
-          <p className="text-sm text-muted-foreground">Season {year} · expectation: <strong>{board.expectation}</strong></p>
+          <p className="text-sm text-muted-foreground">Season {year} · official expectation: <strong>{EXPECTATION_LABEL[expectation]}</strong></p>
         </div>
         <div className="flex-1"/>
-        {pendingGoal && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">Goal proposal pending</span>}
+        <span className="text-xs bg-gray-100 px-2 py-1 rounded">Based on team/season database</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Metric title="Overall Confidence" value={pct(overallConfidence)} progress={overallConfidence}/>
         <Metric title="Objective Score" value={pct(objectiveScore)} progress={objectiveScore}/>
+        <Metric title="Season Progress" value={pct(seasonProgress)} progress={seasonProgress}/>
         <Metric title="Board Reputation" value={pct(board.reputation)} progress={board.reputation}/>
       </div>
+
+      <Card><CardContent className="p-4">
+        <div className="font-semibold mb-3">Current Sporting Position</div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <Mini label="Races" value={metrics.races + "/" + metrics.totalRaces}/>
+          <Mini label="Constructors" value={metrics.constructorPosition ? "P" + metrics.constructorPosition : "—"}/>
+          <Mini label="Points" value={metrics.points}/>
+          <Mini label="Wins" value={metrics.wins}/>
+          <Mini label="Podiums" value={metrics.podiums}/>
+        </div>
+      </CardContent></Card>
 
       <Card><CardContent className="p-4">
         <div className="font-semibold mb-3">Board Actions</div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <ActionInfo
             title="Propose Goal Change"
-            text="Ask the board to revise the current season expectation. The proposal is recorded as pending rather than changing the target immediately."
+            text="Choose one of the predefined sporting expectations. The board accepts or rejects it using current results and confidence."
           >
-            <Button size="sm" variant="outline" onClick={proposeGoal} disabled={Boolean(pendingGoal)}>Propose Goal Change</Button>
+            <select className="border rounded px-2 py-1 text-sm w-full mb-2" value={goalProposal} onChange={(e)=>setGoalProposal(e.target.value)}>
+              <option value="">Choose target…</option>
+              {EXPECTATION_ORDER.filter((x)=>x!==expectation).map((x)=><option key={x} value={x}>{EXPECTATION_LABEL[x]}</option>)}
+            </select>
+            <Button size="sm" variant="outline" onClick={proposeGoal} disabled={!goalProposal}>Submit Proposal</Button>
           </ActionInfo>
 
           <ActionInfo
@@ -299,10 +425,14 @@ export default function Board() {
           </ActionInfo>
 
           <ActionInfo
-            title="Report Progress"
-            text="Send a formal snapshot of objective progress to the board. Reputation moves slightly depending on whether your objective score improved since the previous report."
+            title="Request Board Review"
+            text={metrics.races===0
+              ? "Available after the first Grand Prix."
+              : reviewCooldown
+                ? "A Board Review can be requested once every 3 races."
+                : `Compares objective score (${pct(objectiveScore)}) with expected season progress (${pct(Math.max(0.10,seasonProgress))}) and updates Board Reputation.`}
           >
-            <Button size="sm" variant="outline" onClick={reportProgress}>Report Progress</Button>
+            <Button size="sm" variant="outline" onClick={requestBoardReview} disabled={metrics.races===0||reviewCooldown}>Request Board Review</Button>
           </ActionInfo>
         </div>
       </CardContent></Card>
@@ -417,4 +547,7 @@ function Metric({title,value,progress}) {
 }
 function Bar({value}) {
   return <div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${clamp01(value)*100}%`}}/></div>;
+}
+function Mini({label,value}) {
+  return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium">{value??"—"}</div></div>;
 }
