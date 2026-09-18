@@ -401,6 +401,74 @@ function SponsorsTab({ sponsors }) {
   const canAddMain = activeMains.length < 1;
   const canAddSecondary = activeSeconds.length < 3;
 
+  const commercialProfile = useMemo(() => {
+    const teamRows = Array.isArray(gameState?.standings?.teams) ? gameState.standings.teams : [];
+    const sorted = [...teamRows].sort((a,b) => Number(b?.points || 0) - Number(a?.points || 0));
+    const pos = sorted.findIndex((row) => String(pick(row, ["team_id","constructor_id","id"], "")) === String(teamId));
+    const position = pos >= 0 ? pos + 1 : null;
+    const totalTeams = Math.max(1, sorted.length || (gameState?.teams || []).length || 1);
+
+    const results = Array.isArray(gameState?.results) ? gameState.results : [];
+    let wins = 0, podiums = 0;
+    for (const event of results) {
+      for (const row of event?.classification || []) {
+        if (String(row?.team_id || "") !== String(teamId)) continue;
+        const p = Number(row?.position);
+        if (p === 1) wins += 1;
+        if (p >= 1 && p <= 3) podiums += 1;
+      }
+    }
+
+    const brand = (gameState?.teamBrands || []).find((row) =>
+      String(pick(row, ["team_id","team","constructor"], "")) === String(teamId)
+    );
+    const expectation = String(pick(brand, ["board_expectation"], "")).toLowerCase();
+    let prestige = 0.42;
+    if (/championship|title/.test(expectation)) prestige = 0.78;
+    else if (/race_wins|wins/.test(expectation)) prestige = 0.70;
+    else if (/podium/.test(expectation)) prestige = 0.60;
+    else if (/points|midfield|top/.test(expectation)) prestige = 0.48;
+    else if (/survival|backmarker/.test(expectation)) prestige = 0.32;
+
+    const standingScore = position
+      ? Math.max(0.2, 1 - (position - 1) / Math.max(1, totalTeams - 1))
+      : 0.45;
+    const boardRep = Number(gameState?.board?.reputation ?? 0.5);
+    const resultsScore = Math.min(1, 0.35 + wins * 0.18 + podiums * 0.06);
+    const score = Math.max(0, Math.min(1,
+      prestige * 0.40 +
+      standingScore * 0.25 +
+      boardRep * 0.20 +
+      resultsScore * 0.15
+    ));
+
+    return { score, position, totalTeams, wins, podiums, boardRep };
+  }, [gameState?.standings, gameState?.results, gameState?.teams, gameState?.teamBrands, gameState?.board, teamId]);
+
+  const sponsorEligibility = useCallback((sp) => {
+    const objective = String(pick(sp, ["objective_type"], "") || "").toLowerCase();
+    const annual = N(pick(sp, ["annual_income","anual_income","value_year"], 0), 0);
+    const baseThreshold = {
+      wins: 0.68,
+      podiums: 0.58,
+      top_6: 0.50,
+      top_10: 0.38,
+      qualifying: 0.30,
+    }[objective] ?? 0.25;
+    const valuePremium = annual >= 3_500_000 ? 0.05 : annual >= 2_500_000 ? 0.025 : 0;
+    const required = Math.min(0.85, baseThreshold + valuePremium);
+    const eligible = commercialProfile.score >= required;
+    const objectiveLabel = objective ? objective.replace(/_/g, " ") : "brand fit";
+    return {
+      eligible,
+      required,
+      score: commercialProfile.score,
+      text: eligible
+        ? `Eligible · ${objectiveLabel} requirement met`
+        : `Needs commercial score ${Math.round(required*100)}% for ${objectiveLabel} (current ${Math.round(commercialProfile.score*100)}%)`,
+    };
+  }, [commercialProfile]);
+
   const loadCatalog = useCallback(async () => {
     try {
       setLoading(true);
@@ -419,7 +487,7 @@ function SponsorsTab({ sponsors }) {
       const signed = new Set(sponsors.map((s) => String(s.sponsor_id)));
       const avail = activeNow.filter((sp) => !signed.has(String(pick(sp, ["sponsor_id", "id", "name"]))));
 
-      // respeitar slots
+      // Keep ineligible sponsors visible so the player can see what is required.
       const filteredBySlots = avail.filter((sp) => {
         const t = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
         return t === "main" ? canAddMain : canAddSecondary;
@@ -439,6 +507,11 @@ function SponsorsTab({ sponsors }) {
       const type = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
       if (type === "main" && !canAddMain) return;
       if (type !== "main" && !canAddSecondary) return;
+      const eligibility = sponsorEligibility(sp);
+      if (!eligibility.eligible) {
+        alert(`Sponsor requirements not met. ${eligibility.text}`);
+        return;
+      }
 
       const sponsor_id = String(pick(sp, ["sponsor_id", "id", "name"]));
       const sponsor_name = String(pick(sp, ["sponsor_name", "name"], sponsor_id));
@@ -508,7 +581,7 @@ function SponsorsTab({ sponsors }) {
 
       alert(`Signed sponsor: ${sponsor_name} (${titleCase(type)})`);
     },
-    [Y, teamId, todayISO, setGameState, gameState, canAddMain, canAddSecondary]
+    [Y, teamId, todayISO, setGameState, gameState, canAddMain, canAddSecondary, sponsorEligibility]
   );
 
   return (
@@ -596,18 +669,21 @@ function SponsorsTab({ sponsors }) {
                     <th className="px-3 py-2 text-right">Annual (info)</th>
                     <th className="px-3 py-2 text-right">Upfront</th>
                     <th className="px-3 py-2 text-right">Bonus (W / P / Ch)</th>
+                    <th className="px-3 py-2">Requirements</th>
                     <th className="px-3 py-2 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {catalog.map((sp) => {
                     const t = String(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary")).toLowerCase();
-                    const block =
+                    const slotBlocked =
                       (t === "main" && !canAddMain) || (t !== "main" && !canAddSecondary);
+                    const eligibility = sponsorEligibility(sp);
+                    const block = slotBlocked || !eligibility.eligible;
                     const monthly =
                       N(pick(sp, ["monthly_fee", "monthly", "per_month"], NaN), NaN) ||
-                      N(pick(sp, ["annual_income", "value_year"], 0), 0) / 12;
-                    const annual = N(pick(sp, ["annual_income", "value_year"], Math.round((monthly || 0) * 12)), 0);
+                      N(pick(sp, ["annual_income", "anual_income", "value_year"], 0), 0) / 12;
+                    const annual = N(pick(sp, ["annual_income", "anual_income", "value_year"], Math.round((monthly || 0) * 12)), 0);
                     const upfront = N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0);
                     const bw = N(pick(sp, ["bonus_win", "win_bonus"], 0), 0);
                     const bp = N(pick(sp, ["bonus_podium", "podium_bonus"], 0), 0);
@@ -628,9 +704,12 @@ function SponsorsTab({ sponsors }) {
                         <td className="px-3 py-2 text-right">
                           {fmtMoney(bw)} / {fmtMoney(bp)} / {fmtMoney(bc)}
                         </td>
+                        <td className="px-3 py-2 max-w-[260px]">
+                          <span className={eligibility.eligible ? "text-emerald-700" : "text-amber-700"}>{eligibility.text}</span>
+                        </td>
                         <td className="px-3 py-2 text-right">
                           <Button size="sm" disabled={block} onClick={() => signSponsor(sp)}>
-                            {block ? "No slot" : "Sign"}
+                            {slotBlocked ? "No slot" : eligibility.eligible ? "Sign" : "Locked"}
                           </Button>
                         </td>
                       </tr>
