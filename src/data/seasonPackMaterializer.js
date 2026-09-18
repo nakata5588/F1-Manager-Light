@@ -18,7 +18,15 @@ const clean=(value)=>{
   if(v&&typeof v==="object")return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,clean(x)]));
   return v;
 };
-const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
+const pick=(o,keys,fb=undefined)=>{
+  if(!o||typeof o!=="object")return fb;
+  for(const k of keys){
+    if(!Object.prototype.hasOwnProperty.call(o,k))continue;
+    const v=unbox(o[k]);
+    if(v!==undefined&&v!==null&&v!=="")return v;
+  }
+  return fb;
+};
 const asNum=(v,fb=NaN)=>{const raw=unbox(v);if(raw===null||raw===undefined||raw==="")return fb;const n=Number(raw);return Number.isFinite(n)?n:fb;};
 const yearOf=(row)=>{
   const direct=asNum(pick(row,["year","season_year","season","yr"],NaN),NaN);
