@@ -138,11 +138,15 @@ export default function DriverModal({ entity, onClose }) {
       careerRaw:     Array.isArray(gs.dbDriverCareer)
         ? gs.dbDriverCareer
         : (Array.isArray(gs.driverCareer) ? gs.driverCareer : []),
+      generatedHistoryRaw: Array.isArray(gs.dbDriverHistory) ? gs.dbDriverHistory : [],
       achievementsRaw: gs.dbAchievements ?? gs.achievements ?? null,
       results: Array.isArray(gs.results) ? gs.results : [],
       standings: gs.standings || { drivers: [], teams: [] },
+      historySeasons: Array.isArray(gs.historySeasons) ? gs.historySeasons : [],
+      teamsList: Array.isArray(gs.teams) ? gs.teams : [],
       driverAttributesDict: gs.driverAttributes || {},
       gameYear: Number(gs.activeYear ?? (gs.currentDateISO ? gs.currentDateISO.slice(0,4) : NaN)),
+      careerStartYear: Number(gs.careerMeta?.sourceSeason ?? gs.activeYear ?? (gs.currentDateISO ? gs.currentDateISO.slice(0,4) : NaN)),
       gameDateISO: gs.currentDateISO ?? null,
       myTeamId:   gs.team?.team_id ?? gs.team?.id ?? null,
       myTeamName: gs.team?.team_name ?? gs.team?.name ?? null,
@@ -151,8 +155,8 @@ export default function DriverModal({ entity, onClose }) {
   });
 
   const {
-    driversList, ratingsList, contractsList, careerRaw,
-    achievementsRaw, results, standings, driverAttributesDict, gameYear, gameDateISO,
+    driversList, ratingsList, contractsList, careerRaw, generatedHistoryRaw,
+    achievementsRaw, results, standings, historySeasons, teamsList, driverAttributesDict, gameYear, careerStartYear, gameDateISO,
     myTeamId, myTeamName, queueEvent
   } = useGame(selector);
 
@@ -226,10 +230,31 @@ export default function DriverModal({ entity, onClose }) {
     };
   }, [contractsList, idNorm, gameDateISO, gameYear]);
 
-  const careerAll = useMemo(
-    () => (careerRaw || []).filter((r) => sameDriver(r?.driver_id ?? r?.driverId, idNorm)),
-    [careerRaw, idNorm]
-  );
+  const careerAll = useMemo(() => {
+    const merged = new Map();
+    const push = (row, priority = 0) => {
+      if (!sameDriver(row?.driver_id ?? row?.driverId, idNorm)) return;
+      const y = Number(unbox(row?.year));
+      if (!Number.isFinite(y) || (Number.isFinite(careerStartYear) && y >= careerStartYear)) return;
+      const series = getSeries(row) || "F1";
+      const teamKey = String(unbox(row?.team_id) ?? unbox(row?.team_name) ?? "");
+      const key = [y, series.toUpperCase(), teamKey].join("|");
+      const prev = merged.get(key);
+      if (!prev) {
+        merged.set(key, { ...row, __priority: priority });
+        return;
+      }
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(row || {})) {
+        if (v !== undefined && v !== null && v !== "") next[k] = v;
+      }
+      next.__priority = Math.max(Number(prev.__priority || 0), priority);
+      merged.set(key, next);
+    };
+    for (const row of generatedHistoryRaw || []) push(row, 1);
+    for (const row of careerRaw || []) push(row, 2);
+    return [...merged.values()].map(({ __priority, ...row }) => row);
+  }, [careerRaw, generatedHistoryRaw, idNorm, careerStartYear]);
 
   // ==== Filtros (tabs Statistics/Career) ====
   const seriesOptions = useMemo(() => {
@@ -247,55 +272,84 @@ export default function DriverModal({ entity, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSeries]);
 
-  const liveSeasonRow = useMemo(() => {
-    if (!Number.isFinite(gameYear)) return null;
-    const seasonEvents = (results || []).filter((r) => Number(r?.year) === Number(gameYear));
-    if (!seasonEvents.length) return null;
+  const simulatedCareerRows = useMemo(() => {
+    if (!Number.isFinite(gameYear)) return [];
+    const byKey = new Map();
+    const teamNameById = new Map((teamsList || []).map((t) => [
+      String(t?.team_id ?? t?.id ?? ""),
+      unbox(t?.team_name) || unbox(t?.name) || String(t?.team_id ?? t?.id ?? ""),
+    ]));
 
-    let starts = 0, wins = 0, podiums = 0, poles = 0, fastest_laps = 0, points = 0;
-    let team_id = null;
-    for (const event of seasonEvents) {
+    for (const event of results || []) {
+      const y = Number(event?.year);
+      if (!Number.isFinite(y) || y < careerStartYear || y > gameYear) continue;
       const raceRow = (event?.classification || []).find((r) => sameDriver(r?.driver_id, idNorm));
-      if (raceRow) {
-        starts += 1;
-        const pos = Number(raceRow.position);
-        if (pos === 1) wins += 1;
-        if (pos >= 1 && pos <= 3) podiums += 1;
-        if (raceRow.fastest_lap) fastest_laps += 1;
-        points += Number(raceRow.points || 0);
-        if (raceRow.team_id != null) team_id = unbox(raceRow.team_id);
-      }
       const qRow = (event?.qualifying || []).find((r) => sameDriver(r?.driver_id, idNorm));
-      if (qRow && Number(qRow.position) === 1) poles += 1;
-      if (!team_id && qRow?.team_id != null) team_id = unbox(qRow.team_id);
-    }
-    if (!starts) return null;
+      if (!raceRow && !qRow) continue;
 
-    const standing = (standings?.drivers || []).find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
-    const teamRow = (standings?.teams || []).find((r) => String(r?.team_id ?? r?.constructor_id ?? "") === String(team_id ?? ""));
+      const team_id = unbox(raceRow?.team_id ?? qRow?.team_id) ?? null;
+      const key = [y, String(team_id ?? "")].join("|");
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          __simulated: true,
+          __live: y === gameYear,
+          year: y,
+          series_division: "F1",
+          team_id,
+          team_name: teamNameById.get(String(team_id ?? "")) || (y === gameYear ? contractTeam : null) || "—",
+          starts: 0, races: 0, wins: 0, podiums: 0, poles: 0, fastest_laps: 0, points: 0, champ_pos: null,
+        });
+      }
+      const rec = byKey.get(key);
+      if (raceRow) {
+        rec.starts += 1;
+        rec.races += 1;
+        const pos = Number(raceRow.position);
+        if (!raceRow.retired && pos === 1) rec.wins += 1;
+        if (!raceRow.retired && pos >= 1 && pos <= 3) rec.podiums += 1;
+        if (raceRow.fastest_lap) rec.fastest_laps += 1;
+        rec.points += Number(raceRow.points || 0);
+      }
+      if (qRow && Number(qRow.position) === 1) rec.poles += 1;
+    }
+
+    for (const rec of byKey.values()) {
+      const seasonStanding = rec.year === gameYear
+        ? standings?.drivers
+        : historySeasons.find((h) => Number(h?.year) === Number(rec.year))?.standings?.drivers;
+      const standing = (seasonStanding || []).find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
+      rec.champ_pos = standing?.position ?? null;
+    }
+
+    return [...byKey.values()].sort((a,b) => Number(a.year)-Number(b.year));
+  }, [results, standings, historySeasons, teamsList, gameYear, careerStartYear, idNorm, contractTeam]);
+
+  const liveSeasonRows = useMemo(
+    () => simulatedCareerRows.filter((r) => Number(r.year) === Number(gameYear)),
+    [simulatedCareerRows, gameYear]
+  );
+
+  const liveSeasonRow = useMemo(() => {
+    if (!liveSeasonRows.length) return null;
+    const sum = (key) => liveSeasonRows.reduce((acc, row) => acc + Number(row?.[key] || 0), 0);
+    const last = liveSeasonRows[liveSeasonRows.length - 1];
     return {
-      __live: true,
-      year: gameYear,
-      series_division: "F1",
-      team_id,
-      team_name: teamRow?.team_name || contractTeam || "—",
-      starts,
-      races: starts,
-      wins,
-      podiums,
-      poles,
-      fastest_laps,
-      points,
-      champ_pos: standing?.position ?? null,
+      ...last,
+      starts: sum("starts"),
+      races: sum("races"),
+      wins: sum("wins"),
+      podiums: sum("podiums"),
+      poles: sum("poles"),
+      fastest_laps: sum("fastest_laps"),
+      points: sum("points"),
     };
-  }, [results, standings, gameYear, idNorm, contractTeam]);
+  }, [liveSeasonRows]);
 
   const filteredCareer = useMemo(() => {
-    const byYear = (careerAll || []).filter((r) => Number(unbox(r?.year)) < Number(gameYear));
-    const rows = liveSeasonRow ? [...byYear, liveSeasonRow] : byYear;
+    const rows = [...(careerAll || []), ...(simulatedCareerRows || [])];
     if (seriesSel === "All") return rows;
     return rows.filter((r) => getSeries(r).toUpperCase() === seriesSel.toUpperCase());
-  }, [careerAll, gameYear, seriesSel, liveSeasonRow]);
+  }, [careerAll, simulatedCareerRows, seriesSel]);
 
   const statsAgg = useMemo(() => {
     if (!filteredCareer.length) return null;
@@ -354,11 +408,11 @@ export default function DriverModal({ entity, onClose }) {
   const achievementsList = useMemo(() => {
     const direct = achievementsArr
       .filter((a) => sameDriver(extractDriverId(a), idNorm))
-      .filter((a) => Number(unbox(a.year)) < Number(gameYear))
+      .filter((a) => Number(unbox(a.year)) < Number(careerStartYear))
       .map((a) => ({ ...a, __source: "achievements" }));
 
     const derived = (careerAll || [])
-      .filter((r) => Number(unbox(r?.year)) < Number(gameYear))
+      .filter((r) => Number(unbox(r?.year)) < Number(careerStartYear))
       .filter((r) => {
         const wins = Number(unbox(r?.wins) || 0);
         const podiums = Number(unbox(r?.podiums) || 0);
@@ -398,7 +452,7 @@ export default function DriverModal({ entity, onClose }) {
       map.set(key, row);
     }
     return [...map.values()].sort((a,b) => Number(unbox(a.year)||0) - Number(unbox(b.year)||0));
-  }, [achievementsArr, careerAll, liveSeasonRow, idNorm, gameYear, driver?.driver_id, entity.id]);
+  }, [achievementsArr, careerAll, liveSeasonRow, idNorm, gameYear, careerStartYear, driver?.driver_id, entity.id]);
 
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
