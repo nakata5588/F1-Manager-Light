@@ -1,8 +1,13 @@
 // src/engine/GPEngine.js
+import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
+
 function rnorm() { return (Math.random() - 0.5) * 0.6; }
-function basePace(d, ratings){
+function basePace(d, ratings, gs){
   const rec = (ratings || []).find(r => String(r.driver_id) === String(d.driver_id));
-  return Number(rec?.pace ?? rec?.overall ?? 60);
+  const pace = Number(rec?.pace ?? rec?.overall ?? rec?.current_ability ?? 60);
+  const overall = Number(rec?.current_ability ?? pace);
+  const blended = Number.isFinite(overall) ? pace * 0.80 + overall * 0.20 : pace;
+  return blended - fatiguePenalty(gs, d?.driver_id ?? d?.id);
 }
 
 const unwrap = (value) => {
@@ -144,10 +149,12 @@ function applyRetirements(gs, timedRace, ratings, roundIndex) {
     const rating=(ratings||[]).find((r)=>String(r?.driver_id)===String(driver?.driver_id))||{};
     const rel=teamReliability(gs,driver);
     const crashLik=clamp(Number(pick(rating,["crash_likelihood"],35))/100,0.05,0.95);
+    const fatigue=Number(driverCondition(gs,driver?.driver_id)?.fatigue ?? 20);
 
     // Older/less reliable cars fail more often. Crash likelihood is a separate route to DNF.
     const mechanicalChance=clamp((1-rel)*0.68,0.015,0.28);
-    const accidentChance=clamp(0.012 + crashLik*damageProb*0.32,0.01,0.10);
+    const fatigueRisk=Math.max(0,fatigue-60)*0.0004;
+    const accidentChance=clamp(0.012 + crashLik*damageProb*0.32 + fatigueRisk,0.01,0.12);
     const roll=Math.random();
 
     let reason=null;
@@ -187,7 +194,7 @@ function simpleRaceHash(text){
   return Math.abs(h>>>0);
 }
 
-function buildRaceTiming(race, ratings, roundIndex) {
+function buildRaceTiming(race, ratings, roundIndex, gs) {
   if (!race.length) return race;
 
   // Synthetic simulation timing. The engine does not yet simulate individual laps,
@@ -197,7 +204,7 @@ function buildRaceTiming(race, ratings, roundIndex) {
   let previousGapToWinnerMs = 0;
 
   const timed = race.map((row, index) => {
-    const pace = basePace(row.driver, ratings);
+    const pace = basePace(row.driver, ratings, gs);
     if (index > 0) {
       const stepSeconds = 0.65 + Math.random() * 4.8 + Math.max(0, 90 - pace) * 0.035;
       gapToWinnerMs += Math.round(stepSeconds * 1000);
@@ -527,7 +534,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const pointsTable = getActivePointsTable(gs);
 
   const qualy = drivers
-    .map(d => ({ d, score: basePace(d, ratings) + rnorm()*5 }))
+    .map(d => ({ d, score: basePace(d, ratings, gs) + rnorm()*5 }))
     .sort((a,b) => b.score - a.score)
     .map((x,i) => ({ pos: i+1, driver: x.d }));
 
@@ -540,7 +547,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     .sort((a,b) => (a.pos + a.raceDelta - a.opsBonus) - (b.pos + b.raceDelta - b.opsBonus))
     .map((x,i) => ({ pos: i+1, driver: x.driver }));
 
-  const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex);
+  const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex, gs);
   const race = applyRetirements(gs, timedRace, ratings, roundIndex);
 
   const prevDrv = new Map((gs.standings?.drivers||[]).map(x => [String(x.driver_id), Number(x.points||0)]));
@@ -638,6 +645,23 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
 
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
+
+  // A race weekend creates real physical load. Daily progression/rest then
+  // brings this back down between events.
+  const conditionDict={...(afterRelations.driverAttributes||{})};
+  for(const row of race){
+    const did=String(row?.driver?.driver_id??"");
+    if(!did)continue;
+    const curr={
+      confidence:50,
+      fatigue:20,
+      morale:50,
+      preparation:40,
+      ...(conditionDict[did]||{}),
+    };
+    conditionDict[did]={...curr,fatigue:clamp(Number(curr.fatigue||0)+6,0,100)};
+  }
+  afterRelations.driverAttributes=conditionDict;
 
   afterRelations.inbox = [
     {

@@ -97,6 +97,7 @@ function resolveDriver(row){
 }
 
 const byKey = new Map();
+let sourceIndex=0;
 for(const r of Array.isArray(rows) ? rows : []) {
   const year=Number(unwrap(firstOwn(r,["year","season_year"])));
   const team_id=resolveTeam(r);
@@ -104,12 +105,29 @@ for(const r of Array.isArray(rows) ? rows : []) {
   const refName=Number.isFinite(numericConstructorId)?constructorNumericToName.get(numericConstructorId):"";
   const team_name=String(unwrap(firstOwn(r,["team_name","constructor_name","constructorName","constructor","team"]))??refName??"");
   const driver_id=resolveDriver(r);
-  if(!Number.isFinite(year)||!team_id)continue;
+  const roundRaw=Number(unwrap(firstOwn(r,["round","raceRound","roundNumber"])));
+  const raceDate=String(unwrap(firstOwn(r,["race_date","date","dateISO"]))??"");
+  if(!Number.isFinite(year)||!team_id){sourceIndex++;continue;}
   const key=String(year)+"|"+team_id;
-  if(!byKey.has(key))byKey.set(key,{year,team_id,team_name,driver_ids:new Set()});
+  if(!byKey.has(key))byKey.set(key,{year,team_id,team_name,driver_ids:new Set(),drivers:new Map()});
   const rec=byKey.get(key);
-  if(driver_id)rec.driver_ids.add(driver_id);
+  if(driver_id){
+    rec.driver_ids.add(driver_id);
+    const prev=rec.drivers.get(driver_id)||{
+      driver_id,
+      appearances:0,
+      first_round:null,
+      first_date:null,
+      first_source_index:sourceIndex,
+    };
+    prev.appearances += 1;
+    if(Number.isFinite(roundRaw) && (prev.first_round==null || roundRaw<prev.first_round)) prev.first_round=roundRaw;
+    if(raceDate && (!prev.first_date || raceDate<prev.first_date)) prev.first_date=raceDate;
+    prev.first_source_index=Math.min(prev.first_source_index,sourceIndex);
+    rec.drivers.set(driver_id,prev);
+  }
   if(!rec.team_name&&team_name)rec.team_name=team_name;
+  sourceIndex++;
 }
 
 const output=[...byKey.values()]
@@ -119,6 +137,11 @@ const output=[...byKey.values()]
     team_name:row.team_name,
     driver_count:row.driver_ids.size,
     driver_ids:[...row.driver_ids].sort(),
+    drivers:[...row.drivers.values()].sort((a,b)=>{
+      const ar=Number.isFinite(a.first_round)?a.first_round:999;
+      const br=Number.isFinite(b.first_round)?b.first_round:999;
+      return ar-br || a.first_source_index-b.first_source_index || b.appearances-a.appearances || a.driver_id.localeCompare(b.driver_id);
+    }),
   }))
   .sort((a,b)=>a.year-b.year||a.team_name.localeCompare(b.team_name));
 

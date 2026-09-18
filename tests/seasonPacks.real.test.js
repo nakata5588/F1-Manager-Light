@@ -42,6 +42,19 @@ for(const year of targetYears){
       assert.ok(driverIds.has(String(row.driver_id)),`${year} contract references missing driver ${row.driver_id}`);
     }
 
+    const driverContracts=(state.contracts||[]).filter((row)=>/driver|main|second/i.test(String(row.role||"driver")));
+    const assignedDriverIds=new Set();
+    for(const team of state.teams){
+      const tid=String(team.team_id);
+      const seats=driverContracts.filter((row)=>String(row.team_id)===tid);
+      assert.ok(seats.length>=2,`${year} team ${tid} must start with at least two drivers, found ${seats.length}`);
+      for(const seat of seats.slice(0,2)){
+        const did=String(seat.driver_id);
+        assert.equal(assignedDriverIds.has(did),false,`${year} driver ${did} cannot occupy two starting teams`);
+        assignedDriverIds.add(did);
+      }
+    }
+
     for(const race of state.calendar||[]){
       for(const forbidden of ["winner","winner_id","winner_driver_id","winner_team_id","race_winner","classification","results"]){
         assert.equal(Object.prototype.hasOwnProperty.call(race,forbidden),false,`${year} calendar leaked historical outcome '${forbidden}'`);

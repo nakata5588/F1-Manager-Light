@@ -112,8 +112,11 @@ function driverStatus(driver,year,contracted){
   const death=asNum(String(pick(driver,["death_date"],"")).slice(0,4),Infinity);
   if(Number.isFinite(born)&&year<born)return null;
   if(year>=death)return null;
-  if(Number.isFinite(end)&&year>end)return null;
+  // Exact season participation/contract evidence outranks stale career-end
+  // metadata. This is especially important in later eras where the master
+  // career range is not yet fully curated.
   if(contracted)return {status:"eligible",active_lower_series:false,canHireF1:true,canHireAcademy:false,youth_eligible:false};
+  if(Number.isFinite(end)&&year>end)return null;
   const explicit=Number.isFinite(start)&&start<=year&&Number.isFinite(debut)&&year<debut;
   const inferred=!Number.isFinite(start)&&Number.isFinite(debut)&&year<debut&&(debut-year)<=3&&age!==null&&age>=16;
   const lower=explicit||inferred;
@@ -192,19 +195,119 @@ export function materializeSeasonPack(globalData,yearInput){
     return {
       ...clean(base),
       team_id:id,
-      team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(base,["team_name","name","short_name"],id))),
+      team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(base,["team_name","name","short_name"],pick(seasonRec,["team_name"],id))),
     };
   });
-  const contracts=activeContractRows(g.contracts,year)
-    .map(normalizeTeamRow).filter(Boolean)
-    .filter((r)=>teamIds.has(teamId(r)));
-  const contractedDriverIds=new Set(contracts.map(driverId).filter(Boolean));
-
   // Race-result participation and F1 career rows repair incomplete contract data.
-  const seasonRows=rowsAtYear(g.teamSeasons,year);
+  const seasonRows=seasonTeamRows;
   const f1Career=rowsAtYear(g.driverCareer,year)
     .filter((r)=>String(pick(r,["series_division","division","series"],"")).toUpperCase()==="F1")
     .map(normalizeTeamRow).filter(Boolean);
+
+  const driverMasterForBootstrap=new Map((g.drivers||[]).map((d)=>[driverId(d),d]).filter(([id])=>id));
+  const driverNameForBootstrap=(id)=>{
+    const d=driverMasterForBootstrap.get(String(id))||{};
+    return pick(d,["display_name","driver_name","name"],String(id));
+  };
+  const isDriverContract=(row)=>{
+    const role=String(pick(row,["role","position","contract_role","type"],"driver")).toLowerCase();
+    return !role || role.includes("driver") || role.includes("main") || role.includes("second") || role.includes("test");
+  };
+
+  let contracts=activeContractRows(g.contracts,year)
+    .map(normalizeTeamRow).filter(Boolean)
+    .filter((r)=>teamIds.has(teamId(r)) && driverId(r));
+
+  const assignedDrivers=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
+  const historicalPoolForTeam=(tid)=>{
+    const ranked=new Map();
+    for(const row of seasonRows.filter((r)=>teamId(r)===tid)){
+      const details=Array.isArray(row.drivers)&&row.drivers.length
+        ? row.drivers
+        : (Array.isArray(row.driver_ids)?row.driver_ids.map((id,index)=>({driver_id:id,first_source_index:index,appearances:0})):[]);
+      for(const rec of details){
+        const id=String(rec?.driver_id||"");
+        if(!id)continue;
+        const prev=ranked.get(id);
+        const score={
+          driver_id:id,
+          first_round:Number.isFinite(Number(rec?.first_round))?Number(rec.first_round):999,
+          first_source_index:Number.isFinite(Number(rec?.first_source_index))?Number(rec.first_source_index):999999,
+          appearances:Number(rec?.appearances||0),
+        };
+        if(!prev || score.first_round<prev.first_round || (score.first_round===prev.first_round && score.first_source_index<prev.first_source_index)) ranked.set(id,score);
+      }
+    }
+    for(const row of f1Career.filter((r)=>teamId(r)===tid)){
+      const id=driverId(row);
+      if(id&&!ranked.has(id))ranked.set(id,{driver_id:id,first_round:998,first_source_index:999998,appearances:Number(pick(row,["races","starts"],0))||0});
+    }
+    return [...ranked.values()]
+      .sort((a,b)=>a.first_round-b.first_round || a.first_source_index-b.first_source_index || b.appearances-a.appearances || a.driver_id.localeCompare(b.driver_id))
+      .map((x)=>x.driver_id);
+  };
+
+  const teamNameById=new Map(teams.map((t)=>[teamId(t),pick(t,["team_name","name","short_name"],teamId(t))]));
+  const addBootstrapContract=(tid,did,source)=>{
+    const teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    const role=teamContracts.length===0?"Main Driver":"Second Driver";
+    contracts.push({
+      year,
+      team_id:tid,
+      team_name:teamNameById.get(tid)||tid,
+      driver_id:did,
+      driver_name:driverNameForBootstrap(did),
+      role,
+      status:"active",
+      contract_start_year:year,
+      contract_until_year:year,
+      synthetic:true,
+      source,
+    });
+    assignedDrivers.add(did);
+  };
+
+  for(const tid of teamIds){
+    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    const historicalCandidates=historicalPoolForTeam(tid);
+    for(const did of historicalCandidates){
+      if(teamContracts.length>=2)break;
+      if(assignedDrivers.has(did))continue;
+      addBootstrapContract(tid,did,"season_results_bootstrap");
+      teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    }
+  }
+
+  // Last-resort playable-grid bootstrap. This should only be used when the
+  // historical source lacks a resolvable second seat.
+  const bootstrapRatings=new Map(
+    exactOrLatest(g.driverRatings||[],year,driverId,null).map((r)=>[driverId(r),r])
+  );
+  const fallbackDrivers=(g.drivers||[])
+    .filter((d)=>{
+      const id=driverId(d);
+      if(!id||assignedDrivers.has(id))return false;
+      const debut=asNum(pick(d,["f1_rookie_season","f1_debut_year"],NaN),NaN);
+      const end=asNum(pick(d,["career_end_year","last_f1_season"],Infinity),Infinity);
+      const death=asNum(String(pick(d,["death_date"],"")).slice(0,4),Infinity);
+      return Number.isFinite(debut)&&debut<=year&&year<=end&&year<death;
+    })
+    .sort((a,b)=>{
+      const ar=asNum(pick(bootstrapRatings.get(driverId(a))||{},["current_ability","pace"],0),0);
+      const br=asNum(pick(bootstrapRatings.get(driverId(b))||{},["current_ability","pace"],0),0);
+      return br-ar || driverId(a).localeCompare(driverId(b));
+    });
+  for(const tid of teamIds){
+    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    while(teamContracts.length<2){
+      const next=fallbackDrivers.find((d)=>!assignedDrivers.has(driverId(d)));
+      if(!next)break;
+      addBootstrapContract(tid,driverId(next),"ai_grid_bootstrap");
+      teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    }
+  }
+
+  const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const gridDriverIds=new Set(contractedDriverIds);
   for(const row of seasonRows)for(const id of Array.isArray(row.driver_ids)?row.driver_ids:[])if(id)gridDriverIds.add(String(id));
   for(const row of f1Career){const id=driverId(row);if(id)gridDriverIds.add(id);}
@@ -232,7 +335,9 @@ export function materializeSeasonPack(globalData,yearInput){
   const driverRatings=exactOrLatest(g.driverRatings,year,driverId,driverIds);
   const driverCareer=rowsAtYear(g.driverCareer,year).map(clean);
 
-  const staffContracts=activeContractRows(g.staffContracts,year).filter((r)=>teamIds.has(teamId(r))).map(clean);
+  const staffContracts=activeContractRows(g.staffContracts,year)
+    .map(normalizeTeamRow).filter(Boolean)
+    .filter((r)=>teamIds.has(teamId(r))).map(clean);
   const contractedStaffIds=new Set(staffContracts.map(staffId).filter(Boolean));
   const staffRatingRows=exactOrLatest(g.staffRatings,year,staffId,null);
   const staffRatingIds=new Set(staffRatingRows.map(staffId));
