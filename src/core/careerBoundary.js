@@ -4,6 +4,7 @@
 // F1-Manager-Sim. The db* collections remain the immutable editorial/global
 // source. A career owns the mutable active world and only consults the global
 // source for structural future information and newly eligible entity identity.
+import { carryActiveDriverContractsToSeason } from "../domain/contractEngine.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -384,7 +385,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     teams:(state.teams||[]).map((row)=>({...row})),
     drivers:uniqueBy([...updateAges(state.drivers||[],targetYear),...unlockedDrivers],idOfDriver),
     driverRatings:[...activeRatings.values()],
-    contracts:carryContracts(state.contracts||[],targetYear),
+    contracts:carryActiveDriverContractsToSeason(state,targetYear),
     staffCore:uniqueBy([...updateAges(state.staffCore||[],targetYear),...unlockedStaff],idOfStaff),
     staffRatings:[...activeStaffRatings.values()],
     staffContracts:carryContracts(state.staffContracts||[],targetYear,{staff:true}),
