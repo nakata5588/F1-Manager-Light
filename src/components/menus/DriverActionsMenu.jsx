@@ -18,8 +18,8 @@ export default function DriverActionsMenu({ driver, isOwnDriver, label = "Action
               { key: "fatigue", delta: +2 },
             ]},
             { key: "fitness", icon: <Dumbbell size={16} />, label: "Physical training", effects: [
-              { key: "driver_attr", driverId: driver?.driver_id, attr: "stamina", delta: +1 },
-              { key: "fatigue", delta: +2 },
+              { key: "driver_attr", driverId: driver?.driver_id, attr: "mentality", delta: +1 },
+              { key: "fatigue", delta: +3 },
             ]},
             { key: "data_review", icon: <Wrench size={16} />, label: "Data review w/ engineers", effects: [
               { key: "team_synergy", delta: +1 },
