@@ -84,10 +84,14 @@ function findTeamEngineRow(gs, year, teamId) {
 }
 
 function findSponsorContracts(gs, year, teamId) {
-  const arr = filterByYear(gs.dbSponsorsContracts || [], year);
+  const source = Array.isArray(gs.sponsorsContracts) && gs.sponsorsContracts.length
+    ? gs.sponsorsContracts
+    : (gs.dbSponsorsContracts || []);
+  const arr = filterByYear(source, year);
   return (arr || []).filter((r) => {
     const tid = String(pick(r, ["team_id","team","constructor","id"], ""));
-    return tid === String(teamId);
+    const status = String(pick(r, ["status"], "active")).toLowerCase();
+    return tid === String(teamId) && !["terminated","expired"].includes(status);
   });
 }
 
