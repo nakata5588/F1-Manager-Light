@@ -236,6 +236,7 @@ export default function ResultsPage() {
                   <th className="px-3 py-2 text-right w-16">Pos</th>
                   <th className="px-3 py-2 text-left">Driver</th>
                   <th className="px-3 py-2 text-left">Team</th>
+                  <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-right">Time</th>
                   <th className="px-3 py-2 text-right">To Winner</th>
                   <th className="px-3 py-2 text-right">Gap</th>
@@ -253,12 +254,15 @@ export default function ResultsPage() {
                     const tid = row.team_id || resolveTeamIdForYear(contractsDb, selected.year ?? activeYear, did);
                     const team = resolveTeamNameById(teamsDb, tid);
                     const position = Number(row.position);
-                    const points = Number.isFinite(Number(row.points))
-                      ? Number(row.points)
-                      : Number(pointsTable[position - 1] || 0);
+                    const retired = row?.retired || String(row?.status||"").toUpperCase()==="DNF";
+                    const points = retired
+                      ? 0
+                      : Number.isFinite(Number(row.points))
+                        ? Number(row.points)
+                        : Number(pointsTable[position - 1] || 0);
                     return (
                       <tr key={`${did}_${idx}`} className="border-t">
-                        <td className="px-3 py-2 text-right font-medium">{row.position ?? "—"}</td>
+                        <td className="px-3 py-2 text-right font-medium">{retired ? "DNF" : (row.position ?? "—")}</td>
                         <td className="px-3 py-2">
                           <button type="button" data-entity="driver" data-id={did} className="flex items-center gap-3 font-medium hover:underline text-left">
                             <DriverPortrait driver={(driversDb || []).find((d)=>String(d?.driver_id ?? d?.id)===did) || { display_name:name }} size="h-9 w-9" />
@@ -271,7 +275,12 @@ export default function ResultsPage() {
                             <span>{team}</span>
                           </button>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatRaceTime(row.total_time_ms)}</td>
+                        <td className="px-3 py-2">
+                          {retired
+                            ? <span className="text-rose-700">{row.retirement_reason || "Retired"}{row.laps_completed ? ` · Lap ${row.laps_completed}` : ""}</span>
+                            : <span className="text-emerald-700">Finished</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{retired ? "—" : formatRaceTime(row.total_time_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_winner_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_previous_ms)}</td>
                         <td className={`px-3 py-2 text-right tabular-nums ${row.fastest_lap ? "font-semibold text-purple-700" : ""}`}>
@@ -283,7 +292,7 @@ export default function ResultsPage() {
                   })}
                 {!selected.classification?.length && (
                   <tr>
-                    <td className="px-3 py-3 text-gray-600" colSpan={8}>Sem classificação nesta corrida.</td>
+                    <td className="px-3 py-3 text-gray-600" colSpan={9}>Sem classificação nesta corrida.</td>
                   </tr>
                 )}
               </tbody>

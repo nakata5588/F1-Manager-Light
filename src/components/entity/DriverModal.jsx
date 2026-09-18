@@ -139,6 +139,8 @@ export default function DriverModal({ entity, onClose }) {
         ? gs.dbDriverCareer
         : (Array.isArray(gs.driverCareer) ? gs.driverCareer : []),
       achievementsRaw: gs.dbAchievements ?? gs.achievements ?? null,
+      results: Array.isArray(gs.results) ? gs.results : [],
+      standings: gs.standings || { drivers: [], teams: [] },
       gameYear: Number(gs.activeYear ?? (gs.currentDateISO ? gs.currentDateISO.slice(0,4) : NaN)),
       gameDateISO: gs.currentDateISO ?? null,
       myTeamId:   gs.team?.team_id ?? gs.team?.id ?? null,
@@ -149,7 +151,7 @@ export default function DriverModal({ entity, onClose }) {
 
   const {
     driversList, ratingsList, contractsList, careerRaw,
-    achievementsRaw, gameYear, gameDateISO,
+    achievementsRaw, results, standings, gameYear, gameDateISO,
     myTeamId, myTeamName, queueEvent
   } = useGame(selector);
 
@@ -211,8 +213,9 @@ export default function DriverModal({ entity, onClose }) {
     const set = new Set(
       (careerAll || []).map(getSeries).map((s) => s.trim()).filter(Boolean)
     );
+    if ((results || []).some((r) => Number(r?.year) === Number(gameYear))) set.add("F1");
     return ["All", ...Array.from(set).sort()];
-  }, [careerAll]);
+  }, [careerAll, results, gameYear]);
 
   const defaultSeries = useMemo(() => (seriesOptions.includes("F1") ? "F1" : "All"), [seriesOptions]);
   const [seriesSel, setSeriesSel] = useState(defaultSeries);
@@ -221,11 +224,55 @@ export default function DriverModal({ entity, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSeries]);
 
+  const liveSeasonRow = useMemo(() => {
+    if (!Number.isFinite(gameYear)) return null;
+    const seasonEvents = (results || []).filter((r) => Number(r?.year) === Number(gameYear));
+    if (!seasonEvents.length) return null;
+
+    let starts = 0, wins = 0, podiums = 0, poles = 0, fastest_laps = 0, points = 0;
+    let team_id = null;
+    for (const event of seasonEvents) {
+      const raceRow = (event?.classification || []).find((r) => sameDriver(r?.driver_id, idNorm));
+      if (raceRow) {
+        starts += 1;
+        const pos = Number(raceRow.position);
+        if (pos === 1) wins += 1;
+        if (pos >= 1 && pos <= 3) podiums += 1;
+        if (raceRow.fastest_lap) fastest_laps += 1;
+        points += Number(raceRow.points || 0);
+        if (raceRow.team_id != null) team_id = unbox(raceRow.team_id);
+      }
+      const qRow = (event?.qualifying || []).find((r) => sameDriver(r?.driver_id, idNorm));
+      if (qRow && Number(qRow.position) === 1) poles += 1;
+      if (!team_id && qRow?.team_id != null) team_id = unbox(qRow.team_id);
+    }
+    if (!starts) return null;
+
+    const standing = (standings?.drivers || []).find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
+    const teamRow = (standings?.teams || []).find((r) => String(r?.team_id ?? r?.constructor_id ?? "") === String(team_id ?? ""));
+    return {
+      __live: true,
+      year: gameYear,
+      series_division: "F1",
+      team_id,
+      team_name: teamRow?.team_name || contractTeam || "—",
+      starts,
+      races: starts,
+      wins,
+      podiums,
+      poles,
+      fastest_laps,
+      points,
+      champ_pos: standing?.position ?? null,
+    };
+  }, [results, standings, gameYear, idNorm, contractTeam]);
+
   const filteredCareer = useMemo(() => {
     const byYear = (careerAll || []).filter((r) => Number(unbox(r?.year)) < Number(gameYear));
-    if (seriesSel === "All") return byYear;
-    return byYear.filter((r) => getSeries(r).toUpperCase() === seriesSel.toUpperCase());
-  }, [careerAll, gameYear, seriesSel]);
+    const rows = liveSeasonRow ? [...byYear, liveSeasonRow] : byYear;
+    if (seriesSel === "All") return rows;
+    return rows.filter((r) => getSeries(r).toUpperCase() === seriesSel.toUpperCase());
+  }, [careerAll, gameYear, seriesSel, liveSeasonRow]);
 
   const statsAgg = useMemo(() => {
     if (!filteredCareer.length) return null;
@@ -279,14 +326,56 @@ export default function DriverModal({ entity, onClose }) {
     };
   }, [careerTimeline]);
 
-  // --- Achievements: filter strictly by driver id, then sort ASC (oldest -> newest)
+  // Historical achievement IDs are not fully aligned with the current driver IDs.
+  // Prefer exact achievement records, then fill gaps from the driver's own career rows.
   const achievementsList = useMemo(() => {
-    const list = achievementsArr
+    const direct = achievementsArr
       .filter((a) => sameDriver(extractDriverId(a), idNorm))
-      .filter((a) => Number(unbox(a.year)) <= Number(gameYear));
-    list.sort((a, b) => Number(unbox(a.year) || 0) - Number(unbox(b.year) || 0));
-    return list;
-  }, [achievementsArr, idNorm, gameYear]);
+      .filter((a) => Number(unbox(a.year)) < Number(gameYear))
+      .map((a) => ({ ...a, __source: "achievements" }));
+
+    const derived = (careerAll || [])
+      .filter((r) => Number(unbox(r?.year)) < Number(gameYear))
+      .filter((r) => {
+        const wins = Number(unbox(r?.wins) || 0);
+        const podiums = Number(unbox(r?.podiums) || 0);
+        const pos = Number(unbox(r?.champ_pos));
+        return wins > 0 || podiums > 0 || (Number.isFinite(pos) && pos <= 3);
+      })
+      .map((r) => ({
+        driver_id: driver?.driver_id ?? entity.id,
+        team_id: unbox(r?.team_id) ?? null,
+        team_name: unbox(r?.team_name) ?? "—",
+        year: Number(unbox(r?.year)),
+        wins: Number(unbox(r?.wins) || 0),
+        podiums: Number(unbox(r?.podiums) || 0),
+        driver_championship: isNumeric(r?.champ_pos) ? Number(unbox(r?.champ_pos)) : null,
+        team_championship: null,
+        __source: "career",
+      }));
+
+    if (liveSeasonRow && (liveSeasonRow.wins > 0 || liveSeasonRow.podiums > 0)) {
+      derived.push({
+        driver_id: driver?.driver_id ?? entity.id,
+        team_id: liveSeasonRow.team_id,
+        team_name: liveSeasonRow.team_name,
+        year: gameYear,
+        wins: liveSeasonRow.wins,
+        podiums: liveSeasonRow.podiums,
+        driver_championship: liveSeasonRow.champ_pos,
+        team_championship: null,
+        __source: "live",
+        __live: true,
+      });
+    }
+
+    const map = new Map();
+    for (const row of [...derived, ...direct]) {
+      const key = [Number(unbox(row.year)), String(unbox(row.team_id) ?? unbox(row.team_name) ?? "")].join("|");
+      map.set(key, row);
+    }
+    return [...map.values()].sort((a,b) => Number(unbox(a.year)||0) - Number(unbox(b.year)||0));
+  }, [achievementsArr, careerAll, liveSeasonRow, idNorm, gameYear, driver?.driver_id, entity.id]);
 
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
@@ -486,7 +575,7 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
       <div className="space-y-4">
         <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
         <p className="text-gray-500 text-sm">
-          No stats before {gameYear}{seriesSel && seriesSel !== "All" ? ` • ${seriesSel}` : ""}.
+          No statistics available through {gameYear}{seriesSel && seriesSel !== "All" ? ` • ${seriesSel}` : ""}.
         </p>
       </div>
     );
@@ -562,8 +651,8 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
               {perYear.map((r) => {
                 const isChampion = isNumeric(r.champ_pos) && Number(r.champ_pos) === 1;
                 return (
-                  <tr key={r.year} className={isChampion ? "bg-amber-100/70" : ""}>
-                    <td className="pr-3 py-1">{r.year}</td>
+                  <tr key={r.year} className={r.year===gameYear ? "bg-blue-50" : (isChampion ? "bg-amber-100/70" : "")}>
+                    <td className="pr-3 py-1">{r.year}{r.year===gameYear ? " (current)" : ""}</td>
                     <td className="text-right pr-3 py-1">{r.starts}</td>
                     <td className={`text-right pr-3 py-1 ${Number(r.wins) > 0 ? "text-red-600 font-semibold" : ""}`}>{r.wins}</td>
                     <td className="text-right pr-3 py-1">{r.podiums}</td>
@@ -720,7 +809,7 @@ function AchievementsTab({ items }) {
           <tbody className="divide-y">
             {items.map((a, i) => (
               <tr key={i}>
-                <td className="pr-3 py-1">{unbox(a.year) ?? "—"}</td>
+                <td className="pr-3 py-1">{unbox(a.year) ?? "—"}{a.__live ? " (current)" : ""}</td>
                 <td className="pr-3 py-1">
                   {a.team_id ? (
                     <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">

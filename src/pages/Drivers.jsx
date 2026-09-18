@@ -99,6 +99,10 @@ export default function Drivers(){
       <p className="text-sm text-gray-500">Visible driver market for season {activeYear||"—"} · contracted, free and youth talent.</p>
       <div className="mt-3 flex flex-col lg:flex-row gap-2">
         <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search driver/team/nationality/status…" value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}/>
+        <button
+          className={"border rounded-md px-3 py-2 text-sm " + (status==="Free" ? "bg-slate-900 text-white" : "")}
+          onClick={()=>{setStatus(status==="Free"?"ALL":"Free");setPage(1);}}
+        >Free Drivers</button>
         <select className="border rounded-md px-3 py-2 text-sm" value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}>{statusOptions.map(v=><option key={v}>{v}</option>)}</select>
         <select className="border rounded-md px-3 py-2 text-sm" value={team} onChange={e=>{setTeam(e.target.value);setPage(1);}}>{teamOptions.map(v=><option key={v}>{v}</option>)}</select>
         <select className="border rounded-md px-3 py-2 text-sm" value={sortKey} onChange={e=>setSortKey(e.target.value)}>{headers.map(([k,l])=><option key={k} value={k}>Sort: {l}</option>)}</select>

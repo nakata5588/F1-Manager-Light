@@ -92,6 +92,101 @@ function raceOperationsBonus(gs, driver) {
   return (pitLevel - 5) * 0.12;
 }
 
+function clamp(n,min,max){ return Math.max(min,Math.min(max,Number(n)||0)); }
+
+function accidentModelForYear(gs) {
+  const year=Number(gs?.activeYear);
+  const src=gs?.accidentModel ?? gs?.dbAccidentModel ?? [];
+  const arr=Array.isArray(src)?src:Object.values(src||{});
+  const exact=arr.find((r)=>Number(pick(r,["year","season_year"],NaN))===year);
+  if(exact)return exact;
+  const historical=arr
+    .filter((r)=>Number(pick(r,["year","season_year"],NaN))<=year)
+    .sort((a,b)=>Number(pick(b,["year"],0))-Number(pick(a,["year"],0)));
+  return historical[0]||{};
+}
+
+function teamReliability(gs, driver) {
+  const teamId=resolveDriverTeamId(gs,driver);
+  const year=Number(gs?.activeYear);
+  const row=(gs?.teamEngines||gs?.dbTeamEngines||[]).find((r)=>
+    String(pick(r,["team_id","team","constructor"],""))===String(teamId) &&
+    Number(pick(r,["year","season_year"],year))===year
+  );
+  let rel=Number(pick(row||{},["reliability_override"],NaN));
+  if(!Number.isFinite(rel)){
+    const score=Number(pick(row||{},["reliability"],80));
+    rel=Number.isFinite(score)?score/100:0.82;
+  }
+
+  // User development/facilities can improve reliability, but only modestly.
+  const userTeamId=getTeamId(gs?.team||{});
+  if(String(teamId)===String(userTeamId)){
+    const manufacturing=facilityLevel(gs,teamId,"manufacturing_level");
+    rel += (manufacturing-5)*0.004;
+    const projects=[
+      ...(gs?.development?.projects||[]),
+      ...(gs?.development?.research||[]),
+    ].filter((p)=>String(p?.area||p?.focus||"").toLowerCase().includes("reliab") && ["completed","done"].includes(String(p?.status||"").toLowerCase()));
+    rel += projects.reduce((sum,p)=>sum+Math.max(0,Number(p?.target_gain||p?.gain||1))*0.004,0);
+  }
+  return clamp(rel,0.55,0.97);
+}
+
+function applyRetirements(gs, timedRace, ratings, roundIndex) {
+  const model=accidentModelForYear(gs);
+  const damageProb=clamp(Number(pick(model,["damage_DNF_prob","damage_dnf_prob"],0.10)),0.04,0.25);
+  const finishers=[];
+  const retirees=[];
+
+  for(const row of timedRace){
+    const driver=row.driver||{};
+    const rating=(ratings||[]).find((r)=>String(r?.driver_id)===String(driver?.driver_id))||{};
+    const rel=teamReliability(gs,driver);
+    const crashLik=clamp(Number(pick(rating,["crash_likelihood"],35))/100,0.05,0.95);
+
+    // Older/less reliable cars fail more often. Crash likelihood is a separate route to DNF.
+    const mechanicalChance=clamp((1-rel)*0.68,0.015,0.28);
+    const accidentChance=clamp(0.012 + crashLik*damageProb*0.32,0.01,0.10);
+    const roll=Math.random();
+
+    let reason=null;
+    if(roll<mechanicalChance) {
+      const mechReasons=["Engine","Gearbox","Transmission","Electrical","Cooling","Fuel system","Suspension"];
+      reason=mechReasons[(simpleRaceHash(`${roundIndex}:${driver?.driver_id}:mech`))%mechReasons.length];
+    } else if(roll<mechanicalChance+accidentChance) {
+      reason=Math.random()<0.72?"Accident":"Collision";
+    }
+
+    if(!reason){
+      finishers.push({...row,status:"Finished",retired:false,retirement_reason:null});
+      continue;
+    }
+
+    const progress=0.12+Math.random()*0.80;
+    const lapsCompleted=Math.max(1,Math.floor(60*progress));
+    retirees.push({
+      ...row,
+      status:"DNF",
+      retired:true,
+      retirement_reason:reason,
+      laps_completed:lapsCompleted,
+      total_time_ms:null,
+      gap_to_winner_ms:null,
+      gap_to_previous_ms:null,
+    });
+  }
+
+  retirees.sort((a,b)=>Number(b.laps_completed||0)-Number(a.laps_completed||0));
+  return [...finishers,...retirees].map((row,index)=>({...row,pos:index+1}));
+}
+
+function simpleRaceHash(text){
+  let h=2166136261;
+  for(const ch of String(text||"")){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}
+  return Math.abs(h>>>0);
+}
+
 function buildRaceTiming(race, ratings, roundIndex) {
   if (!race.length) return race;
 
@@ -445,11 +540,12 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     .sort((a,b) => (a.pos + a.raceDelta - a.opsBonus) - (b.pos + b.raceDelta - b.opsBonus))
     .map((x,i) => ({ pos: i+1, driver: x.driver }));
 
-  const race = buildRaceTiming(raceOrder, ratings, roundIndex);
+  const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex);
+  const race = applyRetirements(gs, timedRace, ratings, roundIndex);
 
   const prevDrv = new Map((gs.standings?.drivers||[]).map(x => [String(x.driver_id), Number(x.points||0)]));
   race.forEach((r,i) => {
-    const pts = Number(pointsTable[i] || 0);
+    const pts = r?.retired ? 0 : Number(pointsTable[i] || 0);
     const id = String(r.driver.driver_id);
     prevDrv.set(id, (prevDrv.get(id)||0) + pts);
   });
@@ -474,7 +570,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   race.forEach((row, i) => {
     const teamId = resolveDriverTeamId(gs, row.driver);
     if (!teamId) return;
-    const pts = Number(pointsTable[i] || 0);
+    const pts = row?.retired ? 0 : Number(pointsTable[i] || 0);
     teamPts.set(teamId, (teamPts.get(teamId) || 0) + pts);
   });
   const teamStandings = Array.from(teamPts.entries())
@@ -497,7 +593,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     position: row.pos,
     driver_id: row.driver?.driver_id ?? null,
     team_id: resolveDriverTeamId(gs, row.driver),
-    points: Number(pointsTable[index] || 0),
+    points: row?.retired ? 0 : Number(pointsTable[index] || 0),
+    status: row.status || (row.retired ? "DNF" : "Finished"),
+    retired: Boolean(row.retired),
+    retirement_reason: row.retirement_reason || null,
+    laps_completed: row.laps_completed ?? null,
     total_time_ms: row.total_time_ms,
     gap_to_winner_ms: row.gap_to_winner_ms,
     gap_to_previous_ms: row.gap_to_previous_ms,
@@ -544,9 +644,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       id: `gp_${Date.now()}`,
       date: gs.currentDateISO,
       from: "Race Control",
+      type: "GP",
       tag: "Race",
-      subject: `${gpName} — Resultados`,
-      body: `Vencedor: ${race[0]?.driver?.display_name || race[0]?.driver?.name || "—"}. Pontos atualizados.`,
+      subject: `${gpName} — Race Report`,
+      body: `Winner: ${race.find((r)=>!r.retired)?.driver?.display_name || race.find((r)=>!r.retired)?.driver?.name || "—"}. ${race.filter((r)=>r.retired).length} retirement(s). Championship points updated.`,
+      unread: true,
       actions: [
         { label: "Ver resultados", route: "/Results" },
         { label: "Ver classificação", route: "/Standings" },

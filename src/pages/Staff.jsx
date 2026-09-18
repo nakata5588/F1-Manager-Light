@@ -36,6 +36,7 @@ export default function Staff(){
   const [q,setQ]=useState("");
   const [dept,setDept]=useState("ALL");
   const [team,setTeam]=useState("ALL");
+  const [market,setMarket]=useState("ALL");
   const [sort,setSort]=useState("overall");
 
   const coreById=useMemo(()=>new Map(core.map(s=>[staffIdOf(s),s])),[core]);
@@ -74,6 +75,8 @@ export default function Staff(){
   const filtered=rows.filter(r=>{
     if(dept!=="ALL"&&r.dept!==dept)return false;
     if(team!=="ALL"&&r.team!==team)return false;
+    if(market==="Free"&&r.team!=="Free")return false;
+    if(market==="Contracted"&&r.team==="Free")return false;
     if(q&&![r.name,r.role,r.dept,r.country,r.team].some(v=>String(v).toLowerCase().includes(q.toLowerCase())))return false;
     return true;
   }).sort((a,b)=>{
@@ -89,6 +92,15 @@ export default function Staff(){
       <p className="text-sm text-gray-500">Season {year||"—"} · click a staff member to open the profile.</p>
       <div className="mt-3 flex flex-col lg:flex-row gap-2">
         <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search name/role/team/nationality…" value={q} onChange={e=>setQ(e.target.value)}/>
+        <button
+          className={"border rounded-md px-3 py-2 text-sm " + (market==="Free" ? "bg-slate-900 text-white" : "")}
+          onClick={()=>setMarket(market==="Free"?"ALL":"Free")}
+        >Free Staff</button>
+        <select className="border rounded-md px-3 py-2 text-sm" value={market} onChange={e=>setMarket(e.target.value)}>
+          <option value="ALL">All market</option>
+          <option value="Contracted">Contracted</option>
+          <option value="Free">Free</option>
+        </select>
         <select className="border rounded-md px-3 py-2 text-sm" value={dept} onChange={e=>setDept(e.target.value)}>{depts.map(v=><option key={v}>{v}</option>)}</select>
         <select className="border rounded-md px-3 py-2 text-sm" value={team} onChange={e=>setTeam(e.target.value)}>{teamsOpt.map(v=><option key={v}>{v}</option>)}</select>
         <select className="border rounded-md px-3 py-2 text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="overall">Sort: Overall</option><option value="role">Sort: Role</option><option value="team">Sort: Team</option><option value="name">Sort: Name</option></select>

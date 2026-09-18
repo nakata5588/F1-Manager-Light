@@ -428,12 +428,23 @@ function SponsorsTab({ sponsors }) {
   const todayISO = String(gameState?.currentDateISO || `${Y}-01-01`).slice(0, 10);
 
   const [status, setStatus] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [negotiating, setNegotiating] = useState(null);
+  const [offerAnnual, setOfferAnnual] = useState(0);
+  const [offerUpfront, setOfferUpfront] = useState(0);
+  const [offerWinBonus, setOfferWinBonus] = useState(0);
+  const [negotiationRound, setNegotiationRound] = useState(0);
+  const [negotiationNote, setNegotiationNote] = useState("");
 
   const filtered = useMemo(
-    () => sponsors.filter((s) => (status === "all" ? true : s.status === status)),
-    [sponsors, status]
+    () => sponsors.filter((s) => {
+      if (status !== "all" && s.status !== status) return false;
+      if (typeFilter !== "all" && s.type !== typeFilter) return false;
+      return true;
+    }),
+    [sponsors, status, typeFilter]
   );
 
   const totalMonthly = filtered.reduce((s, r) => s + (r.monthly_fee || 0), 0);
@@ -553,8 +564,8 @@ function SponsorsTab({ sponsors }) {
     }
   }, [Y, sponsors, canAddMain, canAddSecondary]);
 
-  const signSponsor = useCallback(
-    (sp) => {
+  const finalizeSponsor = useCallback(
+    (sp, terms = {}) => {
       const type = normalizeSponsorTier(pick(sp, ["type", "tier", "category", "sponsor_reputation"], "secondary"));
       if (type === "main" && !canAddMain) return;
       if (type !== "main" && !canAddSecondary) return;
@@ -571,10 +582,10 @@ function SponsorsTab({ sponsors }) {
       const monthly_fee =
         N(pick(sp, ["monthly_fee", "monthly", "per_month"], NaN), NaN) ||
         N(pick(sp, ["annual_income", "anual_income", "value_year"], 0), 0) / 12;
-      const annual_income = N(pick(sp, ["annual_income", "anual_income", "value_year"], Math.round((monthly_fee || 0) * 12)), 0);
-      const cash_upfront = N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0);
+      const annual_income = N(terms.annual_income, N(pick(sp, ["annual_income", "anual_income", "value_year"], Math.round((monthly_fee || 0) * 12)), 0));
+      const cash_upfront = N(terms.cash_upfront, N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0));
 
-      const bonus_win = N(pick(sp, ["bonus_win", "win_bonus"], 0), 0);
+      const bonus_win = N(terms.bonus_win, N(pick(sp, ["bonus_win", "win_bonus"], 0), 0));
       const bonus_podium = N(pick(sp, ["bonus_podium", "podium_bonus"], 0), 0);
       const bonus_championship = N(pick(sp, ["bonus_championship", "championship_bonus"], 0), 0);
 
@@ -588,7 +599,7 @@ function SponsorsTab({ sponsors }) {
         end_year: Y,
         start_date: todayISO,
         end_date: `${Y}-12-31`,
-        monthly_fee: Math.round(monthly_fee || 0),
+        monthly_fee: Math.round((annual_income || monthly_fee * 12 || 0) / 12),
         annual_income: Math.round(annual_income || 0),
         cash_upfront: Math.round(cash_upfront || 0),
         bonus_win,
@@ -635,16 +646,89 @@ function SponsorsTab({ sponsors }) {
         : prev
       );
 
-      alert(`Signed sponsor: ${sponsor_name} (${titleCase(type)})`);
+      setGameState({
+        inbox:[
+          {
+            id:`sponsor_signed_${Date.now()}`,
+            date:todayISO,
+            from:"Commercial Director",
+            type:"FINANCE",
+            tag:"Sponsors",
+            subject:`Sponsor agreement signed — ${sponsor_name}`,
+            body:`${sponsor_name} accepted the negotiated package. Annual value: ${fmtMoney(annual_income)} · Upfront: ${fmtMoney(cash_upfront)} · Win bonus: ${fmtMoney(bonus_win)}.`,
+            unread:true,
+          },
+          ...(gameState?.inbox||[]),
+        ],
+      });
+      setNegotiating(null);
+      setNegotiationNote("");
     },
     [Y, teamId, todayISO, setGameState, gameState, canAddMain, canAddSecondary, sponsorEligibility]
   );
+
+  const startSponsorNegotiation = useCallback((sp) => {
+    const annual=N(pick(sp,["annual_income","anual_income","value_year"],0),0);
+    const upfront=N(pick(sp,["cash_upfront","upfront","signing_fee"],0),0);
+    const win=N(pick(sp,["bonus_win","win_bonus"],0),0);
+    setNegotiating(sp);
+    setOfferAnnual(Math.round(annual));
+    setOfferUpfront(Math.round(upfront));
+    setOfferWinBonus(Math.round(win));
+    setNegotiationRound(1);
+    setNegotiationNote("Opening terms from the sponsor. You can ask for more, but aggressive demands reduce acceptance.");
+  },[]);
+
+  const submitSponsorOffer = useCallback(() => {
+    if(!negotiating)return;
+    const eligibility=sponsorEligibility(negotiating);
+    if(!eligibility.eligible)return;
+
+    const baseAnnual=Math.max(1,N(pick(negotiating,["annual_income","anual_income","value_year"],0),0));
+    const baseUpfront=Math.max(1,N(pick(negotiating,["cash_upfront","upfront","signing_fee"],0),0)||baseAnnual*0.08);
+    const baseWin=Math.max(1,N(pick(negotiating,["bonus_win","win_bonus"],0),0)||baseAnnual*0.03);
+
+    const annualRatio=Number(offerAnnual||0)/baseAnnual;
+    const upfrontRatio=Number(offerUpfront||0)/baseUpfront;
+    const winRatio=Number(offerWinBonus||0)/baseWin;
+    const demandPressure=Math.max(0,annualRatio-1)*0.55+Math.max(0,upfrontRatio-1)*0.30+Math.max(0,winRatio-1)*0.15;
+    const relationship=(commercialScore/100);
+    const roundPenalty=Math.max(0,negotiationRound-1)*0.06;
+    const acceptance=Math.max(0.05,Math.min(0.95,0.68+relationship*0.25-demandPressure-roundPenalty));
+
+    if(Math.random()<acceptance){
+      finalizeSponsor(negotiating,{
+        annual_income:Math.round(Number(offerAnnual||0)),
+        cash_upfront:Math.round(Number(offerUpfront||0)),
+        bonus_win:Math.round(Number(offerWinBonus||0)),
+      });
+      return;
+    }
+
+    const counterAnnual=Math.round((baseAnnual+Number(offerAnnual||0))*0.5/50000)*50000;
+    const counterUpfront=Math.round((baseUpfront+Number(offerUpfront||0))*0.5/25000)*25000;
+    const counterWin=Math.round((baseWin+Number(offerWinBonus||0))*0.5/10000)*10000;
+    setOfferAnnual(counterAnnual);
+    setOfferUpfront(counterUpfront);
+    setOfferWinBonus(counterWin);
+    setNegotiationRound((r)=>r+1);
+    setNegotiationNote(
+      negotiationRound>=3
+        ? "The sponsor is close to walking away. This is effectively their final counter-offer."
+        : `Counter-offer received. Estimated acceptance of your last proposal was ${Math.round(acceptance*100)}%.`
+    );
+  },[negotiating,offerAnnual,offerUpfront,offerWinBonus,commercialScore,negotiationRound,sponsorEligibility,finalizeSponsor]);
 
   return (
     <>
       <Card>
         <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex items-center gap-2">
+            <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="border rounded px-2 py-1">
+              <option value="all">All types</option>
+              <option value="main">Main</option>
+              <option value="secondary">Secondary</option>
+            </select>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
@@ -662,7 +746,7 @@ function SponsorsTab({ sponsors }) {
           </div>
           <div className="flex-1" />
           <Button variant="outline" onClick={loadCatalog} disabled={loading}>
-            {loading ? "Loading…" : "Sign new sponsor"}
+            {loading ? "Loading…" : "Find sponsors"}
           </Button>
         </CardContent>
       </Card>
@@ -711,6 +795,34 @@ function SponsorsTab({ sponsors }) {
           )}
         </CardContent>
       </Card>
+
+      {negotiating && (
+        <Card><CardContent className="p-4 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-semibold">Sponsor Negotiation — {String(pick(negotiating,["sponsor_name","name"],"Sponsor"))}</div>
+              <div className="text-xs text-muted-foreground">Round {negotiationRound} · Commercial Score {commercialScore}/100</div>
+            </div>
+            <Button size="sm" variant="outline" onClick={()=>{setNegotiating(null);setNegotiationNote("");}}>Walk Away</Button>
+          </div>
+          <p className="text-sm text-muted-foreground">{negotiationNote}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="text-sm">Annual value
+              <input type="number" min="0" step="50000" value={offerAnnual} onChange={(e)=>setOfferAnnual(Number(e.target.value))} className="mt-1 border rounded px-3 py-2 w-full"/>
+            </label>
+            <label className="text-sm">Upfront
+              <input type="number" min="0" step="25000" value={offerUpfront} onChange={(e)=>setOfferUpfront(Number(e.target.value))} className="mt-1 border rounded px-3 py-2 w-full"/>
+            </label>
+            <label className="text-sm">Win bonus
+              <input type="number" min="0" step="10000" value={offerWinBonus} onChange={(e)=>setOfferWinBonus(Number(e.target.value))} className="mt-1 border rounded px-3 py-2 w-full"/>
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={submitSponsorOffer}>Submit Offer</Button>
+            <Button variant="outline" onClick={()=>startSponsorNegotiation(negotiating)}>Reset to Sponsor Terms</Button>
+          </div>
+        </CardContent></Card>
+      )}
 
       {catalog && (
         <Card>
@@ -769,8 +881,8 @@ function SponsorsTab({ sponsors }) {
                           <span className={eligibility.eligible ? "text-emerald-700" : "text-amber-700"}>{eligibility.text}</span>
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <Button size="sm" disabled={block} onClick={() => signSponsor(sp)}>
-                            {slotBlocked ? "No slot" : eligibility.eligible ? "Sign" : "Locked"}
+                          <Button size="sm" disabled={block} onClick={() => startSponsorNegotiation(sp)}>
+                            {slotBlocked ? "No slot" : eligibility.eligible ? "Negotiate" : "Locked"}
                           </Button>
                         </td>
                       </tr>

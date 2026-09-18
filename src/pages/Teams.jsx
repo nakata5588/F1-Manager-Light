@@ -28,20 +28,16 @@ export default function Teams(){
     for(const row of seasonRows){ const tid=teamIdOf(row); if(tid) teamIds.add(tid); }
 
     const brandRows=brands.filter((b)=>Number(pick(b,["year","season_year"],NaN))===y);
-    if(!teamIds.size) for(const b of brandRows){ const tid=teamIdOf(b); if(tid) teamIds.add(tid); }
+    for(const b of brandRows){ const tid=teamIdOf(b); if(tid) teamIds.add(tid); }
 
-    if(!teamIds.size){
-      for(const row of career){
-        if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
-        if(String(pick(row,["series_division","division","series"],"")).toUpperCase()!=="F1") continue;
-        const tid=teamIdOf(row); if(tid) teamIds.add(tid);
-      }
+    for(const row of career){
+      if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
+      if(String(pick(row,["series_division","division","series"],"")).toUpperCase()!=="F1") continue;
+      const tid=teamIdOf(row); if(tid) teamIds.add(tid);
     }
-    if(!teamIds.size){
-      for(const row of achievements){
-        if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
-        const tid=teamIdOf(row); if(tid) teamIds.add(tid);
-      }
+    for(const row of achievements){
+      if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
+      const tid=teamIdOf(row); if(tid) teamIds.add(tid);
     }
     for(const c of contracts){
       if(Number(pick(c,["year","season_year"],NaN))===y){
@@ -73,11 +69,13 @@ export default function Teams(){
         country:pick(t,["team_base","country","base"],""),
         code:pick(t,["country_code"],""),
         founded:pick(t,["founded_year"],"—"),
-        drivers:driverCount || career.filter((r)=>
-          Number(pick(r,["year"],NaN))===y &&
-          String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
-          teamIdOf(r)===id
-        ).length,
+        drivers:driverCount ||
+          Number(pick(seasonRec,["driver_count"],0)) ||
+          career.filter((r)=>
+            Number(pick(r,["year"],NaN))===y &&
+            String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
+            teamIdOf(r)===id
+          ).length,
         principal:pick(principal,["staff_name","name"],"—"),
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));

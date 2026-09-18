@@ -132,6 +132,7 @@ export default function Board() {
   const [showBudget,setShowBudget] = useState(false);
   const [requestedAmount,setRequestedAmount] = useState(500000);
   const [requestReason,setRequestReason] = useState("Development");
+  const [requestJustification,setRequestJustification] = useState("");
   const [goalProposal,setGoalProposal] = useState("");
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
@@ -218,6 +219,19 @@ export default function Board() {
     ) * 50000
   );
 
+  const budgetApprovalChance = useMemo(() => {
+    const amount=Math.max(0,Number(requestedAmount||0));
+    if(!amount || !requestJustification.trim()) return 0;
+    const ratio=amount/Math.max(1,approvalCeiling);
+    let chance=0.12+overallConfidence*0.72;
+    if(ratio<=0.5) chance+=0.12;
+    else if(ratio<=1) chance-=Math.max(0,ratio-0.5)*0.18;
+    else chance*=Math.exp(-1.75*(ratio-1));
+    if(requestReason==="Development"||requestReason==="Facilities") chance+=0.04;
+    if(requestReason==="Cashflow Support"&&currentBudget>5_000_000) chance-=0.25;
+    return Math.max(0.01,Math.min(0.95,chance));
+  },[requestedAmount,requestJustification,approvalCeiling,overallConfidence,requestReason,currentBudget]);
+
   const persist = (next)=>setGameState({board:next});
 
   const proposeGoal = () => {
@@ -259,21 +273,11 @@ export default function Board() {
     const amount = Math.max(0,Math.round(Number(requestedAmount || 0) / 50000) * 50000);
     if (!amount || budgetCooldown) return;
 
-    let approved = true;
-    let explanation = "";
-
-    if (overallConfidence < 0.38) {
-      approved = false;
-      explanation = `Declined: board confidence is only ${pct(overallConfidence)}. The minimum for additional funding is 38%.`;
-    } else if (amount > approvalCeiling) {
-      approved = false;
-      explanation = `Declined: the requested ${fmtMoney(amount)} exceeds the current approval ceiling of ${fmtMoney(approvalCeiling)} for ${requestReason.toLowerCase()}.`;
-    } else if (requestReason === "Cashflow Support" && currentBudget > 5_000_000) {
-      approved = false;
-      explanation = `Declined: the board does not consider emergency cashflow support necessary while the team still holds ${fmtMoney(currentBudget)}.`;
-    } else {
-      explanation = `Approved: ${fmtMoney(amount)} for ${requestReason.toLowerCase()}. The request fits the current ${pct(overallConfidence)} confidence level and the ${fmtMoney(approvalCeiling)} approval ceiling.`;
-    }
+    if (!requestJustification.trim()) return;
+    const approved = Math.random() < budgetApprovalChance;
+    const explanation = approved
+      ? `Approved: ${fmtMoney(amount)} for ${requestReason.toLowerCase()}. The board accepted the case: "${requestJustification.trim()}". Estimated approval chance was ${Math.round(budgetApprovalChance*100)}%.`
+      : `Declined: ${fmtMoney(amount)} for ${requestReason.toLowerCase()}. The board judged the request too aggressive for the current ${pct(overallConfidence)} confidence level and ${fmtMoney(approvalCeiling)} comfort ceiling. Estimated approval chance was ${Math.round(budgetApprovalChance*100)}%.`;
 
     const action = {
       id:`board_budget_${Date.now()}`,
@@ -284,7 +288,9 @@ export default function Board() {
       requested_amount:amount,
       amount:approved ? amount : 0,
       reason:requestReason,
+      justification:requestJustification.trim(),
       confidence:overallConfidence,
+      approval_chance:budgetApprovalChance,
       approval_ceiling:approvalCeiling,
       explanation,
     };
@@ -321,6 +327,7 @@ export default function Board() {
     }
 
     addInbox("Board",approved ? "Budget request approved" : "Budget request declined",explanation);
+    setRequestJustification("");
     setShowBudget(false);
   };
 
@@ -365,7 +372,7 @@ export default function Board() {
       inbox:[
         {
           id:`board_msg_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
-          from,subject,body,tag:"Board",date,
+          from,subject,body,type:"BOARD",tag:"Board",date,unread:true,
         },
         ...(gameState?.inbox || []),
       ],
@@ -459,12 +466,24 @@ export default function Board() {
               </select>
             </label>
             <div className="border rounded-lg p-3 text-sm">
-              <div className="text-xs text-muted-foreground">Current approval ceiling</div>
-              <div className="font-semibold">{fmtMoney(approvalCeiling)}</div>
-              <div className="text-xs text-muted-foreground mt-1">Confidence {pct(overallConfidence)}</div>
+              <div className="text-xs text-muted-foreground">Estimated approval probability</div>
+              <div className="text-xl font-semibold">{Math.round(budgetApprovalChance*100)}%</div>
+              <div className="text-xs text-muted-foreground mt-1">Comfort ceiling {fmtMoney(approvalCeiling)} · Confidence {pct(overallConfidence)}</div>
             </div>
           </div>
-          <Button onClick={submitBudgetRequest} disabled={Number(requestedAmount)<=0}>Submit Request</Button>
+          <label className="text-sm block">
+            Justification
+            <textarea
+              value={requestJustification}
+              onChange={(e)=>setRequestJustification(e.target.value)}
+              placeholder="Explain why the team needs this funding and what it will achieve…"
+              className="mt-1 border rounded px-3 py-2 w-full min-h-[90px]"
+            />
+          </label>
+          <div className="text-xs text-muted-foreground">
+            Requests far above the board's comfort ceiling remain possible, but acceptance probability collapses rapidly. A $100m request should effectively be treated as extraordinary.
+          </div>
+          <Button onClick={submitBudgetRequest} disabled={Number(requestedAmount)<=0||!requestJustification.trim()}>Submit Request</Button>
         </CardContent></Card>
       )}
 

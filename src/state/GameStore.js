@@ -1,6 +1,7 @@
 // src/state/GameStore.js
 import { create } from "zustand";
 import { triggerDailyTick } from "@/engine/EventEngine";
+import { processScoutingTick } from "@/engine/ScoutingEngine";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -50,7 +51,7 @@ const defaultSettings = {
     autoRollover: false,
   },
   data: { datasource: "json", remoteUrl: "" },
-  developer: { showDevTools: true, verboseLogs: true }, // 👈 forçado ON
+  developer: { showDevTools: false, verboseLogs: false },
 };
 
 /** ===== fetch JSON (public/data) ===== */
@@ -456,6 +457,7 @@ export const useGame = create((set, get) => ({
     try {
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
+      updated = processScoutingTick(updated);
       const changes = res?.changes || res?.attrChanges || [];
       if (Array.isArray(changes) && changes.length) {
         // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
@@ -1325,6 +1327,7 @@ export const useGame = create((set, get) => ({
       const res = triggerDailyTick(updated);
       const { state: next1, patched, changes, attrChanges } = res || {};
       updated = next1 || patched || res || updated;
+      updated = processScoutingTick(updated);
       const ch = changes || attrChanges || [];
       if (Array.isArray(ch) && ch.length) {
         if (typeof applyAttrChangesDict === "function") {
