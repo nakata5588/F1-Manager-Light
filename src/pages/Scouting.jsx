@@ -90,20 +90,21 @@ export default function Scouting() {
   const ratingById = useMemo(() => new Map(ratings.map((r) => [idOf(r), r])), [ratings]);
   const driverById = useMemo(() => new Map(drivers.map((d) => [idOf(d), d])), [drivers]);
 
-  const prospects = useMemo(() => drivers
+  const allProspects = useMemo(() => drivers
     .filter((d) => Boolean(d?.active_lower_series))
     .filter((d) => ["junior_only","lower_series","eligible"].includes(String(d?.status || "")))
-    .filter((d) => {
-      if (!q) return true;
-      return [d.display_name,d.name,driverCountry(d)]
-        .some((v) => String(v || "").toLowerCase().includes(q.toLowerCase()));
-    })
     .sort((a,b) => {
       const ar = ratingById.get(idOf(a)) || {};
       const br = ratingById.get(idOf(b)) || {};
       return Number(pick(br,["potential_ability","potential"],0)) -
              Number(pick(ar,["potential_ability","potential"],0));
-    }), [drivers, ratingById, q]);
+    }), [drivers, ratingById]);
+
+  const prospects = useMemo(() => allProspects.filter((d) => {
+    if (!q) return true;
+    return [d.display_name,d.name,driverCountry(d)]
+      .some((v) => String(v || "").toLowerCase().includes(q.toLowerCase()));
+  }), [allProspects, q]);
 
   const zoneForDriver = (driver) => {
     const key = countryKey(driverCountry(driver));
@@ -134,7 +135,7 @@ export default function Scouting() {
   const discoverForRegion = (zone, assignmentId) => {
     if (!zone) return [];
     const countries = zoneCountries(zone);
-    const eligible = prospects.filter((d) => countries.has(countryKey(driverCountry(d))));
+    const eligible = allProspects.filter((d) => countries.has(countryKey(driverCountry(d))));
     const amount = Math.max(2, Math.min(5, Math.round(3 * Number(zone?.talent_boost || 1))));
     return eligible
       .map((d) => {
@@ -308,7 +309,7 @@ export default function Scouting() {
               Driver
               <select className="mt-1 border rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
                 <option value="">Select active lower-series driver…</option>
-                {prospects.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
+                {allProspects.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
               </select>
             </label>
           ) : (
