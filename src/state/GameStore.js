@@ -713,13 +713,27 @@ export const useGame = create((set, get) => ({
       const baseStatus = computeDriverStatus(y, d);
       const age = ageOnYear(d.dob ?? d.date_of_birth, y);
       const hasF1Contract = driverIdsFromContracts.has(driverId);
-      const careerStart = Number(d.career_start_year ?? NaN);
-      const f1Debut = Number(d.f1_rookie_season ?? NaN);
-      const inferredPreF1Active =
+      const careerStart = d.career_start_year == null || d.career_start_year === ""
+        ? NaN
+        : Number(d.career_start_year);
+      const f1Debut = d.f1_rookie_season == null || d.f1_rookie_season === ""
+        ? NaN
+        : Number(d.f1_rookie_season);
+      const explicitPreF1Active =
         Number.isFinite(careerStart) &&
         careerStart <= y &&
         Number.isFinite(f1Debut) &&
         y < f1Debut;
+      // Older records often omit career_start_year. In that case, infer a
+      // conservative feeder-series window only shortly before the F1 debut.
+      const inferredFromDebut =
+        !Number.isFinite(careerStart) &&
+        Number.isFinite(f1Debut) &&
+        y < f1Debut &&
+        (f1Debut - y) <= 4 &&
+        Number.isFinite(age) &&
+        age >= 16;
+      const inferredPreF1Active = explicitPreF1Active || inferredFromDebut;
       const inLowerSeries = lowerSeriesIds.has(driverId) || inferredPreF1Active;
       const lowerSeriesRow = lowerSeriesById.get(driverId) || null;
 
