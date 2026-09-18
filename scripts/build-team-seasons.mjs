@@ -11,6 +11,14 @@ const unwrap = (v) => {
 };
 const canon=(v)=>String(unwrap(v)??"").toLowerCase().normalize("NFD")
   .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"").trim();
+const own=(o,key)=>o&&Object.prototype.hasOwnProperty.call(o,key)?o[key]:undefined;
+const firstOwn=(o,keys)=>{
+  for(const key of keys){
+    const value=own(o,key);
+    if(value!==undefined&&value!==null&&value!=="")return value;
+  }
+  return undefined;
+};
 
 async function readJson(file,fallback=[]){
   try{return JSON.parse(await fs.readFile(file,"utf8"));}
@@ -66,12 +74,12 @@ for(const d of drivers){
 }
 
 function resolveTeam(row){
-  const canonicalDirect=String(unwrap(row?.team_id??row?.constructor_id)??"");
+  const canonicalDirect=String(unwrap(firstOwn(row,["team_id","constructor_id"]))??"");
   if(canonicalDirect)return canonicalDirect;
 
-  const numericConstructorId=Number(unwrap(row?.constructorId));
+  const numericConstructorId=Number(unwrap(firstOwn(row,["constructorId"])));
   const refName=Number.isFinite(numericConstructorId) ? constructorNumericToName.get(numericConstructorId) : "";
-  const name=unwrap(row?.team_name??row?.constructor_name??row?.constructorName??row?.constructor??row?.team) || refName;
+  const name=unwrap(firstOwn(row,["team_name","constructor_name","constructorName","constructor","team"])) || refName;
   const mapped=teamNameToId.get(canon(name));
   if(mapped)return mapped;
 
@@ -80,21 +88,21 @@ function resolveTeam(row){
   return key ? "legacy_team_" + key : "";
 }
 function resolveDriver(row){
-  const direct=String(unwrap(row?.driver_id??row?.person_id)??"");
+  const direct=String(unwrap(firstOwn(row,["driver_id","person_id"]))??"");
   if(direct)return direct;
-  const archiveId=Number(unwrap(row?.driverId));
+  const archiveId=Number(unwrap(firstOwn(row,["driverId"])));
   if(Number.isFinite(archiveId)&&driverArchiveIdToId.has(archiveId))return driverArchiveIdToId.get(archiveId);
-  const name=unwrap(row?.driver_name??row?.display_name??row?.driverName??row?.name);
+  const name=unwrap(firstOwn(row,["driver_name","display_name","driverName","name"]));
   return driverNameToId.get(canon(name))||"";
 }
 
 const byKey = new Map();
 for(const r of Array.isArray(rows) ? rows : []) {
-  const year=Number(unwrap(r?.year??r?.season_year));
+  const year=Number(unwrap(firstOwn(r,["year","season_year"])));
   const team_id=resolveTeam(r);
-  const numericConstructorId=Number(unwrap(r?.constructorId));
+  const numericConstructorId=Number(unwrap(firstOwn(r,["constructorId"])));
   const refName=Number.isFinite(numericConstructorId)?constructorNumericToName.get(numericConstructorId):"";
-  const team_name=String(unwrap(r?.team_name??r?.constructor_name??r?.constructorName??r?.constructor??r?.team)??refName??"");
+  const team_name=String(unwrap(firstOwn(r,["team_name","constructor_name","constructorName","constructor","team"]))??refName??"");
   const driver_id=resolveDriver(r);
   if(!Number.isFinite(year)||!team_id)continue;
   const key=String(year)+"|"+team_id;
