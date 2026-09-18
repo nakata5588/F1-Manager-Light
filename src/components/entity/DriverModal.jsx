@@ -206,8 +206,8 @@ export default function DriverModal({ entity, onClose }) {
 
   // Contract values are needed by the live-season memo below. Keep these
   // declarations before any memo that references them to avoid TDZ crashes.
-  const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
-  const contractEnd = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
+  const contractStart = unbox(contract?.contract_start_year) ?? unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
+  const contractEnd = unbox(contract?.contract_until_year) ?? unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
   const contractTeam = unbox(contract?.team_name) ?? null;
   const contractTeamId = unbox(contract?.team_id ?? contract?.team ?? contract?.constructor_id) ?? null;
   const contractRole = niceRole(contract?.role);
@@ -218,23 +218,24 @@ export default function DriverModal({ entity, onClose }) {
     if (!list.length || !gameDateISO) return null;
     const candidates = list.filter((c) => {
       const sd = isoFromAny(c.start_date);
-      const sy = Number(unbox(c.start_year));
+      const sy = Number(unbox(c.contract_start_year ?? c.start_year));
       if (sd && sd > gameDateISO) return true;
       if (Number.isFinite(sy) && Number.isFinite(gameYear) && sy > gameYear) return true;
       return false;
     });
     if (!candidates.length) return null;
     candidates.sort((a, b) => {
-      const ad = isoFromAny(a.start_date) || `${unbox(a.start_year) || 9999}-01-01`;
-      const bd = isoFromAny(b.start_date) || `${unbox(b.start_year) || 9999}-01-01`;
+      const ad = isoFromAny(a.start_date) || `${unbox(a.contract_start_year ?? a.start_year) || 9999}-01-01`;
+      const bd = isoFromAny(b.start_date) || `${unbox(b.contract_start_year ?? b.start_year) || 9999}-01-01`;
       return ad < bd ? -1 : ad > bd ? 1 : 0;
     });
     const next = candidates[0];
-    const whenISO = isoFromAny(next.start_date) || (Number.isFinite(unbox(next.start_year)) ? `${unbox(next.start_year)}-01-01` : null);
+    const futureStartYear = Number(unbox(next.contract_start_year ?? next.start_year));
+    const whenISO = isoFromAny(next.start_date) || (Number.isFinite(futureStartYear) ? `${futureStartYear}-01-01` : null);
     return {
       team_name: unbox(next.team_name) || unbox(next.team) || "Unknown Team",
       when: whenISO,
-      whenLabel: whenISO ? (whenISO.length === 10 ? whenISO : String(unbox(next.start_year))) : (unbox(next.start_year) ?? "future"),
+      whenLabel: whenISO ? (whenISO.length === 10 ? whenISO : String(futureStartYear)) : (Number.isFinite(futureStartYear) ? futureStartYear : "future"),
     };
   }, [contractsList, idNorm, gameDateISO, gameYear]);
 
@@ -752,7 +753,7 @@ function ContractTab({ driver, rating, contract, isOwnDriver, team, start, end, 
         </div>
       </div>
 
-      {!offer && negotiation?.status !== "accepted" && (
+      {!offer && (
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
