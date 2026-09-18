@@ -239,8 +239,8 @@ function filterByYear(records, year) {
 function filterByYearRange(records, year) {
   const y = Number(year);
   return (records || []).filter((r) => {
-    const start = Number(pick(r, ["start_year", "from_year", "first_year", "year_start", "start", "from", "year_from"], -Infinity));
-    const endRaw = pick(r, ["end_year", "to_year", "last_year", "year_end", "end", "to", "year_to"], Infinity);
+    const start = Number(pick(r, ["start_year", "from_year", "first_year", "year_start", "start", "from", "year_from", "contract_start", "contract_start_year"], -Infinity));
+    const endRaw = pick(r, ["end_year", "to_year", "last_year", "year_end", "end", "to", "year_to", "contract_until", "contract_until_year"], Infinity);
     const end = endRaw == null || endRaw === "" ? Infinity : Number(endRaw);
     if (Number.isNaN(start) && end === Infinity) {
       const yr = Number(getYearNumber(r));
@@ -663,7 +663,14 @@ export const useGame = create((set, get) => ({
 
     const contractsExact = filterByYear(prev.dbContracts, y);
     const contractsRange = filterByYearRange(prev.dbContracts, y);
-    const contracts = contractsExact.length ? contractsExact : contractsRange;
+    const contractKey = (row) => [
+      String(pick(row, ["driver_id","person_id","id"], "")),
+      String(pick(row, ["team_id","team","constructor_id","constructor"], "")),
+      String(pick(row, ["role","position","contract_role"], "")),
+    ].join("|");
+    const contractsMap = new Map();
+    for (const row of [...contractsRange, ...contractsExact]) contractsMap.set(contractKey(row), row);
+    const contracts = [...contractsMap.values()];
 
     const teamsAll = prev.dbTeams || [];
     let teams = teamsAll.filter((t) => contracts.some((c) => sameTeam(c, t)));
@@ -679,16 +686,23 @@ export const useGame = create((set, get) => ({
     );
 
     const careerRowsThisYear = filterByYear(prev.dbDriverCareer || [], y);
+    const lowerSeriesRows = careerRowsThisYear.filter(
+      (row) => String(pick(row, ["series_division", "division", "series"], "")).toUpperCase() !== "F1"
+    );
     const lowerSeriesIds = new Set(
-      careerRowsThisYear
-        .filter((row) => String(pick(row, ["series_division", "division", "series"], "")).toUpperCase() !== "F1")
+      lowerSeriesRows
         .map((row) => String(pick(row, ["driver_id", "person_id", "id"], "")))
         .filter(Boolean)
     );
+    const lowerSeriesById = new Map();
+    for (const row of lowerSeriesRows) {
+      const id = String(pick(row, ["driver_id","person_id","id"], ""));
+      if (id && !lowerSeriesById.has(id)) lowerSeriesById.set(id,row);
+    }
 
     const youthRule = filterByYearRange(prev.dbYouthIntakeRules || [], y)[0] || {};
     const youthMinAge = Number(pick(youthRule, ["min_age"], 16));
-    const youthMaxAge = Number(pick(youthRule, ["max_age"], 21));
+    const youthMaxAge = Number(pick(youthRule, ["max_age"], 19));
 
     const driversWithStatus = (prev.dbDrivers || []).map((d) => {
       const first = d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
@@ -699,23 +713,32 @@ export const useGame = create((set, get) => ({
       const baseStatus = computeDriverStatus(y, d);
       const age = ageOnYear(d.dob ?? d.date_of_birth, y);
       const hasF1Contract = driverIdsFromContracts.has(driverId);
-      const inLowerSeries = lowerSeriesIds.has(driverId);
+      const careerStart = Number(d.career_start_year ?? NaN);
+      const f1Debut = Number(d.f1_rookie_season ?? NaN);
+      const inferredPreF1Active =
+        Number.isFinite(careerStart) &&
+        careerStart <= y &&
+        Number.isFinite(f1Debut) &&
+        y < f1Debut;
+      const inLowerSeries = lowerSeriesIds.has(driverId) || inferredPreF1Active;
+      const lowerSeriesRow = lowerSeriesById.get(driverId) || null;
 
       let status = baseStatus;
       if (hasF1Contract && baseStatus !== "deceased" && baseStatus !== "hidden") {
         status = "eligible";
-      } else if (baseStatus === "pre_f1") {
-        status = inLowerSeries ? "lower_series" : "hidden";
-      } else if (baseStatus === "eligible" && inLowerSeries && !hasF1Contract) {
+      } else if (inLowerSeries && !hasF1Contract && !["deceased","retired","hidden"].includes(baseStatus)) {
         status = "lower_series";
+      } else if (baseStatus === "pre_f1") {
+        status = inferredPreF1Active ? "lower_series" : "hidden";
       }
 
-      const canHireAcademy =
+      const isYouth =
         inLowerSeries &&
         Number.isFinite(age) &&
         age >= youthMinAge &&
         age <= youthMaxAge;
-      if (canHireAcademy && !hasF1Contract) status = "junior_only";
+      const canHireAcademy = isYouth && !hasF1Contract;
+      if (canHireAcademy) status = "junior_only";
 
       const canHireF1 = status === "eligible" || status === "lower_series" || status === "junior_only";
 
@@ -734,6 +757,8 @@ export const useGame = create((set, get) => ({
         status,
         age,
         active_lower_series: inLowerSeries,
+        lower_series_name: pick(lowerSeriesRow || {}, ["series_division","division","series"], inferredPreF1Active ? "Lower Series" : ""),
+        youth_eligible: isYouth,
         canHireF1,
         canHireAcademy,
       };
@@ -749,7 +774,23 @@ export const useGame = create((set, get) => ({
     const driverRatingsExact = filterByYear(prev.dbDriverRatings, y);
     const staffRatingsExact  = filterByYear(prev.dbStaffRatings, y);
     const driverRatings = driverRatingsExact.length ? driverRatingsExact : filterByYearRange(prev.dbDriverRatings, y);
-    const staffRatings  = staffRatingsExact.length ? staffRatingsExact : filterByYearRange(prev.dbStaffRatings, y);
+
+    const staffRatingMap = new Map();
+    const staffRatingCandidates = (prev.dbStaffRatings || [])
+      .filter((row) => {
+        const ry = Number(getYearNumber(row));
+        return Number.isFinite(ry) && ry <= y && (y - ry) <= 5;
+      })
+      .sort((a,b) => Number(getYearNumber(a)) - Number(getYearNumber(b)));
+    for (const row of staffRatingCandidates) {
+      const id = String(pick(row, ["staff_id","person_id","id"], ""));
+      if (id) staffRatingMap.set(id,row);
+    }
+    for (const row of staffRatingsExact) {
+      const id = String(pick(row, ["staff_id","person_id","id"], ""));
+      if (id) staffRatingMap.set(id,row);
+    }
+    const staffRatings = [...staffRatingMap.values()];
     const staffCore = (prev.dbStaffCore || []).filter((s) => {
       const born = yearFrom(pick(s, ["dob", "birthdate"], null));
       const died = yearFrom(pick(s, ["death_date"], null));
@@ -771,7 +812,17 @@ export const useGame = create((set, get) => ({
     const facilities = facilitiesExact.length ? facilitiesExact : filterByYearRange(prev.dbFacilities, y);
 
     const staffContractsExact = filterByYear(prev.dbStaffContracts || [], y);
-    const staffContracts = staffContractsExact.length ? staffContractsExact : filterByYearRange(prev.dbStaffContracts || [], y);
+    const staffContractsRange = filterByYearRange(prev.dbStaffContracts || [], y);
+    const staffContractMap = new Map();
+    for (const row of [...staffContractsRange, ...staffContractsExact]) {
+      const key = [
+        String(pick(row, ["staff_id","person_id","id"], "")),
+        String(pick(row, ["team_id","team","constructor_id","constructor"], "")),
+        String(pick(row, ["role","position"], "")),
+      ].join("|");
+      staffContractMap.set(key,row);
+    }
+    const staffContracts = [...staffContractMap.values()];
 
     const sponsorsExact = filterByYear(prev.dbSponsorsContracts, y);
     const sponsorsContracts = sponsorsExact.length ? sponsorsExact : filterByYearRange(prev.dbSponsorsContracts, y);
@@ -931,6 +982,12 @@ export const useGame = create((set, get) => ({
         season_spend: 0,
         season_income: 0,
       },
+      board: null,
+      commercialScore: null,
+      academy: { drivers: [] },
+      scouting: { assignments: [], shortlist: [] },
+      development: { projects: [], parts: [], manufacturing: [], research: [] },
+      hq: { facilityLevels: {}, upgrades: [] },
     };
 
     set((s) => ({ gameState: { ...s.gameState, ...initial } }));
