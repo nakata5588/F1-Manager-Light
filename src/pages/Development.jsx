@@ -26,23 +26,66 @@ function progressBetween(start, finish, now) {
 function nice(value) {
   return String(value || "").replace(/_/g," ").replace(/\b\w/g,(m)=>m.toUpperCase());
 }
-function projectCost({ engineers, cfd, windTunnel, duration }) {
-  return Math.round(
+const PART_PROFILES = {
+  chassis:       { multiplier:1.00, facility:"_chassis_shop_level", label:"Chassis Workshop" },
+  aero_front:    { multiplier:0.88, facility:"aero", label:"Aero + Wind Tunnel" },
+  aero_rear:     { multiplier:0.96, facility:"aero", label:"Aero + Wind Tunnel" },
+  suspension:    { multiplier:0.72, facility:"_chassis_shop_level", label:"Chassis Workshop" },
+  gearbox:       { multiplier:0.82, facility:"manufacturing_leve", label:"Manufacturing" },
+  brakes:        { multiplier:0.58, facility:"_chassis_shop_level", label:"Chassis Workshop" },
+  cooling:       { multiplier:0.66, facility:"manufacturing_leve", label:"Manufacturing" },
+  turbocharger:  { multiplier:1.08, facility:"manufacturing_leve", label:"Manufacturing" },
+};
+
+function projectCost({ engineers, cfd, windTunnel, duration }, manufacturingLevel = 5) {
+  const raw =
     60_000 +
     Number(engineers || 0) * 18_000 +
     Number(cfd || 0) * 650 +
     Number(windTunnel || 0) * 1_100 +
-    Number(duration || 0) * 2_500
-  );
+    Number(duration || 0) * 2_500;
+  const efficiency = Math.max(0.78, 1.08 - Number(manufacturingLevel || 0) * 0.015);
+  return Math.round(raw * efficiency);
 }
-function perfDelta({ engineers, cfd, windTunnel, duration }) {
-  return Number((
-    0.15 +
-    Number(engineers || 0) * 0.055 +
-    Number(cfd || 0) * 0.002 +
-    Number(windTunnel || 0) * 0.004 +
-    Math.min(0.35, Number(duration || 0) * 0.006)
-  ).toFixed(2));
+function facilityFactor(type, levelOf) {
+  const profile = PART_PROFILES[type] || PART_PROFILES.chassis;
+  if (profile.facility === "aero") {
+    const aero = Number(levelOf("aero_dept_level") || 0);
+    const wind = Number(levelOf("wind_tunnel_level") || 0);
+    return 0.75 + (aero + wind) / 40;
+  }
+  return 0.80 + Number(levelOf(profile.facility) || 0) / 25;
+}
+function perfDelta(draft, levelOf, existingParts = []) {
+  const profile = PART_PROFILES[draft.type] || PART_PROFILES.chassis;
+  const engineers = Math.max(1, Number(draft.engineers || 0));
+  const cfd = Math.max(0, Number(draft.cfd || 0));
+  const wt = Math.max(0, Number(draft.windTunnel || 0));
+  const duration = Math.max(7, Number(draft.duration || 0));
+
+  const resourceScore =
+    0.08 +
+    engineers * 0.035 +
+    Math.sqrt(cfd) * 0.008 +
+    Math.sqrt(wt) * 0.014 +
+    Math.min(60, duration) * 0.003;
+
+  const bestExisting = Math.max(
+    0,
+    ...existingParts
+      .filter((p) => String(p.slot) === String(draft.type))
+      .map((p) => Number(p.perf || 0))
+      .filter(Number.isFinite)
+  );
+  const diminishingReturns = 1 / (1 + bestExisting * 0.18);
+  return Number((resourceScore * profile.multiplier * facilityFactor(draft.type, levelOf) * diminishingReturns).toFixed(2));
+}
+function effectiveProjectDays(draft, levelOf) {
+  const profile = PART_PROFILES[draft.type] || PART_PROFILES.chassis;
+  const relevant = profile.facility === "aero"
+    ? (Number(levelOf("aero_dept_level") || 0) + Number(levelOf("wind_tunnel_level") || 0)) / 2
+    : Number(levelOf(profile.facility) || 0);
+  return Math.max(7, Math.round(Number(draft.duration || 21) * Math.max(0.82, 1.12 - relevant * 0.025)));
 }
 
 export default function Development() {
@@ -54,6 +97,13 @@ export default function Development() {
   const projects = Array.isArray(dev.projects) ? dev.projects : [];
   const parts = Array.isArray(dev.parts) ? dev.parts : [];
   const manufacturing = Array.isArray(dev.manufacturing) ? dev.manufacturing : [];
+
+  const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
+  const baseFacility = (gameState?.facilities || []).find(
+    (row) => String(row?.team_id ?? row?.team ?? "") === teamId && Number(row?.year ?? activeYear) === activeYear
+  ) || null;
+  const hqLevels = gameState?.hq?.facilityLevels || {};
+  const levelOf = (key) => Number(hqLevels[key] ?? baseFacility?.[key] ?? 5);
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -139,8 +189,10 @@ export default function Development() {
   }, [currentDateISO, projects, parts, manufacturing, research, dev, setGameState]);
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
-  const cost = projectCost(draft);
-  const expectedPerf = perfDelta(draft);
+  const effectiveDays = effectiveProjectDays(draft, levelOf);
+  const cost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
+  const expectedPerf = perfDelta(draft, levelOf, parts);
+  const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
 
   const createProject = () => {
     if (!draft.name.trim() || !currentDateISO || budget < cost) return;
@@ -152,8 +204,8 @@ export default function Development() {
       phase:"design",
       status:"active",
       started_at:currentDateISO,
-      finishes_at:addDaysISO(currentDateISO, draft.duration),
-      duration_days:Number(draft.duration),
+      finishes_at:addDaysISO(currentDateISO, effectiveDays),
+      duration_days:effectiveDays,
       engineers:Number(draft.engineers),
       cfd_hours:Number(draft.cfd),
       wt_hours:Number(draft.windTunnel),
@@ -189,7 +241,10 @@ export default function Development() {
 
   const manufacture = (part) => {
     const qty = 1;
-    const unitCost = Math.max(25_000, Math.round(80_000 + Math.abs(Number(part.perf || 0)) * 40_000));
+    const manufacturingLevel = levelOf("manufacturing_leve");
+    const rawUnitCost = Math.max(25_000, Math.round(80_000 + Math.abs(Number(part.perf || 0)) * 40_000));
+    const unitCost = Math.round(rawUnitCost * Math.max(0.72, 1.12 - manufacturingLevel * 0.025));
+    const buildDays = Math.max(3, Math.round(10 - manufacturingLevel * 0.6));
     if (budget < unitCost || !currentDateISO) return;
     applyExpense(unitCost, `Manufacturing — ${part.name}`);
     const job = {
@@ -199,7 +254,7 @@ export default function Development() {
       qty,
       unit_cost:unitCost,
       started_at:currentDateISO,
-      finishes_at:addDaysISO(currentDateISO, 7),
+      finishes_at:addDaysISO(currentDateISO, buildDays),
       status:"active",
     };
     setGameState({
@@ -268,7 +323,9 @@ export default function Development() {
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span>Cost: <strong>{fmtMoney(cost)}</strong></span>
             <span>Expected performance Δ: <strong>+{expectedPerf}</strong></span>
-            <span>ETA: <strong>{currentDateISO ? addDaysISO(currentDateISO,draft.duration) : "—"}</strong></span>
+            <span>Primary facility: <strong>{relevantFacility}</strong></span>
+            <span>Effective duration: <strong>{effectiveDays} days</strong></span>
+            <span>ETA: <strong>{currentDateISO ? addDaysISO(currentDateISO,effectiveDays) : "—"}</strong></span>
             <Button onClick={createProject} disabled={!draft.name.trim() || budget < cost}>Start Project</Button>
           </div>
           {budget < cost && <div className="text-sm text-red-600">Insufficient budget for this project.</div>}
