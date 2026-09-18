@@ -5,6 +5,7 @@ import {
   ensureAbilityAnchor,
   recalculateCurrentAbility,
   fatiguePenalty,
+  defaultDriverCondition,
 } from "../src/domain/driverRating.js";
 import { triggerDailyTick } from "../src/engine/EventEngine.js";
 
@@ -48,7 +49,7 @@ test("driver action persists fatigue and recalculates overall in the daily event
     drivers:[{driver_id:"d_0001",display_name:"Test Driver"}],
     driverRatings:[{...baseRating,driver_id:"d_0001"}],
     driverAttributes:{
-      d_0001:{confidence:50,fatigue:20,morale:50,preparation:40},
+      d_0001:{confidence:50,fatigue:0,morale:50,preparation:50},
     },
     eventsQueue:[{
       id:"ev_train",
@@ -70,12 +71,14 @@ test("driver action persists fatigue and recalculates overall in the daily event
   const rating=next.driverRatings.find((r)=>r.driver_id==="d_0001");
   assert.equal(rating.consistency,76);
   assert.ok(rating.current_ability>70);
-  assert.equal(next.driverAttributes.d_0001.fatigue,22);
+  assert.equal(next.driverAttributes.d_0001.fatigue,2);
   assert.equal(next.eventsQueue[0].done,true);
 });
 
-test("fatigue only penalizes pace after normal workload and caps its effect",()=>{
-  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:40}}},"d1"),0);
-  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:70}}},"d1")>0);
+test("new drivers start fresh and fatigue becomes a real 0-100 performance penalty",()=>{
+  assert.deepEqual(defaultDriverCondition(),{confidence:50,fatigue:0,morale:50,preparation:50});
+  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:25}}},"d1"),0);
+  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:40}}},"d1")>0);
+  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:70}}},"d1")>fatiguePenalty({driverAttributes:{d1:{fatigue:40}}},"d1"));
   assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:100}}},"d1"),6);
 });
