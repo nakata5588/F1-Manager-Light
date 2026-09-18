@@ -153,13 +153,13 @@ export default function Board() {
   }),[storedBoard,expectation,liveObjectives]);
 
   const objectiveScore = useMemo(() => {
-    if (!board.objectives.length) return 0.5;
+    if (!board.objectives.length || metrics.races === 0) return 0.5;
     const sumW = board.objectives.reduce((s,o)=>s + Number(o.weight || 1),0) || 1;
     return clamp01(board.objectives.reduce((s,o)=>{
       const score = o.status === "completed" ? 1 : o.status === "failed" ? 0 : clamp01(o.progress);
       return s + score * Number(o.weight || 1);
     },0) / sumW);
-  },[board.objectives]);
+  },[board.objectives,metrics.races]);
 
   const overallConfidence = useMemo(
     ()=>clamp01(board.reputation * 0.45 + objectiveScore * 0.55),
