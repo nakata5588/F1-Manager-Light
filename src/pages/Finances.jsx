@@ -438,7 +438,6 @@ function SponsorsTab({ sponsors }) {
 
   const totalMonthly = filtered.reduce((s, r) => s + (r.monthly_fee || 0), 0);
   const totalUpfront = filtered.reduce((s, r) => s + (r.cash_upfront || 0), 0);
-  const commercialScore = Math.round(Number(gameState?.commercialScore ?? commercialProfile?.score * 100 ?? 50));
 
   // slots: 1 main, 3 secondary (ativos no ano)
   const activeMains = sponsors.filter((s) => s.type === "main" && !["expired","terminated"].includes(s.status));
@@ -489,6 +488,12 @@ function SponsorsTab({ sponsors }) {
 
     return { score, position, totalTeams, wins, podiums, boardRep };
   }, [gameState?.standings, gameState?.results, gameState?.teams, gameState?.teamBrands, gameState?.board, teamId]);
+
+  const commercialScore = Math.round(
+    Number.isFinite(Number(gameState?.commercialScore))
+      ? Number(gameState.commercialScore)
+      : commercialProfile.score * 100
+  );
 
   const sponsorEligibility = useCallback((sp) => {
     const objective = String(pick(sp, ["objective_type"], "") || "").toLowerCase();
