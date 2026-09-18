@@ -3,14 +3,18 @@ name: Build and validate game data
 on:
   push:
     paths:
+      - "src/**"
+      - "tests/**"
+      - "public/data/**"
       - "data/f1_db.xlsx"
-      - "scripts/convert-excel.mjs"
-      - "scripts/validate_json.js"
+      - "scripts/**"
       - "package.json"
       - "package-lock.json"
+      - "vite.config.js"
   pull_request:
     paths:
       - "src/**"
+      - "tests/**"
       - "public/data/**"
       - "scripts/**"
       - "package.json"
@@ -47,6 +51,9 @@ jobs:
       - name: Export Excel to runtime JSON
         if: github.event_name != 'pull_request'
         run: npm run build:data
+
+      - name: Test career season boundary
+        run: npm run test:career
 
       - name: Validate runtime JSON
         run: npm run validate:data

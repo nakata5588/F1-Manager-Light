@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { triggerDailyTick } from "@/engine/EventEngine";
 import { processScoutingTick } from "@/engine/ScoutingEngine";
+import { createCareerMeta } from "@/core/careerBoundary";
+import { rolloverSeasonPure } from "@/core/season";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -412,17 +414,14 @@ export const useGame = create((set, get) => ({
     get().applyYearFilter(Number(year), { normalizeDate });
   },
 
-  /** ===================== ROLLOVER (NOVA AÇÃO) ===================== */
+  /** ===================== ROLLOVER / NEW SEASON ===================== */
   rolloverSeason: async (targetYear) => {
     const st = get().gameState || {};
     const nextYear = Number(targetYear ?? (st.activeYear || 1980) + 1);
 
-    // 1) Refiltra/carrega dados do novo ano
-    try { get().applyYearFilter?.(nextYear, { normalizeDate: true }); } catch {}
-
-    // 2) Aplica transformação “pura” de rollover (src/core/season.js)
     try {
-      const { rolloverSeasonPure } = await import("@/core/season.js");
+      // Never applyYearFilter here: that would replace the simulated career
+      // with historical future assignments/outcomes from the Global Database.
       set((s) => ({ gameState: rolloverSeasonPure(s.gameState, nextYear) }));
     } catch (e) {
       console.warn("rolloverSeason fallback:", e);
@@ -439,10 +438,9 @@ export const useGame = create((set, get) => ({
       }));
     }
 
-    // 3) feedback
     get().pushToast?.({
       title: `Season ${nextYear} started`,
-      description: "Calendar loaded, standings reset.",
+      description: "Career world rolled forward; structural calendar loaded.",
       type: "success",
       ttl: 3000,
     });
@@ -453,7 +451,11 @@ export const useGame = create((set, get) => ({
     const s = get().gameState;
     const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
     const newISO  = addDaysISO(baseISO, 1);
+    const nextCalendarYear = Number(String(newISO).slice(0, 4));
     let updated = { ...s, currentDateISO: newISO };
+    if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
+      updated = rolloverSeasonPure(s, nextCalendarYear);
+    }
     try {
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
@@ -614,7 +616,15 @@ export const useGame = create((set, get) => ({
       }));
 
       const activeY = get().gameState.activeYear || (yearsAvailable[0] ?? 1980);
-      get().applyYearFilter(activeY);
+      const hydrated = get().gameState;
+      const hasActiveCareer = Boolean(
+        hydrated?.careerMeta?.started &&
+        Array.isArray(hydrated?.teams) && hydrated.teams.length &&
+        Array.isArray(hydrated?.drivers) && hydrated.drivers.length
+      );
+      // Rehydrating db* for a lightweight save must never replace the active
+      // simulated world with the historical database for the same year.
+      if (!hasActiveCareer) get().applyYearFilter(activeY);
 
       set((s) => {
         const gs = s.gameState;
@@ -992,6 +1002,7 @@ export const useGame = create((set, get) => ({
       driverAttrLog: {},
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
+      careerMeta: createCareerMeta(db, y),
 
       // 💰 snapshot inicial (sem lançar no ledger)
       financeLog: [],
@@ -1061,6 +1072,7 @@ export const useGame = create((set, get) => ({
           currentDateISO: firstDayISO(y),
           currentRound: 0,
           activeYear: y,
+          careerMeta: createCareerMeta(db, y),
           team: userTeam,
           selectedDrivers: Array.isArray(drivers) ? drivers : [],
           standings: { drivers: [], teams: [] },
@@ -1322,6 +1334,12 @@ export const useGame = create((set, get) => ({
     }
 
     let updated = { ...s, currentDateISO: newISO, currentRound: newRound };
+    const nextCalendarYear = Number(String(newISO).slice(0, 4));
+    if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
+      updated = rolloverSeasonPure(s, nextCalendarYear);
+      newRound = 0;
+      roundChanged = true;
+    }
 
     try {
       const res = triggerDailyTick(updated);

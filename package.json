@@ -9,11 +9,12 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
     "validate:data": "node scripts/validate_json.js",
-    "check": "npm run validate:data && npm run build",
+    "check": "npm run test:career && npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run build:data\"",
     "predev": "node scripts/build-team-seasons.mjs",
-    "prebuild": "node scripts/build-team-seasons.mjs"
+    "prebuild": "node scripts/build-team-seasons.mjs",
+    "test:career": "node --test tests/careerBoundary.test.js"
   },
   "keywords": [
     "f1",
