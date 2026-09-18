@@ -414,17 +414,14 @@ export const useGame = create((set, get) => ({
     get().applyYearFilter(Number(year), { normalizeDate });
   },
 
-  /** ===================== ROLLOVER (NOVA AÇÃO) ===================== */
+  /** ===================== ROLLOVER / NEW SEASON ===================== */
   rolloverSeason: async (targetYear) => {
     const st = get().gameState || {};
     const nextYear = Number(targetYear ?? (st.activeYear || 1980) + 1);
 
-    // 1) Refiltra/carrega dados do novo ano
-    try { get().applyYearFilter?.(nextYear, { normalizeDate: true }); } catch {}
-
-    // 2) Aplica transformação “pura” de rollover (src/core/season.js)
     try {
-      const { rolloverSeasonPure } = await import("@/core/season.js");
+      // Never applyYearFilter here: that would replace the simulated career
+      // with historical future assignments/outcomes from the Global Database.
       set((s) => ({ gameState: rolloverSeasonPure(s.gameState, nextYear) }));
     } catch (e) {
       console.warn("rolloverSeason fallback:", e);
@@ -441,10 +438,9 @@ export const useGame = create((set, get) => ({
       }));
     }
 
-    // 3) feedback
     get().pushToast?.({
       title: `Season ${nextYear} started`,
-      description: "Calendar loaded, standings reset.",
+      description: "Career world rolled forward; structural calendar loaded.",
       type: "success",
       ttl: 3000,
     });
