@@ -5,6 +5,7 @@ import { processScoutingTick } from "@/engine/ScoutingEngine";
 import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
+import { defaultDriverCondition } from "@/domain/driverRating";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -1040,6 +1041,9 @@ export const useGame = create((set, get) => ({
     const teamId = getTeamId(team || {});
     const db = get().gameState;
     const startingBudget = computeStartingBudget(db, teamId, y);
+    const initialDriverConditions = Object.fromEntries(
+      (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
+    );
 
     const initial = {
       currentDateISO: firstDayISO(y),
@@ -1058,6 +1062,7 @@ export const useGame = create((set, get) => ({
       ],
       eventsQueue: [],
       driverAttrLog: {},
+      driverAttributes: initialDriverConditions,
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
       careerMeta: createCareerMeta(db, y),
@@ -1094,6 +1099,9 @@ export const useGame = create((set, get) => ({
       const teamId = getTeamId(team || {});
       const db = get().gameState;
       const startingBudget = computeStartingBudget(db, teamId, y);
+      const initialDriverConditions = Object.fromEntries(
+        (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
+      );
 
       const userTeam = {
         team_id: team.team_id,
@@ -1139,6 +1147,7 @@ export const useGame = create((set, get) => ({
           inbox,
           eventsQueue: [],
           driverAttrLog: {},
+          driverAttributes: initialDriverConditions,
           settings: s.gameState?.settings ?? defaultSettings,
 
           financeLog: [],
