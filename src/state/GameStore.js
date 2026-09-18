@@ -5,6 +5,7 @@ import { processScoutingTick } from "@/engine/ScoutingEngine";
 import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
+import { defaultDriverCondition } from "@/domain/driverRating";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -74,10 +75,10 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbStaffRatings",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
-  "dbFacilities","dbStaffContracts","dbStaffCore",
+  "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
   "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons",
@@ -292,6 +293,7 @@ export const useGame = create((set, get) => ({
     dbDrivers: [],
     dbTeams: [],
     dbDriverRatings: [],
+    dbDriverHistory: [],
     dbStaffRatings: [],
     dbTeamBrands: [],
     dbTeamEngines: [],
@@ -301,6 +303,7 @@ export const useGame = create((set, get) => ({
     dbEraSafety: [],
     dbAccidentModel: [],
     dbFacilities: [],
+    dbCarStats: [],
     dbStaffContracts: [],
     dbStaffCore: [],
 
@@ -339,6 +342,7 @@ export const useGame = create((set, get) => ({
     eraSafety: [],
     accidentModel: [],
     facilities: [],
+    carStats: [],
     staffContracts: [],
 
     // filtrados novos
@@ -484,7 +488,7 @@ export const useGame = create((set, get) => ({
   },
 
   /** ===================== AVANÇAR UM DIA ===================== */
-  advanceOneDay: () => {
+  advanceOneDay: async () => {
     const s = get().gameState;
     const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
     const newISO  = addDaysISO(baseISO, 1);
@@ -507,6 +511,14 @@ export const useGame = create((set, get) => ({
     } catch (e) {
       console.warn("[EventEngine] daily tick failed:", e);
     }
+
+    // Keep single-day advance behavior aligned with "advance until break".
+    try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
+
     set({ gameState: updated });
 
     // ---- Fim de época: se já passámos a última corrida, abre Season Summary ----
@@ -534,9 +546,9 @@ export const useGame = create((set, get) => ({
   loadData: async () => {
     try {
       const [
-        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, achievementsRaw,
+        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
-        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
+        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
         scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, seasonIndexRaw,
@@ -546,6 +558,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/teams.json"),
         fetchJsonSafe("/data/driver_ratings.json"),
         fetchJsonSafe("/data/driver_career.json"),
+        fetchOptional("/data/driver_f1_history.json", []),
         fetchJsonSafe("/data/achievements.json"),
         fetchJsonSafe("/data/staff_ratings.json"),
         fetchOptional("/data/staff_core.json", []),
@@ -557,6 +570,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/era_safety.json"),
         fetchJsonSafe("/data/accident_model.json").catch(() => ({})),
         fetchJsonSafe("/data/facilities.json"),
+        fetchOptional("/data/car_stats_by_year.json", []),
         fetchJsonSafe("/data/staff_contracts.json"),
 
         fetchOptional("/data/tyres_catalog.json", []),
@@ -580,6 +594,7 @@ export const useGame = create((set, get) => ({
       const teams             = unexcelDeep(teamsRaw);
       const driverRatings     = unexcelDeep(driverRatingsRaw);
       const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
+      const driverHistory     = Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : [];
       const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
       const staffRatings      = unexcelDeep(staffRatingsRaw);
       const staffCore         = unexcelDeep(staffCoreRaw);
@@ -591,6 +606,7 @@ export const useGame = create((set, get) => ({
       const eraSafety         = unexcelDeep(eraSafetyRaw);
       const accidentModel     = (Array.isArray(accidentModelRaw) || typeof accidentModelRaw === "object") ? unexcelDeep(accidentModelRaw) : {};
       const facilities        = unexcelDeep(facilitiesRaw);
+      const carStats          = unexcelDeep(carStatsRaw);
       const staffContracts    = unexcelDeep(staffContractsRaw);
 
       const tyres              = unexcelDeep(tyresRaw);
@@ -628,6 +644,7 @@ export const useGame = create((set, get) => ({
           dbCalendar: calendar,
           dbTeams: teams,
           dbDriverRatings: driverRatings,
+          dbDriverHistory: driverHistory,
           dbStaffRatings: staffRatings,
           dbStaffCore: staffCore,
           dbDriverCareer: driverCareer,
@@ -640,6 +657,7 @@ export const useGame = create((set, get) => ({
           dbEraSafety: eraSafety,
           dbAccidentModel: accidentModel,
           dbFacilities: facilities,
+          dbCarStats: carStats,
           dbStaffContracts: staffContracts,
 
           dbTyres: tyres,
@@ -887,6 +905,9 @@ export const useGame = create((set, get) => ({
     const facilitiesExact = filterByYear(prev.dbFacilities, y);
     const facilities = facilitiesExact.length ? facilitiesExact : filterByYearRange(prev.dbFacilities, y);
 
+    const carStatsExact = filterByYear(prev.dbCarStats || [], y);
+    const carStats = carStatsExact.length ? carStatsExact : filterByYearRange(prev.dbCarStats || [], y);
+
     const staffContractsExact = filterByYear(prev.dbStaffContracts || [], y);
     const staffContractsRange = filterByYearRange(prev.dbStaffContracts || [], y);
     const staffContractMap = new Map();
@@ -954,6 +975,7 @@ export const useGame = create((set, get) => ({
       teamEngines,
       contracts,
       facilities,
+      carStats,
       staffContracts,
       sponsorsContracts,
       rules,
@@ -1030,6 +1052,9 @@ export const useGame = create((set, get) => ({
     const teamId = getTeamId(team || {});
     const db = get().gameState;
     const startingBudget = computeStartingBudget(db, teamId, y);
+    const initialDriverConditions = Object.fromEntries(
+      (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
+    );
 
     const initial = {
       currentDateISO: firstDayISO(y),
@@ -1048,6 +1073,7 @@ export const useGame = create((set, get) => ({
       ],
       eventsQueue: [],
       driverAttrLog: {},
+      driverAttributes: initialDriverConditions,
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
       careerMeta: createCareerMeta(db, y),
@@ -1084,6 +1110,9 @@ export const useGame = create((set, get) => ({
       const teamId = getTeamId(team || {});
       const db = get().gameState;
       const startingBudget = computeStartingBudget(db, teamId, y);
+      const initialDriverConditions = Object.fromEntries(
+        (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
+      );
 
       const userTeam = {
         team_id: team.team_id,
@@ -1129,6 +1158,7 @@ export const useGame = create((set, get) => ({
           inbox,
           eventsQueue: [],
           driverAttrLog: {},
+          driverAttributes: initialDriverConditions,
           settings: s.gameState?.settings ?? defaultSettings,
 
           financeLog: [],

@@ -61,6 +61,7 @@ export function seasonPackStatePatch(pack) {
     teamBrands: Array.isArray(s.teamBrands) ? s.teamBrands : [],
     teamEngines: Array.isArray(s.teamEngines) ? s.teamEngines : [],
     facilities: Array.isArray(s.facilities) ? s.facilities : [],
+    carStats: Array.isArray(s.carStats) ? s.carStats : [],
     sponsorsContracts: Array.isArray(s.sponsorsContracts) ? s.sponsorsContracts : [],
     rules: Array.isArray(s.rules) ? s.rules : [],
     eraSafety: Array.isArray(s.eraSafety) ? s.eraSafety : [],

@@ -328,6 +328,22 @@ export function materializeNextCareerSeason(state,targetYearInput){
   const financialRules=rangeRow(state.dbFinancialRules,targetYear);
   const agendaBlocks=rangeRow(state.dbAgendaBlocks,targetYear);
 
+  const nextDriverAttributes=Object.fromEntries(
+    (state.drivers||[]).map((driver)=>{
+      const id=idOfDriver(driver);
+      const curr=state?.driverAttributes?.[id]||{};
+      const confidence=num(curr.confidence,50);
+      const morale=num(curr.morale,50);
+      return [id,{
+        ...curr,
+        fatigue:0,
+        preparation:50,
+        confidence:50+(confidence-50)*0.35,
+        morale:50+(morale-50)*0.35,
+      }];
+    }).filter(([id])=>id)
+  );
+
   const finances={
     ...(state.finances||{}),
     season_spend:0,
@@ -375,6 +391,8 @@ export function materializeNextCareerSeason(state,targetYearInput){
     teamBrands:(state.teamBrands||[]).map((r)=>({...r,year:targetYear})),
     teamEngines:(state.teamEngines||[]).map((r)=>({...r,year:targetYear})),
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),
+    carStats:(state.carStats||[]).map((r)=>({...r,year:targetYear})),
+    driverAttributes:nextDriverAttributes,
 
     // Player-created commercial state survives; historical future sponsor deals
     // are never injected automatically.

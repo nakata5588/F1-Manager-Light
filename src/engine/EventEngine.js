@@ -1,5 +1,5 @@
 // src/engine/EventEngine.js
-import { ensureAbilityAnchor, recalculateCurrentAbility } from "../domain/driverRating.js";
+import { defaultDriverCondition, ensureAbilityAnchor, recalculateCurrentAbility } from "../domain/driverRating.js";
 
 /** Pequenas utils */
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -187,14 +187,11 @@ function applyEffects(gs, ev, ctx) {
         const driverKey = String(drv?.driver_id ?? driverIdRaw ?? idn ?? "");
         const compat = idn ? driverAttributes[idn] : null;
         const curr = {
-          confidence: 50,
-          fatigue: 20,
-          morale: 50,
-          preparation: 40,
+          ...defaultDriverCondition(),
           ...(compat || {}),
           ...(driverAttributes[driverKey] || {}),
         };
-        const before = Number(curr.fatigue ?? 20);
+        const before = Number(curr.fatigue ?? 0);
         const after = Math.max(0, Math.min(100, before + Number(fx.delta || 0)));
         driverAttributes[driverKey] = { ...curr, fatigue: after };
         if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];

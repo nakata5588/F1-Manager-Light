@@ -57,6 +57,9 @@ jobs:
       - name: Test driver progression and fatigue
         run: npm run test:drivers
 
+      - name: Test driver simulation core
+        run: npm run test:simulation
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
