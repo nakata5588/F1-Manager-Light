@@ -362,7 +362,7 @@ function awardRaceBonuses(next, race, gpName) {
 
   const sponsors = next.sponsorsContracts || next.dbSponsorsContracts || [];
   const spRows = sponsors.filter(r => {
-    const y = Number(pick(r, ["year","season_year"], NaN));
+    const y = Number(pick(r, ["year","season_year","start_year"], NaN));
     const tid = String(pick(r, ["team_id","team","constructor"]));
     const status = String(pick(r, ["status"], "active")).toLowerCase();
     return y === year && tid === String(teamId) && !["terminated","expired"].includes(status);
