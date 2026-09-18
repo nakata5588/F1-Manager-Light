@@ -7,6 +7,13 @@ import {
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
+import {
+  calculateBuyout,
+  contractTerminationCost,
+  driverContractDemand,
+  evaluateDriverOffer,
+  ruleLimits,
+} from "../../domain/contractEngine.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -516,10 +523,10 @@ export default function DriverModal({ entity, onClose }) {
           <Row label="Team"          value={contractTeam ?? "—"} />
           <Row label="Role"          value={contractRole ?? "—"} />
           <Row label="Overall"       value={overallLabel} />
-          <Row label="Fatigue"       value={Number(condition?.fatigue ?? 20).toFixed(0)} />
+          <Row label="Fatigue"       value={Number(condition?.fatigue ?? 0).toFixed(0)} />
           <Row label="Confidence"    value={Number(condition?.confidence ?? 50).toFixed(0)} />
           <Row label="Morale"        value={Number(condition?.morale ?? 50).toFixed(0)} />
-          <Row label="Preparation"   value={Number(condition?.preparation ?? 40).toFixed(0)} />
+          <Row label="Preparation"   value={Number(condition?.preparation ?? 50).toFixed(0)} />
           <Row label="Rookie Season" value={unbox(driver?.f1_rookie_season) ?? "—"} />
           <Row label="Years Raced"   value={yearsRaced ?? "—"} />
           <Row label="Market Value"  value={fmtMoney(marketValue)} />
@@ -555,6 +562,7 @@ export default function DriverModal({ entity, onClose }) {
               label={isOwnDriver ? "Actions" : "Interact"}
               queueEvent={queueEvent}
               currentDateISO={gameDateISO}
+              onContractAction={() => setTab("contract")}
             />
             <button onClick={onClose} className="m-1 p-2 rounded hover:bg-gray-100" aria-label="Close">
               <X size={18} />
@@ -565,6 +573,10 @@ export default function DriverModal({ entity, onClose }) {
         <section className="p-5 overflow-y-auto">
           {activeTab === "contract" && (
             <ContractTab
+              driver={driver}
+              rating={attrs}
+              contract={contract}
+              isOwnDriver={!!isOwnDriver}
               team={contractTeam}
               start={contractStart}
               end={contractEnd}
@@ -626,22 +638,206 @@ function KV({ label, value, className = "" }) {
 
 /* ======================== Tabs ======================== */
 
-function ContractTab({ team, start, end, salary, role }) {
+function ContractTab({ driver, rating, contract, isOwnDriver, team, start, end, salary, role }) {
+  const gs = useGame((s) => s.gameState);
+  const approachDriverAgent = useGame((s) => s.approachDriverAgent);
+  const submitDriverContractOffer = useGame((s) => s.submitDriverContractOffer);
+  const terminateDriverContract = useGame((s) => s.terminateDriverContract);
+  const driverId = String(driver?.driver_id ?? driver?.id ?? "");
+  const negotiation = gs?.driverNegotiations?.[driverId] || null;
+  const [offer, setOffer] = useState(null);
+  const [message, setMessage] = useState("");
+  const [confirmTerminate, setConfirmTerminate] = useState(false);
+
   const fmtStartEnd = (v) => {
     if (!v) return "—";
     const y = yearFrom(v);
     return Number.isFinite(y) ? String(y) : String(unbox(v));
   };
+
+  const limits = useMemo(() => ruleLimits(gs), [gs?.activeYear, gs?.dbContractRules]);
+  const demand = useMemo(
+    () => driverContractDemand(gs, driverId, { teamId: gs?.team?.team_id ?? gs?.team?.id, role: offer?.role || negotiation?.role || role }),
+    [gs, driverId, offer?.role, negotiation?.role, role]
+  );
+  const buyout = useMemo(() => calculateBuyout(gs, driverId), [gs, driverId]);
+  const terminationCost = useMemo(() => contractTerminationCost(gs, driverId), [gs, driverId]);
+  const evaluation = useMemo(
+    () => offer ? evaluateDriverOffer(gs, driverId, offer) : null,
+    [gs, driverId, offer]
+  );
+
+  useEffect(() => {
+    if (!negotiation || offer) return;
+    const source = negotiation.counter || negotiation.demand || demand;
+    setOffer({
+      salary: Number(source?.salary ?? demand.salary),
+      signingBonus: Number(source?.signingBonus ?? demand.signingBonus),
+      bonusWin: Number(source?.bonusWin ?? demand.bonusWin),
+      bonusPodium: Number(source?.bonusPodium ?? demand.bonusPodium),
+      bonusChampionship: Number(source?.bonusChampionship ?? demand.bonusChampionship),
+      years: Math.min(limits.maxYears, Math.max(limits.minYears, Number(source?.years ?? 2))),
+      role: source?.role || negotiation.role || (isOwnDriver ? role : "Second Driver"),
+    });
+  }, [negotiation, demand, limits.minYears, limits.maxYears, isOwnDriver, role, offer]);
+
+  const beginNegotiation = () => {
+    const res = approachDriverAgent(driverId);
+    if (!res?.ok) {
+      setMessage("Unable to approach the agent.");
+      return;
+    }
+    const d = res.negotiation?.demand || demand;
+    setOffer({
+      salary: Number(d.salary),
+      signingBonus: Number(d.signingBonus),
+      bonusWin: Number(d.bonusWin),
+      bonusPodium: Number(d.bonusPodium),
+      bonusChampionship: Number(d.bonusChampionship),
+      years: Math.min(res.negotiation.limits.maxYears, Math.max(res.negotiation.limits.minYears, 2)),
+      role: res.negotiation.role || (isOwnDriver ? role : "Second Driver"),
+    });
+    setMessage("");
+  };
+
+  const submitOffer = () => {
+    if (!offer) return;
+    const res = submitDriverContractOffer(driverId, offer);
+    if (!res?.ok) {
+      const messages = {
+        insufficient_funds: "Not enough budget for the up-front cost.",
+        driver_contract_limit: "The team has reached the driver contract limit for this era.",
+        buyout_not_allowed: "Buyouts are not allowed under the current contract rules.",
+      };
+      setMessage(messages[res?.error] || "The offer could not be submitted.");
+      return;
+    }
+    if (res.accepted) {
+      setMessage("Deal agreed. The new contract is now active.");
+      setOffer(null);
+    } else {
+      setMessage("Offer rejected. The agent has made a counter-offer.");
+      const counter = res.negotiation?.counter;
+      if (counter) setOffer({ ...counter });
+    }
+  };
+
+  const terminate = () => {
+    const res = terminateDriverContract(driverId);
+    if (!res?.ok) {
+      setMessage(res?.error === "insufficient_funds" ? "Not enough budget to pay the termination settlement." : "Contract could not be terminated.");
+      return;
+    }
+    setMessage("Contract terminated. The seat is now vacant.");
+    setConfirmTerminate(false);
+  };
+
+  const setMoney = (key, value) => setOffer((prev) => ({ ...(prev || {}), [key]: Math.max(0, Number(value) || 0) }));
+
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-4">
-        <KV label="Team"   value={team} />
-        <KV label="Role"   value={role ?? "—"} />
-        <KV label="Start"  value={fmtStartEnd(start)} />
-        <KV label="End"    value={fmtStartEnd(end)} />
-        <KV label="Salary" value={fmtMoney(salary)} />
+    <div className="grid gap-5">
+      <div className="rounded-xl border p-4">
+        <div className="text-sm font-semibold mb-3">Current contract</div>
+        <div className="grid grid-cols-2 gap-4">
+          <KV label="Team" value={team} />
+          <KV label="Role" value={role ?? "—"} />
+          <KV label="Start" value={fmtStartEnd(start)} />
+          <KV label="End" value={fmtStartEnd(end)} />
+          <KV label="Salary" value={fmtMoney(salary)} />
+          <KV label="Win bonus" value={fmtMoney(contract?.bonus_win)} />
+          <KV label="Podium bonus" value={fmtMoney(contract?.bonus_podium)} />
+          <KV label="Championship bonus" value={fmtMoney(contract?.bonus_championship)} />
+        </div>
       </div>
+
+      {!offer && negotiation?.status !== "accepted" && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={beginNegotiation}
+            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            {isOwnDriver ? "Renegotiate / Renew" : contract ? "Approach Agent / Buyout" : "Approach Agent"}
+          </button>
+          {isOwnDriver && !confirmTerminate && (
+            <button type="button" onClick={() => setConfirmTerminate(true)} className="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50">
+              Terminate contract
+            </button>
+          )}
+        </div>
+      )}
+
+      {isOwnDriver && confirmTerminate && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm">
+          <div className="font-semibold text-red-800">Terminate contract?</div>
+          <p className="mt-1 text-red-700">Settlement cost: {fmtMoney(terminationCost)}. This immediately creates a vacant seat.</p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={terminate} className="rounded-lg bg-red-600 px-3 py-2 font-semibold text-white">Confirm termination</button>
+            <button type="button" onClick={() => setConfirmTerminate(false)} className="rounded-lg border px-3 py-2">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {offer && (
+        <div className="rounded-xl border bg-gray-50 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-semibold">{negotiation?.status === "counter" ? "Agent counter-offer" : "Contract negotiation"}</div>
+              <div className="text-xs text-gray-500">Round {negotiation?.round || 1} · Era limit {limits.minYears}–{limits.maxYears} years · max {limits.maxDriverContracts} driver contracts</div>
+            </div>
+            <div className="text-right text-xs">
+              <div className="text-gray-500">Estimated acceptance</div>
+              <div className="font-bold text-lg">{evaluation ? Math.round(evaluation.chance * 100) : 0}%</div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <OfferField label="Salary / year" value={offer.salary} onChange={(v) => setMoney("salary", v)} />
+            <OfferField label="Signing bonus" value={offer.signingBonus} onChange={(v) => setMoney("signingBonus", v)} />
+            <OfferField label="Win bonus" value={offer.bonusWin} onChange={(v) => setMoney("bonusWin", v)} />
+            <OfferField label="Podium bonus" value={offer.bonusPodium} onChange={(v) => setMoney("bonusPodium", v)} />
+            <OfferField label="Championship bonus" value={offer.bonusChampionship} onChange={(v) => setMoney("bonusChampionship", v)} />
+            <label className="grid gap-1 text-xs text-gray-600">
+              Length
+              <select className="rounded border bg-white px-2 py-2 text-sm" value={offer.years} onChange={(e) => setOffer((p) => ({ ...p, years: Number(e.target.value) }))}>
+                {Array.from({ length: limits.maxYears - limits.minYears + 1 }, (_, i) => limits.minYears + i).map((y) => <option key={y} value={y}>{y} year{y !== 1 ? "s" : ""}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs text-gray-600">
+              Role
+              <select className="rounded border bg-white px-2 py-2 text-sm" value={offer.role} onChange={(e) => setOffer((p) => ({ ...p, role: e.target.value }))}>
+                <option>Main Driver</option>
+                <option>Second Driver</option>
+                <option>Reserve Driver</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <KV label="Agent salary expectation" value={fmtMoney(demand.salary)} />
+            <KV label="Buyout" value={buyout === Infinity ? "Not allowed" : fmtMoney(buyout)} />
+            <KV label="Current ability" value={rating?.current_ability ?? "—"} />
+            <KV label="Potential" value={rating?.potential_ability ?? "—"} />
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button type="button" onClick={submitOffer} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Submit offer</button>
+            <button type="button" onClick={() => setOffer(null)} className="rounded-lg border px-3 py-2 text-sm">Close negotiation</button>
+          </div>
+        </div>
+      )}
+
+      {message && <div className="rounded-lg border bg-white px-3 py-2 text-sm">{message}</div>}
     </div>
+  );
+}
+
+function OfferField({ label, value, onChange }) {
+  return (
+    <label className="grid gap-1 text-xs text-gray-600">
+      {label}
+      <input type="number" min="0" step="5000" className="rounded border bg-white px-2 py-2 text-sm" value={Number(value || 0)} onChange={(e) => onChange(e.target.value)} />
+    </label>
   );
 }
 
@@ -996,7 +1192,7 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
   );
 }
 
-function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO }) {
+function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO, onContractAction }) {
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
@@ -1029,32 +1225,17 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
       items: [
         { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
         { key: "physical",      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
-        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Opens negotiation flow", effects: [] },
+        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Renew, renegotiate or terminate", action: "contract" },
       ],
     },
   ];
 
   const otherGroups = [
     {
-      title: "Scouting & Info",
+      title: "Contract & Market",
       items: [
-        { key: "scout_watch",       icon: <Search size={14} />,    label: "Observe performance", desc: "Scouting report", effects: [] },
-        { key: "agent_probe",       icon: <Handshake size={14} />, label: "Approach agent",      desc: "Salary & clauses", effects: [] },
-        { key: "private_test_offer",icon: <Search size={14} />,    label: "Offer private test",  desc: "If legal", effects: [] },
-      ],
-    },
-    {
-      title: "Market Actions",
-      items: [
-        { key: "open_negotiation",  icon: <Handshake size={14} />, label: "Open negotiations", desc: "Formal offer", effects: [] },
-        { key: "networking_event",  icon: <Handshake size={14} />, label: "Networking at event", desc: "Relationship↑", effects: [] },
-      ],
-    },
-    {
-      title: "Media",
-      items: [
-        { key: "press_comment", icon: <Megaphone size={14} />, label: "Comment to press", desc: "Affects morale/rival", effects: [] },
-        { key: "rumor_check",   icon: <Search size={14} />,    label: "Investigate rumors", desc: "Unhappy? buyout?", effects: [] },
+        { key: "agent_probe", icon: <Handshake size={14} />, label: "Approach agent", desc: "Interest, salary, clauses and buyout", action: "contract" },
+        { key: "open_negotiation", icon: <FileText size={14} />, label: "Open negotiations", desc: "Make a formal contract offer", action: "contract" },
       ],
     },
   ];
@@ -1062,6 +1243,10 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
   const groups = isOwnDriver ? ownGroups : otherGroups;
 
   function onPick(it) {
+    if (it.action === "contract") {
+      onContractAction?.();
+      return;
+    }
     queueEvent({
       type: isOwnDriver ? "driver_action" : "market_action",
       title: it.label,
