@@ -74,7 +74,7 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbStaffRatings",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbStaffContracts","dbStaffCore",
