@@ -36,11 +36,15 @@ export default function Academy(){
   const candidates=useMemo(()=>drivers.filter((d)=>{
     const id=idOf(d);
     if(!id||supportedIds.has(id)||contractedIds.has(id))return false;
-    return Boolean(d?.canHireAcademy) && Boolean(d?.active_lower_series);
+    const age=Number(d?.age);
+    if(!d?.active_lower_series || !Number.isFinite(age)) return false;
+    return formalAcademy
+      ? Boolean(d?.canHireAcademy)
+      : age >= 16 && age <= 23;
   }).map((d)=>{
     const r=ratingById.get(idOf(d))||{};
     return {...d,overall:pick(r,["current_ability","overall","pace"],"—"),potential:pick(r,["potential_ability","potential"],"—")};
-  }).filter((d)=>!q||[d.display_name,d.name,d.country_name,d.nationality].some((v)=>String(v||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>(Number(b.potential)||0)-(Number(a.potential)||0)),[drivers,supportedIds,contractedIds,ratingById,q]);
+  }).filter((d)=>!q||[d.display_name,d.name,d.country_name,d.nationality,d.lower_series_name].some((v)=>String(v||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>(Number(b.potential)||0)-(Number(a.potential)||0)),[drivers,supportedIds,contractedIds,ratingById,q,formalAcademy]);
 
   const supportedRows=useMemo(()=>supported.map((entry)=>{
     const id=idOf(entry),d=driverById.get(id)||entry,r=ratingById.get(id)||{};
@@ -136,7 +140,7 @@ export default function Academy(){
           return <Card key={idOf(d)}><CardContent className="p-4 space-y-3">
             <button type="button" data-entity="driver" data-id={idOf(d)} className="flex items-center gap-3 text-left w-full hover:underline">
               <DriverPortrait driver={d} size="h-16 w-16"/>
-              <div className="min-w-0"><div className="font-semibold truncate">{d.display_name||d.name}</div><div className="text-xs text-muted-foreground">{flagFromCountry(d.country_name||d.nationality,d.country_code)} {d.country_name||d.nationality||"—"} · Age {d.age??"—"}</div></div>
+              <div className="min-w-0"><div className="font-semibold truncate">{d.display_name||d.name}</div><div className="text-xs text-muted-foreground">{flagFromCountry(d.country_name||d.nationality,d.country_code)} {d.country_name||d.nationality||"—"} · Age {d.age??"—"}{d.lower_series_name ? " · " + d.lower_series_name : ""}</div></div>
             </button>
             <div className="grid grid-cols-2 gap-2"><Mini label="Overall" value={d.overall}/><Mini label="Potential" value={d.potential}/></div>
             <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">{formalAcademy?"Academy entry":"Support fee"}: {fmtMoney(cost)}</span><Button size="sm" disabled={budget<cost} onClick={()=>supportDriver(d)}>{formalAcademy?"Sign to Academy":"Support Driver"}</Button></div>
