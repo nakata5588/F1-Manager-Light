@@ -55,6 +55,9 @@ jobs:
       - name: Test career season boundary
         run: npm run test:career
 
+      - name: Test generated Season Packs
+        run: npm run test:season-packs
+
       - name: Validate runtime JSON
         run: npm run validate:data
 
