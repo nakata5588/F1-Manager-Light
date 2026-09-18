@@ -141,6 +141,7 @@ export default function DriverModal({ entity, onClose }) {
       achievementsRaw: gs.dbAchievements ?? gs.achievements ?? null,
       results: Array.isArray(gs.results) ? gs.results : [],
       standings: gs.standings || { drivers: [], teams: [] },
+      driverAttributesDict: gs.driverAttributes || {},
       gameYear: Number(gs.activeYear ?? (gs.currentDateISO ? gs.currentDateISO.slice(0,4) : NaN)),
       gameDateISO: gs.currentDateISO ?? null,
       myTeamId:   gs.team?.team_id ?? gs.team?.id ?? null,
@@ -151,7 +152,7 @@ export default function DriverModal({ entity, onClose }) {
 
   const {
     driversList, ratingsList, contractsList, careerRaw,
-    achievementsRaw, results, standings, gameYear, gameDateISO,
+    achievementsRaw, results, standings, driverAttributesDict, gameYear, gameDateISO,
     myTeamId, myTeamName, queueEvent
   } = useGame(selector);
 
@@ -170,6 +171,20 @@ export default function DriverModal({ entity, onClose }) {
     ) || null,
     [ratingsList, idNorm]
   );
+
+  const condition = useMemo(() => {
+    const directKey = String(driver?.driver_id ?? entity.id ?? "");
+    const direct = driverAttributesDict?.[directKey];
+    const compat = idNorm ? driverAttributesDict?.[idNorm] : null;
+    return {
+      confidence: 50,
+      fatigue: 20,
+      morale: 50,
+      preparation: 40,
+      ...(compat || {}),
+      ...(direct || {}),
+    };
+  }, [driverAttributesDict, driver?.driver_id, entity.id, idNorm]);
 
   const contract = useMemo(
     () => (contractsList || []).find((c) =>
@@ -394,7 +409,8 @@ export default function DriverModal({ entity, onClose }) {
 
   const computedAge = useMemo(() => ageOnYear(driver?.dob, gameYear), [driver?.dob, gameYear]);
 
-  const overall       = attrs?.current_ability != null ? Math.round(Number(unbox(attrs.current_ability))) : null;
+  const overall       = attrs?.current_ability != null ? Number(unbox(attrs.current_ability)) : null;
+  const overallLabel  = Number.isFinite(overall) ? overall.toFixed(1) : "—";
   const marketValue   = unbox(attrs?.market_value);
   const driverName    = unbox(driver?.display_name) || unbox(driver?.name);
   const driverNumber  = unbox(driver?.prefered_number);
@@ -445,7 +461,11 @@ export default function DriverModal({ entity, onClose }) {
           <Row label="DOB"           value={driver?.dob ? `${unbox(driver.dob)}${computedAge != null ? ` (${computedAge})` : ""}` : "—"} />
           <Row label="Team"          value={contractTeam ?? "—"} />
           <Row label="Role"          value={contractRole ?? "—"} />
-          <Row label="Overall"       value={overall ?? "—"} />
+          <Row label="Overall"       value={overallLabel} />
+          <Row label="Fatigue"       value={Number(condition?.fatigue ?? 20).toFixed(0)} />
+          <Row label="Confidence"    value={Number(condition?.confidence ?? 50).toFixed(0)} />
+          <Row label="Morale"        value={Number(condition?.morale ?? 50).toFixed(0)} />
+          <Row label="Preparation"   value={Number(condition?.preparation ?? 40).toFixed(0)} />
           <Row label="Rookie Season" value={unbox(driver?.f1_rookie_season) ?? "—"} />
           <Row label="Years Raced"   value={yearsRaced ?? "—"} />
           <Row label="Market Value"  value={fmtMoney(marketValue)} />
@@ -520,7 +540,7 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "attributes" && <AttributesTab attrs={attrs} />}
+          {activeTab === "attributes" && <AttributesTab attrs={attrs} condition={condition} />}
 
           {activeTab === "achievements" && <AchievementsTab items={achievementsList} />}
         </section>
@@ -755,7 +775,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
   );
 }
 
-function AttributesTab({ attrs }) {
+function AttributesTab({ attrs, condition }) {
   if (!attrs) return <p className="text-gray-500 text-sm">No attributes.</p>;
   const rows = [
     ["Overall",               attrs.current_ability,               false],
@@ -780,14 +800,36 @@ function AttributesTab({ attrs }) {
     ["Car Dev. Impact",       attrs.car_development_impact,         false],
     ["Reputation",            attrs.reputation,                     false],
   ];
+  const conditionRows = [
+    ["Fatigue", condition?.fatigue ?? 20, true],
+    ["Confidence", condition?.confidence ?? 50, false],
+    ["Morale", condition?.morale ?? 50, false],
+    ["Preparation", condition?.preparation ?? 40, false],
+  ];
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {rows.map(([label, value, inverse]) => (
-        <div key={label} className="flex justify-between gap-3 text-sm">
-          <span className="text-gray-500">{label}</span>
-          <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{unbox(value) ?? "—"}</span>
+    <div className="space-y-5">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Driver Condition</div>
+        <div className="grid grid-cols-2 gap-3">
+          {conditionRows.map(([label, value, inverse]) => (
+            <div key={label} className="flex justify-between gap-3 text-sm">
+              <span className="text-gray-500">{label}</span>
+              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{Number(value).toFixed(0)}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Ability</div>
+        <div className="grid grid-cols-2 gap-3">
+          {rows.map(([label, value, inverse]) => (
+            <div key={label} className="flex justify-between gap-3 text-sm">
+              <span className="text-gray-500">{label}</span>
+              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{unbox(value) ?? "—"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
