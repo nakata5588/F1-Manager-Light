@@ -73,6 +73,7 @@ export default function NewGame() {
   const {
     gameState,
     applyYearFilter,
+    loadSeasonPack,
     startNewGame,
     setGameState,
     saveLocal,
@@ -85,6 +86,9 @@ export default function NewGame() {
   const [year, setYear] = useState(String(gameState?.activeYear ?? 1980));
   const [teamId, setTeamId] = useState("");
   const [difficulty, setDifficulty] = useState("Normal");
+  const [yearLoading, setYearLoading] = useState(false);
+  const [yearSource, setYearSource] = useState("");
+  const [yearError, setYearError] = useState("");
 
   const allYears = useMemo(() => {
     const ys = gameState?.yearsAvailable || [];
@@ -99,16 +103,44 @@ export default function NewGame() {
 
   useEffect(() => {
     if (!eraYears.length) return;
-    const target = eraYears.includes(year) ? year : eraYears[0];
-    if (target !== year) setYear(target);
-    applyYearFilter(+target);
+    let cancelled=false;
+    const target=eraYears.includes(year)?year:eraYears[0];
+    if(target!==year)setYear(target);
     setTeamId("");
-  }, [era, eraYears.join("|"), applyYearFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    setYearLoading(true);
+    setYearError("");
+    Promise.resolve(loadSeasonPack?.(+target))
+      .then((res)=>{
+        if(cancelled)return;
+        setYearSource(res?.source==="season-pack"?"Season Pack":"Legacy fallback");
+        if(!res?.ok)setYearError(String(res?.error?.message||"Unable to load season."));
+      })
+      .catch((err)=>{
+        if(cancelled)return;
+        applyYearFilter(+target);
+        setYearSource("Legacy fallback");
+        setYearError(String(err?.message||err));
+      })
+      .finally(()=>{if(!cancelled)setYearLoading(false);});
+    return ()=>{cancelled=true;};
+  }, [era, eraYears.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pickYear = (y) => {
+  const pickYear = async (y) => {
     setYear(String(y));
-    applyYearFilter(+y);
     setTeamId("");
+    setYearLoading(true);
+    setYearError("");
+    try{
+      const res=await loadSeasonPack?.(+y);
+      setYearSource(res?.source==="season-pack"?"Season Pack":"Legacy fallback");
+      if(!res?.ok)setYearError(String(res?.error?.message||"Unable to load season."));
+    }catch(err){
+      applyYearFilter(+y);
+      setYearSource("Legacy fallback");
+      setYearError(String(err?.message||err));
+    }finally{
+      setYearLoading(false);
+    }
   };
 
   const teamsForYear = Array.isArray(gameState?.teams) ? gameState.teams : [];
@@ -117,14 +149,20 @@ export default function NewGame() {
   const driverCount = Array.isArray(gameState?.drivers) ? gameState.drivers.length : 0;
   const isLoading = !gameState?.dbCalendar?.length || !gameState?.dbTeams?.length || !gameState?.dbDrivers?.length;
 
-  const canNext = step === 0 ? !!era : step === 1 ? !!year && eraYears.includes(year) : step === 2 ? !!teamId : !!difficulty;
+  const canNext = !yearLoading && (step === 0 ? !!era : step === 1 ? !!year && eraYears.includes(year) : step === 2 ? !!teamId : !!difficulty);
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     if (teamId === "create") {
       navigate("/CreateTeam", { state: { era, year, difficulty } });
       return;
     }
-    const team = teamsForYear.find((t) => getTeamId(t) === teamId) ?? null;
+    const loaded=await loadSeasonPack?.(+year);
+    if(loaded && !loaded.ok){
+      setYearError(String(loaded?.error?.message||"Unable to load selected season."));
+      return;
+    }
+    const freshTeams=useGame.getState().gameState?.teams||teamsForYear;
+    const team = freshTeams.find((t) => getTeamId(t) === teamId) ?? null;
     startNewGame({ era, year: +year, team, difficulty });
     setGameState(FRESH_CAREER_PATCH);
     saveLocal();
@@ -171,7 +209,11 @@ export default function NewGame() {
                       <button key={y} onClick={() => pickYear(y)} className={`px-3 py-2 rounded-lg border text-sm ${year === y ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30"}`}>{y}</button>
                     ))}
                   </div>
-                  <p className="text-xs opacity-70">Dataset for {safeText(year)}: {gpCount} GPs · {teamsForYear.length} teams · {driverCount} drivers.</p>
+                  <p className="text-xs opacity-70">
+                    Dataset for {safeText(year)}: {yearLoading ? "loading…" : `${gpCount} GPs · ${teamsForYear.length} teams · ${driverCount} drivers`}
+                    {yearSource ? ` · ${yearSource}` : ""}
+                  </p>
+                  {yearError && <p className="text-xs text-amber-300">{yearError}</p>}
                 </div>
               )}
 
@@ -219,9 +261,9 @@ export default function NewGame() {
             <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-4 py-2 rounded-lg border border-white/20 disabled:opacity-40">Back</button>
           </div>
           {step < 3 ? (
-            <button onClick={() => setStep((s) => Math.min(3, s + 1))} disabled={!canNext || isLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Next</button>
+            <button onClick={() => setStep((s) => Math.min(3, s + 1))} disabled={!canNext || isLoading || yearLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Next</button>
           ) : (
-            <button onClick={handleFinish} disabled={!canNext || isLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Continue</button>
+            <button onClick={handleFinish} disabled={!canNext || isLoading || yearLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Continue</button>
           )}
         </div>
       </div>
