@@ -6,7 +6,7 @@
     "area": "aero",
     "target_gain": 4,
     "risk_level": "medium",
-    "cost": "500_000",
+    "cost": 500000,
     "duration_weeks": 6,
     "status": "in_progress",
     "result_delta": null
@@ -18,7 +18,7 @@
     "area": "chassis",
     "target_gain": 3,
     "risk_level": "medium",
-    "cost": "450_000",
+    "cost": 450000,
     "duration_weeks": 6,
     "status": "in_progress",
     "result_delta": null
@@ -30,7 +30,7 @@
     "area": "suspension",
     "target_gain": 3,
     "risk_level": "low",
-    "cost": "400_000",
+    "cost": 400000,
     "duration_weeks": 5,
     "status": "in_progress",
     "result_delta": null
@@ -42,7 +42,7 @@
     "area": "reliability",
     "target_gain": 2,
     "risk_level": "high",
-    "cost": "600_000",
+    "cost": 600000,
     "duration_weeks": 4,
     "status": "in_progress",
     "result_delta": null
@@ -54,7 +54,7 @@
     "area": "aero",
     "target_gain": 3,
     "risk_level": "medium",
-    "cost": "450_000",
+    "cost": 450000,
     "duration_weeks": 6,
     "status": "in_progress",
     "result_delta": null
@@ -66,7 +66,7 @@
     "area": "chassis",
     "target_gain": 2,
     "risk_level": "low",
-    "cost": "350_000",
+    "cost": 350000,
     "duration_weeks": 5,
     "status": "in_progress",
     "result_delta": null
@@ -78,7 +78,7 @@
     "area": "reliability",
     "target_gain": 1,
     "risk_level": "medium",
-    "cost": "250_000",
+    "cost": 250000,
     "duration_weeks": 4,
     "status": "in_progress",
     "result_delta": null
@@ -90,7 +90,7 @@
     "area": "aero",
     "target_gain": 2,
     "risk_level": "high",
-    "cost": "200_000",
+    "cost": 200000,
     "duration_weeks": 4,
     "status": "in_progress",
     "result_delta": null
@@ -102,7 +102,7 @@
     "area": "suspension",
     "target_gain": 3,
     "risk_level": "medium",
-    "cost": "400_000",
+    "cost": 400000,
     "duration_weeks": 5,
     "status": "in_progress",
     "result_delta": null
@@ -114,7 +114,7 @@
     "area": "chassis",
     "target_gain": 4,
     "risk_level": "low",
-    "cost": "600_000",
+    "cost": 600000,
     "duration_weeks": 7,
     "status": "in_progress",
     "result_delta": null
@@ -126,7 +126,7 @@
     "area": "engine",
     "target_gain": 3,
     "risk_level": "high",
-    "cost": "550_000",
+    "cost": 550000,
     "duration_weeks": 5,
     "status": "in_progress",
     "result_delta": null
@@ -138,7 +138,7 @@
     "area": "reliability",
     "target_gain": 1,
     "risk_level": "medium",
-    "cost": "200_000",
+    "cost": 200000,
     "duration_weeks": 4,
     "status": "in_progress",
     "result_delta": null
@@ -150,7 +150,7 @@
     "area": "chassis",
     "target_gain": 1,
     "risk_level": "low",
-    "cost": "180_000",
+    "cost": 180000,
     "duration_weeks": 5,
     "status": "in_progress",
     "result_delta": null
@@ -162,7 +162,7 @@
     "area": "suspension",
     "target_gain": 1,
     "risk_level": "low",
-    "cost": "150_000",
+    "cost": 150000,
     "duration_weeks": 4,
     "status": "in_progress",
     "result_delta": null
@@ -174,7 +174,7 @@
     "area": "aero",
     "target_gain": 1,
     "risk_level": "medium",
-    "cost": "200_000",
+    "cost": 200000,
     "duration_weeks": 4,
     "status": "in_progress",
     "result_delta": null

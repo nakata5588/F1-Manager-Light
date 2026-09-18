@@ -1,126 +1,7 @@
 [
   {
-    "driver_id": "d_0005",
-    "team_id": null,
-    "team_name": "Benetton",
-    "year": 1990,
-    "wins": 2,
-    "podiums": 4,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0002",
-    "team_id": "t_0003",
-    "team_name": "Brabham",
-    "year": 1975,
-    "wins": 1,
-    "podiums": 6,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0005",
-    "team_id": "t_0003",
-    "team_name": "Brabham",
-    "year": 1981,
-    "wins": 3,
-    "podiums": 7,
-    "driver_championship": 1,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0005",
-    "team_id": "t_0003",
-    "team_name": "Brabham",
-    "year": 1983,
-    "wins": 3,
-    "podiums": 8,
-    "driver_championship": 1,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0005",
-    "team_id": "t_0003",
-    "team_name": "Brabham",
-    "year": 1980,
-    "wins": 3,
-    "podiums": 6,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0002",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1978,
-    "wins": 4,
-    "podiums": 7,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0003",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1979,
-    "wins": 3,
-    "podiums": 7,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0004",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1979,
-    "wins": 3,
-    "podiums": 6,
-    "driver_championship": 1,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0007",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1982,
-    "wins": 2,
-    "podiums": 6,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0008",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1983,
-    "wins": 3,
-    "podiums": 7,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0017",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1990,
-    "wins": 5,
-    "podiums": 9,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0021",
-    "team_id": "t_0010",
-    "team_name": "Ferrari",
-    "year": 1974,
-    "wins": 1,
-    "podiums": 7,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0021",
+    "driver_id": "d_0223",
+    "driver_name": "Clay Regazzoni",
     "team_id": "t_0010",
     "team_name": "Ferrari",
     "year": 1970,
@@ -130,17 +11,8 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0009",
-    "team_id": "t_0005",
-    "team_name": "Lotus",
-    "year": 1984,
-    "wins": 0,
-    "podiums": 4,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0016",
+    "driver_id": "d_0224",
+    "driver_name": "Emerson Fittipaldi",
     "team_id": "t_0005",
     "team_name": "Lotus",
     "year": 1972,
@@ -150,7 +22,8 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0016",
+    "driver_id": "d_0224",
+    "driver_name": "Emerson Fittipaldi",
     "team_id": "t_0005",
     "team_name": "Lotus",
     "year": 1973,
@@ -160,37 +33,19 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0020",
-    "team_id": "t_0005",
-    "team_name": "Lotus",
-    "year": 1978,
-    "wins": 6,
-    "podiums": 3,
-    "driver_championship": 1,
+    "driver_id": "d_0223",
+    "driver_name": "Clay Regazzoni",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1974,
+    "wins": 1,
+    "podiums": 7,
+    "driver_championship": 2,
     "team_championship": null
   },
   {
-    "driver_id": "d_0020",
-    "team_id": "t_0005",
-    "team_name": "Lotus",
-    "year": 1977,
-    "wins": 4,
-    "podiums": 4,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0013",
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "year": 1982,
-    "wins": 2,
-    "podiums": 5,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0016",
+    "driver_id": "d_0224",
+    "driver_name": "Emerson Fittipaldi",
     "team_id": "t_0009",
     "team_name": "McLaren",
     "year": 1974,
@@ -200,7 +55,30 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0016",
+    "driver_id": "d_0222",
+    "driver_name": "Jody Scheckter",
+    "team_id": "t_0006",
+    "team_name": "Tyrrell",
+    "year": 1974,
+    "wins": 2,
+    "podiums": 6,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0199",
+    "driver_name": "Carlos Reutemann",
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "year": 1975,
+    "wins": 1,
+    "podiums": 6,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0224",
+    "driver_name": "Emerson Fittipaldi",
     "team_id": "t_0009",
     "team_name": "McLaren",
     "year": 1975,
@@ -210,77 +88,8 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0017",
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "year": 1985,
-    "wins": 5,
-    "podiums": 11,
-    "driver_championship": 1,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0017",
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "year": 1986,
-    "wins": 4,
-    "podiums": 11,
-    "driver_championship": 1,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0017",
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "year": 1989,
-    "wins": 4,
-    "podiums": 11,
-    "driver_championship": 1,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0017",
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "year": 1984,
-    "wins": 7,
-    "podiums": 9,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0017",
-    "team_id": "t_0009",
-    "team_name": "McLaren",
-    "year": 1988,
-    "wins": 7,
-    "podiums": 14,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0017",
-    "team_id": "t_0004",
-    "team_name": "Renault",
-    "year": 1983,
-    "wins": 4,
-    "podiums": 7,
-    "driver_championship": 2,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0004",
-    "team_id": "t_0006",
-    "team_name": "Tyrrell",
-    "year": 1974,
-    "wins": 2,
-    "podiums": 6,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0004",
+    "driver_id": "d_0222",
+    "driver_name": "Jody Scheckter",
     "team_id": "t_0006",
     "team_name": "Tyrrell",
     "year": 1976,
@@ -290,8 +99,9 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0004",
-    "team_id": null,
+    "driver_id": "d_0222",
+    "driver_name": "Jody Scheckter",
+    "team_id": "",
     "team_name": "Walter Wolf",
     "year": 1977,
     "wins": 3,
@@ -300,17 +110,41 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0001",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1980,
-    "wins": 5,
-    "podiums": 6,
+    "driver_id": "d_0207",
+    "driver_name": "Mario Andretti",
+    "team_id": "t_0005",
+    "team_name": "Lotus",
+    "year": 1977,
+    "wins": 4,
+    "podiums": 4,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0199",
+    "driver_name": "Carlos Reutemann",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1978,
+    "wins": 4,
+    "podiums": 7,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0207",
+    "driver_name": "Mario Andretti",
+    "team_id": "t_0005",
+    "team_name": "Lotus",
+    "year": 1978,
+    "wins": 6,
+    "podiums": 3,
     "driver_championship": 1,
     "team_championship": null
   },
   {
-    "driver_id": "d_0001",
+    "driver_id": "d_0178",
+    "driver_name": "Alan Jones",
     "team_id": "t_0001",
     "team_name": "Williams",
     "year": 1979,
@@ -320,17 +154,41 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0001",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1981,
-    "wins": 2,
-    "podiums": 0,
-    "driver_championship": 3,
+    "driver_id": "d_0203",
+    "driver_name": "Gilles Villeneuve",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1979,
+    "wins": 3,
+    "podiums": 7,
+    "driver_championship": 2,
     "team_championship": null
   },
   {
-    "driver_id": "d_0002",
+    "driver_id": "d_0222",
+    "driver_name": "Jody Scheckter",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1979,
+    "wins": 3,
+    "podiums": 6,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0178",
+    "driver_name": "Alan Jones",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1980,
+    "wins": 5,
+    "podiums": 6,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0199",
+    "driver_name": "Carlos Reutemann",
     "team_id": "t_0001",
     "team_name": "Williams",
     "year": 1980,
@@ -340,7 +198,30 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0002",
+    "driver_id": "d_0137",
+    "driver_name": "Nelson Piquet",
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "year": 1980,
+    "wins": 3,
+    "podiums": 6,
+    "driver_championship": 2,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0178",
+    "driver_name": "Alan Jones",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1981,
+    "wins": 2,
+    "podiums": 0,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0199",
+    "driver_name": "Carlos Reutemann",
     "team_id": "t_0001",
     "team_name": "Williams",
     "year": 1981,
@@ -350,57 +231,41 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0005",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1987,
+    "driver_id": "d_0137",
+    "driver_name": "Nelson Piquet",
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "year": 1981,
     "wins": 3,
-    "podiums": 11,
+    "podiums": 7,
     "driver_championship": 1,
     "team_championship": null
   },
   {
-    "driver_id": "d_0005",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1986,
-    "wins": 4,
-    "podiums": 10,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0011",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1992,
-    "wins": 1,
-    "podiums": 9,
+    "driver_id": "d_0202",
+    "driver_name": "Didier Pironi",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1982,
+    "wins": 2,
+    "podiums": 6,
     "driver_championship": 2,
     "team_championship": null
   },
   {
-    "driver_id": "d_0011",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1989,
-    "wins": 0,
-    "podiums": 6,
-    "driver_championship": 3,
-    "team_championship": null
-  },
-  {
-    "driver_id": "d_0011",
-    "team_id": "t_0001",
-    "team_name": "Williams",
-    "year": 1991,
+    "driver_id": "d_0187",
+    "driver_name": "John Watson",
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "year": 1982,
     "wins": 2,
-    "podiums": 8,
+    "podiums": 5,
     "driver_championship": 3,
     "team_championship": null
   },
   {
-    "driver_id": "d_0012",
+    "driver_id": "d_0177",
+    "driver_name": "Keke Rosberg",
     "team_id": "t_0001",
     "team_name": "Williams",
     "year": 1982,
@@ -410,7 +275,74 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0012",
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0004",
+    "team_name": "Renault",
+    "year": 1983,
+    "wins": 4,
+    "podiums": 7,
+    "driver_championship": 2,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0137",
+    "driver_name": "Nelson Piquet",
+    "team_id": "t_0003",
+    "team_name": "Brabham",
+    "year": 1983,
+    "wins": 3,
+    "podiums": 8,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0163",
+    "driver_name": "René Arnoux",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1983,
+    "wins": 3,
+    "podiums": 7,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "year": 1984,
+    "wins": 7,
+    "podiums": 9,
+    "driver_championship": 2,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0173",
+    "driver_name": "Elio de Angelis",
+    "team_id": "t_0005",
+    "team_name": "Lotus",
+    "year": 1984,
+    "wins": 0,
+    "podiums": 4,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "year": 1985,
+    "wins": 5,
+    "podiums": 11,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0177",
+    "driver_name": "Keke Rosberg",
     "team_id": "t_0001",
     "team_name": "Williams",
     "year": 1985,
@@ -420,7 +352,118 @@
     "team_championship": null
   },
   {
-    "driver_id": "d_0017",
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "year": 1986,
+    "wins": 4,
+    "podiums": 11,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0137",
+    "driver_name": "Nelson Piquet",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1986,
+    "wins": 4,
+    "podiums": 10,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0137",
+    "driver_name": "Nelson Piquet",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1987,
+    "wins": 3,
+    "podiums": 11,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "year": 1988,
+    "wins": 7,
+    "podiums": 14,
+    "driver_championship": 2,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0009",
+    "team_name": "McLaren",
+    "year": 1989,
+    "wins": 4,
+    "podiums": 11,
+    "driver_championship": 1,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0119",
+    "driver_name": "Riccardo Patrese",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1989,
+    "wins": 0,
+    "podiums": 6,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
+    "team_id": "t_0010",
+    "team_name": "Ferrari",
+    "year": 1990,
+    "wins": 5,
+    "podiums": 9,
+    "driver_championship": 2,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0137",
+    "driver_name": "Nelson Piquet",
+    "team_id": "t_0032",
+    "team_name": "Benetton",
+    "year": 1990,
+    "wins": 2,
+    "podiums": 4,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0119",
+    "driver_name": "Riccardo Patrese",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1991,
+    "wins": 2,
+    "podiums": 8,
+    "driver_championship": 3,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0119",
+    "driver_name": "Riccardo Patrese",
+    "team_id": "t_0001",
+    "team_name": "Williams",
+    "year": 1992,
+    "wins": 1,
+    "podiums": 9,
+    "driver_championship": 2,
+    "team_championship": null
+  },
+  {
+    "driver_id": "d_0117",
+    "driver_name": "Alain Prost",
     "team_id": "t_0001",
     "team_name": "Williams",
     "year": 1993,

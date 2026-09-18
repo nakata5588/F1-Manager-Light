@@ -8,7 +8,8 @@
     "base_reliability": "0.80",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "chassis"
+    "impact_area": "chassis",
+    "cost_differential": null
   },
   {
     "part_id": "p_0002",
@@ -19,7 +20,8 @@
     "base_reliability": "0.85",
     "era_start_year": 1968,
     "era_end_year": null,
-    "impact_area": "aero"
+    "impact_area": "aero",
+    "cost_differential": null
   },
   {
     "part_id": "p_0003",
@@ -30,7 +32,8 @@
     "base_reliability": "0.83",
     "era_start_year": 1968,
     "era_end_year": null,
-    "impact_area": "aero"
+    "impact_area": "aero",
+    "cost_differential": null
   },
   {
     "part_id": "p_0004",
@@ -41,7 +44,8 @@
     "base_reliability": "0.78",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "chassis"
+    "impact_area": "chassis",
+    "cost_differential": null
   },
   {
     "part_id": "p_0005",
@@ -52,7 +56,8 @@
     "base_reliability": "0.75",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "powertrain"
+    "impact_area": "powertrain",
+    "cost_differential": null
   },
   {
     "part_id": "p_0006",
@@ -63,7 +68,8 @@
     "base_reliability": "0.82",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "chassis"
+    "impact_area": "chassis",
+    "cost_differential": null
   },
   {
     "part_id": "p_0007",
@@ -74,7 +80,8 @@
     "base_reliability": "0.80",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "cooling"
+    "impact_area": "cooling",
+    "cost_differential": null
   },
   {
     "part_id": "p_0008",
@@ -85,7 +92,8 @@
     "base_reliability": "0.70",
     "era_start_year": 1977,
     "era_end_year": 1988,
-    "impact_area": "powertrain"
+    "impact_area": "powertrain",
+    "cost_differential": null
   },
   {
     "part_id": "p_0009",
@@ -96,7 +104,8 @@
     "base_reliability": "0.85",
     "era_start_year": 1990,
     "era_end_year": null,
-    "impact_area": "reliability"
+    "impact_area": "reliability",
+    "cost_differential": null
   },
   {
     "part_id": "p_0010",
@@ -107,7 +116,8 @@
     "base_reliability": "0.75",
     "era_start_year": 2009,
     "era_end_year": 2013,
-    "impact_area": "hybrid"
+    "impact_area": "hybrid",
+    "cost_differential": null
   },
   {
     "part_id": "p_0011",
@@ -118,7 +128,8 @@
     "base_reliability": "0.78",
     "era_start_year": 2014,
     "era_end_year": null,
-    "impact_area": "hybrid"
+    "impact_area": "hybrid",
+    "cost_differential": null
   },
   {
     "part_id": "p_0012",
@@ -129,7 +140,8 @@
     "base_reliability": "0.70",
     "era_start_year": 2014,
     "era_end_year": 2025,
-    "impact_area": "hybrid"
+    "impact_area": "hybrid",
+    "cost_differential": null
   },
   {
     "part_id": "p_0013",
@@ -140,7 +152,8 @@
     "base_reliability": "0.80",
     "era_start_year": 2009,
     "era_end_year": null,
-    "impact_area": "hybrid"
+    "impact_area": "hybrid",
+    "cost_differential": null
   },
   {
     "part_id": "p_0014",
@@ -151,7 +164,8 @@
     "base_reliability": "0.82",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "powertrain"
+    "impact_area": "powertrain",
+    "cost_differential": null
   },
   {
     "part_id": "p_0015",
@@ -162,6 +176,7 @@
     "base_reliability": "0.80",
     "era_start_year": 1950,
     "era_end_year": null,
-    "impact_area": "powertrain"
+    "impact_area": "powertrain",
+    "cost_differential": null
   }
 ]
