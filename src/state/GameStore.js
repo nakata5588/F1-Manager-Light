@@ -1,6 +1,7 @@
 // src/state/GameStore.js
 import { create } from "zustand";
 import { triggerDailyTick } from "@/engine/EventEngine";
+import { processScoutingTick } from "@/engine/ScoutingEngine";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -456,6 +457,7 @@ export const useGame = create((set, get) => ({
     try {
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
+      updated = processScoutingTick(updated);
       const changes = res?.changes || res?.attrChanges || [];
       if (Array.isArray(changes) && changes.length) {
         // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
