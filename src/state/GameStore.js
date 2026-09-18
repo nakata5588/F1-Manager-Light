@@ -451,7 +451,11 @@ export const useGame = create((set, get) => ({
     const s = get().gameState;
     const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
     const newISO  = addDaysISO(baseISO, 1);
+    const nextCalendarYear = Number(String(newISO).slice(0, 4));
     let updated = { ...s, currentDateISO: newISO };
+    if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
+      updated = rolloverSeasonPure(s, nextCalendarYear);
+    }
     try {
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
@@ -1330,6 +1334,12 @@ export const useGame = create((set, get) => ({
     }
 
     let updated = { ...s, currentDateISO: newISO, currentRound: newRound };
+    const nextCalendarYear = Number(String(newISO).slice(0, 4));
+    if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
+      updated = rolloverSeasonPure(s, nextCalendarYear);
+      newRound = 0;
+      roundChanged = true;
+    }
 
     try {
       const res = triggerDailyTick(updated);
