@@ -99,3 +99,13 @@ for(const target of [1975,1980,1989,1999,2014,2020]){
   const row=index.years.find((x)=>x.year===target);
   if(row) console.log(`  ${target}: ${row.ready?"READY":"NOT READY"} · ${row.counts.teams||0} teams · ${row.counts.drivers||0} drivers · ${row.counts.calendar||0} GPs${row.warnings?.length?" · "+row.warnings.join(", "):""}`);
 }
+
+if(process.env.SEASON_PACK_DIAGNOSTICS==="1"){
+  for(const target of [1975,1980]){
+    const pack=materializeSeasonPack(globalData,target);
+    console.log("[season-pack teams "+target+"]",JSON.stringify((pack.state?.teams||[]).map((t)=>({
+      id:t.team_id,
+      name:t.team_name,
+    }))));
+  }
+}
