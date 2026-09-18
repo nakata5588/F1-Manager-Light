@@ -93,6 +93,10 @@ export default function Scouting() {
   const allProspects = useMemo(() => drivers
     .filter((d) => Boolean(d?.active_lower_series))
     .filter((d) => ["junior_only","lower_series"].includes(String(d?.status || "")))
+    .filter((d) => {
+      const age=Number(d?.age);
+      return Number.isFinite(age) && age >= 16 && age <= 24;
+    })
     .sort((a,b) => {
       const ar = ratingById.get(idOf(a)) || {};
       const br = ratingById.get(idOf(b)) || {};
@@ -287,7 +291,7 @@ export default function Scouting() {
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold">Scouting</h1>
           <p className="text-sm text-muted-foreground">
-            Scout drivers who are actually active outside F1 in the current season, or explore a region for new talent.
+            Scout young drivers aged 16–24 who are active outside F1 in the current season, or explore a region for new talent.
           </p>
         </div>
         <div className="flex-1" />
