@@ -54,6 +54,9 @@ jobs:
       - name: Test career season boundary
         run: npm run test:career
 
+      - name: Test driver progression and fatigue
+        run: npm run test:drivers
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
