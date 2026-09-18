@@ -20,9 +20,9 @@ export default function Academy(){
   const youthLevel=facility?.youth_program_level;
   const formalAcademy=youthLevel!==null&&youthLevel!==undefined&&youthLevel!=="";
 
-  const drivers=gameState?.drivers?.length?gameState.drivers:gameState?.dbDrivers||[];
-  const ratings=gameState?.driverRatings?.length?gameState.driverRatings:gameState?.dbDriverRatings||[];
-  const contracts=gameState?.contracts?.length?gameState.contracts:gameState?.dbContracts||[];
+  const drivers=Array.isArray(gameState?.drivers)?gameState.drivers:[];
+  const ratings=Array.isArray(gameState?.driverRatings)?gameState.driverRatings:[];
+  const contracts=Array.isArray(gameState?.contracts)?gameState.contracts:[];
   const academy=gameState?.academy||{};
   const supported=Array.isArray(academy.drivers)?academy.drivers:[];
 
@@ -36,8 +36,7 @@ export default function Academy(){
   const candidates=useMemo(()=>drivers.filter((d)=>{
     const id=idOf(d);
     if(!id||supportedIds.has(id)||contractedIds.has(id))return false;
-    const status=String(d?.status||"");
-    return status==="junior_only"||Boolean(d?.canHireAcademy);
+    return Boolean(d?.canHireAcademy) && Boolean(d?.active_lower_series);
   }).map((d)=>{
     const r=ratingById.get(idOf(d))||{};
     return {...d,overall:pick(r,["current_ability","overall","pace"],"—"),potential:pick(r,["potential_ability","potential"],"—")};
@@ -149,4 +148,4 @@ export default function Academy(){
   </div>;
 }
 
-function Mini({label,value}){return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium text-sm">{value??"—"}</div></div>;}
+function Mini({label,value}){const safe=value&&typeof value==="object"?"—":(value??"—");return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium text-sm">{safe}</div></div>;}

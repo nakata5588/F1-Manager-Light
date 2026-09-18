@@ -72,6 +72,26 @@ function resolveDriverTeamId(gs, driver) {
   return teamId == null || teamId === "" ? null : String(teamId);
 }
 
+function facilityLevel(gs, teamId, key) {
+  if (!teamId) return 5;
+  const override = gs?.hq?.facilityLevels?.[key];
+  if (override != null && override !== "") return Number(override) || 0;
+  const year = Number(gs?.activeYear);
+  const row = (gs?.facilities || gs?.dbFacilities || []).find((r) => {
+    const tid = String(pick(r, ["team_id","team"], ""));
+    const ry = Number(pick(r, ["year","season_year"], year));
+    return tid === String(teamId) && (!Number.isFinite(year) || !Number.isFinite(ry) || ry === year);
+  });
+  const value = pick(row || {}, [key], 5);
+  return value == null || value === "" ? 5 : Number(value) || 0;
+}
+
+function raceOperationsBonus(gs, driver) {
+  const teamId = resolveDriverTeamId(gs, driver);
+  const pitLevel = facilityLevel(gs, teamId, "pitcrew_training_level");
+  return (pitLevel - 5) * 0.12;
+}
+
 function buildRaceTiming(race, ratings, roundIndex) {
   if (!race.length) return race;
 
@@ -231,8 +251,12 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
     .map((x,i) => ({ pos: i+1, driver: x.d }));
 
   const raceOrder = qualy
-    .map(q => ({ ...q, raceDelta: Math.round(rnorm()*4) }))
-    .sort((a,b) => (a.pos + a.raceDelta) - (b.pos + b.raceDelta))
+    .map((q) => ({
+      ...q,
+      raceDelta: rnorm() * 4,
+      opsBonus: raceOperationsBonus(gs, q.driver),
+    }))
+    .sort((a,b) => (a.pos + a.raceDelta - a.opsBonus) - (b.pos + b.raceDelta - b.opsBonus))
     .map((x,i) => ({ pos: i+1, driver: x.driver }));
 
   const race = buildRaceTiming(raceOrder, ratings, roundIndex);

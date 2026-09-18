@@ -66,7 +66,7 @@ export default function EntityModalRoot() {
           w-[1200px] max-w-[96vw]
           max-h-[92vh] overflow-hidden
           -translate-x-1/2 -translate-y-1/2
-          rounded-2xl bg-white dark:bg-slate-900 shadow-2xl
+          rounded-2xl bg-white text-slate-950 shadow-2xl
           outline-none
         "
         onWheel={(e) => e.stopPropagation()}
