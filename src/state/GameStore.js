@@ -4,6 +4,7 @@ import { triggerDailyTick } from "@/engine/EventEngine";
 import { processScoutingTick } from "@/engine/ScoutingEngine";
 import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
+import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -319,6 +320,8 @@ export const useGame = create((set, get) => ({
     dbTeamSeasons: [],
 
     yearsAvailable: [],
+    seasonPackIndex: [],
+    seasonPackMeta: null,
 
     // filtrados
     activeYear: 1980,
@@ -407,6 +410,40 @@ export const useGame = create((set, get) => ({
         settings: { ...state.gameState?.settings, ...next },
       },
     }));
+  },
+
+  loadSeasonPack: async (yearInput, { fallback = true } = {}) => {
+    const year = Number(yearInput);
+    if (!Number.isInteger(year)) return { ok: false, source: "invalid" };
+    try {
+      const pack = await fetchSeasonPack(year);
+      const patch = seasonPackStatePatch(pack);
+      set((s) => ({
+        gameState: {
+          ...s.gameState,
+          ...patch,
+        },
+      }));
+      return { ok: true, source: "season-pack", pack };
+    } catch (error) {
+      console.warn(`[SeasonPack] ${year} unavailable; using legacy materializer.`, error);
+      if (fallback) {
+        get().applyYearFilter(year, { normalizeDate: true });
+        set((s) => ({
+          gameState: {
+            ...s.gameState,
+            seasonPackMeta: {
+              format: "legacy-year-filter",
+              schemaVersion: 0,
+              year,
+              error: String(error?.message || error),
+            },
+          },
+        }));
+        return { ok: true, source: "legacy", error };
+      }
+      return { ok: false, source: "season-pack", error };
+    }
   },
 
   setActiveYear: (year, opts = { normalizeDate: true }) => {
@@ -502,7 +539,7 @@ export const useGame = create((set, get) => ({
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
-        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
@@ -535,6 +572,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/scouting_zones.json", []),
         fetchOptional("/data/track_layout_by_year.json", []),
         fetchOptional("/data/team_seasons.json", []),
+        fetchOptional("/data/seasons/index.json", { years: [] }),
       ]);
 
       const drivers           = unexcelDeep(driversRaw);
@@ -568,13 +606,20 @@ export const useGame = create((set, get) => ({
       const scoutingZones      = unexcelDeep(scoutingZonesRaw);
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
       const teamSeasons         = unexcelDeep(teamSeasonsRaw);
+      const seasonPackIndex      = Array.isArray(seasonIndexRaw?.years) ? unexcelDeep(seasonIndexRaw.years) : [];
 
-      const yearsAvailable = Array.from(
-        new Set((calendar || []).map((gp) => {
-          const yr = gp?.season_year ?? gp?.year ?? (typeof gp?.race_date === "string" ? gp.race_date.slice(0, 4) : null);
-          return yr != null ? Number(yr) : null;
-        }).filter((x) => x != null))
-      ).sort((a, b) => a - b);
+      const packYears = seasonPackIndex
+        .filter((row) => row?.ready !== false)
+        .map((row) => Number(row?.year))
+        .filter(Number.isInteger);
+      const yearsAvailable = packYears.length
+        ? Array.from(new Set(packYears)).sort((a,b)=>a-b)
+        : Array.from(
+            new Set((calendar || []).map((gp) => {
+              const yr = gp?.season_year ?? gp?.year ?? (typeof gp?.race_date === "string" ? gp.race_date.slice(0, 4) : null);
+              return yr != null ? Number(yr) : null;
+            }).filter((x) => x != null))
+          ).sort((a, b) => a - b);
 
       set((s) => ({
         gameState: {
@@ -612,6 +657,7 @@ export const useGame = create((set, get) => ({
           dbTeamSeasons: teamSeasons,
 
           yearsAvailable,
+          seasonPackIndex,
         },
       }));
 
@@ -976,9 +1022,11 @@ export const useGame = create((set, get) => ({
   /** ===================== NEW GAME ===================== */
   startNewGame: (cfg) => {
     const { year, team, difficulty } = cfg;
-    get().applyYearFilter(year, { normalizeDate: true });
-
     const y = Number(year);
+    if (Number(get().gameState?.seasonPackMeta?.year) !== y) {
+      get().applyYearFilter(y, { normalizeDate: true });
+    }
+
     const teamId = getTeamId(team || {});
     const db = get().gameState;
     const startingBudget = computeStartingBudget(db, teamId, y);
@@ -1029,7 +1077,9 @@ export const useGame = create((set, get) => ({
     try {
       const { year, team, drivers, difficulty } = payload;
       const y = Number(year);
-      get().applyYearFilter(y, { normalizeDate: true });
+      if (Number(get().gameState?.seasonPackMeta?.year) !== y) {
+        get().applyYearFilter(y, { normalizeDate: true });
+      }
 
       const teamId = getTeamId(team || {});
       const db = get().gameState;

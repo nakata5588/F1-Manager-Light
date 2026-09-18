@@ -1,0 +1,1292 @@
+{
+  "source": "Ergast-compatible constructors reference",
+  "purpose": "Maps race_results.constructorId to canonical constructor identity before matching the F1 Manager Light teams master.",
+  "constructors": [
+    {
+      "constructorId": 1,
+      "constructorRef": "mclaren",
+      "constructorName": "McLaren",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 2,
+      "constructorRef": "bmw_sauber",
+      "constructorName": "BMW Sauber",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 3,
+      "constructorRef": "williams",
+      "constructorName": "Williams",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 4,
+      "constructorRef": "renault",
+      "constructorName": "Renault",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 5,
+      "constructorRef": "toro_rosso",
+      "constructorName": "Toro Rosso",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 6,
+      "constructorRef": "ferrari",
+      "constructorName": "Ferrari",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 7,
+      "constructorRef": "toyota",
+      "constructorName": "Toyota",
+      "nationality": "Japanese"
+    },
+    {
+      "constructorId": 8,
+      "constructorRef": "super_aguri",
+      "constructorName": "Super Aguri",
+      "nationality": "Japanese"
+    },
+    {
+      "constructorId": 9,
+      "constructorRef": "red_bull",
+      "constructorName": "Red Bull",
+      "nationality": "Austrian"
+    },
+    {
+      "constructorId": 10,
+      "constructorRef": "force_india",
+      "constructorName": "Force India",
+      "nationality": "Indian"
+    },
+    {
+      "constructorId": 11,
+      "constructorRef": "honda",
+      "constructorName": "Honda",
+      "nationality": "Japanese"
+    },
+    {
+      "constructorId": 12,
+      "constructorRef": "spyker",
+      "constructorName": "Spyker",
+      "nationality": "Dutch"
+    },
+    {
+      "constructorId": 13,
+      "constructorRef": "mf1",
+      "constructorName": "MF1",
+      "nationality": "Russian"
+    },
+    {
+      "constructorId": 14,
+      "constructorRef": "spyker_mf1",
+      "constructorName": "Spyker MF1",
+      "nationality": "Dutch"
+    },
+    {
+      "constructorId": 15,
+      "constructorRef": "sauber",
+      "constructorName": "Sauber",
+      "nationality": "Swiss"
+    },
+    {
+      "constructorId": 16,
+      "constructorRef": "bar",
+      "constructorName": "BAR",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 17,
+      "constructorRef": "jordan",
+      "constructorName": "Jordan",
+      "nationality": "Irish"
+    },
+    {
+      "constructorId": 18,
+      "constructorRef": "minardi",
+      "constructorName": "Minardi",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 19,
+      "constructorRef": "jaguar",
+      "constructorName": "Jaguar",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 20,
+      "constructorRef": "prost",
+      "constructorName": "Prost",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 21,
+      "constructorRef": "arrows",
+      "constructorName": "Arrows",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 22,
+      "constructorRef": "benetton",
+      "constructorName": "Benetton",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 23,
+      "constructorRef": "brawn",
+      "constructorName": "Brawn",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 24,
+      "constructorRef": "stewart",
+      "constructorName": "Stewart",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 25,
+      "constructorRef": "tyrrell",
+      "constructorName": "Tyrrell",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 26,
+      "constructorRef": "lola",
+      "constructorName": "Lola",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 27,
+      "constructorRef": "ligier",
+      "constructorName": "Ligier",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 28,
+      "constructorRef": "forti",
+      "constructorName": "Forti",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 29,
+      "constructorRef": "footwork",
+      "constructorName": "Footwork",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 30,
+      "constructorRef": "pacific",
+      "constructorName": "Pacific",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 31,
+      "constructorRef": "simtek",
+      "constructorName": "Simtek",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 32,
+      "constructorRef": "team_lotus",
+      "constructorName": "Team Lotus",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 33,
+      "constructorRef": "larrousse",
+      "constructorName": "Larrousse",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 34,
+      "constructorRef": "brabham",
+      "constructorName": "Brabham",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 35,
+      "constructorRef": "dallara",
+      "constructorName": "Dallara",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 36,
+      "constructorRef": "fondmetal",
+      "constructorName": "Fondmetal",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 37,
+      "constructorRef": "march",
+      "constructorName": "March",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 38,
+      "constructorRef": "moda",
+      "constructorName": "Andrea Moda",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 39,
+      "constructorRef": "ags",
+      "constructorName": "AGS",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 40,
+      "constructorRef": "lambo",
+      "constructorName": "Lambo",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 41,
+      "constructorRef": "leyton",
+      "constructorName": "Leyton House",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 42,
+      "constructorRef": "coloni",
+      "constructorName": "Coloni",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 44,
+      "constructorRef": "eurobrun",
+      "constructorName": "Euro Brun",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 45,
+      "constructorRef": "osella",
+      "constructorName": "Osella",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 46,
+      "constructorRef": "onyx",
+      "constructorName": "Onyx",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 47,
+      "constructorRef": "life",
+      "constructorName": "Life",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 48,
+      "constructorRef": "rial",
+      "constructorName": "Rial",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 49,
+      "constructorRef": "zakspeed",
+      "constructorName": "Zakspeed",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 50,
+      "constructorRef": "ram",
+      "constructorName": "RAM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 51,
+      "constructorRef": "alfa",
+      "constructorName": "Alfa Romeo",
+      "nationality": "Swiss"
+    },
+    {
+      "constructorId": 52,
+      "constructorRef": "spirit",
+      "constructorName": "Spirit",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 53,
+      "constructorRef": "toleman",
+      "constructorName": "Toleman",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 54,
+      "constructorRef": "ats",
+      "constructorName": "ATS",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 55,
+      "constructorRef": "theodore",
+      "constructorName": "Theodore",
+      "nationality": "Hong Kong"
+    },
+    {
+      "constructorId": 56,
+      "constructorRef": "fittipaldi",
+      "constructorName": "Fittipaldi",
+      "nationality": "Brazilian"
+    },
+    {
+      "constructorId": 57,
+      "constructorRef": "ensign",
+      "constructorName": "Ensign",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 58,
+      "constructorRef": "shadow",
+      "constructorName": "Shadow",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 59,
+      "constructorRef": "wolf",
+      "constructorName": "Wolf",
+      "nationality": "Canadian"
+    },
+    {
+      "constructorId": 60,
+      "constructorRef": "merzario",
+      "constructorName": "Merzario",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 61,
+      "constructorRef": "kauhsen",
+      "constructorName": "Kauhsen",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 62,
+      "constructorRef": "rebaque",
+      "constructorName": "Rebaque",
+      "nationality": "Mexican"
+    },
+    {
+      "constructorId": 63,
+      "constructorRef": "surtees",
+      "constructorName": "Surtees",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 64,
+      "constructorRef": "hesketh",
+      "constructorName": "Hesketh",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 65,
+      "constructorRef": "martini",
+      "constructorName": "Martini",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 66,
+      "constructorRef": "brm",
+      "constructorName": "BRM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 67,
+      "constructorRef": "penske",
+      "constructorName": "Penske",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 68,
+      "constructorRef": "lec",
+      "constructorName": "LEC",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 69,
+      "constructorRef": "mcguire",
+      "constructorName": "McGuire",
+      "nationality": "Australian"
+    },
+    {
+      "constructorId": 70,
+      "constructorRef": "boro",
+      "constructorName": "Boro",
+      "nationality": "Dutch"
+    },
+    {
+      "constructorId": 71,
+      "constructorRef": "apollon",
+      "constructorName": "Apollon",
+      "nationality": "Swiss"
+    },
+    {
+      "constructorId": 72,
+      "constructorRef": "kojima",
+      "constructorName": "Kojima",
+      "nationality": "Japanese"
+    },
+    {
+      "constructorId": 73,
+      "constructorRef": "parnelli",
+      "constructorName": "Parnelli",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 74,
+      "constructorRef": "maki",
+      "constructorName": "Maki",
+      "nationality": "Japanese"
+    },
+    {
+      "constructorId": 75,
+      "constructorRef": "hill",
+      "constructorName": "Embassy Hill",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 76,
+      "constructorRef": "lyncar",
+      "constructorName": "Lyncar",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 77,
+      "constructorRef": "trojan",
+      "constructorName": "Trojan",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 78,
+      "constructorRef": "amon",
+      "constructorName": "Amon",
+      "nationality": "New Zealander"
+    },
+    {
+      "constructorId": 79,
+      "constructorRef": "token",
+      "constructorName": "Token",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 80,
+      "constructorRef": "iso_marlboro",
+      "constructorName": "Iso Marlboro",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 81,
+      "constructorRef": "tecno",
+      "constructorName": "Tecno",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 82,
+      "constructorRef": "matra",
+      "constructorName": "Matra",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 83,
+      "constructorRef": "politoys",
+      "constructorName": "Politoys",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 84,
+      "constructorRef": "connew",
+      "constructorName": "Connew",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 85,
+      "constructorRef": "bellasi",
+      "constructorName": "Bellasi",
+      "nationality": "Swiss"
+    },
+    {
+      "constructorId": 86,
+      "constructorRef": "tomaso",
+      "constructorName": "De Tomaso",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 87,
+      "constructorRef": "cooper",
+      "constructorName": "Cooper",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 88,
+      "constructorRef": "eagle",
+      "constructorName": "Eagle",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 89,
+      "constructorRef": "lds",
+      "constructorName": "LDS",
+      "nationality": "South African"
+    },
+    {
+      "constructorId": 90,
+      "constructorRef": "protos",
+      "constructorName": "Protos",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 91,
+      "constructorRef": "shannon",
+      "constructorName": "Shannon",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 92,
+      "constructorRef": "scirocco",
+      "constructorName": "Scirocco",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 93,
+      "constructorRef": "re",
+      "constructorName": "RE",
+      "nationality": "Rhodesian"
+    },
+    {
+      "constructorId": 94,
+      "constructorRef": "brp",
+      "constructorName": "BRP",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 95,
+      "constructorRef": "porsche",
+      "constructorName": "Porsche",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 96,
+      "constructorRef": "derrington",
+      "constructorName": "Derrington",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 97,
+      "constructorRef": "gilby",
+      "constructorName": "Gilby",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 98,
+      "constructorRef": "stebro",
+      "constructorName": "Stebro",
+      "nationality": "Canadian"
+    },
+    {
+      "constructorId": 99,
+      "constructorRef": "emeryson",
+      "constructorName": "Emeryson",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 100,
+      "constructorRef": "enb",
+      "constructorName": "ENB",
+      "nationality": "Belgian"
+    },
+    {
+      "constructorId": 101,
+      "constructorRef": "jbw",
+      "constructorName": "JBW",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 102,
+      "constructorRef": "ferguson",
+      "constructorName": "Ferguson",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 103,
+      "constructorRef": "mbm",
+      "constructorName": "MBM",
+      "nationality": "Swiss"
+    },
+    {
+      "constructorId": 104,
+      "constructorRef": "behra-porsche",
+      "constructorName": "Behra-Porsche",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 105,
+      "constructorRef": "maserati",
+      "constructorName": "Maserati",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 106,
+      "constructorRef": "scarab",
+      "constructorName": "Scarab",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 107,
+      "constructorRef": "watson",
+      "constructorName": "Watson",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 108,
+      "constructorRef": "epperly",
+      "constructorName": "Epperly",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 109,
+      "constructorRef": "phillips",
+      "constructorName": "Phillips",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 110,
+      "constructorRef": "lesovsky",
+      "constructorName": "Lesovsky",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 111,
+      "constructorRef": "trevis",
+      "constructorName": "Trevis",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 112,
+      "constructorRef": "meskowski",
+      "constructorName": "Meskowski",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 113,
+      "constructorRef": "kurtis_kraft",
+      "constructorName": "Kurtis Kraft",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 114,
+      "constructorRef": "kuzma",
+      "constructorName": "Kuzma",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 115,
+      "constructorRef": "vhristensen",
+      "constructorName": "Christensen",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 116,
+      "constructorRef": "ewing",
+      "constructorName": "Ewing",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 117,
+      "constructorRef": "aston_martin",
+      "constructorName": "Aston Martin",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 118,
+      "constructorRef": "vanwall",
+      "constructorName": "Vanwall",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 119,
+      "constructorRef": "moore",
+      "constructorName": "Moore",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 120,
+      "constructorRef": "dunn",
+      "constructorName": "Dunn",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 121,
+      "constructorRef": "elder",
+      "constructorName": "Elder",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 122,
+      "constructorRef": "sutton",
+      "constructorName": "Sutton",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 123,
+      "constructorRef": "fry",
+      "constructorName": "Fry",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 124,
+      "constructorRef": "tec-mec",
+      "constructorName": "Tec-Mec",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 125,
+      "constructorRef": "connaught",
+      "constructorName": "Connaught",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 126,
+      "constructorRef": "alta",
+      "constructorName": "Alta",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 127,
+      "constructorRef": "osca",
+      "constructorName": "OSCA",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 128,
+      "constructorRef": "gordini",
+      "constructorName": "Gordini",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 129,
+      "constructorRef": "stevens",
+      "constructorName": "Stevens",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 130,
+      "constructorRef": "bugatti",
+      "constructorName": "Bugatti",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 131,
+      "constructorRef": "mercedes",
+      "constructorName": "Mercedes",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 132,
+      "constructorRef": "lancia",
+      "constructorName": "Lancia",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 133,
+      "constructorRef": "hwm",
+      "constructorName": "HWM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 134,
+      "constructorRef": "schroeder",
+      "constructorName": "Schroeder",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 135,
+      "constructorRef": "pawl",
+      "constructorName": "Pawl",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 136,
+      "constructorRef": "pankratz",
+      "constructorName": "Pankratz",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 137,
+      "constructorRef": "arzani-volpini",
+      "constructorName": "Arzani-Volpini",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 138,
+      "constructorRef": "nichels",
+      "constructorName": "Nichels",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 139,
+      "constructorRef": "bromme",
+      "constructorName": "Bromme",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 140,
+      "constructorRef": "klenk",
+      "constructorName": "Klenk",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 141,
+      "constructorRef": "simca",
+      "constructorName": "Simca",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 142,
+      "constructorRef": "turner",
+      "constructorName": "Turner",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 143,
+      "constructorRef": "del_roy",
+      "constructorName": "Del Roy",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 144,
+      "constructorRef": "veritas",
+      "constructorName": "Veritas",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 145,
+      "constructorRef": "bmw",
+      "constructorName": "BMW",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 146,
+      "constructorRef": "emw",
+      "constructorName": "EMW",
+      "nationality": "East German"
+    },
+    {
+      "constructorId": 147,
+      "constructorRef": "afm",
+      "constructorName": "AFM",
+      "nationality": "German"
+    },
+    {
+      "constructorId": 148,
+      "constructorRef": "frazer_nash",
+      "constructorName": "Frazer Nash",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 149,
+      "constructorRef": "sherman",
+      "constructorName": "Sherman",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 150,
+      "constructorRef": "deidt",
+      "constructorName": "Deidt",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 151,
+      "constructorRef": "era",
+      "constructorName": "ERA",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 152,
+      "constructorRef": "butterworth",
+      "constructorName": "Aston Butterworth",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 153,
+      "constructorRef": "cisitalia",
+      "constructorName": "Cisitalia",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 154,
+      "constructorRef": "lago",
+      "constructorName": "Talbot-Lago",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 155,
+      "constructorRef": "hall",
+      "constructorName": "Hall",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 156,
+      "constructorRef": "marchese",
+      "constructorName": "Marchese",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 157,
+      "constructorRef": "langley",
+      "constructorName": "Langley",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 158,
+      "constructorRef": "rae",
+      "constructorName": "Rae",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 159,
+      "constructorRef": "olson",
+      "constructorName": "Olson",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 160,
+      "constructorRef": "wetteroth",
+      "constructorName": "Wetteroth",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 161,
+      "constructorRef": "adams",
+      "constructorName": "Adams",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 162,
+      "constructorRef": "snowberger",
+      "constructorName": "Snowberger",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 163,
+      "constructorRef": "milano",
+      "constructorName": "Milano",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 164,
+      "constructorRef": "hrt",
+      "constructorName": "HRT",
+      "nationality": "Spanish"
+    },
+    {
+      "constructorId": 167,
+      "constructorRef": "cooper-maserati",
+      "constructorName": "Cooper-Maserati",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 166,
+      "constructorRef": "virgin",
+      "constructorName": "Virgin",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 168,
+      "constructorRef": "cooper-osca",
+      "constructorName": "Cooper-OSCA",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 169,
+      "constructorRef": "cooper-borgward",
+      "constructorName": "Cooper-Borgward",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 170,
+      "constructorRef": "cooper-climax",
+      "constructorName": "Cooper-Climax",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 171,
+      "constructorRef": "cooper-castellotti",
+      "constructorName": "Cooper-Castellotti",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 172,
+      "constructorRef": "lotus-climax",
+      "constructorName": "Lotus-Climax",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 173,
+      "constructorRef": "lotus-maserati",
+      "constructorName": "Lotus-Maserati",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 174,
+      "constructorRef": "de_tomaso-osca",
+      "constructorName": "De Tomaso-Osca",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 175,
+      "constructorRef": "de_tomaso-alfa_romeo",
+      "constructorName": "De Tomaso-Alfa Romeo",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 176,
+      "constructorRef": "lotus-brm",
+      "constructorName": "Lotus-BRM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 177,
+      "constructorRef": "lotus-borgward",
+      "constructorName": "Lotus-Borgward",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 178,
+      "constructorRef": "cooper-alfa_romeo",
+      "constructorName": "Cooper-Alfa Romeo",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 179,
+      "constructorRef": "de_tomaso-ferrari",
+      "constructorName": "De Tomaso-Ferrari",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 180,
+      "constructorRef": "lotus-ford",
+      "constructorName": "Lotus-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 181,
+      "constructorRef": "brabham-brm",
+      "constructorName": "Brabham-BRM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 182,
+      "constructorRef": "brabham-ford",
+      "constructorName": "Brabham-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 183,
+      "constructorRef": "brabham-climax",
+      "constructorName": "Brabham-Climax",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 184,
+      "constructorRef": "lds-climax",
+      "constructorName": "LDS-Climax",
+      "nationality": "South African"
+    },
+    {
+      "constructorId": 185,
+      "constructorRef": "lds-alfa_romeo",
+      "constructorName": "LDS-Alfa Romeo",
+      "nationality": "South African"
+    },
+    {
+      "constructorId": 186,
+      "constructorRef": "cooper-ford",
+      "constructorName": "Cooper-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 187,
+      "constructorRef": "mclaren-ford",
+      "constructorName": "McLaren-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 188,
+      "constructorRef": "mclaren-seren",
+      "constructorName": "McLaren-Serenissima",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 189,
+      "constructorRef": "eagle-climax",
+      "constructorName": "Eagle-Climax",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 190,
+      "constructorRef": "eagle-weslake",
+      "constructorName": "Eagle-Weslake",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 191,
+      "constructorRef": "brabham-repco",
+      "constructorName": "Brabham-Repco",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 192,
+      "constructorRef": "cooper-ferrari",
+      "constructorName": "Cooper-Ferrari",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 193,
+      "constructorRef": "cooper-ats",
+      "constructorName": "Cooper-ATS",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 194,
+      "constructorRef": "mclaren-brm",
+      "constructorName": "McLaren-BRM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 195,
+      "constructorRef": "cooper-brm",
+      "constructorName": "Cooper-BRM",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 196,
+      "constructorRef": "matra-ford",
+      "constructorName": "Matra-Ford",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 197,
+      "constructorRef": "brm-ford",
+      "constructorName": "BRM-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 198,
+      "constructorRef": "mclaren-alfa_romeo",
+      "constructorName": "McLaren-Alfa Romeo",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 199,
+      "constructorRef": "march-alfa_romeo",
+      "constructorName": "March-Alfa Romeo",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 200,
+      "constructorRef": "march-ford",
+      "constructorName": "March-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 201,
+      "constructorRef": "lotus-pw",
+      "constructorName": "Lotus-Pratt &amp; Whitney",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 202,
+      "constructorRef": "shadow-ford",
+      "constructorName": "Shadow-Ford",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 203,
+      "constructorRef": "shadow-matra",
+      "constructorName": "Shadow-Matra",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 204,
+      "constructorRef": "brabham-alfa_romeo",
+      "constructorName": "Brabham-Alfa Romeo",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 205,
+      "constructorRef": "lotus_racing",
+      "constructorName": "Lotus",
+      "nationality": "Malaysian"
+    },
+    {
+      "constructorId": 206,
+      "constructorRef": "marussia",
+      "constructorName": "Marussia",
+      "nationality": "Russian"
+    },
+    {
+      "constructorId": 207,
+      "constructorRef": "caterham",
+      "constructorName": "Caterham",
+      "nationality": "Malaysian"
+    },
+    {
+      "constructorId": 208,
+      "constructorRef": "lotus_f1",
+      "constructorName": "Lotus F1",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 209,
+      "constructorRef": "manor",
+      "constructorName": "Manor Marussia",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 210,
+      "constructorRef": "haas",
+      "constructorName": "Haas F1 Team",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 211,
+      "constructorRef": "racing_point",
+      "constructorName": "Racing Point",
+      "nationality": "British"
+    },
+    {
+      "constructorId": 213,
+      "constructorRef": "alphatauri",
+      "constructorName": "AlphaTauri",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 214,
+      "constructorRef": "alpine",
+      "constructorName": "Alpine F1 Team",
+      "nationality": "French"
+    },
+    {
+      "constructorId": 215,
+      "constructorRef": "rb",
+      "constructorName": "RB F1 Team",
+      "nationality": "Italian"
+    },
+    {
+      "constructorId": 216,
+      "constructorRef": "cadillac",
+      "constructorName": "Cadillac",
+      "nationality": "American"
+    },
+    {
+      "constructorId": 217,
+      "constructorRef": "audi",
+      "constructorName": "Audi",
+      "nationality": "German"
+    }
+  ],
+  "source_url": "https://github.com/TracingInsights/RaceData/blob/main/data/constructors.csv",
+  "source_note": "Reference identity bridge only; gameplay team identity remains controlled by the F1 Manager Light Global Database."
+}
