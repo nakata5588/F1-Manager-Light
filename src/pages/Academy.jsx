@@ -140,7 +140,16 @@ export default function Academy(){
           return <Card key={idOf(d)}><CardContent className="p-4 space-y-3">
             <button type="button" data-entity="driver" data-id={idOf(d)} className="flex items-center gap-3 text-left w-full hover:underline">
               <DriverPortrait driver={d} size="h-16 w-16"/>
-              <div className="min-w-0"><div className="font-semibold truncate">{d.display_name||d.name}</div><div className="text-xs text-muted-foreground">{flagFromCountry(d.country_name||d.nationality,d.country_code)} {d.country_name||d.nationality||"—"} · Age {d.age??"—"}{d.lower_series_name ? " · " + d.lower_series_name : ""}</div></div>
+              <div className="min-w-0">
+                <div className="font-semibold truncate">{d.display_name||d.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {flagFromCountry(d.country_name||d.nationality,d.country_code)} {d.country_name||d.nationality||"—"} · Age {d.age??"—"}
+                </div>
+                <div className="mt-1 flex gap-1 flex-wrap">
+                  {d.youth_eligible && <span className="text-[10px] px-2 py-0.5 rounded bg-teal-100 text-teal-800">Youth</span>}
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-700">{d.lower_series_name || "Lower Series"}</span>
+                </div>
+              </div>
             </button>
             <div className="grid grid-cols-2 gap-2"><Mini label="Overall" value={d.overall}/><Mini label="Potential" value={d.potential}/></div>
             <div className="flex items-center justify-between gap-2"><span className="text-xs text-muted-foreground">{formalAcademy?"Academy entry":"Support fee"}: {fmtMoney(cost)}</span><Button size="sm" disabled={budget<cost} onClick={()=>supportDriver(d)}>{formalAcademy?"Sign to Academy":"Support Driver"}</Button></div>
