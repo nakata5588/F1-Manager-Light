@@ -263,6 +263,32 @@ const SHEET_CONFIG = {
   team_brands: { out: "team_brands.json" },
   team_engines: { out: "team_engines.json" },
 
+  car_stats_by_year: {
+    out: "car_stats_by_year.json",
+    columns: {
+      team_id: ["team_id","constructor_id","team"],
+      year: ["year","season","ano"]
+    }
+  },
+  pitcrew_roster: {
+    out: "pitcrew_roster.json",
+    columns: {
+      team_id: ["team_id","constructor_id","team"],
+      year: ["year","season","ano"]
+    }
+  },
+  drivers_status: { out: "drivers_status.json" },
+  driver_growth: { out: "driver_growth.json" },
+  car_parts: { out: "car_parts.json" },
+  facilities_catalog: { out: "facilities_catalog.json" },
+  rd_projects: { out: "rd_projects.json" },
+  weather_profiles: { out: "weather_profiles.json" },
+  finance_ledger: { out: "finance_ledger.json" },
+  events: { out: "events.json" },
+  event_templates: { out: "event_templates.json" },
+  news_template: { out: "news_template.json" },
+  achievements: { out: "achievements.json" },
+
   // === CONTRATOS (corrigido para usar apenas anos) ===
   contracts: {
     out: "contracts.json",
