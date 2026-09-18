@@ -45,3 +45,6 @@ public/assets/generated/
 
 # Derived lightweight runtime indexes
 public/data/team_seasons.json
+
+# Generated Season Packs
+public/data/seasons/
