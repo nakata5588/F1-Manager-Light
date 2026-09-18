@@ -905,6 +905,9 @@ export const useGame = create((set, get) => ({
     const facilitiesExact = filterByYear(prev.dbFacilities, y);
     const facilities = facilitiesExact.length ? facilitiesExact : filterByYearRange(prev.dbFacilities, y);
 
+    const carStatsExact = filterByYear(prev.dbCarStats || [], y);
+    const carStats = carStatsExact.length ? carStatsExact : filterByYearRange(prev.dbCarStats || [], y);
+
     const staffContractsExact = filterByYear(prev.dbStaffContracts || [], y);
     const staffContractsRange = filterByYearRange(prev.dbStaffContracts || [], y);
     const staffContractMap = new Map();
