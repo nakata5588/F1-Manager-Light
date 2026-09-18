@@ -48,6 +48,9 @@ jobs:
         if: github.event_name != 'pull_request'
         run: npm run build:data
 
+      - name: Test career season boundary
+        run: npm run test:career
+
       - name: Validate runtime JSON
         run: npm run validate:data
 
