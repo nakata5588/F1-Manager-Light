@@ -138,7 +138,21 @@ export function materializeSeasonPack(globalData,yearInput){
   if(!Number.isInteger(year))throw new TypeError("Season year must be an integer.");
   const g=globalData||{};
   const teamIds=teamIdsForSeason(g,year);
-  const teams=(g.teams||[]).filter((t)=>teamIds.has(teamId(t))).map(clean);
+  const seasonTeamRows=rowsAtYear(g.teamSeasons,year);
+  const seasonBrandRows=rowsAtYear(g.teamBrands,year);
+  const teamMaster=new Map((g.teams||[]).map((t)=>[teamId(t),t]).filter(([id])=>id));
+  const teamSeasonById=new Map(seasonTeamRows.map((t)=>[teamId(t),t]).filter(([id])=>id));
+  const teamBrandById=new Map(seasonBrandRows.map((t)=>[teamId(t),t]).filter(([id])=>id));
+  const teams=[...teamIds].map((id)=>{
+    const base=teamMaster.get(id)||teamSeasonById.get(id)||teamBrandById.get(id)||{};
+    const seasonRec=teamSeasonById.get(id)||{};
+    const brandRec=teamBrandById.get(id)||{};
+    return {
+      ...clean(base),
+      team_id:id,
+      team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(base,["team_name","name","short_name"],id))),
+    };
+  });
   const contracts=activeContractRows(g.contracts,year).filter((r)=>teamIds.has(teamId(r))).map(clean);
   const contractedDriverIds=new Set(contracts.map(driverId).filter(Boolean));
 
@@ -150,12 +164,23 @@ export function materializeSeasonPack(globalData,yearInput){
   for(const row of f1Career){const id=driverId(row);if(id)gridDriverIds.add(id);}
 
   const drivers=[];
-  for(const d of g.drivers||[]){
-    const id=driverId(d);
-    if(!id)continue;
+  const driverMaster=new Map((g.drivers||[]).map((d)=>[driverId(d),d]).filter(([id])=>id));
+  const careerByDriver=new Map(f1Career.map((d)=>[driverId(d),d]).filter(([id])=>id));
+  const contractByDriver=new Map(contracts.map((d)=>[driverId(d),d]).filter(([id])=>id));
+  const candidateIds=new Set(driverMaster.keys());
+  for(const id of gridDriverIds)candidateIds.add(id);
+
+  for(const id of candidateIds){
+    const d=driverMaster.get(id)||careerByDriver.get(id)||contractByDriver.get(id)||{driver_id:id};
     const status=driverStatus(d,year,gridDriverIds.has(id));
     if(!status)continue;
-    drivers.push({...clean(d),...status,age:ageAt(d,year)});
+    drivers.push({
+      ...clean(d),
+      driver_id:id,
+      display_name:pick(d,["display_name","driver_name","name"],pick(careerByDriver.get(id)||{},["driver_name"],pick(contractByDriver.get(id)||{},["driver_name","name"],id))),
+      ...status,
+      age:ageAt(d,year),
+    });
   }
   const driverIds=new Set(drivers.map(driverId));
   const driverRatings=exactOrLatest(g.driverRatings,year,driverId,driverIds);
@@ -166,7 +191,17 @@ export function materializeSeasonPack(globalData,yearInput){
   const staffRatingRows=exactOrLatest(g.staffRatings,year,staffId,null);
   const staffRatingIds=new Set(staffRatingRows.map(staffId));
   const staffIds=new Set([...contractedStaffIds,...staffRatingIds]);
-  const staffCore=(g.staffCore||[]).filter((s)=>staffIds.has(staffId(s))).map((s)=>({...clean(s),age:ageAt(s,year)}));
+  const staffMaster=new Map((g.staffCore||[]).map((s)=>[staffId(s),s]).filter(([id])=>id));
+  const staffContractById=new Map(staffContracts.map((s)=>[staffId(s),s]).filter(([id])=>id));
+  const staffCore=[...staffIds].map((id)=>{
+    const s=staffMaster.get(id)||staffContractById.get(id)||{staff_id:id};
+    return {
+      ...clean(s),
+      staff_id:id,
+      staff_name:pick(s,["staff_name","display_name","name"],pick(staffContractById.get(id)||{},["staff_name","name"],id)),
+      age:ageAt(s,year),
+    };
+  });
   const staffRatings=staffRatingRows.filter((r)=>staffIds.has(staffId(r)));
 
   const teamBrands=exactOrLatestTeamRows(g.teamBrands,year,teamIds);
