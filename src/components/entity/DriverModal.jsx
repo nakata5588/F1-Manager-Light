@@ -209,6 +209,7 @@ export default function DriverModal({ entity, onClose }) {
   const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
   const contractEnd = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
   const contractTeam = unbox(contract?.team_name) ?? null;
+  const contractTeamId = unbox(contract?.team_id ?? contract?.team ?? contract?.constructor_id) ?? null;
   const contractRole = niceRole(contract?.role);
   const contractSalary = unbox(contract?.salary);
 
@@ -478,6 +479,7 @@ export default function DriverModal({ entity, onClose }) {
   const driverCountry = unbox(driver?.country_name);
 
   const isOwnDriver =
+    (contractTeamId && myTeamId && String(contractTeamId) === String(myTeamId)) ||
     (unbox(driver?.team_id) && myTeamId && String(unbox(driver.team_id)) === String(myTeamId)) ||
     (contractTeam && myTeamName && String(contractTeam) === String(myTeamName));
 
