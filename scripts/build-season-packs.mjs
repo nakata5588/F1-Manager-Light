@@ -19,7 +19,7 @@ await fs.mkdir(outRoot,{recursive:true});
 const [
   drivers,calendar,teams,driverRatings,driverCareer,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
-  accidentModel,facilities,staffContracts,tyres,pointsSystems,penaltiesRules,
+  accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
   trackLayoutByYear,teamSeasons,
 ]=await Promise.all([
@@ -38,6 +38,7 @@ const [
   readJson("era_safety.json"),
   readJson("accident_model.json",[]),
   readJson("facilities.json"),
+  readJson("car_stats_by_year.json"),
   readJson("staff_contracts.json"),
   readJson("tyres_catalog.json"),
   readJson("points_systems.json"),
@@ -55,7 +56,7 @@ const globalData={
   drivers,calendar,teams,driverRatings,driverCareer,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
-  facilities,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
+  facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
   agendaBlocks,contractRules,youthIntakeRules,scoutingZones,trackLayoutByYear,teamSeasons,
 };
 
