@@ -8,7 +8,8 @@ const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","id","team","const
 
 export default function Teams(){
   const gs=useGame(s=>s.gameState);
-  const years=gs?.yearsAvailable?.length ? gs.yearsAvailable : [gs?.activeYear||1980];
+  const currentYear=Number(gs?.activeYear)||1980;
+  const years=(gs?.yearsAvailable?.length ? gs.yearsAvailable : [currentYear]).filter((y)=>Number(y)<=currentYear);
   const [year,setYear]=useState(Number(gs?.activeYear)||Number(years[0])||1980);
   const [q,setQ]=useState("");
   const teams=gs?.dbTeams||[];
