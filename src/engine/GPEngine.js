@@ -321,7 +321,7 @@ function awardRaceBonuses(next, race, gpName) {
 
   const contracts = next.contracts || next.dbContracts || [];
   const driverRows = contracts.filter(r => {
-    const y = Number(pick(r, ["year","season_year"], NaN));
+    const y = Number(pick(r, ["year","season_year","start_year"], NaN));
     const role = String(pick(r, ["role","position","contract_role"], "")).toLowerCase();
     const tid = String(pick(r, ["team_id","team","constructor"]));
     return y === year && tid === String(teamId) && role.includes("driver");
