@@ -127,6 +127,191 @@ function buildRaceTiming(race, ratings, roundIndex) {
   return timed;
 }
 
+function sponsorObjectiveInfo(sp) {
+  const raw = String(pick(sp, ["objective_type"], "") || "").toLowerCase().replace(/\s+/g, "_");
+  const penalties = String(pick(sp, ["penalties"], "") || "").toLowerCase();
+  let type = raw;
+  let target = Number(pick(sp, ["objective_target","target_value"], NaN));
+
+  if (!type || type === "performance") {
+    if (/no wins?|win/.test(penalties)) { type = "wins"; target = Number.isFinite(target) ? target : 1; }
+    else if (/no podium|podium/.test(penalties)) { type = "podiums"; target = Number.isFinite(target) ? target : 1; }
+    else if (/outside top\s*5/.test(penalties)) { type = "constructor_position"; target = 5; }
+    else if (/outside top\s*6/.test(penalties)) { type = "constructor_position"; target = 6; }
+    else if (/no points?|points?/.test(penalties)) { type = "points"; target = Number.isFinite(target) ? target : 1; }
+    else { type = "points"; target = Number.isFinite(target) ? target : 5; }
+  }
+  if (type === "top_6" || type === "top6") { type = "constructor_position"; target = 6; }
+  if (type === "top_10" || type === "top10") { type = "constructor_position"; target = 10; }
+  if (type === "wins") target = Number.isFinite(target) ? target : 1;
+  if (type === "podiums") target = Number.isFinite(target) ? target : 2;
+  if (type === "points") target = Number.isFinite(target) ? target : 10;
+  if (type === "qualifying") target = Number.isFinite(target) ? target : 3;
+  if (type === "branding") target = 1;
+  return { type: type || "branding", target: Math.max(1, Number(target || 1)) };
+}
+
+function teamSeasonSponsorMetrics(gs, teamId) {
+  const year = Number(gs?.activeYear);
+  const events = (Array.isArray(gs?.results) ? gs.results : []).filter((r) => Number(r?.year) === year);
+  let wins = 0, podiums = 0, points = 0, qualifying = 0;
+  for (const event of events) {
+    const rows = event?.classification || [];
+    for (const row of rows) {
+      if (String(row?.team_id || "") !== String(teamId)) continue;
+      const p = Number(row?.position);
+      points += Number(row?.points || 0);
+      if (p === 1) wins += 1;
+      if (p >= 1 && p <= 3) podiums += 1;
+    }
+    const qual = event?.qualifying || [];
+    if (qual.some((row) => String(row?.team_id || "") === String(teamId) && Number(row?.position) <= 10)) {
+      qualifying += 1;
+    }
+  }
+
+  const constructorRow = (gs?.standings?.teams || []).find((r) =>
+    String(r?.team_id ?? r?.constructor_id ?? "") === String(teamId)
+  );
+  return {
+    races: events.length,
+    totalRaces: Math.max(1, (gs?.calendar || []).length || events.length || 1),
+    wins,
+    podiums,
+    points,
+    qualifying,
+    constructorPosition: Number(constructorRow?.position || 0) || null,
+  };
+}
+
+function updateSponsorRelationships(next) {
+  const year = Number(next?.activeYear);
+  const teamId = getTeamId(next?.team || {});
+  if (!teamId) return next;
+
+  const source = Array.isArray(next?.sponsorsContracts) ? next.sponsorsContracts : [];
+  if (!source.length) return next;
+
+  const metrics = teamSeasonSponsorMetrics(next, teamId);
+  const seasonFraction = Math.max(1 / metrics.totalRaces, metrics.races / metrics.totalRaces);
+  let relationshipDeltaTotal = 0;
+  let relationshipCount = 0;
+  const sponsorMessages = [];
+
+  const updated = source.map((sp) => {
+    const tid = String(pick(sp, ["team_id","team","constructor"], ""));
+    if (tid !== String(teamId)) return sp;
+
+    const start = Number(pick(sp, ["start_year","year","season_year"], year));
+    const end = Number(pick(sp, ["end_year","until_year"], year));
+    if (year < start || year > end) return sp;
+
+    const status = String(pick(sp, ["status"], "active")).toLowerCase();
+    if (["terminated","expired"].includes(status)) return sp;
+
+    const objective = sponsorObjectiveInfo(sp);
+    const oldSatisfaction = Math.max(0, Math.min(100, Number(pick(sp, ["satisfaction"], 70)) || 70));
+    let delta = 0;
+    let note = "";
+
+    if (objective.type === "constructor_position") {
+      const pos = metrics.constructorPosition;
+      if (!pos) {
+        delta = 0;
+        note = "Awaiting championship position.";
+      } else if (pos <= objective.target) {
+        delta = 4;
+        note = `On target: Constructors P${pos} (target P${objective.target}).`;
+      } else {
+        const gap = pos - objective.target;
+        delta = -Math.min(7, 2 + gap);
+        note = `Below target: Constructors P${pos} (target P${objective.target}).`;
+      }
+    } else if (objective.type === "branding") {
+      delta = 1;
+      note = "Branding commitments maintained.";
+    } else {
+      const actual = Number(metrics[objective.type] || 0);
+      const expected = objective.target * seasonFraction;
+      if (actual >= objective.target) {
+        delta = 6;
+        note = `Season objective already achieved (${actual}/${objective.target}).`;
+      } else if (actual + 0.001 >= expected) {
+        delta = 3;
+        note = `On pace for objective (${actual}/${objective.target}).`;
+      } else {
+        const severity = expected > 0 ? Math.min(6, Math.max(2, Math.ceil((expected - actual) * 2))) : 2;
+        delta = -severity;
+        note = `Behind objective pace (${actual}/${objective.target}; expected ${expected.toFixed(1)} by now).`;
+      }
+    }
+
+    const satisfaction = Math.max(0, Math.min(100, oldSatisfaction + delta));
+    relationshipDeltaTotal += delta;
+    relationshipCount += 1;
+
+    const broken = metrics.races >= 3 && satisfaction <= 20;
+    if (broken) {
+      const sponsorName = pick(sp, ["sponsor_name","name"], "Sponsor");
+      sponsorMessages.push({
+        id: `sponsor_break_${String(pick(sp, ["sponsor_id","id"], sponsorName))}_${clampISO(next.currentDateISO)}`,
+        date: clampISO(next.currentDateISO),
+        from: "Commercial",
+        tag: "Sponsors",
+        subject: `${sponsorName} ends partnership`,
+        body: `Satisfaction fell to ${Math.round(satisfaction)}%. ${note} The sponsor has terminated the agreement.`,
+      });
+      return {
+        ...sp,
+        status: "terminated",
+        end_date: clampISO(next.currentDateISO),
+        satisfaction,
+        relationship_note: note,
+        objective_type: objective.type,
+        objective_target: objective.target,
+      };
+    }
+
+    return {
+      ...sp,
+      satisfaction,
+      relationship_note: note,
+      objective_type: objective.type,
+      objective_target: objective.target,
+    };
+  });
+
+  const activeForTeam = updated.filter((sp) =>
+    String(pick(sp, ["team_id","team","constructor"], "")) === String(teamId) &&
+    !["terminated","expired"].includes(String(pick(sp, ["status"], "active")).toLowerCase())
+  );
+  const avgSatisfaction = activeForTeam.length
+    ? activeForTeam.reduce((sum, sp) => sum + Number(pick(sp, ["satisfaction"], 70) || 70), 0) / activeForTeam.length
+    : 50;
+
+  const brand = (next?.teamBrands || []).find((row) =>
+    String(pick(row, ["team_id","team","constructor"], "")) === String(teamId)
+  );
+  const expectation = String(pick(brand || {}, ["board_expectation"], "")).toLowerCase();
+  const baseCommercial =
+    /championship|title/.test(expectation) ? 72 :
+    /race_wins|win/.test(expectation) ? 64 :
+    /podium/.test(expectation) ? 58 :
+    /points|midfield/.test(expectation) ? 50 : 42;
+
+  const oldCommercial = Number.isFinite(Number(next?.commercialScore))
+    ? Number(next.commercialScore)
+    : baseCommercial;
+  const breakPenalty = sponsorMessages.length * 8;
+  const trend = relationshipCount ? relationshipDeltaTotal / relationshipCount : 0;
+  next.commercialScore = Math.max(0, Math.min(100,
+    Math.round(oldCommercial * 0.72 + avgSatisfaction * 0.28 + trend * 0.35 - breakPenalty)
+  ));
+  next.sponsorsContracts = updated;
+  if (sponsorMessages.length) next.inbox = [...sponsorMessages, ...(next.inbox || [])];
+  return next;
+}
+
 function awardRaceBonuses(next, race, gpName) {
   const year = Number(next.activeYear);
   const teamId = getTeamId(next.team || {});
@@ -179,7 +364,8 @@ function awardRaceBonuses(next, race, gpName) {
   const spRows = sponsors.filter(r => {
     const y = Number(pick(r, ["year","season_year"], NaN));
     const tid = String(pick(r, ["team_id","team","constructor"]));
-    return y === year && tid === String(teamId);
+    const status = String(pick(r, ["status"], "active")).toLowerCase();
+    return y === year && tid === String(teamId) && !["terminated","expired"].includes(status);
   });
 
   const teamDriverIds = (next.drivers || []).filter(d => resolveDriverTeamId(next, d) === String(teamId))
@@ -351,8 +537,9 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   };
 
   const afterBonuses = awardRaceBonuses(next, race, gpName);
+  const afterRelations = updateSponsorRelationships(afterBonuses);
 
-  afterBonuses.inbox = [
+  afterRelations.inbox = [
     {
       id: `gp_${Date.now()}`,
       date: gs.currentDateISO,
@@ -365,8 +552,8 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
         { label: "Ver classificação", route: "/Standings" },
       ],
     },
-    ...(gs.inbox || []),
+    ...(afterRelations.inbox || gs.inbox || []),
   ];
 
-  return afterBonuses;
+  return afterRelations;
 }
