@@ -55,8 +55,6 @@ jobs:
         run: npm run test:career
 
       - name: Test generated Season Packs
-        env:
-          SEASON_PACK_DIAGNOSTICS: "1"
         run: npm run test:season-packs
 
       - name: Validate runtime JSON
