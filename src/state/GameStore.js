@@ -292,6 +292,7 @@ export const useGame = create((set, get) => ({
     dbDrivers: [],
     dbTeams: [],
     dbDriverRatings: [],
+    dbDriverHistory: [],
     dbStaffRatings: [],
     dbTeamBrands: [],
     dbTeamEngines: [],
@@ -534,7 +535,7 @@ export const useGame = create((set, get) => ({
   loadData: async () => {
     try {
       const [
-        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, achievementsRaw,
+        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
@@ -546,6 +547,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/teams.json"),
         fetchJsonSafe("/data/driver_ratings.json"),
         fetchJsonSafe("/data/driver_career.json"),
+        fetchOptional("/data/driver_f1_history.json", []),
         fetchJsonSafe("/data/achievements.json"),
         fetchJsonSafe("/data/staff_ratings.json"),
         fetchOptional("/data/staff_core.json", []),
@@ -580,6 +582,7 @@ export const useGame = create((set, get) => ({
       const teams             = unexcelDeep(teamsRaw);
       const driverRatings     = unexcelDeep(driverRatingsRaw);
       const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
+      const driverHistory     = Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : [];
       const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
       const staffRatings      = unexcelDeep(staffRatingsRaw);
       const staffCore         = unexcelDeep(staffCoreRaw);
@@ -628,6 +631,7 @@ export const useGame = create((set, get) => ({
           dbCalendar: calendar,
           dbTeams: teams,
           dbDriverRatings: driverRatings,
+          dbDriverHistory: driverHistory,
           dbStaffRatings: staffRatings,
           dbStaffCore: staffCore,
           dbDriverCareer: driverCareer,
