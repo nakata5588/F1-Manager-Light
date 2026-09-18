@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
@@ -44,23 +44,92 @@ function normalizeBoard(raw) {
   };
 }
 
+const EXPECTATION_ORDER=["survive","points","midfield","podiums","race_wins","championship"];
+const EXPECTATION_LABEL={
+  survive:"Survive / establish the team",
+  points:"Score points",
+  midfield:"Competitive midfield",
+  podiums:"Fight for podiums",
+  race_wins:"Win races",
+  championship:"Challenge for the championship",
+};
+function normalizeExpectation(raw){
+  const s=String(raw||"").toLowerCase();
+  if(/championship|title/.test(s))return "championship";
+  if(/race[_ ]?wins?|win one|wins?/.test(s))return "race_wins";
+  if(/podium/.test(s))return "podiums";
+  if(/midfield|mid-table|top 5|top5|top 6|top6/.test(s))return "midfield";
+  if(/points?/.test(s))return "points";
+  if(/survive|debut|qualify|stay in|avoid last/.test(s))return "survive";
+  return "midfield";
+}
+function boardMetrics(gs,teamId){
+  const year=Number(gs?.activeYear);
+  const events=(gs?.results||[]).filter((r)=>Number(r?.year)===year);
+  let wins=0,podiums=0,points=0;
+  for(const event of events){
+    for(const row of event?.classification||[]){
+      if(String(row?.team_id||"")!==String(teamId))continue;
+      const p=Number(row?.position);
+      points+=Number(row?.points||0);
+      if(p===1)wins++;
+      if(p>=1&&p<=3)podiums++;
+    }
+  }
+  const standing=(gs?.standings?.teams||[]).find((r)=>String(r?.team_id??r?.constructor_id??"")===String(teamId));
+  return {races:events.length,totalRaces:Math.max(1,(gs?.calendar||[]).length||1),wins,podiums,points,constructorPosition:Number(standing?.position||0)||null,totalTeams:Math.max(1,(gs?.teams||[]).length||1)};
+}
+function makeObjectives(expectation,metrics){
+  const maxPos=Math.max(1,metrics.totalTeams||12);
+  const defs=expectation==="championship"[
+    ? null:null];
+  let rows=[];
+  if(expectation==="championship")rows=[
+    {id:"constructors",type:"constructor_position",target:2,title:"Championship challenge",desc:"Finish P2 or better in the Constructors' Championship.",weight:1.35,priority:1},
+    {id:"wins",type:"wins",target:2,title:"Win races",desc:"Win at least 2 Grands Prix.",weight:1.10,priority:1},
+    {id:"podiums",type:"podiums",target:6,title:"Regular podiums",desc:"Achieve at least 6 podium finishes.",weight:0.85,priority:2},
+  ];
+  else if(expectation==="race_wins")rows=[
+    {id:"constructors",type:"constructor_position",target:4,title:"Leading group",desc:"Finish P4 or better in the Constructors' Championship.",weight:1.15,priority:1},
+    {id:"wins",type:"wins",target:1,title:"Win a Grand Prix",desc:"Take at least one victory.",weight:1.10,priority:1},
+    {id:"podiums",type:"podiums",target:3,title:"Fight for podiums",desc:"Achieve at least 3 podium finishes.",weight:0.80,priority:2},
+  ];
+  else if(expectation==="podiums")rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(5,maxPos),title:"Upper midfield finish",desc:"Finish P5 or better in the Constructors' Championship.",weight:1.05,priority:1},
+    {id:"podiums",type:"podiums",target:2,title:"Reach the podium",desc:"Achieve at least 2 podium finishes.",weight:1.00,priority:1},
+    {id:"points",type:"points",target:15,title:"Score consistently",desc:"Score at least 15 championship points.",weight:0.75,priority:2},
+  ];
+  else if(expectation==="points")rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(8,maxPos),title:"Avoid the back",desc:"Finish P8 or better in the Constructors' Championship.",weight:1.00,priority:1},
+    {id:"points",type:"points",target:10,title:"Score points",desc:"Score at least 10 championship points.",weight:1.00,priority:1},
+  ];
+  else if(expectation==="midfield")rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(7,maxPos),title:"Competitive midfield",desc:"Finish P7 or better in the Constructors' Championship.",weight:1.05,priority:1},
+    {id:"points",type:"points",target:6,title:"Regular points challenge",desc:"Score at least 6 championship points.",weight:0.95,priority:1},
+  ];
+  else rows=[
+    {id:"constructors",type:"constructor_position",target:Math.min(10,maxPos),title:"Establish the team",desc:"Finish P"+Math.min(10,maxPos)+" or better in the Constructors' Championship.",weight:1.00,priority:1},
+    {id:"points",type:"points",target:1,title:"Score a point",desc:"Score at least one championship point.",weight:0.90,priority:2},
+  ];
+  return rows.map((o)=>{
+    let progress=0;
+    if(o.type==="constructor_position"){
+      progress=metrics.constructorPosition?(metrics.constructorPosition<=o.target?1:clamp01(o.target/metrics.constructorPosition)):0;
+    }else progress=clamp01(Number(metrics[o.type]||0)/Math.max(1,o.target));
+    return {...o,category:"PERFORMANCE",progress,status:progress>=1?"completed":"active",deadline:"Season end"};
+  });
+}
+
 export default function Board() {
   const gameState = useGame((s)=>s.gameState);
   const setGameState = useGame((s)=>s.setGameState);
 
-  const [fallback,setFallback] = useState(null);
   const [status,setStatus] = useState("all");
   const [category,setCategory] = useState("ALL");
   const [showBudget,setShowBudget] = useState(false);
   const [requestedAmount,setRequestedAmount] = useState(500000);
   const [requestReason,setRequestReason] = useState("Development");
-
-  useEffect(() => {
-    fetch("/data/board.json")
-      .then((r)=>r.ok ? r.json() : null)
-      .then(setFallback)
-      .catch(()=>setFallback(null));
-  },[]);
+  const [goalProposal,setGoalProposal] = useState("");
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
   const year = Number(gameState?.activeYear) || 1980;
