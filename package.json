@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
     "validate:data": "node scripts/validate_json.js",
-    "check": "npm run test:career && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:save-safety && npm run test:race-entry && npm run test:injuries && npm run test:season-packs && npm run validate:data && npm run build",
+    "check": "npm run test:career && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:save-safety && npm run test:race-entry && npm run test:injuries && npm run test:health && npm run test:season-packs && npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run season:generate\"",
     "predev": "npm run season:generate",
@@ -23,7 +23,8 @@
     "test:management": "node --test tests/managementSystems.test.js",
     "test:save-safety": "node --test tests/saveSafety.test.js",
     "test:race-entry": "node --test tests/raceEntry.test.js",
-    "test:injuries": "node --test tests/injuryReplacement.test.js"
+    "test:injuries": "node --test tests/injuryReplacement.test.js",
+    "test:health": "node --test tests/healthModel.test.js"
   },
   "keywords": [
     "f1",
