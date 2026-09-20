@@ -12,6 +12,7 @@ import {
   prepareGameStateForSave,
 } from "../src/core/saveSafety.js";
 import { runRaceWeekend } from "../src/engine/GPEngine.js";
+import { applyMarketTick } from "../src/engine/MarketEngine.js";
 
 test("seeded RNG is deterministic and entropy-key scoped", () => {
   const a = createRng("1980-monaco-race");
@@ -183,4 +184,43 @@ test("GP gameplay output is reproducible for the same save seed and entropy key"
       bestLap: row.best_lap_ms,
     }))
   );
+});
+
+
+test("market news is deterministic for the same save seed and game date", () => {
+  const base = {
+    saveMeta: createNewSaveMeta({ year: 1980, teamId: "t_1", seed: "market-determinism" }),
+    activeYear: 1980,
+    currentDateISO: "1980-05-20",
+    _lastAIDriverMarketMonth: "1980-05",
+    team: { team_id: "t_1", team_name: "Alpha" },
+    teams: [
+      { team_id: "t_1", team_name: "Alpha" },
+      { team_id: "t_2", team_name: "Beta" },
+    ],
+    drivers: [
+      { driver_id: "d_1", display_name: "Driver One" },
+      { driver_id: "d_2", display_name: "Driver Two" },
+    ],
+    standings: { drivers: [{ driver_id: "d_1", position: 3, points: 12 }], teams: [] },
+    inbox: [],
+  };
+
+  let fixture = base;
+  let first = null;
+  for (let i = 0; i < 5000; i += 1) {
+    fixture = {
+      ...base,
+      saveMeta: createNewSaveMeta({ year: 1980, teamId: "t_1", seed: `market-determinism-${i}` }),
+    };
+    const candidate = applyMarketTick(fixture);
+    if ((candidate.inbox || []).length) {
+      first = candidate;
+      break;
+    }
+  }
+
+  assert.ok(first, "Expected at least one deterministic seed to produce a market news item.");
+  const second = applyMarketTick(fixture);
+  assert.deepEqual(first, second);
 });
