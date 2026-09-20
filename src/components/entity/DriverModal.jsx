@@ -7,15 +7,6 @@ import {
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
-import {
-  activeDriverContract,
-  contractAcceptanceChance,
-  expectedDriverSalary,
-  makeDriverContract,
-  raceSeatCount,
-  teamIdOf,
-  terminationCost,
-} from "../../domain/driverContracts.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -567,7 +558,6 @@ export default function DriverModal({ entity, onClose }) {
               label={isOwnDriver ? "Actions" : "Interact"}
               queueEvent={queueEvent}
               currentDateISO={gameDateISO}
-              onContractAction={() => setTab("contract")}
             />
             <button onClick={onClose} className="m-1 p-2 rounded hover:bg-gray-100" aria-label="Close">
               <X size={18} />
@@ -583,9 +573,6 @@ export default function DriverModal({ entity, onClose }) {
               end={contractEnd}
               salary={contractSalary}
               role={contractRole}
-              driver={driver}
-              contract={contract}
-              isOwnDriver={!!isOwnDriver}
             />
           )}
 
@@ -642,14 +629,14 @@ function KV({ label, value, className = "" }) {
 
 /* ======================== Tabs ======================== */
 
-function ContractTab({ team, start, end, salary, role, driver, contract, isOwnDriver }) {
+function ContractTab({ team, start, end, salary, role }) {
   const fmtStartEnd = (v) => {
     if (!v) return "—";
     const y = yearFrom(v);
     return Number.isFinite(y) ? String(y) : String(unbox(v));
   };
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-4">
         <KV label="Team"   value={team} />
         <KV label="Role"   value={role ?? "—"} />
@@ -657,165 +644,8 @@ function ContractTab({ team, start, end, salary, role, driver, contract, isOwnDr
         <KV label="End"    value={fmtStartEnd(end)} />
         <KV label="Salary" value={fmtMoney(salary)} />
       </div>
-      <DriverContractActions driver={driver} contract={contract} isOwnDriver={isOwnDriver} />
     </div>
   );
-}
-
-function DriverContractActions({ driver, contract, isOwnDriver }) {
-  const gs = useGame((s) => s.gameState);
-  const setGameState = useGame((s) => s.setGameState);
-  const pushToast = useGame((s) => s.pushToast);
-  const [mode, setMode] = useState(null);
-  const [confirmTerminate, setConfirmTerminate] = useState(false);
-
-  const myTeamId = String(gs?.team?.team_id ?? gs?.team?.id ?? "");
-  const myTeamName = gs?.team?.team_name || gs?.team?.name || myTeamId;
-  const driverId = String(driver?.driver_id ?? driver?.id ?? "");
-  const current = activeDriverContract(gs, driverId) || contract || null;
-  const otherTeamId = current ? teamIdOf(current) : "";
-  const underOtherContract = !!current && otherTeamId && otherTeamId !== myTeamId;
-  const status = String(driver?.status || "").toLowerCase();
-  const eligibleToSign = driver?.canHireF1 !== false && !["junior_only","lower_series","hidden","deceased","retired"].includes(status);
-  const expected = expectedDriverSalary(gs, driverId);
-  const defaultRole = raceSeatCount(gs,myTeamId) < 2 ? "Second Driver" : "Reserve Driver";
-  const [salaryOffer, setSalaryOffer] = useState(expected);
-  const [yearsOffer, setYearsOffer] = useState(2);
-  const [roleOffer, setRoleOffer] = useState(isOwnDriver ? (unbox(current?.role) || "Main Driver") : defaultRole);
-
-  useEffect(() => {
-    setSalaryOffer(expectedDriverSalary(gs, driverId));
-    setRoleOffer(isOwnDriver ? (unbox(current?.role) || "Main Driver") : (raceSeatCount(gs,myTeamId) < 2 ? "Second Driver" : "Reserve Driver"));
-  }, [driverId, isOwnDriver, myTeamId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const chance = contractAcceptanceChance(gs,driverId,{
-    salary:salaryOffer,
-    years:yearsOffer,
-    role:roleOffer,
-  },{renewal:isOwnDriver});
-
-  const inboxMessage=(subject,body)=>({
-    id:`contract_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
-    date:gs?.currentDateISO,
-    from:"Driver Management",
-    type:"CONTRACT",
-    tag:"Contracts",
-    subject,
-    body,
-    unread:true,
-  });
-
-  const submitOffer=()=>{
-    if(!myTeamId || underOtherContract || (!isOwnDriver && !eligibleToSign))return;
-    const isRaceRole=/main|second|race/i.test(roleOffer);
-    if(!isOwnDriver && isRaceRole && raceSeatCount(gs,myTeamId)>=2){
-      pushToast?.({title:"No race seat available",description:"Terminate or move an existing race driver before offering another race seat.",type:"info"});
-      return;
-    }
-    const accepted=Math.random()<chance;
-    const name=driver?.display_name||driver?.name||driverId;
-    if(!accepted){
-      setGameState({inbox:[inboxMessage(`${name} rejects contract offer`,`The agent rejected the offer. Estimated acceptance was ${Math.round(chance*100)}%. Improve salary, role or duration and try again.`),...(gs?.inbox||[])]});
-      pushToast?.({title:"Offer rejected",description:`${name}'s agent rejected the proposal.`,type:"info"});
-      return;
-    }
-    const nextContract=makeDriverContract({
-      gs,driver,teamId:myTeamId,teamName:myTeamName,
-      offer:{salary:salaryOffer,years:yearsOffer,role:roleOffer},
-      source:isOwnDriver?"player_renewal":"player_signing",
-    });
-    const nextContracts=(gs?.contracts||[]).filter((c)=>{
-      if(String(c?.driver_id??c?.person_id??c?.id??"")!==driverId)return true;
-      return teamIdOf(c)!==myTeamId;
-    });
-    setGameState({
-      contracts:[...nextContracts,nextContract],
-      inbox:[inboxMessage(`${name} signs with ${myTeamName}`,`${name} accepted a ${yearsOffer}-year deal worth ${fmtMoney(salaryOffer)} per season as ${roleOffer}.`),...(gs?.inbox||[])],
-    });
-    pushToast?.({title:"Contract agreed",description:`${name} signed as ${roleOffer}.`,type:"success"});
-    setMode(null);
-  };
-
-  const terminate=()=>{
-    if(!current || !isOwnDriver)return;
-    const cost=terminationCost(gs,current);
-    const name=driver?.display_name||driver?.name||driverId;
-    const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
-    const nextBudget=Math.max(0,oldBudget-cost);
-    setGameState({
-      contracts:(gs?.contracts||[]).filter((c)=>c!==current),
-      team:{...(gs?.team||{}),budget:nextBudget},
-      finances:{
-        ...(gs?.finances||{}),
-        budget:nextBudget,
-        balance:Math.max(0,Number(gs?.finances?.balance??oldBudget)-cost),
-        season_spend:Number(gs?.finances?.season_spend||0)+cost,
-      },
-      financeLog:[...(gs?.financeLog||[]),{
-        id:`tx_contract_${Date.now()}`,
-        dateISO:gs?.currentDateISO,
-        type:"expense",
-        category:"Driver Contract",
-        desc:`${name} contract termination`,
-        amount:-cost,
-      }],
-      inbox:[inboxMessage(`${name} contract terminated`,`The contract was terminated. Compensation cost: ${fmtMoney(cost)}. The seat is now vacant.`),...(gs?.inbox||[])],
-    });
-    pushToast?.({title:"Contract terminated",description:`${name} is now a free driver.`,type:"success"});
-    setConfirmTerminate(false);
-  };
-
-  if(underOtherContract){
-    return <div className="border rounded-lg p-3 text-sm">
-      <div className="font-semibold">Contract actions</div>
-      <p className="mt-1 text-gray-500">This driver is contracted to another team. Future transfers and buyouts are not active yet, so an instant signing is blocked rather than faked.</p>
-    </div>;
-  }
-
-  if(!isOwnDriver && !eligibleToSign){
-    return <div className="border rounded-lg p-3 text-sm">
-      <div className="font-semibold">Contract actions</div>
-      <p className="mt-1 text-gray-500">This driver is not currently eligible for a direct F1 race contract. Use Academy/Scouting until the driver becomes F1-eligible.</p>
-    </div>;
-  }
-
-  return <div className="border rounded-lg p-3 space-y-3">
-    <div className="flex flex-wrap gap-2 items-center">
-      <div className="font-semibold mr-auto">Contract actions</div>
-      {isOwnDriver ? <>
-        <button className="px-3 py-1.5 rounded border text-sm" onClick={()=>{setMode(mode==="renew" ? null : "renew");setConfirmTerminate(false);}}>Renegotiate</button>
-        <button className="px-3 py-1.5 rounded border border-red-300 text-red-700 text-sm" onClick={()=>{setConfirmTerminate(!confirmTerminate);setMode(null);}}>Terminate</button>
-      </> : <button className="px-3 py-1.5 rounded border text-sm" onClick={()=>setMode(mode==="offer" ? null : "offer")}>Offer contract</button>}
-    </div>
-
-    {confirmTerminate && current && <div className="bg-red-50 border border-red-200 rounded p-3 text-sm">
-      <div>Termination compensation: <strong>{fmtMoney(terminationCost(gs,current))}</strong></div>
-      <div className="mt-2 flex gap-2">
-        <button className="px-3 py-1.5 rounded bg-red-600 text-white" onClick={terminate}>Confirm termination</button>
-        <button className="px-3 py-1.5 rounded border" onClick={()=>setConfirmTerminate(false)}>Cancel</button>
-      </div>
-    </div>}
-
-    {mode && <div className="grid md:grid-cols-4 gap-3 items-end bg-gray-50 rounded p-3">
-      <label className="text-xs">Annual salary
-        <input type="number" min="0" step="50000" className="mt-1 w-full border rounded px-2 py-1.5 bg-white" value={salaryOffer} onChange={(e)=>setSalaryOffer(Number(e.target.value))}/>
-      </label>
-      <label className="text-xs">Years
-        <select className="mt-1 w-full border rounded px-2 py-1.5 bg-white" value={yearsOffer} onChange={(e)=>setYearsOffer(Number(e.target.value))}>
-          {[1,2,3,4].map((y)=><option key={y} value={y}>{y}</option>)}
-        </select>
-      </label>
-      <label className="text-xs">Role
-        <select className="mt-1 w-full border rounded px-2 py-1.5 bg-white" value={roleOffer} onChange={(e)=>setRoleOffer(e.target.value)}>
-          <option>Main Driver</option><option>Second Driver</option><option>Reserve Driver</option>
-        </select>
-      </label>
-      <button className="px-3 py-2 rounded bg-slate-900 text-white text-sm" onClick={submitOffer}>Submit offer</button>
-      <div className="md:col-span-4 text-xs text-gray-600">
-        Expected salary ~ {fmtMoney(expected)} · estimated acceptance <strong>{Math.round(chance*100)}%</strong>.
-      </div>
-    </div>}
-  </div>;
 }
 
 function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows, agg }) {
@@ -1169,11 +999,10 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
   );
 }
 
-function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO, onContractAction }) {
+function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO }) {
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
-    condition: (attr, delta) => ({ key: "driver_condition", driverId: unbox(driver?.driver_id), attr, delta }),
     synergy: (delta) => ({ key: "team_synergy", delta }),
   };
 
@@ -1187,23 +1016,23 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
         { key: "wet_practice", icon: <Dumbbell size={14} />, label: "Wet practice",             desc: "+Wet Skill | +Fatigue",   effects: [fx.addAttr("wet_skill", +1), fx.fatigue(+2)] },
         { key: "tyre_drills",  icon: <Dumbbell size={14} />, label: "Tyre mgmt drills",         desc: "+Tyre Mgmt | +Fatigue",   effects: [fx.addAttr("tire_management", +1), fx.fatigue(+2)] },
         { key: "racecraft",    icon: <Dumbbell size={14} />, label: "Racecraft study",          desc: "+Racecraft | +Fatigue",   effects: [fx.addAttr("racecraft", +1), fx.fatigue(+1)] },
-        { key: "data_review",  icon: <Wrench size={14}   />, label: "Data review w/ engineers", desc: "Team synergy↑ | Preparation↑", effects: [fx.synergy(+1), fx.condition("preparation", +1)] },
+        { key: "data_review",  icon: <Wrench size={14}   />, label: "Data review w/ engineers", desc: "+Team synergy",           effects: [fx.synergy(+1)] },
       ],
     },
     {
       title: "Media & PR",
       items: [
-        { key: "sponsor_event", icon: <Megaphone size={14} />, label: "Sponsor activation", desc: "Reputation↑ | Morale↑ | +Fatigue", effects: [fx.addAttr("reputation", +1), fx.condition("morale", +1), fx.fatigue(+1)] },
-        { key: "tv_interview",  icon: <Megaphone size={14} />, label: "TV interview",       desc: "Confidence↑ | Reputation↑ | +Fatigue", effects: [fx.condition("confidence", +1), fx.addAttr("reputation", +1), fx.fatigue(+1)] },
-        { key: "media_training",icon: <MessageSquare size={14} />, label: "Media training", desc: "Pressure Handling↑ | Confidence↑", effects: [fx.addAttr("pressure_handling", +1), fx.condition("confidence", +1)] },
+        { key: "sponsor_event", icon: <Megaphone size={14} />, label: "Sponsor activation", desc: "Reputation↑ | +Fatigue", effects: [fx.addAttr("reputation", +1), fx.fatigue(+1)] },
+        { key: "tv_interview",  icon: <Megaphone size={14} />, label: "TV interview",       desc: "Reputation ± (risk) | +Fatigue", effects: [fx.fatigue(+1)] },
+        { key: "media_training",icon: <MessageSquare size={14} />, label: "Media training", desc: "+Pressure Handling", effects: [fx.addAttr("pressure_handling", +1)] },
       ],
     },
     {
       title: "Wellbeing & Admin",
       items: [
-        { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "Fatigue↓ | Morale↑", effects: [fx.fatigue(-4), fx.condition("morale", +1)] },
+        { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
         { key: "physical",      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
-        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Open contract actions", effects: [], special: "contract" },
+        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Opens negotiation flow", effects: [] },
       ],
     },
   ];
@@ -1213,14 +1042,14 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
       title: "Scouting & Info",
       items: [
         { key: "scout_watch",       icon: <Search size={14} />,    label: "Observe performance", desc: "Scouting report", effects: [] },
-        { key: "agent_probe",       icon: <Handshake size={14} />, label: "Approach agent",      desc: "Open contract actions", effects: [], special: "contract" },
+        { key: "agent_probe",       icon: <Handshake size={14} />, label: "Approach agent",      desc: "Salary & clauses", effects: [] },
         { key: "private_test_offer",icon: <Search size={14} />,    label: "Offer private test",  desc: "If legal", effects: [] },
       ],
     },
     {
       title: "Market Actions",
       items: [
-        { key: "open_negotiation",  icon: <Handshake size={14} />, label: "Open negotiations", desc: "Open contract actions", effects: [], special: "contract" },
+        { key: "open_negotiation",  icon: <Handshake size={14} />, label: "Open negotiations", desc: "Formal offer", effects: [] },
         { key: "networking_event",  icon: <Handshake size={14} />, label: "Networking at event", desc: "Relationship↑", effects: [] },
       ],
     },
@@ -1236,11 +1065,6 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
   const groups = isOwnDriver ? ownGroups : otherGroups;
 
   function onPick(it) {
-    if (it.special === "contract") {
-      onContractAction?.();
-      return;
-    }
-    if (!(it.effects || []).length) return;
     queueEvent({
       type: isOwnDriver ? "driver_action" : "market_action",
       title: it.label,
@@ -1268,15 +1092,12 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
                 <button
                   type="button"
                   onClick={() => onPick(it)}
-                  disabled={!(it.effects || []).length && !it.special}
-                  className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800"
                 >
                   <span className="mt-0.5 shrink-0">{it.icon}</span>
                   <span className="flex-1">
                     <span className="block text-[13px] leading-tight font-medium">{it.label}</span>
-                    <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">
-                      {it.desc || (!(it.effects || []).length && !it.special ? "Not implemented yet" : "")}
-                    </span>
+                    {it.desc && <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">{it.desc}</span>}
                   </span>
                 </button>
               </li>
