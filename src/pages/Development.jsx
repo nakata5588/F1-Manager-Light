@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -104,6 +105,10 @@ export default function Development() {
   ) || null;
   const hqLevels = gameState?.hq?.facilityLevels || {};
   const levelOf = (key) => Number(hqLevels[key] ?? baseFacility?.[key] ?? 5);
+  const testDriverProfile = useMemo(
+    () => testDriverDevelopmentProfile(gameState, teamId),
+    [gameState, teamId]
+  );
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -192,7 +197,10 @@ export default function Development() {
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
   const effectiveDays = effectiveProjectDays(draft, levelOf);
   const cost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
-  const expectedPerf = perfDelta(draft, levelOf, parts);
+  const baseExpectedPerf = perfDelta(draft, levelOf, parts);
+  const expectedPerf = Number((
+    baseExpectedPerf * Number(testDriverProfile?.performanceMultiplier || 1)
+  ).toFixed(2));
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
 
   const createProject = () => {
@@ -212,7 +220,14 @@ export default function Development() {
       wt_hours:Number(draft.windTunnel),
       cost,
       perf_delta:expectedPerf,
-      risk:Math.max(0.05, 0.22 - Number(draft.engineers) * 0.02),
+      base_perf_delta:baseExpectedPerf,
+      risk:Math.max(
+        0.03,
+        0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0)
+      ),
+      test_driver_id:testDriverProfile?.driver_id||null,
+      test_driver_name:testDriverProfile?.name||null,
+      test_driver_feedback:testDriverProfile?.impact??null,
     };
 
     applyExpense(cost, `Development — ${project.name}`);
@@ -324,11 +339,14 @@ export default function Development() {
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span>Cost: <strong>{fmtMoney(cost)}</strong></span>
             <span>Expected performance Δ: <strong>+{expectedPerf}</strong></span>
+            <span>Test driver: <strong>{testDriverProfile ? testDriverProfile.name : "None assigned"}</strong></span>
+            {testDriverProfile && <span>Feedback: <strong>{Math.round(testDriverProfile.impact)}/100</strong></span>}
             <span>Primary facility: <strong>{relevantFacility}</strong></span>
             <span>Effective duration: <strong>{effectiveDays} days</strong></span>
             <span>ETA: <strong>{currentDateISO ? addDaysISO(currentDateISO,effectiveDays) : "—"}</strong></span>
             <Button onClick={createProject} disabled={!draft.name.trim() || budget < cost}>Start Project</Button>
           </div>
+          {!testDriverProfile && <div className="text-sm text-amber-700">No dedicated Test Driver is contracted. The project will rely on engineer-only validation.</div>}
           {budget < cost && <div className="text-sm text-red-600">Insufficient budget for this project.</div>}
         </CardContent></Card>
       )}
@@ -353,6 +371,7 @@ export default function Development() {
               <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-gray-100 rounded overflow-hidden"><div className="h-full bg-slate-800" style={{width:`${progress*100}%`}}/></div></div>
               <div className="grid grid-cols-3 gap-2 text-sm"><Mini label="Engineers" value={p.engineers}/><Mini label="CFD" value={`${p.cfd_hours||0}h`}/><Mini label="WT" value={`${p.wt_hours||0}h`}/></div>
               <div className="text-xs text-muted-foreground">{p.started_at} → {p.finishes_at} · {fmtMoney(p.cost)} · Δ +{p.perf_delta}</div>
+              {p.test_driver_name && <div className="text-xs text-muted-foreground">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
                 <Button size="sm" variant="outline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
