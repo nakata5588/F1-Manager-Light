@@ -75,6 +75,7 @@ test("manual legacy save envelope and rolling Continue save both migrate", () =>
   assert.equal(migratedEnvelope.meta.schemaVersion, SAVE_SCHEMA_VERSION);
   assert.equal(migratedEnvelope.meta.gameVersion, GAME_VERSION);
   assert.equal(migratedEnvelope.meta.seed, migratedEnvelope.gameState.saveMeta.seed);
+  assert.equal(migratedEnvelope.gameState.saveMeta.gameVersion, "0.1.0");
   assert.deepEqual(extractGameStateFromStoredSave(manual), migratedEnvelope.gameState);
 
   const migratedContinue = extractGameStateFromStoredSave(legacyState);
