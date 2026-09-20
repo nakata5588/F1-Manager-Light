@@ -82,3 +82,31 @@ test("new drivers start fresh and fatigue becomes a real 0-100 performance penal
   assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:70}}},"d1")>fatiguePenalty({driverAttributes:{d1:{fatigue:40}}},"d1"));
   assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:100}}},"d1"),6);
 });
+
+
+test("profile condition actions persist confidence, morale and preparation",()=>{
+  const gs={
+    currentDateISO:"1980-01-03",
+    drivers:[{driver_id:"d_0001",display_name:"Test Driver"}],
+    driverRatings:[{...baseRating,driver_id:"d_0001"}],
+    driverAttributes:{d_0001:{confidence:50,fatigue:0,morale:50,preparation:50}},
+    eventsQueue:[{
+      id:"ev_condition",
+      type:"driver_action",
+      title:"Data review",
+      participants:["d_0001"],
+      effects:[
+        {key:"driver_condition",driverId:"d_0001",attr:"preparation",delta:2},
+        {key:"driver_condition",driverId:"d_0001",attr:"confidence",delta:1},
+        {key:"driver_condition",driverId:"d_0001",attr:"morale",delta:1},
+      ],
+      dateISO:"1980-01-03",
+      done:false,
+    }],
+    inbox:[],
+  };
+  const next=triggerDailyTick(gs);
+  assert.equal(next.driverAttributes.d_0001.preparation,52);
+  assert.equal(next.driverAttributes.d_0001.confidence,51);
+  assert.equal(next.driverAttributes.d_0001.morale,51);
+});
