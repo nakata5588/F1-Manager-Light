@@ -567,6 +567,7 @@ export default function DriverModal({ entity, onClose }) {
               label={isOwnDriver ? "Actions" : "Interact"}
               queueEvent={queueEvent}
               currentDateISO={gameDateISO}
+              onContractAction={() => setTab("contract")}
             />
             <button onClick={onClose} className="m-1 p-2 rounded hover:bg-gray-100" aria-label="Close">
               <X size={18} />
@@ -1154,7 +1155,7 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
   );
 }
 
-function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO }) {
+function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO, onContractAction }) {
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
@@ -1187,7 +1188,7 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
       items: [
         { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
         { key: "physical",      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
-        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Opens negotiation flow", effects: [] },
+        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Open contract actions", effects: [], special: "contract" },
       ],
     },
   ];
@@ -1197,14 +1198,14 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
       title: "Scouting & Info",
       items: [
         { key: "scout_watch",       icon: <Search size={14} />,    label: "Observe performance", desc: "Scouting report", effects: [] },
-        { key: "agent_probe",       icon: <Handshake size={14} />, label: "Approach agent",      desc: "Salary & clauses", effects: [] },
+        { key: "agent_probe",       icon: <Handshake size={14} />, label: "Approach agent",      desc: "Open contract actions", effects: [], special: "contract" },
         { key: "private_test_offer",icon: <Search size={14} />,    label: "Offer private test",  desc: "If legal", effects: [] },
       ],
     },
     {
       title: "Market Actions",
       items: [
-        { key: "open_negotiation",  icon: <Handshake size={14} />, label: "Open negotiations", desc: "Formal offer", effects: [] },
+        { key: "open_negotiation",  icon: <Handshake size={14} />, label: "Open negotiations", desc: "Open contract actions", effects: [], special: "contract" },
         { key: "networking_event",  icon: <Handshake size={14} />, label: "Networking at event", desc: "Relationship↑", effects: [] },
       ],
     },
@@ -1220,6 +1221,11 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
   const groups = isOwnDriver ? ownGroups : otherGroups;
 
   function onPick(it) {
+    if (it.special === "contract") {
+      onContractAction?.();
+      return;
+    }
+    if (!(it.effects || []).length) return;
     queueEvent({
       type: isOwnDriver ? "driver_action" : "market_action",
       title: it.label,
@@ -1247,12 +1253,15 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
                 <button
                   type="button"
                   onClick={() => onPick(it)}
-                  className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800"
+                  disabled={!(it.effects || []).length && !it.special}
+                  className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span className="mt-0.5 shrink-0">{it.icon}</span>
                   <span className="flex-1">
                     <span className="block text-[13px] leading-tight font-medium">{it.label}</span>
-                    {it.desc && <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">{it.desc}</span>}
+                    <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+                      {it.desc || (!(it.effects || []).length && !it.special ? "Not implemented yet" : "")}
+                    </span>
                   </span>
                 </button>
               </li>
