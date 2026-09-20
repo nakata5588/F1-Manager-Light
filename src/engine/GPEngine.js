@@ -3,7 +3,7 @@ import { defaultDriverCondition, driverCondition } from "../domain/driverRating.
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
 import { rngFor } from "../core/random.js";
 import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
-import { applyRaceInjuries } from "./InjuryEngine.js";
+import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -148,6 +148,16 @@ function teamReliability(gs, driver) {
   return clamp(rel,0.55,0.97);
 }
 
+function incidentSeverity(rng, reason) {
+  const collisionBias=String(reason||"").toLowerCase()==="collision"?0.06:0;
+  const score=clamp(0.05+rng.next()*0.90+collisionBias,0.05,1);
+  let label="low";
+  if(score>=0.96)label="critical";
+  else if(score>=0.82)label="high";
+  else if(score>=0.55)label="medium";
+  return { label, score:Number(score.toFixed(3)) };
+}
+
 function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
   const model=accidentModelForYear(gs);
   const damageProb=clamp(Number(pick(model,["damage_DNF_prob","damage_dnf_prob"],0.10)),0.04,0.25);
@@ -182,11 +192,14 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
 
     const progress=0.12+rng.next()*0.80;
     const lapsCompleted=Math.max(1,Math.floor(60*progress));
+    const incident=/accident|collision/i.test(reason)?incidentSeverity(rng,reason):null;
     retirees.push({
       ...row,
       status:"DNF",
       retired:true,
       retirement_reason:reason,
+      incident_severity:incident?.label??null,
+      incident_severity_score:incident?.score??null,
       laps_completed:lapsCompleted,
       total_time_ms:null,
       gap_to_winner_ms:null,
@@ -678,7 +691,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
 
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
-  const afterInjuries = applyRaceInjuries(afterRelations, { gp, race });
+  const afterInjuries = applyRaceHealthOutcomes(afterRelations, { gp, race });
 
   // Race weekends change physical and psychological condition. Conditions are
   // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
