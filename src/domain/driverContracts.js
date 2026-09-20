@@ -39,6 +39,8 @@ export function activeDriverContract(gs,driverId){
   return contractsOf(gs).find((c)=>{
     if(driverIdOf(c)!==String(driverId))return false;
     if(!isDriverContract(c))return false;
+    const status=String(pick(c,["status"],"active")).toLowerCase();
+    if(["terminated","expired","released","inactive","void"].includes(status))return false;
     const cy=Number(pick(c,["year","season_year"],year));
     return !Number.isFinite(cy)||!Number.isFinite(year)||cy===year;
   })||null;

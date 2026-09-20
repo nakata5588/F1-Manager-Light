@@ -30,6 +30,7 @@ const defaultSettings = Object.freeze({
     simSpeed: 1, // 0.5 | 1 | 2 | 4 (visual speed multiplier)
     rulesEra: "1980", // binds to loaded DB era/year
     enableInjuryRandomEvents: true,
+    enableFatalities: true,
     enableWeatherRandomness: true,
   },
   data: {
@@ -45,10 +46,10 @@ const defaultSettings = Object.freeze({
 function getInitialSettings(gameState) {
   // Try gameState.settings → localStorage → defaults
   const fromState = gameState?.settings;
-  if (fromState) return { ...defaultSettings, ...fromState };
+  if (fromState) return { ...defaultSettings, ...fromState, gameplay:{...defaultSettings.gameplay,...(fromState.gameplay||{})} };
   const ls = localStorage.getItem("f1ml_settings");
   if (ls) {
-    try { return { ...defaultSettings, ...JSON.parse(ls) }; } catch {}
+    try { const parsed=JSON.parse(ls); return { ...defaultSettings, ...parsed, gameplay:{...defaultSettings.gameplay,...(parsed.gameplay||{})} }; } catch {}
   }
   return { ...defaultSettings };
 }
@@ -185,7 +186,7 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-3 gap-4">
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -194,6 +195,15 @@ export default function Settings() {
                 onChange={(e) => set("gameplay.enableInjuryRandomEvents", e.target.checked)}
               />
               <span>Random driver injury events</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={draft.gameplay.enableFatalities !== false}
+                onChange={(e) => set("gameplay.enableFatalities", e.target.checked)}
+              />
+              <span>Fatal race accidents</span>
             </label>
             <label className="flex items-center gap-3">
               <input
