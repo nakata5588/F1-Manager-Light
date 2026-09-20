@@ -1,23 +1,17 @@
 // src/domain/garage.js
+import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 export const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
 export const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 
-function roleKind(row){
-  const role=String(pick(row,["role","position","contract_role"],"driver")).toLowerCase();
-  if(/test|reserve/.test(role))return "reserve";
-  if(/second|driver\s*2|#2/.test(role))return "race2";
-  return "race";
-}
 export function activeDriverContracts(gs,teamId){
   const year=Number(gs?.activeYear);
   return (gs?.contracts||[]).filter((row)=>{
     const id=driverIdOf(row);
     if(!id||teamIdOf(row)!==String(teamId))return false;
-    const role=String(pick(row,["role","position","contract_role"],"driver")).toLowerCase();
-    if(!/driver|main|second|race|test|reserve/.test(role))return false;
+    if(!isDriverContract(row))return false;
     const cy=Number(pick(row,["year","season_year"],year));
     return !Number.isFinite(cy)||!Number.isFinite(year)||cy===year;
   });
@@ -26,8 +20,8 @@ export function activeDriverContracts(gs,teamId){
 export function desiredGarageCars(gs){
   const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const contracts=activeDriverContracts(gs,teamId);
-  const race=contracts.filter((c)=>roleKind(c)!=="reserve");
-  const reserve=contracts.find((c)=>roleKind(c)==="reserve");
+  const race=contracts.filter(isRaceDriverContract);
+  const reserve=contracts.find(isReserveDriverContract);
   return [
     {id:"car_1",label:"Car 1",kind:"race",driver_id:driverIdOf(race[0]||{})||null},
     {id:"car_2",label:"Car 2",kind:"race",driver_id:driverIdOf(race[1]||{})||null},
