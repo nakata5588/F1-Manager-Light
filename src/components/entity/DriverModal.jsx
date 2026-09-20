@@ -138,10 +138,8 @@ export default function DriverModal({ entity, onClose }) {
       careerRaw:     Array.isArray(gs.dbDriverCareer)
         ? gs.dbDriverCareer
         : (Array.isArray(gs.driverCareer) ? gs.driverCareer : []),
-      generatedHistoryRaw: [
-        ...(Array.isArray(gs.driverHistory) ? gs.driverHistory : []),
-        ...(Array.isArray(gs.dbDriverHistory) ? gs.dbDriverHistory : []),
-      ],
+      driverHistoryRaw: Array.isArray(gs.driverHistory) ? gs.driverHistory : [],
+      dbDriverHistoryRaw: Array.isArray(gs.dbDriverHistory) ? gs.dbDriverHistory : [],
       achievementsRaw: gs.dbAchievements ?? gs.achievements ?? null,
       results: Array.isArray(gs.results) ? gs.results : [],
       standings: gs.standings || { drivers: [], teams: [] },
@@ -158,11 +156,15 @@ export default function DriverModal({ entity, onClose }) {
   });
 
   const {
-    driversList, ratingsList, contractsList, careerRaw, generatedHistoryRaw,
+    driversList, ratingsList, contractsList, careerRaw, driverHistoryRaw, dbDriverHistoryRaw,
     achievementsRaw, results, standings, historySeasons, teamsList, driverAttributesDict, gameYear, careerStartYear, gameDateISO,
     myTeamId, myTeamName, queueEvent
   } = useGame(selector);
 
+  const generatedHistoryRaw = useMemo(
+    () => [...driverHistoryRaw, ...dbDriverHistoryRaw],
+    [driverHistoryRaw, dbDriverHistoryRaw]
+  );
   const achievementsArr = useMemo(() => toArraySafe(achievementsRaw), [achievementsRaw]);
 
   const driver = useMemo(
