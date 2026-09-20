@@ -138,7 +138,10 @@ export default function DriverModal({ entity, onClose }) {
       careerRaw:     Array.isArray(gs.dbDriverCareer)
         ? gs.dbDriverCareer
         : (Array.isArray(gs.driverCareer) ? gs.driverCareer : []),
-      generatedHistoryRaw: Array.isArray(gs.dbDriverHistory) ? gs.dbDriverHistory : [],
+      generatedHistoryRaw: [
+        ...(Array.isArray(gs.driverHistory) ? gs.driverHistory : []),
+        ...(Array.isArray(gs.dbDriverHistory) ? gs.dbDriverHistory : []),
+      ],
       achievementsRaw: gs.dbAchievements ?? gs.achievements ?? null,
       results: Array.isArray(gs.results) ? gs.results : [],
       standings: gs.standings || { drivers: [], teams: [] },
@@ -855,7 +858,7 @@ function AttributesTab({ attrs, condition }) {
     ["Reputation",            attrs.reputation,                     false],
   ];
   const conditionRows = [
-    ["Fatigue", condition?.fatigue ?? 20, true],
+    ["Fatigue", condition?.fatigue ?? 0, true],
     ["Confidence", condition?.confidence ?? 50, false],
     ["Morale", condition?.morale ?? 50, false],
     ["Preparation", condition?.preparation ?? 40, false],
