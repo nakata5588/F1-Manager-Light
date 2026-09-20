@@ -3,6 +3,7 @@
 // Pure materializer for a historical starting season.
 // Global data is editorial/reference data; the returned pack is only the
 // playable state at the chosen starting year.
+import { isDriverContract, isRaceDriverContract } from "../domain/contractRoles.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -249,7 +250,7 @@ export function materializeSeasonPack(globalData,yearInput){
 
   const teamNameById=new Map(teams.map((t)=>[teamId(t),pick(t,["team_name","name","short_name"],teamId(t))]));
   const addBootstrapContract=(tid,did,source)=>{
-    const teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    const teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
     const role=teamContracts.length===0?"Main Driver":"Second Driver";
     contracts.push({
       year,
@@ -268,13 +269,13 @@ export function materializeSeasonPack(globalData,yearInput){
   };
 
   for(const tid of teamIds){
-    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
     const historicalCandidates=historicalPoolForTeam(tid);
     for(const did of historicalCandidates){
       if(teamContracts.length>=2)break;
       if(assignedDrivers.has(did))continue;
       addBootstrapContract(tid,did,"season_results_bootstrap");
-      teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+      teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
     }
   }
 
@@ -298,12 +299,12 @@ export function materializeSeasonPack(globalData,yearInput){
       return br-ar || driverId(a).localeCompare(driverId(b));
     });
   for(const tid of teamIds){
-    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
     while(teamContracts.length<2){
       const next=fallbackDrivers.find((d)=>!assignedDrivers.has(driverId(d)));
       if(!next)break;
       addBootstrapContract(tid,driverId(next),"ai_grid_bootstrap");
-      teamContracts=contracts.filter((r)=>teamId(r)===tid && isDriverContract(r));
+      teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
     }
   }
 
@@ -423,7 +424,7 @@ export function validateSeasonPack(pack){
   const orphanContracts=(s.contracts||[]).filter((r)=>!teamIds.has(teamId(r))||!driverIds.has(driverId(r))).length;
   if(orphanContracts)issues.push(`orphan_driver_contracts:${orphanContracts}`);
 
-  const gridContracts=(s.contracts||[]).filter((r)=>/driver/i.test(String(pick(r,["role","position"],"driver"))));
+  const gridContracts=(s.contracts||[]).filter(isRaceDriverContract);
   const warnings=[];
   if(gridContracts.length<Math.min(2,teamIds.size*2))warnings.push(`sparse_driver_contracts:${gridContracts.length}`);
   if((s.staffCore||[]).length<teamIds.size)warnings.push(`sparse_staff:${(s.staffCore||[]).length}`);
