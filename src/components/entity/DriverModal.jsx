@@ -531,7 +531,7 @@ export default function DriverModal({ entity, onClose }) {
           <Row label="Fatigue"       value={Number(condition?.fatigue ?? 20).toFixed(0)} />
           <Row label="Confidence"    value={Number(condition?.confidence ?? 50).toFixed(0)} />
           <Row label="Morale"        value={Number(condition?.morale ?? 50).toFixed(0)} />
-          <Row label="Preparation"   value={Number(condition?.preparation ?? 40).toFixed(0)} />
+          <Row label="Preparation"   value={Number(condition?.preparation ?? 50).toFixed(0)} />
           <Row label="Rookie Season" value={unbox(driver?.f1_rookie_season) ?? "—"} />
           <Row label="Years Raced"   value={yearsRaced ?? "—"} />
           <Row label="Market Value"  value={fmtMoney(marketValue)} />
@@ -1017,7 +1017,7 @@ function AttributesTab({ attrs, condition }) {
     ["Fatigue", condition?.fatigue ?? 0, true],
     ["Confidence", condition?.confidence ?? 50, false],
     ["Morale", condition?.morale ?? 50, false],
-    ["Preparation", condition?.preparation ?? 40, false],
+    ["Preparation", condition?.preparation ?? 50, false],
   ];
   return (
     <div className="space-y-5">
