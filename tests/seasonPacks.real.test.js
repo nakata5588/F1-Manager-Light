@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 
 const root=process.cwd();
 const targetYears=[1975,1980,1987,1989,1999,2014,2020];
@@ -51,7 +52,7 @@ for(const year of targetYears){
       assert.ok(driverIds.has(String(row.driver_id)),`${year} contract references missing driver ${row.driver_id}`);
     }
 
-    const driverContracts=(state.contracts||[]).filter((row)=>/driver|main|second/i.test(String(row.role||"driver")));
+    const driverContracts=(state.contracts||[]).filter(isRaceDriverContract);
     const assignedDriverIds=new Set();
     for(const team of state.teams){
       const tid=String(team.team_id);
@@ -90,4 +91,17 @@ test("derived F1 history covers the sparse manual-career eras",async()=>{
     const ids=new Set(rows.filter((r)=>Number(r.year)===year).map((r)=>String(r.driver_id)));
     assert.ok(ids.size>=20,`${year} historical profile coverage is too sparse: ${ids.size} drivers`);
   }
+});
+
+
+test("1980 Shadow keeps test drivers separate from its two race seats",async()=>{
+  const pack=await readPack(1980);
+  const shadow=(pack.state.teams||[]).find((t)=>String(t.team_name||t.name)==="Shadow");
+  assert.ok(shadow,"1980 Shadow must exist");
+  const contracts=(pack.state.contracts||[]).filter((c)=>String(c.team_id)===String(shadow.team_id));
+  const raceSeats=contracts.filter(isRaceDriverContract);
+  const testDrivers=contracts.filter((c)=>/test|reserve/i.test(String(c.role||"")));
+  assert.ok(raceSeats.length>=2,"Shadow must have two race seats, found "+raceSeats.length);
+  assert.ok(testDrivers.length>=1,"Shadow test-driver contract should remain available without occupying a race seat");
+  assert.equal(raceSeats.some((c)=>String(c.driver_id)==="d_0862"),false,"David Kennedy test_driver must not be treated as a race seat");
 });
