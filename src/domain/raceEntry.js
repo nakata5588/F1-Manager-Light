@@ -27,6 +27,10 @@ const asRows=(value)=>{
 
 const driverIdOf=(row)=>String(pick(row,["driver_id","person_id","id"],""));
 const teamIdOf=(row)=>String(pick(row,["team_id","constructor_id","team","constructor","id"],""));
+const contractsOf=(gs)=>{
+  const live=asRows(gs?.contracts);
+  return live.length?live:asRows(gs?.dbContracts);
+};
 
 function dateOnly(value){
   const s=String(value||"");
@@ -110,7 +114,7 @@ export function isDriverAvailableForRace(gs,driverId,gp){
 
 export function activeRaceContracts(gs,teamId){
   const year=Number(gs?.activeYear);
-  return asRows(gs?.contracts ?? gs?.dbContracts)
+  return contractsOf(gs)
     .filter((contract)=>teamIdOf(contract)===String(teamId))
     .filter(isRaceDriverContract)
     .filter((contract)=>!Number.isFinite(year)||contractActiveForYear(contract,year))
@@ -123,7 +127,7 @@ function teamIdsForEntries(gs){
   const explicit=(gs?.teams||[]).map(teamIdOf).filter(Boolean);
   if(explicit.length)return [...new Set(explicit)];
   return [...new Set(
-    asRows(gs?.contracts ?? gs?.dbContracts)
+    contractsOf(gs)
       .filter(isRaceDriverContract)
       .map(teamIdOf)
       .filter(Boolean)
