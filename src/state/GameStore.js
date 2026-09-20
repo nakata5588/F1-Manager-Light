@@ -85,9 +85,9 @@ const HEAVY_KEYS = [
   "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons",
 ];
 function makeLightSnapshot(gs) {
-  const light = { ...prepareGameStateForSave(gs) };
+  const light = { ...gs };
   for (const k of HEAVY_KEYS) delete light[k];
-  return light;
+  return prepareGameStateForSave(light);
 }
 function isQuotaError(e) {
   return e && (e.name === "QuotaExceededError" || e.code === 22 || String(e).includes("exceeded the quota"));
