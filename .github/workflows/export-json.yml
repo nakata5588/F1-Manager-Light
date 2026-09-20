@@ -69,6 +69,9 @@ jobs:
       - name: Test race entry and driver availability
         run: npm run test:race-entry
 
+      - name: Test injuries and replacement drivers
+        run: npm run test:injuries
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
