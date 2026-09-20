@@ -102,7 +102,9 @@ test("test driver is not in the emergency candidate pool because it is contracte
   const candidates=eligibleEmergencyDrivers(gs,gp);
   const ids=candidates.map((driver)=>driver.driver_id);
   assert.equal(ids.includes("DT"),false);
-  assert.deepEqual(ids.slice(0,2),["F1","F2"]);
+  assert.equal(ids[0],"F1");
+  assert.equal(ids.includes("DR"),true,"an uncontracted former/possible reserve is just another eligible free agent");
+  assert.equal(ids.includes("F2"),true);
 });
 
 test("emergency assignment is scoped to one Grand Prix",()=>{
@@ -136,8 +138,8 @@ test("player emergency fee and assignment are idempotent for the same GP",()=>{
 
 test("when there is no reserve or free agent the car remains vacant",()=>{
   const gs=fixture();
-  gs.drivers=gs.drivers.filter((d)=>!["F1","F2"].includes(d.driver_id));
-  gs.driverRatings=gs.driverRatings.filter((r)=>!["F1","F2"].includes(r.driver_id));
+  gs.drivers=gs.drivers.filter((d)=>!["F1","F2","DR"].includes(d.driver_id));
+  gs.driverRatings=gs.driverRatings.filter((r)=>!["F1","F2","DR"].includes(r.driver_id));
 
   const prepared=ensureTemporaryReplacements(gs,{gp,roundIndex:5});
   assert.equal(prepared.temporaryDriverAssignments.length,0);
