@@ -89,7 +89,7 @@ export function driverAvailabilityForRace(gs,driverId,gp){
 
   if(raceDate){
     if(from&&raceDate<from)return {available:true,status:"available",reason:null};
-    if(to&&raceDate>to)return {available:true,status:"available",reason:null};
+    if(to&&raceDate>=to)return {available:true,status:"available",reason:null};
   }
 
   if(["","available","fit","active","cleared"].includes(status)){
