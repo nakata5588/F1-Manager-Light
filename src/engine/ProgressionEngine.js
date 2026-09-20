@@ -162,6 +162,11 @@ function monthlyProgression(gs,ratings,dateISO){
       applyDelta(rating,"pressure_handling",success,changes,did,dateISO,"competitive_success");
       applyDelta(rating,"mentality",success*0.7,changes,did,dateISO,"competitive_success");
     }
+    if(form.dnfs>=2){
+      const setback=Math.min(0.10,form.dnfs*0.018);
+      applyDelta(rating,"mentality",-setback,changes,did,dateISO,"reliability_setback");
+      applyDelta(rating,"consistency",-setback*0.55,changes,did,dateISO,"reliability_setback");
+    }
 
     // AI-controlled teams perform a modest automatic monthly training session.
     // Player drivers can exceed this through explicit Actions.
