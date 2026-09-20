@@ -1,5 +1,6 @@
 import { expectedDriverSalary, makeDriverContract, teamIdOf } from "../domain/driverContracts.js";
 import { rngFor } from "../core/random.js";
+import { isRaceDriverContract } from "../domain/contractRoles.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr, rng) {
@@ -40,11 +41,7 @@ export function applyMarketTick(gs) {
     for(const team of teams){
       const tid=String(team?.team_id??team?.id??"");
       if(!tid||tid===userTeamId)continue;
-      const raceContracts=contracts.filter((c)=>{
-        if(teamIdOf(c)!==tid)return false;
-        const role=String(c?.role??c?.position??"driver").toLowerCase();
-        return /main|second|race|driver/.test(role) && !/reserve|test/.test(role);
-      });
+      const raceContracts=contracts.filter((c)=>teamIdOf(c)===tid && isRaceDriverContract(c));
       while(raceContracts.length<2 && free.length){
         const driver=free.shift();
         const did=String(driver?.driver_id??driver?.id??"");
