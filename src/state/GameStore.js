@@ -1154,7 +1154,7 @@ export const useGame = create((set, get) => ({
           currentRound: 0,
           activeYear: y,
           careerMeta: createCareerMeta(db, y),
-      saveMeta: createNewSaveMeta({ year: y, teamId }),
+          saveMeta: createNewSaveMeta({ year: y, teamId }),
           team: userTeam,
           selectedDrivers: Array.isArray(drivers) ? drivers : [],
           standings: { drivers: [], teams: [] },
