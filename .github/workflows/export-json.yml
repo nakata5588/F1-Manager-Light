@@ -60,6 +60,9 @@ jobs:
       - name: Test driver simulation core
         run: npm run test:simulation
 
+      - name: Test management systems
+        run: npm run test:management
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
