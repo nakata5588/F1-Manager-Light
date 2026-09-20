@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { syncGarageState } from "../src/domain/garage.js";
 import { teamCarPerformance } from "../src/domain/carPerformance.js";
 import {
+  activeDriverContract,
   contractAcceptanceChance,
   expectedDriverSalary,
+  raceSeatCount,
   terminationCost,
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
@@ -79,6 +81,29 @@ test("better salary offers increase driver acceptance probability",()=>{
   const high=contractAcceptanceChance(gs,"D3",{salary:expected*1.2,years:3,role:"Main Driver"});
   assert.ok(high>low);
   assert.ok(terminationCost(gs,gs.contracts[0])>0);
+});
+
+test("driver contract helpers tolerate legacy map-shaped save collections",()=>{
+  const gs=baseState();
+  gs.contracts=Object.fromEntries(gs.contracts.map((row)=>[row.driver_id,row]));
+  gs.driverRatings=Object.fromEntries(gs.driverRatings.map((row)=>[row.driver_id,row]));
+
+  assert.doesNotThrow(()=>expectedDriverSalary(gs,"D1"));
+  assert.equal(activeDriverContract(gs,"D1")?.team_id,"T1");
+  assert.equal(raceSeatCount(gs,"T1"),2);
+  assert.ok(expectedDriverSalary(gs,"D1")>=500_000);
+});
+
+test("driver contract helpers fall back to hydrated db collections",()=>{
+  const gs=baseState();
+  gs.dbContracts=gs.contracts;
+  gs.dbDriverRatings=gs.driverRatings;
+  gs.contracts=null;
+  gs.driverRatings=null;
+
+  assert.equal(activeDriverContract(gs,"D2")?.team_id,"T1");
+  assert.equal(raceSeatCount(gs,"T1"),2);
+  assert.ok(expectedDriverSalary(gs,"D2")>=450_000);
 });
 
 test("AI market fills a vacant race seat with an available driver",()=>{

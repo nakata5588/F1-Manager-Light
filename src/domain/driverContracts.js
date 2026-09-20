@@ -1,14 +1,41 @@
 // src/domain/driverContracts.js
 
-const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
+const unwrap=(v)=>{
+  if(v&&typeof v==="object"&&!Array.isArray(v)){
+    if("error" in v && !("result" in v) && !("value" in v) && !("text" in v))return null;
+    if("result" in v)return unwrap(v.result);
+    if("value" in v)return unwrap(v.value);
+    if("text" in v)return unwrap(v.text);
+  }
+  return v;
+};
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
+
+function rows(value){
+  const raw=unwrap(value);
+  if(Array.isArray(raw))return raw;
+  if(!raw||typeof raw!=="object")return [];
+  for(const key of ["items","rows","list","data"]){
+    if(Array.isArray(raw[key]))return raw[key];
+  }
+  return Object.values(raw).filter((row)=>row&&typeof row==="object"&&!Array.isArray(row));
+}
+function contractsOf(gs){
+  const live=rows(gs?.contracts);
+  return live.length?live:rows(gs?.dbContracts);
+}
+function ratingsOf(gs){
+  const live=rows(gs?.driverRatings);
+  return live.length?live:rows(gs?.dbDriverRatings);
+}
+
 export const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
 export const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 
 export function activeDriverContract(gs,driverId){
   const year=Number(gs?.activeYear);
-  return (gs?.contracts||[]).find((c)=>{
+  return contractsOf(gs).find((c)=>{
     if(driverIdOf(c)!==String(driverId))return false;
     const role=String(pick(c,["role","position","contract_role"],"driver")).toLowerCase();
     if(!/driver|main|second|race|test|reserve/.test(role))return false;
@@ -18,7 +45,7 @@ export function activeDriverContract(gs,driverId){
 }
 
 export function ratingForDriver(gs,driverId){
-  return (gs?.driverRatings||[]).find((r)=>driverIdOf(r)===String(driverId))||{};
+  return ratingsOf(gs).find((r)=>driverIdOf(r)===String(driverId))||{};
 }
 
 export function expectedDriverSalary(gs,driverId){
@@ -80,7 +107,7 @@ export function makeDriverContract({gs,driver,teamId,teamName,offer,source="play
 }
 
 export function raceSeatCount(gs,teamId){
-  return (gs?.contracts||[]).filter((c)=>{
+  return contractsOf(gs).filter((c)=>{
     if(teamIdOf(c)!==String(teamId))return false;
     const role=String(pick(c,["role","position","contract_role"],"driver")).toLowerCase();
     return /main|second|race/.test(role);
