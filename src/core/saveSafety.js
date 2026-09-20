@@ -142,7 +142,11 @@ export function migrateStoredSave(input) {
   if (!isRecord(input)) throw new TypeError("Stored save must be an object.");
 
   if (isRecord(input.gameState)) {
-    const gameState = migrateGameState(input.gameState);
+    const legacyGameVersion = input?.meta?.gameVersion ?? input?.meta?.version ?? null;
+    const sourceState = legacyGameVersion != null && !isRecord(input.gameState.saveMeta)
+      ? { ...input.gameState, saveMeta: { schemaVersion: 0, gameVersion: String(legacyGameVersion) } }
+      : input.gameState;
+    const gameState = migrateGameState(sourceState);
     return {
       ...clone(input),
       meta: {
