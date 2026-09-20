@@ -165,7 +165,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     let reason=null;
     if(roll<mechanicalChance) {
       const mechReasons=["Engine","Gearbox","Transmission","Electrical","Cooling","Fuel system","Suspension"];
-      reason=mechReasons[(simpleRaceHash(`${roundIndex}:${driver?.driver_id}:mech`))%mechReasons.length];
+      reason=rng.pick(mechReasons);
     } else if(roll<mechanicalChance+accidentChance) {
       reason=rng.next()<0.72?"Accident":"Collision";
     }
@@ -191,12 +191,6 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
 
   retirees.sort((a,b)=>Number(b.laps_completed||0)-Number(a.laps_completed||0));
   return [...finishers,...retirees].map((row,index)=>({...row,pos:index+1}));
-}
-
-function simpleRaceHash(text){
-  let h=2166136261;
-  for(const ch of String(text||"")){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}
-  return Math.abs(h>>>0);
 }
 
 function buildRaceTiming(race, ratings, roundIndex, gs, rng) {
