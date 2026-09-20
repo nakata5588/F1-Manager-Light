@@ -4,6 +4,7 @@ import { combinedQualifyingPerformance, combinedRacePerformance } from "../domai
 import { rngFor } from "../core/random.js";
 import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
+import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -536,6 +537,7 @@ function awardRaceBonuses(next, race, gpName) {
 }
 
 export async function runRaceWeekend(gs, { roundIndex, gp }) {
+  gs = ensureTemporaryReplacements(gs, { roundIndex, gp });
   const raceEntryState = buildRaceEntryState(gs, { roundIndex, gp });
   gs = { ...gs, raceEntryState };
   const next = { ...gs };
@@ -731,7 +733,8 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   }
   afterInjuries.driverAttributes=conditionDict;
 
-  const replacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="reserve_replacement");
+  const reserveReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="reserve_replacement");
+  const emergencyReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="emergency_substitute");
   afterInjuries.inbox = [
     {
       id: `gp_${Date.now()}`,
@@ -740,7 +743,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       type: "GP",
       tag: "Race",
       subject: `${gpName} — Race Report`,
-      body: `Winner: ${race.find((r)=>!r.retired)?.driver?.display_name || race.find((r)=>!r.retired)?.driver?.name || "—"}. ${race.filter((r)=>r.retired).length} retirement(s).${replacements.length ? ` ${replacements.length} reserve replacement(s) participated.` : ""} Championship points updated.`,
+      body: `Winner: ${race.find((r)=>!r.retired)?.driver?.display_name || race.find((r)=>!r.retired)?.driver?.name || "—"}. ${race.filter((r)=>r.retired).length} retirement(s).${reserveReplacements.length ? ` ${reserveReplacements.length} reserve replacement(s) participated.` : ""}${emergencyReplacements.length ? ` ${emergencyReplacements.length} emergency substitute(s) participated.` : ""} Championship points updated.`,
       unread: true,
       actions: [
         { label: "Ver resultados", route: "/Results" },
