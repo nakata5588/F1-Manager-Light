@@ -10,6 +10,7 @@ import {
   terminationCost,
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
+import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "../src/domain/contractRoles.js";
 
 function baseState(){
   return {
@@ -113,4 +114,28 @@ test("AI market fills a vacant race seat with an available driver",()=>{
   assert.equal(aiContracts.length,2);
   assert.ok(aiContracts.some((c)=>String(c.driver_id)==="D3"));
   assert.equal(next._lastAIDriverMarketMonth,"1980-02");
+});
+
+
+test("test and reserve contracts do not occupy race seats",()=>{
+  const gs=baseState();
+  gs.contracts=[
+    {year:1980,team_id:"T2",driver_id:"D4",role:"main_driver"},
+    {year:1980,team_id:"T2",driver_id:"D3",role:"test_driver"},
+  ];
+  assert.equal(isDriverContract(gs.contracts[1]),true);
+  assert.equal(isReserveDriverContract(gs.contracts[1]),true);
+  assert.equal(isRaceDriverContract(gs.contracts[1]),false);
+  assert.equal(raceSeatCount(gs,"T2"),1);
+});
+
+test("AI market fills a second race seat even when a test driver is contracted",()=>{
+  const gs=baseState();
+  gs.drivers.push({driver_id:"D5",display_name:"Test Driver",status:"eligible"});
+  gs.driverRatings.push({driver_id:"D5",current_ability:55,pace:58,reputation:45,market_value:250_000});
+  gs.contracts.push({year:1980,team_id:"T2",driver_id:"D5",role:"test_driver",salary:100_000});
+  const next=applyMarketTick(gs);
+  const raceContracts=(next.contracts||[]).filter((c)=>String(c.team_id)==="T2" && isRaceDriverContract(c));
+  assert.equal(raceContracts.length,2);
+  assert.ok(raceContracts.some((c)=>String(c.driver_id)==="D3"));
 });
