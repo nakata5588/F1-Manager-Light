@@ -128,6 +128,7 @@ test("GP engine consumes race entries instead of every driver contract",async()=
     D2:{status:"suspended",reason:"one-race suspension"},
   };
 
+  gs.standings.drivers=[{driver_id:"D2",name:"Alpha Two",team_id:"T1",points:5,position:1}];
   const next=await runRaceWeekend(gs,{roundIndex:4,gp});
   assert.ok(next.raceEntryState);
   assert.deepEqual(raceEntryDriverIds(next.raceEntryState).sort(),["D1","D3","D4"]);
@@ -138,6 +139,7 @@ test("GP engine consumes race entries instead of every driver contract",async()=
   assert.equal(classified.has("D4"),true);
   assert.equal(classified.has("D2"),false,"unavailable driver must not race");
   assert.equal(classified.has("D5"),false,"test driver must not race");
+  assert.equal(next.standings.drivers.find((row)=>row.driver_id==="D2")?.points,5,"missing a GP must not remove championship points");
   assert.deepEqual(next.results[0].raceEntry,next.raceEntryState.entries);
 });
 
