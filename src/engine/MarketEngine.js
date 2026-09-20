@@ -10,6 +10,10 @@ export function applyMarketTick(gs) {
   const drivers = (gs.drivers || []).filter(
     (d) => !["hidden","junior_only"].includes(String(d?.status || ""))
   );
+  const f1EligibleDrivers = drivers.filter((d) => {
+    const status=String(d?.status||"").toLowerCase();
+    return d?.canHireF1 !== false && !["lower_series","junior_only","hidden","deceased","retired"].includes(status);
+  });
   const teams = gs.teams || [];
   if (!drivers.length || !teams.length) return next;
 
@@ -22,7 +26,7 @@ export function applyMarketTick(gs) {
     const activeDriverIds=new Set(
       contracts.map((c)=>String(c?.driver_id??c?.person_id??c?.id??"")).filter(Boolean)
     );
-    const free=drivers
+    const free=f1EligibleDrivers
       .filter((d)=>!activeDriverIds.has(String(d?.driver_id??d?.id??"")))
       .sort((a,b)=>{
         const ar=ratingById.get(String(a?.driver_id??a?.id??""))||{};
