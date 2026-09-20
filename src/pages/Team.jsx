@@ -68,14 +68,16 @@ function normalizeDriverRole(role) {
   const r = norm(role);
   if (/(main|lead|first|driver1|race\s*driver|titular)/.test(r)) return "Main Driver";
   if (/(second|driver2|segundo)/.test(r)) return "Second Driver";
-  if (/(test|reserve|tester|reserva)/.test(r)) return "Test Driver";
+  if (/(reserve|reserva)/.test(r)) return "Reserve Driver";
+  if (/(test|tester)/.test(r)) return "Test Driver";
   return "Driver";
 }
 function driverSlot(role) {
   const rr = normalizeDriverRole(role);
   if (rr === "Main Driver") return 0;
   if (rr === "Second Driver") return 1;
-  if (rr === "Test Driver") return 2;
+  if (rr === "Reserve Driver") return 2;
+  if (rr === "Test Driver") return 3;
   return 9;
 }
 function normalizeStaffRole(role) {
