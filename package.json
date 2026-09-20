@@ -9,17 +9,18 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
     "validate:data": "node scripts/validate_json.js",
-    "check": "npm run test:career && npm run test:drivers && npm run test:simulation && npm run test:season-packs && npm run validate:data && npm run build",
+    "check": "npm run test:career && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:season-packs && npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run season:generate\"",
     "predev": "npm run season:generate",
     "prebuild": "npm run season:generate",
     "test:career": "node --test tests/careerBoundary.test.js",
     "season:generate": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs",
-    "season:generate:test-years": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs --years=1975,1980,1989,1999,2014,2020",
+    "season:generate:test-years": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs --years=1975,1980,1987,1989,1999,2014,2020",
     "test:season-packs": "npm run season:generate:test-years && node --test tests/seasonPacks.real.test.js",
     "test:drivers": "node --test tests/driverProgression.test.js",
-    "test:simulation": "node --test tests/driverSimulation.test.js"
+    "test:simulation": "node --test tests/driverSimulation.test.js",
+    "test:management": "node --test tests/managementSystems.test.js"
   },
   "keywords": [
     "f1",

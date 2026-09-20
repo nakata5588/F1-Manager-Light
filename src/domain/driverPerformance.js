@@ -57,7 +57,7 @@ export function wetDriverModifier(rating){
 
 export function combinedQualifyingPerformance({gs,driver,rating,teamId,wet=false}){
   const driverScore=qualifyingDriverScore(rating,gs,driver?.driver_id);
-  const car=teamCarPerformance(gs,teamId);
+  const car=teamCarPerformance(gs,teamId,driver?.driver_id);
   const wetMod=wet?wetDriverModifier(rating):0;
   // Car matters slightly more than driver over a single lap.
   return driverScore*0.47+car.qualifying*0.53+wetMod;
@@ -65,7 +65,7 @@ export function combinedQualifyingPerformance({gs,driver,rating,teamId,wet=false
 
 export function combinedRacePerformance({gs,driver,rating,teamId,wet=false}){
   const driverScore=raceDriverScore(rating,gs,driver?.driver_id);
-  const car=teamCarPerformance(gs,teamId);
+  const car=teamCarPerformance(gs,teamId,driver?.driver_id);
   const wetMod=wet?wetDriverModifier(rating):0;
   return driverScore*0.52+car.race*0.48+wetMod;
 }

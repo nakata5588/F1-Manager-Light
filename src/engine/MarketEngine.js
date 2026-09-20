@@ -1,3 +1,5 @@
+import { expectedDriverSalary, makeDriverContract, teamIdOf } from "../domain/driverContracts.js";
+
 // src/engine/MarketEngine.js
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -8,8 +10,71 @@ export function applyMarketTick(gs) {
   const drivers = (gs.drivers || []).filter(
     (d) => !["hidden","junior_only"].includes(String(d?.status || ""))
   );
+  const f1EligibleDrivers = drivers.filter((d) => {
+    const status=String(d?.status||"").toLowerCase();
+    return d?.canHireF1 !== false && !["lower_series","junior_only","hidden","deceased","retired"].includes(status);
+  });
   const teams = gs.teams || [];
   if (!drivers.length || !teams.length) return next;
+
+  const currentMonth=String(gs?.currentDateISO||"").slice(0,7);
+  if(currentMonth && gs?._lastAIDriverMarketMonth!==currentMonth){
+    const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
+    const contracts=[...(gs?.contracts||[])];
+    const ratingById=new Map((gs?.driverRatings||[]).map((r)=>[String(r?.driver_id??r?.id??""),r]));
+
+    const activeDriverIds=new Set(
+      contracts.map((c)=>String(c?.driver_id??c?.person_id??c?.id??"")).filter(Boolean)
+    );
+    const free=f1EligibleDrivers
+      .filter((d)=>!activeDriverIds.has(String(d?.driver_id??d?.id??"")))
+      .sort((a,b)=>{
+        const ar=ratingById.get(String(a?.driver_id??a?.id??""))||{};
+        const br=ratingById.get(String(b?.driver_id??b?.id??""))||{};
+        return Number(br?.current_ability??br?.pace??0)-Number(ar?.current_ability??ar?.pace??0);
+      });
+
+    const aiMessages=[];
+    for(const team of teams){
+      const tid=String(team?.team_id??team?.id??"");
+      if(!tid||tid===userTeamId)continue;
+      const raceContracts=contracts.filter((c)=>{
+        if(teamIdOf(c)!==tid)return false;
+        const role=String(c?.role??c?.position??"driver").toLowerCase();
+        return /main|second|race|driver/.test(role) && !/reserve|test/.test(role);
+      });
+      while(raceContracts.length<2 && free.length){
+        const driver=free.shift();
+        const did=String(driver?.driver_id??driver?.id??"");
+        const salary=expectedDriverSalary({...gs,contracts},did);
+        const role=raceContracts.length===0?"Main Driver":"Second Driver";
+        const contract=makeDriverContract({
+          gs:{...gs,contracts},
+          driver,
+          teamId:tid,
+          teamName:team?.team_name||team?.name||tid,
+          offer:{salary,years:1,role},
+          source:"ai_market_fill",
+        });
+        contracts.push(contract);
+        raceContracts.push(contract);
+        activeDriverIds.add(did);
+        aiMessages.push({
+          id:`ai_contract_${Date.now()}_${tid}_${did}`,
+          date:gs?.currentDateISO,
+          unread:true,
+          type:"PR",
+          from:"Paddock Reporter",
+          tag:"Contracts",
+          subject:`${driver?.display_name||driver?.name||did} joins ${team?.team_name||team?.name||tid}`,
+          body:`The team filled a vacant ${role.toLowerCase()} seat for the current season.`,
+        });
+      }
+    }
+    next.contracts=contracts;
+    next._lastAIDriverMarketMonth=currentMonth;
+    if(aiMessages.length) next.inbox=[...aiMessages,...(gs?.inbox||[])];
+  }
 
   // Keep news meaningful instead of flooding the inbox with the same rumour.
   if (Math.random() >= 0.045) return next;
@@ -65,7 +130,7 @@ export function applyMarketTick(gs) {
       unread:true,
       ...pickRandom(templates),
     },
-    ...(gs.inbox || []),
+    ...(next.inbox || gs.inbox || []),
   ];
   return next;
 }

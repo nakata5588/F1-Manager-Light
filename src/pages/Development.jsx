@@ -162,8 +162,9 @@ export default function Development() {
           version:`P${nextParts.filter((x)=>x.slot===p.type).length + 1}`,
           perf:Number(p.perf_delta || 0),
           condition:100,
-          inv:1,
+          inv:0,
           in_manufacturing:0,
+          prototype:true,
           created_from:p.id,
         });
       }

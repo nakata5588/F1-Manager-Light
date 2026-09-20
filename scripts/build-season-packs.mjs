@@ -17,7 +17,7 @@ async function readJson(name,fallback=[]){
 await fs.mkdir(outRoot,{recursive:true});
 
 const [
-  drivers,calendar,teams,driverRatings,driverCareer,staffRatings,staffCore,
+  drivers,calendar,teams,driverRatings,driverCareer,driverHistory,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
@@ -28,6 +28,7 @@ const [
   readJson("teams.json"),
   readJson("driver_ratings.json"),
   readJson("driver_career.json"),
+  readJson("driver_f1_history.json"),
   readJson("staff_ratings.json"),
   readJson("staff_core.json"),
   readJson("team_brands.json"),
@@ -53,7 +54,7 @@ const [
 ]);
 
 const globalData={
-  drivers,calendar,teams,driverRatings,driverCareer,staffRatings,staffCore,
+  drivers,calendar,teams,driverRatings,driverCareer,driverHistory,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
