@@ -7,6 +7,7 @@ import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
+import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -502,6 +503,7 @@ export const useGame = create((set, get) => ({
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
       updated = processScoutingTick(updated);
+      updated = refreshDriverAvailability(updated, updated.currentDateISO);
       const changes = res?.changes || res?.attrChanges || [];
       if (Array.isArray(changes) && changes.length) {
         // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
