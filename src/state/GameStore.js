@@ -6,6 +6,7 @@ import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
+import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -86,7 +87,7 @@ const HEAVY_KEYS = [
 function makeLightSnapshot(gs) {
   const light = { ...gs };
   for (const k of HEAVY_KEYS) delete light[k];
-  return light;
+  return prepareGameStateForSave(light);
 }
 function isQuotaError(e) {
   return e && (e.name === "QuotaExceededError" || e.code === 22 || String(e).includes("exceeded the quota"));
@@ -1077,6 +1078,7 @@ export const useGame = create((set, get) => ({
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
       careerMeta: createCareerMeta(db, y),
+      saveMeta: createNewSaveMeta({ year: y, teamId }),
 
       // 💰 snapshot inicial (sem lançar no ledger)
       financeLog: [],
@@ -1152,6 +1154,7 @@ export const useGame = create((set, get) => ({
           currentRound: 0,
           activeYear: y,
           careerMeta: createCareerMeta(db, y),
+          saveMeta: createNewSaveMeta({ year: y, teamId }),
           team: userTeam,
           selectedDrivers: Array.isArray(drivers) ? drivers : [],
           standings: { drivers: [], teams: [] },
@@ -1198,7 +1201,7 @@ export const useGame = create((set, get) => ({
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
-      const saved = JSON.parse(raw);
+      const saved = extractGameStateFromStoredSave(JSON.parse(raw));
       set(() => ({
         gameState: {
           ...saved,
@@ -1247,14 +1250,16 @@ export const useGame = create((set, get) => ({
 
   loadGame: (gs) => {
     if (!gs || typeof gs !== "object") return;
+    const migrated = extractGameStateFromStoredSave(gs);
     set({
       gameState: {
-        ...gs,
-        inbox: gs.inbox || [],
-        eventsQueue: gs.eventsQueue || [],
-        driverAttrLog: gs.driverAttrLog || {},
-        financeLog: Array.isArray(gs.financeLog) ? gs.financeLog : [],
-        finances: gs.finances || null,
+        ...migrated,
+        settings: { ...defaultSettings, ...(migrated.settings || {}) },
+        inbox: migrated.inbox || [],
+        eventsQueue: migrated.eventsQueue || [],
+        driverAttrLog: migrated.driverAttrLog || {},
+        financeLog: Array.isArray(migrated.financeLog) ? migrated.financeLog : [],
+        finances: migrated.finances || null,
         showSeasonSummary: false,
       },
       currentSaveKey: null
@@ -1271,7 +1276,7 @@ export const useGame = create((set, get) => ({
 
       const nameIn = options?.name;
       const overwriteKeyIn = options?.overwriteKey;
-      const meta = { name: (nameIn || "").trim() || defaultSaveName(gs), version: "0.1.0", savedAt: nowIso() };
+      const meta = { name: (nameIn || "").trim() || defaultSaveName(gs), version: GAME_VERSION, schemaVersion: SAVE_SCHEMA_VERSION, gameVersion: GAME_VERSION, seed: light.saveMeta?.seed ?? null, savedAt: nowIso() };
       const payload = { meta, gameState: light };
 
       const now = Date.now();
@@ -1327,7 +1332,7 @@ export const useGame = create((set, get) => ({
       const raw = localStorage.getItem(key);
       if (!raw) return null;
       const obj = safeJSONParse(raw);
-      const gs = obj?.gameState || obj;
+      const gs = extractGameStateFromStoredSave(obj);
       if (gs && typeof gs === "object") {
         set({
           gameState: {
