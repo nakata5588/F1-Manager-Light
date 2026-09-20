@@ -131,6 +131,15 @@ export function activeReserveContracts(gs,teamId){
   return activeContractsByRole(gs,teamId,isReserveDriverContract);
 }
 
+function temporaryAssignment(gs,gpId,teamId,slot){
+  return (gs?.temporaryDriverAssignments||[]).find((assignment)=>
+    String(assignment?.gp_id||"")===String(gpId) &&
+    String(assignment?.team_id||"")===String(teamId) &&
+    Number(assignment?.car_slot)===Number(slot) &&
+    String(assignment?.status||"active").toLowerCase()==="active"
+  )||null;
+}
+
 function teamIdsForEntries(gs){
   const explicit=(gs?.teams||[]).map(teamIdOf).filter(Boolean);
   if(explicit.length)return [...new Set(explicit)];
@@ -164,7 +173,7 @@ export function buildRaceEntryState(gs,{gp,roundIndex}={}){
       let replacementFor=null;
       let replacementContractId=null;
 
-      if(contractedDriverId&&!availability.available){
+      if(!driverId){
         const reserve=reserveContracts.find((candidate)=>{
           const reserveId=driverIdOf(candidate);
           return reserveId &&
@@ -177,8 +186,20 @@ export function buildRaceEntryState(gs,{gp,roundIndex}={}){
           usedReserveIds.add(reserveId);
           driverId=reserveId;
           entryType="reserve_replacement";
-          replacementFor=String(contractedDriverId);
+          replacementFor=contractedDriverId?String(contractedDriverId):null;
           replacementContractId=String(pick(reserve,["contract_id","id"],""))||null;
+        }
+      }
+
+      let temporaryAssignmentId=null;
+      if(!driverId){
+        const assignment=temporaryAssignment(gs,gpId,teamId,slot);
+        const tempDriverId=String(assignment?.driver_id||"");
+        if(tempDriverId&&driverAvailabilityForRace(gs,tempDriverId,gp).available){
+          driverId=tempDriverId;
+          entryType="emergency_substitute";
+          replacementFor=assignment?.replaces_driver_id||contractedDriverId||null;
+          temporaryAssignmentId=String(assignment?.id||"")||null;
         }
       }
 
@@ -191,6 +212,7 @@ export function buildRaceEntryState(gs,{gp,roundIndex}={}){
         entry_type:entryType,
         replacement_for_driver_id:replacementFor,
         replacement_contract_id:replacementContractId,
+        temporary_assignment_id:temporaryAssignmentId,
         status:confirmed?"confirmed":"vacant",
         availability_status:availability.status,
         availability_reason:availability.reason,

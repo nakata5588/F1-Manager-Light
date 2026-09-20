@@ -77,6 +77,9 @@ jobs:
       - name: Test health severity and fatality model
         run: npm run test:health
 
+      - name: Test reserve and emergency replacement drivers
+        run: npm run test:replacements
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 

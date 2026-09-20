@@ -1,6 +1,6 @@
 import { expectedDriverSalary, makeDriverContract, teamIdOf } from "../domain/driverContracts.js";
 import { rngFor } from "../core/random.js";
-import { isRaceDriverContract } from "../domain/contractRoles.js";
+import { isDriverContract, isRaceDriverContract } from "../domain/contractRoles.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr, rng) {
@@ -27,7 +27,16 @@ export function applyMarketTick(gs) {
     const ratingById=new Map((gs?.driverRatings||[]).map((r)=>[String(r?.driver_id??r?.id??""),r]));
 
     const activeDriverIds=new Set(
-      contracts.map((c)=>String(c?.driver_id??c?.person_id??c?.id??"")).filter(Boolean)
+      contracts
+        .filter((c)=>{
+          if(!isDriverContract(c))return false;
+          const status=String(c?.status||"active").toLowerCase();
+          if(["terminated","expired","released","inactive","void"].includes(status))return false;
+          const cy=Number(c?.year??c?.season_year??gs?.activeYear);
+          return !Number.isFinite(Number(gs?.activeYear))||!Number.isFinite(cy)||cy===Number(gs?.activeYear);
+        })
+        .map((c)=>String(c?.driver_id??c?.person_id??c?.id??""))
+        .filter(Boolean)
     );
     const free=f1EligibleDrivers
       .filter((d)=>!activeDriverIds.has(String(d?.driver_id??d?.id??"")))
