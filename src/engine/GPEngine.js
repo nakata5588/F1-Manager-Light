@@ -1,8 +1,9 @@
 // src/engine/GPEngine.js
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
+import { rngFor } from "../core/random.js";
 
-function rnorm() { return (Math.random() - 0.5) * 0.6; }
+function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
 const unwrap = (value) => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -142,7 +143,7 @@ function teamReliability(gs, driver) {
   return clamp(rel,0.55,0.97);
 }
 
-function applyRetirements(gs, timedRace, ratings, roundIndex) {
+function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
   const model=accidentModelForYear(gs);
   const damageProb=clamp(Number(pick(model,["damage_DNF_prob","damage_dnf_prob"],0.10)),0.04,0.25);
   const finishers=[];
@@ -159,14 +160,14 @@ function applyRetirements(gs, timedRace, ratings, roundIndex) {
     const mechanicalChance=clamp((1-rel)*0.68,0.015,0.28);
     const fatigueRisk=Math.max(0,fatigue-60)*0.0004;
     const accidentChance=clamp(0.012 + crashLik*damageProb*0.32 + fatigueRisk,0.01,0.12);
-    const roll=Math.random();
+    const roll=rng.next();
 
     let reason=null;
     if(roll<mechanicalChance) {
       const mechReasons=["Engine","Gearbox","Transmission","Electrical","Cooling","Fuel system","Suspension"];
       reason=mechReasons[(simpleRaceHash(`${roundIndex}:${driver?.driver_id}:mech`))%mechReasons.length];
     } else if(roll<mechanicalChance+accidentChance) {
-      reason=Math.random()<0.72?"Accident":"Collision";
+      reason=rng.next()<0.72?"Accident":"Collision";
     }
 
     if(!reason){
@@ -174,7 +175,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex) {
       continue;
     }
 
-    const progress=0.12+Math.random()*0.80;
+    const progress=0.12+rng.next()*0.80;
     const lapsCompleted=Math.max(1,Math.floor(60*progress));
     retirees.push({
       ...row,
@@ -198,12 +199,12 @@ function simpleRaceHash(text){
   return Math.abs(h>>>0);
 }
 
-function buildRaceTiming(race, ratings, roundIndex, gs) {
+function buildRaceTiming(race, ratings, roundIndex, gs, rng) {
   if (!race.length) return race;
 
   // Synthetic simulation timing. The engine does not yet simulate individual laps,
   // so keep these values as race-output baselines rather than historical facts.
-  const winnerTimeMs = Math.round((5100 + (roundIndex % 7) * 35 + Math.random() * 420) * 1000);
+  const winnerTimeMs = Math.round((5100 + (roundIndex % 7) * 35 + rng.next() * 420) * 1000);
   let gapToWinnerMs = 0;
   let previousGapToWinnerMs = 0;
 
@@ -216,13 +217,13 @@ function buildRaceTiming(race, ratings, roundIndex, gs) {
       wet:false,
     }));
     if (index > 0) {
-      const stepSeconds = 0.65 + Math.random() * 4.8 + Math.max(0, 90 - pace) * 0.035;
+      const stepSeconds = 0.65 + rng.next() * 4.8 + Math.max(0, 90 - pace) * 0.035;
       gapToWinnerMs += Math.round(stepSeconds * 1000);
     }
     const gapToPreviousMs = index === 0 ? 0 : Math.max(0, gapToWinnerMs - previousGapToWinnerMs);
     previousGapToWinnerMs = gapToWinnerMs;
 
-    const bestLapMs = Math.round((72.5 + Math.max(0, 100 - pace) * 0.13 + Math.random() * 1.8) * 1000);
+    const bestLapMs = Math.round((72.5 + Math.max(0, 100 - pace) * 0.13 + rng.next() * 1.8) * 1000);
     return {
       ...row,
       total_time_ms: winnerTimeMs + gapToWinnerMs,
@@ -542,13 +543,19 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const ratings = gs.driverRatings || [];
   const teamsById = new Map((gs.teams||[]).map(t => [String(t.team_id||t.id||t.name), t]));
   const pointsTable = getActivePointsTable(gs);
+  const gpEntropyId = gp?.gp_id || gp?.id || gp?.track_id || `round_${Number(roundIndex) + 1}`;
+  const entropyBase = `${activeYear || "season"}-${gpEntropyId}`;
+  const qualifyingRng = rngFor(gs, `${entropyBase}-qualifying`);
+  const raceOrderRng = rngFor(gs, `${entropyBase}-race-order`);
+  const timingRng = rngFor(gs, `${entropyBase}-timing`);
+  const incidentRng = rngFor(gs, `${entropyBase}-incidents`);
 
   const wet=isWetGP(gp);
   const qualy = drivers
     .map((d) => {
       const rating=ratingFor(ratings,d);
       const teamId=resolveDriverTeamId(gs,d);
-      const score=combinedQualifyingPerformance({gs,driver:d,rating,teamId,wet}) + rnorm()*4;
+      const score=combinedQualifyingPerformance({gs,driver:d,rating,teamId,wet}) + rnorm(qualifyingRng)*4;
       return {d,score};
     })
     .sort((a,b) => b.score - a.score)
@@ -565,14 +572,14 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       const opsBonus=raceOperationsBonus(gs,q.driver);
       return {
         ...q,
-        raceScore:racePerf+gridBonus+launchBonus+opsBonus+rnorm()*6,
+        raceScore:racePerf+gridBonus+launchBonus+opsBonus+rnorm(raceOrderRng)*6,
       };
     })
     .sort((a,b)=>b.raceScore-a.raceScore)
     .map((x,i)=>({pos:i+1,driver:x.driver,performance:x.raceScore}));
 
-  const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex, gs);
-  const race = applyRetirements(gs, timedRace, ratings, roundIndex);
+  const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex, gs, timingRng);
+  const race = applyRetirements(gs, timedRace, ratings, roundIndex, incidentRng);
 
   const prevDrv = new Map((gs.standings?.drivers||[]).map(x => [String(x.driver_id), Number(x.points||0)]));
   race.forEach((r,i) => {
