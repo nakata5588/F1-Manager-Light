@@ -74,6 +74,7 @@ function niceRole(role) {
   const s = String(unbox(role) || "").toLowerCase();
   if (s.includes("main")) return "Main Driver";
   if (s.includes("second")) return "Second Driver";
+  if (s.includes("reserve") || s.includes("reserva")) return "Reserve Driver";
   if (s.includes("test")) return "Test Driver";
   return unbox(role) || "—";
 }

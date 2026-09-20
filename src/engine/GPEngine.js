@@ -3,6 +3,7 @@ import { defaultDriverCondition, driverCondition } from "../domain/driverRating.
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
 import { rngFor } from "../core/random.js";
 import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
+import { applyRaceInjuries } from "./InjuryEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -677,10 +678,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
 
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
+  const afterInjuries = applyRaceInjuries(afterRelations, { gp, race });
 
   // Race weekends change physical and psychological condition. Conditions are
   // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
-  const conditionDict={...(afterRelations.driverAttributes||{})};
+  const conditionDict={...(afterInjuries.driverAttributes||{})};
   const qualifyingPos=new Map(qualy.map((row)=>[String(row?.driver?.driver_id??""),Number(row.pos)]));
   for(const row of race){
     const did=String(row?.driver?.driver_id??"");
@@ -714,9 +716,10 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       morale:clamp(Number(curr.morale||50)+moraleDelta,0,100),
     };
   }
-  afterRelations.driverAttributes=conditionDict;
+  afterInjuries.driverAttributes=conditionDict;
 
-  afterRelations.inbox = [
+  const replacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="reserve_replacement");
+  afterInjuries.inbox = [
     {
       id: `gp_${Date.now()}`,
       date: gs.currentDateISO,
@@ -724,15 +727,15 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       type: "GP",
       tag: "Race",
       subject: `${gpName} — Race Report`,
-      body: `Winner: ${race.find((r)=>!r.retired)?.driver?.display_name || race.find((r)=>!r.retired)?.driver?.name || "—"}. ${race.filter((r)=>r.retired).length} retirement(s). Championship points updated.`,
+      body: `Winner: ${race.find((r)=>!r.retired)?.driver?.display_name || race.find((r)=>!r.retired)?.driver?.name || "—"}. ${race.filter((r)=>r.retired).length} retirement(s).${replacements.length ? ` ${replacements.length} reserve replacement(s) participated.` : ""} Championship points updated.`,
       unread: true,
       actions: [
         { label: "Ver resultados", route: "/Results" },
         { label: "Ver classificação", route: "/Standings" },
       ],
     },
-    ...(afterRelations.inbox || gs.inbox || []),
+    ...(afterInjuries.inbox || gs.inbox || []),
   ];
 
-  return afterRelations;
+  return afterInjuries;
 }

@@ -7,6 +7,7 @@ import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
+import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -357,6 +358,8 @@ export const useGame = create((set, get) => ({
     driverStats: {},
     driverCareer: {},
     driverAttributes: {},
+    driverAvailability: {},
+    raceEntryState: null,
     dbAchievements: [],
     achievements: [],
     dbDriverCareer: [],
@@ -502,6 +505,7 @@ export const useGame = create((set, get) => ({
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
       updated = processScoutingTick(updated);
+      updated = refreshDriverAvailability(updated, updated.currentDateISO);
       const changes = res?.changes || res?.attrChanges || [];
       if (Array.isArray(changes) && changes.length) {
         // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
@@ -1075,6 +1079,8 @@ export const useGame = create((set, get) => ({
       eventsQueue: [],
       driverAttrLog: {},
       driverAttributes: initialDriverConditions,
+      driverAvailability: {},
+      raceEntryState: null,
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
       careerMeta: createCareerMeta(db, y),
@@ -1162,6 +1168,8 @@ export const useGame = create((set, get) => ({
           eventsQueue: [],
           driverAttrLog: {},
           driverAttributes: initialDriverConditions,
+          driverAvailability: {},
+          raceEntryState: null,
           settings: s.gameState?.settings ?? defaultSettings,
 
           financeLog: [],
@@ -1209,6 +1217,8 @@ export const useGame = create((set, get) => ({
           inbox: saved.inbox || [],
           eventsQueue: saved.eventsQueue || [],
           driverAttrLog: saved.driverAttrLog || {},
+          driverAvailability: saved.driverAvailability || {},
+          raceEntryState: saved.raceEntryState || null,
           financeLog: Array.isArray(saved.financeLog) ? saved.financeLog : [],
           finances: saved.finances || null,
           showSeasonSummary: false,
@@ -1258,6 +1268,8 @@ export const useGame = create((set, get) => ({
         inbox: migrated.inbox || [],
         eventsQueue: migrated.eventsQueue || [],
         driverAttrLog: migrated.driverAttrLog || {},
+        driverAvailability: migrated.driverAvailability || {},
+        raceEntryState: migrated.raceEntryState || null,
         financeLog: Array.isArray(migrated.financeLog) ? migrated.financeLog : [],
         finances: migrated.finances || null,
         showSeasonSummary: false,
@@ -1340,6 +1352,8 @@ export const useGame = create((set, get) => ({
             inbox: gs.inbox || [],
             eventsQueue: gs.eventsQueue || [],
             driverAttrLog: gs.driverAttrLog || {},
+            driverAvailability: gs.driverAvailability || {},
+            raceEntryState: gs.raceEntryState || null,
             financeLog: Array.isArray(gs.financeLog) ? gs.financeLog : [],
             finances: gs.finances || null,
             showSeasonSummary: false,

@@ -1,5 +1,5 @@
 // src/domain/raceEntry.js
-import { isRaceDriverContract, normalizedContractRole } from "./contractRoles.js";
+import { isRaceDriverContract, isReserveDriverContract, normalizedContractRole } from "./contractRoles.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -89,7 +89,7 @@ export function driverAvailabilityForRace(gs,driverId,gp){
 
   if(raceDate){
     if(from&&raceDate<from)return {available:true,status:"available",reason:null};
-    if(to&&raceDate>to)return {available:true,status:"available",reason:null};
+    if(to&&raceDate>=to)return {available:true,status:"available",reason:null};
   }
 
   if(["","available","fit","active","cleared"].includes(status)){
@@ -112,15 +112,23 @@ export function isDriverAvailableForRace(gs,driverId,gp){
   return driverAvailabilityForRace(gs,driverId,gp).available;
 }
 
-export function activeRaceContracts(gs,teamId){
+function activeContractsByRole(gs,teamId,rolePredicate){
   const year=Number(gs?.activeYear);
   return contractsOf(gs)
     .filter((contract)=>teamIdOf(contract)===String(teamId))
-    .filter(isRaceDriverContract)
-    .filter((contract)=>!Number.isFinite(year)||contractActiveForYear(contract,year))
+    .filter(rolePredicate)
+    .filter((contract)=>!Number.isFinite(year)||contractActiveForYear(contract,year));
+}
+
+export function activeRaceContracts(gs,teamId){
+  return activeContractsByRole(gs,teamId,isRaceDriverContract)
     .map((contract,index)=>({contract,index}))
     .sort((a,b)=>seatRank(a.contract,a.index)-seatRank(b.contract,b.index))
     .map(({contract})=>contract);
+}
+
+export function activeReserveContracts(gs,teamId){
+  return activeContractsByRole(gs,teamId,isReserveDriverContract);
 }
 
 function teamIdsForEntries(gs){
@@ -143,17 +151,46 @@ export function buildRaceEntryState(gs,{gp,roundIndex}={}){
 
   for(const teamId of teamIdsForEntries(gs)){
     const contracts=activeRaceContracts(gs,teamId);
+    const reserveContracts=activeReserveContracts(gs,teamId);
+    const usedReserveIds=new Set();
+
     for(let slot=1;slot<=2;slot+=1){
       const contract=contracts[slot-1]||null;
       const contractedDriverId=contract?driverIdOf(contract):null;
       const availability=driverAvailabilityForRace(gs,contractedDriverId,gp);
-      const confirmed=Boolean(contractedDriverId&&availability.available);
+
+      let driverId=contractedDriverId&&availability.available?String(contractedDriverId):null;
+      let entryType=driverId?"contracted":null;
+      let replacementFor=null;
+      let replacementContractId=null;
+
+      if(contractedDriverId&&!availability.available){
+        const reserve=reserveContracts.find((candidate)=>{
+          const reserveId=driverIdOf(candidate);
+          return reserveId &&
+            !usedReserveIds.has(reserveId) &&
+            driverAvailabilityForRace(gs,reserveId,gp).available;
+        })||null;
+
+        if(reserve){
+          const reserveId=driverIdOf(reserve);
+          usedReserveIds.add(reserveId);
+          driverId=reserveId;
+          entryType="reserve_replacement";
+          replacementFor=String(contractedDriverId);
+          replacementContractId=String(pick(reserve,["contract_id","id"],""))||null;
+        }
+      }
+
+      const confirmed=Boolean(driverId);
       entries.push({
         team_id:String(teamId),
         car_slot:slot,
-        driver_id:confirmed?String(contractedDriverId):null,
+        driver_id:confirmed?String(driverId):null,
         contracted_driver_id:contractedDriverId?String(contractedDriverId):null,
-        entry_type:contractedDriverId?"contracted":null,
+        entry_type:entryType,
+        replacement_for_driver_id:replacementFor,
+        replacement_contract_id:replacementContractId,
         status:confirmed?"confirmed":"vacant",
         availability_status:availability.status,
         availability_reason:availability.reason,
