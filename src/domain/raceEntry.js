@@ -43,7 +43,7 @@ function gpDateISO(gp){
 
 function contractActiveForYear(contract,year){
   const status=String(pick(contract,["status"],"active")).toLowerCase();
-  if(["terminated","expired","released","inactive"].includes(status))return false;
+  if(["terminated","expired","released","inactive","void"].includes(status))return false;
 
   const direct=Number(pick(contract,["year","season_year"],NaN));
   const start=Number(pick(contract,["contract_start_year","start_year","contract_start"],NaN));
@@ -96,7 +96,7 @@ export function driverAvailabilityForRace(gs,driverId,gp){
     return {available:true,status:status||"available",reason:null};
   }
 
-  const unavailable=["injured","injury","suspended","unavailable","medical","retired","withdrawn"];
+  const unavailable=["injured","injury","suspended","unavailable","medical","retired","withdrawn","deceased"];
   if(unavailable.includes(status)){
     return {
       available:false,
