@@ -26,9 +26,18 @@ export function normalizedContractRole(contract){
     .replace(/[\s-]+/g,"_");
 }
 
+export function isTestDriverContract(contract){
+  const role=normalizedContractRole(contract);
+  return /(^|_)(test|tester)(_|$)/.test(role);
+}
+
 export function isReserveDriverContract(contract){
   const role=normalizedContractRole(contract);
-  return /(^|_)(test|tester|reserve|reserva)(_|$)/.test(role);
+  return /(^|_)(reserve|reserva)(_|$)/.test(role);
+}
+
+export function isNonRaceDriverContract(contract){
+  return isReserveDriverContract(contract)||isTestDriverContract(contract);
 }
 
 export function isDriverContract(contract){
@@ -37,7 +46,7 @@ export function isDriverContract(contract){
 }
 
 export function isRaceDriverContract(contract){
-  if(!isDriverContract(contract)||isReserveDriverContract(contract))return false;
+  if(!isDriverContract(contract)||isNonRaceDriverContract(contract))return false;
   const role=normalizedContractRole(contract);
   return /driver|main|second|race|lead|first/.test(role);
 }
