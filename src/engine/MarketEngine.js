@@ -1,8 +1,9 @@
 import { expectedDriverSalary, makeDriverContract, teamIdOf } from "../domain/driverContracts.js";
+import { rngFor } from "../core/random.js";
 
 // src/engine/MarketEngine.js
-function pickRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+function pickRandom(arr, rng) {
+  return rng.pick(arr);
 }
 
 export function applyMarketTick(gs) {
@@ -18,6 +19,7 @@ export function applyMarketTick(gs) {
   if (!drivers.length || !teams.length) return next;
 
   const currentMonth=String(gs?.currentDateISO||"").slice(0,7);
+  const marketRng=rngFor(gs, `market:${String(gs?.currentDateISO||currentMonth||"date")}`);
   if(currentMonth && gs?._lastAIDriverMarketMonth!==currentMonth){
     const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
     const contracts=[...(gs?.contracts||[])];
@@ -77,10 +79,10 @@ export function applyMarketTick(gs) {
   }
 
   // Keep news meaningful instead of flooding the inbox with the same rumour.
-  if (Math.random() >= 0.045) return next;
+  if (marketRng.next() >= 0.045) return next;
 
-  const driver = pickRandom(drivers);
-  const team = pickRandom(teams);
+  const driver = pickRandom(drivers, marketRng);
+  const team = pickRandom(teams, marketRng);
   const driverName = driver?.display_name || driver?.name || "A driver";
   const teamName = team?.short_name || team?.team_name || team?.name || "an F1 team";
   const currentTeam = gs?.team?.short_name || gs?.team?.team_name || gs?.team?.name || "the team";
@@ -125,10 +127,10 @@ export function applyMarketTick(gs) {
 
   next.inbox = [
     {
-      id:`news_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      id:`news_${String(gs.currentDateISO||"date")}_${marketRng.int(0, 0xffffff).toString(36)}`,
       date:gs.currentDateISO,
       unread:true,
-      ...pickRandom(templates),
+      ...pickRandom(templates, marketRng),
     },
     ...(next.inbox || gs.inbox || []),
   ];
