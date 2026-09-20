@@ -570,18 +570,29 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex, gs, timingRng);
   const race = applyRetirements(gs, timedRace, ratings, roundIndex, incidentRng);
 
-  const prevDrv = new Map((gs.standings?.drivers||[]).map(x => [String(x.driver_id), Number(x.points||0)]));
+  const previousDriverStandings=gs.standings?.drivers||[];
+  const prevDrv = new Map(previousDriverStandings.map(x => [String(x.driver_id), Number(x.points||0)]));
   race.forEach((r,i) => {
     const pts = r?.retired ? 0 : Number(pointsTable[i] || 0);
     const id = String(r.driver.driver_id);
     prevDrv.set(id, (prevDrv.get(id)||0) + pts);
   });
-  const driverStandings = drivers.map(d => ({
-    driver_id: d.driver_id,
-    name: d.display_name || d.name || `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim(),
-    team_id: resolveDriverTeamId(gs, d),
-    points: prevDrv.get(String(d.driver_id)) || 0
-  }))
+  const driverById=new Map(allDrivers.map((d)=>[String(d?.driver_id??d?.id??""),d]));
+  const previousStandingById=new Map(previousDriverStandings.map((row)=>[String(row?.driver_id??""),row]));
+  const championshipDriverIds=new Set([
+    ...prevDrv.keys(),
+    ...drivers.map((d)=>String(d?.driver_id??d?.id??"")).filter(Boolean),
+  ]);
+  const driverStandings = [...championshipDriverIds].map((id) => {
+    const d=driverById.get(String(id))||{};
+    const previous=previousStandingById.get(String(id))||{};
+    return {
+      driver_id:id,
+      name:d.display_name || d.name || `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim() || previous.name || id,
+      team_id:resolveDriverTeamId(gs,d)||previous.team_id||null,
+      points:prevDrv.get(String(id))||0,
+    };
+  })
     .sort((a,b) => b.points - a.points || String(a.name || "").localeCompare(String(b.name || "")))
     .map((row, index) => ({ ...row, position: index + 1 }));
 
