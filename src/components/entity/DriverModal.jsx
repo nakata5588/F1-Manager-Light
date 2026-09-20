@@ -675,6 +675,8 @@ function DriverContractActions({ driver, contract, isOwnDriver }) {
   const current = activeDriverContract(gs, driverId) || contract || null;
   const otherTeamId = current ? teamIdOf(current) : "";
   const underOtherContract = !!current && otherTeamId && otherTeamId !== myTeamId;
+  const status = String(driver?.status || "").toLowerCase();
+  const eligibleToSign = driver?.canHireF1 !== false && !["junior_only","lower_series","hidden","deceased","retired"].includes(status);
   const expected = expectedDriverSalary(gs, driverId);
   const defaultRole = raceSeatCount(gs,myTeamId) < 2 ? "Second Driver" : "Reserve Driver";
   const [salaryOffer, setSalaryOffer] = useState(expected);
@@ -704,7 +706,12 @@ function DriverContractActions({ driver, contract, isOwnDriver }) {
   });
 
   const submitOffer=()=>{
-    if(!myTeamId || underOtherContract)return;
+    if(!myTeamId || underOtherContract || (!isOwnDriver && !eligibleToSign))return;
+    const isRaceRole=/main|second|race/i.test(roleOffer);
+    if(!isOwnDriver && isRaceRole && raceSeatCount(gs,myTeamId)>=2){
+      pushToast?.({title:"No race seat available",description:"Terminate or move an existing race driver before offering another race seat.",type:"info"});
+      return;
+    }
     const accepted=Math.random()<chance;
     const name=driver?.display_name||driver?.name||driverId;
     if(!accepted){
@@ -762,6 +769,13 @@ function DriverContractActions({ driver, contract, isOwnDriver }) {
     return <div className="border rounded-lg p-3 text-sm">
       <div className="font-semibold">Contract actions</div>
       <p className="mt-1 text-gray-500">This driver is contracted to another team. Future transfers and buyouts are not active yet, so an instant signing is blocked rather than faked.</p>
+    </div>;
+  }
+
+  if(!isOwnDriver && !eligibleToSign){
+    return <div className="border rounded-lg p-3 text-sm">
+      <div className="font-semibold">Contract actions</div>
+      <p className="mt-1 text-gray-500">This driver is not currently eligible for a direct F1 race contract. Use Academy/Scouting until the driver becomes F1-eligible.</p>
     </div>;
   }
 
