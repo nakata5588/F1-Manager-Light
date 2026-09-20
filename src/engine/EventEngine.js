@@ -180,6 +180,44 @@ function applyEffects(gs, ev, ctx) {
         break;
       }
 
+      case "driver_condition": {
+        const driverIdRaw = fx.driverId ?? ev.meta?.driverId ?? ev.participants?.[0];
+        const idn = normDriverId(driverIdRaw);
+        const drv = findDriver(drivers, driverIdRaw);
+        const driverKey = String(drv?.driver_id ?? driverIdRaw ?? idn ?? "");
+        const compat = idn ? driverAttributes[idn] : null;
+        const curr = {
+          ...defaultDriverCondition(),
+          ...(compat || {}),
+          ...(driverAttributes[driverKey] || {}),
+        };
+        const attr = String(fx.attr || "");
+        if (!["confidence","morale","preparation"].includes(attr)) break;
+        const before = Number(curr[attr] ?? 50);
+        const after = Math.max(0, Math.min(100, before + Number(fx.delta || 0)));
+        driverAttributes[driverKey] = { ...curr, [attr]: after };
+        if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];
+
+        const entry = {
+          dateISO: ctx.today,
+          driverId: idn,
+          attr,
+          before,
+          after,
+          delta: after-before,
+          source: ev.title || ev.type || "event",
+          eventId: ev.id || null,
+          note: ev.meta?.note ?? null,
+        };
+        changes.push(entry);
+        if (!driverAttrLog[idn]) driverAttrLog[idn] = [];
+        driverAttrLog[idn] = driverAttrLog[idn].concat(entry).slice(-200);
+
+        const who = drv?.display_name || drv?.name || driverKey;
+        logLines.push(`• ${who}: ${attr} ${before.toFixed(0)} → ${after.toFixed(0)} (${after-before>0?"+":""}${(after-before).toFixed(0)})`);
+        break;
+      }
+
       case "fatigue": {
         const driverIdRaw = fx.driverId ?? ev.meta?.driverId ?? ev.participants?.[0];
         const idn = normDriverId(driverIdRaw);

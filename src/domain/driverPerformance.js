@@ -55,17 +55,25 @@ export function wetDriverModifier(rating){
   return ((wet-50)*0.10)+((adapt-50)*0.04);
 }
 
+function teamSynergyModifier(gs){
+  const value=Number(gs?.meta?.team?.synergy ?? 0);
+  if(!Number.isFinite(value))return 0;
+  return Math.max(-1.5,Math.min(1.5,value*0.03));
+}
+
 export function combinedQualifyingPerformance({gs,driver,rating,teamId,wet=false}){
   const driverScore=qualifyingDriverScore(rating,gs,driver?.driver_id);
   const car=teamCarPerformance(gs,teamId,driver?.driver_id);
   const wetMod=wet?wetDriverModifier(rating):0;
+  const synergy=teamSynergyModifier(gs);
   // Car matters slightly more than driver over a single lap.
-  return driverScore*0.47+car.qualifying*0.53+wetMod;
+  return driverScore*0.47+car.qualifying*0.53+wetMod+synergy;
 }
 
 export function combinedRacePerformance({gs,driver,rating,teamId,wet=false}){
   const driverScore=raceDriverScore(rating,gs,driver?.driver_id);
   const car=teamCarPerformance(gs,teamId,driver?.driver_id);
   const wetMod=wet?wetDriverModifier(rating):0;
-  return driverScore*0.52+car.race*0.48+wetMod;
+  const synergy=teamSynergyModifier(gs);
+  return driverScore*0.52+car.race*0.48+wetMod+synergy;
 }
