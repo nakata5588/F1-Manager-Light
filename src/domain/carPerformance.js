@@ -1,8 +1,8 @@
 // src/domain/carPerformance.js
 //
 // Shared car-performance model. This is intentionally independent from the UI
-// so race simulation, comparisons and the future Garage/Car page use the same
-// numbers.
+// so race simulation, comparisons and the Garage/Car page use the same numbers.
+import { garageCarForDriver, installedAdjustmentForCar } from "./garage.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v))return v.result ?? v.value ?? null;
@@ -53,7 +53,7 @@ function rowForTeam(rows,teamId,year){
   return list.find((r)=>String(pick(r,["team_id","team","constructor_id","constructor"],""))===String(teamId))||null;
 }
 
-export function teamCarPerformance(gs,teamId){
+export function teamCarPerformance(gs,teamId,driverId=null){
   const year=Number(gs?.activeYear);
   const car=rowForTeam(gs?.carStats||gs?.dbCarStats||[],teamId,year)||{};
   const engine=rowForTeam(gs?.teamEngines||gs?.dbTeamEngines||[],teamId,year)||{};
@@ -89,16 +89,42 @@ export function teamCarPerformance(gs,teamId){
   const race=clamp(
     (chassis??70)*0.52+power*0.28+reliability*0.08+brakes*0.06+suspension*0.06
   );
-  const overall=clamp(qualifying*0.42+race*0.48+reliability*0.10);
+  let installed={qualifying:0,race:0,reliability:0};
+  if(String(teamId??"")===String(gs?.team?.team_id??gs?.team?.id??"")){
+    if(driverId){
+      const garageCar=garageCarForDriver(gs,driverId);
+      if(garageCar)installed=installedAdjustmentForCar(gs,garageCar);
+    }else{
+      const raceCars=(gs?.garage?.cars||[]).filter((x)=>x?.kind==="race");
+      if(raceCars.length){
+        const rows=raceCars.map((x)=>installedAdjustmentForCar(gs,x));
+        installed={
+          qualifying:rows.reduce((a,b)=>a+b.qualifying,0)/rows.length,
+          race:rows.reduce((a,b)=>a+b.race,0)/rows.length,
+          reliability:rows.reduce((a,b)=>a+b.reliability,0)/rows.length,
+        };
+      }
+    }
+  }
+
+  const finalQualifying=clamp(qualifying+installed.qualifying);
+  const finalRace=clamp(race+installed.race);
+  const finalReliability=clamp(reliability+installed.reliability);
+  const overall=clamp(finalQualifying*0.42+finalRace*0.48+finalReliability*0.10);
 
   return {
     team_id:String(teamId??""),
     overall:round1(overall),
-    qualifying:round1(qualifying),
-    race:round1(race),
-    reliability:round1(reliability),
+    qualifying:round1(finalQualifying),
+    race:round1(finalRace),
+    reliability:round1(finalReliability),
     chassis:round1(chassis??70),
     power:round1(power),
+    development_bonus:{
+      qualifying:round1(installed.qualifying),
+      race:round1(installed.race),
+      reliability:round1(installed.reliability),
+    },
     source:{car,engine},
   };
 }
