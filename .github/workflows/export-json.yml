@@ -63,6 +63,9 @@ jobs:
       - name: Test management systems
         run: npm run test:management
 
+      - name: Test save safety and deterministic RNG
+        run: npm run test:save-safety
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
