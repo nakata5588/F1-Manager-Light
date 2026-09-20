@@ -7,7 +7,7 @@ import React from "react";
 export default class EntityErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, componentStack: "" };
   }
 
   static getDerivedStateFromError(error) {
@@ -16,13 +16,14 @@ export default class EntityErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     console.error("[EntityModal] render failed", error, info);
+    this.setState({ componentStack: info?.componentStack || "" });
   }
 
   componentDidUpdate(prevProps) {
     const prevKey = `${prevProps.entity?.type || ""}:${prevProps.entity?.id || ""}:${prevProps.entity?.tab || ""}`;
     const nextKey = `${this.props.entity?.type || ""}:${this.props.entity?.id || ""}:${this.props.entity?.tab || ""}`;
     if (this.state.error && prevKey !== nextKey) {
-      this.setState({ error: null });
+      this.setState({ error: null, componentStack: "" });
     }
   }
 
@@ -40,6 +41,18 @@ export default class EntityErrorBoundary extends React.Component {
             <p className="mt-2 text-xs text-slate-400">
               {this.props.entity?.type || "entity"}: {String(this.props.entity?.id ?? "unknown")}
             </p>
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-900">
+              <div className="font-semibold">Technical detail</div>
+              <div className="mt-1 break-words font-mono">
+                {String(this.state.error?.message || this.state.error || "Unknown profile render error")}
+              </div>
+              {this.state.componentStack ? (
+                <details className="mt-2">
+                  <summary className="cursor-pointer">Component stack</summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap">{this.state.componentStack}</pre>
+                </details>
+              ) : null}
+            </div>
           </div>
           <button
             type="button"
