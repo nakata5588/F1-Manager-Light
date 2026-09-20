@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const root=process.cwd();
-const targetYears=[1975,1980,1989,1999,2014,2020];
+const targetYears=[1975,1980,1987,1989,1999,2014,2020];
 const expectedTeamCounts={
   1975:19,
   1980:15,
@@ -28,12 +28,21 @@ for(const year of targetYears){
 
     const state=pack.state||{};
     assert.ok(state.calendar.length>0,`${year} must have a calendar`);
-    assert.equal(
-      state.teams.length,
-      expectedTeamCounts[year],
-      `${year} managerial team identity count changed unexpectedly`
-    );
+    if(expectedTeamCounts[year]!=null){
+      assert.equal(
+        state.teams.length,
+        expectedTeamCounts[year],
+        `${year} managerial team identity count changed unexpectedly`
+      );
+    }else{
+      assert.ok(state.teams.length>=2,`${year} must have at least two teams`);
+    }
     assert.ok(state.drivers.length>=4,`${year} must have at least 4 visible drivers`);
+    assert.ok(Array.isArray(state.driverHistory),`${year} must carry driver history in the Season Pack`);
+    if(year===1987){
+      const priorIds=new Set(state.driverHistory.filter((r)=>Number(r.year)<1987).map((r)=>String(r.driver_id)));
+      assert.ok(priorIds.size>=10,`1987 pack must include veteran pre-1987 history; found ${priorIds.size} drivers`);
+    }
 
     const teamIds=new Set(state.teams.map((t)=>String(t.team_id)));
     const driverIds=new Set(state.drivers.map((d)=>String(d.driver_id)));
