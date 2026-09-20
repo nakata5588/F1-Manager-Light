@@ -1,6 +1,5 @@
 // src/components/entity/DriverModal.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useShallow } from "zustand/react/shallow";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone, Wrench,
   Handshake, Search, FileText, Coffee, MessageSquare
@@ -20,12 +19,22 @@ const TABS = [
 
 // --- unwrap Excel-like cells or Rich values { formula, result } / { value } / { text }
 function unbox(v) {
-  if (v && typeof v === "object") {
-    if ("result" in v) return v.result;
-    if ("value" in v) return v.value;
-    if ("text" in v) return v.text;
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    if ("error" in v && !("result" in v) && !("value" in v) && !("text" in v)) return null;
+    if ("result" in v) return unbox(v.result);
+    if ("value" in v) return unbox(v.value);
+    if ("text" in v) return unbox(v.text);
   }
   return v;
+}
+function isRecord(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+function displayValue(v, fallback = "—") {
+  const x = unbox(v);
+  if (x === null || x === undefined || x === "") return fallback;
+  if (typeof x === "string" || typeof x === "number" || typeof x === "boolean") return x;
+  return String(x);
 }
 
 function yearFrom(any) {
@@ -102,21 +111,17 @@ function sameDriver(a, b) {
 
 // Try to extract a driver id from a generic record (for achievements etc.)
 function extractDriverId(obj) {
+  if (!isRecord(obj)) return null;
   const keys = [
     "driver_id", "driverId", "id", "person_id", "personId", "driver", "driver_code"
   ];
   for (const k of keys) {
-    if (k in (obj || {})) {
-      const v = obj[k];
-      const n = normDriverId(v);
+    if (Object.prototype.hasOwnProperty.call(obj, k)) {
+      const n = normDriverId(obj[k]);
       if (n) return n;
     }
   }
-  // sometimes nested
-  if (obj?.driver && typeof obj.driver === "object") {
-    const n = extractDriverId(obj.driver);
-    if (n) return n;
-  }
+  if (isRecord(obj.driver)) return extractDriverId(obj.driver);
   return null;
 }
 
@@ -128,44 +133,46 @@ export default function DriverModal({ entity, onClose }) {
   const activeTab = rawTab === "overview" ? "contract" : rawTab; // compat
   const idNorm = useMemo(() => normDriverId(entity.id), [entity.id]);
 
-  // ✅ Seleção MEMOIZADA com useShallow para evitar “getSnapshot” novo a cada render
-  const selector = useShallow((s) => {
-    const gs = s.gameState;
-    return {
-      driversList:   gs.drivers?.length ? gs.drivers : (gs.dbDrivers || []),
-      ratingsList:   gs.driverRatings?.length ? gs.driverRatings : (gs.dbDriverRatings || []),
-      contractsList: gs.contracts?.length ? gs.contracts : (gs.dbContracts || []),
-      careerRaw:     Array.isArray(gs.dbDriverCareer)
-        ? gs.dbDriverCareer
-        : (Array.isArray(gs.driverCareer) ? gs.driverCareer : []),
-      driverHistoryRaw: Array.isArray(gs.driverHistory) ? gs.driverHistory : [],
-      dbDriverHistoryRaw: Array.isArray(gs.dbDriverHistory) ? gs.dbDriverHistory : [],
-      achievementsRaw: gs.dbAchievements ?? gs.achievements ?? null,
-      results: Array.isArray(gs.results) ? gs.results : [],
-      standings: gs.standings || { drivers: [], teams: [] },
-      historySeasons: Array.isArray(gs.historySeasons) ? gs.historySeasons : [],
-      teamsList: Array.isArray(gs.teams) ? gs.teams : [],
-      driverAttributesDict: gs.driverAttributes || {},
-      gameYear: Number(gs.activeYear ?? (gs.currentDateISO ? gs.currentDateISO.slice(0,4) : NaN)),
-      careerStartYear: Number(gs.careerMeta?.sourceSeason ?? gs.activeYear ?? (gs.currentDateISO ? gs.currentDateISO.slice(0,4) : NaN)),
-      gameDateISO: gs.currentDateISO ?? null,
-      myTeamId:   gs.team?.team_id ?? gs.team?.id ?? null,
-      myTeamName: gs.team?.team_name ?? gs.team?.name ?? null,
-      queueEvent: s.queueEvent, // método é estável no store
-    };
-  });
+  // Read the store through stable primitive/reference selectors. All collections
+  // are normalized locally before profile logic uses find/filter/map.
+  const gs = useGame((s) => s.gameState);
+  const queueEvent = useGame((s) => s.queueEvent);
 
-  const {
-    driversList, ratingsList, contractsList, careerRaw, driverHistoryRaw, dbDriverHistoryRaw,
-    achievementsRaw, results, standings, historySeasons, teamsList, driverAttributesDict, gameYear, careerStartYear, gameDateISO,
-    myTeamId, myTeamName, queueEvent
-  } = useGame(selector);
-
+  const driversList = useMemo(() => {
+    const live = toArraySafe(gs?.drivers);
+    return live.length ? live : toArraySafe(gs?.dbDrivers);
+  }, [gs?.drivers, gs?.dbDrivers]);
+  const ratingsList = useMemo(() => {
+    const live = toArraySafe(gs?.driverRatings);
+    return live.length ? live : toArraySafe(gs?.dbDriverRatings);
+  }, [gs?.driverRatings, gs?.dbDriverRatings]);
+  const contractsList = useMemo(() => {
+    const live = toArraySafe(gs?.contracts);
+    return live.length ? live : toArraySafe(gs?.dbContracts);
+  }, [gs?.contracts, gs?.dbContracts]);
+  const careerRaw = useMemo(() => {
+    const live = toArraySafe(gs?.driverCareer);
+    return live.length ? live : toArraySafe(gs?.dbDriverCareer);
+  }, [gs?.driverCareer, gs?.dbDriverCareer]);
   const generatedHistoryRaw = useMemo(
-    () => [...driverHistoryRaw, ...dbDriverHistoryRaw],
-    [driverHistoryRaw, dbDriverHistoryRaw]
+    () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
+    [gs?.driverHistory, gs?.dbDriverHistory]
   );
-  const achievementsArr = useMemo(() => toArraySafe(achievementsRaw), [achievementsRaw]);
+  const achievementsArr = useMemo(
+    () => toArraySafe(gs?.achievements).length ? toArraySafe(gs?.achievements) : toArraySafe(gs?.dbAchievements),
+    [gs?.achievements, gs?.dbAchievements]
+  );
+  const results = useMemo(() => toArraySafe(gs?.results), [gs?.results]);
+  const historySeasons = useMemo(() => toArraySafe(gs?.historySeasons), [gs?.historySeasons]);
+  const teamsList = useMemo(() => toArraySafe(gs?.teams), [gs?.teams]);
+  const standings = isRecord(gs?.standings) ? gs.standings : { drivers: [], teams: [] };
+  const driverAttributesDict = isRecord(gs?.driverAttributes) ? gs.driverAttributes : {};
+  const gameYear = Number(gs?.activeYear ?? (gs?.currentDateISO ? String(gs.currentDateISO).slice(0,4) : NaN));
+  const careerStartYear = Number(gs?.careerMeta?.sourceSeason ?? gs?.activeYear ?? (gs?.currentDateISO ? String(gs.currentDateISO).slice(0,4) : NaN));
+  const gameDateISO = gs?.currentDateISO ?? null;
+  const myTeamId = gs?.team?.team_id ?? gs?.team?.id ?? null;
+  const myTeamName = displayValue(gs?.team?.team_name ?? gs?.team?.name, null);
+
 
   const driver = useMemo(
     () => (driversList || []).find((d) =>
@@ -190,8 +197,8 @@ export default function DriverModal({ entity, onClose }) {
       fatigue: 0,
       morale: 50,
       preparation: 50,
-      ...(compat || {}),
-      ...(direct || {}),
+      ...(isRecord(compat) ? compat : {}),
+      ...(isRecord(direct) ? direct : {}),
     };
   }, [driverAttributesDict, driver?.driver_id, entity.id, idNorm]);
 
@@ -206,7 +213,7 @@ export default function DriverModal({ entity, onClose }) {
   // declarations before any memo that references them to avoid TDZ crashes.
   const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
   const contractEnd = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
-  const contractTeam = unbox(contract?.team_name) ?? null;
+  const contractTeam = displayValue(contract?.team_name ?? contract?.team, null);
   const contractRole = niceRole(contract?.role);
   const contractSalary = unbox(contract?.salary);
 
@@ -229,7 +236,7 @@ export default function DriverModal({ entity, onClose }) {
     const next = candidates[0];
     const whenISO = isoFromAny(next.start_date) || (Number.isFinite(unbox(next.start_year)) ? `${unbox(next.start_year)}-01-01` : null);
     return {
-      team_name: unbox(next.team_name) || unbox(next.team) || "Unknown Team",
+      team_name: displayValue(next.team_name ?? next.team, "Unknown Team"),
       when: whenISO,
       whenLabel: whenISO ? (whenISO.length === 10 ? whenISO : String(unbox(next.start_year))) : (unbox(next.start_year) ?? "future"),
     };
@@ -288,8 +295,8 @@ export default function DriverModal({ entity, onClose }) {
     for (const event of results || []) {
       const y = Number(event?.year);
       if (!Number.isFinite(y) || y < careerStartYear || y > gameYear) continue;
-      const raceRow = (event?.classification || []).find((r) => sameDriver(r?.driver_id, idNorm));
-      const qRow = (event?.qualifying || []).find((r) => sameDriver(r?.driver_id, idNorm));
+      const raceRow = toArraySafe(event?.classification).find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
+      const qRow = toArraySafe(event?.qualifying).find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
       if (!raceRow && !qRow) continue;
 
       const team_id = unbox(raceRow?.team_id ?? qRow?.team_id) ?? null;
@@ -471,13 +478,13 @@ export default function DriverModal({ entity, onClose }) {
   const overall       = attrs?.current_ability != null ? Number(unbox(attrs.current_ability)) : null;
   const overallLabel  = Number.isFinite(overall) ? overall.toFixed(1) : "—";
   const marketValue   = unbox(attrs?.market_value);
-  const driverName    = unbox(driver?.display_name) || unbox(driver?.name);
-  const driverNumber  = unbox(driver?.prefered_number);
-  const driverCountry = unbox(driver?.country_name);
+  const driverName    = displayValue(driver?.display_name ?? driver?.name, "Unknown Driver");
+  const driverNumber  = displayValue(driver?.prefered_number, null);
+  const driverCountry = displayValue(driver?.country_name ?? driver?.nationality ?? driver?.country, "—");
 
   const isOwnDriver =
     (unbox(driver?.team_id) && myTeamId && String(unbox(driver.team_id)) === String(myTeamId)) ||
-    (contractTeam && myTeamName && String(contractTeam) === String(myTeamName));
+    (contractTeam && myTeamName && String(displayValue(contractTeam, "")) === String(myTeamName));
 
   if (!driver) {
     return (
@@ -611,20 +618,20 @@ export default function DriverModal({ entity, onClose }) {
 /* ======================== Small UI ======================== */
 
 function Row({ label, value }) {
-  const v = unbox(value);
+  const v = displayValue(value);
   return (
     <div className="flex justify-between gap-3">
       <span className="text-gray-500">{label}</span>
-      <span className="font-medium">{v ?? "—"}</span>
+      <span className="font-medium">{v}</span>
     </div>
   );
 }
 function KV({ label, value, className = "" }) {
-  const v = unbox(value);
+  const v = displayValue(value);
   return (
     <div className={`flex justify-between gap-3 text-sm ${className}`}>
       <span className="text-gray-500">{label}</span>
-      <span className="font-medium">{v ?? "—"}</span>
+      <span className="font-medium">{v}</span>
     </div>
   );
 }
@@ -790,27 +797,27 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
               const isChampion = isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
               return (
                 <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-100/70" : ""}>
-                  <td className="pr-3 py-1">{unbox(r.year) ?? "—"}</td>
+                  <td className="pr-3 py-1">{displayValue(r.year)}</td>
                   <td className="pr-3 py-1">{series}</td>
                   <td className="pr-3 py-1">
                     {r.team_id ? (
                       <span data-entity="team" data-id={unbox(r.team_id)} className="entity-link-team">
-                        {unbox(r.team_name) || unbox(r.team_id)}
+                        {displayValue(r.team_name ?? r.team_id)}
                       </span>
                     ) : (
-                      unbox(r.team_name) || "—"
+                      displayValue(r.team_name)
                     )}
                   </td>
-                  <td className="text-right pr-3 py-1">{unbox(r.starts) ?? unbox(r.races) ?? 0}</td>
-                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-red-600 font-semibold" : ""}`}>{unbox(r.wins) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.podiums) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.poles) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.fastest_laps) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.points) ?? 0}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
+                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-red-600 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.podiums, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.poles, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.fastest_laps, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.points, 0)}</td>
                   <td className="text-right pr-0 py-1">
                     {isNumeric(r.champ_pos)
                       ? `P${unbox(r.champ_pos)}`
-                      : (isTransfer ? <span className="italic text-purple-700">Transfer</span> : (unbox(r.champ_pos) ?? "—"))}
+                      : (isTransfer ? <span className="italic text-purple-700">Transfer</span> : displayValue(r.champ_pos))}
                   </td>
                 </tr>
               );
@@ -884,7 +891,7 @@ function AttributesTab({ attrs, condition }) {
           {rows.map(([label, value, inverse]) => (
             <div key={label} className="flex justify-between gap-3 text-sm">
               <span className="text-gray-500">{label}</span>
-              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{unbox(value) ?? "—"}</span>
+              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{displayValue(value)}</span>
             </div>
           ))}
         </div>
@@ -912,20 +919,20 @@ function AchievementsTab({ items }) {
           <tbody className="divide-y">
             {items.map((a, i) => (
               <tr key={i}>
-                <td className="pr-3 py-1">{unbox(a.year) ?? "—"}{a.__live ? " (current)" : ""}</td>
+                <td className="pr-3 py-1">{displayValue(a.year)}{a.__live ? " (current)" : ""}</td>
                 <td className="pr-3 py-1">
                   {a.team_id ? (
                     <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
-                      {unbox(a.team_name) || unbox(a.team_id) || "—"}
+                      {displayValue(a.team_name ?? a.team_id)}
                     </span>
                   ) : (
-                    unbox(a.team_name) || "—"
+                    displayValue(a.team_name)
                   )}
                 </td>
-                <td className="pr-3 py-1">{unbox(a.driver_championship) ?? "—"}</td>
-                <td className="pr-3 py-1">{unbox(a.team_championship) ?? "—"}</td>
-                <td className="text-right pr-3 py-1">{unbox(a.wins) ?? 0}</td>
-                <td className="text-right pr-0 py-1">{unbox(a.podiums) ?? 0}</td>
+                <td className="pr-3 py-1">{displayValue(a.driver_championship)}</td>
+                <td className="pr-3 py-1">{displayValue(a.team_championship)}</td>
+                <td className="text-right pr-3 py-1">{displayValue(a.wins, 0)}</td>
+                <td className="text-right pr-0 py-1">{displayValue(a.podiums, 0)}</td>
               </tr>
             ))}
           </tbody>
@@ -1067,6 +1074,7 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
   const groups = isOwnDriver ? ownGroups : otherGroups;
 
   function onPick(it) {
+    if (typeof queueEvent !== "function") return;
     queueEvent({
       type: isOwnDriver ? "driver_action" : "market_action",
       title: it.label,
