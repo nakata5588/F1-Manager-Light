@@ -2,6 +2,7 @@
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
 import { rngFor } from "../core/random.js";
+import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -59,11 +60,14 @@ function rPos(row) {
 }
 
 function resolveDriverTeamId(gs, driver) {
-  const explicit = pick(driver || {}, ["team_id", "constructor_id", "team"], null);
-  if (explicit != null && explicit !== "") return String(explicit);
-
   const driverId = pick(driver || {}, ["driver_id", "id"], null);
   if (driverId == null || driverId === "") return null;
+
+  const entryTeamId = raceEntryTeamForDriver(gs?.raceEntryState, driverId);
+  if (entryTeamId) return entryTeamId;
+
+  const explicit = pick(driver || {}, ["team_id", "constructor_id", "team"], null);
+  if (explicit != null && explicit !== "") return String(explicit);
 
   const activeYear = Number(gs?.activeYear);
   const contracts = gs?.contracts || gs?.dbContracts || [];
@@ -518,22 +522,13 @@ function awardRaceBonuses(next, race, gpName) {
 }
 
 export async function runRaceWeekend(gs, { roundIndex, gp }) {
+  const raceEntryState = buildRaceEntryState(gs, { roundIndex, gp });
+  gs = { ...gs, raceEntryState };
   const next = { ...gs };
   const allDrivers = (gs.drivers || []).slice();
   const activeYear = Number(gs?.activeYear);
-  const contractedIds = new Set(
-    (gs.contracts || gs.dbContracts || [])
-      .filter((row) => {
-        const role = String(pick(row, ["role", "position", "contract_role", "type"], "")).toLowerCase();
-        const year = Number(pick(row, ["year", "season_year"], NaN));
-        return role.includes("driver") && (!Number.isFinite(activeYear) || !Number.isFinite(year) || year === activeYear);
-      })
-      .map((row) => String(pick(row, ["driver_id", "person_id", "id"], "")))
-      .filter(Boolean)
-  );
-  const drivers = contractedIds.size
-    ? allDrivers.filter((d) => contractedIds.has(String(d?.driver_id ?? d?.id ?? "")))
-    : allDrivers.filter((d) => d?.status !== "junior_only" && d?.status !== "hidden");
+  const enteredIds = new Set(raceEntryDriverIds(raceEntryState));
+  const drivers = allDrivers.filter((d) => enteredIds.has(String(d?.driver_id ?? d?.id ?? "")));
   const ratings = gs.driverRatings || [];
   const teamsById = new Map((gs.teams||[]).map(t => [String(t.team_id||t.id||t.name), t]));
   const pointsTable = getActivePointsTable(gs);
@@ -649,6 +644,7 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       driver_id: row.driver?.driver_id ?? null,
       team_id: resolveDriverTeamId(gs, row.driver),
     })),
+    raceEntry: raceEntryState.entries.map((entry) => ({ ...entry })),
     classification,
   };
 
