@@ -197,8 +197,8 @@ export default function DriverModal({ entity, onClose }) {
       fatigue: 0,
       morale: 50,
       preparation: 50,
-      ...(compat || {}),
-      ...(direct || {}),
+      ...(isRecord(compat) ? compat : {}),
+      ...(isRecord(direct) ? direct : {}),
     };
   }, [driverAttributesDict, driver?.driver_id, entity.id, idNorm]);
 
@@ -213,7 +213,7 @@ export default function DriverModal({ entity, onClose }) {
   // declarations before any memo that references them to avoid TDZ crashes.
   const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
   const contractEnd = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
-  const contractTeam = unbox(contract?.team_name) ?? null;
+  const contractTeam = displayValue(contract?.team_name ?? contract?.team, null);
   const contractRole = niceRole(contract?.role);
   const contractSalary = unbox(contract?.salary);
 
@@ -236,7 +236,7 @@ export default function DriverModal({ entity, onClose }) {
     const next = candidates[0];
     const whenISO = isoFromAny(next.start_date) || (Number.isFinite(unbox(next.start_year)) ? `${unbox(next.start_year)}-01-01` : null);
     return {
-      team_name: unbox(next.team_name) || unbox(next.team) || "Unknown Team",
+      team_name: displayValue(next.team_name ?? next.team, "Unknown Team"),
       when: whenISO,
       whenLabel: whenISO ? (whenISO.length === 10 ? whenISO : String(unbox(next.start_year))) : (unbox(next.start_year) ?? "future"),
     };
@@ -797,27 +797,27 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
               const isChampion = isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
               return (
                 <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-100/70" : ""}>
-                  <td className="pr-3 py-1">{unbox(r.year) ?? "—"}</td>
+                  <td className="pr-3 py-1">{displayValue(r.year)}</td>
                   <td className="pr-3 py-1">{series}</td>
                   <td className="pr-3 py-1">
                     {r.team_id ? (
                       <span data-entity="team" data-id={unbox(r.team_id)} className="entity-link-team">
-                        {unbox(r.team_name) || unbox(r.team_id)}
+                        {displayValue(r.team_name ?? r.team_id)}
                       </span>
                     ) : (
-                      unbox(r.team_name) || "—"
+                      displayValue(r.team_name)
                     )}
                   </td>
-                  <td className="text-right pr-3 py-1">{unbox(r.starts) ?? unbox(r.races) ?? 0}</td>
-                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-red-600 font-semibold" : ""}`}>{unbox(r.wins) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.podiums) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.poles) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.fastest_laps) ?? 0}</td>
-                  <td className="text-right pr-3 py-1">{unbox(r.points) ?? 0}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
+                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-red-600 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.podiums, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.poles, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.fastest_laps, 0)}</td>
+                  <td className="text-right pr-3 py-1">{displayValue(r.points, 0)}</td>
                   <td className="text-right pr-0 py-1">
                     {isNumeric(r.champ_pos)
                       ? `P${unbox(r.champ_pos)}`
-                      : (isTransfer ? <span className="italic text-purple-700">Transfer</span> : (unbox(r.champ_pos) ?? "—"))}
+                      : (isTransfer ? <span className="italic text-purple-700">Transfer</span> : displayValue(r.champ_pos))}
                   </td>
                 </tr>
               );
@@ -891,7 +891,7 @@ function AttributesTab({ attrs, condition }) {
           {rows.map(([label, value, inverse]) => (
             <div key={label} className="flex justify-between gap-3 text-sm">
               <span className="text-gray-500">{label}</span>
-              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{unbox(value) ?? "—"}</span>
+              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{displayValue(value)}</span>
             </div>
           ))}
         </div>
@@ -919,20 +919,20 @@ function AchievementsTab({ items }) {
           <tbody className="divide-y">
             {items.map((a, i) => (
               <tr key={i}>
-                <td className="pr-3 py-1">{unbox(a.year) ?? "—"}{a.__live ? " (current)" : ""}</td>
+                <td className="pr-3 py-1">{displayValue(a.year)}{a.__live ? " (current)" : ""}</td>
                 <td className="pr-3 py-1">
                   {a.team_id ? (
                     <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
-                      {unbox(a.team_name) || unbox(a.team_id) || "—"}
+                      {displayValue(a.team_name ?? a.team_id)}
                     </span>
                   ) : (
-                    unbox(a.team_name) || "—"
+                    displayValue(a.team_name)
                   )}
                 </td>
-                <td className="pr-3 py-1">{unbox(a.driver_championship) ?? "—"}</td>
-                <td className="pr-3 py-1">{unbox(a.team_championship) ?? "—"}</td>
-                <td className="text-right pr-3 py-1">{unbox(a.wins) ?? 0}</td>
-                <td className="text-right pr-0 py-1">{unbox(a.podiums) ?? 0}</td>
+                <td className="pr-3 py-1">{displayValue(a.driver_championship)}</td>
+                <td className="pr-3 py-1">{displayValue(a.team_championship)}</td>
+                <td className="text-right pr-3 py-1">{displayValue(a.wins, 0)}</td>
+                <td className="text-right pr-0 py-1">{displayValue(a.podiums, 0)}</td>
               </tr>
             ))}
           </tbody>
