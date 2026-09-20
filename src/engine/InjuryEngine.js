@@ -148,7 +148,7 @@ export function refreshDriverAvailability(gs,dateISO=gs?.currentDateISO){
   for(const [driverId,record] of Object.entries(availability)){
     const status=String(record?.status||"").toLowerCase();
     const returnDate=dateOnly(record?.expectedReturnDate||record?.expected_return_date);
-    if(["","available","fit","active","cleared"].includes(status)||!returnDate||today<=returnDate)continue;
+    if(["","available","fit","active","cleared"].includes(status)||!returnDate||today<returnDate)continue;
 
     availability[driverId]={
       ...record,
