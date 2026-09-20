@@ -1173,6 +1173,7 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
+    condition: (attr, delta) => ({ key: "driver_condition", driverId: unbox(driver?.driver_id), attr, delta }),
     synergy: (delta) => ({ key: "team_synergy", delta }),
   };
 
@@ -1186,21 +1187,21 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
         { key: "wet_practice", icon: <Dumbbell size={14} />, label: "Wet practice",             desc: "+Wet Skill | +Fatigue",   effects: [fx.addAttr("wet_skill", +1), fx.fatigue(+2)] },
         { key: "tyre_drills",  icon: <Dumbbell size={14} />, label: "Tyre mgmt drills",         desc: "+Tyre Mgmt | +Fatigue",   effects: [fx.addAttr("tire_management", +1), fx.fatigue(+2)] },
         { key: "racecraft",    icon: <Dumbbell size={14} />, label: "Racecraft study",          desc: "+Racecraft | +Fatigue",   effects: [fx.addAttr("racecraft", +1), fx.fatigue(+1)] },
-        { key: "data_review",  icon: <Wrench size={14}   />, label: "Data review w/ engineers", desc: "+Team synergy",           effects: [fx.synergy(+1)] },
+        { key: "data_review",  icon: <Wrench size={14}   />, label: "Data review w/ engineers", desc: "Team synergy↑ | Preparation↑", effects: [fx.synergy(+1), fx.condition("preparation", +1)] },
       ],
     },
     {
       title: "Media & PR",
       items: [
-        { key: "sponsor_event", icon: <Megaphone size={14} />, label: "Sponsor activation", desc: "Reputation↑ | +Fatigue", effects: [fx.addAttr("reputation", +1), fx.fatigue(+1)] },
-        { key: "tv_interview",  icon: <Megaphone size={14} />, label: "TV interview",       desc: "Reputation ± (risk) | +Fatigue", effects: [fx.fatigue(+1)] },
-        { key: "media_training",icon: <MessageSquare size={14} />, label: "Media training", desc: "+Pressure Handling", effects: [fx.addAttr("pressure_handling", +1)] },
+        { key: "sponsor_event", icon: <Megaphone size={14} />, label: "Sponsor activation", desc: "Reputation↑ | Morale↑ | +Fatigue", effects: [fx.addAttr("reputation", +1), fx.condition("morale", +1), fx.fatigue(+1)] },
+        { key: "tv_interview",  icon: <Megaphone size={14} />, label: "TV interview",       desc: "Confidence↑ | Reputation↑ | +Fatigue", effects: [fx.condition("confidence", +1), fx.addAttr("reputation", +1), fx.fatigue(+1)] },
+        { key: "media_training",icon: <MessageSquare size={14} />, label: "Media training", desc: "Pressure Handling↑ | Confidence↑", effects: [fx.addAttr("pressure_handling", +1), fx.condition("confidence", +1)] },
       ],
     },
     {
       title: "Wellbeing & Admin",
       items: [
-        { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
+        { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "Fatigue↓ | Morale↑", effects: [fx.fatigue(-4), fx.condition("morale", +1)] },
         { key: "physical",      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
         { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Open contract actions", effects: [], special: "contract" },
       ],
