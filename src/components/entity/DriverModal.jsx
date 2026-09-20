@@ -327,9 +327,9 @@ export default function DriverModal({ entity, onClose }) {
 
     for (const rec of byKey.values()) {
       const seasonStanding = rec.year === gameYear
-        ? standings?.drivers
-        : historySeasons.find((h) => Number(h?.year) === Number(rec.year))?.standings?.drivers;
-      const standing = (seasonStanding || []).find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
+        ? toArraySafe(standings?.drivers)
+        : toArraySafe(historySeasons.find((h) => Number(h?.year) === Number(rec.year))?.standings?.drivers);
+      const standing = seasonStanding.find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
       rec.champ_pos = standing?.position ?? null;
     }
 
