@@ -334,6 +334,9 @@ export function materializeSeasonPack(globalData,yearInput){
   const driverIds=new Set(drivers.map(driverId));
   const driverRatings=exactOrLatest(g.driverRatings,year,driverId,driverIds);
   const driverCareer=rowsAtYear(g.driverCareer,year).map(clean);
+  const driverHistory=(g.driverHistory||[])
+    .filter((r)=>driverIds.has(driverId(r)) && Number(yearOf(r)) < year)
+    .map(clean);
 
   const staffContracts=activeContractRows(g.staffContracts,year)
     .map(normalizeTeamRow).filter(Boolean)
@@ -377,6 +380,7 @@ export function materializeSeasonPack(globalData,yearInput){
       drivers,
       driverRatings,
       driverCareer,
+      driverHistory,
       contracts,
       staffCore,
       staffRatings,
