@@ -66,6 +66,9 @@ jobs:
       - name: Test save safety and deterministic RNG
         run: npm run test:save-safety
 
+      - name: Test race entry and driver availability
+        run: npm run test:race-entry
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
