@@ -96,9 +96,10 @@ test("forced fatal outcome permanently removes driver from future race entries",
     gp:{gp_id:"belgium",race_date:"1980-06-01",year:1980},
     roundIndex:5,
   });
-  const slot=entry.entries.find((row)=>row.team_id==="T1"&&row.car_slot===1);
-  assert.equal(slot.driver_id,null);
-  assert.equal(slot.status,"vacant");
+  const teamEntries=entry.entries.filter((row)=>row.team_id==="T1");
+  assert.equal(teamEntries.some((row)=>row.driver_id==="D1"),false);
+  assert.equal(teamEntries.filter((row)=>row.status==="vacant").length,1);
+  assert.equal(teamEntries.filter((row)=>row.driver_id==="D2").length,1);
 });
 
 test("fatalities setting can disable death without disabling the health engine",()=>{
