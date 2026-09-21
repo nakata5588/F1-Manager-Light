@@ -2,6 +2,7 @@
 import { buildRaceEntryState, driverAvailabilityForRace } from "../domain/raceEntry.js";
 import { activeDriverContract, driverIdOf, expectedDriverSalary } from "../domain/driverContracts.js";
 import { compareDriverMarketValue, driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
+import { f1HireEligibility } from "../domain/driverEligibility.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -69,9 +70,7 @@ export function eligibleEmergencyDrivers(gs,gp,{excludeIds=[]}={}){
     .filter((driver)=>{
       const id=driverIdOf(driver);
       if(!id||excluded.has(id))return false;
-      const status=String(driver?.status||"eligible").toLowerCase();
-      if(["hidden","junior_only","deceased","retired"].includes(status))return false;
-      if(driver?.canHireF1===false)return false;
+      if(!f1HireEligibility(gs,driver,gs?.activeYear).eligible)return false;
       if(activeDriverContract(gs,id))return false;
       if(!driverAvailabilityForRace(gs,id,gp).available)return false;
       return true;
