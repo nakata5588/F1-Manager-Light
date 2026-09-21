@@ -5,7 +5,7 @@ import path from "node:path";
 import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 
 const root=process.cwd();
-const targetYears=[1975,1980,1987,1989,1999,2014,2020];
+const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2014,2020];
 const expectedTeamCounts={
   1975:19,
   1980:15,
@@ -118,4 +118,49 @@ test("1980 Shadow keeps test drivers separate from its two race seats",async()=>
   assert.ok(raceSeats.length>=2,"Shadow must have two race seats, found "+raceSeats.length);
   assert.ok(testDrivers.length>=1,"Shadow test-driver contract should remain available without occupying a race seat");
   assert.equal(raceSeats.some((c)=>String(c.driver_id)==="d_0862"),false,"David Kennedy test_driver must not be treated as a race seat");
+});
+
+
+test("1980-1985 Season Packs use exact R2B historical rating snapshots",async()=>{
+  for(const year of [1980,1981,1982,1983,1984,1985]){
+    const pack=await readPack(year);
+    assert.equal(pack.ratingModel,"R2B",year+" must advertise the R2B rating model");
+    const ratings=Array.isArray(pack.state?.driverRatings)?pack.state.driverRatings:[];
+    assert.ok(ratings.length>0,year+" must contain driver ratings");
+    assert.ok(
+      ratings.some((row)=>String(row.source||"")==="historical_rating_snapshot_r2b"),
+      year+" must contain R2B snapshot ratings"
+    );
+    assert.equal(
+      ratings.some((row)=>Number(row.year)!==year),
+      false,
+      year+" rating rows must be materialized for the selected New Game year"
+    );
+  }
+
+  const pack1980=await readPack(1980);
+  const prost=(pack1980.state?.driverRatings||[]).find((row)=>String(row.driver_id)==="d_0117");
+  assert.ok(prost,"1980 Alain Prost rating must exist");
+  assert.equal(Number(prost.current_ability),75.6,"1980 Prost must use R2B Current Ability, not the legacy 60 baseline");
+  assert.equal(Number(prost.potential_ability),96.8,"1980 Prost must expose the R2B Peak as runtime potential");
+  assert.equal(String(prost.source),"historical_rating_snapshot_r2b");
+});
+
+
+test("1981 Giacomelli has exactly one race-team assignment",async()=>{
+  const pack=await readPack(1981);
+  const rows=(pack.state?.contracts||[]).filter(
+    (row)=>isRaceDriverContract(row)&&String(row.driver_id)==="d_0152"
+  );
+  assert.equal(rows.length,1,"Bruno Giacomelli must occupy exactly one 1981 race seat");
+});
+
+test("drivers who die during the selected season are alive on New Game January 1",async()=>{
+  const pack=await readPack(1982);
+  const driverIds=new Set((pack.state?.drivers||[]).map((row)=>String(row.driver_id)));
+  assert.ok(driverIds.has("d_0203"),"Gilles Villeneuve must exist at 1982 New Game start");
+  const orphan=(pack.state?.contracts||[]).filter(
+    (row)=>!(pack.state?.drivers||[]).some((d)=>String(d.driver_id)===String(row.driver_id))
+  );
+  assert.equal(orphan.length,0,"1982 New Game must not contain orphan driver contracts");
 });

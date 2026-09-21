@@ -79,6 +79,7 @@ export function seasonPackStatePatch(pack) {
       format: pack.format,
       schemaVersion: pack.schemaVersion,
       year: Number(pack.year),
+      ratingModel: pack.ratingModel || "legacy",
       validation: pack.validation,
     },
   };
