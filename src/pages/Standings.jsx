@@ -50,10 +50,10 @@ export default function Standings() {
         const teamId = str(
           row?.team_id ??
           row?.constructor_id ??
+          resolveTeam(id) ||
           db?.team_id ??
           db?.constructor_id ??
-          db?.team ??
-          resolveTeam(id)
+          db?.team
         );
         return {
           id,
