@@ -118,7 +118,9 @@ export default function Drivers(){
       pending,
       can_negotiate:eligibility.canNegotiate,
       negotiation_reason:eligibility.reason,
+      negotiation_kind:eligibility.kind||null,
       negotiation_roles:eligibility.roles,
+      negotiation_buyout:eligibility.buyout||null,
     };
   }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs]);
 
@@ -253,9 +255,16 @@ export default function Drivers(){
             <button
               className="border rounded px-2 py-1 text-xs"
               onClick={()=>setNegotiatingDriver(d)}
+              title={d.negotiation_kind==="transfer"&&d.negotiation_buyout
+                ?("Transfer buyout: "+money(d.negotiation_buyout.fee))
+                :undefined}
             >
-              Approach
+              {d.negotiation_kind==="transfer"?"Approach transfer":"Approach"}
             </button>
+          ):d.negotiation_reason==="insufficient_buyout_funds"?(
+            <span className="text-xs text-gray-500">
+              Buyout {money(d.negotiation_buyout?.fee||0)}
+            </span>
           ):d.negotiation_reason==="under_contract"?(
             <span className="text-xs text-gray-500">Under contract</span>
           ):d.negotiation_reason==="already_contracted"?(
@@ -277,6 +286,13 @@ export default function Drivers(){
         driver={negotiatingDriver}
         roles={negotiatingDriver.negotiation_roles||[]}
         expectedSalary={expectedDriverSalary(gs,negotiatingDriver.id)}
+        contextNote={
+          negotiatingDriver.negotiation_kind==="transfer"
+            ?("This is a transfer from "+(negotiatingDriver.team_name||"the current team")+
+              ". If the driver accepts, "+money(negotiatingDriver.negotiation_buyout?.fee||0)+
+              " will be paid as "+(negotiatingDriver.negotiation_buyout?.type==="fixed_clause"?"a release clause.":"buyout compensation."))
+            :""
+        }
         onClose={()=>setNegotiatingDriver(null)}
         onSubmit={submitNegotiation}
       />
