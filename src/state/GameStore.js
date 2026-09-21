@@ -844,7 +844,9 @@ export const useGame = create((set, get) => ({
       const canHireAcademy = isYouth && !hasF1Contract;
       if (canHireAcademy) status = "junior_only";
 
-      const canHireF1 = status === "eligible" || status === "lower_series" || status === "junior_only";
+      const canHireF1 =
+        status === "eligible" ||
+        ((status === "lower_series" || status === "junior_only") && Number.isFinite(age) && age >= 18);
 
       return {
         ...d,
