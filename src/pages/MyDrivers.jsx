@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
@@ -9,6 +9,17 @@ import {
   normalizedContractRole,
 } from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
+import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
+import {
+  expectedDriverSalary,
+  releaseDriverContract,
+  terminationCost,
+} from "../domain/driverContracts.js";
+import {
+  driverNegotiations,
+  isNegotiationActive,
+  startDriverRenewal,
+} from "../engine/NegotiationEngine.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{
@@ -69,6 +80,21 @@ export default function MyDrivers(){
   const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
   const contracts=gs?.contracts?.length?gs.contracts:gs?.dbContracts||[];
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
+  const [renewingRow,setRenewingRow]=useState(null);
+  const negotiations=driverNegotiations(gs);
+  const activeRenewalByDriver=useMemo(()=>{
+    const map=new Map();
+    for(const negotiation of negotiations){
+      if(
+        negotiation?.kind==="renewal" &&
+        negotiation?.origin==="player" &&
+        isNegotiationActive(negotiation)
+      ){
+        map.set(String(negotiation.driver_id),negotiation);
+      }
+    }
+    return map;
+  },[negotiations]);
 
   const activeTeamContracts=useMemo(()=>contracts.filter((contract)=>
     teamIdOf(contract)===myTeamId &&
@@ -122,6 +148,30 @@ export default function MyDrivers(){
   const second=slotRows.find((row)=>row.key==="second");
   const canSwap=Boolean(main?.contract&&second?.contract);
 
+  function submitRenewal(offer){
+    if(!renewingRow)return;
+    const next=startDriverRenewal(gs,{
+      driverId:renewingRow.id,
+      teamId:myTeamId,
+      teamName:myTeamName,
+      offer:{...offer,role:renewingRow.label},
+      origin:"player",
+    });
+    setGameState(next);
+    setRenewingRow(null);
+  }
+
+  function releaseDriver(row){
+    if(!row?.contract)return;
+    const cost=terminationCost(gs,row.contract);
+    const ok=window.confirm(
+      "Release "+row.name+"?\n\nContract termination cost: "+money(cost)+
+      "\n\nThis immediately opens the "+row.label+" seat."
+    );
+    if(!ok)return;
+    setGameState(releaseDriverContract(gs,row.id));
+  }
+
   function swapRaceDrivers(){
     if(!canSwap)return;
     const mainId=idOf(main.contract);
@@ -170,31 +220,57 @@ export default function MyDrivers(){
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {slotRows.map((row)=>row.contract?(
-          <button
+          <div
             key={row.key}
-            type="button"
-            data-entity="driver"
-            data-id={row.id}
-            className="bg-white rounded-xl shadow p-4 text-left hover:shadow-md transition border border-transparent"
+            className="bg-white rounded-xl shadow p-4 border border-transparent"
           >
-            <div className="flex items-start gap-4">
-              <DriverPortrait driver={row.driver} size="h-20 w-20" />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs uppercase tracking-wide text-gray-500">{row.label}</div>
-                <div className="text-lg font-semibold truncate">{row.name}</div>
-                <div className="text-sm text-gray-500">
-                  {flagFromCountry(row.driver?.country_name||row.driver?.nationality,row.driver?.country_code)}{" "}
-                  {row.driver?.country_name||row.driver?.nationality||"—"}
+            <button
+              type="button"
+              data-entity="driver"
+              data-id={row.id}
+              className="w-full text-left hover:opacity-90"
+            >
+              <div className="flex items-start gap-4">
+                <DriverPortrait driver={row.driver} size="h-20 w-20" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs uppercase tracking-wide text-gray-500">{row.label}</div>
+                  <div className="text-lg font-semibold truncate">{row.name}</div>
+                  <div className="text-sm text-gray-500">
+                    {flagFromCountry(row.driver?.country_name||row.driver?.nationality,row.driver?.country_code)}{" "}
+                    {row.driver?.country_name||row.driver?.nationality||"—"}
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                    <Info label="Overall" value={row.overall} />
+                    <Info label="Contract" value={row.until} />
+                    <Info label="Salary" value={money(row.salary)} />
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500">{row.description}</div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-                  <Info label="Overall" value={row.overall} />
-                  <Info label="Contract" value={row.until} />
-                  <Info label="Salary" value={money(row.salary)} />
-                </div>
-                <div className="mt-3 text-xs text-gray-500">{row.description}</div>
               </div>
+            </button>
+            <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-2">
+              {activeRenewalByDriver.has(String(row.id))?(
+                <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700">
+                  Renewal negotiation pending
+                </span>
+              ):(
+                <button
+                  type="button"
+                  className="border rounded-md px-3 py-1.5 text-xs hover:bg-gray-50"
+                  onClick={()=>setRenewingRow(row)}
+                >
+                  Renew contract
+                </button>
+              )}
+              <button
+                type="button"
+                className="border border-red-200 text-red-700 rounded-md px-3 py-1.5 text-xs hover:bg-red-50"
+                onClick={()=>releaseDriver(row)}
+              >
+                Release · {money(terminationCost(gs,row.contract))}
+              </button>
             </div>
-          </button>
+          </div>
         ):(
           <div key={row.key} className="bg-white rounded-xl shadow p-4 border border-dashed border-gray-300">
             <div className="text-xs uppercase tracking-wide text-gray-500">{row.label}</div>
@@ -214,6 +290,16 @@ export default function MyDrivers(){
       <div className="bg-white rounded-xl shadow p-4 text-sm text-gray-600">
         Main and Second Driver are the two race seats. Reserve Driver is the automatic first replacement for an unavailable race driver. Test Driver is reserved for development/testing work and is not used automatically as a race substitute.
       </div>
+
+      {renewingRow&&(
+        <ContractNegotiationModal
+          driver={renewingRow.driver}
+          roles={[renewingRow.label]}
+          expectedSalary={expectedDriverSalary(gs,renewingRow.id)}
+          onClose={()=>setRenewingRow(null)}
+          onSubmit={submitRenewal}
+        />
+      )}
     </div>
   );
 }

@@ -222,3 +222,39 @@ test("AI retries a vacant reserve role after a rejected offer instead of waiting
   assert.ok(t2ReserveOffers.some((n)=>isNegotiationActive(n)));
   assert.equal(retried._lastAIDriverMarketCheckISO,"1980-02-08");
 });
+
+
+test("AI makes a keep-or-release decision on expiring driver contracts from July",()=>{
+  const gs=marketState();
+  gs.currentDateISO="1980-07-01";
+  const next=applyMarketTick(gs);
+
+  const aiExpiring=(next.contracts||[]).filter((contract)=>
+    ["T2","T3"].includes(String(contract.team_id)) &&
+    ["A1","A2","B1","B2"].includes(String(contract.driver_id))
+  );
+  assert.equal(aiExpiring.length,4);
+  assert.ok(aiExpiring.every((contract)=>Number(contract.ai_renewal_decision_year)===1980));
+  assert.ok(aiExpiring.every((contract)=>["renew","release_end"].includes(contract.ai_renewal_plan)));
+
+  const renewPlans=aiExpiring.filter((contract)=>contract.ai_renewal_plan==="renew");
+  for(const contract of renewPlans){
+    assert.ok((next.driverNegotiations||[]).some((n)=>
+      n.kind==="renewal" &&
+      n.origin==="ai" &&
+      String(n.driver_id)===String(contract.driver_id) &&
+      isNegotiationActive(n)
+    ));
+  }
+});
+
+test("player receives a contract-expiry reminder instead of an automatic renewal",()=>{
+  const gs=marketState();
+  gs.currentDateISO="1980-07-01";
+  const next=applyMarketTick(gs);
+  const reminder=(next.inbox||[]).find((msg)=>msg.subject==="Driver contracts expiring this season");
+  assert.ok(reminder);
+  assert.match(String(reminder.body||""),/Player One/);
+  assert.match(String(reminder.body||""),/Player Two/);
+  assert.ok((reminder.actions||[]).some((action)=>action.route==="/MyDrivers"));
+});

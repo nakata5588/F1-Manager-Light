@@ -200,12 +200,35 @@ function currentContractForNextSeason(row,targetYear){
   return start<=targetYear&&end>=targetYear;
 }
 
-function carryContracts(rows,targetYear,{staff=false}={}){
+function rollDriverContracts(rows,targetYear){
+  return (rows||[]).map((row)=>{
+    const status=String(row?.status||"active").toLowerCase();
+    if(["terminated","released","expired","inactive","void"].includes(status))return {...row};
+
+    if(currentContractForNextSeason(row,targetYear)){
+      return {
+        ...row,
+        year:targetYear,
+        season_year:targetYear,
+        status:"active",
+      };
+    }
+
+    return {
+      ...row,
+      status:"expired",
+      expired_at:`${targetYear}-01-01`,
+      expiry_reason:"contract_end",
+    };
+  });
+}
+
+function carryStaffContracts(rows,targetYear){
   return (rows||[]).map((row)=>{
     if(currentContractForNextSeason(row,targetYear)){
       return {...row,year:targetYear,season_year:targetYear};
     }
-    // Temporary bridge until the full employment market owns renewals.
+    // Staff employment still uses continuity until the dedicated staff market lands.
     return {
       ...row,
       year:targetYear,
@@ -214,7 +237,7 @@ function carryContracts(rows,targetYear,{staff=false}={}){
       contract_until:targetYear,
       end_year:targetYear,
       continuity_renewal:true,
-      source:staff?"simulation_staff_continuity":"simulation_driver_continuity",
+      source:"simulation_staff_continuity",
     };
   });
 }
@@ -384,10 +407,10 @@ export function materializeNextCareerSeason(state,targetYearInput){
     teams:(state.teams||[]).map((row)=>({...row})),
     drivers:uniqueBy([...updateAges(state.drivers||[],targetYear),...unlockedDrivers],idOfDriver),
     driverRatings:[...activeRatings.values()],
-    contracts:carryContracts(state.contracts||[],targetYear),
+    contracts:rollDriverContracts(state.contracts||[],targetYear),
     staffCore:uniqueBy([...updateAges(state.staffCore||[],targetYear),...unlockedStaff],idOfStaff),
     staffRatings:[...activeStaffRatings.values()],
-    staffContracts:carryContracts(state.staffContracts||[],targetYear,{staff:true}),
+    staffContracts:carryStaffContracts(state.staffContracts||[],targetYear),
     teamBrands:(state.teamBrands||[]).map((r)=>({...r,year:targetYear})),
     teamEngines:(state.teamEngines||[]).map((r)=>({...r,year:targetYear})),
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),

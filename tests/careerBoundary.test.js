@@ -86,8 +86,10 @@ test("career boundary rolls to next season without importing historical future a
   assert.equal(next.contracts.some(c=>c.driver_id==="D2"),false);
 
   const currentContract=next.contracts.find(c=>c.driver_id==="D1");
-  assert.equal(currentContract.contract_until_year,1981);
-  assert.equal(currentContract.continuity_renewal,true);
+  assert.equal(currentContract.contract_until_year,1980);
+  assert.equal(currentContract.status,"expired");
+  assert.equal(currentContract.continuity_renewal,undefined);
+  assert.equal(currentContract.expiry_reason,"contract_end");
 
   assert.ok(next.staffCore.some(s=>s.staff_id==="S2"));
   assert.equal(next.staffContracts.some(c=>c.staff_id==="S2"),false);
@@ -107,4 +109,17 @@ test("calendar falls back to previous season structure when global reference is 
   assert.equal(next.calendar[0].year,1981);
   assert.equal(next.calendar[0].race_date,"1981-03-01");
   assert.equal(next.calendar[0].generation_source,"previous_season_calendar_fallback");
+});
+
+
+test("career boundary carries only contracts that are genuinely valid for the new season",()=>{
+  const state=fixture();
+  state.contracts[0].contract_until_year=1981;
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  const carried=next.contracts.find(c=>c.driver_id==="D1");
+  assert.equal(carried.status,"active");
+  assert.equal(carried.year,1981);
+  assert.equal(carried.contract_until_year,1981);
+  assert.equal(carried.continuity_renewal,undefined);
 });
