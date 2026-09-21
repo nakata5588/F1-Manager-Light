@@ -47,16 +47,20 @@ export function isClubTransferApproachClosed(approach){
   return CLOSED_STATUSES.has(String(approach?.status||"").toLowerCase());
 }
 export function activeClubTransferApproach(gs,{driverId,buyerTeamId}={}){
+  const year=Number(gs?.activeYear);
   return transferApproaches(gs).find((row)=>
     String(row?.driver_id||"")===String(driverId||"") &&
     String(row?.buyer_team_id||"")===String(buyerTeamId||"") &&
+    (!Number.isFinite(year)||Number(row?.season_year??year)===year) &&
     isClubTransferApproachActive(row)
   )||null;
 }
 export function acceptedClubTransferApproach(gs,{driverId,buyerTeamId}={}){
+  const year=Number(gs?.activeYear);
   return transferApproaches(gs).find((row)=>
     String(row?.driver_id||"")===String(driverId||"") &&
     String(row?.buyer_team_id||"")===String(buyerTeamId||"") &&
+    (!Number.isFinite(year)||Number(row?.season_year??year)===year) &&
     String(row?.status||"").toLowerCase()==="accepted"
   )||null;
 }
@@ -106,6 +110,7 @@ export function startClubTransferApproach(gs,{
     seller_team_id:seller,
     seller_team_name:teamNameFor(gs,seller),
     status:"submitted",
+    season_year:Number(gs?.activeYear)||null,
     submitted_at:submitted,
     response_date:addDaysISO(submitted,responseDays),
     offer_fee:fee,
@@ -182,8 +187,13 @@ export function processClubTransferApproaches(gs,{forceOutcomeById={}}={}){
   if(!gs)return gs;
   const today=dateOnly(gs?.currentDateISO);
   let next=gs;
+  const year=Number(gs?.activeYear);
   const due=transferApproaches(gs)
-    .filter((row)=>String(row?.status||"")==="submitted"&&dateOnly(row.response_date)<=today);
+    .filter((row)=>
+      String(row?.status||"")==="submitted" &&
+      (!Number.isFinite(year)||Number(row?.season_year??year)===year) &&
+      dateOnly(row.response_date)<=today
+    );
 
   for(const original of due){
     const approach=transferApproaches(next).find((row)=>row.id===original.id);
