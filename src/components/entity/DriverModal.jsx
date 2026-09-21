@@ -570,6 +570,7 @@ export default function DriverModal({ entity, onClose }) {
           <div className="flex items-center gap-2">
             <DriverActionsMenu
               driver={driver}
+              condition={condition}
               isOwnDriver={!!isOwnDriver}
               label={isOwnDriver ? "Actions" : "Interact"}
               queueEvent={queueEvent}
@@ -1015,7 +1016,7 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
   );
 }
 
-function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent, currentDateISO }) {
+function DriverActionsMenu({ driver, condition, isOwnDriver, label = "Actions", queueEvent, currentDateISO }) {
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
@@ -1026,12 +1027,12 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
     {
       title: "Training & Development",
       items: [
-        { key: "sim_braking",  icon: <Dumbbell size={14} />, label: "Simulator — Consistency", desc: "+Consistency | +Fatigue", effects: [fx.addAttr("consistency", +1), fx.fatigue(+2)] },
-        { key: "sim_pace",     icon: <Dumbbell size={14} />, label: "Simulator — Pace",         desc: "+Pace | +Fatigue",        effects: [fx.addAttr("pace", +1), fx.fatigue(+2)] },
-        { key: "qual_runs",    icon: <Dumbbell size={14} />, label: "Quali sims",               desc: "+Qualifying | +Fatigue",  effects: [fx.addAttr("qualifying", +1), fx.fatigue(+2)] },
-        { key: "wet_practice", icon: <Dumbbell size={14} />, label: "Wet practice",             desc: "+Wet Skill | +Fatigue",   effects: [fx.addAttr("wet_skill", +1), fx.fatigue(+2)] },
-        { key: "tyre_drills",  icon: <Dumbbell size={14} />, label: "Tyre mgmt drills",         desc: "+Tyre Mgmt | +Fatigue",   effects: [fx.addAttr("tire_management", +1), fx.fatigue(+2)] },
-        { key: "racecraft",    icon: <Dumbbell size={14} />, label: "Racecraft study",          desc: "+Racecraft | +Fatigue",   effects: [fx.addAttr("racecraft", +1), fx.fatigue(+1)] },
+        { key: "sim_braking", intensive: true,  icon: <Dumbbell size={14} />, label: "Simulator — Consistency", desc: "+Consistency | +Fatigue", effects: [fx.addAttr("consistency", +1), fx.fatigue(+2)] },
+        { key: "sim_pace", intensive: true,     icon: <Dumbbell size={14} />, label: "Simulator — Pace",         desc: "+Pace | +Fatigue",        effects: [fx.addAttr("pace", +1), fx.fatigue(+2)] },
+        { key: "qual_runs", intensive: true,    icon: <Dumbbell size={14} />, label: "Quali sims",               desc: "+Qualifying | +Fatigue",  effects: [fx.addAttr("qualifying", +1), fx.fatigue(+2)] },
+        { key: "wet_practice", intensive: true, icon: <Dumbbell size={14} />, label: "Wet practice",             desc: "+Wet Skill | +Fatigue",   effects: [fx.addAttr("wet_skill", +1), fx.fatigue(+2)] },
+        { key: "tyre_drills", intensive: true,  icon: <Dumbbell size={14} />, label: "Tyre mgmt drills",         desc: "+Tyre Mgmt | +Fatigue",   effects: [fx.addAttr("tire_management", +1), fx.fatigue(+2)] },
+        { key: "racecraft", intensive: true,    icon: <Dumbbell size={14} />, label: "Racecraft study",          desc: "+Racecraft | +Fatigue",   effects: [fx.addAttr("racecraft", +1), fx.fatigue(+1)] },
         { key: "data_review",  icon: <Wrench size={14}   />, label: "Data review w/ engineers", desc: "+Team synergy",           effects: [fx.synergy(+1)] },
       ],
     },
@@ -1047,7 +1048,7 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
       title: "Wellbeing & Admin",
       items: [
         { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
-        { key: "physical",      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
+        { key: "physical", intensive: true,      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
         { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Opens negotiation flow", effects: [] },
       ],
     },
@@ -1079,9 +1080,13 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
   ];
 
   const groups = isOwnDriver ? ownGroups : otherGroups;
+  const fatigue=Number(condition?.fatigue??0);
+  const trainingBlocked=fatigue>=70;
+  const trainingLimited=fatigue>=45;
 
   function onPick(it) {
     if (typeof queueEvent !== "function") return;
+    if(it?.intensive&&trainingBlocked)return;
     queueEvent({
       type: isOwnDriver ? "driver_action" : "market_action",
       title: it.label,
@@ -1109,12 +1114,18 @@ function DriverActionsMenu({ driver, isOwnDriver, label = "Actions", queueEvent,
                 <button
                   type="button"
                   onClick={() => onPick(it)}
-                  className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800"
+                  disabled={Boolean(it.intensive&&trainingBlocked)}
+                  className={"flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"}
+                  title={it.intensive&&trainingBlocked?"Driver is too fatigued for intensive training":undefined}
                 >
                   <span className="mt-0.5 shrink-0">{it.icon}</span>
                   <span className="flex-1">
                     <span className="block text-[13px] leading-tight font-medium">{it.label}</span>
-                    {it.desc && <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">{it.desc}</span>}
+                    {it.desc && <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+                      {it.desc}
+                      {it.intensive&&trainingBlocked?" · Unavailable: fatigue too high":""}
+                      {it.intensive&&!trainingBlocked&&trainingLimited?" · Reduced gain due to fatigue":""}
+                    </span>}
                   </span>
                 </button>
               </li>
