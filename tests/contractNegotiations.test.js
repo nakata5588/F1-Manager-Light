@@ -17,6 +17,8 @@ import {
   driverNegotiationEligibility,
   driverNegotiations,
   isNegotiationActive,
+  isNegotiationClosed,
+  negotiationStatusBuckets,
   processDriverNegotiations,
   startDriverNegotiation,
   startDriverRenewal,
@@ -454,4 +456,33 @@ test("matching live contract rule still takes priority over database history",()
   assert.ok(rule);
   assert.equal(rule.source,"live_2004_rule");
   assert.equal(rule.clauses.buyout_fee_min,175_000);
+});
+
+
+test("negotiation buckets keep only submitted/countered offers active",()=>{
+  const negotiations=[
+    {id:"n1",status:"submitted"},
+    {id:"n2",status:"countered"},
+    {id:"n3",status:"accepted"},
+    {id:"n4",status:"rejected"},
+    {id:"n5",status:"withdrawn"},
+    {id:"n6",status:"signed_elsewhere"},
+  ];
+  const buckets=negotiationStatusBuckets(negotiations);
+
+  assert.deepEqual(buckets.active.map((n)=>n.id),["n1","n2"]);
+  assert.deepEqual(buckets.history.map((n)=>n.id),["n3","n4","n5","n6"]);
+  assert.equal(isNegotiationActive(negotiations[0]),true);
+  assert.equal(isNegotiationActive(negotiations[2]),false);
+  assert.equal(isNegotiationClosed(negotiations[2]),true);
+  assert.equal(isNegotiationClosed(negotiations[1]),false);
+});
+
+test("unknown non-active negotiation statuses stay out of the active visual bucket",()=>{
+  const buckets=negotiationStatusBuckets([
+    {id:"future",status:"expired"},
+    {id:"active",status:"submitted"},
+  ]);
+  assert.deepEqual(buckets.active.map((n)=>n.id),["active"]);
+  assert.deepEqual(buckets.history.map((n)=>n.id),["future"]);
 });
