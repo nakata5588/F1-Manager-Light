@@ -32,6 +32,10 @@ function finiteValue(...values){
   }
   return null;
 }
+function positiveFiniteValue(...values){
+  const value=finiteValue(...values);
+  return Number.isFinite(value)&&value>0?value:null;
+}
 function weightedAverage(signals){
   const usable=signals.filter((s)=>Number.isFinite(s?.value)&&Number(s?.weight)>0);
   if(!usable.length)return null;
@@ -92,19 +96,19 @@ export function driverMarketEvaluation(gs,driverOrId){
   const rating=ratings.find((row)=>driverIdOf(row)===id)||{};
 
   const knownAttributes=[
-    finiteValue(rating?.current_ability),
-    finiteValue(rating?.overall),
-    finiteValue(rating?.pace),
-    finiteValue(rating?.racecraft),
-    finiteValue(rating?.consistency),
-    finiteValue(rating?.experience),
+    positiveFiniteValue(rating?.current_ability),
+    positiveFiniteValue(rating?.overall),
+    positiveFiniteValue(rating?.pace),
+    positiveFiniteValue(rating?.racecraft),
+    positiveFiniteValue(rating?.consistency),
+    positiveFiniteValue(rating?.experience),
   ].filter(Number.isFinite);
 
   const attributeScore=knownAttributes.length
     ? knownAttributes.reduce((a,b)=>a+b,0)/knownAttributes.length
     : null;
 
-  const reputation=finiteValue(rating?.reputation,driver?.reputation);
+  const reputation=positiveFiniteValue(rating?.reputation,driver?.reputation);
   const marketValue=finiteValue(rating?.market_value,driver?.market_value);
   const career=careerSignal(gs,id);
 
@@ -146,4 +150,51 @@ export function compareDriverMarketValue(gs,a,b){
   if(Math.abs(eb.score-ea.score)>0.0001)return eb.score-ea.score;
   if(Math.abs(eb.confidence-ea.confidence)>0.0001)return eb.confidence-ea.confidence;
   return driverIdOf(a).localeCompare(driverIdOf(b));
+}
+
+export function driverOverallPresentation(gs,driverOrId){
+  const id=typeof driverOrId==="object"?driverIdOf(driverOrId):String(driverOrId??"");
+  const ratings=asRows(gs?.driverRatings).length?asRows(gs?.driverRatings):asRows(gs?.dbDriverRatings);
+  const rating=ratings.find((row)=>driverIdOf(row)===id)||{};
+  const direct=positiveFiniteValue(rating?.current_ability,rating?.overall);
+  if(Number.isFinite(direct)){
+    return {value:Number(direct),estimated:false,source:"rating",data_quality:"full"};
+  }
+  const evaluation=driverMarketEvaluation(gs,driverOrId);
+  return {
+    value:Math.round(Number(evaluation.score||55)),
+    estimated:true,
+    source:evaluation.data_quality==="unknown"?"neutral_fallback":"market_evaluation",
+    data_quality:evaluation.data_quality,
+  };
+}
+
+export function hasMeaningfulDriverAttributes(rating){
+  if(!rating||typeof rating!=="object")return false;
+  return [
+    rating.current_ability,
+    rating.overall,
+    rating.pace,
+    rating.qualifying,
+    rating.start_launch,
+    rating.racecraft,
+    rating.wet_skill,
+    rating.consistency,
+    rating.tire_management,
+    rating.race_intelligence,
+    rating.technical_feedback,
+    rating.adaptability,
+    rating.ers_fuel_management,
+    rating.mentality,
+    rating.agression,
+    rating.aggression,
+    rating.crash_likelihood,
+    rating.pressure_handling,
+    rating.leadership,
+    rating.team_player,
+    rating.car_development_impact,
+  ].some((value)=>{
+    const n=Number(unwrap(value));
+    return Number.isFinite(n)&&n>0;
+  });
 }

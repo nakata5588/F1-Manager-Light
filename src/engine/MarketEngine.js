@@ -30,6 +30,13 @@ function driverIdOf(row){
   return String(row?.driver_id??row?.person_id??row?.id??"");
 }
 
+function daysBetweenISO(fromISO,toISO){
+  const a=Date.parse(String(fromISO||"").slice(0,10)+"T00:00:00Z");
+  const b=Date.parse(String(toISO||"").slice(0,10)+"T00:00:00Z");
+  if(!Number.isFinite(a)||!Number.isFinite(b))return Infinity;
+  return Math.floor((b-a)/86400000);
+}
+
 function activeOfferCount(gs,driverId){
   return driverNegotiations(gs).filter((n)=>
     isNegotiationActive(n)&&String(n.driver_id)===String(driverId)
@@ -78,10 +85,17 @@ export function applyMarketTick(gs){
   const teams=gs.teams||[];
   if(!drivers.length||!teams.length)return next;
 
-  const currentMonth=String(gs?.currentDateISO||"").slice(0,7);
+  const currentDate=String(gs?.currentDateISO||"").slice(0,10);
+  const currentMonth=currentDate.slice(0,7);
   const marketRng=rngFor(gs,`market:${String(gs?.currentDateISO||currentMonth||"date")}`);
+  const lastAICheck=String(gs?._lastAIDriverMarketCheckISO||"");
+  const aiMarketCheckDue=Boolean(currentDate)&&(
+    !lastAICheck ||
+    gs?._lastAIDriverMarketMonth!==currentMonth ||
+    daysBetweenISO(lastAICheck,currentDate)>=7
+  );
 
-  if(currentMonth&&gs?._lastAIDriverMarketMonth!==currentMonth){
+  if(aiMarketCheckDue){
     const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
     const messages=[];
 
@@ -112,7 +126,11 @@ export function applyMarketTick(gs){
       }
     }
 
-    if(userTeamId&&availableContractRoles(next,userTeamId).includes("Reserve Driver")){
+    const remindPlayerReserve=
+      userTeamId &&
+      availableContractRoles(next,userTeamId).includes("Reserve Driver") &&
+      gs?._lastReserveVacancyReminderMonth!==currentMonth;
+    if(remindPlayerReserve){
       messages.push({
         id:`reserve_vacancy_${currentMonth}_${userTeamId}`,
         date:gs?.currentDateISO,
@@ -129,6 +147,8 @@ export function applyMarketTick(gs){
     next={
       ...next,
       _lastAIDriverMarketMonth:currentMonth,
+      _lastAIDriverMarketCheckISO:currentDate,
+      _lastReserveVacancyReminderMonth:remindPlayerReserve?currentMonth:gs?._lastReserveVacancyReminderMonth,
       inbox:[...messages,...(next?.inbox||[])],
     };
   }

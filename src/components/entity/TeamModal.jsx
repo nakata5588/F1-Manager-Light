@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { X } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
+import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -151,13 +152,27 @@ export default function TeamModal({ entity, onClose }) {
   const driverContracts = useMemo(() => contractsAll.filter(c =>
     String(c.team_id ?? c.team ?? c.constructor) === idStr &&
     (year == null || c.year == null || Number(c.year) === Number(year)) &&
-    String(c.role ?? "").toLowerCase().includes("driver")
+    isDriverContract(c)
   ), [contractsAll, idStr, year]);
 
   const driversAll = getArr(gs, ["drivers","dbDrivers"]);
   const drivers = useMemo(() => {
-    const ids = new Set(driverContracts.map(c => String(c.driver_id ?? c.person_id ?? c.id)));
-    return driversAll.filter(d => ids.has(String(d.driver_id ?? d.id)));
+    const byId = new Map(driversAll.map((d) => [String(d.driver_id ?? d.id), d]));
+    const order = { "Main Driver": 0, "Second Driver": 1, "Reserve Driver": 2, "Test Driver": 3, "Race Driver": 4 };
+    return driverContracts
+      .map((contract) => {
+        const driverId = String(contract.driver_id ?? contract.person_id ?? contract.id ?? "");
+        const driver = byId.get(driverId);
+        if (!driver) return null;
+        return {
+          ...driver,
+          __contract: contract,
+          __role: contractRoleLabel(contract),
+          __salary: contract.salary ?? contract.salary_yearly ?? null,
+        };
+      })
+      .filter(Boolean)
+      .sort((a,b) => (order[a.__role] ?? 9) - (order[b.__role] ?? 9));
   }, [driversAll, driverContracts]);
 
   /* ---------- Títulos (achievements) ---------- */
@@ -226,9 +241,10 @@ export default function TeamModal({ entity, onClose }) {
           {(d.display_name || d.name || "?").slice(0, 2).toUpperCase()}
         </div>
       )}
-      <div>
+      <div className="min-w-0">
         {d.prefered_number != null && <div className="text-xs text-gray-500 leading-tight">#{d.prefered_number}</div>}
-        <div className="text-sm font-semibold leading-tight">{d.display_name || d.name}</div>
+        <div className="text-sm font-semibold leading-tight truncate">{d.display_name || d.name}</div>
+        <div className="text-xs text-gray-500 mt-1">{d.__role || "Driver"}</div>
       </div>
     </button>
   );
