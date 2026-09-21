@@ -150,6 +150,60 @@ function calendarRows(rows,year){
     .sort((a,b)=>Number(a.round)-Number(b.round));
 }
 
+function historicalSnapshotToRating(row,year){
+  const copy=clean(row||{});
+  const rating={
+    year,
+    driver_id:driverId(copy),
+    driver_name:pick(copy,["display_name","driver_name","name"],driverId(copy)),
+    current_ability:asNum(pick(copy,["current_ability"],NaN),null),
+    potential_ability:asNum(pick(copy,["peak_ability"],NaN),null),
+    pace:asNum(pick(copy,["current_pace"],NaN),null),
+    qualifying:asNum(pick(copy,["current_qualifying"],NaN),null),
+    start_launch:asNum(pick(copy,["current_start_launch"],NaN),null),
+    racecraft:asNum(pick(copy,["current_racecraft"],NaN),null),
+    wet_skill:asNum(pick(copy,["current_wet_skill"],NaN),null),
+    consistency:asNum(pick(copy,["current_consistency"],NaN),null),
+    tire_management:asNum(pick(copy,["current_tire_management"],NaN),null),
+    race_intelligence:asNum(pick(copy,["current_race_intelligence"],NaN),null),
+    technical_feedback:asNum(pick(copy,["current_technical_feedback"],NaN),null),
+    adaptability:asNum(pick(copy,["current_adaptability"],NaN),null),
+    resource_management:asNum(pick(copy,["current_resource_management"],NaN),null),
+    ers_fuel_management:asNum(pick(copy,["current_resource_management"],NaN),null),
+    mentality:asNum(pick(copy,["current_mentality"],NaN),null),
+    pressure_handling:asNum(pick(copy,["current_pressure_handling"],NaN),null),
+    leadership:asNum(pick(copy,["current_leadership"],NaN),null),
+    team_player:asNum(pick(copy,["current_team_player"],NaN),null),
+    car_development_impact:asNum(pick(copy,["current_car_development_impact"],NaN),null),
+    aggression:asNum(pick(copy,["current_aggression"],NaN),null),
+    crash_likelihood:asNum(pick(copy,["current_crash_likelihood"],NaN),null),
+    career_stage:pick(copy,["career_stage"],null),
+    development_curve:pick(copy,["development_curve"],null),
+    rating_tier:pick(copy,["rating_tier"],null),
+    rating_confidence:pick(copy,["profile_confidence","rating_confidence"],null),
+    development_headroom:asNum(pick(copy,["development_headroom"],NaN),null),
+    source_baseline_year:year,
+    source:"historical_rating_snapshot_r2b",
+    rating_model:"R2B",
+  };
+  return Object.fromEntries(Object.entries(rating).filter(([,v])=>v!==null&&v!==undefined&&v!==""));
+}
+
+function driverRatingsForSeason(g,year,wantedIds){
+  const wanted=wantedIds instanceof Set?wantedIds:null;
+  const exactV2=rowsAtYear(g.historicalRatingSnapshots||[],year)
+    .filter((r)=>!wanted||wanted.has(driverId(r)))
+    .map((r)=>historicalSnapshotToRating(r,year))
+    .filter((r)=>r.driver_id);
+  const byId=new Map(exactV2.map((r)=>[driverId(r),r]));
+  const legacy=exactOrLatest(g.driverRatings||[],year,driverId,wanted);
+  for(const row of legacy){
+    const id=driverId(row);
+    if(id&&!byId.has(id))byId.set(id,{...clean(row),year,source:pick(row,["source"],"legacy_driver_ratings")});
+  }
+  return [...byId.values()];
+}
+
 export function materializeSeasonPack(globalData,yearInput){
   const year=Number(yearInput);
   if(!Number.isInteger(year))throw new TypeError("Season year must be an integer.");
@@ -283,7 +337,7 @@ export function materializeSeasonPack(globalData,yearInput){
   // Last-resort playable-grid bootstrap. This should only be used when the
   // historical source lacks a resolvable second seat.
   const bootstrapRatings=new Map(
-    exactOrLatest(g.driverRatings||[],year,driverId,null).map((r)=>[driverId(r),r])
+    driverRatingsForSeason(g,year,null).map((r)=>[driverId(r),r])
   );
   const fallbackDrivers=(g.drivers||[])
     .filter((d)=>{
@@ -334,7 +388,7 @@ export function materializeSeasonPack(globalData,yearInput){
     });
   }
   const driverIds=new Set(drivers.map(driverId));
-  const driverRatings=exactOrLatest(g.driverRatings,year,driverId,driverIds);
+  const driverRatings=driverRatingsForSeason(g,year,driverIds);
   const driverCareer=rowsAtYear(g.driverCareer,year).map(clean);
   const driverHistory=(g.driverHistory||[])
     .filter((r)=>driverIds.has(driverId(r)) && Number(yearOf(r)) < year)
@@ -369,11 +423,13 @@ export function materializeSeasonPack(globalData,yearInput){
     .map(normalizeTeamRow).filter(Boolean)
     .filter((r)=>teamIds.has(teamId(r)));
   const calendar=calendarRows(g.calendar,year);
+  const ratingModel=driverRatings.some((r)=>String(r?.source||"")==="historical_rating_snapshot_r2b")?"R2B":"legacy";
 
   const pack={
     format:"f1ml-season-pack",
     schemaVersion:1,
     year,
+    ratingModel,
     generatedFrom:"global-runtime-json",
     generatedAt:null,
     state:{
@@ -420,6 +476,7 @@ export function validateSeasonPack(pack){
   if(!Array.isArray(s.calendar)||!s.calendar.length)issues.push("no_calendar");
   if(!Array.isArray(s.teams)||!s.teams.length)issues.push("no_teams");
   if(!Array.isArray(s.drivers)||!s.drivers.length)issues.push("no_drivers");
+  if(year>=1980&&year<=1985&&pack?.ratingModel!=="R2B")issues.push("missing_r2b_driver_ratings");
 
   const teamIds=new Set((s.teams||[]).map(teamId).filter(Boolean));
   const driverIds=new Set((s.drivers||[]).map(driverId).filter(Boolean));
@@ -439,6 +496,7 @@ export function validateSeasonPack(pack){
       calendar:(s.calendar||[]).length,
       teams:(s.teams||[]).length,
       drivers:(s.drivers||[]).length,
+      driverRatings:(s.driverRatings||[]).length,
       contractedDrivers:gridContracts.length,
       staff:(s.staffCore||[]).length,
       staffContracts:(s.staffContracts||[]).length,

@@ -17,7 +17,9 @@ async function readJson(name,fallback=[]){
 await fs.mkdir(outRoot,{recursive:true});
 
 const [
-  drivers,calendar,teams,driverRatings,driverCareer,driverHistory,staffRatings,staffCore,
+  drivers,calendar,teams,driverRatings,historicalRatingSnapshots,driverRatingProfiles,
+  driverYearStatus,driverDevelopmentHistory,driverAvailabilityHistory,driverTeamHistory,
+  teamEngineHistory,carCompetitiveness,driverCareer,driverHistory,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
@@ -27,6 +29,14 @@ const [
   readJson("calendar.json"),
   readJson("teams.json"),
   readJson("driver_ratings.json"),
+  readJson("historical_rating_snapshots.json"),
+  readJson("driver_rating_profiles.json"),
+  readJson("driver_year_status.json"),
+  readJson("driver_development_history.json"),
+  readJson("driver_availability_history.json"),
+  readJson("driver_team_history.json"),
+  readJson("team_engine_history.json"),
+  readJson("car_competitiveness_by_year.json"),
   readJson("driver_career.json"),
   readJson("driver_f1_history.json"),
   readJson("staff_ratings.json"),
@@ -55,7 +65,9 @@ const [
 ]);
 
 const globalData={
-  drivers,calendar,teams,driverRatings,driverCareer,driverHistory,staffRatings,staffCore,
+  drivers,calendar,teams,driverRatings,historicalRatingSnapshots,driverRatingProfiles,
+  driverYearStatus,driverDevelopmentHistory,driverAvailabilityHistory,driverTeamHistory,
+  teamEngineHistory,carCompetitiveness,driverCareer,driverHistory,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
