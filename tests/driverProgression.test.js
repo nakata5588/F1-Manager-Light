@@ -81,7 +81,7 @@ test("new drivers start fresh and fatigue becomes a real 0-100 performance penal
   assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:25}}},"d1")>0);
   assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:50}}},"d1")>fatiguePenalty({driverAttributes:{d1:{fatigue:25}}},"d1"));
   assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:70}}},"d1")>=6);
-  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:100}}},"d1),10.8);
+  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:100}}},"d1"),10.8);
 });
 
 
