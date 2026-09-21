@@ -93,6 +93,11 @@ test("career boundary rolls to next season without importing historical future a
   assert.equal(earlyStar.canHireF1,true,"historical debut must not block an alternate-history F1 offer");
   assert.equal(earlyStar.canHireAcademy,false);
   assert.equal(earlyStar.f1_rookie_season,1984);
+  assert.equal(
+    next.driverRatings.some((r)=>r.driver_id==="D3"),
+    false,
+    "a future historical rating must not leak into an earlier alternate-history season"
+  );
 
   const currentContract=next.contracts.find(c=>c.driver_id==="D1");
   assert.equal(currentContract.contract_until_year,1980);
