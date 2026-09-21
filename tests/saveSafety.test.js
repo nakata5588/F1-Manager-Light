@@ -167,6 +167,12 @@ test("GP gameplay output is reproducible for the same save seed and entropy key"
   assert.deepEqual(first.results, second.results);
   assert.deepEqual(first.standings, second.standings);
   assert.deepEqual(first.driverAttributes, second.driverAttributes);
+  for(const driver of first.drivers){
+    const condition=first.driverAttributes?.[driver.driver_id];
+    assert.ok(condition,"race weekend should create a condition record for every entrant");
+    assert.ok(Number(condition.fatigue)>=8,"race weekend must add meaningful fatigue");
+    assert.equal(Number(condition.preparation),40,"race weekend should consume preparation");
+  }
   assert.deepEqual(
     first.lastRace.race.map((row) => ({
       driver: row.driver?.driver_id,
