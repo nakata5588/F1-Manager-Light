@@ -42,6 +42,10 @@ export function f1HireEligibility(gs,driver,year=gs?.activeYear){
     return {eligible:false,reason:status,age,minAge};
   }
 
+  const lowerSeriesLike=["lower_series","junior_only"].includes(status)||driver?.active_lower_series===true;
+  if(lowerSeriesLike&&!Number.isFinite(age)){
+    return {eligible:false,reason:"age_unknown",age,minAge};
+  }
   if(Number.isFinite(age)&&age<minAge){
     return {eligible:false,reason:"too_young",age,minAge};
   }
