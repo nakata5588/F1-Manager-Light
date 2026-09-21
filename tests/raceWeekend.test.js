@@ -262,6 +262,19 @@ test("RW3 grid limit produces DNQ and Starting Grid is a separate authoritative 
   );
 });
 
+test("RW3.2 qualifying sessions add fatigue on top of Practice load",()=>{
+  let gs=startAfterPractice();
+  const beforeQ1=gs.driverAttributes.D1.fatigue;
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.driverAttributes.D1.fatigue,beforeQ1+3);
+
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
+  const beforeQ2=gs.driverAttributes.D1.fatigue;
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.driverAttributes.D1.fatigue,beforeQ2+3);
+});
+
 test("RW3 player and AI drivers run through exactly the same qualifying sessions",()=>{
   const gs=finish1980Qualifying();
   const qSessions=gs.raceWeekendState.sessions.filter((row)=>row.type==="qualifying");
@@ -390,6 +403,11 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   assert.ok(d1.preparation_gain>0);
   assert.ok(gs.driverAttributes.D1.preparation>50);
   assert.ok(gs.driverAttributes.D1.fatigue>0);
+  assert.equal(d1.fatigue_before,0);
+  assert.equal(d1.fatigue_after,PRACTICE_PROGRAMMES.reliability.fatigue);
+  assert.ok(d1.fatigue_efficiency>0&&d1.fatigue_efficiency<=100);
+  assert.ok(d1.component_wear.total_wear>0);
+  assert.ok(Number.isFinite(d1.component_wear.lowest_condition));
   assert.ok(conditionModifier(gs,"D1")>beforeD1,"Preparation should now improve live driver performance");
 
   const afterP1=gs.development.parts.find((p)=>p.id==="P1").condition;
@@ -423,4 +441,5 @@ test("RW2 Practice state survives save/load with programme selections and setup 
   assert.equal(loaded.raceWeekendState.practice_selections.D1,"setup");
   assert.deepEqual(loaded.raceWeekendState.practice,gs.raceWeekendState.practice);
   assert.equal(loaded.driverAttributes.D1.preparation,gs.driverAttributes.D1.preparation);
+  assert.deepEqual(loaded.garage,gs.garage,"component condition must survive save/load");
 });
