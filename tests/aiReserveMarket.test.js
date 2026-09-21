@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { driverMarketEvaluation, compareDriverMarketValue } from "../src/domain/driverMarketEvaluation.js";
+import { driverMarketEvaluation, compareDriverMarketValue, driverOverallPresentation } from "../src/domain/driverMarketEvaluation.js";
 import { reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
-import { isReserveDriverContract } from "../src/domain/contractRoles.js";
+import { contractRoleLabel, isReserveDriverContract } from "../src/domain/contractRoles.js";
 import { isNegotiationActive, processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
 
 function marketState(){
@@ -158,4 +158,66 @@ test("AI does not negotiate a second reserve when one is already active",()=>{
   assert.equal(before,1);
   assert.equal(after,1);
   assert.equal(extra.length,0);
+});
+
+
+test("zero-filled missing ratings are treated as unknown and never as zero overall",()=>{
+  const gs={
+    activeYear:1980,
+    drivers:[{driver_id:"ZERO",display_name:"Zero Placeholder",status:"eligible"}],
+    driverRatings:[{
+      driver_id:"ZERO",
+      current_ability:0,
+      overall:0,
+      pace:0,
+      racecraft:0,
+      consistency:0,
+      experience:0,
+      reputation:0,
+      market_value:0,
+    }],
+    driverCareer:[],
+  };
+  const evaluation=driverMarketEvaluation(gs,"ZERO");
+  const overall=driverOverallPresentation(gs,"ZERO");
+  assert.equal(evaluation.known_attribute_count,0);
+  assert.equal(evaluation.score,55);
+  assert.equal(overall.value,55);
+  assert.equal(overall.estimated,true);
+});
+
+test("canonical contract roles expose the labels used by team and market UI",()=>{
+  assert.equal(contractRoleLabel({role:"main_driver"}),"Main Driver");
+  assert.equal(contractRoleLabel({role:"Second Driver"}),"Second Driver");
+  assert.equal(contractRoleLabel({role:"reserve_driver"}),"Reserve Driver");
+  assert.equal(contractRoleLabel({role:"test_driver"}),"Test Driver");
+});
+
+test("AI retries a vacant reserve role after a rejected offer instead of waiting a month",()=>{
+  const initial=applyMarketTick(marketState());
+  const first=(initial.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    n.offer?.role==="Reserve Driver" &&
+    isNegotiationActive(n)
+  );
+  assert.ok(first);
+
+  const rejected={
+    ...initial,
+    driverNegotiations:(initial.driverNegotiations||[]).map((n)=>
+      n.id===first.id?{...n,status:"rejected",resolved_at:"1980-02-03"}:n
+    ),
+    currentDateISO:"1980-02-08",
+  };
+  const retried=applyMarketTick(rejected);
+  const t2ReserveOffers=(retried.driverNegotiations||[]).filter((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    n.offer?.role==="Reserve Driver"
+  );
+  assert.equal(t2ReserveOffers.length,2);
+  assert.ok(t2ReserveOffers.some((n)=>n.status==="rejected"));
+  assert.ok(t2ReserveOffers.some((n)=>isNegotiationActive(n)));
+  assert.equal(retried._lastAIDriverMarketCheckISO,"1980-02-08");
 });
