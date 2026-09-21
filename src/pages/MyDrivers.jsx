@@ -8,6 +8,7 @@ import {
   isTestDriverContract,
   normalizedContractRole,
 } from "../domain/contractRoles.js";
+import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{
@@ -106,19 +107,19 @@ export default function MyDrivers(){
         driver_id:id,
         display_name:pick(contract,["driver_name","name"],id),
       };
-      const rating=ratingById.get(id)||{};
+      const overallView=driverOverallPresentation(gs,driver);
       return {
         ...slot,
         contract,
         id,
         driver,
         name:driver.display_name||driver.name||pick(contract,["driver_name","name"],id),
-        overall:pick(rating,["current_ability","overall","pace"],"—"),
+        overall:overallView.estimated?`~${overallView.value}`:overallView.value,
         salary:Number(pick(contract,["salary","salary_yearly"],0))||0,
         until:pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"),
       };
     });
-  },[activeTeamContracts,driverById,ratingById]);
+  },[activeTeamContracts,driverById,gs]);
 
   const main=slotRows.find((row)=>row.key==="main");
   const second=slotRows.find((row)=>row.key==="second");
