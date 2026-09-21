@@ -119,10 +119,15 @@ function driverWorldVisibleFrom(driver){
   return Number.isFinite(born)?born+16:Infinity;
 }
 function driverF1EligibleFrom(driver){
-  const explicit=num(pick(driver,["f1_eligible_from","f1_rookie_season","f1_debut_year"],NaN));
+  const explicit=num(pick(driver,["f1_eligible_from"],NaN));
   if(Number.isFinite(explicit))return explicit;
-  const start=num(pick(driver,["career_start_year"],NaN));
-  return Number.isFinite(start)?start:Infinity;
+
+  // Historical F1 debut is not a hard lock once the career branches away from
+  // reality. A visible lower-series driver may be signed early if old enough.
+  const visible=driverWorldVisibleFrom(driver);
+  const born=birthYear(driver);
+  const ageGate=Number.isFinite(born)?born+18:-Infinity;
+  return Math.max(visible,ageGate);
 }
 
 function sanitizeFutureDriver(driver,targetYear){
@@ -139,8 +144,10 @@ function sanitizeFutureDriver(driver,targetYear){
   delete copy.last_f1_season;
   const deathYear=num(String(copy.death_date||"").slice(0,4),NaN);
   if(Number.isFinite(deathYear)&&deathYear>=targetYear)delete copy.death_date;
-  const isF1=eligible<=targetYear;
-  const youth=Number.isFinite(Number(age))&&Number(age)<=21&&!isF1;
+  const historicalDebut=num(pick(driver,["f1_rookie_season","f1_debut_year"],NaN));
+  const historicalF1=Number.isFinite(historicalDebut)&&historicalDebut<=targetYear;
+  const canHireF1=eligible<=targetYear;
+  const youth=Number.isFinite(Number(age))&&Number(age)<=19&&!historicalF1;
   return {
     ...copy,
     driver_id:idOfDriver(driver),
@@ -149,11 +156,11 @@ function sanitizeFutureDriver(driver,targetYear){
     age,
     world_visible_from:visible,
     f1_eligible_from:eligible,
-    active_lower_series:!isF1,
+    active_lower_series:!historicalF1,
     youth_eligible:youth,
     canHireAcademy:youth,
-    canHireF1:isF1,
-    status:isF1?"eligible":(youth?"junior_only":"lower_series"),
+    canHireF1,
+    status:historicalF1?"eligible":(youth?"junior_only":"lower_series"),
     source:"global_identity_pool",
   };
 }
