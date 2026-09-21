@@ -86,6 +86,9 @@ jobs:
       - name: Test driver contract negotiations
         run: npm run test:negotiations
 
+      - name: Test live lineup and driver role management
+        run: npm run test:roles
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
