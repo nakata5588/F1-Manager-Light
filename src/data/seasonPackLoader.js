@@ -65,6 +65,7 @@ export function seasonPackStatePatch(pack) {
     carStats: Array.isArray(s.carStats) ? s.carStats : [],
     sponsorsContracts: Array.isArray(s.sponsorsContracts) ? s.sponsorsContracts : [],
     rules: Array.isArray(s.rules) ? s.rules : [],
+    qualifyingRules: s.qualifyingRules && typeof s.qualifyingRules === "object" ? s.qualifyingRules : null,
     eraSafety: Array.isArray(s.eraSafety) ? s.eraSafety : [],
     accidentModel: Array.isArray(s.accidentModel) ? s.accidentModel : [],
     tyres: Array.isArray(s.tyres) ? s.tyres : [],
