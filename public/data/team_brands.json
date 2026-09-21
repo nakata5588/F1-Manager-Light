@@ -2,7 +2,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C2,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "A2",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Alfa Romeo",
@@ -26,7 +28,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C3,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "A3",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Arrows",
@@ -50,7 +54,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C4,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "A4",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "ATS",
@@ -74,7 +80,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C5,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "A5",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Brabham",
@@ -98,7 +106,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C6,teams!$B:$B,0)),\"\")",
-      "result": "t_0013"
+      "result": "t_0013",
+      "ref": "A6",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Ensign",
@@ -122,7 +132,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C7,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "A7",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Ferrari",
@@ -146,7 +158,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C8,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "A8",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Fittipaldi",
@@ -170,7 +184,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C9,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "A9",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Ligier",
@@ -194,7 +210,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C10,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "A10",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Lotus",
@@ -218,7 +236,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C11,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "A11",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "McLaren",
@@ -242,7 +262,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C12,teams!$B:$B,0)),\"\")",
-      "result": "t_0014"
+      "result": "t_0014",
+      "ref": "A12",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Osella",
@@ -266,7 +288,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C13,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "A13",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Renault",
@@ -290,7 +314,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C14,teams!$B:$B,0)),\"\")",
-      "result": "t_0015"
+      "result": "t_0015",
+      "ref": "A14",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Shadow",
@@ -314,7 +340,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C15,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "A15",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Tyrrell",
@@ -338,7 +366,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C16,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "A16",
+      "shareType": "array"
     },
     "year": 1979,
     "team_name": "Williams",
@@ -362,7 +392,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C17,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "A17",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Williams",
@@ -386,7 +418,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C18,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "A18",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Ligier",
@@ -410,7 +444,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C19,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "A19",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Brabham",
@@ -434,7 +470,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C20,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "A20",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Renault",
@@ -458,7 +496,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C21,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "A21",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Lotus",
@@ -482,7 +522,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C22,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "A22",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Tyrrell",
@@ -506,7 +548,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C23,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "A23",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Arrows",
@@ -530,7 +574,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C24,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "A24",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Fittipaldi",
@@ -554,7 +600,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C25,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "A25",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "McLaren",
@@ -578,7 +626,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C26,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "A26",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Ferrari",
@@ -602,7 +652,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C27,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "A27",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Alfa Romeo",
@@ -626,7 +678,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C28,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "A28",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "ATS",
@@ -650,7 +704,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C29,teams!$B:$B,0)),\"\")",
-      "result": "t_0013"
+      "result": "t_0013",
+      "ref": "A29",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Ensign",
@@ -674,7 +730,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C30,teams!$B:$B,0)),\"\")",
-      "result": "t_0014"
+      "result": "t_0014",
+      "ref": "A30",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Osella",
@@ -698,7 +756,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C31,teams!$B:$B,0)),\"\")",
-      "result": "t_0015"
+      "result": "t_0015",
+      "ref": "A31",
+      "shareType": "array"
     },
     "year": 1980,
     "team_name": "Shadow",
@@ -722,7 +782,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C32,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "A32",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Alfa Romeo",
@@ -746,7 +808,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C33,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "A33",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Arrows",
@@ -770,7 +834,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C34,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "A34",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "ATS",
@@ -794,7 +860,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C35,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "A35",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Brabham",
@@ -818,7 +886,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C36,teams!$B:$B,0)),\"\")",
-      "result": "t_0013"
+      "result": "t_0013",
+      "ref": "A36",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Ensign",
@@ -842,7 +912,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C37,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "A37",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Ferrari",
@@ -866,7 +938,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C38,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "A38",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Fittipaldi",
@@ -890,7 +964,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C39,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "A39",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Ligier",
@@ -914,7 +990,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C40,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "A40",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Lotus",
@@ -938,7 +1016,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C41,teams!$B:$B,0)),\"\")",
-      "result": "t_0044"
+      "result": "t_0044",
+      "ref": "A41",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "March",
@@ -962,7 +1042,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C42,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "A42",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "McLaren",
@@ -986,7 +1068,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C43,teams!$B:$B,0)),\"\")",
-      "result": "t_0014"
+      "result": "t_0014",
+      "ref": "A43",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Osella",
@@ -1010,7 +1094,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C44,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "A44",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Renault",
@@ -1034,7 +1120,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C45,teams!$B:$B,0)),\"\")",
-      "result": "t_0058"
+      "result": "t_0058",
+      "ref": "A45",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Theodore",
@@ -1058,7 +1146,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C46,teams!$B:$B,0)),\"\")",
-      "result": "t_0057"
+      "result": "t_0057",
+      "ref": "A46",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Toleman",
@@ -1082,7 +1172,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C47,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "A47",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Tyrrell",
@@ -1106,7 +1198,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C48,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "A48",
+      "shareType": "array"
     },
     "year": 1981,
     "team_name": "Williams",
@@ -1130,7 +1224,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C49,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "A49",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Williams",
@@ -1154,7 +1250,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C50,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "A50",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Renault",
@@ -1178,7 +1276,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C51,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "A51",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "McLaren",
@@ -1202,7 +1302,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C52,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "A52",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Ferrari",
@@ -1226,7 +1328,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C53,teams!$B:$B,0)),\"\")",
-      "result": "t_0018"
+      "result": "t_0018",
+      "ref": "A53",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Toyota",
@@ -1250,7 +1354,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C54,teams!$B:$B,0)),\"\")",
-      "result": "t_0026"
+      "result": "t_0026",
+      "ref": "A54",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Sauber",
@@ -1274,7 +1380,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C55,teams!$B:$B,0)),\"\")",
-      "result": "t_0027"
+      "result": "t_0027",
+      "ref": "A55",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "BAR",
@@ -1298,7 +1406,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C56,teams!$B:$B,0)),\"\")",
-      "result": "t_0028"
+      "result": "t_0028",
+      "ref": "A56",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Jordan",
@@ -1322,7 +1432,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C57,teams!$B:$B,0)),\"\")",
-      "result": "t_0029"
+      "result": "t_0029",
+      "ref": "A57",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Minardi",
@@ -1346,7 +1458,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C58,teams!$B:$B,0)),\"\")",
-      "result": "t_0030"
+      "result": "t_0030",
+      "ref": "A58",
+      "shareType": "array"
     },
     "year": 2004,
     "team_name": "Jaguar",
@@ -1370,7 +1484,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C59,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "A59",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "McLaren",
@@ -1394,7 +1510,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C60,teams!$B:$B,0)),\"\")",
-      "result": "t_0131"
+      "result": "t_0131",
+      "ref": "A60",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Mercedes",
@@ -1418,7 +1536,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C61,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "A61",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Ferrari",
@@ -1442,7 +1562,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C62,teams!$B:$B,0)),\"\")",
-      "result": "t_0020"
+      "result": "t_0020",
+      "ref": "A62",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Red Bull",
@@ -1466,7 +1588,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C63,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "A63",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Williams",
@@ -1490,7 +1614,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C64,teams!$B:$B,0)),\"\")",
-      "result": "t_0212"
+      "result": "t_0212",
+      "ref": "A64",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "RB F1 Team",
@@ -1514,7 +1640,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C65,teams!$B:$B,0)),\"\")",
-      "result": "t_0117"
+      "result": "t_0117",
+      "ref": "A65",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Aston Martin",
@@ -1538,7 +1666,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C66,teams!$B:$B,0)),\"\")",
-      "result": "t_0026"
+      "result": "t_0026",
+      "ref": "A66",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Sauber",
@@ -1562,7 +1692,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C67,teams!$B:$B,0)),\"\")",
-      "result": "t_0208"
+      "result": "t_0208",
+      "ref": "A67",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Haas F1 Team",
@@ -1586,7 +1718,9 @@
   {
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C68,teams!$B:$B,0)),\"\")",
-      "result": "t_0211"
+      "result": "t_0211",
+      "ref": "A68",
+      "shareType": "array"
     },
     "year": 2025,
     "team_name": "Alpine F1 Team",
@@ -1609,7 +1743,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C69,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C69,teams!$B:$B,0)),\"\")",
+      "ref": "A69",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1632,7 +1768,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C70,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C70,teams!$B:$B,0)),\"\")",
+      "ref": "A70",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1655,7 +1793,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C71,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C71,teams!$B:$B,0)),\"\")",
+      "ref": "A71",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1678,7 +1818,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C72,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C72,teams!$B:$B,0)),\"\")",
+      "ref": "A72",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1701,7 +1843,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C73,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C73,teams!$B:$B,0)),\"\")",
+      "ref": "A73",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1724,7 +1868,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C74,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C74,teams!$B:$B,0)),\"\")",
+      "ref": "A74",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1747,7 +1893,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C75,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C75,teams!$B:$B,0)),\"\")",
+      "ref": "A75",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1770,7 +1918,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C76,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C76,teams!$B:$B,0)),\"\")",
+      "ref": "A76",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1793,7 +1943,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C77,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C77,teams!$B:$B,0)),\"\")",
+      "ref": "A77",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1816,7 +1968,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C78,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C78,teams!$B:$B,0)),\"\")",
+      "ref": "A78",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,
@@ -1839,7 +1993,9 @@
   },
   {
     "team_id": {
-      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C79,teams!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C79,teams!$B:$B,0)),\"\")",
+      "ref": "A79",
+      "shareType": "array"
     },
     "year": null,
     "team_name": null,

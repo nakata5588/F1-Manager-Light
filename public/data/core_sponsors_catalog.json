@@ -9,11 +9,15 @@
     "anual_income": 2000000,
     "cash_upfront": {
       "formula": "G2*0.1",
-      "result": 200000
+      "result": 200000,
+      "ref": "H2:H26",
+      "shareType": "shared"
     },
     "monthly_fee": {
       "formula": "(G2-H2)/12",
-      "result": 150000
+      "result": 150000,
+      "ref": "I2:I26",
+      "shareType": "shared"
     },
     "objective_type": "podiums",
     "penalties": null,
@@ -31,16 +35,12 @@
     "end_year": 2006,
     "anual_income": 4500000,
     "cash_upfront": {
-      "formula": "G3*0.1",
       "result": 450000,
-      "ref": "H3:H26",
-      "shareType": "shared"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
-      "formula": "(G3-H3)/12",
       "result": 337500,
-      "ref": "I3:I26",
-      "shareType": "shared"
+      "sharedFormula": "I2"
     },
     "objective_type": "wins",
     "penalties": null,
@@ -59,11 +59,11 @@
     "anual_income": 2500000,
     "cash_upfront": {
       "result": 250000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 187500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "podiums",
     "penalties": null,
@@ -82,11 +82,11 @@
     "anual_income": 1800000,
     "cash_upfront": {
       "result": 180000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 135000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "top_6",
     "penalties": null,
@@ -105,11 +105,11 @@
     "anual_income": 3200000,
     "cash_upfront": {
       "result": 320000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 240000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "wins",
     "penalties": null,
@@ -128,11 +128,11 @@
     "anual_income": 1200000,
     "cash_upfront": {
       "result": 120000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 90000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "podiums",
     "penalties": null,
@@ -151,11 +151,11 @@
     "anual_income": 2200000,
     "cash_upfront": {
       "result": 220000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 165000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "top_6",
     "penalties": null,
@@ -174,11 +174,11 @@
     "anual_income": 1500000,
     "cash_upfront": {
       "result": 150000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 112500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "top_10",
     "penalties": null,
@@ -197,11 +197,11 @@
     "anual_income": 1800000,
     "cash_upfront": {
       "result": 180000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 135000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -220,11 +220,11 @@
     "anual_income": 1400000,
     "cash_upfront": {
       "result": 140000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 105000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "qualifying",
     "penalties": null,
@@ -243,11 +243,11 @@
     "anual_income": 1100000,
     "cash_upfront": {
       "result": 110000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 82500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "Top 6",
     "penalties": null,
@@ -266,11 +266,11 @@
     "anual_income": 950000,
     "cash_upfront": {
       "result": 95000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 71250,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "points",
     "penalties": null,
@@ -289,11 +289,11 @@
     "anual_income": 900000,
     "cash_upfront": {
       "result": 90000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 67500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "points",
     "penalties": null,
@@ -312,11 +312,11 @@
     "anual_income": 850000,
     "cash_upfront": {
       "result": 85000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 63750,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -335,11 +335,11 @@
     "anual_income": 800000,
     "cash_upfront": {
       "result": 80000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 60000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -358,11 +358,11 @@
     "anual_income": 600000,
     "cash_upfront": {
       "result": 60000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 45000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "points",
     "penalties": null,
@@ -381,11 +381,11 @@
     "anual_income": 500000,
     "cash_upfront": {
       "result": 50000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 37500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -404,11 +404,11 @@
     "anual_income": 450000,
     "cash_upfront": {
       "result": 45000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 33750,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -427,11 +427,11 @@
     "anual_income": 400000,
     "cash_upfront": {
       "result": 40000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 30000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": "top_10",
     "penalties": null,
@@ -450,11 +450,11 @@
     "anual_income": 350000,
     "cash_upfront": {
       "result": 35000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 26250,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -473,11 +473,11 @@
     "anual_income": 500000,
     "cash_upfront": {
       "result": 50000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 37500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -496,11 +496,11 @@
     "anual_income": 1200000,
     "cash_upfront": {
       "result": 120000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 90000,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -519,11 +519,11 @@
     "anual_income": 1500000,
     "cash_upfront": {
       "result": 150000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 112500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -542,11 +542,11 @@
     "anual_income": 300000,
     "cash_upfront": {
       "result": 30000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 22500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,
@@ -565,11 +565,11 @@
     "anual_income": 700000,
     "cash_upfront": {
       "result": 70000,
-      "sharedFormula": "H3"
+      "sharedFormula": "H2"
     },
     "monthly_fee": {
       "result": 52500,
-      "sharedFormula": "I3"
+      "sharedFormula": "I2"
     },
     "objective_type": null,
     "penalties": null,

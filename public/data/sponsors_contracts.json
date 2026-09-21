@@ -528,7 +528,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C27,teams!$B:$B,0)),\"\")",
-      "result": "t_0028"
+      "result": "t_0028",
+      "ref": "B27",
+      "shareType": "array"
     },
     "team_name": "Jordan",
     "sponsor_id": null,
@@ -543,7 +545,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 833333.3333333334,
+      "result": 833333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",
@@ -578,7 +580,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 2083333.3333333333,
+      "result": 2083333.333,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",
@@ -601,7 +603,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C29,teams!$B:$B,0)),\"\")",
-      "result": "t_0029"
+      "result": "t_0029",
+      "ref": "B29",
+      "shareType": "array"
     },
     "team_name": "Minardi",
     "sponsor_id": null,
@@ -616,7 +620,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 83333.33333333333,
+      "result": 83333.33333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -639,7 +643,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C30,teams!$B:$B,0)),\"\")",
-      "result": "t_0030"
+      "result": "t_0030",
+      "ref": "B30",
+      "shareType": "array"
     },
     "team_name": "Jaguar",
     "sponsor_id": null,
@@ -654,7 +660,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 291666.6666666667,
+      "result": 291666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -689,7 +695,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 333333.3333333333,
+      "result": 333333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -724,7 +730,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 291666.6666666667,
+      "result": 291666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -782,7 +788,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C34,teams!$B:$B,0)),\"\")",
-      "result": "t_0029"
+      "result": "t_0029",
+      "ref": "B34",
+      "shareType": "array"
     },
     "team_name": "Minardi",
     "sponsor_id": null,
@@ -820,7 +828,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C35,teams!$B:$B,0)),\"\")",
-      "result": "t_0028"
+      "result": "t_0028",
+      "ref": "B35",
+      "shareType": "array"
     },
     "team_name": "Jordan",
     "sponsor_id": null,
@@ -835,7 +845,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 208333.33333333334,
+      "result": 208333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -870,7 +880,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 316666.6666666667,
+      "result": 316666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -893,7 +903,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C37,teams!$B:$B,0)),\"\")",
-      "result": "t_0027"
+      "result": "t_0027",
+      "ref": "B37",
+      "shareType": "array"
     },
     "team_name": "BAR",
     "sponsor_id": null,
@@ -943,7 +955,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 416666.6666666667,
+      "result": 416666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -966,7 +978,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C39,teams!$B:$B,0)),\"\")",
-      "result": "t_0030"
+      "result": "t_0030",
+      "ref": "B39",
+      "shareType": "array"
     },
     "team_name": "Jaguar",
     "sponsor_id": null,
@@ -981,7 +995,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 1166666.6666666667,
+      "result": 1166666.667,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",
@@ -1016,7 +1030,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 1666666.6666666667,
+      "result": 1666666.667,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",
@@ -1051,7 +1065,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 833333.3333333334,
+      "result": 833333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1086,7 +1100,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 458333.3333333333,
+      "result": 458333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1121,7 +1135,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 1833333.3333333333,
+      "result": 1833333.333,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",
@@ -1156,7 +1170,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 416666.6666666667,
+      "result": 416666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1226,7 +1240,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 333333.3333333333,
+      "result": 333333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1319,7 +1333,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C49,teams!$B:$B,0)),\"\")",
-      "result": "t_0030"
+      "result": "t_0030",
+      "ref": "B49",
+      "shareType": "array"
     },
     "team_name": "Jaguar",
     "sponsor_id": null,
@@ -1392,7 +1408,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C51,teams!$B:$B,0)),\"\")",
-      "result": "t_0027"
+      "result": "t_0027",
+      "ref": "B51",
+      "shareType": "array"
     },
     "team_name": "BAR",
     "sponsor_id": null,
@@ -1407,7 +1425,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 333333.3333333333,
+      "result": 333333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1442,7 +1460,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 333333.3333333333,
+      "result": 333333.3333,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1465,7 +1483,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C53,teams!$B:$B,0)),\"\")",
-      "result": "t_0028"
+      "result": "t_0028",
+      "ref": "B53",
+      "shareType": "array"
     },
     "team_name": "Jordan",
     "sponsor_id": null,
@@ -1480,7 +1500,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 166666.66666666666,
+      "result": 166666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "branding",
@@ -1515,7 +1535,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 2333333.3333333335,
+      "result": 2333333.333,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",
@@ -1573,7 +1593,9 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C56,teams!$B:$B,0)),\"\")",
-      "result": "t_0029"
+      "result": "t_0029",
+      "ref": "B56",
+      "shareType": "array"
     },
     "team_name": "Minardi",
     "sponsor_id": null,
@@ -1588,7 +1610,7 @@
       "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "result": 666666.6666666666,
+      "result": 666666.6667,
       "sharedFormula": "L26"
     },
     "objective_type": "performance",

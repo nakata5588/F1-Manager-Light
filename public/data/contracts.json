@@ -3,12 +3,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C2,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B2",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E2,drivers!$B:$B,0)),\"\")",
-      "result": "d_0199"
+      "result": "d_0199",
+      "ref": "D2",
+      "shareType": "array"
     },
     "driver_name": "Carlos Reutemann",
     "role": "second_driver",
@@ -25,12 +29,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C3,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B3",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E3,drivers!$B:$B,0)),\"\")",
-      "result": "d_0178"
+      "result": "d_0178",
+      "ref": "D3",
+      "shareType": "array"
     },
     "driver_name": "Alan Jones",
     "role": "main_driver",
@@ -47,12 +55,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C4,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "B4",
+      "shareType": "array"
     },
     "team_name": "Ligier",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E4,drivers!$B:$B,0)),\"\")",
-      "result": "d_0202"
+      "result": "d_0202",
+      "ref": "D4",
+      "shareType": "array"
     },
     "driver_name": "Didier Pironi",
     "role": "second_driver",
@@ -69,12 +81,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C5,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "B5",
+      "shareType": "array"
     },
     "team_name": "Ligier",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E5,drivers!$B:$B,0)),\"\")",
-      "result": "d_0172"
+      "result": "d_0172",
+      "ref": "D5",
+      "shareType": "array"
     },
     "driver_name": "Jacques Laffite",
     "role": "main_driver",
@@ -91,12 +107,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C6,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "B6",
+      "shareType": "array"
     },
     "team_name": "Brabham",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E6,drivers!$B:$B,0)),\"\")",
-      "result": "d_0137"
+      "result": "d_0137",
+      "ref": "D6",
+      "shareType": "array"
     },
     "driver_name": "Nelson Piquet",
     "role": "main_driver",
@@ -113,12 +133,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C7,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "B7",
+      "shareType": "array"
     },
     "team_name": "Brabham",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E7,drivers!$B:$B,0)),\"\")",
-      "result": "d_0217"
+      "result": "d_0217",
+      "ref": "D7",
+      "shareType": "array"
     },
     "driver_name": "Ricardo Zunino",
     "role": "second_driver",
@@ -135,12 +159,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C8,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "B8",
+      "shareType": "array"
     },
     "team_name": "Renault",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E8,drivers!$B:$B,0)),\"\")",
-      "result": "d_0163"
+      "result": "d_0163",
+      "ref": "D8",
+      "shareType": "array"
     },
     "driver_name": "René Arnoux",
     "role": "second_driver",
@@ -157,12 +185,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C9,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "B9",
+      "shareType": "array"
     },
     "team_name": "Renault",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E9,drivers!$B:$B,0)),\"\")",
-      "result": "d_0219"
+      "result": "d_0219",
+      "ref": "D9",
+      "shareType": "array"
     },
     "driver_name": "Jean-Pierre Jabouille",
     "role": "main_driver",
@@ -179,12 +211,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C10,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "B10",
+      "shareType": "array"
     },
     "team_name": "Lotus",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E10,drivers!$B:$B,0)),\"\")",
-      "result": "d_0173"
+      "result": "d_0173",
+      "ref": "D10",
+      "shareType": "array"
     },
     "driver_name": "Elio de Angelis",
     "role": "second_driver",
@@ -201,12 +237,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C11,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "B11",
+      "shareType": "array"
     },
     "team_name": "Lotus",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E11,drivers!$B:$B,0)),\"\")",
-      "result": "d_0207"
+      "result": "d_0207",
+      "ref": "D11",
+      "shareType": "array"
     },
     "driver_name": "Mario Andretti",
     "role": "main_driver",
@@ -223,12 +263,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C12,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "B12",
+      "shareType": "array"
     },
     "team_name": "Tyrrell",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E12,drivers!$B:$B,0)),\"\")",
-      "result": "d_0206"
+      "result": "d_0206",
+      "ref": "D12",
+      "shareType": "array"
     },
     "driver_name": "Derek Daly",
     "role": "second_driver",
@@ -245,12 +289,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C13,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "B13",
+      "shareType": "array"
     },
     "team_name": "Tyrrell",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E13,drivers!$B:$B,0)),\"\")",
-      "result": "d_0197"
+      "result": "d_0197",
+      "ref": "D13",
+      "shareType": "array"
     },
     "driver_name": "Jean-Pierre Jarier",
     "role": "main_driver",
@@ -267,12 +315,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C14,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "B14",
+      "shareType": "array"
     },
     "team_name": "Arrows",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E14,drivers!$B:$B,0)),\"\")",
-      "result": "d_0119"
+      "result": "d_0119",
+      "ref": "D14",
+      "shareType": "array"
     },
     "driver_name": "Riccardo Patrese",
     "role": "main_driver",
@@ -289,12 +341,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C15,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "B15",
+      "shareType": "array"
     },
     "team_name": "Arrows",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E15,drivers!$B:$B,0)),\"\")",
-      "result": "d_0200"
+      "result": "d_0200",
+      "ref": "D15",
+      "shareType": "array"
     },
     "driver_name": "Jochen Mass",
     "role": "second_driver",
@@ -311,12 +367,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C16,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "B16",
+      "shareType": "array"
     },
     "team_name": "Fittipaldi",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E16,drivers!$B:$B,0)),\"\")",
-      "result": "d_0177"
+      "result": "d_0177",
+      "ref": "D16",
+      "shareType": "array"
     },
     "driver_name": "Keke Rosberg",
     "role": "second_driver",
@@ -333,12 +393,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C17,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "B17",
+      "shareType": "array"
     },
     "team_name": "Fittipaldi",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E17,drivers!$B:$B,0)),\"\")",
-      "result": "d_0224"
+      "result": "d_0224",
+      "ref": "D17",
+      "shareType": "array"
     },
     "driver_name": "Emerson Fittipaldi",
     "role": "main_driver",
@@ -355,12 +419,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C18,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B18",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E18,drivers!$B:$B,0)),\"\")",
-      "result": "d_0117"
+      "result": "d_0117",
+      "ref": "D18",
+      "shareType": "array"
     },
     "driver_name": "Alain Prost",
     "role": "second_driver",
@@ -377,12 +445,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C19,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B19",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E19,drivers!$B:$B,0)),\"\")",
-      "result": "d_0187"
+      "result": "d_0187",
+      "ref": "D19",
+      "shareType": "array"
     },
     "driver_name": "John Watson",
     "role": "main_driver",
@@ -399,12 +471,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C20,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B20",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E20,drivers!$B:$B,0)),\"\")",
-      "result": "d_0203"
+      "result": "d_0203",
+      "ref": "D20",
+      "shareType": "array"
     },
     "driver_name": "Gilles Villeneuve",
     "role": "second_driver",
@@ -421,12 +497,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C21,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B21",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E21,drivers!$B:$B,0)),\"\")",
-      "result": "d_0222"
+      "result": "d_0222",
+      "ref": "D21",
+      "shareType": "array"
     },
     "driver_name": "Jody Scheckter",
     "role": "main_driver",
@@ -443,12 +523,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C22,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "B22",
+      "shareType": "array"
     },
     "team_name": "Alfa Romeo",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E22,drivers!$B:$B,0)),\"\")",
-      "result": "d_0152"
+      "result": "d_0152",
+      "ref": "D22",
+      "shareType": "array"
     },
     "driver_name": "Bruno Giacomelli",
     "role": "main_driver",
@@ -465,12 +549,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C23,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "B23",
+      "shareType": "array"
     },
     "team_name": "Alfa Romeo",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E23,drivers!$B:$B,0)),\"\")",
-      "result": "d_0221"
+      "result": "d_0221",
+      "ref": "D23",
+      "shareType": "array"
     },
     "driver_name": "Patrick Depailler",
     "role": "second_driver",
@@ -487,12 +575,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C24,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "B24",
+      "shareType": "array"
     },
     "team_name": "ATS",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E24,drivers!$B:$B,0)),\"\")",
-      "result": "d_0176"
+      "result": "d_0176",
+      "ref": "D24",
+      "shareType": "array"
     },
     "driver_name": "Marc Surer",
     "role": "main_driver",
@@ -509,12 +601,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C25,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "B25",
+      "shareType": "array"
     },
     "team_name": "ATS",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E25,drivers!$B:$B,0)),\"\")",
-      "result": "d_0136"
+      "result": "d_0136",
+      "ref": "D25",
+      "shareType": "array"
     },
     "driver_name": "Jan Lammers",
     "role": "second_driver",
@@ -531,12 +627,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C26,teams!$B:$B,0)),\"\")",
-      "result": "t_0013"
+      "result": "t_0013",
+      "ref": "B26",
+      "shareType": "array"
     },
     "team_name": "Ensign",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E26,drivers!$B:$B,0)),\"\")",
-      "result": "d_0223"
+      "result": "d_0223",
+      "ref": "D26",
+      "shareType": "array"
     },
     "driver_name": "Clay Regazzoni",
     "role": "main_driver",
@@ -553,12 +653,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C27,teams!$B:$B,0)),\"\")",
-      "result": "t_0014"
+      "result": "t_0014",
+      "ref": "B27",
+      "shareType": "array"
     },
     "team_name": "Osella",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E27,drivers!$B:$B,0)),\"\")",
-      "result": "d_0158"
+      "result": "d_0158",
+      "ref": "D27",
+      "shareType": "array"
     },
     "driver_name": "Eddie Cheever",
     "role": "main_driver",
@@ -575,12 +679,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C28,teams!$B:$B,0)),\"\")",
-      "result": "t_0015"
+      "result": "t_0015",
+      "ref": "B28",
+      "shareType": "array"
     },
     "team_name": "Shadow",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E28,drivers!$B:$B,0)),\"\")",
-      "result": "d_0225"
+      "result": "d_0225",
+      "ref": "D28",
+      "shareType": "array"
     },
     "driver_name": "David Kennedy",
     "role": "test_driver",
@@ -597,12 +705,16 @@
     "year": 1980,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C29,teams!$B:$B,0)),\"\")",
-      "result": "t_0015"
+      "result": "t_0015",
+      "ref": "B29",
+      "shareType": "array"
     },
     "team_name": "Shadow",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E29,drivers!$B:$B,0)),\"\")",
-      "result": "d_0140"
+      "result": "d_0140",
+      "ref": "D29",
+      "shareType": "array"
     },
     "driver_name": "Stefan Johansson",
     "role": "main_driver",
@@ -619,12 +731,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C30,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B30",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E30,drivers!$B:$B,0)),\"\")",
-      "result": "d_0178"
+      "result": "d_0178",
+      "ref": "D30",
+      "shareType": "array"
     },
     "driver_name": "Alan Jones",
     "role": "main_driver",
@@ -641,12 +757,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C31,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B31",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E31,drivers!$B:$B,0)),\"\")",
-      "result": "d_0199"
+      "result": "d_0199",
+      "ref": "D31",
+      "shareType": "array"
     },
     "driver_name": "Carlos Reutemann",
     "role": "second_driver",
@@ -663,11 +783,15 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C32,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "B32",
+      "shareType": "array"
     },
     "team_name": "Ligier",
     "driver_id": {
-      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E32,drivers!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E32,drivers!$B:$B,0)),\"\")",
+      "ref": "D32",
+      "shareType": "array"
     },
     "driver_name": null,
     "role": "second_driver",
@@ -684,12 +808,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C33,teams!$B:$B,0)),\"\")",
-      "result": "t_0002"
+      "result": "t_0002",
+      "ref": "B33",
+      "shareType": "array"
     },
     "team_name": "Ligier",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E33,drivers!$B:$B,0)),\"\")",
-      "result": "d_0172"
+      "result": "d_0172",
+      "ref": "D33",
+      "shareType": "array"
     },
     "driver_name": "Jacques Laffite",
     "role": "main_driver",
@@ -706,12 +834,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C34,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "B34",
+      "shareType": "array"
     },
     "team_name": "Brabham",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E34,drivers!$B:$B,0)),\"\")",
-      "result": "d_0212"
+      "result": "d_0212",
+      "ref": "D34",
+      "shareType": "array"
     },
     "driver_name": "Hector Rebaque",
     "role": "second_driver",
@@ -728,12 +860,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C35,teams!$B:$B,0)),\"\")",
-      "result": "t_0003"
+      "result": "t_0003",
+      "ref": "B35",
+      "shareType": "array"
     },
     "team_name": "Brabham",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E35,drivers!$B:$B,0)),\"\")",
-      "result": "d_0137"
+      "result": "d_0137",
+      "ref": "D35",
+      "shareType": "array"
     },
     "driver_name": "Nelson Piquet",
     "role": "main_driver",
@@ -750,12 +886,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C36,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "B36",
+      "shareType": "array"
     },
     "team_name": "Renault",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E36,drivers!$B:$B,0)),\"\")",
-      "result": "d_0117"
+      "result": "d_0117",
+      "ref": "D36",
+      "shareType": "array"
     },
     "driver_name": "Alain Prost",
     "role": "main_driver",
@@ -772,12 +912,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C37,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "B37",
+      "shareType": "array"
     },
     "team_name": "Renault",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E37,drivers!$B:$B,0)),\"\")",
-      "result": "d_0163"
+      "result": "d_0163",
+      "ref": "D37",
+      "shareType": "array"
     },
     "driver_name": "René Arnoux",
     "role": "second_driver",
@@ -794,12 +938,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C38,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "B38",
+      "shareType": "array"
     },
     "team_name": "Lotus",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E38,drivers!$B:$B,0)),\"\")",
-      "result": "d_0173"
+      "result": "d_0173",
+      "ref": "D38",
+      "shareType": "array"
     },
     "driver_name": "Elio de Angelis",
     "role": "main_driver",
@@ -816,12 +964,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C39,teams!$B:$B,0)),\"\")",
-      "result": "t_0005"
+      "result": "t_0005",
+      "ref": "B39",
+      "shareType": "array"
     },
     "team_name": "Lotus",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E39,drivers!$B:$B,0)),\"\")",
-      "result": "d_0095"
+      "result": "d_0095",
+      "ref": "D39",
+      "shareType": "array"
     },
     "driver_name": "Nigel Mansell",
     "role": "second_driver",
@@ -838,12 +990,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C40,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "B40",
+      "shareType": "array"
     },
     "team_name": "Tyrrell",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E40,drivers!$B:$B,0)),\"\")",
-      "result": "d_0158"
+      "result": "d_0158",
+      "ref": "D40",
+      "shareType": "array"
     },
     "driver_name": "Eddie Cheever",
     "role": "main_driver",
@@ -860,12 +1016,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C41,teams!$B:$B,0)),\"\")",
-      "result": "t_0006"
+      "result": "t_0006",
+      "ref": "B41",
+      "shareType": "array"
     },
     "team_name": "Tyrrell",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E41,drivers!$B:$B,0)),\"\")",
-      "result": "d_0105"
+      "result": "d_0105",
+      "ref": "D41",
+      "shareType": "array"
     },
     "driver_name": "Michele Alboreto",
     "role": "second_driver",
@@ -882,12 +1042,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C42,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "B42",
+      "shareType": "array"
     },
     "team_name": "Arrows",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E42,drivers!$B:$B,0)),\"\")",
-      "result": "d_0119"
+      "result": "d_0119",
+      "ref": "D42",
+      "shareType": "array"
     },
     "driver_name": "Riccardo Patrese",
     "role": "main_driver",
@@ -904,12 +1068,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C43,teams!$B:$B,0)),\"\")",
-      "result": "t_0007"
+      "result": "t_0007",
+      "ref": "B43",
+      "shareType": "array"
     },
     "team_name": "Arrows",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E43,drivers!$B:$B,0)),\"\")",
-      "result": "d_0216"
+      "result": "d_0216",
+      "ref": "D43",
+      "shareType": "array"
     },
     "driver_name": "Siegfried Stohr",
     "role": "second_driver",
@@ -926,12 +1094,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C44,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "B44",
+      "shareType": "array"
     },
     "team_name": "Fittipaldi",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E44,drivers!$B:$B,0)),\"\")",
-      "result": "d_0192"
+      "result": "d_0192",
+      "ref": "D44",
+      "shareType": "array"
     },
     "driver_name": "Chico Serra",
     "role": "second_driver",
@@ -948,12 +1120,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C45,teams!$B:$B,0)),\"\")",
-      "result": "t_0008"
+      "result": "t_0008",
+      "ref": "B45",
+      "shareType": "array"
     },
     "team_name": "Fittipaldi",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E45,drivers!$B:$B,0)),\"\")",
-      "result": "d_0177"
+      "result": "d_0177",
+      "ref": "D45",
+      "shareType": "array"
     },
     "driver_name": "Keke Rosberg",
     "role": "main_driver",
@@ -970,12 +1146,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C46,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B46",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E46,drivers!$B:$B,0)),\"\")",
-      "result": "d_0110"
+      "result": "d_0110",
+      "ref": "D46",
+      "shareType": "array"
     },
     "driver_name": "Andrea de Cesaris",
     "role": "second_driver",
@@ -992,12 +1172,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C47,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B47",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E47,drivers!$B:$B,0)),\"\")",
-      "result": "d_0187"
+      "result": "d_0187",
+      "ref": "D47",
+      "shareType": "array"
     },
     "driver_name": "John Watson",
     "role": "main_driver",
@@ -1014,12 +1198,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C48,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B48",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E48,drivers!$B:$B,0)),\"\")",
-      "result": "d_0202"
+      "result": "d_0202",
+      "ref": "D48",
+      "shareType": "array"
     },
     "driver_name": "Didier Pironi",
     "role": "second_driver",
@@ -1036,12 +1224,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C49,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B49",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E49,drivers!$B:$B,0)),\"\")",
-      "result": "d_0203"
+      "result": "d_0203",
+      "ref": "D49",
+      "shareType": "array"
     },
     "driver_name": "Gilles Villeneuve",
     "role": "main_driver",
@@ -1058,12 +1250,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C50,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "B50",
+      "shareType": "array"
     },
     "team_name": "Alfa Romeo",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E50,drivers!$B:$B,0)),\"\")",
-      "result": "d_0152"
+      "result": "d_0152",
+      "ref": "D50",
+      "shareType": "array"
     },
     "driver_name": "Bruno Giacomelli",
     "role": "second_driver",
@@ -1080,12 +1276,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C51,teams!$B:$B,0)),\"\")",
-      "result": "t_0011"
+      "result": "t_0011",
+      "ref": "B51",
+      "shareType": "array"
     },
     "team_name": "Alfa Romeo",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E51,drivers!$B:$B,0)),\"\")",
-      "result": "d_0207"
+      "result": "d_0207",
+      "ref": "D51",
+      "shareType": "array"
     },
     "driver_name": "Mario Andretti",
     "role": "main_driver",
@@ -1102,12 +1302,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C52,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "B52",
+      "shareType": "array"
     },
     "team_name": "ATS",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E52,drivers!$B:$B,0)),\"\")",
-      "result": "d_0136"
+      "result": "d_0136",
+      "ref": "D52",
+      "shareType": "array"
     },
     "driver_name": "Jan Lammers",
     "role": "main_driver",
@@ -1124,12 +1328,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C53,teams!$B:$B,0)),\"\")",
-      "result": "t_0012"
+      "result": "t_0012",
+      "ref": "B53",
+      "shareType": "array"
     },
     "team_name": "ATS",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E53,drivers!$B:$B,0)),\"\")",
-      "result": "d_0201"
+      "result": "d_0201",
+      "ref": "D53",
+      "shareType": "array"
     },
     "driver_name": "Slim Borgudd",
     "role": "second_driver",
@@ -1146,12 +1354,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C54,teams!$B:$B,0)),\"\")",
-      "result": "t_0013"
+      "result": "t_0013",
+      "ref": "B54",
+      "shareType": "array"
     },
     "team_name": "Ensign",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E54,drivers!$B:$B,0)),\"\")",
-      "result": "d_0176"
+      "result": "d_0176",
+      "ref": "D54",
+      "shareType": "array"
     },
     "driver_name": "Marc Surer",
     "role": "main_driver",
@@ -1168,11 +1380,15 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C55,teams!$B:$B,0)),\"\")",
-      "result": "t_0013"
+      "result": "t_0013",
+      "ref": "B55",
+      "shareType": "array"
     },
     "team_name": "Ensign",
     "driver_id": {
-      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E55,drivers!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E55,drivers!$B:$B,0)),\"\")",
+      "ref": "D55",
+      "shareType": "array"
     },
     "driver_name": null,
     "role": "second_driver",
@@ -1189,12 +1405,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C56,teams!$B:$B,0)),\"\")",
-      "result": "t_0014"
+      "result": "t_0014",
+      "ref": "B56",
+      "shareType": "array"
     },
     "team_name": "Osella",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E56,drivers!$B:$B,0)),\"\")",
-      "result": "d_0213"
+      "result": "d_0213",
+      "ref": "D56",
+      "shareType": "array"
     },
     "driver_name": "Beppe Gabbiani",
     "role": "main_driver",
@@ -1211,12 +1431,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C57,teams!$B:$B,0)),\"\")",
-      "result": "t_0014"
+      "result": "t_0014",
+      "ref": "B57",
+      "shareType": "array"
     },
     "team_name": "Osella",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E57,drivers!$B:$B,0)),\"\")",
-      "result": "d_0215"
+      "result": "d_0215",
+      "ref": "D57",
+      "shareType": "array"
     },
     "driver_name": "Miguel Ángel Guerra",
     "role": "second_driver",
@@ -1233,12 +1457,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C58,teams!$B:$B,0)),\"\")",
-      "result": "t_0044"
+      "result": "t_0044",
+      "ref": "B58",
+      "shareType": "array"
     },
     "team_name": "March",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E58,drivers!$B:$B,0)),\"\")",
-      "result": "d_0206"
+      "result": "d_0206",
+      "ref": "D58",
+      "shareType": "array"
     },
     "driver_name": "Derek Daly",
     "role": "main_driver",
@@ -1255,12 +1483,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C59,teams!$B:$B,0)),\"\")",
-      "result": "t_0044"
+      "result": "t_0044",
+      "ref": "B59",
+      "shareType": "array"
     },
     "team_name": "March",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E59,drivers!$B:$B,0)),\"\")",
-      "result": "d_0194"
+      "result": "d_0194",
+      "ref": "D59",
+      "shareType": "array"
     },
     "driver_name": "Eliseo Salazar",
     "role": "second_driver",
@@ -1277,12 +1509,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C60,teams!$B:$B,0)),\"\")",
-      "result": "t_0057"
+      "result": "t_0057",
+      "ref": "B60",
+      "shareType": "array"
     },
     "team_name": "Toleman",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E60,drivers!$B:$B,0)),\"\")",
-      "result": "d_0205"
+      "result": "d_0205",
+      "ref": "D60",
+      "shareType": "array"
     },
     "driver_name": "Brian Henton",
     "role": "main_driver",
@@ -1299,12 +1535,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C61,teams!$B:$B,0)),\"\")",
-      "result": "t_0057"
+      "result": "t_0057",
+      "ref": "B61",
+      "shareType": "array"
     },
     "team_name": "Toleman",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E61,drivers!$B:$B,0)),\"\")",
-      "result": "d_0118"
+      "result": "d_0118",
+      "ref": "D61",
+      "shareType": "array"
     },
     "driver_name": "Derek Warwick",
     "role": "second_driver",
@@ -1321,12 +1561,16 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C62,teams!$B:$B,0)),\"\")",
-      "result": "t_0058"
+      "result": "t_0058",
+      "ref": "B62",
+      "shareType": "array"
     },
     "team_name": "Theodore",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E62,drivers!$B:$B,0)),\"\")",
-      "result": "d_0175"
+      "result": "d_0175",
+      "ref": "D62",
+      "shareType": "array"
     },
     "driver_name": "Patrick Tambay",
     "role": "main_driver",
@@ -1343,11 +1587,15 @@
     "year": 1981,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C63,teams!$B:$B,0)),\"\")",
-      "result": "t_0058"
+      "result": "t_0058",
+      "ref": "B63",
+      "shareType": "array"
     },
     "team_name": "Theodore",
     "driver_id": {
-      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E63,drivers!$B:$B,0)),\"\")"
+      "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E63,drivers!$B:$B,0)),\"\")",
+      "ref": "D63",
+      "shareType": "array"
     },
     "driver_name": null,
     "role": "second_driver",
@@ -1364,12 +1612,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C64,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B64",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E64,drivers!$B:$B,0)),\"\")",
-      "result": "d_0031"
+      "result": "d_0031",
+      "ref": "D64",
+      "shareType": "array"
     },
     "driver_name": "Juan Pablo Montoya",
     "role": "main_driver",
@@ -1386,12 +1638,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C65,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B65",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E65,drivers!$B:$B,0)),\"\")",
-      "result": "d_0023"
+      "result": "d_0023",
+      "ref": "D65",
+      "shareType": "array"
     },
     "driver_name": "Ralf Schumacher",
     "role": "second_driver",
@@ -1408,12 +1664,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C66,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "B66",
+      "shareType": "array"
     },
     "team_name": "Renault",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E66,drivers!$B:$B,0)),\"\")",
-      "result": "d_0004"
+      "result": "d_0004",
+      "ref": "D66",
+      "shareType": "array"
     },
     "driver_name": "Fernando Alonso",
     "role": "second_driver",
@@ -1430,12 +1690,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C67,teams!$B:$B,0)),\"\")",
-      "result": "t_0004"
+      "result": "t_0004",
+      "ref": "B67",
+      "shareType": "array"
     },
     "team_name": "Renault",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E67,drivers!$B:$B,0)),\"\")",
-      "result": "d_0015"
+      "result": "d_0015",
+      "ref": "D67",
+      "shareType": "array"
     },
     "driver_name": "Jarno Trulli",
     "role": "main_driver",
@@ -1452,12 +1716,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C68,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B68",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E68,drivers!$B:$B,0)),\"\")",
-      "result": "d_0008"
+      "result": "d_0008",
+      "ref": "D68",
+      "shareType": "array"
     },
     "driver_name": "Kimi Räikkönen",
     "role": "second_driver",
@@ -1474,12 +1742,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C69,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B69",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E69,drivers!$B:$B,0)),\"\")",
-      "result": "d_0014"
+      "result": "d_0014",
+      "ref": "D69",
+      "shareType": "array"
     },
     "driver_name": "David Coulthard",
     "role": "main_driver",
@@ -1496,12 +1768,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C70,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B70",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E70,drivers!$B:$B,0)),\"\")",
-      "result": "d_0030"
+      "result": "d_0030",
+      "ref": "D70",
+      "shareType": "array"
     },
     "driver_name": "Michael Schumacher",
     "role": "main_driver",
@@ -1518,12 +1794,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C71,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B71",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E71,drivers!$B:$B,0)),\"\")",
-      "result": "d_0022"
+      "result": "d_0022",
+      "ref": "D71",
+      "shareType": "array"
     },
     "driver_name": "Rubens Barrichello",
     "role": "second_driver",
@@ -1540,12 +1820,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C72,teams!$B:$B,0)),\"\")",
-      "result": "t_0018"
+      "result": "t_0018",
+      "ref": "B72",
+      "shareType": "array"
     },
     "team_name": "Toyota",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E72,drivers!$B:$B,0)),\"\")",
-      "result": "d_0043"
+      "result": "d_0043",
+      "ref": "D72",
+      "shareType": "array"
     },
     "driver_name": "Cristiano da Matta",
     "role": "main_driver",
@@ -1562,12 +1846,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C73,teams!$B:$B,0)),\"\")",
-      "result": "t_0018"
+      "result": "t_0018",
+      "ref": "B73",
+      "shareType": "array"
     },
     "team_name": "Toyota",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E73,drivers!$B:$B,0)),\"\")",
-      "result": "d_0044"
+      "result": "d_0044",
+      "ref": "D73",
+      "shareType": "array"
     },
     "driver_name": "Olivier Panis",
     "role": "second_driver",
@@ -1584,12 +1872,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C74,teams!$B:$B,0)),\"\")",
-      "result": "t_0026"
+      "result": "t_0026",
+      "ref": "B74",
+      "shareType": "array"
     },
     "team_name": "Sauber",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E74,drivers!$B:$B,0)),\"\")",
-      "result": "d_0013"
+      "result": "d_0013",
+      "ref": "D74",
+      "shareType": "array"
     },
     "driver_name": "Felipe Massa",
     "role": "second_driver",
@@ -1606,12 +1898,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C75,teams!$B:$B,0)),\"\")",
-      "result": "t_0026"
+      "result": "t_0026",
+      "ref": "B75",
+      "shareType": "array"
     },
     "team_name": "Sauber",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E75,drivers!$B:$B,0)),\"\")",
-      "result": "d_0021"
+      "result": "d_0021",
+      "ref": "D75",
+      "shareType": "array"
     },
     "driver_name": "Giancarlo Fisichella",
     "role": "main_driver",
@@ -1628,12 +1924,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C76,teams!$B:$B,0)),\"\")",
-      "result": "t_0027"
+      "result": "t_0027",
+      "ref": "B76",
+      "shareType": "array"
     },
     "team_name": "BAR",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E76,drivers!$B:$B,0)),\"\")",
-      "result": "d_0011"
+      "result": "d_0011",
+      "ref": "D76",
+      "shareType": "array"
     },
     "driver_name": "Takuma Sato",
     "role": "second_driver",
@@ -1650,12 +1950,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C77,teams!$B:$B,0)),\"\")",
-      "result": "t_0027"
+      "result": "t_0027",
+      "ref": "B77",
+      "shareType": "array"
     },
     "team_name": "BAR",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E77,drivers!$B:$B,0)),\"\")",
-      "result": "d_0018"
+      "result": "d_0018",
+      "ref": "D77",
+      "shareType": "array"
     },
     "driver_name": "Jenson Button",
     "role": "main_driver",
@@ -1672,12 +1976,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C78,teams!$B:$B,0)),\"\")",
-      "result": "t_0028"
+      "result": "t_0028",
+      "ref": "B78",
+      "shareType": "array"
     },
     "team_name": "Jordan",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E78,drivers!$B:$B,0)),\"\")",
-      "result": "d_0002"
+      "result": "d_0002",
+      "ref": "D78",
+      "shareType": "array"
     },
     "driver_name": "Nick Heidfeld",
     "role": "main_driver",
@@ -1694,12 +2002,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C79,teams!$B:$B,0)),\"\")",
-      "result": "t_0028"
+      "result": "t_0028",
+      "ref": "B79",
+      "shareType": "array"
     },
     "team_name": "Jordan",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E79,drivers!$B:$B,0)),\"\")",
-      "result": "d_0045"
+      "result": "d_0045",
+      "ref": "D79",
+      "shareType": "array"
     },
     "driver_name": "Giorgio Pantano",
     "role": "second_driver",
@@ -1716,12 +2028,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C80,teams!$B:$B,0)),\"\")",
-      "result": "t_0029"
+      "result": "t_0029",
+      "ref": "B80",
+      "shareType": "array"
     },
     "team_name": "Minardi",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E80,drivers!$B:$B,0)),\"\")",
-      "result": "d_0046"
+      "result": "d_0046",
+      "ref": "D80",
+      "shareType": "array"
     },
     "driver_name": "Gianmaria Bruni",
     "role": "main_driver",
@@ -1738,12 +2054,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C81,teams!$B:$B,0)),\"\")",
-      "result": "t_0029"
+      "result": "t_0029",
+      "ref": "B81",
+      "shareType": "array"
     },
     "team_name": "Minardi",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E81,drivers!$B:$B,0)),\"\")",
-      "result": "d_0047"
+      "result": "d_0047",
+      "ref": "D81",
+      "shareType": "array"
     },
     "driver_name": "Zsolt Baumgartner",
     "role": "second_driver",
@@ -1760,12 +2080,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C82,teams!$B:$B,0)),\"\")",
-      "result": "t_0030"
+      "result": "t_0030",
+      "ref": "B82",
+      "shareType": "array"
     },
     "team_name": "Jaguar",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E82,drivers!$B:$B,0)),\"\")",
-      "result": "d_0032"
+      "result": "d_0032",
+      "ref": "D82",
+      "shareType": "array"
     },
     "driver_name": "Christian Klien",
     "role": "second_driver",
@@ -1782,12 +2106,16 @@
     "year": 2004,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C83,teams!$B:$B,0)),\"\")",
-      "result": "t_0030"
+      "result": "t_0030",
+      "ref": "B83",
+      "shareType": "array"
     },
     "team_name": "Jaguar",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E83,drivers!$B:$B,0)),\"\")",
-      "result": "d_0017"
+      "result": "d_0017",
+      "ref": "D83",
+      "shareType": "array"
     },
     "driver_name": "Mark Webber",
     "role": "main_driver",
@@ -1804,12 +2132,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C84,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B84",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E84,drivers!$B:$B,0)),\"\")",
-      "result": "d_0845"
+      "result": "d_0845",
+      "ref": "D84",
+      "shareType": "array"
     },
     "driver_name": "Lando Norris",
     "role": "main_driver",
@@ -1826,12 +2158,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C85,teams!$B:$B,0)),\"\")",
-      "result": "t_0131"
+      "result": "t_0131",
+      "ref": "B85",
+      "shareType": "array"
     },
     "team_name": "Mercedes",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E85,drivers!$B:$B,0)),\"\")",
-      "result": "d_0846"
+      "result": "d_0846",
+      "ref": "D85",
+      "shareType": "array"
     },
     "driver_name": "George Russell",
     "role": "main_driver",
@@ -1848,12 +2184,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C86,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B86",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E86,drivers!$B:$B,0)),\"\")",
-      "result": "d_0001"
+      "result": "d_0001",
+      "ref": "D86",
+      "shareType": "array"
     },
     "driver_name": "Lewis Hamilton",
     "role": "main_driver",
@@ -1870,12 +2210,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C87,teams!$B:$B,0)),\"\")",
-      "result": "t_0020"
+      "result": "t_0020",
+      "ref": "B87",
+      "shareType": "array"
     },
     "team_name": "Red Bull",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E87,drivers!$B:$B,0)),\"\")",
-      "result": "d_0829"
+      "result": "d_0829",
+      "ref": "D87",
+      "shareType": "array"
     },
     "driver_name": "Max Verstappen",
     "role": "main_driver",
@@ -1892,12 +2236,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C88,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B88",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E88,drivers!$B:$B,0)),\"\")",
-      "result": "d_0831"
+      "result": "d_0831",
+      "ref": "D88",
+      "shareType": "array"
     },
     "driver_name": "Carlos Sainz",
     "role": "main_driver",
@@ -1914,12 +2262,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C89,teams!$B:$B,0)),\"\")",
-      "result": "t_0212"
+      "result": "t_0212",
+      "ref": "B89",
+      "shareType": "array"
     },
     "team_name": "RB F1 Team",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E89,drivers!$B:$B,0)),\"\")",
-      "result": "d_0858"
+      "result": "d_0858",
+      "ref": "D89",
+      "shareType": "array"
     },
     "driver_name": "Liam Lawson",
     "role": "main_driver",
@@ -1936,12 +2288,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C90,teams!$B:$B,0)),\"\")",
-      "result": "t_0117"
+      "result": "t_0117",
+      "ref": "B90",
+      "shareType": "array"
     },
     "team_name": "Aston Martin",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E90,drivers!$B:$B,0)),\"\")",
-      "result": "d_0004"
+      "result": "d_0004",
+      "ref": "D90",
+      "shareType": "array"
     },
     "driver_name": "Fernando Alonso",
     "role": "main_driver",
@@ -1958,12 +2314,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C91,teams!$B:$B,0)),\"\")",
-      "result": "t_0026"
+      "result": "t_0026",
+      "ref": "B91",
+      "shareType": "array"
     },
     "team_name": "Sauber",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E91,drivers!$B:$B,0)),\"\")",
-      "result": "d_0807"
+      "result": "d_0807",
+      "ref": "D91",
+      "shareType": "array"
     },
     "driver_name": "Nico Hulkenberg",
     "role": "main_driver",
@@ -1980,12 +2340,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C92,teams!$B:$B,0)),\"\")",
-      "result": "t_0208"
+      "result": "t_0208",
+      "ref": "B92",
+      "shareType": "array"
     },
     "team_name": "Haas F1 Team",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E92,drivers!$B:$B,0)),\"\")",
-      "result": "d_0838"
+      "result": "d_0838",
+      "ref": "D92",
+      "shareType": "array"
     },
     "driver_name": "Esteban Ocon",
     "role": "main_driver",
@@ -2002,12 +2366,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C93,teams!$B:$B,0)),\"\")",
-      "result": "t_0211"
+      "result": "t_0211",
+      "ref": "B93",
+      "shareType": "array"
     },
     "team_name": "Alpine F1 Team",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E93,drivers!$B:$B,0)),\"\")",
-      "result": "d_0841"
+      "result": "d_0841",
+      "ref": "D93",
+      "shareType": "array"
     },
     "driver_name": "Pierre Gasly",
     "role": "main_driver",
@@ -2024,12 +2392,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C94,teams!$B:$B,0)),\"\")",
-      "result": "t_0009"
+      "result": "t_0009",
+      "ref": "B94",
+      "shareType": "array"
     },
     "team_name": "McLaren",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E94,drivers!$B:$B,0)),\"\")",
-      "result": "d_0856"
+      "result": "d_0856",
+      "ref": "D94",
+      "shareType": "array"
     },
     "driver_name": "Oscar Piastri",
     "role": "second_driver",
@@ -2046,12 +2418,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C95,teams!$B:$B,0)),\"\")",
-      "result": "t_0131"
+      "result": "t_0131",
+      "ref": "B95",
+      "shareType": "array"
     },
     "team_name": "Mercedes",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E95,drivers!$B:$B,0)),\"\")",
-      "result": "d_0864"
+      "result": "d_0864",
+      "ref": "D95",
+      "shareType": "array"
     },
     "driver_name": "Kimi Antonelli",
     "role": "second_driver",
@@ -2068,12 +2444,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C96,teams!$B:$B,0)),\"\")",
-      "result": "t_0010"
+      "result": "t_0010",
+      "ref": "B96",
+      "shareType": "array"
     },
     "team_name": "Ferrari",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E96,drivers!$B:$B,0)),\"\")",
-      "result": "d_0843"
+      "result": "d_0843",
+      "ref": "D96",
+      "shareType": "array"
     },
     "driver_name": "Charles Leclerc",
     "role": "second_driver",
@@ -2090,12 +2470,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C97,teams!$B:$B,0)),\"\")",
-      "result": "t_0020"
+      "result": "t_0020",
+      "ref": "B97",
+      "shareType": "array"
     },
     "team_name": "Red Bull",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E97,drivers!$B:$B,0)),\"\")",
-      "result": "d_0851"
+      "result": "d_0851",
+      "ref": "D97",
+      "shareType": "array"
     },
     "driver_name": "Yuki Tsunoda",
     "role": "second_driver",
@@ -2112,12 +2496,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C98,teams!$B:$B,0)),\"\")",
-      "result": "t_0001"
+      "result": "t_0001",
+      "ref": "B98",
+      "shareType": "array"
     },
     "team_name": "Williams",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E98,drivers!$B:$B,0)),\"\")",
-      "result": "d_0847"
+      "result": "d_0847",
+      "ref": "D98",
+      "shareType": "array"
     },
     "driver_name": "Alexander Albon",
     "role": "second_driver",
@@ -2134,12 +2522,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C99,teams!$B:$B,0)),\"\")",
-      "result": "t_0212"
+      "result": "t_0212",
+      "ref": "B99",
+      "shareType": "array"
     },
     "team_name": "RB F1 Team",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E99,drivers!$B:$B,0)),\"\")",
-      "result": "d_0865"
+      "result": "d_0865",
+      "ref": "D99",
+      "shareType": "array"
     },
     "driver_name": "Isack Hadjar",
     "role": "second_driver",
@@ -2156,12 +2548,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C100,teams!$B:$B,0)),\"\")",
-      "result": "t_0117"
+      "result": "t_0117",
+      "ref": "B100",
+      "shareType": "array"
     },
     "team_name": "Aston Martin",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E100,drivers!$B:$B,0)),\"\")",
-      "result": "d_0839"
+      "result": "d_0839",
+      "ref": "D100",
+      "shareType": "array"
     },
     "driver_name": "Lance Stroll",
     "role": "second_driver",
@@ -2178,12 +2574,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C101,teams!$B:$B,0)),\"\")",
-      "result": "t_0026"
+      "result": "t_0026",
+      "ref": "B101",
+      "shareType": "array"
     },
     "team_name": "Sauber",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E101,drivers!$B:$B,0)),\"\")",
-      "result": "d_0866"
+      "result": "d_0866",
+      "ref": "D101",
+      "shareType": "array"
     },
     "driver_name": "Gabriel Bortoleto",
     "role": "second_driver",
@@ -2200,12 +2600,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C102,teams!$B:$B,0)),\"\")",
-      "result": "t_0208"
+      "result": "t_0208",
+      "ref": "B102",
+      "shareType": "array"
     },
     "team_name": "Haas F1 Team",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E102,drivers!$B:$B,0)),\"\")",
-      "result": "d_0859"
+      "result": "d_0859",
+      "ref": "D102",
+      "shareType": "array"
     },
     "driver_name": "Oliver Bearman",
     "role": "second_driver",
@@ -2222,12 +2626,16 @@
     "year": 2025,
     "team_id": {
       "formula": "IFERROR(INDEX(teams!$A:$A,MATCH($C103,teams!$B:$B,0)),\"\")",
-      "result": "t_0211"
+      "result": "t_0211",
+      "ref": "B103",
+      "shareType": "array"
     },
     "team_name": "Alpine F1 Team",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E103,drivers!$B:$B,0)),\"\")",
-      "result": "d_0860"
+      "result": "d_0860",
+      "ref": "D103",
+      "shareType": "array"
     },
     "driver_name": "Franco Colapinto",
     "role": "second_driver",

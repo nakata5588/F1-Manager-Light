@@ -1,0 +1,80 @@
+[
+  {
+    "year": 1980,
+    "rounds": 14,
+    "driver_champion_id": "d_0178",
+    "driver_champion": "Alan Jones",
+    "driver_points_official": 67,
+    "driver_points_raw": 71,
+    "constructor_champion_id": "t_0001",
+    "constructor_champion": "Williams",
+    "constructor_points": 120,
+    "source_url": "https://www.f1-fansite.com/f1-results/1980-f1-championship-standings/",
+    "notes": "Driver table shows 67 (71): official counted score with raw total in parentheses."
+  },
+  {
+    "year": 1981,
+    "rounds": 15,
+    "driver_champion_id": "d_0137",
+    "driver_champion": "Nelson Piquet",
+    "driver_points_official": 50,
+    "driver_points_raw": 50,
+    "constructor_champion_id": "t_0001",
+    "constructor_champion": "Williams",
+    "constructor_points": 95,
+    "source_url": "https://www.f1-fansite.com/f1-results/1981-f1-championship-standings/",
+    "notes": null
+  },
+  {
+    "year": 1982,
+    "rounds": 16,
+    "driver_champion_id": "d_0177",
+    "driver_champion": "Keke Rosberg",
+    "driver_points_official": 44,
+    "driver_points_raw": 44,
+    "constructor_champion_id": "t_0010",
+    "constructor_champion": "Ferrari",
+    "constructor_points": 74,
+    "source_url": "https://www.f1-fansite.com/f1-results/1982-f1-championship-standings/",
+    "notes": null
+  },
+  {
+    "year": 1983,
+    "rounds": 15,
+    "driver_champion_id": "d_0137",
+    "driver_champion": "Nelson Piquet",
+    "driver_points_official": 59,
+    "driver_points_raw": 59,
+    "constructor_champion_id": "t_0010",
+    "constructor_champion": "Ferrari",
+    "constructor_points": 89,
+    "source_url": "https://www.f1-fansite.com/f1-results/1983-f1-championship-standings/",
+    "notes": null
+  },
+  {
+    "year": 1984,
+    "rounds": 16,
+    "driver_champion_id": "d_0182",
+    "driver_champion": "Niki Lauda",
+    "driver_points_official": 72,
+    "driver_points_raw": 72,
+    "constructor_champion_id": "t_0009",
+    "constructor_champion": "McLaren",
+    "constructor_points": 143.5,
+    "source_url": "https://www.f1-fansite.com/f1-results/1984-f1-championship-standings/",
+    "notes": null
+  },
+  {
+    "year": 1985,
+    "rounds": 16,
+    "driver_champion_id": "d_0117",
+    "driver_champion": "Alain Prost",
+    "driver_points_official": 73,
+    "driver_points_raw": 76,
+    "constructor_champion_id": "t_0009",
+    "constructor_champion": "McLaren",
+    "constructor_points": 90,
+    "source_url": "https://www.f1-fansite.com/f1-results/1985-f1-championship-standings/",
+    "notes": "Driver table shows 73 (76): official counted score with raw total in parentheses."
+  }
+]

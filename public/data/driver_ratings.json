@@ -3,7 +3,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C2,drivers!$B:$B,0)),\"\")",
-      "result": "d_0178"
+      "result": "d_0178",
+      "ref": "B2",
+      "shareType": "array"
     },
     "driver_name": "Alan Jones",
     "current_ability": 73,
@@ -33,7 +35,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C3,drivers!$B:$B,0)),\"\")",
-      "result": "d_0199"
+      "result": "d_0199",
+      "ref": "B3",
+      "shareType": "array"
     },
     "driver_name": "Carlos Reutemann",
     "current_ability": 72,
@@ -63,7 +67,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C4,drivers!$B:$B,0)),\"\")",
-      "result": "d_0203"
+      "result": "d_0203",
+      "ref": "B4",
+      "shareType": "array"
     },
     "driver_name": "Gilles Villeneuve",
     "current_ability": 75,
@@ -93,7 +99,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C5,drivers!$B:$B,0)),\"\")",
-      "result": "d_0222"
+      "result": "d_0222",
+      "ref": "B5",
+      "shareType": "array"
     },
     "driver_name": "Jody Scheckter",
     "current_ability": 72,
@@ -123,7 +131,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C6,drivers!$B:$B,0)),\"\")",
-      "result": "d_0137"
+      "result": "d_0137",
+      "ref": "B6",
+      "shareType": "array"
     },
     "driver_name": "Nelson Piquet",
     "current_ability": 71,
@@ -153,7 +163,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C7,drivers!$B:$B,0)),\"\")",
-      "result": "d_0172"
+      "result": "d_0172",
+      "ref": "B7",
+      "shareType": "array"
     },
     "driver_name": "Jacques Laffite",
     "current_ability": 70,
@@ -183,7 +195,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C8,drivers!$B:$B,0)),\"\")",
-      "result": "d_0202"
+      "result": "d_0202",
+      "ref": "B8",
+      "shareType": "array"
     },
     "driver_name": "Didier Pironi",
     "current_ability": 70,
@@ -213,7 +227,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C9,drivers!$B:$B,0)),\"\")",
-      "result": "d_0163"
+      "result": "d_0163",
+      "ref": "B9",
+      "shareType": "array"
     },
     "driver_name": "René Arnoux",
     "current_ability": 70,
@@ -243,7 +259,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C10,drivers!$B:$B,0)),\"\")",
-      "result": "d_0173"
+      "result": "d_0173",
+      "ref": "B10",
+      "shareType": "array"
     },
     "driver_name": "Elio de Angelis",
     "current_ability": 67,
@@ -273,7 +291,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C11,drivers!$B:$B,0)),\"\")",
-      "result": "d_0219"
+      "result": "d_0219",
+      "ref": "B11",
+      "shareType": "array"
     },
     "driver_name": "Jean-Pierre Jabouille",
     "current_ability": 67,
@@ -303,7 +323,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C12,drivers!$B:$B,0)),\"\")",
-      "result": "d_0119"
+      "result": "d_0119",
+      "ref": "B12",
+      "shareType": "array"
     },
     "driver_name": "Riccardo Patrese",
     "current_ability": 68,
@@ -333,7 +355,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C13,drivers!$B:$B,0)),\"\")",
-      "result": "d_0177"
+      "result": "d_0177",
+      "ref": "B13",
+      "shareType": "array"
     },
     "driver_name": "Keke Rosberg",
     "current_ability": 64,
@@ -363,7 +387,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C14,drivers!$B:$B,0)),\"\")",
-      "result": "d_0187"
+      "result": "d_0187",
+      "ref": "B14",
+      "shareType": "array"
     },
     "driver_name": "John Watson",
     "current_ability": 66,
@@ -393,7 +419,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C15,drivers!$B:$B,0)),\"\")",
-      "result": "d_0206"
+      "result": "d_0206",
+      "ref": "B15",
+      "shareType": "array"
     },
     "driver_name": "Derek Daly",
     "current_ability": 64,
@@ -423,7 +451,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C16,drivers!$B:$B,0)),\"\")",
-      "result": "d_0197"
+      "result": "d_0197",
+      "ref": "B16",
+      "shareType": "array"
     },
     "driver_name": "Jean-Pierre Jarier",
     "current_ability": 65,
@@ -453,7 +483,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C17,drivers!$B:$B,0)),\"\")",
-      "result": "d_0224"
+      "result": "d_0224",
+      "ref": "B17",
+      "shareType": "array"
     },
     "driver_name": "Emerson Fittipaldi",
     "current_ability": 62,
@@ -483,7 +515,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C18,drivers!$B:$B,0)),\"\")",
-      "result": "d_0117"
+      "result": "d_0117",
+      "ref": "B18",
+      "shareType": "array"
     },
     "driver_name": "Alain Prost",
     "current_ability": 60,
@@ -513,7 +547,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C19,drivers!$B:$B,0)),\"\")",
-      "result": "d_0200"
+      "result": "d_0200",
+      "ref": "B19",
+      "shareType": "array"
     },
     "driver_name": "Jochen Mass",
     "current_ability": 63,
@@ -543,7 +579,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C20,drivers!$B:$B,0)),\"\")",
-      "result": "d_0152"
+      "result": "d_0152",
+      "ref": "B20",
+      "shareType": "array"
     },
     "driver_name": "Bruno Giacomelli",
     "current_ability": 66,
@@ -573,7 +611,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C21,drivers!$B:$B,0)),\"\")",
-      "result": "d_0207"
+      "result": "d_0207",
+      "ref": "B21",
+      "shareType": "array"
     },
     "driver_name": "Mario Andretti",
     "current_ability": 72,
@@ -603,7 +643,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C22,drivers!$B:$B,0)),\"\")",
-      "result": "d_0223"
+      "result": "d_0223",
+      "ref": "B22",
+      "shareType": "array"
     },
     "driver_name": "Clay Regazzoni",
     "current_ability": 67,
@@ -633,7 +675,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C23,drivers!$B:$B,0)),\"\")",
-      "result": "d_0217"
+      "result": "d_0217",
+      "ref": "B23",
+      "shareType": "array"
     },
     "driver_name": "Ricardo Zunino",
     "current_ability": 59,
@@ -663,7 +707,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C24,drivers!$B:$B,0)),\"\")",
-      "result": "d_0176"
+      "result": "d_0176",
+      "ref": "B24",
+      "shareType": "array"
     },
     "driver_name": "Marc Surer",
     "current_ability": 64,
@@ -693,7 +739,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C25,drivers!$B:$B,0)),\"\")",
-      "result": "d_0221"
+      "result": "d_0221",
+      "ref": "B25",
+      "shareType": "array"
     },
     "driver_name": "Patrick Depailler",
     "current_ability": 69,
@@ -723,7 +771,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C26,drivers!$B:$B,0)),\"\")",
-      "result": "d_0225"
+      "result": "d_0225",
+      "ref": "B26",
+      "shareType": "array"
     },
     "driver_name": "David Kennedy",
     "current_ability": 57,
@@ -753,7 +803,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C27,drivers!$B:$B,0)),\"\")",
-      "result": "d_0136"
+      "result": "d_0136",
+      "ref": "B27",
+      "shareType": "array"
     },
     "driver_name": "Jan Lammers",
     "current_ability": 59,
@@ -783,7 +835,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C28,drivers!$B:$B,0)),\"\")",
-      "result": "d_0140"
+      "result": "d_0140",
+      "ref": "B28",
+      "shareType": "array"
     },
     "driver_name": "Stefan Johansson",
     "current_ability": 57,
@@ -813,7 +867,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C29,drivers!$B:$B,0)),\"\")",
-      "result": "d_0158"
+      "result": "d_0158",
+      "ref": "B29",
+      "shareType": "array"
     },
     "driver_name": "Eddie Cheever",
     "current_ability": 59,
@@ -843,7 +899,9 @@
     "year": 1980,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C30,drivers!$B:$B,0)),\"\")",
-      "result": "d_0182"
+      "result": "d_0182",
+      "ref": "B30",
+      "shareType": "array"
     },
     "driver_name": "Niki Lauda",
     "current_ability": 83,
@@ -873,7 +931,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C31,drivers!$B:$B,0)),\"\")",
-      "result": "d_0018"
+      "result": "d_0018",
+      "ref": "B31",
+      "shareType": "array"
     },
     "driver_name": "Jenson Button",
     "current_ability": 88,
@@ -903,7 +963,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C32,drivers!$B:$B,0)),\"\")",
-      "result": "d_0011"
+      "result": "d_0011",
+      "ref": "B32",
+      "shareType": "array"
     },
     "driver_name": "Takuma Sato",
     "current_ability": 78,
@@ -933,7 +995,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C33,drivers!$B:$B,0)),\"\")",
-      "result": "d_0030"
+      "result": "d_0030",
+      "ref": "B33",
+      "shareType": "array"
     },
     "driver_name": "Michael Schumacher",
     "current_ability": 98,
@@ -963,7 +1027,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C34,drivers!$B:$B,0)),\"\")",
-      "result": "d_0022"
+      "result": "d_0022",
+      "ref": "B34",
+      "shareType": "array"
     },
     "driver_name": "Rubens Barrichello",
     "current_ability": 90,
@@ -993,7 +1059,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C35,drivers!$B:$B,0)),\"\")",
-      "result": "d_0017"
+      "result": "d_0017",
+      "ref": "B35",
+      "shareType": "array"
     },
     "driver_name": "Mark Webber",
     "current_ability": 85,
@@ -1023,7 +1091,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C36,drivers!$B:$B,0)),\"\")",
-      "result": "d_0032"
+      "result": "d_0032",
+      "ref": "B36",
+      "shareType": "array"
     },
     "driver_name": "Christian Klien",
     "current_ability": 70,
@@ -1053,7 +1123,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C37,drivers!$B:$B,0)),\"\")",
-      "result": "d_0002"
+      "result": "d_0002",
+      "ref": "B37",
+      "shareType": "array"
     },
     "driver_name": "Nick Heidfeld",
     "current_ability": 83,
@@ -1083,7 +1155,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C38,drivers!$B:$B,0)),\"\")",
-      "result": "d_0045"
+      "result": "d_0045",
+      "ref": "B38",
+      "shareType": "array"
     },
     "driver_name": "Giorgio Pantano",
     "current_ability": 68,
@@ -1113,7 +1187,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C39,drivers!$B:$B,0)),\"\")",
-      "result": "d_0014"
+      "result": "d_0014",
+      "ref": "B39",
+      "shareType": "array"
     },
     "driver_name": "David Coulthard",
     "current_ability": 87,
@@ -1143,7 +1219,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C40,drivers!$B:$B,0)),\"\")",
-      "result": "d_0008"
+      "result": "d_0008",
+      "ref": "B40",
+      "shareType": "array"
     },
     "driver_name": "Kimi Räikkönen",
     "current_ability": 92,
@@ -1173,7 +1251,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C41,drivers!$B:$B,0)),\"\")",
-      "result": "d_0046"
+      "result": "d_0046",
+      "ref": "B41",
+      "shareType": "array"
     },
     "driver_name": "Gianmaria Bruni",
     "current_ability": 66,
@@ -1203,7 +1283,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C42,drivers!$B:$B,0)),\"\")",
-      "result": "d_0047"
+      "result": "d_0047",
+      "ref": "B42",
+      "shareType": "array"
     },
     "driver_name": "Zsolt Baumgartner",
     "current_ability": 65,
@@ -1233,7 +1315,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C43,drivers!$B:$B,0)),\"\")",
-      "result": "d_0015"
+      "result": "d_0015",
+      "ref": "B43",
+      "shareType": "array"
     },
     "driver_name": "Jarno Trulli",
     "current_ability": 88,
@@ -1263,7 +1347,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C44,drivers!$B:$B,0)),\"\")",
-      "result": "d_0004"
+      "result": "d_0004",
+      "ref": "B44",
+      "shareType": "array"
     },
     "driver_name": "Fernando Alonso",
     "current_ability": 91,
@@ -1293,7 +1379,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C45,drivers!$B:$B,0)),\"\")",
-      "result": "d_0021"
+      "result": "d_0021",
+      "ref": "B45",
+      "shareType": "array"
     },
     "driver_name": "Giancarlo Fisichella",
     "current_ability": 86,
@@ -1323,7 +1411,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C46,drivers!$B:$B,0)),\"\")",
-      "result": "d_0013"
+      "result": "d_0013",
+      "ref": "B46",
+      "shareType": "array"
     },
     "driver_name": "Felipe Massa",
     "current_ability": 82,
@@ -1353,7 +1443,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C47,drivers!$B:$B,0)),\"\")",
-      "result": "d_0043"
+      "result": "d_0043",
+      "ref": "B47",
+      "shareType": "array"
     },
     "driver_name": "Cristiano da Matta",
     "current_ability": 78,
@@ -1383,7 +1475,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C48,drivers!$B:$B,0)),\"\")",
-      "result": "d_0044"
+      "result": "d_0044",
+      "ref": "B48",
+      "shareType": "array"
     },
     "driver_name": "Olivier Panis",
     "current_ability": 81,
@@ -1413,7 +1507,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C49,drivers!$B:$B,0)),\"\")",
-      "result": "d_0031"
+      "result": "d_0031",
+      "ref": "B49",
+      "shareType": "array"
     },
     "driver_name": "Juan Pablo Montoya",
     "current_ability": 92,
@@ -1443,7 +1539,9 @@
     "year": 2004,
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($C50,drivers!$B:$B,0)),\"\")",
-      "result": "d_0023"
+      "result": "d_0023",
+      "ref": "B50",
+      "shareType": "array"
     },
     "driver_name": "Ralf Schumacher",
     "current_ability": 88,

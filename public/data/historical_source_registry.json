@@ -1,0 +1,170 @@
+[
+  {
+    "source_id": "SRC-ENTRY-1980",
+    "publisher": "F1-Fansite",
+    "scope": "1980 F1 entry list",
+    "url": "https://www.f1-fansite.com/f1-teams/1980-f1-teams/",
+    "supports": "driver/team/car-number/engine season entry",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-ENTRY-1981",
+    "publisher": "F1-Fansite",
+    "scope": "1981 F1 entry list",
+    "url": "https://www.f1-fansite.com/f1-teams/1981-f1-teams/",
+    "supports": "driver/team/car-number/engine season entry",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-ENTRY-1982",
+    "publisher": "F1-Fansite",
+    "scope": "1982 F1 entry list",
+    "url": "https://www.f1-fansite.com/f1-teams/1982-f1-teams/",
+    "supports": "driver/team/car-number/engine season entry",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-ENTRY-1983",
+    "publisher": "F1-Fansite",
+    "scope": "1983 F1 entry list",
+    "url": "https://www.f1-fansite.com/f1-teams/1983-f1-teams/",
+    "supports": "driver/team/car-number/engine season entry",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-ENTRY-1984",
+    "publisher": "F1-Fansite",
+    "scope": "1984 F1 entry list",
+    "url": "https://www.f1-fansite.com/f1-teams/1984-f1-teams/",
+    "supports": "driver/team/car-number/engine season entry",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-ENTRY-1985",
+    "publisher": "F1-Fansite",
+    "scope": "1985 F1 entry list",
+    "url": "https://www.f1-fansite.com/f1-teams/1985-f1-teams/",
+    "supports": "driver/team/car-number/engine season entry",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-STAND-1980",
+    "publisher": "F1-Fansite",
+    "scope": "1980 final standings",
+    "url": "https://www.f1-fansite.com/f1-results/1980-f1-championship-standings/",
+    "supports": "season rounds, champion, official/raw points, constructor champion",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-STAND-1981",
+    "publisher": "F1-Fansite",
+    "scope": "1981 final standings",
+    "url": "https://www.f1-fansite.com/f1-results/1981-f1-championship-standings/",
+    "supports": "season rounds, champion, official/raw points, constructor champion",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-STAND-1982",
+    "publisher": "F1-Fansite",
+    "scope": "1982 final standings",
+    "url": "https://www.f1-fansite.com/f1-results/1982-f1-championship-standings/",
+    "supports": "season rounds, champion, official/raw points, constructor champion",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-STAND-1983",
+    "publisher": "F1-Fansite",
+    "scope": "1983 final standings",
+    "url": "https://www.f1-fansite.com/f1-results/1983-f1-championship-standings/",
+    "supports": "season rounds, champion, official/raw points, constructor champion",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-STAND-1984",
+    "publisher": "F1-Fansite",
+    "scope": "1984 final standings",
+    "url": "https://www.f1-fansite.com/f1-results/1984-f1-championship-standings/",
+    "supports": "season rounds, champion, official/raw points, constructor champion",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-STAND-1985",
+    "publisher": "F1-Fansite",
+    "scope": "1985 final standings",
+    "url": "https://www.f1-fansite.com/f1-results/1985-f1-championship-standings/",
+    "supports": "season rounds, champion, official/raw points, constructor champion",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-F1-LAUDA",
+    "publisher": "Formula1.com",
+    "scope": "Niki Lauda retirement/comeback",
+    "url": "https://www.formula1.com/en/latest/article/lauda-schumacher-raikkonen-and-more-the-drivers-vettel-could-follow-by.3x4bSPpZyuhWkPLEbgSd7h",
+    "supports": "retired 1979; returned 1982",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-AUTO-REGAZZONI",
+    "publisher": "Autosport",
+    "scope": "Clay Regazzoni 1980 injury",
+    "url": "https://www.autosport.com/general/news/clay-regazzoni-a-tribute-5077329/5077329/",
+    "supports": "30 Mar 1980 accident; wheelchair; GP career ended",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-MS-DEPAILLER",
+    "publisher": "Motorsport.com",
+    "scope": "Patrick Depailler fatality",
+    "url": "https://www.motorsport.com/f1/news/august-1st-1980-the-day-we-lost-patrick-depailler/634132/",
+    "supports": "1 Aug 1980 fatal Hockenheim testing crash",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-F1-GILLES",
+    "publisher": "Formula1.com",
+    "scope": "Gilles Villeneuve fatality",
+    "url": "https://www.formula1.com/en/latest/article/5-reasons-f1-fans-are-still-in-awe-of-the-legendary-gilles-villeneuve.6Dvc1Wh0NMPqZNqBIwIZHU",
+    "supports": "8 May 1982 fatal Zolder qualifying crash",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-WP-PIRONI",
+    "publisher": "Washington Post",
+    "scope": "Didier Pironi 1982 injury",
+    "url": "https://www.washingtonpost.com/archive/sports/1982/08/08/pironi-in-crash-that-could-end-career/7b4c2970-0777-481c-b38d-d0db04bd7d8c/",
+    "supports": "7 Aug 1982 Hockenheim crash and severe injuries",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-CECOTTO",
+    "publisher": "Johnny Cecotto official",
+    "scope": "Johnny Cecotto 1984 injury",
+    "url": "https://www.johnnycecotto.com/personal.htm",
+    "supports": "Brands Hatch practice crash; severe leg injuries ended F1 career",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-BELLOF",
+    "publisher": "Stefan Bellof official",
+    "scope": "Stefan Bellof fatality",
+    "url": "https://www.stefan-bellof.de/en/todestag/",
+    "supports": "1 Sep 1985 fatal Spa sports-car accident",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-F1-1982-USA-W",
+    "publisher": "Formula1.com",
+    "scope": "1982 Brabham mixed engine",
+    "url": "https://www.formula1.com/en/results/1982/races/439/usa-west/race-result",
+    "supports": "Brabham Ford and BMW variants in 1982",
+    "confidence": "HIGH"
+  },
+  {
+    "source_id": "SRC-DB",
+    "publisher": "Project database",
+    "scope": "race_results / drivers",
+    "url": "original f1_db.xlsx",
+    "supports": "derived starts, results, first/last F1 year",
+    "confidence": "HIGH"
+  }
+]

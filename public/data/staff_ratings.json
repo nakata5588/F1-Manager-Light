@@ -477,7 +477,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B27,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0026"
+      "result": "st_0026",
+      "ref": "A27",
+      "shareType": "array"
     },
     "staff_name": "Gavin Fisher",
     "year": 2004,
@@ -499,7 +501,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B28,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0027"
+      "result": "st_0027",
+      "ref": "A28",
+      "shareType": "array"
     },
     "staff_name": "Mike Coughlan",
     "year": 2004,
@@ -521,7 +525,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B29,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0028"
+      "result": "st_0028",
+      "ref": "A29",
+      "shareType": "array"
     },
     "staff_name": "Rory Byrne",
     "year": 2004,
@@ -543,7 +549,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B30,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0029"
+      "result": "st_0029",
+      "ref": "A30",
+      "shareType": "array"
     },
     "staff_name": "Sam Michael",
     "year": 2004,
@@ -565,7 +573,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B31,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0030"
+      "result": "st_0030",
+      "ref": "A31",
+      "shareType": "array"
     },
     "staff_name": "Pat Symonds",
     "year": 2004,
@@ -587,7 +597,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B32,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0031"
+      "result": "st_0031",
+      "ref": "A32",
+      "shareType": "array"
     },
     "staff_name": "Paolo Martinelli",
     "year": 2004,
@@ -609,7 +621,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B33,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0032"
+      "result": "st_0032",
+      "ref": "A33",
+      "shareType": "array"
     },
     "staff_name": "Mark Gillan",
     "year": 2004,
@@ -631,7 +645,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B34,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0033"
+      "result": "st_0033",
+      "ref": "A34",
+      "shareType": "array"
     },
     "staff_name": "Paul Stoddart",
     "year": 2004,
@@ -653,7 +669,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B35,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0034"
+      "result": "st_0034",
+      "ref": "A35",
+      "shareType": "array"
     },
     "staff_name": "John Walton",
     "year": 2004,
@@ -675,7 +693,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B36,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0035"
+      "result": "st_0035",
+      "ref": "A36",
+      "shareType": "array"
     },
     "staff_name": "David Richards",
     "year": 2004,
@@ -697,7 +717,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B37,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0036"
+      "result": "st_0036",
+      "ref": "A37",
+      "shareType": "array"
     },
     "staff_name": "Eddie Jordan",
     "year": 2004,
@@ -719,7 +741,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B38,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0037"
+      "result": "st_0037",
+      "ref": "A38",
+      "shareType": "array"
     },
     "staff_name": "Flavio Briatore",
     "year": 2004,
@@ -741,7 +765,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B39,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0038"
+      "result": "st_0038",
+      "ref": "A39",
+      "shareType": "array"
     },
     "staff_name": "Jean Todt",
     "year": 2004,
@@ -763,7 +789,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B40,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0039"
+      "result": "st_0039",
+      "ref": "A40",
+      "shareType": "array"
     },
     "staff_name": "Peter Sauber",
     "year": 2004,
@@ -785,7 +813,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B41,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0040"
+      "result": "st_0040",
+      "ref": "A41",
+      "shareType": "array"
     },
     "staff_name": "Ron Dennis",
     "year": 2004,
@@ -807,7 +837,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B42,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0041"
+      "result": "st_0041",
+      "ref": "A42",
+      "shareType": "array"
     },
     "staff_name": "Tsutomu Tomita",
     "year": 2004,
@@ -829,7 +861,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B43,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0042"
+      "result": "st_0042",
+      "ref": "A43",
+      "shareType": "array"
     },
     "staff_name": "Adrian Newey",
     "year": 2004,
@@ -851,7 +885,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B44,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0043"
+      "result": "st_0043",
+      "ref": "A44",
+      "shareType": "array"
     },
     "staff_name": "Bob Bell",
     "year": 2004,
@@ -873,7 +909,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B45,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0044"
+      "result": "st_0044",
+      "ref": "A45",
+      "shareType": "array"
     },
     "staff_name": "David Pitchforth",
     "year": 2004,
@@ -895,7 +933,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B46,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0045"
+      "result": "st_0045",
+      "ref": "A46",
+      "shareType": "array"
     },
     "staff_name": "Gabriele Tredozi",
     "year": 2004,
@@ -917,7 +957,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B47,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0046"
+      "result": "st_0046",
+      "ref": "A47",
+      "shareType": "array"
     },
     "staff_name": "Geoff Willis",
     "year": 2004,
@@ -939,7 +981,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B48,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0047"
+      "result": "st_0047",
+      "ref": "A48",
+      "shareType": "array"
     },
     "staff_name": "Mark Smith",
     "year": 2004,
@@ -961,7 +1005,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B49,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0048"
+      "result": "st_0048",
+      "ref": "A49",
+      "shareType": "array"
     },
     "staff_name": "Mike Gascoyne",
     "year": 2004,
@@ -983,7 +1029,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B50,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0016"
+      "result": "st_0016",
+      "ref": "A50",
+      "shareType": "array"
     },
     "staff_name": "Patrick Head",
     "year": 2004,
@@ -1005,7 +1053,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B51,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0049"
+      "result": "st_0049",
+      "ref": "A51",
+      "shareType": "array"
     },
     "staff_name": "Ross Brawn",
     "year": 2004,
@@ -1027,7 +1077,9 @@
   {
     "staff_id": {
       "formula": "IFERROR(INDEX(staff_core!$A:$A,MATCH($B52,staff_core!$B:$B,0)),\"\")",
-      "result": "st_0050"
+      "result": "st_0050",
+      "ref": "A52",
+      "shareType": "array"
     },
     "staff_name": "Willy Rampf",
     "year": 2004,

@@ -1,0 +1,62 @@
+[
+  {
+    "check": "driver_growth removed",
+    "status": "PASS",
+    "detail": "Legacy tab removed from canonical workbook."
+  },
+  {
+    "check": "drivers_status removed",
+    "status": "PASS",
+    "detail": "Legacy wide matrix removed; driver_year_status is canonical replacement."
+  },
+  {
+    "check": "rating_model_parameters removed",
+    "status": "PASS",
+    "detail": "Superseded by rating_model_R2."
+  },
+  {
+    "check": "driver_rating_profiles",
+    "status": "PASS",
+    "detail": "866 rows retained; 114 profiles received R2 1980–1985 updates."
+  },
+  {
+    "check": "historical_rating_snapshots",
+    "status": "PASS",
+    "detail": "444 data rows spanning 1980–1985."
+  },
+  {
+    "check": "driver_year_status",
+    "status": "PASS",
+    "detail": "444 normalized data rows."
+  },
+  {
+    "check": "David Kennedy backfill",
+    "status": "PASS",
+    "detail": "7 Shadow #18 1980 failed-qualification race_result rows now have driver_name/driver_id."
+  },
+  {
+    "check": "Ricardo Londoño",
+    "status": "PASS",
+    "detail": "Canonical UTF-8 name fixed in drivers, profiles and race_results."
+  },
+  {
+    "check": "François Hesnault",
+    "status": "PASS",
+    "detail": "Canonical UTF-8 name fixed in drivers, profiles and race_results."
+  },
+  {
+    "check": "Carlos Reutemann",
+    "status": "PASS",
+    "detail": "death_date corrected to 2021-07-07."
+  },
+  {
+    "check": "Legacy driver_ratings",
+    "status": "PASS",
+    "detail": "Retained unchanged for calibration/reference."
+  },
+  {
+    "check": "Runtime integration",
+    "status": "NOT YET",
+    "detail": "No F1 Manager Light runtime/save/public JSON integration in this workbook."
+  }
+]

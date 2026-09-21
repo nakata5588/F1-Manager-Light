@@ -4370,7 +4370,7 @@
   {
     "1980": null,
     "driver_id": "d_0183",
-    "display_name": "Franí§ois Hesnault",
+    "display_name": "François Hesnault",
     "driverID_arch": 183,
     "country_name": "France",
     "country_code": "FRA",
@@ -4386,7 +4386,7 @@
     "prefered_number": null,
     "status": null,
     "id": "d_0183",
-    "name": "Franí§ois Hesnault",
+    "name": "François Hesnault",
     "nationality": "France",
     "birthdate": "1956-12-30",
     "birthdate_iso": "1956-12-30"
@@ -4762,7 +4762,7 @@
     "career_start_year": 1970,
     "f1_rookie_season": 1972,
     "career_end_year": 1982,
-    "death_date": "2001-07-07",
+    "death_date": "2021-07-07",
     "portrait_path": "https://www.f1-fansite.com/wp-content/uploads/2021/07/reutemann1_960545057.jpg",
     "helmet_color_primary": "#00AEEF",
     "helmet_color_secondary": "#FFFFFF",
@@ -5210,7 +5210,7 @@
   {
     "1980": null,
     "driver_id": "d_0218",
-    "display_name": "Ricardo Londoí±o",
+    "display_name": "Ricardo Londoño",
     "driverID_arch": 218,
     "country_name": "Colombia",
     "country_code": "COL",
@@ -5226,7 +5226,7 @@
     "prefered_number": null,
     "status": null,
     "id": "d_0218",
-    "name": "Ricardo Londoí±o",
+    "name": "Ricardo Londoño",
     "nationality": "Colombia",
     "birthdate": "1949-08-08",
     "birthdate_iso": "1949-08-08"
@@ -11764,12 +11764,8 @@
     "driver_id": "d_0491",
     "display_name": "Alfonso Thiele",
     "driverID_arch": 491,
-    "country_name": {
-      "error": "#N/A"
-    },
-    "country_code": {
-      "error": "#N/A"
-    },
+    "country_name": "#N/A",
+    "country_code": "#N/A",
     "dob": "1920-04-05",
     "career_start_year": null,
     "f1_rookie_season": null,
@@ -11783,9 +11779,7 @@
     "status": null,
     "id": "d_0491",
     "name": "Alfonso Thiele",
-    "nationality": {
-      "error": "#N/A"
-    },
+    "nationality": "#N/A",
     "birthdate": "1920-04-05",
     "birthdate_iso": "1920-04-05"
   },
@@ -13738,12 +13732,8 @@
     "driver_id": "d_0573",
     "display_name": "Alessandro de Tomaso",
     "driverID_arch": 573,
-    "country_name": {
-      "error": "#N/A"
-    },
-    "country_code": {
-      "error": "#N/A"
-    },
+    "country_name": "#N/A",
+    "country_code": "#N/A",
     "dob": "1928-07-10",
     "career_start_year": null,
     "f1_rookie_season": null,
@@ -13757,9 +13747,7 @@
     "status": null,
     "id": "d_0573",
     "name": "Alessandro de Tomaso",
-    "nationality": {
-      "error": "#N/A"
-    },
+    "nationality": "#N/A",
     "birthdate": "1928-07-10",
     "birthdate_iso": "1928-07-10"
   },

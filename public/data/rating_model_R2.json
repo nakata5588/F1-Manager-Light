@@ -1,0 +1,57 @@
+[
+  {
+    "section": "Role",
+    "rule": "Historical New Game starting snapshots only. A save that starts in 1980 never loads the 1981 historical snapshot.",
+    "status": "LOCKED"
+  },
+  {
+    "section": "Temporal firewall",
+    "rule": "Current year Y uses evidence/results through Y-1 only. Same-year results may be post-hoc QA only.",
+    "status": "LOCKED"
+  },
+  {
+    "section": "Team history",
+    "rule": "Annual team assignment is season-history QA only, not a guaranteed Jan-1 contract assignment.",
+    "status": "LOCKED"
+  },
+  {
+    "section": "Current Ability",
+    "rule": "Current Ability is weighted composite of 16 current attributes, capped at Peak Ability.",
+    "status": "LOCKED"
+  },
+  {
+    "section": "Peak",
+    "rule": "Peak uses full-career hindsight. R2 enforces Peak Ability >= weighted Peak Attribute composite and adds conservative career/junior/truncated-career floors when supported.",
+    "status": "R2 UPDATED"
+  },
+  {
+    "section": "Availability",
+    "rule": "Availability is categorical and separate from ability. Gap/retirement/death does not silently rewrite skill ratings.",
+    "status": "LOCKED"
+  },
+  {
+    "section": "Peak floor",
+    "rule": "Peak floor = max(existing Peak, weighted Peak Attribute composite, conservative full-career floor, high-confidence junior floor, truncated-career floor where applicable).",
+    "status": "R2 NEW"
+  },
+  {
+    "section": "Career floor",
+    "rule": "60 + min(15, 0.10 × career starts) + 1.5 × sqrt(podiums) + 1.2 × wins + 0.5 × poles; capped at 90.",
+    "status": "R2 NEW"
+  },
+  {
+    "section": "Junior floor",
+    "rule": "When researched readiness >= 0.90: 62 + 14 × readiness. This is a moderate potential floor, not a Current Rating boost.",
+    "status": "R2 NEW"
+  },
+  {
+    "section": "Truncated-career floor",
+    "rule": "For a fatal career truncation before age 30, <=30 F1 starts and readiness >=0.90: min(91, 78 + 12 × readiness).",
+    "status": "R2 NEW"
+  },
+  {
+    "section": "Peak attributes",
+    "rule": "If a Peak floor rises, all Peak Attributes shift by the amount needed for their weighted composite to meet the new ceiling, preserving relative profile shape and clamping at 99.",
+    "status": "R2 NEW"
+  }
+]
