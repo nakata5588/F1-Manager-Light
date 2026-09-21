@@ -125,3 +125,74 @@ export function applyRaceComponentWear(gs,{race=[],gp=null}={}){
     componentWearLog:[...wearRows,...(Array.isArray(gs?.componentWearLog)?gs.componentWearLog:[])].slice(0,200),
   };
 }
+
+
+export function applyPracticeComponentWear(gs,{practiceResults=[],gp=null}={}){
+  if(!gs)return gs;
+  const garage=syncGarageState(gs,gs?.garage||{});
+  const partDeltas=new Map();
+  const wearRows=[];
+
+  for(const result of practiceResults||[]){
+    const driverId=String(result?.driver_id??"");
+    if(!driverId)continue;
+    const car=garageCarForDriver({...gs,garage},driverId);
+    if(!car)continue;
+
+    const mileageFactor=clamp(Number(result?.mileage_factor??1),0.4,1.8);
+    const programmeWear=clamp(Number(result?.wear_factor??1),0.5,1.6);
+    const issue=String(result?.issue_type||"").toLowerCase();
+    const issueSlot=String(result?.issue_slot||"");
+
+    for(const {slot,part} of installedPartsForCar({...gs,garage},car)){
+      const id=String(part?.id??"");
+      if(!id)continue;
+
+      let wear=Number(BASE_COMPONENT_WEAR[slot]??1.5)*0.28*mileageFactor*programmeWear;
+      if(issue==="contact"){
+        wear+=2.5*Number(ACCIDENT_SLOT_MULTIPLIER[slot]??0.4);
+      }else if(issue==="mechanical"&&slot===issueSlot){
+        wear+=3.5;
+      }else if(issue==="mechanical"){
+        wear+=0.25;
+      }
+
+      partDeltas.set(id,(partDeltas.get(id)||0)+wear);
+      wearRows.push({
+        gp_id:String(gp?.gp_id??gp?.id??gp?.track_id??""),
+        date:String(gs?.currentDateISO||"").slice(0,10),
+        session:"practice",
+        driver_id:driverId,
+        car_id:car.id,
+        part_id:id,
+        slot,
+        wear:Number(wear.toFixed(2)),
+        issue_type:result?.issue_type||null,
+        programme:result?.programme_id||null,
+      });
+    }
+  }
+
+  if(!partDeltas.size){
+    return garage===gs?.garage?gs:{...gs,garage};
+  }
+
+  const parts=(gs?.development?.parts||[]).map((part)=>{
+    const wear=partDeltas.get(String(part?.id??""));
+    if(!wear)return part;
+    const before=clamp(part?.condition??100);
+    return {
+      ...part,
+      condition:Number(clamp(before-wear).toFixed(1)),
+      last_wear:Number(wear.toFixed(2)),
+      last_wear_date:String(gs?.currentDateISO||"").slice(0,10)||null,
+    };
+  });
+
+  return {
+    ...gs,
+    garage,
+    development:{...(gs?.development||{}),parts},
+    componentWearLog:[...wearRows,...(Array.isArray(gs?.componentWearLog)?gs.componentWearLog:[])].slice(0,200),
+  };
+}
