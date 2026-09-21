@@ -124,6 +124,13 @@ function teamReliability(gs, driver) {
   // The base value above is the same live car model used by Garage/Car Performance,
   // including installed-part condition and degradation penalties.
   const userTeamId=getTeamId(gs?.team||{});
+  const practiceRow=(gs?.raceWeekendState?.practice?.results||[]).find(
+    (row)=>String(row?.driver_id??"")===String(driverId??"")
+  );
+  if(practiceRow){
+    rel += Number(practiceRow?.reliability_bonus||0)/100;
+  }
+
   if(String(teamId)===String(userTeamId)){
     const manufacturing=facilityLevel(gs,teamId,"manufacturing_level");
     rel += (manufacturing-5)*0.004;
