@@ -57,6 +57,12 @@ function fixture(seed="contract-negotiations"){
       {year:1980,team_id:"T2",driver_id:"A1",driver_name:"AI One",role:"Main Driver",salary:500_000,contract_start_year:1979,contract_until_year:1980,status:"active"},
       {year:1980,team_id:"T2",driver_id:"A2",driver_name:"AI Two",role:"Second Driver",salary:450_000,contract_start_year:1980,contract_until_year:1980,status:"active"},
     ],
+    dbContractRules:[{
+      year_from:1979,
+      year_to:1985,
+      buyout_allowed:"TRUE",
+      clauses:{buyout_fee_min:50_000,buyout_fee_max:500_000},
+    }],
     driverNegotiations:[],
     inbox:[],
   };
@@ -255,21 +261,48 @@ test("negotiation eligibility exposes a real offer path only for available drive
   assert.ok(free.roles.includes("Test Driver"));
 });
 
-test("contracted rival is explicitly unavailable until transfer negotiations exist",()=>{
+test("contracted rival can be approached through a transfer buyout",()=>{
   const gs=fixture("eligibility-contracted");
   const rival=driverNegotiationEligibility(gs,{driverId:"A1",teamId:"T1"});
-  assert.equal(rival.canNegotiate,false);
-  assert.equal(rival.reason,"under_contract");
+  assert.equal(rival.canNegotiate,true);
+  assert.equal(rival.reason,"transfer_available");
+  assert.equal(rival.kind,"transfer");
   assert.equal(rival.contract?.team_id,"T2");
+  assert.equal(rival.buyout?.allowed,true);
+  assert.equal(rival.buyout?.fee,325_000);
+  assert.ok(rival.roles.includes("Reserve Driver"));
 
-  const attempted=startDriverNegotiation(gs,{
+  const submitted=startDriverNegotiation(gs,{
     driverId:"A1",
     teamId:"T1",
     teamName:"Player Team",
     offer:{salary:1_000_000,years:2,role:"Reserve Driver"},
     origin:"player",
   });
-  assert.deepEqual(attempted.driverNegotiations,[]);
+  const negotiation=submitted.driverNegotiations.find((n)=>n.kind==="transfer");
+  assert.ok(negotiation);
+  assert.equal(negotiation.seller_team_id,"T2");
+  assert.equal(negotiation.buyout_fee,325_000);
+
+  const resolved=processDriverNegotiations(
+    {...submitted,currentDateISO:negotiation.response_date},
+    {forceOutcomeById:{[negotiation.id]:"accepted"}}
+  );
+
+  const oldContract=resolved.contracts.find((row)=>
+    row.driver_id==="A1"&&row.team_id==="T2"
+  );
+  const newContract=activeDriverContract(resolved,"A1");
+  assert.equal(oldContract.status,"bought_out");
+  assert.equal(newContract.team_id,"T1");
+  assert.equal(newContract.role,"Reserve Driver");
+  assert.equal(newContract.source,"player_transfer");
+  assert.equal(newContract.buyout_fee,325_000);
+  assert.equal(resolved.finances.balance,1_675_000);
+  assert.ok(resolved.financeLog.some((tx)=>
+    tx.category==="Driver Transfer"&&tx.amount===-325_000
+  ));
+  assert.ok(resolved.inbox.some((m)=>/transfers to Player Team/.test(String(m.subject||""))));
 });
 
 test("own contracted driver is not exposed as a new-contract target",()=>{
@@ -303,12 +336,20 @@ test("full four-role driver line-up blocks further free-agent approaches",()=>{
   assert.deepEqual(state.roles,[]);
 });
 
-test("F1-ineligible driver cannot be approached through engine shortcuts",()=>{
+test("too-young junior remains blocked from an F1 contract",()=>{
   const gs=fixture("eligibility-junior");
-  gs.drivers.push({driver_id:"J1",display_name:"Junior",status:"junior_only",canHireF1:false});
+  gs.drivers.push({
+    driver_id:"J1",
+    display_name:"Junior",
+    dob:"1964-06-01",
+    status:"junior_only",
+    active_lower_series:true,
+    canHireF1:false,
+  });
   const state=driverNegotiationEligibility(gs,{driverId:"J1",teamId:"T1"});
   assert.equal(state.canNegotiate,false);
   assert.equal(state.reason,"not_f1_eligible");
+  assert.equal(state.eligibility_reason,"too_young");
 
   const attempted=startDriverNegotiation(gs,{
     driverId:"J1",
@@ -318,4 +359,43 @@ test("F1-ineligible driver cannot be approached through engine shortcuts",()=>{
     origin:"player",
   });
   assert.equal(attempted.driverNegotiations.length,0);
+});
+
+test("visible lower-series driver can be signed before historical F1 debut",()=>{
+  const gs={...fixture("eligibility-senna"),activeYear:1981,currentDateISO:"1981-01-01"};
+  gs.drivers.push({
+    driver_id:"J2",
+    display_name:"Future Champion",
+    dob:"1960-03-21",
+    f1_rookie_season:1984,
+    status:"lower_series",
+    active_lower_series:true,
+    canHireF1:false,
+  });
+  const state=driverNegotiationEligibility(gs,{driverId:"J2",teamId:"T1"});
+  assert.equal(state.canNegotiate,true);
+  assert.equal(state.reason,"available");
+  assert.ok(state.roles.includes("Reserve Driver"));
+
+  const submitted=startDriverNegotiation(gs,{
+    driverId:"J2",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:250_000,years:2,role:"Reserve Driver"},
+    origin:"player",
+  });
+  assert.ok(submitted.driverNegotiations.some((n)=>n.driver_id==="J2"&&n.status==="submitted"));
+});
+
+
+test("fixed release clause overrides calculated compensation",()=>{
+  const gs=fixture("fixed-clause");
+  gs.contracts=gs.contracts.map((row)=>
+    row.driver_id==="A2"?{...row,release_clause:125_000}:row
+  );
+  const state=driverNegotiationEligibility(gs,{driverId:"A2",teamId:"T1"});
+  assert.equal(state.canNegotiate,true);
+  assert.equal(state.kind,"transfer");
+  assert.equal(state.buyout.type,"fixed_clause");
+  assert.equal(state.buyout.fee,125_000);
 });

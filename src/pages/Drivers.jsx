@@ -32,8 +32,15 @@ const statusClass=(status)=>{
 function marketStatus(driver, contract, pending){
   if(contract) return "Contracted";
   if(pending) return "Negotiating";
-  if(driver?.status==="junior_only" || driver?.canHireAcademy) return "Youth";
-  if(driver?.status==="lower_series") return "Lower Series";
+  const age=Number(driver?.age);
+  const lowerSeries=
+    driver?.status==="lower_series" ||
+    driver?.status==="junior_only" ||
+    driver?.active_lower_series===true;
+  if(lowerSeries){
+    if(Number.isFinite(age)&&age<=19) return "Youth";
+    return "Lower Series";
+  }
   if(driver?.canHireF1 || driver?.status==="eligible") return "Free";
   return "Available";
 }
@@ -81,7 +88,7 @@ export default function Drivers(){
       const id=idOf(c); if(!id) continue;
       if(!isDriverContract(c)) continue;
       const contractStatus=String(pick(c,["status"],"active")).toLowerCase();
-      if(["terminated","expired","released","inactive","void"].includes(contractStatus)) continue;
+      if(["terminated","expired","released","bought_out","inactive","void"].includes(contractStatus)) continue;
       const y=Number(pick(c,["year","season_year"],activeYear));
       if(Number.isFinite(activeYear)&&Number.isFinite(y)&&y!==activeYear) continue;
       if(!m.has(id)) m.set(id,c);
@@ -118,7 +125,9 @@ export default function Drivers(){
       pending,
       can_negotiate:eligibility.canNegotiate,
       negotiation_reason:eligibility.reason,
+      negotiation_kind:eligibility.kind||null,
       negotiation_roles:eligibility.roles,
+      negotiation_buyout:eligibility.buyout||null,
     };
   }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs]);
 
@@ -253,9 +262,16 @@ export default function Drivers(){
             <button
               className="border rounded px-2 py-1 text-xs"
               onClick={()=>setNegotiatingDriver(d)}
+              title={d.negotiation_kind==="transfer"&&d.negotiation_buyout
+                ?("Transfer buyout: "+money(d.negotiation_buyout.fee))
+                :undefined}
             >
-              Approach
+              {d.negotiation_kind==="transfer"?"Approach transfer":"Approach"}
             </button>
+          ):d.negotiation_reason==="insufficient_buyout_funds"?(
+            <span className="text-xs text-gray-500">
+              Buyout {money(d.negotiation_buyout?.fee||0)}
+            </span>
           ):d.negotiation_reason==="under_contract"?(
             <span className="text-xs text-gray-500">Under contract</span>
           ):d.negotiation_reason==="already_contracted"?(
@@ -277,6 +293,13 @@ export default function Drivers(){
         driver={negotiatingDriver}
         roles={negotiatingDriver.negotiation_roles||[]}
         expectedSalary={expectedDriverSalary(gs,negotiatingDriver.id)}
+        contextNote={
+          negotiatingDriver.negotiation_kind==="transfer"
+            ?("This is a transfer from "+(negotiatingDriver.team_name||"the current team")+
+              ". If the driver accepts, "+money(negotiatingDriver.negotiation_buyout?.fee||0)+
+              " will be paid as "+(negotiatingDriver.negotiation_buyout?.type==="fixed_clause"?"a release clause.":"buyout compensation."))
+            :""
+        }
         onClose={()=>setNegotiatingDriver(null)}
         onSubmit={submitNegotiation}
       />
