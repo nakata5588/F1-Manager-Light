@@ -380,7 +380,7 @@ function counterOffer(gs,negotiation){
     body:negotiation.driver_name+"'s representatives are willing to continue talks, but want $"+counterSalary.toLocaleString("en-US")+" per season for "+counterYears+" year(s) as "+negotiation.offer.role+".",
     driver_id:negotiation.driver_id,
     negotiation_id:negotiation.id,
-    actions:[{label:"Review counter-offer",route:"/Drivers"}],
+    actions:[{label:"Review counter-offer",route:negotiation?.kind==="renewal"?"/MyDrivers":"/Drivers"}],
   };
   return {
     ...gs,
