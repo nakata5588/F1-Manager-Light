@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../src/domain/driverPerformance.js";
+import { raceAccidentChance } from "../src/engine/GPEngine.js";
 import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
 
 const driver={driver_id:"d_1",display_name:"Driver One",dob:"1960-01-01",age:20};
@@ -97,4 +98,48 @@ test("monthly progression only runs once per calendar month",()=>{
   const snapshot=JSON.stringify(first.driverRatings);
   const sameMonth=applyProgressionTick({...first,currentDateISO:"1980-02-15"});
   assert.equal(JSON.stringify(sameMonth.driverRatings),snapshot);
+});
+
+
+test("1980 uses a 15 percent neutral accident baseline with driver and fatigue modifiers",()=>{
+  const neutral=gsFor(80,0);
+  neutral.accidentModel=[{year:1980,damage_DNF_prob:0.16}];
+  const base=raceAccidentChance(neutral,{crash_likelihood:35},"d_1");
+  assert.equal(base,0.15);
+
+  const risky=raceAccidentChance(neutral,{crash_likelihood:80},"d_1");
+  assert.ok(risky>base);
+
+  const tired=gsFor(80,90);
+  tired.accidentModel=neutral.accidentModel;
+  const tiredRisk=raceAccidentChance(tired,{crash_likelihood:35},"d_1");
+  assert.ok(tiredRisk>base);
+});
+
+test("confidence and morale affect performance now while preparation is deferred until Practice",()=>{
+  const base=gsFor(80,0);
+  const driverId="d_1";
+  const normal=combinedRacePerformance({gs:base,driver,rating,teamId:"t_ai"});
+
+  const positive={
+    ...base,
+    driverAttributes:{
+      ...base.driverAttributes,
+      [driverId]:{confidence:80,morale:80,preparation:50,fatigue:0},
+    },
+  };
+  const highPrepOnly={
+    ...base,
+    driverAttributes:{
+      ...base.driverAttributes,
+      [driverId]:{confidence:50,morale:50,preparation:100,fatigue:0},
+    },
+  };
+
+  assert.ok(combinedRacePerformance({gs:positive,driver,rating,teamId:"t_ai"})>normal);
+  assert.equal(
+    combinedRacePerformance({gs:highPrepOnly,driver,rating,teamId:"t_ai"}),
+    normal,
+    "preparation should remain tracked but inactive until the Practice/GP-prep loop"
+  );
 });
