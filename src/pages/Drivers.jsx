@@ -10,7 +10,7 @@ import {
   acceptCounterOffer,
   driverNegotiationEligibility,
   driverNegotiations,
-  isNegotiationActive,
+  negotiationStatusBuckets,
   startDriverNegotiation,
   withdrawNegotiation,
 } from "../engine/NegotiationEngine.js";
@@ -71,16 +71,25 @@ export default function Drivers(){
     ()=>negotiations
       .filter((n)=>n.origin==="player"&&String(n.team_id)===userTeamId)
       .slice()
-      .sort((a,b)=>String(b.submitted_at||"").localeCompare(String(a.submitted_at||""))),
+      .sort((a,b)=>
+        String(b.resolved_at||b.responded_at||b.submitted_at||"")
+          .localeCompare(String(a.resolved_at||a.responded_at||a.submitted_at||""))
+      ),
     [negotiations,userTeamId]
   );
+  const negotiationBuckets=useMemo(
+    ()=>negotiationStatusBuckets(playerNegotiations),
+    [playerNegotiations]
+  );
+  const activePlayerNegotiations=negotiationBuckets.active;
+  const negotiationHistory=negotiationBuckets.history;
   const activePlayerByDriver=useMemo(()=>{
     const map=new Map();
-    for(const n of playerNegotiations){
-      if(isNegotiationActive(n)&&!map.has(String(n.driver_id)))map.set(String(n.driver_id),n);
+    for(const n of activePlayerNegotiations){
+      if(!map.has(String(n.driver_id)))map.set(String(n.driver_id),n);
     }
     return map;
-  },[playerNegotiations]);
+  },[activePlayerNegotiations]);
   const ratingById=useMemo(()=>new Map(ratings.map(r=>[idOf(r),r])),[ratings]);
   const contractById=useMemo(()=>{
     const m=new Map();
@@ -191,17 +200,17 @@ export default function Drivers(){
       </div>
     </div>
 
-    {!!playerNegotiations.length&&(
+    {!!activePlayerNegotiations.length&&(
       <div className="bg-white rounded-xl shadow p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
-            <h3 className="font-semibold">My Negotiations</h3>
-            <p className="text-xs text-gray-500">Responses arrive as the calendar advances.</p>
+            <h3 className="font-semibold">Active Negotiations</h3>
+            <p className="text-xs text-gray-500">Only submitted offers and counter-offers remain in this view.</p>
           </div>
-          <span className="text-xs text-gray-500">{playerNegotiations.filter(isNegotiationActive).length} active</span>
+          <span className="text-xs text-gray-500">{activePlayerNegotiations.length} active</span>
         </div>
         <div className="grid gap-2">
-          {playerNegotiations.slice(0,6).map((n)=>(
+          {activePlayerNegotiations.map((n)=>(
             <div key={n.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="font-medium">{n.driver_name}</div>
@@ -229,6 +238,39 @@ export default function Drivers(){
           ))}
         </div>
       </div>
+    )}
+
+    {!!negotiationHistory.length&&(
+      <details className="bg-white rounded-xl shadow p-4">
+        <summary className="cursor-pointer select-none flex items-center justify-between gap-3">
+          <span className="font-semibold">Negotiation History</span>
+          <span className="text-xs text-gray-500">{negotiationHistory.length} completed</span>
+        </summary>
+        <div className="mt-3 grid gap-2">
+          {negotiationHistory.slice(0,20).map((n)=>(
+            <div key={n.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">{n.driver_name}</div>
+                <div className="text-xs text-gray-500">
+                  {n.offer?.role} · {money(n.offer?.salary)} · {n.offer?.years} year{Number(n.offer?.years)===1?"":"s"}
+                  {(n.resolved_at||n.responded_at)?(" · "+(n.resolved_at||n.responded_at)):""}
+                </div>
+                {n.resolution_note&&(
+                  <div className="text-xs text-gray-500 mt-1">{n.resolution_note}</div>
+                )}
+              </div>
+              <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(n.status)}>
+                {String(n.status||"").replaceAll("_"," ")}
+              </span>
+            </div>
+          ))}
+          {negotiationHistory.length>20&&(
+            <div className="text-xs text-gray-500">
+              Showing the 20 most recent completed negotiations.
+            </div>
+          )}
+        </div>
+      </details>
     )}
 
     <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
