@@ -7,6 +7,7 @@ import {
 import { rngFor } from "../core/random.js";
 import { contractRoleLabel, isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../domain/contractRoles.js";
 import { compareDriverMarketValue, driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
+import { f1HireEligibility } from "../domain/driverEligibility.js";
 import {
   availableContractRoles,
   driverNegotiations,
@@ -96,13 +97,10 @@ function markRenewalDecision(gs,contract,year,decision){
 
 export function applyMarketTick(gs){
   let next={...gs};
-  const drivers=(gs.drivers||[]).filter(
-    (d)=>!["hidden","junior_only"].includes(String(d?.status||""))
+  const drivers=(gs.drivers||[]).filter((d)=>
+    !["hidden","deceased","retired"].includes(String(d?.status||"").toLowerCase())
   );
-  const f1EligibleDrivers=drivers.filter((d)=>{
-    const status=String(d?.status||"").toLowerCase();
-    return d?.canHireF1!==false && !["lower_series","junior_only","hidden","deceased","retired"].includes(status);
-  });
+  const f1EligibleDrivers=drivers.filter((d)=>f1HireEligibility(gs,d,gs?.activeYear).eligible);
   const teams=gs.teams||[];
   if(!drivers.length||!teams.length)return next;
 
