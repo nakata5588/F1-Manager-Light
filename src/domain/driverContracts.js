@@ -1,5 +1,5 @@
 // src/domain/driverContracts.js
-import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
+import {\n  driverRoleLabelForSlot,\n  driverRoleSlot,\n  isDriverContract,\n  isRaceDriverContract,\n  isReserveDriverContract,\n  isRaceDriverSlot,\n} from "./contractRoles.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
 import {
   collectionRows,
@@ -236,4 +236,174 @@ export function extendDriverContract(gs,driverId,offer){
       renewal_extension_years:extensionYears,
     }:row),
   };
+}
+
+
+const ROLE_EFFECTS=Object.freeze({
+  "second>main":{morale:2,confidence:2,reputation:0},
+  "main>second":{morale:-3,confidence:-2,reputation:0},
+  "test>reserve":{morale:1,confidence:1,reputation:0},
+  "reserve>test":{morale:-1,confidence:-1,reputation:0},
+});
+
+function roleChangeEffects(fromSlot,toSlot){
+  if(fromSlot===toSlot)return {morale:0,confidence:0,reputation:0};
+  const explicit=ROLE_EFFECTS[fromSlot+">"+toSlot];
+  if(explicit)return explicit;
+
+  const fromRace=isRaceDriverSlot(fromSlot);
+  const toRace=isRaceDriverSlot(toSlot);
+  if(!fromRace&&toRace){
+    return toSlot==="main"
+      ?{morale:4,confidence:3,reputation:1}
+      :{morale:3,confidence:2,reputation:1};
+  }
+  if(fromRace&&!toRace){
+    return toSlot==="reserve"
+      ?{morale:-4,confidence:-3,reputation:0}
+      :{morale:-5,confidence:-3,reputation:0};
+  }
+
+  const rank={test:0,reserve:1,second:2,main:3};
+  const diff=(rank[toSlot]??0)-(rank[fromSlot]??0);
+  return diff>0
+    ?{morale:1,confidence:1,reputation:0}
+    :{morale:-1,confidence:-1,reputation:0};
+}
+
+function applyRoleEffects(gs,effectsByDriver){
+  if(!effectsByDriver.size)return gs;
+  const clamp100=(value)=>Math.max(0,Math.min(100,Number(value)||0));
+  const driverAttributes={...(gs?.driverAttributes||{})};
+
+  for(const [driverId,effects] of effectsByDriver.entries()){
+    const current={...(driverAttributes[driverId]||{})};
+    driverAttributes[driverId]={
+      ...current,
+      morale:clamp100(Number(current.morale??50)+Number(effects.morale||0)),
+      confidence:clamp100(Number(current.confidence??50)+Number(effects.confidence||0)),
+    };
+  }
+
+  const driverRatings=Array.isArray(gs?.driverRatings)
+    ?gs.driverRatings.map((row)=>{
+      const did=driverIdOf(row);
+      const effects=effectsByDriver.get(did);
+      if(!effects?.reputation)return row;
+      const current=Number(row?.reputation);
+      if(!Number.isFinite(current))return row;
+      return {...row,reputation:clamp100(current+effects.reputation)};
+    })
+    :gs?.driverRatings;
+
+  return {...gs,driverAttributes,driverRatings};
+}
+
+export function driverLineupSlots(gs,teamId){
+  const slots={main:null,second:null,reserve:null,test:null};
+  const raceFallback=[];
+
+  for(const contract of activeDriverContracts(gs,{teamId})){
+    const slot=driverRoleSlot(contract);
+    if(!slot)continue;
+    if((slot==="main"||slot==="second")&&slots[slot]){
+      raceFallback.push(contract);
+      continue;
+    }
+    if(!slots[slot])slots[slot]=contract;
+  }
+
+  for(const contract of raceFallback){
+    if(!slots.main)slots.main=contract;
+    else if(!slots.second)slots.second=contract;
+  }
+  return slots;
+}
+
+function applyRoleAssignments(gs,assignments){
+  const source=driverContractsOf(gs);
+  const today=String(gs?.currentDateISO||"").slice(0,10)||null;
+  const changes=new Map();
+  const contractUpdates=new Map();
+
+  for(const assignment of assignments){
+    const contract=assignment?.contract;
+    const toSlot=assignment?.toSlot;
+    if(!contract||!toSlot)continue;
+    const fromSlot=assignment?.fromSlot||driverRoleSlot(contract);
+    if(!fromSlot||fromSlot===toSlot)continue;
+    const did=driverIdOf(contract);
+    contractUpdates.set(contract,{
+      ...contract,
+      role:driverRoleLabelForSlot(toSlot),
+      role_changed_at:today,
+      role_changed_from:driverRoleLabelForSlot(fromSlot),
+    });
+    changes.set(did,roleChangeEffects(fromSlot,toSlot));
+  }
+
+  if(!contractUpdates.size)return gs;
+  const next={
+    ...gs,
+    contracts:source.map((row)=>contractUpdates.get(row)||row),
+  };
+  return applyRoleEffects(next,changes);
+}
+
+export function changeDriverContractRole(gs,{
+  driverId,
+  targetRole,
+  teamId=null,
+  swapIfOccupied=true,
+}={}){
+  if(!gs)return gs;
+  const did=String(driverId||"");
+  const contract=activeDriverContract(gs,did);
+  if(!contract)return gs;
+
+  const ownerTeamId=teamIdOf(contract);
+  const expectedTeamId=String(teamId??gs?.team?.team_id??gs?.team?.id??ownerTeamId);
+  if(ownerTeamId!==expectedTeamId)return gs;
+
+  const fromSlot=driverRoleSlot(contract);
+  const toSlot=driverRoleSlot(targetRole);
+  if(!fromSlot||!toSlot||fromSlot===toSlot)return gs;
+
+  const teamContracts=activeDriverContracts(gs,{teamId:ownerTeamId});
+  const occupant=teamContracts.find((row)=>
+    row!==contract&&driverRoleSlot(row)===toSlot
+  )||null;
+
+  if(occupant&&!swapIfOccupied)return gs;
+
+  const assignments=[{contract,fromSlot,toSlot}];
+  if(occupant){
+    assignments.push({
+      contract:occupant,
+      fromSlot:toSlot,
+      toSlot:fromSlot,
+    });
+  }
+  return applyRoleAssignments(gs,assignments);
+}
+
+export function swapRaceDriverRoles(gs,{teamId=null}={}){
+  if(!gs)return gs;
+  const tid=String(teamId??gs?.team?.team_id??gs?.team?.id??"");
+  if(!tid)return gs;
+  const lineup=driverLineupSlots(gs,tid);
+  if(!lineup.main||!lineup.second)return gs;
+
+  return applyRoleAssignments(gs,[
+    {
+      contract:lineup.main,
+      fromSlot:"main",
+      toSlot:"second",
+    },
+    {
+      contract:lineup.second,
+      fromSlot:"second",
+      toSlot:"main",
+    },
+  ]);
 }
