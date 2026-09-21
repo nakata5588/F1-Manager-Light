@@ -22,6 +22,13 @@ function driverIdOf(row){
   return String(row?.driver_id??row?.person_id??row?.id??"");
 }
 
+function driverNameFor(gs,driverId){
+  const id=String(driverId||"");
+  const driver=(gs?.drivers||[]).find((row)=>driverIdOf(row)===id)
+    ||(gs?.dbDrivers||[]).find((row)=>driverIdOf(row)===id);
+  return driver?.display_name||driver?.name||id;
+}
+
 function daysBetweenISO(fromISO,toISO){
   const a=Date.parse(String(fromISO||"").slice(0,10)+"T00:00:00Z");
   const b=Date.parse(String(toISO||"").slice(0,10)+"T00:00:00Z");
@@ -178,7 +185,9 @@ export function applyMarketTick(gs){
       playerExpiring.length>0 &&
       Number(gs?._lastContractExpiryReminderYear)!==Number(next?.activeYear);
     if(expiryReminderDue){
-      const names=playerExpiring.map((contract)=>contract?.driver_name||driverIdOf(contract)).join(", ");
+      const names=playerExpiring.map((contract)=>
+        contract?.driver_name||driverNameFor(next,driverIdOf(contract))
+      ).join(", ");
       messages.push({
         id:`contract_expiry_${next?.activeYear}_${userTeamId}`,
         date:currentDate,
