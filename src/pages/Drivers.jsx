@@ -158,7 +158,7 @@ export default function Drivers(){
   return <div className="grid gap-4">
     <div className="bg-white rounded-xl shadow p-4">
       <h2 className="text-lg font-semibold">Driver Market</h2>
-      <p className="text-sm text-gray-500">Browse contracted, free and youth drivers for season {activeYear||"—"}. Free drivers can be approached for open roles.</p>
+      <p className="text-sm text-gray-500">Browse the market, approach available drivers and negotiate role, salary and contract length. Offers do not resolve instantly.</p>
       <div className="mt-3 flex flex-col lg:flex-row gap-2">
         <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search driver/team/nationality/status…" value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}/>
         <button
@@ -172,6 +172,46 @@ export default function Drivers(){
       </div>
     </div>
 
+    {!!playerNegotiations.length&&(
+      <div className="bg-white rounded-xl shadow p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="font-semibold">My Negotiations</h3>
+            <p className="text-xs text-gray-500">Responses arrive as the calendar advances.</p>
+          </div>
+          <span className="text-xs text-gray-500">{playerNegotiations.filter(isNegotiationActive).length} active</span>
+        </div>
+        <div className="grid gap-2">
+          {playerNegotiations.slice(0,6).map((n)=>(
+            <div key={n.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">{n.driver_name}</div>
+                <div className="text-xs text-gray-500">
+                  {n.offer?.role} · {money(n.offer?.salary)} · {n.offer?.years} year{Number(n.offer?.years)===1?"":"s"}
+                  {n.status==="submitted"&&n.response_date?(" · response by "+n.response_date):""}
+                </div>
+                {n.status==="countered"&&n.counter_offer&&(
+                  <div className="text-sm mt-1">
+                    Agent asks for <strong>{money(n.counter_offer.salary)}</strong> · {n.counter_offer.years} year{Number(n.counter_offer.years)===1?"":"s"}
+                  </div>
+                )}
+              </div>
+              <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(n.status)}>{String(n.status||"").replaceAll("_"," ")}</span>
+              {n.status==="countered"&&(
+                <div className="flex gap-2">
+                  <button className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white" onClick={()=>acceptCounter(n.id)}>Accept counter</button>
+                  <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdraw(n.id)}>Withdraw</button>
+                </div>
+              )}
+              {n.status==="submitted"&&(
+                <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdraw(n.id)}>Withdraw</button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
     <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
       <thead className="bg-gray-50"><tr>{headers.map(([k,l])=><th key={k} className="px-4 py-3 text-left cursor-pointer" onClick={()=>{if(sortKey===k)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortKey(k);setSortDir("asc");}}}>{l}{sortKey===k?(sortDir==="asc"?" ↑":" ↓"):""}</th>)}<th className="px-4 py-3 text-right">Action</th></tr></thead>
       <tbody>{paged.map(d=><tr key={d.id} className="border-t hover:bg-gray-50">
@@ -180,11 +220,33 @@ export default function Drivers(){
         <td className="px-4 py-2">{flagFromCountry(d.nationality,d.country_code)} {d.nationality}</td>
         <td className="px-4 py-2"><span className="px-2 py-1 rounded bg-gray-100 text-xs">{d.market_status}</span></td>
         <td className="px-4 py-2">{d.age??"—"}</td><td className="px-4 py-2 font-semibold">{d.overall}</td><td className="px-4 py-2">{d.contract_until}</td>
-        <td className="px-4 py-2 text-right">{d.can_sign_reserve?<button className="border rounded px-2 py-1 text-xs disabled:opacity-40" disabled={hasReserve||!userTeamId} onClick={()=>signReserve(d)}>{hasReserve?"Reserve filled":"Sign Reserve"}</button>:"—"}</td>
+        <td className="px-4 py-2 text-right">
+          {d.pending?(
+            <span className="text-xs text-blue-700">Negotiating</span>
+          ):d.can_negotiate?(
+            <button
+              className="border rounded px-2 py-1 text-xs disabled:opacity-40"
+              disabled={!userTeamId||!availableRoles.length}
+              onClick={()=>setNegotiatingDriver(d)}
+            >
+              {availableRoles.length?"Approach":"Line-up full"}
+            </button>
+          ):"—"}
+        </td>
       </tr>)}
       {!paged.length&&<tr><td colSpan={headers.length+1} className="px-4 py-6 text-center text-gray-500">No drivers found.</td></tr>}</tbody>
     </table></div>
 
     <div className="flex items-center justify-between text-sm"><span className="text-gray-600">{sorted.length} results · Page {p}/{pages}</span><div className="flex gap-2"><button className="border rounded px-3 py-1 disabled:opacity-40" disabled={p<=1} onClick={()=>setPage(x=>Math.max(1,x-1))}>Prev</button><button className="border rounded px-3 py-1 disabled:opacity-40" disabled={p>=pages} onClick={()=>setPage(x=>Math.min(pages,x+1))}>Next</button></div></div>
+
+    {negotiatingDriver&&(
+      <ContractNegotiationModal
+        driver={negotiatingDriver}
+        roles={availableRoles}
+        expectedSalary={expectedDriverSalary(gs,negotiatingDriver.id)}
+        onClose={()=>setNegotiatingDriver(null)}
+        onSubmit={submitNegotiation}
+      />
+    )}
   </div>;
 }
