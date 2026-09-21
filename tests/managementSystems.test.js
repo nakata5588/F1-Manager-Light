@@ -19,6 +19,7 @@ import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
 import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
 import { buildRaceEntryState } from "../src/domain/raceEntry.js";
 import { activeTestDriverContracts } from "../src/domain/developmentTesting.js";
+import { applyRaceComponentWear } from "../src/domain/componentWear.js";
 
 function baseState(){
   return {
@@ -329,4 +330,63 @@ test("test-driver development never falls back to historical contracts once live
   ];
   gs.contracts=[];
   assert.deepEqual(activeTestDriverContracts(gs,"T1"),[]);
+});
+
+
+test("installed components lose condition after a normal GP",()=>{
+  const gs=baseState();
+  const garage=syncGarageState(gs,{});
+  garage.cars[0].installedParts={aero_front:"P1"};
+  const next=applyRaceComponentWear({...gs,garage},{
+    gp:{gp_id:"GP1",race_date:"1980-03-10"},
+    race:[{
+      driver:{driver_id:"D1"},
+      retired:false,
+      retirement_reason:null,
+    }],
+  });
+  const part=next.development.parts.find((row)=>row.id==="P1");
+  assert.equal(part.condition,98.2);
+  assert.ok(next.componentWearLog.some((row)=>row.part_id==="P1"&&row.driver_id==="D1"));
+});
+
+test("serious accident creates substantially more component wear than a clean finish",()=>{
+  const gs=baseState();
+  const garage=syncGarageState(gs,{});
+  garage.cars[0].installedParts={aero_front:"P1"};
+  const clean=applyRaceComponentWear({...gs,garage},{
+    race:[{driver:{driver_id:"D1"},retired:false}],
+  });
+  const crash=applyRaceComponentWear({...gs,garage},{
+    race:[{
+      driver:{driver_id:"D1"},
+      retired:true,
+      retirement_reason:"Accident",
+      incident_severity:"high",
+      incident_severity_score:0.9,
+    }],
+  });
+  const cleanCondition=clean.development.parts.find((row)=>row.id==="P1").condition;
+  const crashCondition=crash.development.parts.find((row)=>row.id==="P1").condition;
+  assert.ok(crashCondition<cleanCondition-5);
+});
+
+test("low component condition reduces the live car reliability value",()=>{
+  const gs=baseState();
+  const garage=syncGarageState(gs,{});
+  garage.cars[0].installedParts={aero_front:"P1"};
+  const healthy={...gs,garage};
+  const worn={
+    ...gs,
+    garage,
+    development:{
+      ...gs.development,
+      parts:gs.development.parts.map((part)=>part.id==="P1"?{...part,condition:30}:part),
+    },
+  };
+  const healthyPerf=teamCarPerformance(healthy,"T1","D1");
+  const wornPerf=teamCarPerformance(worn,"T1","D1");
+  assert.ok(wornPerf.qualifying<healthyPerf.qualifying);
+  assert.ok(wornPerf.race<healthyPerf.race);
+  assert.ok(wornPerf.reliability<healthyPerf.reliability);
 });
