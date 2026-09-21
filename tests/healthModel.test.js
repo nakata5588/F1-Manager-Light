@@ -62,6 +62,10 @@ test("1980 health model keeps injury and fatality as separate probabilities",()=
 
   assert.equal(low.baseInjuryProbability,0.02);
   assert.equal(low.baseFatalityProbability,0.002);
+  assert.equal(low.injuryProbability,0.04);
+  assert.equal(medium.injuryProbability,0.10);
+  assert.equal(high.injuryProbability,0.22);
+  assert.equal(critical.injuryProbability,0.40);
   assert.ok(low.injuryProbability<medium.injuryProbability);
   assert.ok(medium.injuryProbability<high.injuryProbability);
   assert.ok(high.injuryProbability<critical.injuryProbability);
@@ -135,4 +139,25 @@ test("forced injury stores incident severity and medical history",()=>{
   assert.equal(history.incident_severity,"high");
   assert.ok(history.injury_probability>0);
   assert.ok(history.fatality_probability>=0);
+});
+
+
+test("high-severity crashes can create longer moderate and serious injuries",()=>{
+  const severities=new Set();
+  const days=[];
+  for(let i=0;i<60;i+=1){
+    const gs=state("injury-variety-"+i);
+    const next=applyRaceHealthOutcomes(gs,{
+      gp,
+      race:[incident("high","D2")],
+      forceFatalityProbability:0,
+      forceInjuryProbability:1,
+    });
+    const injury=next.driverAvailability.D2;
+    severities.add(injury.severity);
+    days.push(Number(injury.expectedDaysOut||0));
+  }
+  assert.ok(severities.has("moderate")||severities.has("serious"));
+  assert.ok(severities.has("serious"),"high severity incidents should sometimes create serious injuries");
+  assert.ok(Math.max(...days)>=30,"high severity incidents should sometimes sideline drivers for a month or more");
 });
