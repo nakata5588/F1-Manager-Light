@@ -105,6 +105,18 @@ export function applyMarketTick(gs) {
         contract.market_evaluation=driverMarketEvaluation({...gs,contracts},reserveDriver);
         contracts.push(contract);
         activeDriverIds.add(reserveId);
+        aiMessages.push({
+          id:`ai_reserve_${String(gs?.currentDateISO||currentMonth)}_${tid}_${reserveId}`,
+          date:gs?.currentDateISO,
+          unread:true,
+          type:"PR",
+          from:"Paddock Reporter",
+          tag:"Contracts",
+          subject:`${reserveDriver?.display_name||reserveDriver?.name||reserveId} joins ${team?.team_name||team?.name||tid} as Reserve Driver`,
+          body:`${team?.team_name||team?.name||tid} has strengthened its driver line-up by signing ${reserveDriver?.display_name||reserveDriver?.name||reserveId} as Reserve Driver for the current season.`,
+          driver_id:reserveId,
+          team_id:tid,
+        });
       }
     }
 
