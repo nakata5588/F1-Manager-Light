@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
+import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 
 const STEPS=[
   ["practice","Practice"],
@@ -33,6 +34,7 @@ export default function RaceWeekend(){
   const navigate=useNavigate();
   const gs=useGame((s)=>s.gameState);
   const runPractice=useGame((s)=>s.completeRaceWeekendPractice);
+  const setPracticeProgramme=useGame((s)=>s.setRaceWeekendPracticeProgramme);
   const runQualifying=useGame((s)=>s.completeRaceWeekendQualifying);
   const runRace=useGame((s)=>s.completeRaceWeekendRace);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
@@ -41,6 +43,10 @@ export default function RaceWeekend(){
   const weekend=gs?.raceWeekendState;
   const drivers=gs?.drivers||[];
   const teams=gs?.teams||[];
+  const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const playerEntrants=(weekend?.entrants||[]).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
+  const practiceResults=weekend?.practice?.results||[];
+  const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
   const currentIndex=phaseIndex(weekend?.phase);
   const classification=weekend?.qualifying?.classification||[];
   const lastResult=useMemo(()=>{
@@ -98,25 +104,98 @@ export default function RaceWeekend(){
     </div>
 
     {weekend.phase==="practice"&&(
-      <div className="bg-white rounded-xl shadow p-5">
-        <h3 className="font-semibold">Practice</h3>
-        <p className="text-sm text-gray-600 mt-1">
-          RW1 establishes the authoritative Practice session and race-entry boundary. Setup learning and selectable practice programmes arrive in RW2.
-        </p>
-        <div className="mt-3 text-sm text-gray-600">{weekend.entrants?.length||0} cars entered for the weekend.</div>
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runPractice)}>
-          {busy?"Running…":"Run Practice"}
-        </button>
+      <div className="grid gap-4">
+        <div className="bg-white rounded-xl shadow p-5">
+          <h3 className="font-semibold">Practice Programmes</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Choose how each car uses Practice. More aggressive or longer running can improve a specific area, but increases fatigue, component wear and issue risk.
+          </p>
+          <div className="mt-4 grid gap-3">
+            {playerEntrants.map((entry)=>{
+              const did=String(entry.driver_id);
+              const selected=weekend.practice_selections?.[did]||"balanced";
+              return <div key={did} className="border rounded-xl p-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{driverName(drivers,did)}</div>
+                    <div className="text-xs text-gray-500">{teamName(teams,entry.team_id)}</div>
+                  </div>
+                  <select
+                    className="border rounded-lg px-3 py-2 text-sm min-w-[210px]"
+                    value={selected}
+                    onChange={(e)=>setPracticeProgramme(did,e.target.value)}
+                  >
+                    {Object.values(PRACTICE_PROGRAMMES).map((programme)=>(
+                      <option key={programme.id} value={programme.id}>{programme.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="mt-2 text-sm text-gray-600">{PRACTICE_PROGRAMMES[selected]?.description||PRACTICE_PROGRAMMES.balanced.description}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="bg-gray-100 rounded px-2 py-1">Fatigue +{PRACTICE_PROGRAMMES[selected]?.fatigue??5}</span>
+                  <span className="bg-gray-100 rounded px-2 py-1">Mileage ×{Number(PRACTICE_PROGRAMMES[selected]?.mileageFactor??1).toFixed(2)}</span>
+                  <span className="bg-gray-100 rounded px-2 py-1">Wear ×{Number(PRACTICE_PROGRAMMES[selected]?.wearFactor??1).toFixed(2)}</span>
+                </div>
+              </div>;
+            })}
+          </div>
+          <div className="mt-3 text-xs text-gray-500">
+            AI teams select programmes from the same five options using their car reliability, staff support and driver profile.
+          </div>
+          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runPractice)}>
+            {busy?"Running…":"Run Practice"}
+          </button>
+        </div>
       </div>
     )}
 
     {weekend.phase==="practice_complete"&&(
-      <div className="bg-white rounded-xl shadow p-5">
-        <h3 className="font-semibold">Practice Complete</h3>
-        <p className="text-sm text-gray-600 mt-1">Practice is locked into the Save. Advance one day to reach Qualifying.</p>
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
-          {busy?"Advancing…":"Advance to Qualifying"}
-        </button>
+      <div className="grid gap-4">
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Practice Complete</h3>
+              <p className="text-sm text-gray-600 mt-1">Setup, Preparation, fatigue and component wear have been committed to the Save.</p>
+            </div>
+            <div className="text-xs text-gray-500">
+              Profile: {weekend.practice?.track_profile?.source==="derived_gameplay_profile"?"gameplay-derived circuit demands":"circuit data"}
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+            {Object.entries(weekend.practice?.track_profile?.target||{}).map(([key,value])=>(
+              <div key={key} className="border rounded-lg p-3">
+                <div className="text-xs text-gray-500">{key.replace(/([A-Z])/g," $1").replace(/^./,m=>m.toUpperCase())}</div>
+                <div className="font-semibold">{Math.round(Number(value)||0)}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            {playerPracticeResults.map((row)=>(
+              <div key={row.driver_id} className="border rounded-xl p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium">{driverName(drivers,row.driver_id)}</div>
+                    <div className="text-xs text-gray-500">{row.programme_label}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="bg-emerald-50 text-emerald-800 rounded px-2 py-1">Setup {Math.round(row.setup_quality)}%</span>
+                    <span className="bg-blue-50 text-blue-800 rounded px-2 py-1">Knowledge {Math.round(row.setup_knowledge)}%</span>
+                    <span className="bg-slate-100 rounded px-2 py-1">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
+                    <span className="bg-slate-100 rounded px-2 py-1">Fatigue +{row.fatigue_cost}</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm">{row.feedback}</p>
+                {row.issue_note&&<p className="mt-2 text-sm text-amber-700">{row.issue_note}</p>}
+              </div>
+            ))}
+          </div>
+
+          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
+            {busy?"Advancing…":"Advance to Qualifying"}
+          </button>
+        </div>
       </div>
     )}
 
@@ -124,7 +203,7 @@ export default function RaceWeekend(){
       <div className="bg-white rounded-xl shadow p-5">
         <h3 className="font-semibold">Qualifying</h3>
         <p className="text-sm text-gray-600 mt-1">
-          Qualifying is now a separate deterministic session. Its classification becomes the persistent starting grid consumed by the Race.
+          Qualifying now consumes the Preparation, Setup Quality and programme effects created in Practice. Its classification becomes the persistent starting grid consumed by the Race.
         </p>
         <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runQualifying)}>
           {busy?"Running…":"Run Qualifying"}
