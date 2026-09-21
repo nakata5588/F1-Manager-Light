@@ -5,6 +5,8 @@ import { rngFor } from "../core/random.js";
 import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
+import { activeDriverContracts, currentDriverTeamId } from "../domain/driverContracts.js";
+import { preferLiveRows } from "../domain/liveContracts.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -68,24 +70,11 @@ function resolveDriverTeamId(gs, driver) {
   const entryTeamId = raceEntryTeamForDriver(gs?.raceEntryState, driverId);
   if (entryTeamId) return entryTeamId;
 
+  const liveTeamId = currentDriverTeamId(gs, driverId);
+  if (liveTeamId) return liveTeamId;
+
   const explicit = pick(driver || {}, ["team_id", "constructor_id", "team"], null);
-  if (explicit != null && explicit !== "") return String(explicit);
-
-  const activeYear = Number(gs?.activeYear);
-  const contracts = gs?.contracts || gs?.dbContracts || [];
-  const contract = contracts.find((row) => {
-    const contractDriverId = pick(row, ["driver_id", "person_id", "id"], null);
-    if (String(contractDriverId ?? "") !== String(driverId)) return false;
-
-    const role = String(pick(row, ["role", "position", "contract_role", "type"], "")).toLowerCase();
-    if (role && !role.includes("driver")) return false;
-
-    const contractYear = Number(pick(row, ["year", "season_year"], NaN));
-    return !Number.isFinite(activeYear) || !Number.isFinite(contractYear) || contractYear === activeYear;
-  });
-
-  const teamId = pick(contract || {}, ["team_id", "team", "constructor", "constructor_id"], null);
-  return teamId == null || teamId === "" ? null : String(teamId);
+  return explicit == null || explicit === "" ? null : String(explicit);
 }
 
 function facilityLevel(gs, teamId, key) {
@@ -459,13 +448,7 @@ function awardRaceBonuses(next, race, gpName) {
 
   const financeLog = Array.isArray(next.financeLog) ? next.financeLog.slice() : [];
 
-  const contracts = next.contracts || next.dbContracts || [];
-  const driverRows = contracts.filter(r => {
-    const y = Number(pick(r, ["year","season_year","start_year"], NaN));
-    const role = String(pick(r, ["role","position","contract_role"], "")).toLowerCase();
-    const tid = String(pick(r, ["team_id","team","constructor"]));
-    return y === year && tid === String(teamId) && role.includes("driver");
-  });
+  const driverRows = activeDriverContracts(next,{teamId});
 
   const txPilot = [];
   for (const c of driverRows) {
@@ -500,7 +483,7 @@ function awardRaceBonuses(next, race, gpName) {
     }
   }
 
-  const sponsors = next.sponsorsContracts || next.dbSponsorsContracts || [];
+  const sponsors = preferLiveRows(next,"sponsorsContracts","dbSponsorsContracts");
   const spRows = sponsors.filter(r => {
     const y = Number(pick(r, ["year","season_year","start_year"], NaN));
     const tid = String(pick(r, ["team_id","team","constructor"]));
