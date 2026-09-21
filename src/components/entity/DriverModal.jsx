@@ -1,7 +1,7 @@
 // src/components/entity/DriverModal.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
-  X, Filter, MoreVertical, Dumbbell, Megaphone, Wrench,
+  X, Filter, MoreVertical, Dumbbell, Megaphone,
   Handshake, FileText, Coffee, MessageSquare
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
@@ -1157,7 +1157,6 @@ function DriverActionsMenu({
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
-    synergy: (delta) => ({ key: "team_synergy", delta }),
   };
 
   const ownGroups = [
