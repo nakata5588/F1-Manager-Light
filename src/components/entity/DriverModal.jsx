@@ -7,6 +7,19 @@ import {
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../domain/driverMarketEvaluation.js";
+import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
+import {
+  activeDriverContract,
+  expectedDriverSalary,
+  releaseDriverContract,
+  teamIdOf,
+  terminationCost,
+} from "../../domain/driverContracts.js";
+import {
+  driverNegotiations,
+  isNegotiationActive,
+  startDriverRenewal,
+} from "../../engine/NegotiationEngine.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -138,7 +151,9 @@ export default function DriverModal({ entity, onClose }) {
   // Read the store through stable primitive/reference selectors. All collections
   // are normalized locally before profile logic uses find/filter/map.
   const gs = useGame((s) => s.gameState);
+  const setGameState = useGame((s) => s.setGameState);
   const queueEvent = useGame((s) => s.queueEvent);
+  const [contractTalkOpen, setContractTalkOpen] = useState(false);
 
   const driversList = useMemo(() => {
     const live = toArraySafe(gs?.drivers);
@@ -204,20 +219,42 @@ export default function DriverModal({ entity, onClose }) {
     };
   }, [driverAttributesDict, driver?.driver_id, entity.id, idNorm]);
 
+  const driverId = String(unbox(driver?.driver_id ?? driver?.person_id ?? driver?.id ?? entity.id) ?? "");
+
   const contract = useMemo(
-    () => (contractsList || []).find((c) =>
-      sameDriver(c?.driver_id ?? c?.person_id ?? c?.id, idNorm)
-    ) || null,
-    [contractsList, idNorm]
+    () => activeDriverContract(gs, driverId),
+    [gs, driverId]
   );
 
   // Contract values are needed by the live-season memo below. Keep these
   // declarations before any memo that references them to avoid TDZ crashes.
-  const contractStart = unbox(contract?.contract_start) ?? unbox(contract?.start_year) ?? unbox(contract?.start_date) ?? null;
-  const contractEnd = unbox(contract?.contract_until) ?? unbox(contract?.end_year) ?? unbox(contract?.end_date) ?? null;
-  const contractTeam = displayValue(contract?.team_name ?? contract?.team, null);
+  // Runtime contracts use contract_start_year / contract_until_year; keep the
+  // legacy aliases as fallbacks for old saves.
+  const contractStart =
+    unbox(contract?.contract_start_year) ??
+    unbox(contract?.contract_start) ??
+    unbox(contract?.start_year) ??
+    unbox(contract?.start_date) ??
+    null;
+  const contractEnd =
+    unbox(contract?.contract_until_year) ??
+    unbox(contract?.contract_until) ??
+    unbox(contract?.end_year) ??
+    unbox(contract?.end_date) ??
+    null;
+  const contractTeamId = contract ? teamIdOf(contract) : "";
+  const contractTeamRecord = (teamsList || []).find((team) =>
+    String(unbox(team?.team_id ?? team?.id ?? "")) === String(contractTeamId)
+  );
+  const contractTeam = displayValue(
+    contract?.team_name ??
+    contractTeamRecord?.team_name ??
+    contractTeamRecord?.name ??
+    contract?.team,
+    null
+  );
   const contractRole = niceRole(contract?.role);
-  const contractSalary = unbox(contract?.salary);
+  const contractSalary = unbox(contract?.salary ?? contract?.salary_yearly);
 
   const futureTransfer = useMemo(() => {
     const list = (contractsList || []).filter((c) => sameDriver(c?.driver_id ?? c?.person_id ?? c?.id, idNorm));
@@ -490,8 +527,46 @@ export default function DriverModal({ entity, onClose }) {
   const driverCountry = displayValue(driver?.country_name ?? driver?.nationality ?? driver?.country, "—");
 
   const isOwnDriver =
-    (unbox(driver?.team_id) && myTeamId && String(unbox(driver.team_id)) === String(myTeamId)) ||
-    (contractTeam && myTeamName && String(displayValue(contractTeam, "")) === String(myTeamName));
+    !!contract &&
+    !!myTeamId &&
+    String(contractTeamId) === String(myTeamId);
+
+  const renewalPending = useMemo(
+    () => driverNegotiations(gs).some((negotiation) =>
+      negotiation?.kind === "renewal" &&
+      negotiation?.origin === "player" &&
+      String(negotiation?.driver_id) === String(driverId) &&
+      String(negotiation?.team_id) === String(myTeamId ?? "") &&
+      isNegotiationActive(negotiation)
+    ),
+    [gs, driverId, myTeamId]
+  );
+
+  const releaseCost = isOwnDriver && contract ? terminationCost(gs, contract) : 0;
+
+  function submitContractRenewal(offer) {
+    if (!isOwnDriver || !contract || !driverId) return;
+    const next = startDriverRenewal(gs, {
+      driverId,
+      teamId: String(myTeamId),
+      teamName: myTeamName || contractTeam || String(myTeamId),
+      offer: { ...offer, role: contractRole },
+      origin: "player",
+    });
+    setGameState(next);
+    setContractTalkOpen(false);
+  }
+
+  function releaseCurrentDriver() {
+    if (!isOwnDriver || !contract || !driverId) return;
+    const ok = window.confirm(
+      "Release " + driverName + "?\n\nContract termination cost: " + fmtMoney(releaseCost) +
+      "\n\nThe driver will become available to the market immediately."
+    );
+    if (!ok) return;
+    setGameState(releaseDriverContract(gs, driverId));
+    setContractTalkOpen(false);
+  }
 
   if (!driver) {
     return (
@@ -575,6 +650,10 @@ export default function DriverModal({ entity, onClose }) {
               label={isOwnDriver ? "Actions" : "Interact"}
               queueEvent={queueEvent}
               currentDateISO={gameDateISO}
+              onContractTalk={() => setContractTalkOpen(true)}
+              onRelease={releaseCurrentDriver}
+              renewalPending={renewalPending}
+              releaseCost={releaseCost}
             />
             <button onClick={onClose} className="m-1 p-2 rounded hover:bg-gray-100" aria-label="Close">
               <X size={18} />
@@ -619,6 +698,16 @@ export default function DriverModal({ entity, onClose }) {
           {activeTab === "achievements" && <AchievementsTab items={achievementsList} />}
         </section>
       </main>
+
+      {contractTalkOpen && isOwnDriver && contract && (
+        <ContractNegotiationModal
+          driver={driver}
+          roles={[contractRole]}
+          expectedSalary={expectedDriverSalary(gs, driverId)}
+          onClose={() => setContractTalkOpen(false)}
+          onSubmit={submitContractRenewal}
+        />
+      )}
     </div>
   );
 }
@@ -1016,7 +1105,18 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
   );
 }
 
-function DriverActionsMenu({ driver, condition, isOwnDriver, label = "Actions", queueEvent, currentDateISO }) {
+function DriverActionsMenu({
+  driver,
+  condition,
+  isOwnDriver,
+  label = "Actions",
+  queueEvent,
+  currentDateISO,
+  onContractTalk,
+  onRelease,
+  renewalPending = false,
+  releaseCost = 0,
+}) {
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
@@ -1049,7 +1149,21 @@ function DriverActionsMenu({ driver, condition, isOwnDriver, label = "Actions", 
       items: [
         { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
         { key: "physical", intensive: true,      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
-        { key: "contract_talk", icon: <FileText size={14} />, label: "Contract talk", desc: "Opens negotiation flow", effects: [] },
+        {
+          key: "contract_talk",
+          icon: <FileText size={14} />,
+          label: renewalPending ? "Renewal pending" : "Contract talk",
+          desc: renewalPending ? "Awaiting the driver's response" : "Negotiate a contract extension",
+          effects: [],
+          disabled: renewalPending,
+        },
+        {
+          key: "release_driver",
+          icon: <Handshake size={14} />,
+          label: "Release driver",
+          desc: "Terminate contract · " + fmtMoney(releaseCost),
+          effects: [],
+        },
       ],
     },
   ];
@@ -1085,6 +1199,15 @@ function DriverActionsMenu({ driver, condition, isOwnDriver, label = "Actions", 
   const trainingLimited=fatigue>=45;
 
   function onPick(it) {
+    if (it?.disabled) return;
+    if (it?.key === "contract_talk") {
+      if (typeof onContractTalk === "function") onContractTalk();
+      return;
+    }
+    if (it?.key === "release_driver") {
+      if (typeof onRelease === "function") onRelease();
+      return;
+    }
     if (typeof queueEvent !== "function") return;
     if(it?.intensive&&trainingBlocked)return;
     queueEvent({
@@ -1114,9 +1237,13 @@ function DriverActionsMenu({ driver, condition, isOwnDriver, label = "Actions", 
                 <button
                   type="button"
                   onClick={() => onPick(it)}
-                  disabled={Boolean(it.intensive&&trainingBlocked)}
+                  disabled={Boolean(it.disabled || (it.intensive&&trainingBlocked))}
                   className={"flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"}
-                  title={it.intensive&&trainingBlocked?"Driver is too fatigued for intensive training":undefined}
+                  title={
+                    it.disabled
+                      ? (it.key === "contract_talk" ? "A renewal negotiation is already active" : undefined)
+                      : (it.intensive&&trainingBlocked ? "Driver is too fatigued for intensive training" : undefined)
+                  }
                 >
                   <span className="mt-0.5 shrink-0">{it.icon}</span>
                   <span className="flex-1">
