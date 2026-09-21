@@ -163,13 +163,19 @@ export default function RaceWeekend(){
           </div>
 
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-            {Object.entries(weekend.practice?.track_profile?.target||{}).map(([key,value])=>(
-              <div key={key} className="border rounded-lg p-3">
-                <div className="text-xs text-gray-500">{key.replace(/([A-Z])/g," $1").replace(/^./,m=>m.toUpperCase())}</div>
-                <div className="font-semibold">{Math.round(Number(value)||0)}</div>
+            {[
+              ["Crash Risk",weekend.practice?.track_profile?.inputs?.crash_risk],
+              ["Overtaking Difficulty",weekend.practice?.track_profile?.inputs?.overtaking_difficulty],
+              ["Tyre Wear",weekend.practice?.track_profile?.inputs?.tyre_wear],
+              ["Lap Length",weekend.practice?.track_profile?.inputs?.lap_length_km],
+            ].map(([label,value])=>(
+              <div key={label} className="border rounded-lg p-3">
+                <div className="text-xs text-gray-500">{label}</div>
+                <div className="font-semibold">{label==="Lap Length"?`${Number(value||0).toFixed(2)} km`:Math.round(Number(value)||0)}</div>
               </div>
             ))}
           </div>
+          <p className="mt-2 text-xs text-gray-500">The exact ideal setup remains hidden. Driver feedback and Setup Quality show how close the team is to the working window.</p>
 
           <div className="mt-4 grid gap-3">
             {playerPracticeResults.map((row)=>(
