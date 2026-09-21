@@ -81,7 +81,7 @@ export default function Drivers(){
       const id=idOf(c); if(!id) continue;
       if(!isDriverContract(c)) continue;
       const contractStatus=String(pick(c,["status"],"active")).toLowerCase();
-      if(["terminated","expired","released","inactive","void"].includes(contractStatus)) continue;
+      if(["terminated","expired","released","bought_out","inactive","void"].includes(contractStatus)) continue;
       const y=Number(pick(c,["year","season_year"],activeYear));
       if(Number.isFinite(activeYear)&&Number.isFinite(y)&&y!==activeYear) continue;
       if(!m.has(id)) m.set(id,c);
