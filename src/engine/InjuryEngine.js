@@ -72,7 +72,16 @@ function severityLabel(row){
   }
   return "medium";
 }
-function severityFactor(label){
+function injurySeverityFactor(label){
+  // injury_prob is the era medical baseline, not the final chance after a crash.
+  // A high-energy accident must carry materially more injury risk than a low-severity one.
+  if(label==="critical")return 20.0;
+  if(label==="high")return 11.0;
+  if(label==="medium")return 5.0;
+  return 2.0;
+}
+function fatalitySeverityFactor(label){
+  // Keep the existing fatality calibration separate from the injury retune.
   if(label==="critical")return 3.2;
   if(label==="high")return 1.8;
   if(label==="medium")return 0.95;
@@ -88,7 +97,8 @@ export function healthOutcomeProbabilities(gs,row,{year=Number(gs?.activeYear)}=
   const eraSafety=clamp(Number(pick(safety,["era_safety_index"],0.42)),0,1);
   const medicalResponse=clamp(Number(pick(safety,["medical_response"],0.6)),0,1);
   const incidentSeverity=severityLabel(row);
-  const severity=severityFactor(incidentSeverity);
+  const injurySeverity=injurySeverityFactor(incidentSeverity);
+  const fatalitySeverity=fatalitySeverityFactor(incidentSeverity);
 
   // Accident-model probabilities remain the era baseline. Safety values adjust
   // that baseline relative to the 1980 reference values instead of replacing it.
@@ -105,9 +115,11 @@ export function healthOutcomeProbabilities(gs,row,{year=Number(gs?.activeYear)}=
 
   return {
     incidentSeverity,
-    severityFactor:severity,
-    injuryProbability:clamp(baseInjury*severity*safetyFactor,0,0.45),
-    fatalityProbability:clamp(baseFatality*severity*safetyFactor*medicalFatalityFactor,0,0.12),
+    severityFactor:injurySeverity,
+    injurySeverityFactor:injurySeverity,
+    fatalitySeverityFactor:fatalitySeverity,
+    injuryProbability:clamp(baseInjury*injurySeverity*safetyFactor,0,0.60),
+    fatalityProbability:clamp(baseFatality*fatalitySeverity*safetyFactor*medicalFatalityFactor,0,0.12),
     baseInjuryProbability:baseInjury,
     baseFatalityProbability:baseFatality,
     carSafety,
@@ -125,44 +137,44 @@ function injuryProfile(rng,{incidentSeverity,medicalResponse}){
   let reasons;
 
   if(incidentSeverity==="critical"){
-    if(roll<0.28){
-      severity="moderate"; minDays=14; maxDays=30;
+    if(roll<0.20){
+      severity="moderate"; minDays=18; maxDays=35;
       reasons=["concussion","rib injury","shoulder injury"];
-    }else if(roll<0.78){
-      severity="serious"; minDays=30; maxDays=75;
-      reasons=["leg injury","arm injury","serious concussion","multiple injuries"];
+    }else if(roll<0.75){
+      severity="serious"; minDays=35; maxDays=90;
+      reasons=["leg fracture","arm fracture","serious concussion","multiple injuries"];
     }else{
-      severity="critical"; minDays=60; maxDays=150;
+      severity="critical"; minDays=75; maxDays=180;
       reasons=["major leg injury","major spinal trauma","severe multiple injuries"];
     }
   }else if(incidentSeverity==="high"){
-    if(roll<0.28){
-      severity="minor"; minDays=5; maxDays=12;
-      reasons=["wrist sprain","neck strain","bruising"];
-    }else if(roll<0.78){
+    if(roll<0.20){
+      severity="minor"; minDays=6; maxDays=12;
+      reasons=["wrist sprain","neck strain","heavy bruising"];
+    }else if(roll<0.75){
+      severity="moderate"; minDays=12; maxDays=35;
+      reasons=["concussion","rib injury","shoulder injury","hand injury"];
+    }else{
+      severity="serious"; minDays=30; maxDays=80;
+      reasons=["leg fracture","arm injury","serious concussion","multiple injuries"];
+    }
+  }else if(incidentSeverity==="medium"){
+    if(roll<0.45){
+      severity="minor"; minDays=4; maxDays=10;
+      reasons=["bruising","wrist sprain","neck strain","minor leg injury"];
+    }else if(roll<0.90){
       severity="moderate"; minDays=10; maxDays=28;
       reasons=["concussion","rib injury","shoulder injury","hand injury"];
     }else{
-      severity="serious"; minDays=24; maxDays=65;
-      reasons=["leg injury","arm injury","serious concussion","multiple injuries"];
-    }
-  }else if(incidentSeverity==="medium"){
-    if(roll<0.55){
-      severity="minor"; minDays=3; maxDays=9;
-      reasons=["bruising","wrist sprain","neck strain","minor leg injury"];
-    }else if(roll<0.92){
-      severity="moderate"; minDays=8; maxDays=21;
-      reasons=["concussion","rib injury","shoulder injury","hand injury"];
-    }else{
-      severity="serious"; minDays=20; maxDays=45;
+      severity="serious"; minDays=24; maxDays=55;
       reasons=["leg injury","arm injury","serious concussion"];
     }
   }else{
-    if(roll<0.82){
-      severity="minor"; minDays=2; maxDays=6;
+    if(roll<0.75){
+      severity="minor"; minDays=2; maxDays=7;
       reasons=["bruising","wrist sprain","neck strain"];
     }else{
-      severity="moderate"; minDays=6; maxDays=14;
+      severity="moderate"; minDays=7; maxDays=16;
       reasons=["concussion","rib injury","hand injury"];
     }
   }
