@@ -1,74 +1,67 @@
 // src/domain/driverContracts.js
 import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
+import {
+  collectionRows,
+  contractActiveForYear,
+  contractEndYear,
+  pickValue,
+  preferLiveRows,
+} from "./liveContracts.js";
 
-const unwrap=(v)=>{
-  if(v&&typeof v==="object"&&!Array.isArray(v)){
-    if("error" in v && !("result" in v) && !("value" in v) && !("text" in v))return null;
-    if("result" in v)return unwrap(v.result);
-    if("value" in v)return unwrap(v.value);
-    if("text" in v)return unwrap(v.text);
-  }
-  return v;
-};
-const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 
-function rows(value){
-  const raw=unwrap(value);
-  if(Array.isArray(raw))return raw;
-  if(!raw||typeof raw!=="object")return [];
-  for(const key of ["items","rows","list","data"]){
-    if(Array.isArray(raw[key]))return raw[key];
-  }
-  return Object.values(raw).filter((row)=>row&&typeof row==="object"&&!Array.isArray(row));
-}
 function contractsOf(gs){
-  const live=rows(gs?.contracts);
-  return live.length?live:rows(gs?.dbContracts);
+  return preferLiveRows(gs,"contracts","dbContracts");
 }
 function ratingsOf(gs){
-  const live=rows(gs?.driverRatings);
-  return live.length?live:rows(gs?.dbDriverRatings);
+  const live=collectionRows(gs?.driverRatings);
+  return live.length?live:collectionRows(gs?.dbDriverRatings);
 }
 
-export const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
-export const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
+export { contractActiveForYear, contractEndYear };
+export const driverIdOf=(o)=>String(pickValue(o,["driver_id","person_id","id"],""));
+export const teamIdOf=(o)=>String(pickValue(o,["team_id","constructor_id","team","constructor"],""));
 
-export function contractEndYear(contract,fallbackYear=NaN){
-  const value=Number(pick(contract,["contract_until_year","contract_until","end_year"],fallbackYear));
-  return Number.isFinite(value)?value:Number(fallbackYear);
+export function driverContractsOf(gs){
+  return contractsOf(gs);
 }
 
-export function contractActiveForYear(contract,year){
-  if(!contract)return false;
-  const status=String(pick(contract,["status"],"active")).toLowerCase();
-  if(["terminated","expired","released","inactive","void"].includes(status))return false;
-  const direct=Number(pick(contract,["year","season_year"],NaN));
-  const start=Number(pick(contract,["contract_start_year","start_year"],direct));
-  const end=contractEndYear(contract,direct);
-  const y=Number(year);
-  if(!Number.isFinite(y))return true;
-  const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
-  const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
-  return y>=lo&&y<=hi;
-}
-
-export function expiringDriverContracts(gs,{teamId=null}={}){
+export function activeDriverContracts(gs,{teamId=null,raceOnly=false}={}){
   const year=Number(gs?.activeYear);
   return contractsOf(gs).filter((contract)=>{
     if(!isDriverContract(contract)||!contractActiveForYear(contract,year))return false;
     if(teamId!=null&&teamIdOf(contract)!==String(teamId))return false;
-    return contractEndYear(contract,year)===year;
+    if(raceOnly&&!isRaceDriverContract(contract))return false;
+    return true;
   });
 }
 
-export function activeDriverContract(gs,driverId){
+export function currentDriverTeamId(gs,driverId){
+  const contract=activeDriverContract(gs,driverId);
+  return contract?teamIdOf(contract):"";
+}
+
+export function freeAgentDrivers(gs){
+  const activeIds=new Set(activeDriverContracts(gs).map(driverIdOf));
+  return (Array.isArray(gs?.drivers)?gs.drivers:[]).filter((driver)=>{
+    const id=driverIdOf(driver);
+    if(!id||activeIds.has(id))return false;
+    const status=String(driver?.status||"eligible").toLowerCase();
+    return !["deceased","retired","hidden"].includes(status);
+  });
+}
+
+export function expiringDriverContracts(gs,{teamId=null}={}){
   const year=Number(gs?.activeYear);
-  return contractsOf(gs).find((c)=>
-    driverIdOf(c)===String(driverId) &&
-    isDriverContract(c) &&
-    contractActiveForYear(c,year)
+  return activeDriverContracts(gs,{teamId}).filter(
+    (contract)=>contractEndYear(contract,year)===year
+  );
+}
+
+export function activeDriverContract(gs,driverId){
+  return activeDriverContracts(gs).find(
+    (contract)=>driverIdOf(contract)===String(driverId)
   )||null;
 }
 
@@ -80,13 +73,13 @@ export function expectedDriverSalary(gs,driverId){
   const rating=ratingForDriver(gs,driverId);
   const evaluation=driverMarketEvaluation(gs,driverId);
   const contract=activeDriverContract(gs,driverId);
-  const rawAbility=Number(pick(rating,["current_ability","overall","pace"],NaN));
+  const rawAbility=Number(pickValue(rating,["current_ability","overall","pace"],NaN));
   const ability=Number.isFinite(rawAbility)&&rawAbility>0?rawAbility:Number(evaluation.score||55);
-  const rawRep=Number(pick(rating,["reputation"],NaN));
+  const rawRep=Number(pickValue(rating,["reputation"],NaN));
   const rep=Number.isFinite(rawRep)&&rawRep>0?rawRep:Number(evaluation.reputation??ability);
-  const rawMarket=Number(pick(rating,["market_value"],NaN));
+  const rawMarket=Number(pickValue(rating,["market_value"],NaN));
   const market=Number.isFinite(rawMarket)&&rawMarket>0?rawMarket:Number(evaluation.market_value||0);
-  const existing=Number(pick(contract||{},["salary","salary_yearly"],0));
+  const existing=Number(pickValue(contract||{},["salary","salary_yearly"],0));
   const model=Math.round((Math.max(45,ability)**2)*120 + Math.max(0,rep-50)*18_000);
   return Math.max(150_000,existing,Math.round(market*0.16),model);
 }
@@ -97,9 +90,9 @@ export function contractAcceptanceChance(gs,driverId,offer,{renewal=false}={}){
   const years=Math.max(1,Number(offer?.years||1));
   const rating=ratingForDriver(gs,driverId);
   const evaluation=driverMarketEvaluation(gs,driverId);
-  const rawAbility=Number(pick(rating,["current_ability","overall","pace"],NaN));
+  const rawAbility=Number(pickValue(rating,["current_ability","overall","pace"],NaN));
   const ability=Number.isFinite(rawAbility)&&rawAbility>0?rawAbility:Number(evaluation.score||55);
-  const rawRep=Number(pick(rating,["reputation"],NaN));
+  const rawRep=Number(pickValue(rating,["reputation"],NaN));
   const rep=Number.isFinite(rawRep)&&rawRep>0?rawRep:Number(evaluation.reputation??ability);
   const role=String(offer?.role||"Reserve Driver").toLowerCase();
 
@@ -117,9 +110,9 @@ export function contractAcceptanceChance(gs,driverId,offer,{renewal=false}={}){
 
 export function terminationCost(gs,contract){
   if(!contract)return 0;
-  const salary=Math.max(0,Number(pick(contract,["salary","salary_yearly"],0)));
+  const salary=Math.max(0,Number(pickValue(contract,["salary","salary_yearly"],0)));
   const year=Number(gs?.activeYear);
-  const until=Number(pick(contract,["contract_until_year","contract_until","end_year"],year));
+  const until=Number(pickValue(contract,["contract_until_year","contract_until","end_year"],year));
   const years=Math.max(1,Number.isFinite(until)&&Number.isFinite(year)?until-year+1:1);
   return Math.round(salary*years*0.45);
 }
@@ -142,23 +135,12 @@ export function makeDriverContract({gs,driver,teamId,teamName,offer,source="play
 }
 
 export function raceSeatCount(gs,teamId){
-  const year=Number(gs?.activeYear);
-  return contractsOf(gs).filter((c)=>
-    teamIdOf(c)===String(teamId) &&
-    isRaceDriverContract(c) &&
-    contractActiveForYear(c,year)
-  ).length;
+  return activeDriverContracts(gs,{teamId,raceOnly:true}).length;
 }
-
 
 export function reserveSeatCount(gs,teamId){
-  const year=Number(gs?.activeYear);
-  return contractsOf(gs).filter((c)=>{
-    if(teamIdOf(c)!==String(teamId)||!isReserveDriverContract(c))return false;
-    return contractActiveForYear(c,year);
-  }).length;
+  return activeDriverContracts(gs,{teamId}).filter(isReserveDriverContract).length;
 }
-
 
 export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}){
   if(!gs)return gs;
@@ -170,7 +152,7 @@ export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}
 
   const cost=terminationCost(gs,contract);
   const today=String(gs?.currentDateISO||"").slice(0,10);
-  const nextContracts=(gs?.contracts||[]).map((row)=>{
+  const nextContracts=(Array.isArray(gs?.contracts)?gs.contracts:[]).map((row)=>{
     if(row!==contract)return row;
     return {
       ...row,
@@ -242,7 +224,7 @@ export function extendDriverContract(gs,driverId,offer){
 
   return {
     ...gs,
-    contracts:(gs?.contracts||[]).map((row)=>row===contract?{
+    contracts:(Array.isArray(gs?.contracts)?gs.contracts:[]).map((row)=>row===contract?{
       ...row,
       role,
       salary,
