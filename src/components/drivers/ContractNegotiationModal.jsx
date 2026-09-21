@@ -15,6 +15,7 @@ export default function ContractNegotiationModal({
   driver,
   roles=[],
   expectedSalary=0,
+  contextNote="",
   onClose,
   onSubmit,
 }){
@@ -44,6 +45,11 @@ export default function ContractNegotiationModal({
         </div>
 
         <div className="p-5 grid gap-4">
+          {contextNote&&(
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {contextNote}
+            </div>
+          )}
           <div className="rounded-xl bg-gray-50 p-3 text-sm">
             <div className="text-gray-500">Indicative annual value</div>
             <div className="font-semibold">{money(expectedSalary)}</div>
