@@ -17,6 +17,8 @@ import {
   normalizedContractRole,
 } from "../domain/contractRoles.js";
 import { driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
+import { f1HireEligibility } from "../domain/driverEligibility.js";
+import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -151,24 +153,56 @@ export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
     return {canNegotiate:false,reason:"invalid_target",roles:[],contract:null,pending:null};
   }
 
-  const contract=activeDriverContract(gs,did);
-  if(contract){
-    const ownContract=teamIdOf(contract)===tid;
+  const hire=f1HireEligibility(gs,driver,gs?.activeYear);
+  if(!hire.eligible){
     return {
       canNegotiate:false,
-      reason:ownContract?"already_contracted":"under_contract",
+      reason:"not_f1_eligible",
+      eligibility_reason:hire.reason,
       roles:[],
-      contract,
+      contract:null,
       pending:null,
     };
   }
 
-  const status=String(driver?.status||"eligible").toLowerCase();
-  if(
-    driver?.canHireF1===false ||
-    ["hidden","junior_only","deceased","retired"].includes(status)
-  ){
-    return {canNegotiate:false,reason:"not_f1_eligible",roles:[],contract:null,pending:null};
+  const roles=availableContractRoles(gs,tid);
+  const contract=activeDriverContract(gs,did);
+  if(contract){
+    const ownContract=teamIdOf(contract)===tid;
+    if(ownContract){
+      return {canNegotiate:false,reason:"already_contracted",roles:[],contract,pending:null};
+    }
+
+    const pending=driverNegotiations(gs).find((negotiation)=>
+      isNegotiationActive(negotiation) &&
+      String(negotiation?.driver_id)===did &&
+      String(negotiation?.team_id)===tid &&
+      String(negotiation?.kind||"")==="transfer"
+    )||null;
+    if(pending){
+      return {canNegotiate:false,reason:"active_negotiation",roles:[],contract,pending};
+    }
+    if(!roles.length){
+      return {canNegotiate:false,reason:"lineup_full",roles:[],contract,pending:null};
+    }
+
+    const buyout=driverBuyoutQuote(gs,contract,{driverId:did});
+    if(!buyout.allowed){
+      return {canNegotiate:false,reason:"under_contract",roles:[],contract,pending:null,buyout};
+    }
+    if(!canAffordTransfer(gs,tid,buyout.fee)){
+      return {canNegotiate:false,reason:"insufficient_buyout_funds",roles:[],contract,pending:null,buyout};
+    }
+
+    return {
+      canNegotiate:true,
+      reason:"transfer_available",
+      kind:"transfer",
+      roles,
+      contract,
+      pending:null,
+      buyout,
+    };
   }
 
   const pending=driverNegotiations(gs).find((negotiation)=>
@@ -181,12 +215,11 @@ export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
     return {canNegotiate:false,reason:"active_negotiation",roles:[],contract:null,pending};
   }
 
-  const roles=availableContractRoles(gs,tid);
   if(!roles.length){
     return {canNegotiate:false,reason:"lineup_full",roles:[],contract:null,pending:null};
   }
 
-  return {canNegotiate:true,reason:"available",roles,contract:null,pending:null};
+  return {canNegotiate:true,reason:"available",kind:"new_contract",roles,contract:null,pending:null};
 }
 
 function negotiationId(gs,{driverId,teamId,role,origin}){
