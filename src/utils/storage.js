@@ -7,7 +7,7 @@ const HEAVY_KEYS = [
   "dbTeamBrands", "dbTeamEngines", "dbContracts", "dbSponsorsContracts",
   "dbRules", "dbEraSafety", "dbAccidentModel", "dbDriverCareer", "dbAchievements",
   "dbFacilities", "dbStaffContracts",
-  "dbTyres", "dbPointsSystems", "dbPenaltiesRules", "dbFinancialRules",
+  "dbTyres", "dbPointsSystems", "dbQualifyingRules", "dbQualifyingRuleOverrides", "dbPenaltiesRules", "dbFinancialRules",
   "dbBoardGoals", "dbAgendaBlocks", "dbLogosIndex", "dbAIDifficulty",
   "dbContractRules", "dbYouthIntakeRules", "dbScoutingZones", "dbTrackLayoutByYear", "dbCoreTracks",
 ];

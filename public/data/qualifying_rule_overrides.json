@@ -1,0 +1,27 @@
+[
+  {
+    "rule_id": "qual_1980",
+    "year_from": 1980,
+    "year_to": 1980,
+    "strategy": "best_time_across_sessions",
+    "session_count": 2,
+    "session_length": "1h",
+    "max_starters": 24,
+    "practice_day_offset": -2,
+    "session_day_offsets": [-2, -1],
+    "grid_day_offset": -1,
+    "prequalifying_enabled": false,
+    "notes": "1980 calibration: two timed qualifying sessions; best time across sessions. Normal race grid limit 24."
+  },
+  {
+    "rule_id": "qual_1980_monaco",
+    "year_from": 1980,
+    "year_to": 1980,
+    "gp_id": "gp_006",
+    "max_starters": 20,
+    "practice_day_offset": -3,
+    "session_day_offsets": [-3, -1],
+    "grid_day_offset": -1,
+    "notes": "1980 Monaco event override: 20-car starting grid. Pre-qualifying capability exists in the engine but is not asserted for this event by this calibration."
+  }
+]

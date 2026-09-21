@@ -18,7 +18,7 @@ await fs.mkdir(outRoot,{recursive:true});
 
 const [
   drivers,calendar,teams,driverRatings,driverCareer,driverHistory,staffRatings,staffCore,
-  teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
+  teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
   trackLayoutByYear,teamSeasons,coreTracks,
@@ -36,6 +36,8 @@ const [
   readJson("contracts.json"),
   readJson("sponsors_contracts.json"),
   readJson("rules.json"),
+  readJson("qualifying_rules.json"),
+  readJson("qualifying_rule_overrides.json",[]),
   readJson("era_safety.json"),
   readJson("accident_model.json",[]),
   readJson("facilities.json"),
@@ -56,7 +58,7 @@ const [
 
 const globalData={
   drivers,calendar,teams,driverRatings,driverCareer,driverHistory,staffRatings,staffCore,
-  teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
+  teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
   agendaBlocks,contractRules,youthIntakeRules,scoutingZones,trackLayoutByYear,teamSeasons,coreTracks,

@@ -1,20 +1,25 @@
 // src/engine/RaceWeekendEngine.js
-import { buildRaceEntryState, raceEntryDriverIds } from "../domain/raceEntry.js";
+import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
+import {
+  advancingDriverIds,
+  buildQualifyingClassification,
+  buildStartingGrid,
+  buildWeekendSessions,
+  currentQualifyingSession,
+  nextPendingCompetitiveSession,
+  qualifyingEntrantsForSession,
+  resolveQualifyingRules,
+  weekendScheduleFromSessions,
+} from "./QualifyingRulesEngine.js";
 
 const clampISO=(iso)=>String(iso||"").slice(0,10);
 
 function parseISO(iso){
   const [y,m,d]=clampISO(iso).split("-").map(Number);
   return new Date(Date.UTC(y||0,(m||1)-1,d||1));
-}
-function addDaysISO(iso,days){
-  const date=parseISO(iso);
-  if(Number.isNaN(+date))return clampISO(iso);
-  date.setUTCDate(date.getUTCDate()+Number(days||0));
-  return date.toISOString().slice(0,10);
 }
 function gpDateISO(gp){
   return clampISO(gp?.dateISO||gp?.date||gp?.race_date||gp?.start_date||gp?.end_date||gp?.raceDate);
@@ -25,23 +30,52 @@ function gpId(gp,roundIndex){
 function driverIdOf(row){
   return String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
 }
+function teamForDriver(raceEntryState,driverId){
+  return (raceEntryState?.entries||[]).find(
+    (entry)=>String(entry?.driver_id??"")===String(driverId??"")
+  )?.team_id||null;
+}
+function dateReached(current,target){
+  const a=parseISO(current).getTime();
+  const b=parseISO(target).getTime();
+  return Number.isFinite(a)&&Number.isFinite(b)&&a>=b;
+}
+function sessionWithPatch(sessions,id,patch){
+  return (sessions||[]).map((row)=>String(row?.id)===String(id)?{...row,...patch}:row);
+}
+function targetGpForWeekend(weekend,gp){
+  return gp||{
+    gp_id:weekend.gp_id,
+    gp_name:weekend.gp_name,
+    track_id:weekend.track_id,
+    race_date:weekend.raceDate,
+  };
+}
+function competitiveSessions(weekend){
+  return (weekend?.sessions||[]).filter((row)=>["prequalifying","qualifying"].includes(row?.type));
+}
+function phaseAfterCompetitiveSession(weekend,currentDate){
+  const next=nextPendingCompetitiveSession(weekend);
+  if(!next)return "grid_ready";
+  return dateReached(currentDate,next.dateISO)?"qualifying":"qualifying_wait";
+}
 
 export const RACE_WEEKEND_PHASES=Object.freeze([
   "practice",
   "practice_complete",
   "qualifying",
+  "qualifying_wait",
   "grid_ready",
   "race",
   "results",
   "completed",
 ]);
 
-export function raceWeekendSchedule(gp){
-  const raceDate=gpDateISO(gp);
+export function raceWeekendSchedule(gp,ruleInput={}){
+  const sessions=buildWeekendSessions(ruleInput,gp);
   return {
-    practiceDate:addDaysISO(raceDate,-2),
-    qualifyingDate:addDaysISO(raceDate,-1),
-    raceDate,
+    ...weekendScheduleFromSessions(sessions),
+    sessions,
   };
 }
 
@@ -58,7 +92,8 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
 
   let next=ensureTemporaryReplacements(gs,{roundIndex,gp});
   const raceEntryState=buildRaceEntryState(next,{roundIndex,gp});
-  const schedule=raceWeekendSchedule(gp);
+  const qualifyingRule=resolveQualifyingRules(next,gp);
+  const schedule=raceWeekendSchedule(gp,qualifyingRule);
   const state={
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
     year:Number(next?.activeYear)||Number(gp?.year)||null,
@@ -69,11 +104,26 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     track_id:gp?.track_id||null,
     phase:"practice",
     created_at:clampISO(next?.currentDateISO),
-    ...schedule,
+    practiceDate:schedule.practiceDate,
+    qualifyingDate:schedule.qualifyingDate,
+    raceDate:schedule.raceDate,
+    weekendStartDate:schedule.weekendStartDate,
+    sessions:schedule.sessions,
+    active_session_id:"practice",
     entrants:(raceEntryState.entries||[]).map((entry)=>({...entry})),
+    qualifying_rule_snapshot:{...qualifyingRule},
     practice:null,
     practice_selections:{},
-    qualifying:null,
+    qualifying:{
+      status:"pending",
+      strategy:qualifyingRule.strategy,
+      session_count:qualifyingRule.session_count,
+      max_starters:qualifyingRule.max_starters,
+      classification:[],
+    },
+    grid_penalties:[],
+    startingGrid:null,
+    // Backwards-compatible read alias. The authoritative entity is startingGrid.
     grid:null,
     completed_at:null,
   };
@@ -81,9 +131,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
 }
 
 export function weekendStateForCurrentRound(gs){
-  const weekend=gs?.raceWeekendState;
-  if(!weekend)return null;
-  return weekend;
+  return gs?.raceWeekendState||null;
 }
 
 export function syncRaceWeekendPhaseForDate(gs,dateISO=gs?.currentDateISO){
@@ -91,17 +139,31 @@ export function syncRaceWeekendPhaseForDate(gs,dateISO=gs?.currentDateISO){
   if(!weekend||weekend.phase==="completed")return gs;
   const date=clampISO(dateISO);
   let phase=weekend.phase;
+  let activeSessionId=weekend.active_session_id;
 
-  if(phase==="practice_complete"&&date>=weekend.qualifyingDate)phase="qualifying";
-  if(phase==="grid_ready"&&date>=weekend.raceDate)phase="race";
-  if(phase==="results"&&date>weekend.raceDate)phase="completed";
+  if(["practice_complete","qualifying_wait"].includes(phase)){
+    const next=nextPendingCompetitiveSession(weekend);
+    if(next&&dateReached(date,next.dateISO)){
+      phase="qualifying";
+      activeSessionId=next.id;
+    }
+  }
+  if(phase==="grid_ready"&&dateReached(date,weekend.raceDate)){
+    phase="race";
+    activeSessionId="race";
+  }
+  if(phase==="results"&&date>weekend.raceDate){
+    phase="completed";
+    activeSessionId=null;
+  }
 
-  if(phase===weekend.phase)return gs;
+  if(phase===weekend.phase&&activeSessionId===weekend.active_session_id)return gs;
   return {
     ...gs,
     raceWeekendState:{
       ...weekend,
       phase,
+      active_session_id:activeSessionId,
       completed_at:phase==="completed"?date:weekend.completed_at,
     },
   };
@@ -109,10 +171,11 @@ export function syncRaceWeekendPhaseForDate(gs,dateISO=gs?.currentDateISO){
 
 export function shouldCreateWeekendForDate(gs,{roundIndex,gp,dateISO}={}){
   if(!gp)return false;
-  const schedule=raceWeekendSchedule(gp);
+  const rule=resolveQualifyingRules(gs,gp);
+  const schedule=raceWeekendSchedule(gp,rule);
   const date=clampISO(dateISO||gs?.currentDateISO);
   if(!date||!schedule.raceDate)return false;
-  if(date<schedule.practiceDate||date>schedule.raceDate)return false;
+  if(date<schedule.weekendStartDate||date>schedule.raceDate)return false;
   const existing=gs?.raceWeekendState;
   if(existing&&existing.phase!=="completed")return false;
   return true;
@@ -137,22 +200,29 @@ export function setPracticeProgramme(gs,{driverId,programmeId}={}){
 export function completePracticeSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="practice")return gs;
-  const targetGp=gp||{
-    gp_id:weekend.gp_id,
-    gp_name:weekend.gp_name,
-    track_id:weekend.track_id,
-    race_date:weekend.raceDate,
-  };
+  const targetGp=targetGpForWeekend(weekend,gp);
   const session=simulatePracticeSession(gs,{
     gp:targetGp,
     selections:weekend.practice_selections||{},
   });
   if(!session.practice)return gs;
+
+  const sessions=sessionWithPatch(weekend.sessions,"practice",{
+    status:"completed",
+    completed_at:clampISO(gs?.currentDateISO),
+  });
+  const interim={...weekend,sessions};
+  const nextCompetitive=nextPendingCompetitiveSession(interim);
+  const phase=nextCompetitive&&dateReached(gs?.currentDateISO,nextCompetitive.dateISO)
+    ?"qualifying"
+    :"practice_complete";
+
   return {
     ...session.gameState,
     raceWeekendState:{
-      ...weekend,
-      phase:"practice_complete",
+      ...interim,
+      phase,
+      active_session_id:nextCompetitive?.id||"grid",
       practice_selections:weekend.practice_selections||{},
       practice:session.practice,
     },
@@ -162,43 +232,109 @@ export function completePracticeSession(gs,{gp}={}){
 export function completeQualifyingSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="qualifying")return gs;
+  const current=currentQualifyingSession(weekend);
+  if(!current||current.status==="completed")return gs;
+
   const roundIndex=Number(weekend.roundIndex)||0;
-  const targetGp=gp||{
-    gp_id:weekend.gp_id,
-    gp_name:weekend.gp_name,
-    track_id:weekend.track_id,
-    race_date:weekend.raceDate,
-  };
-  const session=simulateQualifyingSession(gs,{
+  const targetGp=targetGpForWeekend(weekend,gp);
+  const eligibleDriverIds=qualifyingEntrantsForSession(weekend,current);
+  const simulated=simulateQualifyingSession(gs,{
     roundIndex,
     gp:targetGp,
     raceEntryOverride:gs?.raceEntryState,
+    sessionKey:`${weekend.key}-${current.id}`,
+    eligibleDriverIds,
   });
-  const normalized=session.qualifying.map((row,index)=>({
+
+  let normalized=simulated.qualifying.map((row,index)=>({
     position:Number(row.pos??index+1),
     driver_id:driverIdOf(row),
-    team_id:(session.raceEntryState.entries||[]).find((entry)=>String(entry.driver_id)===driverIdOf(row))?.team_id||null,
+    team_id:teamForDriver(simulated.raceEntryState,driverIdOf(row)),
     performance:Number(row.performance||0),
+    lap_time_ms:Number(row.lap_time_ms||0),
   }));
-  const grid=normalized.map((row)=>({
-    grid:row.position,
-    driver_id:row.driver_id,
-    team_id:row.team_id,
-    qualifying_position:row.position,
-    qualifying_performance:row.performance,
-    penalty_places:0,
-  }));
-  return {
-    ...session.gameState,
-    raceWeekendState:{
-      ...weekend,
-      phase:"grid_ready",
-      qualifying:{
-        completed_at:clampISO(gs?.currentDateISO),
-        status:"completed",
-        classification:normalized,
+
+  const rule=weekend.qualifying_rule_snapshot||resolveQualifyingRules(simulated.gameState,targetGp);
+  let completedCurrent={
+    ...current,
+    status:"completed",
+    completed_at:clampISO(gs?.currentDateISO),
+    results:normalized,
+  };
+
+  const advanced=advancingDriverIds(completedCurrent,rule);
+  if(current.type==="prequalifying"){
+    const allowed=new Set(advanced);
+    normalized=normalized.map((row)=>({...row,status:allowed.has(String(row.driver_id))?"ADVANCED":"DNPQ"}));
+    completedCurrent={...completedCurrent,results:normalized};
+  }else if(current.advance_count){
+    const allowed=new Set(advanced);
+    normalized=normalized.map((row)=>({...row,status:allowed.has(String(row.driver_id))?"ADVANCED":"ELIMINATED"}));
+    completedCurrent={...completedCurrent,results:normalized};
+  }
+
+  let sessions=sessionWithPatch(weekend.sessions,current.id,completedCurrent);
+  let interim={...weekend,sessions};
+
+  const next=nextPendingCompetitiveSession(interim);
+  if(next){
+    const shouldRestrict=current.type==="prequalifying"||Boolean(current.advance_count);
+    if(shouldRestrict){
+      sessions=sessionWithPatch(sessions,next.id,{eligible_driver_ids:advanced});
+      interim={...interim,sessions};
+    }
+    const phase=phaseAfterCompetitiveSession(interim,gs?.currentDateISO);
+    const qualifying={
+      ...(weekend.qualifying||{}),
+      status:"in_progress",
+      completed_sessions:competitiveSessions(interim).filter((row)=>row.status==="completed").length,
+      classification:weekend.qualifying?.classification||[],
+    };
+    return {
+      ...simulated.gameState,
+      raceEntryState:simulated.raceEntryState,
+      raceWeekendState:{
+        ...interim,
+        phase,
+        active_session_id:next.id,
+        qualifying,
       },
-      grid,
+    };
+  }
+
+  const classification=buildQualifyingClassification(interim,rule);
+  const startingGrid=buildStartingGrid(
+    {...interim,currentDateISO:gs?.currentDateISO},
+    classification,
+    weekend.grid_penalties||[]
+  );
+  startingGrid.generated_at=clampISO(gs?.currentDateISO);
+
+  sessions=sessionWithPatch(sessions,"grid",{
+    status:"completed",
+    completed_at:clampISO(gs?.currentDateISO),
+    results:startingGrid.rows,
+  });
+
+  return {
+    ...simulated.gameState,
+    raceEntryState:simulated.raceEntryState,
+    raceWeekendState:{
+      ...interim,
+      sessions,
+      phase:"grid_ready",
+      active_session_id:"grid",
+      qualifying:{
+        ...(weekend.qualifying||{}),
+        status:"completed",
+        completed_at:clampISO(gs?.currentDateISO),
+        strategy:rule.strategy,
+        session_count:rule.session_count,
+        max_starters:rule.max_starters,
+        classification,
+      },
+      startingGrid,
+      grid:startingGrid.rows,
     },
   };
 }
@@ -206,26 +342,32 @@ export function completeQualifyingSession(gs,{gp}={}){
 export async function completeRaceSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
-  const targetGp=gp||{
-    gp_id:weekend.gp_id,
-    gp_name:weekend.gp_name,
-    track_id:weekend.track_id,
-    race_date:weekend.raceDate,
-  };
+  const targetGp=targetGpForWeekend(weekend,gp);
+  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
+  if(!startingGridRows.length)return gs;
+
   const next=await runRaceWeekend(gs,{
     roundIndex:Number(weekend.roundIndex)||0,
     gp:targetGp,
-    qualifyingOverride:weekend.qualifying?.classification||[],
+    startingGridOverride:startingGridRows,
+    qualifyingClassificationOverride:weekend.qualifying?.classification||[],
     raceEntryOverride:gs?.raceEntryState,
+  });
+  const sessions=sessionWithPatch(weekend.sessions,"race",{
+    status:"completed",
+    completed_at:clampISO(next?.currentDateISO),
   });
   return {
     ...next,
     raceWeekendState:{
       ...weekend,
+      sessions,
       phase:"results",
+      active_session_id:"race",
       practice:weekend.practice,
       qualifying:weekend.qualifying,
-      grid:weekend.grid,
+      startingGrid:weekend.startingGrid,
+      grid:startingGridRows,
       race_result_key:next?.lastRace?.resultKey||null,
       race_completed_at:clampISO(next?.currentDateISO),
     },

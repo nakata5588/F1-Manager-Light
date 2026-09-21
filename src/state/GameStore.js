@@ -82,7 +82,7 @@ const HEAVY_KEYS = [
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
-  "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
+  "dbTyres","dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
   "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbCoreTracks",
 ];
@@ -257,6 +257,25 @@ function filterByYearRange(records, year) {
     return y >= (Number.isNaN(start) ? -Infinity : start) && y <= (Number.isNaN(end) ? Infinity : end);
   });
 }
+function qualifyingRulesForYear(baseRows, overrideRows, year) {
+  const y=Number(year);
+  const historical=(baseRows||[])
+    .filter((row)=>{
+      const ry=Number(getYearNumber(row));
+      return Number.isFinite(ry)&&ry<=y;
+    })
+    .sort((a,b)=>Number(getYearNumber(b))-Number(getYearNumber(a)))[0]||{};
+  const overrides=filterByYearRange(overrideRows||[],y);
+  const generic=overrides.filter((row)=>!pick(row,["gp_id","event_id","track_id","circuit_id"],null));
+  const eventOverrides=overrides.filter((row)=>pick(row,["gp_id","event_id","track_id","circuit_id"],null));
+  return {
+    ...historical,
+    ...generic.reduce((acc,row)=>({...acc,...row}),{}),
+    year:y,
+    rule_source:"historical_seed_calibration",
+    event_overrides:eventOverrides.map((row)=>({...row})),
+  };
+}
 function normalizeTeam(t) {
   const base = pick(t, ["team_base", "base", "hq", "headquarters", "country", "location", "nation"], null);
   const name = pick(t, ["name", "team_name", "short_name"], null);
@@ -313,6 +332,8 @@ export const useGame = create((set, get) => ({
     // novas DBs
     dbTyres: [],
     dbPointsSystems: [],
+    dbQualifyingRules: [],
+    dbQualifyingRuleOverrides: [],
     dbPenaltiesRules: [],
     dbFinancialRules: [],
     dbBoardGoals: [],
@@ -352,6 +373,7 @@ export const useGame = create((set, get) => ({
     // filtrados novos
     tyres: [],
     pointsSystem: null,
+    qualifyingRules: null,
     penaltiesRules: [],
     financialRules: [],
     agendaBlocks: [],
@@ -563,7 +585,7 @@ export const useGame = create((set, get) => ({
         driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
-        tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
+        tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
         scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, coreTracksRaw, seasonIndexRaw,
       ] = await Promise.all([
@@ -589,6 +611,8 @@ export const useGame = create((set, get) => ({
 
         fetchOptional("/data/tyres_catalog.json", []),
         fetchOptional("/data/points_systems.json", []),
+        fetchOptional("/data/qualifying_rules.json", []),
+        fetchOptional("/data/qualifying_rule_overrides.json", []),
         fetchOptional("/data/penalties_rules.json", []),
         fetchOptional("/data/financial_rules.json", []),
         fetchOptional("/data/board_goals_templates.json", []),
@@ -626,6 +650,8 @@ export const useGame = create((set, get) => ({
 
       const tyres              = unexcelDeep(tyresRaw);
       const pointsSystems      = unexcelDeep(pointsSystemsRaw);
+      const qualifyingRulesRawDb = unexcelDeep(qualifyingRulesRaw);
+      const qualifyingRuleOverrides = unexcelDeep(qualifyingRuleOverridesRaw);
       const penaltiesRules     = unexcelDeep(penaltiesRulesRaw);
       const financialRules     = unexcelDeep(financialRulesRaw);
       const boardGoals         = unexcelDeep(boardGoalsRaw);
@@ -678,6 +704,8 @@ export const useGame = create((set, get) => ({
 
           dbTyres: tyres,
           dbPointsSystems: pointsSystems,
+          dbQualifyingRules: qualifyingRulesRawDb,
+          dbQualifyingRuleOverrides: qualifyingRuleOverrides,
           dbPenaltiesRules: penaltiesRules,
           dbFinancialRules: financialRules,
           dbBoardGoals: boardGoals,
@@ -971,6 +999,8 @@ export const useGame = create((set, get) => ({
       return ranged.length ? ranged[0] : null;
     })();
 
+    const qualifyingRules = qualifyingRulesForYear(prev.dbQualifyingRules,prev.dbQualifyingRuleOverrides,y);
+
     const penaltiesRules = filterByYear(prev.dbPenaltiesRules, y).length
       ? filterByYear(prev.dbPenaltiesRules, y)
       : filterByYearRange(prev.dbPenaltiesRules, y);
@@ -1005,6 +1035,7 @@ export const useGame = create((set, get) => ({
 
       tyres,
       pointsSystem: pointsSystemRec,
+      qualifyingRules,
       penaltiesRules,
       financialRules,
       agendaBlocks,
