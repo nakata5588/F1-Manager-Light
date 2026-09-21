@@ -1,5 +1,6 @@
 // src/domain/driverContracts.js
 import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
+import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -52,10 +53,14 @@ export function ratingForDriver(gs,driverId){
 
 export function expectedDriverSalary(gs,driverId){
   const rating=ratingForDriver(gs,driverId);
+  const evaluation=driverMarketEvaluation(gs,driverId);
   const contract=activeDriverContract(gs,driverId);
-  const ability=Number(pick(rating,["current_ability","overall","pace"],60));
-  const rep=Number(pick(rating,["reputation"],ability));
-  const market=Number(pick(rating,["market_value"],0));
+  const rawAbility=pick(rating,["current_ability","overall","pace"],null);
+  const ability=rawAbility===null?Number(evaluation.score||55):Number(rawAbility);
+  const rawRep=pick(rating,["reputation"],null);
+  const rep=rawRep===null?Number(evaluation.reputation??ability):Number(rawRep);
+  const rawMarket=pick(rating,["market_value"],null);
+  const market=rawMarket===null?Number(evaluation.market_value||0):Number(rawMarket);
   const existing=Number(pick(contract||{},["salary","salary_yearly"],0));
   const model=Math.round((Math.max(45,ability)**2)*120 + Math.max(0,rep-50)*18_000);
   return Math.max(150_000,existing,Math.round(market*0.16),model);
@@ -66,8 +71,11 @@ export function contractAcceptanceChance(gs,driverId,offer,{renewal=false}={}){
   const salary=Math.max(0,Number(offer?.salary||0));
   const years=Math.max(1,Number(offer?.years||1));
   const rating=ratingForDriver(gs,driverId);
-  const ability=Number(pick(rating,["current_ability","overall","pace"],60));
-  const rep=Number(pick(rating,["reputation"],ability));
+  const evaluation=driverMarketEvaluation(gs,driverId);
+  const rawAbility=pick(rating,["current_ability","overall","pace"],null);
+  const ability=rawAbility===null?Number(evaluation.score||55):Number(rawAbility);
+  const rawRep=pick(rating,["reputation"],null);
+  const rep=rawRep===null?Number(evaluation.reputation??ability):Number(rawRep);
   const role=String(offer?.role||"Reserve Driver").toLowerCase();
 
   let chance=0.42;
