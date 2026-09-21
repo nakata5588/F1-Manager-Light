@@ -1,12 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { driverRoleSalaryMultiplier } from "../../domain/driverContracts.js";
 
-function roleMultiplier(role){
-  const key=String(role||"").toLowerCase();
-  if(key.includes("main"))return 1.05;
-  if(key.includes("second"))return 1;
-  if(key.includes("reserve"))return 0.85;
-  return 0.80;
-}
 function money(value){
   return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)||0);
 }
@@ -23,7 +17,7 @@ export default function ContractNegotiationModal({
   const [role,setRole]=useState(initialRole);
   const [years,setYears]=useState(1);
   const suggested=useMemo(
-    ()=>Math.max(75_000,Math.round(Number(expectedSalary||150_000)*roleMultiplier(role)/5_000)*5_000),
+    ()=>Math.max(75_000,Math.round(Number(expectedSalary||150_000)*driverRoleSalaryMultiplier(role)/5_000)*5_000),
     [expectedSalary,role]
   );
   const [salary,setSalary]=useState(suggested);
@@ -51,8 +45,9 @@ export default function ContractNegotiationModal({
             </div>
           )}
           <div className="rounded-xl bg-gray-50 p-3 text-sm">
-            <div className="text-gray-500">Indicative annual value</div>
+            <div className="text-gray-500">Role-neutral market value</div>
             <div className="font-semibold">{money(expectedSalary)}</div>
+            <div className="text-xs text-gray-500 mt-1">Role-adjusted guide: {money(suggested)}</div>
           </div>
 
           <label className="grid gap-1 text-sm">

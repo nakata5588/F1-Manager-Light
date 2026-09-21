@@ -36,6 +36,83 @@ function formatLapTime(ms){
   const seconds=(n-minutes*60000)/1000;
   return `${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
 }
+function formatGap(ms,bestMs){
+  const n=Number(ms);
+  const best=Number(bestMs);
+  if(!Number.isFinite(n)||!Number.isFinite(best)||n<=0||best<=0)return "—";
+  const delta=n-best;
+  return delta<=0.5?"—":`+${(delta/1000).toFixed(3)}`;
+}
+function formatRaceTime(ms){
+  const n=Number(ms);
+  if(!Number.isFinite(n)||n<=0)return "—";
+  const hours=Math.floor(n/3600000);
+  const minutes=Math.floor((n-hours*3600000)/60000);
+  const seconds=(n-hours*3600000-minutes*60000)/1000;
+  return hours>0
+    ?`${hours}:${String(minutes).padStart(2,"0")}:${seconds.toFixed(3).padStart(6,"0")}`
+    :`${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
+}
+function statusClass(status){
+  const key=String(status||"").toUpperCase();
+  if(["QUALIFIED","ADVANCED","STARTER","CONTINUES","FINISHED"].includes(key))return "bg-emerald-50 text-emerald-800";
+  if(["DNQ","DNPQ","ELIMINATED","DNF","RETIRED"].includes(key))return "bg-amber-50 text-amber-800";
+  return "bg-slate-100 text-slate-700";
+}
+function sessionStatus(row,session){
+  if(row?.status)return String(row.status).toUpperCase();
+  if(session?.advance_count)return "ADVANCED";
+  return "CONTINUES";
+}
+function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false,cutoff=null}){
+  const ordered=rows.slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
+  const times=ordered.map((row)=>Number(row?.best_time_ms??row?.lap_time_ms)).filter((value)=>Number.isFinite(value)&&value>0);
+  const best=times.length?Math.min(...times):null;
+  return <div className="border rounded-xl overflow-hidden">
+    {title&&<div className="px-4 py-3 bg-gray-50 border-b flex flex-wrap items-center justify-between gap-2">
+      <div className="font-medium text-sm">{title}</div>
+      <div className="text-xs text-gray-500">{ordered.length} drivers</div>
+    </div>}
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-3 py-2 text-right">Pos</th>
+            <th className="px-3 py-2 text-left">Driver</th>
+            <th className="px-3 py-2 text-left">Team</th>
+            <th className="px-3 py-2 text-right">Time</th>
+            <th className="px-3 py-2 text-right">Gap</th>
+            <th className="px-3 py-2 text-left">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ordered.map((row,index)=>{
+            const time=Number(row?.best_time_ms??row?.lap_time_ms);
+            const status=overall?String(row?.status||"").toUpperCase():sessionStatus(row,session);
+            const atCutoff=Number.isFinite(Number(cutoff))&&index===Number(cutoff);
+            return <React.Fragment key={row.driver_id||index}>
+              {atCutoff&&<tr className="bg-amber-50 border-y-2 border-amber-300">
+                <td colSpan={6} className="px-3 py-1 text-xs font-medium text-amber-900">
+                  Qualification cut — only the first {cutoff} cars qualify for the race
+                </td>
+              </tr>}
+              <tr className="border-t">
+                <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
+                <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
+                <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
+                <td className="px-3 py-2 text-right font-mono">{formatLapTime(time)}</td>
+                <td className="px-3 py-2 text-right font-mono text-gray-500">{formatGap(time,best)}</td>
+                <td className="px-3 py-2">
+                  <span className={"rounded px-2 py-1 text-xs "+statusClass(status)}>{status||"—"}</span>
+                </td>
+              </tr>
+            </React.Fragment>;
+          })}
+        </tbody>
+      </table>
+    </div>
+  </div>;
+}
 
 export default function RaceWeekend(){
   const navigate=useNavigate();
@@ -44,6 +121,7 @@ export default function RaceWeekend(){
   const setPracticeProgramme=useGame((s)=>s.setRaceWeekendPracticeProgramme);
   const runQualifying=useGame((s)=>s.completeRaceWeekendQualifying);
   const runRace=useGame((s)=>s.completeRaceWeekendRace);
+  const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const [busy,setBusy]=useState(false);
 
@@ -62,6 +140,10 @@ export default function RaceWeekend(){
     ||qualifyingSessions.find((row)=>row?.status!=="completed")
     ||null;
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
+  const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
+  const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
+  const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
+  const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
     if(!key)return null;
@@ -84,6 +166,9 @@ export default function RaceWeekend(){
   const advanceSession=()=>perform(async()=>{
     const res=await advance();
     if(res?.breakReason!=="race_weekend"&&gs?.raceWeekendState?.phase==="results")navigate("/Home");
+  });
+  const continueRaceWeekend=()=>perform(async()=>{
+    await continueWeekend();
   });
 
   return <div className="grid gap-4">
@@ -211,8 +296,8 @@ export default function RaceWeekend(){
             ))}
           </div>
 
-          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
-            {busy?"Advancing…":"Advance to Qualifying"}
+          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
+            {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to Qualifying":"Advance to Qualifying"}
           </button>
         </div>
       </div>
@@ -233,18 +318,17 @@ export default function RaceWeekend(){
           </div>
         </div>
 
-        {qualifyingSessions.some((session)=>session.status==="completed")&&(
-          <div className="mt-4 grid gap-2">
-            {qualifyingSessions.filter((session)=>session.status==="completed").map((session)=>(
-              <div key={session.id} className="border rounded-lg p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium text-sm">{session.label}</span>
-                  <span className="text-xs text-emerald-700">Completed</span>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {(session.results||[]).length} drivers · best {session.results?.[0]?.lap_time_ms?formatLapTime(session.results[0].lap_time_ms):"—"}
-                </div>
-              </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+          <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Entrants</div><div className="font-semibold">{confirmedEntrants.length}</div></div>
+          <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Race grid</div><div className="font-semibold">{Number.isFinite(qualifyingCutoff)?qualifyingCutoff:"—"}</div></div>
+          <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Sessions</div><div className="font-semibold">{qualifyingSessions.length}</div></div>
+          <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Format</div><div className="font-semibold capitalize">{String(weekend.qualifying_rule_snapshot?.strategy||"").replaceAll("_"," ")}</div></div>
+        </div>
+
+        {completedQualifyingSessions.length>0&&(
+          <div className="mt-4 grid gap-4">
+            {completedQualifyingSessions.map((session)=>(
+              <QualifyingTable key={session.id} title={session.label+" — saved classification"} rows={session.results||[]} drivers={drivers} teams={teams} session={session}/>
             ))}
           </div>
         )}
@@ -257,70 +341,95 @@ export default function RaceWeekend(){
 
     {weekend.phase==="qualifying_wait"&&(
       <div className="bg-white rounded-xl shadow p-5">
-        <h3 className="font-semibold">Qualifying Session Complete</h3>
+        <h3 className="font-semibold">{lastCompletedQualifyingSession?.label||"Qualifying"} Complete</h3>
         <p className="text-sm text-gray-600 mt-1">
-          The completed session is saved and will not be recalculated. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.
+          This classification is saved and will not be recalculated. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.
         </p>
-        <div className="mt-3 grid gap-2">
-          {qualifyingSessions.filter((session)=>session.status==="completed").map((session)=>(
-            <div key={session.id} className="border rounded-lg px-3 py-2 text-sm flex justify-between gap-3">
-              <span>{session.label}</span>
-              <span className="text-emerald-700">Saved</span>
-            </div>
-          ))}
-        </div>
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
-          {busy?"Advancing…":"Advance toward next session"}
+        {weekend.qualifying_rule_snapshot?.strategy==="best_time_across_sessions"&&!lastCompletedQualifyingSession?.advance_count&&(
+          <div className="mt-3 rounded-lg bg-blue-50 text-blue-900 px-3 py-2 text-sm">
+            No cars are eliminated after this session. The final order uses each driver's best valid time across all qualifying sessions.
+          </div>
+        )}
+        {lastCompletedQualifyingSession&&(
+          <div className="mt-4">
+            <QualifyingTable title={lastCompletedQualifyingSession.label+" — classification"} rows={lastCompletedQualifyingSession.results||[]} drivers={drivers} teams={teams} session={lastCompletedQualifyingSession}/>
+          </div>
+        )}
+        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
+          {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to next session":"Advance toward next session"}
         </button>
       </div>
     )}
 
     {(weekend.phase==="grid_ready"||weekend.phase==="race")&&(
-      <div className="bg-white rounded-xl shadow p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold">Starting Grid</h3>
-            <p className="text-sm text-gray-600 mt-1">{startingGridRows.length} starters · {dnqRows.length} DNQ/DNPQ.</p>
-          </div>
-          {weekend.phase==="grid_ready"&&<span className="text-xs text-gray-500">Race day: {weekend.raceDate}</span>}
-        </div>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr><th className="px-3 py-2 text-right">Grid</th><th className="px-3 py-2 text-left">Driver</th><th className="px-3 py-2 text-left">Team</th></tr>
-            </thead>
-            <tbody>
-              {startingGridRows.map((row)=>(
-                <tr className="border-t" key={row.driver_id}>
-                  <td className="px-3 py-2 text-right font-semibold">P{row.grid}</td>
-                  <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                  <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {dnqRows.length>0&&(
-          <div className="mt-4 border rounded-lg p-3">
-            <div className="text-sm font-medium">Did not start</div>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              {dnqRows.map((row)=>(
-                <span key={row.driver_id} className="bg-amber-50 text-amber-800 rounded px-2 py-1">
-                  {driverName(drivers,row.driver_id)} · {row.status}
-                </span>
-              ))}
+      <div className="grid gap-4">
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Overall Qualifying Classification</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Best qualifying times are final. {startingGridRows.length} cars qualified from {confirmedEntrants.length} entries.
+              </p>
             </div>
+            <span className="text-xs text-gray-500">Grid limit: {Number.isFinite(qualifyingCutoff)?qualifyingCutoff:"—"}</span>
           </div>
-        )}
-        {weekend.phase==="grid_ready"?(
-          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
-            {busy?"Advancing…":"Advance to Race Day"}
-          </button>
-        ):(
-          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runRace)}>
-            {busy?"Running…":"Run Race"}
-          </button>
-        )}
+          <div className="mt-4">
+            <QualifyingTable rows={classification} drivers={drivers} teams={teams} overall cutoff={qualifyingCutoff}/>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Starting Grid</h3>
+              <p className="text-sm text-gray-600 mt-1">{startingGridRows.length} starters · {dnqRows.length} DNQ/DNPQ.</p>
+            </div>
+            {weekend.phase==="grid_ready"&&<span className="text-xs text-gray-500">Race day: {weekend.raceDate}</span>}
+          </div>
+          <div className="mt-3 overflow-x-auto border rounded-xl">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-right">Grid</th>
+                  <th className="px-3 py-2 text-right">Qual</th>
+                  <th className="px-3 py-2 text-left">Driver</th>
+                  <th className="px-3 py-2 text-left">Team</th>
+                  <th className="px-3 py-2 text-right">Best time</th>
+                  <th className="px-3 py-2 text-right">Penalty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {startingGridRows.map((row)=>(
+                  <tr className="border-t" key={row.driver_id}>
+                    <td className="px-3 py-2 text-right font-semibold">P{row.grid}</td>
+                    <td className="px-3 py-2 text-right">P{row.qualifying_position??row.grid}</td>
+                    <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
+                    <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.best_time_ms)}</td>
+                    <td className="px-3 py-2 text-right">{Number(row.penalty_places||0)>0?"+"+row.penalty_places:"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {dnqRows.length>0&&(
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Did not qualify</h4>
+              <QualifyingTable rows={dnqRows} drivers={drivers} teams={teams} overall/>
+            </div>
+          )}
+
+          {weekend.phase==="grid_ready"?(
+            <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
+              {busy?"Advancing…":"Advance to Race Day"}
+            </button>
+          ):(
+            <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runRace)}>
+              {busy?"Running…":"Run Race"}
+            </button>
+          )}
+        </div>
       </div>
     )}
 
@@ -333,8 +442,46 @@ export default function RaceWeekend(){
             :"Classification saved."}
           {" "}Championship, injuries, component wear and finances have been processed.
         </p>
+
+        {Array.isArray(lastResult?.classification)&&lastResult.classification.length>0&&(
+          <div className="mt-4 overflow-x-auto border rounded-xl">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-right">Finish</th>
+                  <th className="px-3 py-2 text-left">Driver</th>
+                  <th className="px-3 py-2 text-left">Team</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Time / Gap</th>
+                  <th className="px-3 py-2 text-right">Pts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lastResult.classification.map((row,index)=>{
+                  const status=String(row.status||(row.retired?"DNF":"Finished"));
+                  const gap=index===0
+                    ?formatRaceTime(row.total_time_ms)
+                    :row.retired
+                      ?(row.retirement_reason||status)
+                      :Number.isFinite(Number(row.gap_to_winner_ms))
+                        ?"+"+(Number(row.gap_to_winner_ms)/1000).toFixed(3)+"s"
+                        :"—";
+                  return <tr className="border-t" key={row.driver_id||index}>
+                    <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
+                    <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
+                    <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
+                    <td className="px-3 py-2"><span className={"rounded px-2 py-1 text-xs "+statusClass(status)}>{status}</span></td>
+                    <td className="px-3 py-2 text-right">{gap}</td>
+                    <td className="px-3 py-2 text-right font-medium">{row.points??0}</td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="mt-4 flex flex-wrap gap-2">
-          <button className="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm" onClick={()=>navigate("/Results")}>View Results</button>
+          <button className="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm" onClick={()=>navigate("/Results")}>Open Full Results</button>
           <button disabled={busy} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
             {busy?"Advancing…":"Continue after Grand Prix"}
           </button>

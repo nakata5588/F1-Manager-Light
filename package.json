@@ -4,7 +4,7 @@
   "description": "Historical Formula 1 management game built with React, Vite and a JSON-backed simulation database.",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
