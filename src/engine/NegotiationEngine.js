@@ -96,6 +96,16 @@ export function driverNegotiations(gs){
 export function isNegotiationActive(negotiation){
   return ACTIVE_NEGOTIATION_STATUSES.has(String(negotiation?.status||"").toLowerCase());
 }
+export function isNegotiationClosed(negotiation){
+  return CLOSED_NEGOTIATION_STATUSES.has(String(negotiation?.status||"").toLowerCase());
+}
+export function negotiationStatusBuckets(value){
+  const list=Array.isArray(value)?value:driverNegotiations(value);
+  return {
+    active:list.filter(isNegotiationActive),
+    history:list.filter((negotiation)=>!isNegotiationActive(negotiation)),
+  };
+}
 export function hasActiveNegotiationForDriver(gs,driverId){
   return driverNegotiations(gs).some((n)=>isNegotiationActive(n)&&String(n.driver_id)===String(driverId));
 }
