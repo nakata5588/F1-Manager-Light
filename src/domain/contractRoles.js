@@ -78,7 +78,11 @@ export function isRaceDriverContract(contract){
 }
 
 export function contractRoleLabel(contract){
-  const slot=driverRoleSlot(contract);
-  if(slot)return driverRoleLabelForSlot(slot);
+  const role=normalizedContractRole(contract);
+  if(/(^|_)(reserve|reserva)(_|$)/.test(role))return "Reserve Driver";
+  if(/(^|_)(test|tester)(_|$)/.test(role))return "Test Driver";
+  if(/second|driver_?2|segundo/.test(role))return "Second Driver";
+  if(/main|first|lead|driver_?1|titular/.test(role))return "Main Driver";
+  if(isRaceDriverContract(contract))return "Race Driver";
   return String(roleValue(contract)||"Driver").replace(/_/g," ").replace(/\b\w/g,(m)=>m.toUpperCase());
 }
