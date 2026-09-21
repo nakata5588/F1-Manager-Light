@@ -2,18 +2,14 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
-import {
-  isRaceDriverContract,
-  isReserveDriverContract,
-  isTestDriverContract,
-  normalizedContractRole,
-} from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import {
-  activeDriverContracts,
+  changeDriverContractRole,
+  driverLineupSlots,
   expectedDriverSalary,
   releaseDriverContract,
+  swapRaceDriverRoles,
   terminationCost,
 } from "../domain/driverContracts.js";
 import {
@@ -40,17 +36,6 @@ const SLOT_ORDER=[
   {key:"test",label:"Test Driver",description:"Development and testing specialist"},
 ];
 
-function slotForContract(contract){
-  if(isReserveDriverContract(contract))return "reserve";
-  if(isTestDriverContract(contract))return "test";
-  if(isRaceDriverContract(contract)){
-    const role=normalizedContractRole(contract);
-    if(/second|driver_?2|segundo/.test(role))return "second";
-    return "main";
-  }
-  return null;
-}
-
 function money(value){
   return Number(value)
     ? new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value))
@@ -67,6 +52,8 @@ export default function MyDrivers(){
   const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
   const [renewingRow,setRenewingRow]=useState(null);
+  const [changingRoleRow,setChangingRoleRow]=useState(null);
+  const [targetRoleKey,setTargetRoleKey]=useState("");
   const negotiations=driverNegotiations(gs);
   const activeRenewalByDriver=useMemo(()=>{
     const map=new Map();
@@ -82,33 +69,10 @@ export default function MyDrivers(){
     return map;
   },[negotiations]);
 
-  const activeTeamContracts=useMemo(()=>
-    activeDriverContracts(gs,{teamId:myTeamId}).filter(slotForContract),
-    [gs?.contracts,gs?.dbContracts,myTeamId,year]
-  );
-
   const slotRows=useMemo(()=>{
-    const rows=new Map();
-    const raceFallback=[];
-    for(const contract of activeTeamContracts){
-      const initial=slotForContract(contract);
-      if(initial==="main"&&rows.has("main")){
-        raceFallback.push(contract);
-        continue;
-      }
-      if(initial==="second"&&rows.has("second")){
-        raceFallback.push(contract);
-        continue;
-      }
-      if(initial&&!rows.has(initial))rows.set(initial,contract);
-    }
-    for(const contract of raceFallback){
-      if(!rows.has("main"))rows.set("main",contract);
-      else if(!rows.has("second"))rows.set("second",contract);
-    }
-
+    const lineup=driverLineupSlots(gs,myTeamId);
     return SLOT_ORDER.map((slot)=>{
-      const contract=rows.get(slot.key)||null;
+      const contract=lineup[slot.key]||null;
       if(!contract)return {...slot,contract:null};
       const id=idOf(contract);
       const driver=driverById.get(id)||{
@@ -127,7 +91,7 @@ export default function MyDrivers(){
         until:pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"),
       };
     });
-  },[activeTeamContracts,driverById,gs]);
+  },[gs,driverById,myTeamId]);
 
   const main=slotRows.find((row)=>row.key==="main");
   const second=slotRows.find((row)=>row.key==="second");
@@ -159,19 +123,26 @@ export default function MyDrivers(){
 
   function swapRaceDrivers(){
     if(!canSwap)return;
-    const mainId=idOf(main.contract);
-    const secondId=idOf(second.contract);
-    const next=contracts.map((contract)=>{
-      const id=idOf(contract);
-      if(id===mainId&&teamIdOf(contract)===myTeamId&&isActiveContract(contract,year)){
-        return {...contract,role:"Second Driver"};
-      }
-      if(id===secondId&&teamIdOf(contract)===myTeamId&&isActiveContract(contract,year)){
-        return {...contract,role:"Main Driver"};
-      }
-      return contract;
+    setGameState(swapRaceDriverRoles(gs,{teamId:myTeamId}));
+  }
+
+  function openRoleChange(row){
+    const firstTarget=SLOT_ORDER.find((slot)=>slot.key!==row.key)?.key||"";
+    setChangingRoleRow(row);
+    setTargetRoleKey(firstTarget);
+  }
+
+  function applyRoleChange(){
+    if(!changingRoleRow||!targetRoleKey)return;
+    const next=changeDriverContractRole(gs,{
+      driverId:changingRoleRow.id,
+      targetRole:targetRoleKey,
+      teamId:myTeamId,
+      swapIfOccupied:true,
     });
-    setGameState({contracts:next});
+    setGameState(next);
+    setChangingRoleRow(null);
+    setTargetRoleKey("");
   }
 
   return (
@@ -249,6 +220,13 @@ export default function MyDrivers(){
               )}
               <button
                 type="button"
+                className="border rounded-md px-3 py-1.5 text-xs hover:bg-gray-50"
+                onClick={()=>openRoleChange(row)}
+              >
+                Change role
+              </button>
+              <button
+                type="button"
                 className="border border-red-200 text-red-700 rounded-md px-3 py-1.5 text-xs hover:bg-red-50"
                 onClick={()=>releaseDriver(row)}
               >
@@ -284,6 +262,55 @@ export default function MyDrivers(){
           onClose={()=>setRenewingRow(null)}
           onSubmit={submitRenewal}
         />
+      )}
+
+      {changingRoleRow&&(
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-5">
+            <div className="text-lg font-semibold">Change driver role</div>
+            <div className="mt-1 text-sm text-gray-500">
+              {changingRoleRow.name} is currently {changingRoleRow.label}.
+            </div>
+
+            <label className="block mt-4 text-sm font-medium">New role</label>
+            <select
+              className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
+              value={targetRoleKey}
+              onChange={(e)=>setTargetRoleKey(e.target.value)}
+            >
+              {SLOT_ORDER.filter((slot)=>slot.key!==changingRoleRow.key).map((slot)=>{
+                const occupied=slotRows.find((row)=>row.key===slot.key&&row.contract);
+                return (
+                  <option key={slot.key} value={slot.key}>
+                    {slot.label}{occupied?` — swap with ${occupied.name}`:""}
+                  </option>
+                );
+              })}
+            </select>
+
+            <p className="mt-3 text-xs text-gray-500">
+              If the target slot is occupied, the two drivers swap roles atomically. Promotions and demotions apply modest morale/confidence effects.
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className="border rounded-md px-3 py-2 text-sm"
+                onClick={()=>{setChangingRoleRow(null);setTargetRoleKey("");}}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md px-3 py-2 text-sm bg-slate-900 text-white disabled:opacity-40"
+                disabled={!targetRoleKey}
+                onClick={applyRoleChange}
+              >
+                Apply role change
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
