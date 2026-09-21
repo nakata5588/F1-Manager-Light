@@ -51,7 +51,7 @@ function driverNameFor(gs,driverId){
 }
 function isContractActive(contract,year){
   const status=String(contract?.status||"active").toLowerCase();
-  if(["terminated","expired","released","inactive","void"].includes(status))return false;
+  if(["terminated","expired","released","bought_out","inactive","void"].includes(status))return false;
   const direct=Number(contract?.year??contract?.season_year??NaN);
   const start=Number(contract?.contract_start_year??contract?.start_year??NaN);
   const end=Number(contract?.contract_until_year??contract?.end_year??NaN);
