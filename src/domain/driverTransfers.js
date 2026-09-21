@@ -11,16 +11,23 @@ const bool=(value)=>{
   return ["true","1","yes","y"].includes(String(value??"").trim().toLowerCase());
 };
 
-export function effectiveContractRule(gs,year=gs?.activeYear){
+function contractRuleForYear(rows,year){
   const y=Number(year);
-  const rows=Array.isArray(gs?.contractRules)&&gs.contractRules.length
-    ?gs.contractRules
-    :(Array.isArray(gs?.dbContractRules)?gs.dbContractRules:[]);
-  return rows.find((row)=>{
+  return (Array.isArray(rows)?rows:[]).find((row)=>{
     const from=num(row?.year_from,-Infinity);
     const to=num(row?.year_to,Infinity);
     return y>=from&&y<=to;
   })||null;
+}
+
+export function effectiveContractRule(gs,year=gs?.activeYear){
+  // contractRules is the live season snapshot and should win when it contains
+  // a rule for the requested year. Long-running careers can cross into a new
+  // rules era before that snapshot is refreshed, so fall back to the full
+  // historical database instead of silently using generic buyout defaults.
+  return contractRuleForYear(gs?.contractRules,year)
+    || contractRuleForYear(gs?.dbContractRules,year)
+    || null;
 }
 
 function ruleClauses(rule){
