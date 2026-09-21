@@ -7,6 +7,8 @@ import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { activeDriverContracts, currentDriverTeamId } from "../domain/driverContracts.js";
 import { preferLiveRows } from "../domain/liveContracts.js";
+import { teamCarPerformance } from "../domain/carPerformance.js";
+import { applyRaceComponentWear } from "../domain/componentWear.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -113,18 +115,14 @@ function accidentModelForYear(gs) {
 
 function teamReliability(gs, driver) {
   const teamId=resolveDriverTeamId(gs,driver);
-  const year=Number(gs?.activeYear);
-  const row=(gs?.teamEngines||gs?.dbTeamEngines||[]).find((r)=>
-    String(pick(r,["team_id","team","constructor"],""))===String(teamId) &&
-    Number(pick(r,["year","season_year"],year))===year
-  );
-  let rel=Number(pick(row||{},["reliability_override"],NaN));
-  if(!Number.isFinite(rel)){
-    const score=Number(pick(row||{},["reliability"],80));
-    rel=Number.isFinite(score)?score/100:0.82;
-  }
+  const driverId=pick(driver||{},["driver_id","id"],null);
+  const performance=teamCarPerformance(gs,teamId,driverId);
+  let rel=Number(performance?.reliability);
+  rel=Number.isFinite(rel)?rel/100:0.82;
 
   // User development/facilities can improve reliability, but only modestly.
+  // The base value above is the same live car model used by Garage/Car Performance,
+  // including installed-part condition and degradation penalties.
   const userTeamId=getTeamId(gs?.team||{});
   if(String(teamId)===String(userTeamId)){
     const manufacturing=facilityLevel(gs,teamId,"manufacturing_level");
@@ -691,10 +689,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
   const afterInjuries = applyRaceHealthOutcomes(afterRelations, { gp, race });
+  const afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
 
   // Race weekends change physical and psychological condition. Conditions are
   // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
-  const conditionDict={...(afterInjuries.driverAttributes||{})};
+  const conditionDict={...(afterWear.driverAttributes||{})};
   const qualifyingPos=new Map(qualy.map((row)=>[String(row?.driver?.driver_id??""),Number(row.pos)]));
   for(const row of race){
     const did=String(row?.driver?.driver_id??"");
@@ -729,11 +728,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       morale:clamp(Number(curr.morale||50)+moraleDelta,0,100),
     };
   }
-  afterInjuries.driverAttributes=conditionDict;
+  afterWear.driverAttributes=conditionDict;
 
   const reserveReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="reserve_replacement");
   const emergencyReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="emergency_substitute");
-  afterInjuries.inbox = [
+  afterWear.inbox = [
     {
       id: `gp_${Date.now()}`,
       date: gs.currentDateISO,
@@ -748,8 +747,8 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
         { label: "Ver classificação", route: "/Standings" },
       ],
     },
-    ...(afterInjuries.inbox || gs.inbox || []),
+    ...(afterWear.inbox || gs.inbox || []),
   ];
 
-  return afterInjuries;
+  return afterWear;
 }
