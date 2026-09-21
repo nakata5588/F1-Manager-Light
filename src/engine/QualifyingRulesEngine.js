@@ -125,11 +125,50 @@ export function normalizeQualifyingRule(raw={}){
   };
 }
 
+function rowYear(row){
+  const n=Number(row?.year??row?.season_year??row?.season);
+  return Number.isFinite(n)?n:null;
+}
+
+function ruleAppliesInYear(row,year){
+  const from=Number(row?.year_from??row?.from_year??rowYear(row)??-Infinity);
+  const to=Number(row?.year_to??row?.to_year??rowYear(row)??Infinity);
+  return year>=from&&year<=to;
+}
+
+function legacyDatabaseRule(gs,gp){
+  const year=Number(gs?.activeYear??gp?.year);
+  const baseRows=Array.isArray(gs?.dbQualifyingRules)?gs.dbQualifyingRules:[];
+  const historical=baseRows
+    .filter((row)=>{
+      const ry=rowYear(row);
+      return ry!=null&&(!Number.isFinite(year)||ry<=year);
+    })
+    .sort((a,b)=>(rowYear(b)??-Infinity)-(rowYear(a)??-Infinity))[0]||{};
+  const overrides=(Array.isArray(gs?.dbQualifyingRuleOverrides)?gs.dbQualifyingRuleOverrides:[])
+    .filter((row)=>!Number.isFinite(year)||ruleAppliesInYear(row,year));
+  const generic=overrides.filter((row)=>!overrideMatches(row,gp)&&!(
+    row?.gp_id||row?.event_id||row?.track_id||row?.circuit_id
+  ));
+  const eventOverrides=overrides.filter((row)=>(
+    row?.gp_id||row?.event_id||row?.track_id||row?.circuit_id
+  ));
+  return {
+    ...historical,
+    ...generic.reduce((acc,row)=>({...acc,...row}),{}),
+    year:Number.isFinite(year)?year:rowYear(historical),
+    rule_source:"legacy_save_database_fallback",
+    event_overrides:eventOverrides,
+  };
+}
+
 export function resolveQualifyingRules(gs,gp={}){
-  const source=gs?.qualifyingRules||gs?.dbQualifyingRules||{};
-  const base=Array.isArray(source)
-    ?(source[0]||{})
-    :source||{};
+  // The active Save World is authoritative. db* is consulted only to recover
+  // a legacy save that predates RW3 and therefore has no live rule snapshot.
+  const live=gs?.qualifyingRules&&typeof gs.qualifyingRules==="object"&&!Array.isArray(gs.qualifyingRules)
+    ?gs.qualifyingRules
+    :null;
+  const base=live||legacyDatabaseRule(gs,gp);
   const eventOverrides=Array.isArray(base?.event_overrides)
     ?base.event_overrides
     :[];
@@ -143,13 +182,16 @@ export function buildWeekendSessions(ruleInput,gp={}){
   const sessions=[];
   let order=0;
 
+  const effectivePracticeOffset=rule.prequalifying_enabled
+    ?Math.min(rule.practice_day_offset,rule.prequalifying_day_offset)
+    :rule.practice_day_offset;
   sessions.push({
     id:"practice",
     type:"practice",
     label:"Practice",
     order:order++,
-    dateISO:addDaysISO(raceDate,rule.practice_day_offset),
-    day_offset:rule.practice_day_offset,
+    dateISO:addDaysISO(raceDate,effectivePracticeOffset),
+    day_offset:effectivePracticeOffset,
     status:"pending",
   });
 
