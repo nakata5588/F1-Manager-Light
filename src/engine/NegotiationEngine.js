@@ -19,6 +19,11 @@ import {
 import { driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
+import {
+  acceptedClubTransferApproach,
+  activeClubTransferApproach,
+  completeClubTransferApproach,
+} from "./TransferEngine.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -198,20 +203,83 @@ export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
 
     const buyout=driverBuyoutQuote(gs,contract,{driverId:did});
     if(!buyout.allowed){
-      return {canNegotiate:false,reason:"under_contract",roles:[],contract,pending:null,buyout};
+      return {canNegotiate:false,canApproachClub:false,reason:"under_contract",roles:[],contract,pending:null,buyout};
     }
-    if(!canAffordTransfer(gs,tid,buyout.fee)){
-      return {canNegotiate:false,reason:"insufficient_buyout_funds",roles:[],contract,pending:null,buyout};
+
+    if(buyout.type==="fixed_clause"){
+      if(!canAffordTransfer(gs,tid,buyout.fee)){
+        return {canNegotiate:false,canApproachClub:false,reason:"insufficient_buyout_funds",roles:[],contract,pending:null,buyout};
+      }
+      return {
+        canNegotiate:true,
+        canApproachClub:false,
+        reason:"transfer_available",
+        kind:"transfer",
+        roles,
+        contract,
+        pending:null,
+        buyout,
+      };
+    }
+
+    const clubAgreement=acceptedClubTransferApproach(gs,{driverId:did,buyerTeamId:tid});
+    if(clubAgreement){
+      const agreedBuyout={
+        ...buyout,
+        reason:"club_agreement",
+        type:"club_agreement",
+        fee:Number(clubAgreement.agreed_fee||clubAgreement.counter_fee||clubAgreement.offer_fee||buyout.fee),
+        approach_id:clubAgreement.id,
+      };
+      if(!canAffordTransfer(gs,tid,agreedBuyout.fee)){
+        return {
+          canNegotiate:false,
+          canApproachClub:false,
+          reason:"insufficient_buyout_funds",
+          roles:[],
+          contract,
+          pending:null,
+          buyout:agreedBuyout,
+          clubApproach:clubAgreement,
+        };
+      }
+      return {
+        canNegotiate:true,
+        canApproachClub:false,
+        reason:"club_agreement",
+        kind:"transfer",
+        roles,
+        contract,
+        pending:null,
+        buyout:agreedBuyout,
+        clubApproach:clubAgreement,
+      };
+    }
+
+    const clubPending=activeClubTransferApproach(gs,{driverId:did,buyerTeamId:tid});
+    if(clubPending){
+      return {
+        canNegotiate:false,
+        canApproachClub:false,
+        reason:"club_negotiation_active",
+        roles,
+        contract,
+        pending:null,
+        buyout,
+        clubApproach:clubPending,
+      };
     }
 
     return {
-      canNegotiate:true,
-      reason:"transfer_available",
+      canNegotiate:false,
+      canApproachClub:true,
+      reason:"club_approach_required",
       kind:"transfer",
       roles,
       contract,
       pending:null,
       buyout,
+      clubApproach:null,
     };
   }
 
@@ -296,6 +364,7 @@ export function startDriverNegotiation(gs,{
     seller_team_id:kind==="transfer"?teamIdOf(existingContract):null,
     buyout_fee:kind==="transfer"?Number(eligibility?.buyout?.fee||0):0,
     buyout_type:kind==="transfer"?(eligibility?.buyout?.type||"compensation"):null,
+    club_approach_id:kind==="transfer"?(eligibility?.buyout?.approach_id||null):null,
     market_evaluation:driverMarketEvaluation(gs,driver),
   };
 
@@ -312,7 +381,7 @@ export function startDriverNegotiation(gs,{
       body:renewal
         ?("A "+years+"-year extension worth $"+salary.toLocaleString("en-US")+" per season has been offered. A response is expected within "+responseDays+" day(s).")
         :(kind==="transfer"
-          ?("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. If the driver accepts, a "+(negotiation.buyout_type==="fixed_clause"?"release clause":"buyout compensation")+" of $"+Number(negotiation.buyout_fee||0).toLocaleString("en-US")+" will be paid to the current team.")
+          ?("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. If the driver accepts, "+(negotiation.buyout_type==="fixed_clause"?"the release clause":"the agreed transfer fee")+" of $"+Number(negotiation.buyout_fee||0).toLocaleString("en-US")+" will be paid to the current team.")
           :("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. A response is expected within "+responseDays+" day(s).")),
       driver_id:did,
       negotiation_id:id,
@@ -489,6 +558,12 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
       contract.buyout_type=negotiation.buyout_type||"compensation";
     }
     nextState={...nextState,contracts:[...(nextState?.contracts||[]),contract]};
+    if(transfer&&negotiation.club_approach_id){
+      nextState=completeClubTransferApproach(nextState,{
+        approachId:negotiation.club_approach_id,
+        driverNegotiationId:negotiation.id,
+      });
+    }
   }
 
   let negotiations=driverNegotiations(gs).map((n)=>n.id===negotiation.id?accepted:n);
