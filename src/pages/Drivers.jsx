@@ -8,11 +8,15 @@ import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js"
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import {
   acceptCounterOffer,
+  acceptTransferCounter,
   driverNegotiationEligibility,
   driverNegotiations,
+  driverTransferApproaches,
+  isTransferApproachActive,
   negotiationStatusBuckets,
   startDriverNegotiation,
   withdrawNegotiation,
+  withdrawTransferApproach,
 } from "../engine/NegotiationEngine.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
@@ -30,8 +34,8 @@ const statusClass=(status)=>{
 };
 
 function marketStatus(driver, contract, pending){
-  if(contract) return "Contracted";
   if(pending) return "Negotiating";
+  if(contract) return "Contracted";
   const age=Number(driver?.age);
   const lowerSeries=
     driver?.status==="lower_series" ||
@@ -67,6 +71,28 @@ export default function Drivers(){
 
   const teamNames=useMemo(()=>new Map(teams.map(t=>[String(t?.team_id??t?.id??""),t?.team_name||t?.name||t?.short_name||"—"])),[teams]);
   const negotiations=driverNegotiations(gs);
+  const transferApproaches=driverTransferApproaches(gs);
+  const playerTransferApproaches=useMemo(
+    ()=>transferApproaches
+      .filter((a)=>a.origin==="player"&&String(a.buyer_team_id)===userTeamId)
+      .slice()
+      .sort((a,b)=>
+        String(b.resolved_at||b.responded_at||b.submitted_at||"")
+          .localeCompare(String(a.resolved_at||a.responded_at||a.submitted_at||""))
+      ),
+    [transferApproaches,userTeamId]
+  );
+  const activePlayerTransferApproaches=useMemo(
+    ()=>playerTransferApproaches.filter(isTransferApproachActive),
+    [playerTransferApproaches]
+  );
+  const activeTransferByDriver=useMemo(()=>{
+    const map=new Map();
+    for(const approach of activePlayerTransferApproaches){
+      if(!map.has(String(approach.driver_id)))map.set(String(approach.driver_id),approach);
+    }
+    return map;
+  },[activePlayerTransferApproaches]);
   const playerNegotiations=useMemo(
     ()=>negotiations
       .filter((n)=>n.origin==="player"&&String(n.team_id)===userTeamId)
@@ -107,16 +133,16 @@ export default function Drivers(){
 
   const rows=useMemo(()=>drivers.map(d=>{
     const id=idOf(d), rating=ratingById.get(id)||{}, contract=contractById.get(id)||null;
-    const pending=activePlayerByDriver.get(id)||null;
+    const pending=activePlayerByDriver.get(id)||activeTransferByDriver.get(id)||null;
     const eligibility=userTeamId
       ?driverNegotiationEligibility(gs,{driverId:id,teamId:userTeamId})
       :{canNegotiate:false,reason:"no_team",roles:[]};
     const tid=teamIdOf(contract)||teamIdOf(d);
     const ms=marketStatus(d,contract,pending);
     const overallView=driverOverallPresentation(gs,d);
-    const role=contract?contractRoleLabel(contract):(pending?.offer?.role||null);
+    const role=contract?contractRoleLabel(contract):(pending?.offer?.role||pending?.personal_offer?.role||null);
     const contractSalary=contract?Number(pick(contract,["salary","salary_yearly"],0))||0:0;
-    const pendingSalary=pending?Number(pending?.offer?.salary||0)||0:0;
+    const pendingSalary=pending?Number(pending?.offer?.salary||pending?.personal_offer?.salary||0)||0:0;
     return {
       ...d,id,name:nameOf(d),
       team_id:tid||null,
@@ -138,7 +164,7 @@ export default function Drivers(){
       negotiation_roles:eligibility.roles,
       negotiation_buyout:eligibility.buyout||null,
     };
-  }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs]);
+  }),[drivers,ratingById,contractById,activePlayerByDriver,activeTransferByDriver,teamNames,gs]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
   const statusOptions=["ALL","Contracted","Negotiating","Free","Youth","Lower Series","Available"];
@@ -182,6 +208,8 @@ export default function Drivers(){
   };
   const acceptCounter=(id)=>setGameState(acceptCounterOffer(gs,id));
   const withdraw=(id)=>setGameState(withdrawNegotiation(gs,id));
+  const acceptClubCounter=(id)=>setGameState(acceptTransferCounter(gs,id));
+  const withdrawClubApproach=(id)=>setGameState(withdrawTransferApproach(gs,id));
 
   return <div className="grid gap-4">
     <div className="bg-white rounded-xl shadow p-4">
@@ -199,6 +227,46 @@ export default function Drivers(){
         <button className="border rounded-md px-3 py-2 text-sm" onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}>{sortDir==="asc"?"Asc ↑":"Desc ↓"}</button>
       </div>
     </div>
+
+    {!!activePlayerTransferApproaches.length&&(
+      <div className="bg-white rounded-xl shadow p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="font-semibold">Club Transfer Talks</h3>
+            <p className="text-xs text-gray-500">For contracted drivers without a release clause, the current team must agree a fee before personal terms can be completed.</p>
+          </div>
+          <span className="text-xs text-gray-500">{activePlayerTransferApproaches.length} active</span>
+        </div>
+        <div className="grid gap-2">
+          {activePlayerTransferApproaches.map((a)=>(
+            <div key={a.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">{a.driver_name}</div>
+                <div className="text-xs text-gray-500">
+                  {a.seller_team_name} · offered {money(a.offer_fee)}
+                  {a.status==="submitted"&&a.response_date?(" · response by "+a.response_date):""}
+                </div>
+                {a.status==="countered"&&(
+                  <div className="text-sm mt-1">
+                    {a.seller_team_name} asks for <strong>{money(a.counter_fee)}</strong>.
+                  </div>
+                )}
+              </div>
+              <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(a.status)}>{String(a.status||"").replaceAll("_"," ")}</span>
+              {a.status==="countered"&&(
+                <div className="flex gap-2">
+                  <button className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white" onClick={()=>acceptClubCounter(a.id)}>Accept fee</button>
+                  <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawClubApproach(a.id)}>Withdraw</button>
+                </div>
+              )}
+              {a.status==="submitted"&&(
+                <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawClubApproach(a.id)}>Withdraw</button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
     {!!activePlayerNegotiations.length&&(
       <div className="bg-white rounded-xl shadow p-4">

@@ -22,6 +22,7 @@ import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
+const ACTIVE_TRANSFER_APPROACH_STATUSES=new Set(["submitted","countered"]);
 
 function rows(value){
   return Array.isArray(value)?value:[];
@@ -93,6 +94,12 @@ function offerQuality(gs,negotiation){
 export function driverNegotiations(gs){
   return rows(gs?.driverNegotiations);
 }
+export function driverTransferApproaches(gs){
+  return rows(gs?.driverTransferApproaches);
+}
+export function isTransferApproachActive(approach){
+  return ACTIVE_TRANSFER_APPROACH_STATUSES.has(String(approach?.status||"").toLowerCase());
+}
 export function isNegotiationActive(negotiation){
   return ACTIVE_NEGOTIATION_STATUSES.has(String(negotiation?.status||"").toLowerCase());
 }
@@ -111,10 +118,16 @@ export function hasActiveNegotiationForDriver(gs,driverId){
 }
 export function hasActiveNegotiationForTeamRole(gs,teamId,role){
   const target=slotKeyForRole(role);
-  return driverNegotiations(gs).some((n)=>
+  const personal=driverNegotiations(gs).some((n)=>
     isNegotiationActive(n)&&
     String(n.team_id)===String(teamId)&&
     slotKeyForRole(n?.offer?.role)===target
+  );
+  if(personal)return true;
+  return driverTransferApproaches(gs).some((approach)=>
+    isTransferApproachActive(approach)&&
+    String(approach.buyer_team_id)===String(teamId)&&
+    slotKeyForRole(approach?.personal_offer?.role)===target
   );
 }
 
@@ -192,6 +205,21 @@ export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
     if(pending){
       return {canNegotiate:false,reason:"active_negotiation",roles:[],contract,pending};
     }
+    const clubApproach=driverTransferApproaches(gs).find((approach)=>
+      isTransferApproachActive(approach) &&
+      String(approach?.driver_id)===did &&
+      String(approach?.buyer_team_id)===tid
+    )||null;
+    if(clubApproach){
+      return {
+        canNegotiate:false,
+        reason:"club_negotiation_active",
+        roles:[],
+        contract,
+        pending:clubApproach,
+        buyout:driverBuyoutQuote(gs,contract,{driverId:did}),
+      };
+    }
     if(!roles.length){
       return {canNegotiate:false,reason:"lineup_full",roles:[],contract,pending:null};
     }
@@ -245,6 +273,7 @@ export function startDriverNegotiation(gs,{
   offer,
   origin="player",
   renewal=false,
+  approvedTransferApproach=null,
 }={}){
   if(!gs)return gs;
   const did=String(driverId||"");
@@ -257,9 +286,29 @@ export function startDriverNegotiation(gs,{
   }
 
   const role=normalizedRoleLabel(offer?.role||existingContract?.role||"Reserve Driver");
+  const approvedTransferValid=
+    approvedTransferApproach &&
+    String(approvedTransferApproach?.status||"")==="accepted" &&
+    String(approvedTransferApproach?.driver_id||"")===did &&
+    String(approvedTransferApproach?.buyer_team_id||"")===tid &&
+    existingContract &&
+    teamIdOf(existingContract)===String(approvedTransferApproach?.seller_team_id||"");
   const eligibility=renewal
     ?{canNegotiate:true,kind:"renewal",roles:[role],contract:existingContract,buyout:null}
-    :driverNegotiationEligibility(gs,{driverId:did,teamId:tid});
+    :(approvedTransferValid
+      ?{
+        canNegotiate:true,
+        kind:"transfer",
+        roles:availableContractRoles(gs,tid),
+        contract:existingContract,
+        buyout:{
+          allowed:true,
+          fee:Number(approvedTransferApproach?.approved_fee||approvedTransferApproach?.offer_fee||0),
+          type:"negotiated_club_fee",
+          sellerTeamId:String(approvedTransferApproach?.seller_team_id||""),
+        },
+      }
+      :driverNegotiationEligibility(gs,{driverId:did,teamId:tid}));
   if(!eligibility.canNegotiate||!eligibility.roles.includes(role))return gs;
   const kind=renewal?"renewal":(eligibility.kind||"new_contract");
 
@@ -274,6 +323,22 @@ export function startDriverNegotiation(gs,{
   const expected=expectedDriverSalary(gs,did);
   const salary=Math.max(50_000,Math.round(Number(offer?.salary||expected)));
   const years=Math.max(1,Math.min(5,Math.round(Number(offer?.years||1))));
+
+  if(
+    kind==="transfer" &&
+    !approvedTransferValid &&
+    String(eligibility?.buyout?.type||"")!=="fixed_clause"
+  ){
+    return startTransferApproach(gs,{
+      driverId:did,
+      buyerTeamId:tid,
+      buyerTeamName:teamName||teamNameFor(gs,tid),
+      personalOffer:{salary,years,role},
+      origin,
+      offerFee:Number(eligibility?.buyout?.fee||0),
+    });
+  }
+
   const id=negotiationId(gs,{driverId:did,teamId:tid,role,origin});
   const rng=rngFor(gs,"negotiation-delay:"+id);
   const responseDays=rng.int(1,3);
@@ -325,6 +390,222 @@ export function startDriverNegotiation(gs,{
     driverNegotiations:[...driverNegotiations(gs),negotiation],
     inbox:[...messages,...(gs?.inbox||[])],
   };
+}
+
+
+function transferApproachId(gs,{driverId,buyerTeamId,origin}){
+  const date=dateOnly(gs?.currentDateISO)||"date";
+  const seq=driverTransferApproaches(gs).length+1;
+  return ["transfer",origin||"player",date,String(buyerTeamId),String(driverId),seq].join("_");
+}
+
+function transferSellerValuation(gs,approach){
+  const contract=activeDriverContract(gs,approach?.driver_id);
+  if(!contract)return 0;
+  const quote=driverBuyoutQuote(gs,contract,{driverId:approach?.driver_id});
+  const base=Math.max(50_000,Number(quote?.fee||approach?.offer_fee||0));
+  const rng=rngFor(gs,"transfer-seller-valuation:"+approach.id);
+  const factor=0.95+rng.next()*0.50;
+  return Math.round(base*factor/5_000)*5_000;
+}
+
+export function startTransferApproach(gs,{
+  driverId,
+  buyerTeamId,
+  buyerTeamName,
+  personalOffer,
+  origin="player",
+  offerFee=null,
+}={}){
+  if(!gs)return gs;
+  const did=String(driverId||"");
+  const buyer=String(buyerTeamId||"");
+  const contract=activeDriverContract(gs,did);
+  if(!did||!buyer||!contract||teamIdOf(contract)===buyer)return gs;
+  if(driverTransferApproaches(gs).some((a)=>
+    isTransferApproachActive(a) &&
+    String(a.driver_id)===did &&
+    String(a.buyer_team_id)===buyer
+  ))return gs;
+
+  const quote=driverBuyoutQuote(gs,contract,{driverId:did});
+  if(!quote?.allowed||String(quote?.type||"")==="fixed_clause")return gs;
+  const fee=Math.max(0,Number(offerFee==null?quote.fee:offerFee));
+  if(!canAffordTransfer(gs,buyer,fee))return gs;
+
+  const id=transferApproachId(gs,{driverId:did,buyerTeamId:buyer,origin});
+  const submitted=dateOnly(gs?.currentDateISO);
+  const rng=rngFor(gs,"transfer-approach-delay:"+id);
+  const responseDays=rng.int(1,3);
+  const approach={
+    id,
+    origin,
+    driver_id:did,
+    driver_name:driverNameFor(gs,did),
+    buyer_team_id:buyer,
+    buyer_team_name:buyerTeamName||teamNameFor(gs,buyer),
+    seller_team_id:teamIdOf(contract),
+    seller_team_name:teamNameFor(gs,teamIdOf(contract)),
+    status:"submitted",
+    submitted_at:submitted,
+    response_date:addDaysISO(submitted,responseDays),
+    offer_fee:fee,
+    personal_offer:{...personalOffer},
+    valuation_hint:Number(quote?.fee||fee),
+  };
+  const message=origin==="player"?{
+    id:"transfer_approach_"+id,
+    date:submitted,
+    unread:true,
+    type:"STAFF",
+    from:"Team Management",
+    tag:"Transfers",
+    subject:"Transfer approach submitted — "+approach.driver_name,
+    body:"An offer of $"+fee.toLocaleString("en-US")+" has been sent to "+approach.seller_team_name+" for permission to negotiate with "+approach.driver_name+".",
+    driver_id:did,
+    transfer_approach_id:id,
+    actions:[{label:"View transfer talks",route:"/Drivers"}],
+  }:null;
+  return {
+    ...gs,
+    driverTransferApproaches:[...driverTransferApproaches(gs),approach],
+    inbox:message?[message,...(gs?.inbox||[])]:[...(gs?.inbox||[])],
+  };
+}
+
+function openPersonalTermsAfterClubApproval(gs,approach,approvedFee){
+  const accepted={
+    ...approach,
+    status:"accepted",
+    approved_fee:Math.max(0,Number(approvedFee||approach.offer_fee||0)),
+    resolved_at:dateOnly(gs?.currentDateISO),
+  };
+  let next={
+    ...gs,
+    driverTransferApproaches:driverTransferApproaches(gs).map((row)=>row.id===approach.id?accepted:row),
+  };
+  next=startDriverNegotiation(next,{
+    driverId:accepted.driver_id,
+    teamId:accepted.buyer_team_id,
+    teamName:accepted.buyer_team_name,
+    offer:accepted.personal_offer,
+    origin:accepted.origin,
+    approvedTransferApproach:accepted,
+  });
+  return next;
+}
+
+export function acceptTransferCounter(gs,approachId){
+  const approach=driverTransferApproaches(gs).find((row)=>row.id===approachId);
+  if(!approach||approach.status!=="countered"||!Number.isFinite(Number(approach.counter_fee)))return gs;
+  if(!canAffordTransfer(gs,approach.buyer_team_id,Number(approach.counter_fee)))return gs;
+  return openPersonalTermsAfterClubApproval(gs,approach,Number(approach.counter_fee));
+}
+
+export function withdrawTransferApproach(gs,approachId){
+  const today=dateOnly(gs?.currentDateISO);
+  return {
+    ...gs,
+    driverTransferApproaches:driverTransferApproaches(gs).map((row)=>
+      row.id===approachId&&isTransferApproachActive(row)
+        ?{...row,status:"withdrawn",resolved_at:today}
+        :row
+    ),
+  };
+}
+
+export function processTransferApproaches(gs,{forceOutcomeById={}}={}){
+  if(!gs)return gs;
+  const today=dateOnly(gs?.currentDateISO);
+  let next=gs;
+  const due=driverTransferApproaches(gs)
+    .filter((a)=>a.status==="submitted"&&dateOnly(a.response_date)<=today);
+
+  for(const original of due){
+    const approach=driverTransferApproaches(next).find((a)=>a.id===original.id);
+    if(!approach||approach.status!=="submitted")continue;
+    const contract=activeDriverContract(next,approach.driver_id);
+    if(!contract||teamIdOf(contract)!==String(approach.seller_team_id||"")){
+      next={
+        ...next,
+        driverTransferApproaches:driverTransferApproaches(next).map((row)=>
+          row.id===approach.id
+            ?{...row,status:"rejected",resolved_at:today,resolution_note:"The driver's contractual situation changed."}
+            :row
+        ),
+      };
+      continue;
+    }
+
+    const valuation=transferSellerValuation(next,approach);
+    const offer=Math.max(0,Number(approach.offer_fee||0));
+    const forced=forceOutcomeById?.[approach.id];
+    let outcome=forced||null;
+    if(!outcome){
+      if(offer>=valuation)outcome="accepted";
+      else if(offer>=valuation*0.72)outcome="countered";
+      else outcome="rejected";
+    }
+
+    if(outcome==="accepted"){
+      next=openPersonalTermsAfterClubApproval(next,approach,offer);
+      continue;
+    }
+
+    if(outcome==="countered"){
+      const counterFee=Math.max(offer+5_000,valuation);
+      const countered={
+        ...approach,
+        status:"countered",
+        counter_fee:counterFee,
+        responded_at:today,
+      };
+      const msg=approach.origin==="player"?{
+        id:"transfer_counter_"+approach.id,
+        date:today,
+        unread:true,
+        type:"STAFF",
+        from:"Team Management",
+        tag:"Transfers",
+        subject:"Transfer counter-offer — "+approach.driver_name,
+        body:approach.seller_team_name+" will allow talks with "+approach.driver_name+" for $"+counterFee.toLocaleString("en-US")+".",
+        driver_id:approach.driver_id,
+        transfer_approach_id:approach.id,
+        actions:[{label:"Review transfer talks",route:"/Drivers"}],
+      }:null;
+      next={
+        ...next,
+        driverTransferApproaches:driverTransferApproaches(next).map((row)=>row.id===approach.id?countered:row),
+        inbox:msg?[msg,...(next?.inbox||[])]:[...(next?.inbox||[])],
+      };
+      continue;
+    }
+
+    const rejected={
+      ...approach,
+      status:"rejected",
+      resolved_at:today,
+      resolution_note:"Current team rejected the transfer approach.",
+    };
+    const msg=approach.origin==="player"?{
+      id:"transfer_reject_"+approach.id,
+      date:today,
+      unread:true,
+      type:"STAFF",
+      from:"Team Management",
+      tag:"Transfers",
+      subject:"Transfer approach rejected — "+approach.driver_name,
+      body:approach.seller_team_name+" has rejected the offer for "+approach.driver_name+".",
+      driver_id:approach.driver_id,
+    }:null;
+    next={
+      ...next,
+      driverTransferApproaches:driverTransferApproaches(next).map((row)=>row.id===approach.id?rejected:row),
+      inbox:msg?[msg,...(next?.inbox||[])]:[...(next?.inbox||[])],
+    };
+  }
+
+  return next;
 }
 
 function closeOtherNegotiations(negotiations,winner){
@@ -630,15 +911,15 @@ export function withdrawNegotiation(gs,negotiationId){
   };
 }
 
-export function processDriverNegotiations(gs,{forceOutcomeById={}}={}){
+export function processDriverNegotiations(gs,{forceOutcomeById={},forceTransferOutcomeById={}}={}){
   if(!gs)return gs;
   const today=dateOnly(gs?.currentDateISO);
-  let next=gs;
-  const due=driverNegotiations(gs)
+  let next=processTransferApproaches(gs,{forceOutcomeById:forceTransferOutcomeById});
+  const due=driverNegotiations(next)
     .filter((n)=>n.status==="submitted"&&dateOnly(n.response_date)<=today)
     .sort((a,b)=>{
       if(String(a.driver_id)===String(b.driver_id)){
-        return offerQuality(gs,b)-offerQuality(gs,a);
+        return offerQuality(next,b)-offerQuality(next,a);
       }
       return String(a.driver_id).localeCompare(String(b.driver_id));
     });

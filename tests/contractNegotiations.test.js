@@ -13,9 +13,11 @@ import {
 import { effectiveContractRule } from "../src/domain/driverTransfers.js";
 import {
   acceptCounterOffer,
+  acceptTransferCounter,
   availableContractRoles,
   driverNegotiationEligibility,
   driverNegotiations,
+  driverTransferApproaches,
   isNegotiationActive,
   isNegotiationClosed,
   negotiationStatusBuckets,
@@ -264,7 +266,7 @@ test("negotiation eligibility exposes a real offer path only for available drive
   assert.ok(free.roles.includes("Test Driver"));
 });
 
-test("contracted rival can be approached through a transfer buyout",()=>{
+test("contracted rival without a release clause requires club approval before personal terms",()=>{
   const gs=fixture("eligibility-contracted");
   const rival=driverNegotiationEligibility(gs,{driverId:"A1",teamId:"T1"});
   assert.equal(rival.canNegotiate,true);
@@ -272,6 +274,7 @@ test("contracted rival can be approached through a transfer buyout",()=>{
   assert.equal(rival.kind,"transfer");
   assert.equal(rival.contract?.team_id,"T2");
   assert.equal(rival.buyout?.allowed,true);
+  assert.equal(rival.buyout?.type,"compensation");
   assert.equal(rival.buyout?.fee,325_000);
   assert.ok(rival.roles.includes("Reserve Driver"));
 
@@ -282,13 +285,25 @@ test("contracted rival can be approached through a transfer buyout",()=>{
     offer:{salary:1_000_000,years:2,role:"Reserve Driver"},
     origin:"player",
   });
-  const negotiation=submitted.driverNegotiations.find((n)=>n.kind==="transfer");
-  assert.ok(negotiation);
+  const approach=driverTransferApproaches(submitted)[0];
+  assert.ok(approach);
+  assert.equal(approach.status,"submitted");
+  assert.equal(approach.seller_team_id,"T2");
+  assert.equal(approach.offer_fee,325_000);
+  assert.equal(driverNegotiations(submitted).length,0,"personal terms must wait for seller approval");
+
+  const clubApproved=processDriverNegotiations(
+    {...submitted,currentDateISO:approach.response_date},
+    {forceTransferOutcomeById:{[approach.id]:"accepted"}}
+  );
+  const negotiation=driverNegotiations(clubApproved).find((n)=>n.kind==="transfer");
+  assert.ok(negotiation,"seller approval should open personal terms");
   assert.equal(negotiation.seller_team_id,"T2");
   assert.equal(negotiation.buyout_fee,325_000);
+  assert.equal(negotiation.buyout_type,"negotiated_club_fee");
 
   const resolved=processDriverNegotiations(
-    {...submitted,currentDateISO:negotiation.response_date},
+    {...clubApproved,currentDateISO:negotiation.response_date},
     {forceOutcomeById:{[negotiation.id]:"accepted"}}
   );
 
@@ -306,6 +321,31 @@ test("contracted rival can be approached through a transfer buyout",()=>{
     tx.category==="Driver Transfer"&&tx.amount===-325_000
   ));
   assert.ok(resolved.inbox.some((m)=>/transfers to Player Team/.test(String(m.subject||""))));
+});
+
+test("seller can counter a transfer approach before personal negotiations start",()=>{
+  const submitted=startDriverNegotiation(fixture("transfer-counter"),{
+    driverId:"A1",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:900_000,years:2,role:"Reserve Driver"},
+    origin:"player",
+  });
+  const approach=driverTransferApproaches(submitted)[0];
+  const countered=processDriverNegotiations(
+    {...submitted,currentDateISO:approach.response_date},
+    {forceTransferOutcomeById:{[approach.id]:"countered"}}
+  );
+  const counter=driverTransferApproaches(countered).find((row)=>row.id===approach.id);
+  assert.equal(counter.status,"countered");
+  assert.ok(counter.counter_fee>counter.offer_fee);
+  assert.equal(driverNegotiations(countered).length,0);
+
+  const accepted=acceptTransferCounter(countered,approach.id);
+  const personal=driverNegotiations(accepted).find((n)=>n.kind==="transfer");
+  assert.ok(personal);
+  assert.equal(personal.buyout_fee,counter.counter_fee);
+  assert.equal(driverTransferApproaches(accepted).find((row)=>row.id===approach.id).status,"accepted");
 });
 
 test("own contracted driver is not exposed as a new-contract target",()=>{
@@ -391,7 +431,7 @@ test("visible lower-series driver can be signed before historical F1 debut",()=>
 });
 
 
-test("fixed release clause overrides calculated compensation",()=>{
+test("fixed release clause overrides calculated compensation and skips club negotiation",()=>{
   const gs=fixture("fixed-clause");
   gs.contracts=gs.contracts.map((row)=>
     row.driver_id==="A2"?{...row,release_clause:125_000}:row
@@ -401,6 +441,19 @@ test("fixed release clause overrides calculated compensation",()=>{
   assert.equal(state.kind,"transfer");
   assert.equal(state.buyout.type,"fixed_clause");
   assert.equal(state.buyout.fee,125_000);
+
+  const submitted=startDriverNegotiation(gs,{
+    driverId:"A2",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:800_000,years:2,role:"Reserve Driver"},
+    origin:"player",
+  });
+  assert.equal(driverTransferApproaches(submitted).length,0);
+  const personal=driverNegotiations(submitted).find((n)=>n.kind==="transfer");
+  assert.ok(personal);
+  assert.equal(personal.buyout_type,"fixed_clause");
+  assert.equal(personal.buyout_fee,125_000);
 });
 
 
