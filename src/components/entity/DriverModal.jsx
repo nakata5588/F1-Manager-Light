@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
+import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../domain/driverMarketEvaluation.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -476,9 +477,14 @@ export default function DriverModal({ entity, onClose }) {
 
   const computedAge = useMemo(() => ageOnYear(driver?.dob, gameYear), [driver?.dob, gameYear]);
 
-  const overall       = attrs?.current_ability != null ? Number(unbox(attrs.current_ability)) : null;
-  const overallLabel  = Number.isFinite(overall) ? overall.toFixed(1) : "—";
-  const marketValue   = unbox(attrs?.market_value);
+  const overallView  = driverOverallPresentation(gs, driver || entity.id);
+  const overall       = Number(overallView?.value);
+  const overallLabel  = Number.isFinite(overall)
+    ? (overallView?.estimated ? `~${overall.toFixed(0)} (est.)` : overall.toFixed(1))
+    : "—";
+  const rawMarketValue = Number(unbox(attrs?.market_value));
+  const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
+  const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
   const driverName    = displayValue(driver?.display_name ?? driver?.name, "Unknown Driver");
   const driverNumber  = displayValue(driver?.prefered_number, null);
   const driverCountry = displayValue(driver?.country_name ?? driver?.nationality ?? driver?.country, "—");
@@ -607,7 +613,7 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "attributes" && <AttributesTab attrs={attrs} condition={condition} />}
+          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} />}
 
           {activeTab === "achievements" && <AchievementsTab items={achievementsList} />}
         </section>
