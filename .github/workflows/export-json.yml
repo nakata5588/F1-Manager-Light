@@ -80,6 +80,9 @@ jobs:
       - name: Test reserve and emergency replacement drivers
         run: npm run test:replacements
 
+      - name: Test AI reserve hiring and missing ratings fallback
+        run: npm run test:ai-reserves
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
