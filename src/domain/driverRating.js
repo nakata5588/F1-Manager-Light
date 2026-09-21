@@ -102,21 +102,32 @@ export function driverCondition(gs,driverId){
 
 export function fatiguePenalty(gs,driverId){
   const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
-  // 0 means fully fresh. Normal workload is effectively free; sustained load
-  // above 25 starts to reduce performance and reaches -6 at extreme fatigue.
-  if(!Number.isFinite(fatigue)||fatigue<=25)return 0;
-  return Math.min(6,(fatigue-25)*0.08);
+  if(!Number.isFinite(fatigue)||fatigue<=10)return 0;
+  if(fatigue<=30)return (fatigue-10)*0.06;
+  if(fatigue<=50)return 1.2+(fatigue-30)*0.10;
+  if(fatigue<=70)return 3.2+(fatigue-50)*0.14;
+  return Math.min(11,6+(fatigue-70)*0.16);
+}
+
+export function fatigueStatus(gs,driverId){
+  const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
+  const value=Number.isFinite(fatigue)?clamp(fatigue):0;
+  if(value<20)return {fatigue:value,key:"fresh",label:"Fresh"};
+  if(value<40)return {fatigue:value,key:"loaded",label:"Loaded"};
+  if(value<60)return {fatigue:value,key:"tired",label:"Tired"};
+  if(value<80)return {fatigue:value,key:"very_tired",label:"Very tired"};
+  return {fatigue:value,key:"exhausted",label:"Exhausted"};
 }
 
 export function intensiveTrainingStatus(gs,driverId){
   const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
   const value=Number.isFinite(fatigue)?clamp(fatigue):0;
-  const allowed=value<70;
-  const efficiency=value>=60?0.50:value>=45?0.75:1;
+  const allowed=value<82;
+  const efficiency=value>=70?0.35:value>=55?0.55:value>=40?0.75:value>=25?0.90:1;
   return {
     fatigue:value,
     allowed,
     efficiency:allowed?efficiency:0,
-    label:!allowed?"Too fatigued":value>=60?"Severely fatigued":value>=45?"Fatigued":"Ready",
+    label:!allowed?"Too fatigued":value>=70?"Severely fatigued":value>=55?"Very tired":value>=40?"Fatigued":value>=25?"Loaded":"Ready",
   };
 }

@@ -159,17 +159,17 @@ export function raceAccidentChance(gs,rating,driverId){
   const damageProb=clamp(Number(pick(model,["damage_DNF_prob","damage_dnf_prob"],0.10)),0.04,0.25);
   const crashLik=clamp(Number(pick(rating||{},["crash_likelihood"],35))/100,0.05,0.95);
   const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
-  const fatigueRisk=Math.max(0,fatigue-60)*0.0004;
+  const fatigueRisk=Math.max(0,fatigue-35)*0.0007;
 
   // 1980 is intentionally calibrated as a much more dangerous era for gameplay:
   // a neutral driver starts at a 15% Accident/Collision DNF chance per GP.
   // Driver crash tendency and extreme fatigue can move that risk around the baseline.
   if(year===1980){
     const crashAdjustment=(crashLik-0.35)*0.10;
-    return clamp(0.15+crashAdjustment+fatigueRisk,0.08,0.25);
+    return clamp(0.15+crashAdjustment+fatigueRisk,0.08,0.30);
   }
 
-  return clamp(0.012+crashLik*damageProb*0.32+fatigueRisk,0.01,0.12);
+  return clamp(0.012+crashLik*damageProb*0.32+fatigueRisk,0.01,0.16);
 }
 
 function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
@@ -839,7 +839,41 @@ export async function runRaceWeekend(gs, {
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
   const afterInjuries = applyRaceHealthOutcomes(afterRelations, { gp, race });
-  const afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
+  let afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
+
+  const wornComponents=(afterWear?.garage?.cars||[])
+    .filter((car)=>car?.kind==="race")
+    .flatMap((car)=>Object.entries(car?.componentCondition||{}).map(([slot,condition])=>({
+      car_id:car.id,
+      label:car.label||car.id,
+      slot,
+      condition:Number(condition),
+    })))
+    .filter((row)=>Number.isFinite(row.condition)&&row.condition<45)
+    .sort((a,b)=>a.condition-b.condition);
+
+  if(wornComponents.length){
+    const worst=wornComponents.slice(0,4)
+      .map((row)=>`${row.label} ${String(row.slot).replaceAll("_"," ")} ${row.condition.toFixed(0)}%`)
+      .join(", ");
+    afterWear={
+      ...afterWear,
+      inbox:[
+        {
+          id:`component_wear_${String(gs.currentDateISO||"date")}_${gpId}`,
+          date:gs.currentDateISO,
+          unread:true,
+          type:"DEV",
+          from:"Garage",
+          tag:"Reliability",
+          subject:"Component wear requires attention",
+          body:`The race left critical wear on the car: ${worst}. Worn components now reduce pace and reliability. Review the Car & Garage page before the next event.`,
+          actions:[{label:"Open Car & Garage",route:"/Car"}],
+        },
+        ...(afterWear.inbox||[]),
+      ],
+    };
+  }
 
   // Race weekends change physical and psychological condition. Conditions are
   // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
@@ -869,7 +903,10 @@ export async function runRaceWeekend(gs, {
       moraleDelta+=0.5;
     }
 
-    const raceFatigue=(row.retired?8:12)+(wet?2:0);
+    const distanceLoad=row.retired
+      ?6+Math.max(0,Math.min(1,Number(row?.laps_completed||0)/60))*8
+      :16;
+    const raceFatigue=distanceLoad+(wet?3:0);
     conditionDict[did]={
       ...curr,
       fatigue:clamp(Number(curr.fatigue||0)+raceFatigue,0,100),

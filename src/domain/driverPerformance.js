@@ -1,5 +1,5 @@
 // src/domain/driverPerformance.js
-import { driverCondition } from "./driverRating.js";
+import { driverCondition, fatiguePenalty } from "./driverRating.js";
 import { teamCarPerformance } from "./carPerformance.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -16,8 +16,8 @@ export function conditionModifier(gs,driverId){
     (confidence-50)*0.050+
     (morale-50)*0.030+
     (preparation-50)*0.040;
-  const fatiguePenalty=Math.max(0,fatigue-25)*0.080;
-  return Math.max(-8,Math.min(6,positive-fatiguePenalty));
+  const fatigueCost=fatiguePenalty(gs,driverId);
+  return Math.max(-12,Math.min(6,positive-fatigueCost));
 }
 
 export function qualifyingDriverScore(rating,gs,driverId){

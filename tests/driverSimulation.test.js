@@ -73,6 +73,8 @@ test("high fatigue lowers both qualifying and race performance",()=>{
   const rTired=combinedRacePerformance({gs:tired,driver,rating,teamId:"t_ai"});
   assert.ok(qTired<qFresh);
   assert.ok(rTired<rFresh);
+  assert.ok(qFresh-qTired>3,"heavy fatigue should create a visible qualifying penalty");
+  assert.ok(rFresh-rTired>3,"heavy fatigue should create a visible race penalty");
 });
 
 test("monthly progression develops young AI drivers and regresses veteran raw pace",()=>{
