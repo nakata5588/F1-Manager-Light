@@ -1,30 +1,22 @@
-import { expectedDriverSalary, teamIdOf } from "../domain/driverContracts.js";
+import {
+  contractActiveForYear,
+  expiringDriverContracts,
+  expectedDriverSalary,
+  teamIdOf,
+} from "../domain/driverContracts.js";
 import { rngFor } from "../core/random.js";
-import { isDriverContract } from "../domain/contractRoles.js";
+import { contractRoleLabel, isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../domain/contractRoles.js";
 import { compareDriverMarketValue } from "../domain/driverMarketEvaluation.js";
 import {
   availableContractRoles,
   driverNegotiations,
   isNegotiationActive,
   startDriverNegotiation,
+  startDriverRenewal,
 } from "./NegotiationEngine.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr,rng){return rng.pick(arr);}
-
-function activeContractForYear(contract,year){
-  const status=String(contract?.status||"active").toLowerCase();
-  if(["terminated","expired","released","inactive","void"].includes(status))return false;
-  const direct=Number(contract?.year??contract?.season_year??NaN);
-  const start=Number(contract?.contract_start_year??contract?.start_year??NaN);
-  const end=Number(contract?.contract_until_year??contract?.end_year??NaN);
-  if(Number.isFinite(start)||Number.isFinite(end)){
-    const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
-    const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
-    return !Number.isFinite(year)||(year>=lo&&year<=hi);
-  }
-  return !Number.isFinite(year)||!Number.isFinite(direct)||direct===year;
-}
 
 function driverIdOf(row){
   return String(row?.driver_id??row?.person_id??row?.id??"");
@@ -73,6 +65,28 @@ function salaryMultiplierForRole(role){
   return 0.78;
 }
 
+function renewalRetentionChance(gs,contract){
+  const driverId=driverIdOf(contract);
+  const evaluation=driverMarketEvaluation(gs,driverId);
+  const score=Number(evaluation?.score||55);
+  let chance=0.52+(score-55)*0.012;
+  if(isRaceDriverContract(contract))chance+=0.10;
+  if(isReserveDriverContract(contract))chance-=0.05;
+  if(isTestDriverContract(contract))chance-=0.08;
+  return Math.max(0.15,Math.min(0.90,chance));
+}
+
+function markRenewalDecision(gs,contract,year,decision){
+  return {
+    ...gs,
+    contracts:(gs?.contracts||[]).map((row)=>row===contract?{
+      ...row,
+      ai_renewal_decision_year:year,
+      ai_renewal_plan:decision,
+    }:row),
+  };
+}
+
 export function applyMarketTick(gs){
   let next={...gs};
   const drivers=(gs.drivers||[]).filter(
@@ -103,6 +117,36 @@ export function applyMarketTick(gs){
       const tid=String(team?.team_id??team?.id??"");
       if(!tid||tid===userTeamId)continue;
 
+      // From July onward AI teams make a genuine keep/release decision on
+      // contracts ending this season. Rejected renewal talks are not silently
+      // converted into continuity extensions at the season boundary.
+      const monthNumber=Number(currentDate.slice(5,7));
+      if(monthNumber>=7){
+        const expiring=expiringDriverContracts(next,{teamId:tid});
+        for(const contract of expiring){
+          if(Number(contract?.ai_renewal_decision_year)===Number(next?.activeYear))continue;
+          const retain=marketRng.chance(renewalRetentionChance(next,contract));
+          next=markRenewalDecision(next,contract,Number(next?.activeYear),retain?"renew":"release_end");
+          if(!retain)continue;
+
+          const did=driverIdOf(contract);
+          const expected=expectedDriverSalary(next,did);
+          const currentSalary=Number(contract?.salary??contract?.salary_yearly??0);
+          const salary=Math.round(Math.max(expected,currentSalary*1.04)/5_000)*5_000;
+          next=startDriverRenewal(next,{
+            driverId:did,
+            teamId:tid,
+            teamName:team?.team_name||team?.name||tid,
+            offer:{
+              salary:Math.max(75_000,salary),
+              years:marketRng.chance(0.35)?2:1,
+              role:contractRoleLabel(contract),
+            },
+            origin:"ai",
+          });
+        }
+      }
+
       const targetRoles=availableContractRoles(next,tid)
         .filter((role)=>["Main Driver","Second Driver","Reserve Driver"].includes(role));
 
@@ -124,6 +168,28 @@ export function applyMarketTick(gs){
           origin:"ai",
         });
       }
+    }
+
+    const playerExpiring=userTeamId
+      ?expiringDriverContracts(next,{teamId:userTeamId})
+      :[];
+    const expiryReminderDue=
+      Number(currentDate.slice(5,7))>=7 &&
+      playerExpiring.length>0 &&
+      Number(gs?._lastContractExpiryReminderYear)!==Number(next?.activeYear);
+    if(expiryReminderDue){
+      const names=playerExpiring.map((contract)=>contract?.driver_name||driverIdOf(contract)).join(", ");
+      messages.push({
+        id:`contract_expiry_${next?.activeYear}_${userTeamId}`,
+        date:currentDate,
+        unread:true,
+        type:"STAFF",
+        from:"Driver Management",
+        tag:"Contracts",
+        subject:"Driver contracts expiring this season",
+        body:"The following contracts expire at the end of "+next.activeYear+": "+names+". Renew them from My Drivers if you want to keep them.",
+        actions:[{label:"Manage driver contracts",route:"/MyDrivers"}],
+      });
     }
 
     const remindPlayerReserve=
@@ -149,6 +215,7 @@ export function applyMarketTick(gs){
       _lastAIDriverMarketMonth:currentMonth,
       _lastAIDriverMarketCheckISO:currentDate,
       _lastReserveVacancyReminderMonth:remindPlayerReserve?currentMonth:gs?._lastReserveVacancyReminderMonth,
+      _lastContractExpiryReminderYear:expiryReminderDue?Number(next?.activeYear):gs?._lastContractExpiryReminderYear,
       inbox:[...messages,...(next?.inbox||[])],
     };
   }
