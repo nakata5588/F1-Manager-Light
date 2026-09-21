@@ -91,6 +91,50 @@ function activeContractRows(rows,year){
     String(pick(r,["role","position","type"],"")),
   ].join("|"));
 }
+function seedContractPriority(row,year,teamHistory=[]){
+  const exact=yearOf(row)===year?10000:0;
+  const start=asNum(pick(row,["contract_start_year","contract_start","start_year"],NaN),NaN);
+  const recency=Number.isFinite(start)?Math.min(999,Math.max(0,start-1900)):0;
+  const did=driverId(row);
+  const tid=teamId(row);
+  const historyMatches=(teamHistory||[]).filter((h)=>driverId(h)===did&&teamId(h)===tid);
+  const firstRound=Math.min(...historyMatches.map((h)=>asNum(pick(h,["first_round","round_from","start_round"],999),999)));
+  const historyScore=historyMatches.length
+    ? (firstRound<=1?500:250)+Math.min(100,historyMatches.length*10)
+    : 0;
+  return exact+historyScore+recency;
+}
+function reconcileSeedDriverContracts(rows,year,teamHistory=[]){
+  // A ranged row from the previous year and an exact row for the selected year
+  // can describe the same driver/team with different role labels. Keep only the
+  // best current seed row for that driver/team.
+  const byDriverTeam=new Map();
+  for(const row of rows||[]){
+    const did=driverId(row);
+    const tid=teamId(row);
+    if(!did||!tid)continue;
+    const key=`${did}|${tid}`;
+    const prev=byDriverTeam.get(key);
+    if(!prev||seedContractPriority(row,year,teamHistory)>=seedContractPriority(prev,year,teamHistory)){
+      byDriverTeam.set(key,row);
+    }
+  }
+
+  // A New Game grid cannot put one race driver in two teams. If the historical
+  // seed data contains overlapping season-level rows, prefer the exact/current
+  // affiliation and let the normal historical bootstrap refill the vacated seat.
+  const raceByDriver=new Map();
+  const nonRace=[];
+  for(const row of byDriverTeam.values()){
+    if(!isRaceDriverContract(row)){ nonRace.push(row); continue; }
+    const did=driverId(row);
+    const prev=raceByDriver.get(did);
+    if(!prev||seedContractPriority(row,year,teamHistory)>seedContractPriority(prev,year,teamHistory)){
+      raceByDriver.set(did,row);
+    }
+  }
+  return [...nonRace,...raceByDriver.values()];
+}
 function teamIdsForSeason(g,year){
   const ids=new Set();
   for(const row of rowsAtYear(g.teamSeasons,year)){const id=teamId(row);if(id)ids.add(id);}
@@ -110,9 +154,16 @@ function driverStatus(driver,year,contracted){
   const start=asNum(pick(driver,["career_start_year"],NaN),NaN);
   const debut=asNum(pick(driver,["f1_rookie_season","f1_debut_year"],NaN),NaN);
   const end=asNum(pick(driver,["career_end_year","last_f1_season"],Infinity),Infinity);
-  const death=asNum(String(pick(driver,["death_date"],"")).slice(0,4),Infinity);
+  const deathRaw=String(pick(driver,["death_date"],"")).trim();
+  const death=asNum(deathRaw.slice(0,4),Infinity);
   if(Number.isFinite(born)&&year<born)return null;
-  if(year>=death)return null;
+  // Historical New Game snapshots represent the world on January 1.
+  // A driver who dies later in the selected season must therefore still exist
+  // at game start (e.g. Villeneuve / Paletti in 1982).
+  const diedBeforeSeasonStart=/^\d{4}-\d{2}-\d{2}$/.test(deathRaw)
+    ? deathRaw<=`${year}-01-01`
+    : (Number.isFinite(death)&&death<year);
+  if(diedBeforeSeasonStart)return null;
   // Exact season participation/contract evidence outranks stale career-end
   // metadata. This is especially important in later eras where the master
   // career range is not yet fully curated.
@@ -270,9 +321,15 @@ export function materializeSeasonPack(globalData,yearInput){
     return !role || role.includes("driver") || role.includes("main") || role.includes("second") || role.includes("test");
   };
 
-  let contracts=activeContractRows(g.contracts,year)
-    .map(normalizeTeamRow).filter(Boolean)
-    .filter((r)=>teamIds.has(teamId(r)) && driverId(r));
+  const seedTeamHistory=rowsAtYear(g.driverTeamHistory||[],year)
+    .map(normalizeTeamRow).filter(Boolean);
+  let contracts=reconcileSeedDriverContracts(
+    activeContractRows(g.contracts,year)
+      .map(normalizeTeamRow).filter(Boolean)
+      .filter((r)=>teamIds.has(teamId(r)) && driverId(r)),
+    year,
+    seedTeamHistory
+  );
 
   const assignedDrivers=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const historicalPoolForTeam=(tid)=>{
@@ -484,6 +541,15 @@ export function validateSeasonPack(pack){
   if(orphanContracts)issues.push(`orphan_driver_contracts:${orphanContracts}`);
 
   const gridContracts=(s.contracts||[]).filter(isRaceDriverContract);
+  const seenRaceDrivers=new Set();
+  let duplicateRaceAssignments=0;
+  for(const row of gridContracts){
+    const did=driverId(row);
+    if(!did)continue;
+    if(seenRaceDrivers.has(did))duplicateRaceAssignments++;
+    else seenRaceDrivers.add(did);
+  }
+  if(duplicateRaceAssignments)issues.push(`duplicate_race_driver_contracts:${duplicateRaceAssignments}`);
   const warnings=[];
   if(gridContracts.length<Math.min(2,teamIds.size*2))warnings.push(`sparse_driver_contracts:${gridContracts.length}`);
   if((s.staffCore||[]).length<teamIds.size)warnings.push(`sparse_staff:${(s.staffCore||[]).length}`);
