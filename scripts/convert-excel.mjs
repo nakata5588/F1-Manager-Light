@@ -668,6 +668,23 @@ const SHEET_CONFIG = {
       pit_lane_loss_s: ["pit_lane_loss_s","pit_lane_loss","pit_loss_s"]
     }
   },
+  // ===== Ratings V2 / Historical R2B =====
+  driver_rating_profiles: { out: "driver_rating_profiles.json" },
+  driver_year_status: { out: "driver_year_status.json" },
+  historical_rating_snapshots: { out: "historical_rating_snapshots.json" },
+  driver_development_history: { out: "driver_development_history.json" },
+  driver_availability_history: { out: "driver_availability_history.json" },
+  driver_team_history: { out: "driver_team_history.json" },
+  f1_entry_list_history: { out: "f1_entry_list_history.json" },
+  team_engine_history: { out: "team_engine_history.json" },
+  car_competitiveness_by_year: { out: "car_competitiveness_by_year.json" },
+  season_reference_1980_1985: { out: "season_reference_1980_1985.json" },
+  historical_source_registry: { out: "historical_source_registry.json" },
+  rating_model_R2: { out: "rating_model_R2.json" },
+  peak_floor_review_R2: { out: "peak_floor_review_R2.json" },
+  canonical_patch_R2: { out: "canonical_patch_R2.json" },
+  canonical_qa: { out: "canonical_qa.json" },
+
 };
 
 // ---------- Pipeline ----------
