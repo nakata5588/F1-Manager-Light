@@ -33,10 +33,12 @@ function fixture(){
     dbDrivers:[
       {driver_id:"D1",display_name:"Current Driver",dob:"1955-01-01",career_start_year:1974,f1_rookie_season:1975},
       {driver_id:"D2",display_name:"Future Driver",dob:"1960-05-01",career_start_year:1979,f1_rookie_season:1981,team_id:"HISTORICAL_TEAM",career_end_year:1995},
+      {driver_id:"D3",display_name:"Future Lower-Series Star",dob:"1960-03-21",career_start_year:null,f1_rookie_season:1984,career_end_year:1994},
     ],
     dbDriverRatings:[
       {year:1980,driver_id:"D1",current_ability:75},
       {year:1981,driver_id:"D2",current_ability:65,potential_ability:82},
+      {year:1984,driver_id:"D3",current_ability:90,potential_ability:98},
     ],
     dbStaffCore:[
       {staff_id:"S1",staff_name:"Current Staff",dob:"1940-01-01"},
@@ -84,6 +86,13 @@ test("career boundary rolls to next season without importing historical future a
   assert.equal(future.team_id,undefined);
   assert.equal(future.canHireF1,true);
   assert.equal(next.contracts.some(c=>c.driver_id==="D2"),false);
+
+  const earlyStar=next.drivers.find(d=>d.driver_id==="D3");
+  assert.ok(earlyStar,"driver should become visible three years before historical F1 debut");
+  assert.equal(earlyStar.status,"lower_series");
+  assert.equal(earlyStar.canHireF1,true,"historical debut must not block an alternate-history F1 offer");
+  assert.equal(earlyStar.canHireAcademy,false);
+  assert.equal(earlyStar.f1_rookie_season,1984);
 
   const currentContract=next.contracts.find(c=>c.driver_id==="D1");
   assert.equal(currentContract.contract_until_year,1980);
