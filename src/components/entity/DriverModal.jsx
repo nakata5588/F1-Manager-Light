@@ -739,6 +739,13 @@ export default function DriverModal({ entity, onClose }) {
           driver={driver}
           roles={marketEligibility.roles}
           expectedSalary={expectedDriverSalary(gs, driverId)}
+          contextNote={
+            marketEligibility?.kind==="transfer"
+              ?("This is a transfer from "+(contractTeam||"the current team")+
+                ". If the driver accepts, "+fmtMoney(marketEligibility?.buyout?.fee||0)+
+                " will be paid as "+(marketEligibility?.buyout?.type==="fixed_clause"?"a release clause.":"buyout compensation."))
+              :""
+          }
           onClose={() => setMarketTalkOpen(false)}
           onSubmit={submitMarketNegotiation}
         />
@@ -1205,8 +1212,10 @@ function DriverActionsMenu({
     ? {
         key: "open_negotiation",
         icon: <Handshake size={14} />,
-        label: "Open negotiations",
-        desc: "Formal offer · " + (marketEligibility.roles || []).join(" / "),
+        label: marketEligibility?.kind==="transfer" ? "Approach for transfer" : "Open negotiations",
+        desc: marketEligibility?.kind==="transfer"
+          ?("Buyout "+fmtMoney(marketEligibility?.buyout?.fee||0)+" · "+(marketEligibility.roles || []).join(" / "))
+          :("Formal offer · "+(marketEligibility.roles || []).join(" / ")),
       }
     : marketReason === "active_negotiation"
       ? {
@@ -1216,37 +1225,45 @@ function DriverActionsMenu({
           desc: "Awaiting the driver's response",
           disabled: true,
         }
-      : marketReason === "under_contract"
+      : marketReason === "insufficient_buyout_funds"
         ? {
             key: "open_negotiation",
             icon: <Handshake size={14} />,
-            label: "Under contract",
-            desc: "Transfers / poaching from other teams are not implemented yet",
+            label: "Buyout unaffordable",
+            desc: "Required compensation: "+fmtMoney(marketEligibility?.buyout?.fee||0),
             disabled: true,
           }
-        : marketReason === "lineup_full"
+        : marketReason === "under_contract"
           ? {
               key: "open_negotiation",
               icon: <Handshake size={14} />,
-              label: "Line-up full",
-              desc: "No Main, Second, Reserve or Test Driver role is currently vacant",
+              label: "Under contract",
+              desc: "This contract cannot currently be bought out under the active contract rules",
               disabled: true,
             }
-          : marketReason === "not_f1_eligible"
+          : marketReason === "lineup_full"
             ? {
                 key: "open_negotiation",
                 icon: <Handshake size={14} />,
-                label: "Not eligible for F1 contract",
-                desc: "This driver cannot currently be approached for an F1 role",
+                label: "Line-up full",
+                desc: "No Main, Second, Reserve or Test Driver role is currently vacant",
                 disabled: true,
               }
-            : {
-                key: "open_negotiation",
-                icon: <Handshake size={14} />,
-                label: "Negotiations unavailable",
-                desc: "No valid contract action is available",
-                disabled: true,
-              };
+            : marketReason === "not_f1_eligible"
+              ? {
+                  key: "open_negotiation",
+                  icon: <Handshake size={14} />,
+                  label: "Not eligible for F1 contract",
+                  desc: "This driver cannot currently be approached for an F1 role",
+                  disabled: true,
+                }
+              : {
+                  key: "open_negotiation",
+                  icon: <Handshake size={14} />,
+                  label: "Negotiations unavailable",
+                  desc: "No valid contract action is available",
+                  disabled: true,
+                };
 
   const otherGroups = [
     {
