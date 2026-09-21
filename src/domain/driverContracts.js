@@ -1,5 +1,12 @@
 // src/domain/driverContracts.js
-import {\n  driverRoleLabelForSlot,\n  driverRoleSlot,\n  isDriverContract,\n  isRaceDriverContract,\n  isReserveDriverContract,\n  isRaceDriverSlot,\n} from "./contractRoles.js";
+import {
+  driverRoleLabelForSlot,
+  driverRoleSlot,
+  isDriverContract,
+  isRaceDriverContract,
+  isReserveDriverContract,
+  isRaceDriverSlot,
+} from "./contractRoles.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
 import {
   collectionRows,
