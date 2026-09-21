@@ -364,7 +364,7 @@ export default function Drivers(){
                       Negotiate driver terms
                     </button>
                   )}
-                  {["submitted","countered","accepted"].includes(status)&&(
+                  {(["submitted","countered"].includes(status)||(accepted&&!row?.pending))&&(
                     <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawClub(approach.id)}>
                       Withdraw
                     </button>
