@@ -40,6 +40,12 @@ for(const year of targetYears){
     }
     assert.ok(state.drivers.length>=4,`${year} must have at least 4 visible drivers`);
     assert.ok(Array.isArray(state.driverHistory),`${year} must carry driver history in the Season Pack`);
+    assert.ok(Array.isArray(state.coreTracks)&&state.coreTracks.length>0,`${year} must expose circuit profiles for race-weekend gameplay`);
+    assert.ok(Array.isArray(state.trackLayoutByYear),`${year} must expose effective track layouts`);
+    if(year===1980){
+      assert.ok(state.trackLayoutByYear.length>0,"1980 track layouts must resolve year_from/year_to ranges");
+      assert.ok(state.trackLayoutByYear.every((row)=>1980>=Number(row.year_from)&&1980<=Number(row.year_to)),"1980 pack contains an out-of-range track layout");
+    }
     if(year===1987){
       const priorIds=new Set(state.driverHistory.filter((r)=>Number(r.year)<1987).map((r)=>String(r.driver_id)));
       assert.ok(priorIds.size>=10,`1987 pack must include veteran pre-1987 history; found ${priorIds.size} drivers`);
