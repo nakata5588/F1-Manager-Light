@@ -330,10 +330,85 @@ function closeOtherNegotiations(negotiations,winner){
   });
 }
 
+function applyTransferSettlement(gs,negotiation,currentContract){
+  const fee=Math.max(0,Number(negotiation?.buyout_fee||0));
+  const buyerTeamId=String(negotiation?.team_id||"");
+  const sellerTeamId=String(negotiation?.seller_team_id||teamIdOf(currentContract)||"");
+  const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const today=dateOnly(gs?.currentDateISO);
+
+  let next={
+    ...gs,
+    contracts:(gs?.contracts||[]).map((row)=>row===currentContract?{
+      ...row,
+      status:"bought_out",
+      bought_out_at:today,
+      bought_out_by_team_id:buyerTeamId,
+      buyout_fee:fee,
+      contract_until_year:Number(gs?.activeYear),
+      contract_until:Number(gs?.activeYear),
+      end_year:Number(gs?.activeYear),
+    }:row),
+  };
+
+  if(!fee)return next;
+
+  const log=Array.isArray(next?.financeLog)?next.financeLog:[];
+  if(buyerTeamId===userTeamId){
+    const balance=Number(next?.finances?.balance??next?.team?.budget??0);
+    const sig="driver-buyout-expense:"+negotiation.id;
+    next={
+      ...next,
+      team:{...(next?.team||{}),budget:Number(next?.team?.budget??balance)-fee},
+      finances:{
+        ...(next?.finances||{}),
+        balance:balance-fee,
+        budget:Number(next?.finances?.budget??balance)-fee,
+        season_spend:Number(next?.finances?.season_spend||0)+fee,
+      },
+      financeLog:log.some((tx)=>tx?.sig===sig)?log:[{
+        id:"tx_"+sig,
+        dateISO:today,
+        type:"expense",
+        category:"Driver Transfer",
+        desc:"Buyout — "+negotiation.driver_name,
+        amount:-fee,
+        sig,
+      },...log],
+    };
+  }else if(sellerTeamId===userTeamId){
+    const balance=Number(next?.finances?.balance??next?.team?.budget??0);
+    const sig="driver-buyout-income:"+negotiation.id;
+    next={
+      ...next,
+      team:{...(next?.team||{}),budget:Number(next?.team?.budget??balance)+fee},
+      finances:{
+        ...(next?.finances||{}),
+        balance:balance+fee,
+        budget:Number(next?.finances?.budget??balance)+fee,
+        season_income:Number(next?.finances?.season_income||0)+fee,
+      },
+      financeLog:log.some((tx)=>tx?.sig===sig)?log:[{
+        id:"tx_"+sig,
+        dateISO:today,
+        type:"income",
+        category:"Driver Transfer",
+        desc:"Buyout received — "+negotiation.driver_name,
+        amount:fee,
+        sig,
+      },...log],
+    };
+  }
+
+  return next;
+}
+
 function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
-  const renewal=String(negotiation?.kind||"")==="renewal";
+  const kind=String(negotiation?.kind||"new_contract");
+  const renewal=kind==="renewal";
+  const transfer=kind==="transfer";
   const currentContract=activeDriverContract(gs,negotiation.driver_id);
-  if(!renewal&&currentContract){
+  if(!renewal&&!transfer&&currentContract){
     return {
       ...gs,
       driverNegotiations:driverNegotiations(gs).map((n)=>
@@ -348,6 +423,14 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
         n.id===negotiation.id?{...n,status:"rejected",resolved_at:dateOnly(gs.currentDateISO),resolution_note:"Existing contract is no longer active."}:n
       ),
     };
+  }
+  if(transfer){
+    if(!currentContract||teamIdOf(currentContract)!==String(negotiation.seller_team_id||"")){
+      return rejectNegotiation(gs,negotiation,"The driver's current contract changed before the transfer could be completed.");
+    }
+    if(!canAffordTransfer(gs,negotiation.team_id,Number(negotiation.buyout_fee||0))){
+      return rejectNegotiation(gs,negotiation,"The team no longer has enough funds to pay the required buyout.");
+    }
   }
   const driver=driverFor(gs,negotiation.driver_id);
   if(!driver)return gs;
@@ -375,17 +458,27 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
       contract=activeDriverContract(nextState,negotiation.driver_id);
     }
   }else{
+    if(transfer){
+      nextState=applyTransferSettlement(gs,negotiation,currentContract);
+    }
     contract=makeDriverContract({
-      gs,
+      gs:nextState,
       driver,
       teamId:negotiation.team_id,
       teamName:negotiation.team_name,
       offer:negotiation.offer,
-      source:negotiation.origin==="player"?"player_negotiation":"ai_negotiation",
+      source:transfer
+        ?(negotiation.origin==="player"?"player_transfer":"ai_transfer")
+        :(negotiation.origin==="player"?"player_negotiation":"ai_negotiation"),
     });
     contract.negotiation_id=negotiation.id;
     contract.market_evaluation=negotiation.market_evaluation||driverMarketEvaluation(gs,driver);
-    nextState={...gs,contracts:[...(gs?.contracts||[]),contract]};
+    if(transfer){
+      contract.transfer_from_team_id=String(negotiation.seller_team_id||"");
+      contract.buyout_fee=Number(negotiation.buyout_fee||0);
+      contract.buyout_type=negotiation.buyout_type||"compensation";
+    }
+    nextState={...nextState,contracts:[...(nextState?.contracts||[]),contract]};
   }
 
   let negotiations=driverNegotiations(gs).map((n)=>n.id===negotiation.id?accepted:n);
@@ -403,10 +496,14 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     tag:"Contracts",
     subject:renewal
       ?(negotiation.driver_name+" renews with "+negotiation.team_name)
-      :(negotiation.driver_name+" signs with "+negotiation.team_name),
+      :(transfer
+        ?(negotiation.driver_name+" transfers to "+negotiation.team_name)
+        :(negotiation.driver_name+" signs with "+negotiation.team_name)),
     body:renewal
       ?(negotiation.driver_name+" has agreed a "+negotiation.offer.years+"-year extension through "+renewedUntil+" on $"+Number(negotiation.offer.salary).toLocaleString("en-US")+" per season.")
-      :(negotiation.driver_name+" has agreed a "+negotiation.offer.years+"-year contract as "+negotiation.offer.role+" on $"+Number(negotiation.offer.salary).toLocaleString("en-US")+" per season."),
+      :(transfer
+        ?(negotiation.driver_name+" has agreed terms with "+negotiation.team_name+". A buyout of $"+Number(negotiation.buyout_fee||0).toLocaleString("en-US")+" has been paid to the previous team. New role: "+negotiation.offer.role+" on $"+Number(negotiation.offer.salary).toLocaleString("en-US")+" per season.")
+        :(negotiation.driver_name+" has agreed a "+negotiation.offer.years+"-year contract as "+negotiation.offer.role+" on $"+Number(negotiation.offer.salary).toLocaleString("en-US")+" per season.")),
     driver_id:negotiation.driver_id,
     team_id:negotiation.team_id,
   }];
