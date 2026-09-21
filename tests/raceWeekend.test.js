@@ -23,7 +23,20 @@ const gp={
   track_id:"monaco",
 };
 
-function fixture(){
+const defaultQualifyingRule={
+  rule_id:"qual_1980_test",
+  year:1980,
+  strategy:"best_time_across_sessions",
+  session_count:2,
+  max_starters:24,
+  practice_day_offset:-2,
+  session_day_offsets:[-2,-1],
+  grid_day_offset:-1,
+  prequalifying_enabled:false,
+  event_overrides:[],
+};
+
+function fixture({qualifyingRules=defaultQualifyingRule,currentDateISO="1980-05-16",seed="rw3-weekend"}={}){
   const teams=[
     {team_id:"T1",team_name:"Alpha"},
     {team_id:"T2",team_name:"Beta"},
@@ -35,14 +48,15 @@ function fixture(){
     {driver_id:"D4",display_name:"Beta Two"},
   ];
   return {
-    saveMeta:createNewSaveMeta({year:1980,teamId:"T1",seed:"rw1-weekend"}),
+    saveMeta:createNewSaveMeta({year:1980,teamId:"T1",seed}),
     activeYear:1980,
-    currentDateISO:"1980-05-16",
+    currentDateISO,
     currentRound:0,
     calendar:[gp],
     team:teams[0],
     teams,
     drivers,
+    qualifyingRules:{...qualifyingRules},
     contracts:[
       {year:1980,team_id:"T1",driver_id:"D1",role:"main_driver",status:"active",contract_start_year:1980,contract_until_year:1980},
       {year:1980,team_id:"T1",driver_id:"D2",role:"second_driver",status:"active",contract_start_year:1980,contract_until_year:1980},
@@ -117,59 +131,193 @@ function fixture(){
   };
 }
 
-test("RW1 derives Friday Practice, Saturday Qualifying and Sunday Race dates",()=>{
-  assert.deepEqual(raceWeekendSchedule(gp),{
-    practiceDate:"1980-05-16",
-    qualifyingDate:"1980-05-17",
-    raceDate:"1980-05-18",
-  });
-});
+function startAfterPractice(options={}){
+  let gs=createRaceWeekendState(fixture(options),{roundIndex:0,gp});
+  gs=completePracticeSession(gs,{gp});
+  return gs;
+}
 
-test("race weekend state persists across session boundaries and save/load",()=>{
-  let gs=createRaceWeekendState(fixture(),{roundIndex:0,gp});
-  assert.equal(gs.raceWeekendState.phase,"practice");
-  assert.equal(gs.raceWeekendState.entrants.length,4);
-
-  gs=completePracticeSession(gs);
-  assert.equal(gs.raceWeekendState.phase,"practice_complete");
-  assert.equal(gs.raceWeekendState.practice.status,"completed");
-
-  const saved=prepareGameStateForSave(gs);
-  const loaded=extractGameStateFromStoredSave({meta:{name:"RW1 mid-weekend"},gameState:saved});
-  assert.deepEqual(loaded.raceWeekendState,gs.raceWeekendState);
-  assert.deepEqual(loaded.raceEntryState,gs.raceEntryState);
-});
-
-test("Practice -> Qualifying -> Grid -> Race uses one persistent qualifying classification",async()=>{
-  let gs=createRaceWeekendState(fixture(),{roundIndex:0,gp});
-  gs=completePracticeSession(gs);
-
-  gs={...gs,currentDateISO:"1980-05-17"};
-  gs=syncRaceWeekendPhaseForDate(gs,gs.currentDateISO);
+function finish1980Qualifying(options={}){
+  let gs=startAfterPractice(options);
   assert.equal(gs.raceWeekendState.phase,"qualifying");
-
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-17"},"1980-05-17");
+  assert.equal(gs.raceWeekendState.phase,"qualifying");
   gs=completeQualifyingSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"grid_ready");
-  const grid=gs.raceWeekendState.qualifying.classification.map((row)=>row.driver_id);
-  assert.equal(grid.length,4);
-  assert.deepEqual(gs.raceWeekendState.grid.map((row)=>row.driver_id),grid);
+  return gs;
+}
 
-  gs={...gs,currentDateISO:"1980-05-18"};
-  gs=syncRaceWeekendPhaseForDate(gs,gs.currentDateISO);
+test("RW3 1980 rule creates two timed Qualifying sessions and a persistent session list",()=>{
+  const schedule=raceWeekendSchedule(gp,defaultQualifyingRule);
+  assert.equal(schedule.practiceDate,"1980-05-16");
+  assert.equal(schedule.qualifyingDate,"1980-05-16");
+  assert.equal(schedule.raceDate,"1980-05-18");
+  assert.deepEqual(
+    schedule.sessions.map((row)=>[row.id,row.type,row.dateISO]),
+    [
+      ["practice","practice","1980-05-16"],
+      ["qualifying_1","qualifying","1980-05-16"],
+      ["qualifying_2","qualifying","1980-05-17"],
+      ["grid","grid","1980-05-17"],
+      ["race","race","1980-05-18"],
+    ]
+  );
+
+  const gs=createRaceWeekendState(fixture(),{roundIndex:0,gp});
+  assert.equal(gs.raceWeekendState.qualifying_rule_snapshot.strategy,"best_time_across_sessions");
+  assert.equal(gs.raceWeekendState.qualifying_rule_snapshot.session_count,2);
+  assert.equal(gs.raceWeekendState.qualifying_rule_snapshot.max_starters,24);
+  assert.equal(gs.raceWeekendState.sessions.length,5);
+});
+
+test("RW3 saves and restores between Qualifying sessions without recalculating Q1",()=>{
+  let gs=startAfterPractice();
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
+
+  const q1=gs.raceWeekendState.sessions.find((row)=>row.id==="qualifying_1");
+  assert.equal(q1.status,"completed");
+  assert.equal(q1.results.length,4);
+
+  const saved=prepareGameStateForSave(gs);
+  let loaded=extractGameStateFromStoredSave({meta:{name:"RW3 between sessions"},gameState:saved});
+  assert.deepEqual(
+    loaded.raceWeekendState.sessions.find((row)=>row.id==="qualifying_1"),
+    q1
+  );
+
+  loaded=syncRaceWeekendPhaseForDate({...loaded,currentDateISO:"1980-05-17"},"1980-05-17");
+  loaded=completeQualifyingSession(loaded,{gp});
+  assert.equal(loaded.raceWeekendState.phase,"grid_ready");
+  assert.deepEqual(
+    loaded.raceWeekendState.sessions.find((row)=>row.id==="qualifying_1"),
+    q1,
+    "completed Q1 must remain byte-for-byte stable after Q2"
+  );
+});
+
+test("RW3 1980 classification uses each driver's best time across sessions",()=>{
+  const gs=finish1980Qualifying();
+  const qSessions=gs.raceWeekendState.sessions.filter((row)=>row.type==="qualifying");
+  assert.equal(qSessions.length,2);
+  assert.ok(qSessions.every((row)=>row.status==="completed"));
+
+  for(const row of gs.raceWeekendState.qualifying.classification){
+    const times=qSessions.flatMap((session)=>
+      (session.results||[])
+        .filter((result)=>result.driver_id===row.driver_id)
+        .map((result)=>result.lap_time_ms)
+    );
+    assert.equal(row.best_time_ms,Math.min(...times));
+  }
+});
+
+test("RW3 grid limit produces DNQ and Starting Grid is a separate authoritative entity",()=>{
+  const qualifyingRules={...defaultQualifyingRule,max_starters:2};
+  const gs=finish1980Qualifying({qualifyingRules});
+  const classification=gs.raceWeekendState.qualifying.classification;
+  const starters=classification.filter((row)=>row.status==="QUALIFIED");
+  const dnq=classification.filter((row)=>row.status==="DNQ");
+
+  assert.equal(starters.length,2);
+  assert.equal(dnq.length,2);
+  assert.equal(gs.raceWeekendState.startingGrid.status,"final");
+  assert.equal(gs.raceWeekendState.startingGrid.rows.length,2);
+  assert.deepEqual(
+    gs.raceWeekendState.grid,
+    gs.raceWeekendState.startingGrid.rows,
+    "legacy grid alias must point at the persisted Starting Grid rows"
+  );
+});
+
+test("RW3 player and AI drivers run through exactly the same qualifying sessions",()=>{
+  const gs=finish1980Qualifying();
+  const qSessions=gs.raceWeekendState.sessions.filter((row)=>row.type==="qualifying");
+  for(const session of qSessions){
+    const ids=new Set(session.results.map((row)=>row.driver_id));
+    assert.deepEqual([...ids].sort(),["D1","D2","D3","D4"]);
+    assert.ok(session.results.every((row)=>Number.isFinite(row.lap_time_ms)&&row.lap_time_ms>0));
+  }
+  assert.equal(qSessions[0].results.filter((row)=>row.team_id==="T1").length,2);
+  assert.equal(qSessions[0].results.filter((row)=>row.team_id==="T2").length,2);
+});
+
+test("RW3 qualifying is deterministic for the same Save seed across session boundaries",()=>{
+  const a=finish1980Qualifying({seed:"rw3-deterministic"});
+  const b=finish1980Qualifying({seed:"rw3-deterministic"});
+  assert.deepEqual(a.raceWeekendState.sessions,b.raceWeekendState.sessions);
+  assert.deepEqual(a.raceWeekendState.qualifying,b.raceWeekendState.qualifying);
+  assert.deepEqual(a.raceWeekendState.startingGrid,b.raceWeekendState.startingGrid);
+});
+
+test("RW3 Race consumes exactly the saved Starting Grid and never re-runs Qualifying",async()=>{
+  let gs=finish1980Qualifying();
+  const originalClassification=structuredClone(gs.raceWeekendState.qualifying.classification);
+  const reversed=gs.raceWeekendState.startingGrid.rows
+    .slice()
+    .reverse()
+    .map((row,index)=>({...row,grid:index+1}));
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      startingGrid:{...gs.raceWeekendState.startingGrid,rows:reversed},
+      grid:reversed,
+    },
+  };
+
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
   assert.equal(gs.raceWeekendState.phase,"race");
-
   gs=await completeRaceSession(gs,{gp});
+
   assert.equal(gs.raceWeekendState.phase,"results");
-  assert.equal(gs.results.length,1);
-  assert.deepEqual(gs.results[0].qualifying.map((row)=>row.driver_id),grid,"Race must consume the already-saved Qualifying order");
-  assert.equal(gs.results[0].classification.length,4);
+  assert.deepEqual(
+    gs.results[0].startingGrid.map((row)=>row.driver_id),
+    reversed.map((row)=>row.driver_id)
+  );
+  assert.deepEqual(
+    gs.results[0].qualifying.map((row)=>row.driver_id),
+    originalClassification.map((row)=>row.driver_id),
+    "Qualifying Classification must remain distinct from a subsequently adjusted Starting Grid"
+  );
+});
+
+test("RW3 pre-qualifying is rule-driven and can eliminate DNPQ before main Qualifying",()=>{
+  const qualifyingRules={
+    ...defaultQualifyingRule,
+    rule_id:"prequal-test",
+    session_count:1,
+    max_starters:2,
+    practice_day_offset:-3,
+    session_day_offsets:[-1],
+    prequalifying_enabled:true,
+    prequalifying_day_offset:-2,
+    prequalifying_advance_count:3,
+  };
+  let gs=startAfterPractice({qualifyingRules,currentDateISO:"1980-05-15"});
+  assert.equal(gs.raceWeekendState.phase,"practice_complete");
+
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-16"},"1980-05-16");
+  assert.equal(gs.raceWeekendState.phase,"qualifying");
+  assert.equal(gs.raceWeekendState.active_session_id,"prequalifying");
+  gs=completeQualifyingSession(gs,{gp});
+
+  const prequal=gs.raceWeekendState.sessions.find((row)=>row.id==="prequalifying");
+  assert.equal(prequal.results.filter((row)=>row.status==="ADVANCED").length,3);
+  assert.equal(prequal.results.filter((row)=>row.status==="DNPQ").length,1);
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
+
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-17"},"1980-05-17");
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.qualifying.classification.filter((row)=>row.status==="DNPQ").length,1);
+  assert.equal(gs.raceWeekendState.qualifying.classification.filter((row)=>row.status==="DNQ").length,1);
+  assert.equal(gs.raceWeekendState.startingGrid.rows.length,2);
 });
 
 test("results remain visible until calendar advances beyond race day",async()=>{
-  let gs=createRaceWeekendState(fixture(),{roundIndex:0,gp});
-  gs=completePracticeSession(gs);
-  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-17"},"1980-05-17");
-  gs=completeQualifyingSession(gs,{gp});
+  let gs=finish1980Qualifying();
   gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
   gs=await completeRaceSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"results");
@@ -179,7 +327,6 @@ test("results remain visible until calendar advances beyond race day",async()=>{
   const nextDay=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-19"},"1980-05-19");
   assert.equal(nextDay.raceWeekendState.phase,"completed");
 });
-
 
 test("RW2 derives circuit setup demands and uses live technical staff support",()=>{
   const gs=fixture();
@@ -201,7 +348,7 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   const beforeP2=gs.development.parts.find((p)=>p.id==="P2").condition;
 
   gs=completePracticeSession(gs,{gp});
-  assert.equal(gs.raceWeekendState.phase,"practice_complete");
+  assert.equal(gs.raceWeekendState.phase,"qualifying");
   const d1=gs.raceWeekendState.practice.results.find((row)=>row.driver_id==="D1");
   const d2=gs.raceWeekendState.practice.results.find((row)=>row.driver_id==="D2");
   assert.equal(d1.programme_id,"reliability");
