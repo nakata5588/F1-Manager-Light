@@ -142,6 +142,53 @@ export function availableContractRoles(gs,teamId){
   return roles;
 }
 
+
+export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
+  const did=String(driverId||"");
+  const tid=String(teamId||"");
+  const driver=driverFor(gs,did);
+  if(!did||!tid||!driver){
+    return {canNegotiate:false,reason:"invalid_target",roles:[],contract:null,pending:null};
+  }
+
+  const contract=activeDriverContract(gs,did);
+  if(contract){
+    const ownContract=teamIdOf(contract)===tid;
+    return {
+      canNegotiate:false,
+      reason:ownContract?"already_contracted":"under_contract",
+      roles:[],
+      contract,
+      pending:null,
+    };
+  }
+
+  const status=String(driver?.status||"eligible").toLowerCase();
+  if(
+    driver?.canHireF1===false ||
+    ["hidden","junior_only","deceased","retired"].includes(status)
+  ){
+    return {canNegotiate:false,reason:"not_f1_eligible",roles:[],contract:null,pending:null};
+  }
+
+  const pending=driverNegotiations(gs).find((negotiation)=>
+    isNegotiationActive(negotiation) &&
+    String(negotiation?.driver_id)===did &&
+    String(negotiation?.team_id)===tid &&
+    String(negotiation?.kind||"new_contract")==="new_contract"
+  )||null;
+  if(pending){
+    return {canNegotiate:false,reason:"active_negotiation",roles:[],contract:null,pending};
+  }
+
+  const roles=availableContractRoles(gs,tid);
+  if(!roles.length){
+    return {canNegotiate:false,reason:"lineup_full",roles:[],contract:null,pending:null};
+  }
+
+  return {canNegotiate:true,reason:"available",roles,contract:null,pending:null};
+}
+
 function negotiationId(gs,{driverId,teamId,role,origin}){
   const date=dateOnly(gs?.currentDateISO)||"date";
   const seq=driverNegotiations(gs).length+1;
@@ -164,14 +211,12 @@ export function startDriverNegotiation(gs,{
   const existingContract=activeDriverContract(gs,did);
   if(renewal){
     if(!existingContract||teamIdOf(existingContract)!==tid)return gs;
-  }else if(existingContract){
-    return gs;
   }
 
   const role=normalizedRoleLabel(offer?.role||existingContract?.role||"Reserve Driver");
   if(!renewal){
-    const allowed=availableContractRoles(gs,tid);
-    if(!allowed.includes(role))return gs;
+    const eligibility=driverNegotiationEligibility(gs,{driverId:did,teamId:tid});
+    if(!eligibility.canNegotiate||!eligibility.roles.includes(role))return gs;
   }
 
   const duplicate=driverNegotiations(gs).some((n)=>
