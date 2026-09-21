@@ -84,7 +84,7 @@ const HEAVY_KEYS = [
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
-  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons",
+  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbCoreTracks",
 ];
 function makeLightSnapshot(gs) {
   const light = { ...gs };
@@ -324,6 +324,7 @@ export const useGame = create((set, get) => ({
     dbScoutingZones: [],
     dbTrackLayoutByYear: [],
     dbTeamSeasons: [],
+    dbCoreTracks: [],
 
     yearsAvailable: [],
     seasonPackIndex: [],
@@ -354,6 +355,8 @@ export const useGame = create((set, get) => ({
     penaltiesRules: [],
     financialRules: [],
     agendaBlocks: [],
+    coreTracks: [],
+    trackLayoutByYear: [],
 
     // adicionais
     driverStats: {},
@@ -562,7 +565,7 @@ export const useGame = create((set, get) => ({
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
-        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, seasonIndexRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, coreTracksRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
@@ -597,6 +600,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/scouting_zones.json", []),
         fetchOptional("/data/track_layout_by_year.json", []),
         fetchOptional("/data/team_seasons.json", []),
+        fetchOptional("/data/core_tracks.json", []),
         fetchOptional("/data/seasons/index.json", { years: [] }),
       ]);
 
@@ -633,6 +637,7 @@ export const useGame = create((set, get) => ({
       const scoutingZones      = unexcelDeep(scoutingZonesRaw);
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
       const teamSeasons         = unexcelDeep(teamSeasonsRaw);
+      const coreTracks          = unexcelDeep(coreTracksRaw);
       const seasonPackIndex      = Array.isArray(seasonIndexRaw?.years) ? unexcelDeep(seasonIndexRaw.years) : [];
 
       const packYears = seasonPackIndex
@@ -684,6 +689,9 @@ export const useGame = create((set, get) => ({
           dbScoutingZones: scoutingZones,
           dbTrackLayoutByYear: trackLayoutByYear,
           dbTeamSeasons: teamSeasons,
+          dbCoreTracks: coreTracks,
+          coreTracks,
+          trackLayoutByYear,
 
           yearsAvailable,
           seasonPackIndex,
@@ -1433,10 +1441,20 @@ export const useGame = create((set, get) => ({
   },
 
   /** ===================== RACE WEEKEND ACTIONS ===================== */
-  completeRaceWeekendPractice: async () => {
+  setRaceWeekendPracticeProgramme: async (driverId,programmeId) => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
-    const next=mod.completePracticeSession(gs);
+    const next=mod.setPracticeProgramme(gs,{driverId,programmeId});
+    set({gameState:next});
+    return next?.raceWeekendState||null;
+  },
+
+  completeRaceWeekendPractice: async () => {
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.completePracticeSession(gs,{gp});
     set({gameState:next});
     try {
       if(next?.settings?.autosave!==false){

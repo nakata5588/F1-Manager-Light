@@ -403,7 +403,8 @@ export function materializeSeasonPack(globalData,yearInput){
       youthIntakeRules:effectiveRange(g.youthIntakeRules,year),
       contractRules:effectiveRange(g.contractRules,year),
       scoutingZones:clean(g.scoutingZones||[]),
-      trackLayoutByYear:rowsAtYear(g.trackLayoutByYear,year).map(clean),
+      coreTracks:clean(g.coreTracks||[]),
+      trackLayoutByYear:effectiveRange(g.trackLayoutByYear,year),
     },
   };
   const validation=validateSeasonPack(pack);
