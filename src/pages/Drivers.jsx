@@ -4,7 +4,7 @@ import { ageOn } from "../utils/date.js";
 import { DriverPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import { expectedDriverSalary } from "../domain/driverContracts.js";
-import { contractRoleLabel } from "../domain/contractRoles.js";
+import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import {
   acceptCounterOffer,
@@ -83,8 +83,7 @@ export default function Drivers(){
     const m=new Map();
     for(const c of contracts){
       const id=idOf(c); if(!id) continue;
-      const role=String(pick(c,["role","position","contract_role"],"")).toLowerCase();
-      if(role&&!role.includes("driver")) continue;
+      if(!isDriverContract(c)) continue;
       const contractStatus=String(pick(c,["status"],"active")).toLowerCase();
       if(["terminated","expired","released","inactive","void"].includes(contractStatus)) continue;
       const y=Number(pick(c,["year","season_year"],activeYear));
