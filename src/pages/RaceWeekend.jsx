@@ -29,6 +29,13 @@ function teamName(teams,id){
   const t=(teams||[]).find((row)=>String(row?.team_id??row?.id??"")===String(id));
   return t?.team_name||t?.name||String(id||"—");
 }
+function formatLapTime(ms){
+  const n=Number(ms);
+  if(!Number.isFinite(n)||n<=0)return "—";
+  const minutes=Math.floor(n/60000);
+  const seconds=(n-minutes*60000)/1000;
+  return `${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
+}
 
 export default function RaceWeekend(){
   const navigate=useNavigate();
