@@ -255,6 +255,10 @@ test("released drivers no longer receive AI-team training through their former t
   const gs=baseState();
   gs.currentDateISO="1980-03-01";
   gs.driverAttributes={};
+  gs.driverRatings=gs.driverRatings.map((row)=>row.driver_id==="D4"?{
+    ...row,qualifying:64,racecraft:63,consistency:62,tire_management:61,
+    race_intelligence:60,pressure_handling:60,adaptability:60,mentality:60,technical_feedback:60,
+  }:row);
   gs.contracts=gs.contracts.map((row)=>
     row.driver_id==="D4"?{...row,status:"released",released_at:"1980-02-28"}:row
   );
