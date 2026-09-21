@@ -77,10 +77,11 @@ test("driver action persists fatigue and recalculates overall in the daily event
 
 test("new drivers start fresh and fatigue becomes a real 0-100 performance penalty",()=>{
   assert.deepEqual(defaultDriverCondition(),{confidence:50,fatigue:0,morale:50,preparation:50});
-  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:25}}},"d1"),0);
-  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:40}}},"d1")>0);
-  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:70}}},"d1")>fatiguePenalty({driverAttributes:{d1:{fatigue:40}}},"d1"));
-  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:100}}},"d1"),6);
+  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:10}}},"d1"),0);
+  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:25}}},"d1")>0);
+  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:50}}},"d1")>fatiguePenalty({driverAttributes:{d1:{fatigue:25}}},"d1"));
+  assert.ok(fatiguePenalty({driverAttributes:{d1:{fatigue:70}}},"d1")>=6);
+  assert.equal(fatiguePenalty({driverAttributes:{d1:{fatigue:100}}},"d1),10.8);
 });
 
 
@@ -117,7 +118,7 @@ test("high fatigue blocks intensive training instead of allowing endless session
     currentDateISO:"1980-01-04",
     drivers:[{driver_id:"d_0001",display_name:"Tired Driver"}],
     driverRatings:[{...baseRating,driver_id:"d_0001"}],
-    driverAttributes:{d_0001:{confidence:50,fatigue:75,morale:50,preparation:50}},
+    driverAttributes:{d_0001:{confidence:50,fatigue:85,morale:50,preparation:50}},
     eventsQueue:[{
       id:"ev_tired_train",
       type:"driver_action",
@@ -137,7 +138,7 @@ test("high fatigue blocks intensive training instead of allowing endless session
   const next=triggerDailyTick(gs);
   const rating=next.driverRatings.find((r)=>r.driver_id==="d_0001");
   assert.equal(rating.pace,80);
-  assert.equal(next.driverAttributes.d_0001.fatigue,75);
+  assert.equal(next.driverAttributes.d_0001.fatigue,85);
   assert.ok(next.inbox.some((m)=>/Training cancelled/.test(String(m.body||""))));
 });
 

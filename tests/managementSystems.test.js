@@ -20,6 +20,7 @@ import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
 import { buildRaceEntryState } from "../src/domain/raceEntry.js";
 import { activeTestDriverContracts } from "../src/domain/developmentTesting.js";
 import { applyRaceComponentWear } from "../src/domain/componentWear.js";
+import { componentConditionForCar } from "../src/domain/garage.js";
 
 function baseState(){
   return {
@@ -333,6 +334,50 @@ test("test-driver development never falls back to historical contracts once live
 });
 
 
+test("standard car components are created at full health and wear even without developed parts",()=>{
+  let gs=baseState();
+  gs.development={parts:[]};
+  let garage=syncGarageState(gs,{});
+  gs={...gs,garage};
+
+  assert.equal(componentConditionForCar(gs,garage.cars[0],"gearbox"),100);
+
+  for(let round=0;round<8;round++){
+    gs=applyRaceComponentWear(gs,{
+      gp:{gp_id:"GP"+(round+1),race_date:"1980-03-10"},
+      race:[{driver:{driver_id:"D1"},retired:false}],
+    });
+  }
+
+  const car=gs.garage.cars.find((row)=>row.id==="car_1");
+  assert.ok(componentConditionForCar(gs,car,"gearbox")<70,"gearbox should require attention during a full season");
+  assert.ok(componentConditionForCar(gs,car,"turbocharger")<70,"turbo should require attention during a full season");
+  assert.ok(gs.componentWearLog.some((row)=>row.component_source==="base_component"));
+});
+
+test("worn standard components reduce live car reliability and race performance",()=>{
+  const gs=baseState();
+  const garage=syncGarageState(gs,{});
+  const healthy={...gs,garage};
+  const wornGarage={
+    ...garage,
+    cars:garage.cars.map((car)=>car.id==="car_1"?{
+      ...car,
+      componentCondition:{
+        ...(car.componentCondition||{}),
+        gearbox:28,
+        cooling:32,
+        turbocharger:30,
+      },
+    }:car),
+  };
+  const worn={...gs,garage:wornGarage};
+  const healthyPerf=teamCarPerformance(healthy,"T1","D1");
+  const wornPerf=teamCarPerformance(worn,"T1","D1");
+  assert.ok(wornPerf.reliability<healthyPerf.reliability-3);
+  assert.ok(wornPerf.race<healthyPerf.race);
+});
+
 test("installed components lose condition after a normal GP",()=>{
   const gs=baseState();
   const garage=syncGarageState(gs,{});
@@ -346,7 +391,7 @@ test("installed components lose condition after a normal GP",()=>{
     }],
   });
   const part=next.development.parts.find((row)=>row.id==="P1");
-  assert.equal(part.condition,98.2);
+  assert.equal(part.condition,97.2);
   assert.ok(next.componentWearLog.some((row)=>row.part_id==="P1"&&row.driver_id==="D1"));
 });
 
