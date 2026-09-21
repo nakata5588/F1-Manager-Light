@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
 
+import { isDriverContract } from "../domain/contractRoles.js";
+import { contractActiveForYear, preferLiveRows } from "../domain/liveContracts.js";
+
 // =================== helpers de datas ===================
 const clampISO = (iso) => String(iso || "").slice(0, 10);
 const parseISO = (iso) => {
@@ -57,7 +60,7 @@ function filterByYear(records, year) {
 }
 
 function findBrandRowForTeam(gs, year, teamId) {
-  const list = filterByYear(gs.dbTeamBrands || [], year);
+  const list = filterByYear(preferLiveRows(gs, "teamBrands", "dbTeamBrands"), year);
   return (list || []).find((r) => {
     const tid = String(pick(r, ["team_id", "team", "constructor", "id"], ""));
     if (tid && String(teamId) === tid) return true;
@@ -68,15 +71,15 @@ function findBrandRowForTeam(gs, year, teamId) {
 }
 
 function findContracts(gs, year, type /* "driver"|"staff" */) {
-  const arr = filterByYear(type === "staff" ? (gs.dbStaffContracts || []) : (gs.dbContracts || []), year);
-  if (type === "driver") {
-    return arr.filter((c) => /driver/i.test(String(pick(c, ["role","position","contract_role","type"], ""))));
-  }
-  return arr;
+  const source = type === "staff"
+    ? preferLiveRows(gs, "staffContracts", "dbStaffContracts")
+    : preferLiveRows(gs, "contracts", "dbContracts");
+  const arr = source.filter((contract) => contractActiveForYear(contract, year));
+  return type === "driver" ? arr.filter(isDriverContract) : arr;
 }
 
 function findTeamEngineRow(gs, year, teamId) {
-  const arr = filterByYear(gs.dbTeamEngines || [], year);
+  const arr = filterByYear(preferLiveRows(gs, "teamEngines", "dbTeamEngines"), year);
   return (arr || []).find((r) => {
     const tid = String(pick(r, ["team_id","team","constructor","id"], ""));
     return tid === String(teamId);
@@ -84,9 +87,7 @@ function findTeamEngineRow(gs, year, teamId) {
 }
 
 function findSponsorContracts(gs, year, teamId) {
-  const source = Array.isArray(gs.sponsorsContracts) && gs.sponsorsContracts.length
-    ? gs.sponsorsContracts
-    : (gs.dbSponsorsContracts || []);
+  const source = preferLiveRows(gs, "sponsorsContracts", "dbSponsorsContracts");
   const arr = filterByYear(source, year);
   return (arr || []).filter((r) => {
     const tid = String(pick(r, ["team_id","team","constructor","id"], ""));
