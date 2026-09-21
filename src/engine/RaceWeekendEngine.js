@@ -91,8 +91,12 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
   if(existing&&String(existing.gp_id)===id&&String(existing.phase)!=="completed")return gs;
 
   let next=ensureTemporaryReplacements(gs,{roundIndex,gp});
-  const raceEntryState=buildRaceEntryState(next,{roundIndex,gp});
   const qualifyingRule=resolveQualifyingRules(next,gp);
+  const raceEntryState=buildRaceEntryState(next,{
+    roundIndex,
+    gp,
+    teamEntryLimits:qualifyingRule.team_entry_limits,
+  });
   const schedule=raceWeekendSchedule(gp,qualifyingRule);
   const state={
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
@@ -141,13 +145,9 @@ export function syncRaceWeekendPhaseForDate(gs,dateISO=gs?.currentDateISO){
   let phase=weekend.phase;
   let activeSessionId=weekend.active_session_id;
 
-  if(["practice_complete","qualifying_wait"].includes(phase)){
-    const next=nextPendingCompetitiveSession(weekend);
-    if(next&&dateReached(date,next.dateISO)){
-      phase="qualifying";
-      activeSessionId=next.id;
-    }
-  }
+  // Report phases are deliberate user-facing gates. Calendar ticks must not
+  // skip Practice or Qualifying reports even when the next session is on the
+  // same date.
   if(phase==="grid_ready"&&dateReached(date,weekend.raceDate)){
     phase="race";
     activeSessionId="race";
@@ -167,6 +167,39 @@ export function syncRaceWeekendPhaseForDate(gs,dateISO=gs?.currentDateISO){
       completed_at:phase==="completed"?date:weekend.completed_at,
     },
   };
+}
+
+export function continueRaceWeekendSession(gs){
+  const weekend=gs?.raceWeekendState;
+  if(!weekend||weekend.phase==="completed")return gs;
+  const date=clampISO(gs?.currentDateISO);
+
+  if(["practice_complete","qualifying_wait"].includes(String(weekend.phase))){
+    const next=nextPendingCompetitiveSession(weekend);
+    if(next&&dateReached(date,next.dateISO)){
+      return {
+        ...gs,
+        raceWeekendState:{
+          ...weekend,
+          phase:"qualifying",
+          active_session_id:next.id,
+        },
+      };
+    }
+  }
+
+  if(weekend.phase==="grid_ready"&&dateReached(date,weekend.raceDate)){
+    return {
+      ...gs,
+      raceWeekendState:{
+        ...weekend,
+        phase:"race",
+        active_session_id:"race",
+      },
+    };
+  }
+
+  return gs;
 }
 
 export function shouldCreateWeekendForDate(gs,{roundIndex,gp,dateISO}={}){
@@ -213,15 +246,12 @@ export function completePracticeSession(gs,{gp}={}){
   });
   const interim={...weekend,sessions};
   const nextCompetitive=nextPendingCompetitiveSession(interim);
-  const phase=nextCompetitive&&dateReached(gs?.currentDateISO,nextCompetitive.dateISO)
-    ?"qualifying"
-    :"practice_complete";
 
   return {
     ...session.gameState,
     raceWeekendState:{
       ...interim,
-      phase,
+      phase:"practice_complete",
       active_session_id:nextCompetitive?.id||"grid",
       practice_selections:weekend.practice_selections||{},
       practice:session.practice,
@@ -283,7 +313,7 @@ export function completeQualifyingSession(gs,{gp}={}){
       sessions=sessionWithPatch(sessions,next.id,{eligible_driver_ids:advanced});
       interim={...interim,sessions};
     }
-    const phase=phaseAfterCompetitiveSession(interim,gs?.currentDateISO);
+    const phase="qualifying_wait";
     const qualifying={
       ...(weekend.qualifying||{}),
       status:"in_progress",
@@ -331,6 +361,8 @@ export function completeQualifyingSession(gs,{gp}={}){
         strategy:rule.strategy,
         session_count:rule.session_count,
         max_starters:rule.max_starters,
+        field_size:classification.length,
+        cutoff_position:rule.max_starters,
         classification,
       },
       startingGrid,

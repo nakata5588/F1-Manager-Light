@@ -1533,6 +1533,39 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState||null;
   },
 
+  continueRaceWeekendSession: async () => {
+    const mod=await import("@/engine/RaceWeekendEngine");
+    let gs=get().gameState;
+    if(!gs?.raceWeekendState)return null;
+
+    let next=mod.continueRaceWeekendSession(gs);
+    if(next!==gs){
+      set({gameState:next});
+      return {
+        oldDate:clampISO(gs.currentDateISO),
+        newDate:clampISO(next.currentDateISO),
+        roundChanged:false,
+        round:next.currentRound??0,
+        breakReason:"race_weekend",
+        raceWeekendPhase:next.raceWeekendState?.phase,
+        sameDay:true,
+      };
+    }
+
+    const advanced=await get().advanceOneDayUntilBreak();
+    gs=get().gameState;
+    next=mod.continueRaceWeekendSession(gs);
+    if(next!==gs){
+      set({gameState:next});
+      return {
+        ...(advanced||{}),
+        breakReason:"race_weekend",
+        raceWeekendPhase:next.raceWeekendState?.phase,
+      };
+    }
+    return advanced;
+  },
+
   /** ===================== AVANÇAR ATÉ BREAK ===================== */
   advanceOneDayUntilBreak: async () => {
     let s=get().gameState;
