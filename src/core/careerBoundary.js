@@ -210,7 +210,7 @@ function currentContractForNextSeason(row,targetYear){
 function rollDriverContracts(rows,targetYear){
   return (rows||[]).map((row)=>{
     const status=String(row?.status||"active").toLowerCase();
-    if(["terminated","released","expired","inactive","void"].includes(status))return {...row};
+    if(["terminated","released","bought_out","expired","inactive","void"].includes(status))return {...row};
 
     if(currentContractForNextSeason(row,targetYear)){
       return {
