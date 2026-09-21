@@ -68,9 +68,6 @@ export default function MyDrivers(){
   const myTeamName=gs?.team?.team_name||gs?.team?.name||"My Team";
   const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
   const contracts=gs?.contracts?.length?gs.contracts:gs?.dbContracts||[];
-  const ratings=gs?.driverRatings?.length?gs.driverRatings:gs?.dbDriverRatings||[];
-
-  const ratingById=useMemo(()=>new Map(ratings.map((r)=>[idOf(r),r])),[ratings]);
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
 
   const activeTeamContracts=useMemo(()=>contracts.filter((contract)=>
