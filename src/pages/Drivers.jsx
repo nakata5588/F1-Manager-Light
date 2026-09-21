@@ -208,8 +208,8 @@ export default function Drivers(){
   };
   const acceptCounter=(id)=>setGameState(acceptCounterOffer(gs,id));
   const withdraw=(id)=>setGameState(withdrawNegotiation(gs,id));
-  const acceptClubCounter=(id)=>setGameState(acceptTransferCounter(gs,id));
-  const withdrawClubApproach=(id)=>setGameState(withdrawTransferApproach(gs,id));
+  const acceptTeamCounter=(id)=>setGameState(acceptTransferCounter(gs,id));
+  const withdrawTeamApproach=(id)=>setGameState(withdrawTransferApproach(gs,id));
 
   return <div className="grid gap-4">
     <div className="bg-white rounded-xl shadow p-4">
@@ -232,7 +232,7 @@ export default function Drivers(){
       <div className="bg-white rounded-xl shadow p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
-            <h3 className="font-semibold">Club Transfer Talks</h3>
+            <h3 className="font-semibold">Team Transfer Talks</h3>
             <p className="text-xs text-gray-500">For contracted drivers without a release clause, the current team must agree a fee before personal terms can be completed.</p>
           </div>
           <span className="text-xs text-gray-500">{activePlayerTransferApproaches.length} active</span>
@@ -255,12 +255,12 @@ export default function Drivers(){
               <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(a.status)}>{String(a.status||"").replaceAll("_"," ")}</span>
               {a.status==="countered"&&(
                 <div className="flex gap-2">
-                  <button className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white" onClick={()=>acceptClubCounter(a.id)}>Accept fee</button>
-                  <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawClubApproach(a.id)}>Withdraw</button>
+                  <button className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white" onClick={()=>acceptTeamCounter(a.id)}>Accept fee</button>
+                  <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawTeamApproach(a.id)}>Withdraw</button>
                 </div>
               )}
               {a.status==="submitted"&&(
-                <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawClubApproach(a.id)}>Withdraw</button>
+                <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawTeamApproach(a.id)}>Withdraw</button>
               )}
             </div>
           ))}
