@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { driverMarketEvaluation, compareDriverMarketValue, driverOverallPresentation } from "../src/domain/driverMarketEvaluation.js";
-import { reserveSeatCount } from "../src/domain/driverContracts.js";
+import { expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { contractRoleLabel, isReserveDriverContract } from "../src/domain/contractRoles.js";
 import { isNegotiationActive, processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
@@ -184,6 +184,7 @@ test("zero-filled missing ratings are treated as unknown and never as zero overa
   assert.equal(evaluation.score,55);
   assert.equal(overall.value,55);
   assert.equal(overall.estimated,true);
+  assert.ok(expectedDriverSalary(gs,"ZERO")>300_000,"salary model should use the neutral fallback, not zero ability");
 });
 
 test("canonical contract roles expose the labels used by team and market UI",()=>{
