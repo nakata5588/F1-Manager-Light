@@ -49,7 +49,7 @@ function normalizeInbox(gameStateLike, fallbackList) {
       return {
         id: m.id ?? `MSG_${i}`,
         type,
-        title: m.title ?? m.name ?? m.headline ?? "Untitled",
+        title: m.title ?? m.subject ?? m.name ?? m.headline ?? "Untitled",
         body: m.body ?? m.description ?? "",
         date,
         unread: m.unread ?? m.is_unread ?? (m.read === false ? true : false) ?? true,
