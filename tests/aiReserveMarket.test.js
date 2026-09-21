@@ -108,6 +108,7 @@ test("AI teams with complete race seats immediately try to fill one reserve seat
   assert.ok(reserves.every((c)=>c.source==="ai_reserve_fill"));
   assert.ok(reserves.every((c)=>c.market_evaluation&&Number.isFinite(c.market_evaluation.score)));
   assert.ok(next.inbox.some((msg)=>msg.subject==="Reserve Driver position vacant"));
+  assert.ok(next.inbox.some((msg)=>/joins .* as Reserve Driver/.test(String(msg.subject||""))));
 });
 
 test("a test driver does not satisfy the AI reserve requirement",()=>{
