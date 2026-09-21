@@ -208,6 +208,13 @@ export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}
       season_spend:Number(gs?.finances?.season_spend||0)+cost,
     },
     financeLog:[...tx,...financeLog],
+    driverNegotiations:(gs?.driverNegotiations||[]).map((negotiation)=>
+      String(negotiation?.driver_id)===String(driverId) &&
+      String(negotiation?.kind||"")==="renewal" &&
+      ["submitted","countered"].includes(String(negotiation?.status||"").toLowerCase())
+        ?{...negotiation,status:"withdrawn",resolved_at:today,resolution_note:"Contract was terminated by the team."}
+        :negotiation
+    ),
     inbox:[{
       id:"release_"+driverId+"_"+today,
       date:today,
