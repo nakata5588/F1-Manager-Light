@@ -46,6 +46,9 @@ export function isClubTransferApproachActive(approach){
 export function isClubTransferApproachClosed(approach){
   return CLOSED_STATUSES.has(String(approach?.status||"").toLowerCase());
 }
+export function clubTransferApproachById(gs,approachId){
+  return transferApproaches(gs).find((row)=>String(row?.id||"")===String(approachId||""))||null;
+}
 export function activeClubTransferApproach(gs,{driverId,buyerTeamId}={}){
   const year=Number(gs?.activeYear);
   return transferApproaches(gs).find((row)=>
