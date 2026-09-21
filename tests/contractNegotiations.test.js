@@ -10,6 +10,7 @@ import {
   reserveSeatCount,
   terminationCost,
 } from "../src/domain/driverContracts.js";
+import { effectiveContractRule } from "../src/domain/driverTransfers.js";
 import {
   acceptCounterOffer,
   availableContractRoles,
@@ -398,4 +399,59 @@ test("fixed release clause overrides calculated compensation",()=>{
   assert.equal(state.kind,"transfer");
   assert.equal(state.buyout.type,"fixed_clause");
   assert.equal(state.buyout.fee,125_000);
+});
+
+
+test("contract rules fall back to the database after crossing into a new era",()=>{
+  const gs=fixture("contract-rule-era-fallback");
+  gs.activeYear=2004;
+  gs.contractRules=[{
+    year_from:1979,
+    year_to:1985,
+    buyout_allowed:"TRUE",
+    clauses:{buyout_fee_min:50_000,buyout_fee_max:500_000},
+    source:"stale_live_snapshot",
+  }];
+  gs.dbContractRules=[
+    ...gs.dbContractRules,
+    {
+      year_from:1999,
+      year_to:2009,
+      buyout_allowed:"TRUE",
+      clauses:{buyout_fee_min:150_000,buyout_fee_max:1_500_000},
+      source:"database_2004_rule",
+    },
+  ];
+
+  const rule=effectiveContractRule(gs,2004);
+  assert.ok(rule);
+  assert.equal(rule.source,"database_2004_rule");
+  assert.equal(rule.clauses.buyout_fee_min,150_000);
+});
+
+test("matching live contract rule still takes priority over database history",()=>{
+  const gs=fixture("contract-rule-live-priority");
+  gs.activeYear=2004;
+  gs.contractRules=[{
+    year_from:2003,
+    year_to:2005,
+    buyout_allowed:"TRUE",
+    clauses:{buyout_fee_min:175_000,buyout_fee_max:1_250_000},
+    source:"live_2004_rule",
+  }];
+  gs.dbContractRules=[
+    ...gs.dbContractRules,
+    {
+      year_from:1999,
+      year_to:2009,
+      buyout_allowed:"TRUE",
+      clauses:{buyout_fee_min:150_000,buyout_fee_max:1_500_000},
+      source:"database_2004_rule",
+    },
+  ];
+
+  const rule=effectiveContractRule(gs,2004);
+  assert.ok(rule);
+  assert.equal(rule.source,"live_2004_rule");
+  assert.equal(rule.clauses.buyout_fee_min,175_000);
 });
