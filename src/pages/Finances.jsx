@@ -2,6 +2,8 @@ import React, { useMemo, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
+import { activeDriverContracts } from "@/domain/driverContracts";
+import { activeStaffContracts } from "@/domain/liveContracts";
 
 /* ----------------- utils ----------------- */
 const fmtMoney = (n) => {
@@ -207,14 +209,8 @@ function deriveSponsors(gameState) {
 function deriveSalaries(gameState) {
   const teamId = getTeamId(gameState?.team || {});
 
-  const driversRaw = (gameState?.contracts || []).filter(
-    (c) =>
-      /driver/i.test(String(pick(c, ["role", "position", "contract_role", "type"], ""))) &&
-      String(pick(c, ["team_id", "team", "constructor", "id"], "")) === String(teamId)
-  );
-  const staffRaw = (gameState?.staffContracts || []).filter(
-    (c) => String(pick(c, ["team_id", "team", "constructor", "id"], "")) === String(teamId)
-  );
+  const driversRaw = activeDriverContracts(gameState,{teamId});
+  const staffRaw = activeStaffContracts(gameState,{teamId});
 
   const mapRec = (c, kind) => {
     const yearly =
