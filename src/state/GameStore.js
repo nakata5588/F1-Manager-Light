@@ -1441,10 +1441,20 @@ export const useGame = create((set, get) => ({
   },
 
   /** ===================== RACE WEEKEND ACTIONS ===================== */
-  completeRaceWeekendPractice: async () => {
+  setRaceWeekendPracticeProgramme: async (driverId,programmeId) => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
-    const next=mod.completePracticeSession(gs);
+    const next=mod.setPracticeProgramme(gs,{driverId,programmeId});
+    set({gameState:next});
+    return next?.raceWeekendState||null;
+  },
+
+  completeRaceWeekendPractice: async () => {
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.completePracticeSession(gs,{gp});
     set({gameState:next});
     try {
       if(next?.settings?.autosave!==false){
