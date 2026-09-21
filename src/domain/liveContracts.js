@@ -57,7 +57,7 @@ export function contractStatus(contract){
 
 export function contractActiveForYear(contract,year){
   if(!contract)return false;
-  if(["terminated","expired","released","inactive","void","deceased"].includes(contractStatus(contract)))return false;
+  if(["terminated","expired","released","bought_out","inactive","void","deceased"].includes(contractStatus(contract)))return false;
 
   const direct=Number(pickValue(contract,["year","season_year"],NaN));
   const start=contractStartYear(contract,direct);
