@@ -9,7 +9,7 @@ const HEAVY_KEYS = [
   "dbFacilities", "dbStaffContracts",
   "dbTyres", "dbPointsSystems", "dbPenaltiesRules", "dbFinancialRules",
   "dbBoardGoals", "dbAgendaBlocks", "dbLogosIndex", "dbAIDifficulty",
-  "dbContractRules", "dbYouthIntakeRules", "dbScoutingZones", "dbTrackLayoutByYear",
+  "dbContractRules", "dbYouthIntakeRules", "dbScoutingZones", "dbTrackLayoutByYear", "dbCoreTracks",
 ];
 
 // ... (todas as funções que lidam com localStorage)
