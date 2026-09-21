@@ -129,7 +129,7 @@ export default function Sidebar() {
 
       <div className="px-2 py-1 mt-2 text-xs font-semibold opacity-80">League</div>
       <Item to="/Teams"        label="All Teams"  icon={Car}          brand={brand} />      
-      <Item to="/Drivers"      label="All Drivers"icon={UsersRound}   brand={brand} />
+      <Item to="/Drivers"      label="Driver Market" icon={UsersRound}   brand={brand} />
       <Item to="/Staff"        label="All Staff"  icon={Users}        brand={brand} />
     </aside>
   );
