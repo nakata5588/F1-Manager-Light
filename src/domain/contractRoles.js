@@ -50,3 +50,13 @@ export function isRaceDriverContract(contract){
   const role=normalizedContractRole(contract);
   return /driver|main|second|race|lead|first/.test(role);
 }
+
+export function contractRoleLabel(contract){
+  const role=normalizedContractRole(contract);
+  if(/(^|_)(reserve|reserva)(_|$)/.test(role))return "Reserve Driver";
+  if(/(^|_)(test|tester)(_|$)/.test(role))return "Test Driver";
+  if(/second|driver_?2/.test(role))return "Second Driver";
+  if(/main|first|lead|driver_?1/.test(role))return "Main Driver";
+  if(isRaceDriverContract(contract))return "Race Driver";
+  return String(roleValue(contract)||"Driver").replace(/_/g," ").replace(/\b\w/g,(m)=>m.toUpperCase());
+}
