@@ -362,6 +362,7 @@ export const useGame = create((set, get) => ({
     driverAvailability: {},
     medicalHistory: [],
     temporaryDriverAssignments: [],
+    transferApproaches: [],
     driverNegotiations: [],
     raceEntryState: null,
     dbAchievements: [],
@@ -526,6 +527,7 @@ export const useGame = create((set, get) => ({
     try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/TransferEngine"); if (typeof mod.processClubTransferApproaches === "function") updated = mod.processClubTransferApproaches(updated) || updated; } catch {}
     try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
     try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
 
@@ -1479,6 +1481,7 @@ export const useGame = create((set, get) => ({
     try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/TransferEngine"); if (typeof mod.processClubTransferApproaches === "function") updated = mod.processClubTransferApproaches(updated) || updated; } catch {}
     try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
     try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
 
