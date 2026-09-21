@@ -22,6 +22,7 @@ import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.
 import {
   acceptedClubTransferApproach,
   activeClubTransferApproach,
+  clubTransferApproachById,
   completeClubTransferApproach,
 } from "./TransferEngine.js";
 
@@ -506,6 +507,18 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
   if(transfer){
     if(!currentContract||teamIdOf(currentContract)!==String(negotiation.seller_team_id||"")){
       return rejectNegotiation(gs,negotiation,"The driver's current contract changed before the transfer could be completed.");
+    }
+    if(String(negotiation.buyout_type||"")==="club_agreement"){
+      const agreement=clubTransferApproachById(gs,negotiation.club_approach_id);
+      if(
+        !agreement ||
+        String(agreement.status)!=="accepted" ||
+        String(agreement.driver_id)!==String(negotiation.driver_id) ||
+        String(agreement.buyer_team_id)!==String(negotiation.team_id) ||
+        String(agreement.seller_team_id)!==String(negotiation.seller_team_id)
+      ){
+        return rejectNegotiation(gs,negotiation,"The club-to-club transfer agreement is no longer valid.");
+      }
     }
     if(!canAffordTransfer(gs,negotiation.team_id,Number(negotiation.buyout_fee||0))){
       return rejectNegotiation(gs,negotiation,"The team no longer has enough funds to pay the required buyout.");
