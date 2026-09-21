@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { useModalStore } from "@/state/ModalStore";
+import { useNavigate } from "react-router-dom";
 
 /* ============== HELPERS ============== */
 const fetchJSON = async (url) => {
@@ -96,6 +97,7 @@ function normalizeStaffRole(role) {
 
 /* ============== COMPONENT ============== */
 export default function Team() {
+  const navigate = useNavigate();
   const { gameState } = useGame();
   const openEntity = useModalStore((s) => s.open);
 
@@ -427,7 +429,7 @@ export default function Team() {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-medium">Drivers</h2>
-            <Button variant="outline" disabled>
+            <Button variant="outline" onClick={() => navigate("/MyDrivers")}>
               Manage Line-up
             </Button>
           </div>
