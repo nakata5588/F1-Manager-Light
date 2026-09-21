@@ -1,5 +1,6 @@
 // src/domain/garage.js
-import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
+import { isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
+import { activeDriverContracts as canonicalActiveDriverContracts } from "./driverContracts.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -7,14 +8,7 @@ export const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
 export const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 
 export function activeDriverContracts(gs,teamId){
-  const year=Number(gs?.activeYear);
-  return (gs?.contracts||[]).filter((row)=>{
-    const id=driverIdOf(row);
-    if(!id||teamIdOf(row)!==String(teamId))return false;
-    if(!isDriverContract(row))return false;
-    const cy=Number(pick(row,["year","season_year"],year));
-    return !Number.isFinite(cy)||!Number.isFinite(year)||cy===year;
-  });
+  return canonicalActiveDriverContracts(gs,{teamId});
 }
 
 export function desiredGarageCars(gs){
