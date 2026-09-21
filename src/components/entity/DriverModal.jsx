@@ -1,8 +1,8 @@
 // src/components/entity/DriverModal.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
-  X, Filter, MoreVertical, Dumbbell, Megaphone, Wrench,
-  Handshake, Search, FileText, Coffee, MessageSquare
+  X, Filter, MoreVertical, Dumbbell, Megaphone,
+  Handshake, FileText, Coffee, MessageSquare
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -16,8 +16,10 @@ import {
   terminationCost,
 } from "../../domain/driverContracts.js";
 import {
+  driverNegotiationEligibility,
   driverNegotiations,
   isNegotiationActive,
+  startDriverNegotiation,
   startDriverRenewal,
 } from "../../engine/NegotiationEngine.js";
 
@@ -154,6 +156,7 @@ export default function DriverModal({ entity, onClose }) {
   const setGameState = useGame((s) => s.setGameState);
   const queueEvent = useGame((s) => s.queueEvent);
   const [contractTalkOpen, setContractTalkOpen] = useState(false);
+  const [marketTalkOpen, setMarketTalkOpen] = useState(false);
 
   const driversList = useMemo(() => {
     const live = toArraySafe(gs?.drivers);
@@ -531,6 +534,13 @@ export default function DriverModal({ entity, onClose }) {
     !!myTeamId &&
     String(contractTeamId) === String(myTeamId);
 
+  const marketEligibility = useMemo(
+    () => (!isOwnDriver && myTeamId && driverId)
+      ? driverNegotiationEligibility(gs, { driverId, teamId: String(myTeamId) })
+      : { canNegotiate: false, reason: "own_driver", roles: [], contract, pending: null },
+    [gs, driverId, myTeamId, isOwnDriver, contract]
+  );
+
   const renewalPending = useMemo(
     () => driverNegotiations(gs).some((negotiation) =>
       negotiation?.kind === "renewal" &&
@@ -566,6 +576,19 @@ export default function DriverModal({ entity, onClose }) {
     if (!ok) return;
     setGameState(releaseDriverContract(gs, driverId));
     setContractTalkOpen(false);
+  }
+
+  function submitMarketNegotiation(offer) {
+    if (!marketEligibility?.canNegotiate || !myTeamId || !driverId) return;
+    const next = startDriverNegotiation(gs, {
+      driverId,
+      teamId: String(myTeamId),
+      teamName: myTeamName || String(myTeamId),
+      offer,
+      origin: "player",
+    });
+    setGameState(next);
+    setMarketTalkOpen(false);
   }
 
   if (!driver) {
@@ -652,8 +675,10 @@ export default function DriverModal({ entity, onClose }) {
               currentDateISO={gameDateISO}
               onContractTalk={() => setContractTalkOpen(true)}
               onRelease={releaseCurrentDriver}
+              onOpenNegotiation={() => setMarketTalkOpen(true)}
               renewalPending={renewalPending}
               releaseCost={releaseCost}
+              marketEligibility={marketEligibility}
             />
             <button onClick={onClose} className="m-1 p-2 rounded hover:bg-gray-100" aria-label="Close">
               <X size={18} />
@@ -706,6 +731,16 @@ export default function DriverModal({ entity, onClose }) {
           expectedSalary={expectedDriverSalary(gs, driverId)}
           onClose={() => setContractTalkOpen(false)}
           onSubmit={submitContractRenewal}
+        />
+      )}
+
+      {marketTalkOpen && !isOwnDriver && marketEligibility?.canNegotiate && (
+        <ContractNegotiationModal
+          driver={driver}
+          roles={marketEligibility.roles}
+          expectedSalary={expectedDriverSalary(gs, driverId)}
+          onClose={() => setMarketTalkOpen(false)}
+          onSubmit={submitMarketNegotiation}
         />
       )}
     </div>
@@ -1083,7 +1118,7 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-zinc-800"
+        className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium hover:bg-gray-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
         aria-haspopup="menu"
         aria-expanded={open}
         title={label}
@@ -1096,7 +1131,7 @@ function ActionsButton({ label = "Actions", children, className = "" }) {
         <div
           role="menu"
           aria-label={label}
-          className="absolute right-0 z-30 mt-2 w-72 origin-top-right rounded-xl border bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className="absolute right-0 z-30 mt-2 w-72 origin-top-right rounded-xl border bg-white text-gray-900 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         >
           <div className="max-h-[60vh] overflow-y-auto p-1">{children}</div>
         </div>
@@ -1114,13 +1149,14 @@ function DriverActionsMenu({
   currentDateISO,
   onContractTalk,
   onRelease,
+  onOpenNegotiation,
   renewalPending = false,
   releaseCost = 0,
+  marketEligibility = null,
 }) {
   const fx = {
     addAttr: (attr, delta) => ({ key: "driver_attr", driverId: unbox(driver?.driver_id), attr, delta }),
     fatigue: (delta) => ({ key: "fatigue", delta }),
-    synergy: (delta) => ({ key: "team_synergy", delta }),
   };
 
   const ownGroups = [
@@ -1133,14 +1169,12 @@ function DriverActionsMenu({
         { key: "wet_practice", intensive: true, icon: <Dumbbell size={14} />, label: "Wet practice",             desc: "+Wet Skill | +Fatigue",   effects: [fx.addAttr("wet_skill", +1), fx.fatigue(+2)] },
         { key: "tyre_drills", intensive: true,  icon: <Dumbbell size={14} />, label: "Tyre mgmt drills",         desc: "+Tyre Mgmt | +Fatigue",   effects: [fx.addAttr("tire_management", +1), fx.fatigue(+2)] },
         { key: "racecraft", intensive: true,    icon: <Dumbbell size={14} />, label: "Racecraft study",          desc: "+Racecraft | +Fatigue",   effects: [fx.addAttr("racecraft", +1), fx.fatigue(+1)] },
-        { key: "data_review",  icon: <Wrench size={14}   />, label: "Data review w/ engineers", desc: "+Team synergy",           effects: [fx.synergy(+1)] },
       ],
     },
     {
       title: "Media & PR",
       items: [
         { key: "sponsor_event", icon: <Megaphone size={14} />, label: "Sponsor activation", desc: "Reputation↑ | +Fatigue", effects: [fx.addAttr("reputation", +1), fx.fatigue(+1)] },
-        { key: "tv_interview",  icon: <Megaphone size={14} />, label: "TV interview",       desc: "Reputation ± (risk) | +Fatigue", effects: [fx.fatigue(+1)] },
         { key: "media_training",icon: <MessageSquare size={14} />, label: "Media training", desc: "+Pressure Handling", effects: [fx.addAttr("pressure_handling", +1)] },
       ],
     },
@@ -1154,7 +1188,6 @@ function DriverActionsMenu({
           icon: <FileText size={14} />,
           label: renewalPending ? "Renewal pending" : "Contract talk",
           desc: renewalPending ? "Awaiting the driver's response" : "Negotiate a contract extension",
-          effects: [],
           disabled: renewalPending,
         },
         {
@@ -1162,34 +1195,63 @@ function DriverActionsMenu({
           icon: <Handshake size={14} />,
           label: "Release driver",
           desc: "Terminate contract · " + fmtMoney(releaseCost),
-          effects: [],
         },
       ],
     },
   ];
 
+  const marketReason = String(marketEligibility?.reason || "");
+  const marketAction = marketEligibility?.canNegotiate
+    ? {
+        key: "open_negotiation",
+        icon: <Handshake size={14} />,
+        label: "Open negotiations",
+        desc: "Formal offer · " + (marketEligibility.roles || []).join(" / "),
+      }
+    : marketReason === "active_negotiation"
+      ? {
+          key: "open_negotiation",
+          icon: <Handshake size={14} />,
+          label: "Negotiation pending",
+          desc: "Awaiting the driver's response",
+          disabled: true,
+        }
+      : marketReason === "under_contract"
+        ? {
+            key: "open_negotiation",
+            icon: <Handshake size={14} />,
+            label: "Under contract",
+            desc: "Transfers / poaching from other teams are not implemented yet",
+            disabled: true,
+          }
+        : marketReason === "lineup_full"
+          ? {
+              key: "open_negotiation",
+              icon: <Handshake size={14} />,
+              label: "Line-up full",
+              desc: "No Main, Second, Reserve or Test Driver role is currently vacant",
+              disabled: true,
+            }
+          : marketReason === "not_f1_eligible"
+            ? {
+                key: "open_negotiation",
+                icon: <Handshake size={14} />,
+                label: "Not eligible for F1 contract",
+                desc: "This driver cannot currently be approached for an F1 role",
+                disabled: true,
+              }
+            : {
+                key: "open_negotiation",
+                icon: <Handshake size={14} />,
+                label: "Negotiations unavailable",
+                desc: "No valid contract action is available",
+                disabled: true,
+              };
+
   const otherGroups = [
     {
-      title: "Scouting & Info",
-      items: [
-        { key: "scout_watch",       icon: <Search size={14} />,    label: "Observe performance", desc: "Scouting report", effects: [] },
-        { key: "agent_probe",       icon: <Handshake size={14} />, label: "Approach agent",      desc: "Salary & clauses", effects: [] },
-        { key: "private_test_offer",icon: <Search size={14} />,    label: "Offer private test",  desc: "If legal", effects: [] },
-      ],
-    },
-    {
-      title: "Market Actions",
-      items: [
-        { key: "open_negotiation",  icon: <Handshake size={14} />, label: "Open negotiations", desc: "Formal offer", effects: [] },
-        { key: "networking_event",  icon: <Handshake size={14} />, label: "Networking at event", desc: "Relationship↑", effects: [] },
-      ],
-    },
-    {
-      title: "Media",
-      items: [
-        { key: "press_comment", icon: <Megaphone size={14} />, label: "Comment to press", desc: "Affects morale/rival", effects: [] },
-        { key: "rumor_check",   icon: <Search size={14} />,    label: "Investigate rumors", desc: "Unhappy? buyout?", effects: [] },
-      ],
+      title: "Market",
+      items: [marketAction],
     },
   ];
 
@@ -1206,6 +1268,10 @@ function DriverActionsMenu({
     }
     if (it?.key === "release_driver") {
       if (typeof onRelease === "function") onRelease();
+      return;
+    }
+    if (it?.key === "open_negotiation") {
+      if (typeof onOpenNegotiation === "function") onOpenNegotiation();
       return;
     }
     if (typeof queueEvent !== "function") return;
@@ -1262,6 +1328,11 @@ function DriverActionsMenu({
         </div>
       ))}
 
+      {!isOwnDriver && (
+        <div className="px-2 pb-2 text-[10px] text-gray-400">
+          Scouting, agent, media and relationship interactions are hidden until their gameplay systems are connected.
+        </div>
+      )}
       <div className="px-2 pb-2 text-[10px] text-gray-400">Scroll for more • ESC to close</div>
     </ActionsButton>
   );

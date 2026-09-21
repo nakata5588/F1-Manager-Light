@@ -8,7 +8,7 @@ import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js"
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import {
   acceptCounterOffer,
-  availableContractRoles,
+  driverNegotiationEligibility,
   driverNegotiations,
   isNegotiationActive,
   startDriverNegotiation,
@@ -74,10 +74,6 @@ export default function Drivers(){
     }
     return map;
   },[playerNegotiations]);
-  const availableRoles=useMemo(
-    ()=>userTeamId?availableContractRoles(gs,userTeamId):[],
-    [gs,userTeamId]
-  );
   const ratingById=useMemo(()=>new Map(ratings.map(r=>[idOf(r),r])),[ratings]);
   const contractById=useMemo(()=>{
     const m=new Map();
@@ -96,6 +92,9 @@ export default function Drivers(){
   const rows=useMemo(()=>drivers.map(d=>{
     const id=idOf(d), rating=ratingById.get(id)||{}, contract=contractById.get(id)||null;
     const pending=activePlayerByDriver.get(id)||null;
+    const eligibility=userTeamId
+      ?driverNegotiationEligibility(gs,{driverId:id,teamId:userTeamId})
+      :{canNegotiate:false,reason:"no_team",roles:[]};
     const tid=teamIdOf(contract)||teamIdOf(d);
     const ms=marketStatus(d,contract,pending);
     const overallView=driverOverallPresentation(gs,d);
@@ -117,7 +116,9 @@ export default function Drivers(){
       contract_until:contract?pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"):"—",
       market_status:ms,
       pending,
-      can_negotiate:!contract && d?.canHireF1!==false && !["hidden","junior_only","deceased","retired"].includes(String(d?.status||"").toLowerCase()),
+      can_negotiate:eligibility.canNegotiate,
+      negotiation_reason:eligibility.reason,
+      negotiation_roles:eligibility.roles,
     };
   }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs]);
 
@@ -250,12 +251,19 @@ export default function Drivers(){
             <span className="text-xs text-blue-700">Negotiating</span>
           ):d.can_negotiate?(
             <button
-              className="border rounded px-2 py-1 text-xs disabled:opacity-40"
-              disabled={!userTeamId||!availableRoles.length}
+              className="border rounded px-2 py-1 text-xs"
               onClick={()=>setNegotiatingDriver(d)}
             >
-              {availableRoles.length?"Approach":"Line-up full"}
+              Approach
             </button>
+          ):d.negotiation_reason==="under_contract"?(
+            <span className="text-xs text-gray-500">Under contract</span>
+          ):d.negotiation_reason==="already_contracted"?(
+            <span className="text-xs text-gray-500">Your driver</span>
+          ):d.negotiation_reason==="lineup_full"?(
+            <span className="text-xs text-gray-500">Line-up full</span>
+          ):d.negotiation_reason==="not_f1_eligible"?(
+            <span className="text-xs text-gray-500">Not eligible</span>
           ):"—"}
         </td>
       </tr>)}
@@ -267,7 +275,7 @@ export default function Drivers(){
     {negotiatingDriver&&(
       <ContractNegotiationModal
         driver={negotiatingDriver}
-        roles={availableRoles}
+        roles={negotiatingDriver.negotiation_roles||[]}
         expectedSalary={expectedDriverSalary(gs,negotiatingDriver.id)}
         onClose={()=>setNegotiatingDriver(null)}
         onSubmit={submitNegotiation}

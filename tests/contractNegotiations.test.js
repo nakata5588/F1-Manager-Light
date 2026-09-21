@@ -13,6 +13,7 @@ import {
 import {
   acceptCounterOffer,
   availableContractRoles,
+  driverNegotiationEligibility,
   driverNegotiations,
   isNegotiationActive,
   processDriverNegotiations,
@@ -242,4 +243,79 @@ test("release is idempotent and cannot charge termination twice",()=>{
   const second=releaseDriverContract(first,"P1");
   assert.equal(second.finances.balance,first.finances.balance);
   assert.equal(second.financeLog.length,first.financeLog.length);
+});
+
+
+test("negotiation eligibility exposes a real offer path only for available drivers",()=>{
+  const gs=fixture("eligibility-free");
+  const free=driverNegotiationEligibility(gs,{driverId:"F1",teamId:"T1"});
+  assert.equal(free.canNegotiate,true);
+  assert.equal(free.reason,"available");
+  assert.ok(free.roles.includes("Reserve Driver"));
+  assert.ok(free.roles.includes("Test Driver"));
+});
+
+test("contracted rival is explicitly unavailable until transfer negotiations exist",()=>{
+  const gs=fixture("eligibility-contracted");
+  const rival=driverNegotiationEligibility(gs,{driverId:"A1",teamId:"T1"});
+  assert.equal(rival.canNegotiate,false);
+  assert.equal(rival.reason,"under_contract");
+  assert.equal(rival.contract?.team_id,"T2");
+
+  const attempted=startDriverNegotiation(gs,{
+    driverId:"A1",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:1_000_000,years:2,role:"Reserve Driver"},
+    origin:"player",
+  });
+  assert.deepEqual(attempted.driverNegotiations,[]);
+});
+
+test("own contracted driver is not exposed as a new-contract target",()=>{
+  const gs=fixture("eligibility-own");
+  const own=driverNegotiationEligibility(gs,{driverId:"P1",teamId:"T1"});
+  assert.equal(own.canNegotiate,false);
+  assert.equal(own.reason,"already_contracted");
+});
+
+test("pending player offer disables duplicate Open negotiations action",()=>{
+  const submitted=playerOffer(fixture("eligibility-pending"),{driverId:"F1"});
+  const state=driverNegotiationEligibility(submitted,{driverId:"F1",teamId:"T1"});
+  assert.equal(state.canNegotiate,false);
+  assert.equal(state.reason,"active_negotiation");
+  assert.ok(state.pending);
+});
+
+test("full four-role driver line-up blocks further free-agent approaches",()=>{
+  const gs=fixture("eligibility-full");
+  gs.contracts.push(
+    {year:1980,team_id:"T1",driver_id:"R1",driver_name:"Reserve",role:"Reserve Driver",salary:150_000,status:"active"},
+    {year:1980,team_id:"T1",driver_id:"T1D",driver_name:"Tester",role:"Test Driver",salary:125_000,status:"active"}
+  );
+  gs.drivers.push(
+    {driver_id:"R1",display_name:"Reserve",status:"eligible",canHireF1:true},
+    {driver_id:"T1D",display_name:"Tester",status:"eligible",canHireF1:true}
+  );
+  const state=driverNegotiationEligibility(gs,{driverId:"F1",teamId:"T1"});
+  assert.equal(state.canNegotiate,false);
+  assert.equal(state.reason,"lineup_full");
+  assert.deepEqual(state.roles,[]);
+});
+
+test("F1-ineligible driver cannot be approached through engine shortcuts",()=>{
+  const gs=fixture("eligibility-junior");
+  gs.drivers.push({driver_id:"J1",display_name:"Junior",status:"junior_only",canHireF1:false});
+  const state=driverNegotiationEligibility(gs,{driverId:"J1",teamId:"T1"});
+  assert.equal(state.canNegotiate,false);
+  assert.equal(state.reason,"not_f1_eligible");
+
+  const attempted=startDriverNegotiation(gs,{
+    driverId:"J1",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:200_000,years:2,role:"Reserve Driver"},
+    origin:"player",
+  });
+  assert.equal(attempted.driverNegotiations.length,0);
 });
