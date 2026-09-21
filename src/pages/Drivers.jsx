@@ -3,6 +3,7 @@ import { useGame } from "../state/GameStore.js";
 import { ageOn } from "../utils/date.js";
 import { DriverPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
+import ClubTransferModal from "../components/drivers/ClubTransferModal.jsx";
 import { expectedDriverSalary } from "../domain/driverContracts.js";
 import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
@@ -14,6 +15,13 @@ import {
   startDriverNegotiation,
   withdrawNegotiation,
 } from "../engine/NegotiationEngine.js";
+import {
+  acceptClubTransferCounter,
+  startClubTransferApproach,
+  transferApproaches,
+  transferApproachStatusBuckets,
+  withdrawClubTransferApproach,
+} from "../engine/TransferEngine.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
@@ -63,6 +71,7 @@ export default function Drivers(){
   const [sortDir,setSortDir]=useState("asc");
   const [page,setPage]=useState(1);
   const [negotiatingDriver,setNegotiatingDriver]=useState(null);
+  const [clubApproachDriver,setClubApproachDriver]=useState(null);
   const PAGE_SIZE=16;
 
   const teamNames=useMemo(()=>new Map(teams.map(t=>[String(t?.team_id??t?.id??""),t?.team_name||t?.name||t?.short_name||"—"])),[teams]);
@@ -90,6 +99,22 @@ export default function Drivers(){
     }
     return map;
   },[activePlayerNegotiations]);
+  const playerTransferApproaches=useMemo(
+    ()=>transferApproaches(gs)
+      .filter((row)=>String(row?.buyer_team_id||"")===userTeamId)
+      .slice()
+      .sort((a,b)=>
+        String(b.completed_at||b.resolved_at||b.responded_at||b.submitted_at||"")
+          .localeCompare(String(a.completed_at||a.resolved_at||a.responded_at||a.submitted_at||""))
+      ),
+    [gs?.transferApproaches,userTeamId]
+  );
+  const transferBuckets=useMemo(
+    ()=>transferApproachStatusBuckets(playerTransferApproaches),
+    [playerTransferApproaches]
+  );
+  const activeTransferApproaches=transferBuckets.active;
+  const transferHistory=transferBuckets.history;
   const ratingById=useMemo(()=>new Map(ratings.map(r=>[idOf(r),r])),[ratings]);
   const contractById=useMemo(()=>{
     const m=new Map();
@@ -137,6 +162,8 @@ export default function Drivers(){
       negotiation_kind:eligibility.kind||null,
       negotiation_roles:eligibility.roles,
       negotiation_buyout:eligibility.buyout||null,
+      can_approach_club:Boolean(eligibility.canApproachClub),
+      club_approach:eligibility.clubApproach||null,
     };
   }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs]);
 
@@ -182,6 +209,24 @@ export default function Drivers(){
   };
   const acceptCounter=(id)=>setGameState(acceptCounterOffer(gs,id));
   const withdraw=(id)=>setGameState(withdrawNegotiation(gs,id));
+  const submitClubApproach=({fee})=>{
+    if(!clubApproachDriver||!userTeamId)return;
+    const next=startClubTransferApproach(gs,{
+      driverId:clubApproachDriver.id,
+      buyerTeamId:userTeamId,
+      buyerTeamName:userTeamName,
+      offerFee:fee,
+      origin:"player",
+    });
+    setGameState(next);
+    setClubApproachDriver(null);
+  };
+  const acceptClubCounter=(id)=>setGameState(acceptClubTransferCounter(gs,id));
+  const withdrawClub=(id)=>setGameState(withdrawClubTransferApproach(gs,id));
+  const negotiateAfterClubAgreement=(approach)=>{
+    const row=rows.find((driver)=>String(driver.id)===String(approach?.driver_id));
+    if(row?.can_negotiate)setNegotiatingDriver(row);
+  };
 
   return <div className="grid gap-4">
     <div className="bg-white rounded-xl shadow p-4">
@@ -273,6 +318,89 @@ export default function Drivers(){
       </details>
     )}
 
+    {!!activeTransferApproaches.length&&(
+      <div className="bg-white rounded-xl shadow p-4">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="font-semibold">Club Transfer Negotiations</h3>
+            <p className="text-xs text-gray-500">Agree a fee with the current team before negotiating personal terms.</p>
+          </div>
+          <span className="text-xs text-gray-500">{activeTransferApproaches.length} open</span>
+        </div>
+        <div className="grid gap-2">
+          {activeTransferApproaches.map((approach)=>{
+            const status=String(approach.status||"");
+            const accepted=status==="accepted";
+            const countered=status==="countered";
+            const row=rows.find((driver)=>String(driver.id)===String(approach.driver_id));
+            return (
+              <div key={approach.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium">{approach.driver_name}</div>
+                  <div className="text-xs text-gray-500">
+                    {approach.seller_team_name} · offered {money(approach.offer_fee)}
+                    {countered&&approach.counter_fee?(" · asks "+money(approach.counter_fee)):""}
+                    {accepted&&approach.agreed_fee?(" · agreed "+money(approach.agreed_fee)):""}
+                  </div>
+                </div>
+                <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(status)}>{status.replaceAll("_"," ")}</span>
+                <div className="flex flex-wrap gap-2">
+                  {countered&&(
+                    <button
+                      className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white"
+                      onClick={()=>acceptClubCounter(approach.id)}
+                    >
+                      Accept {money(approach.counter_fee)}
+                    </button>
+                  )}
+                  {accepted&&row?.pending&&(
+                    <span className="text-xs text-blue-700 self-center">Driver terms pending</span>
+                  )}
+                  {accepted&&!row?.pending&&row?.can_negotiate&&(
+                    <button
+                      className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white"
+                      onClick={()=>negotiateAfterClubAgreement(approach)}
+                    >
+                      Negotiate driver terms
+                    </button>
+                  )}
+                  {["submitted","countered","accepted"].includes(status)&&(
+                    <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawClub(approach.id)}>
+                      Withdraw
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {!!transferHistory.length&&(
+      <details className="bg-white rounded-xl shadow p-4">
+        <summary className="cursor-pointer select-none flex items-center justify-between gap-3">
+          <span className="font-semibold">Transfer History</span>
+          <span className="text-xs text-gray-500">{transferHistory.length} completed</span>
+        </summary>
+        <div className="mt-3 grid gap-2">
+          {transferHistory.slice(0,20).map((approach)=>(
+            <div key={approach.id} className="border rounded-lg p-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">{approach.driver_name}</div>
+                <div className="text-xs text-gray-500">
+                  {approach.seller_team_name} · {money(approach.agreed_fee||approach.counter_fee||approach.offer_fee)}
+                </div>
+              </div>
+              <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(approach.status)}>
+                {String(approach.status||"").replaceAll("_"," ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      </details>
+    )}
+
     <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
       <thead className="bg-gray-50"><tr>{headers.map(([k,l])=><th key={k} className="px-4 py-3 text-left cursor-pointer" onClick={()=>{if(sortKey===k)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortKey(k);setSortDir("asc");}}}>{l}{sortKey===k?(sortDir==="asc"?" ↑":" ↓"):""}</th>)}<th className="px-4 py-3 text-right">Action</th></tr></thead>
       <tbody>{paged.map(d=><tr key={d.id} className="border-t hover:bg-gray-50">
@@ -300,19 +428,29 @@ export default function Drivers(){
         <td className="px-4 py-2 text-right">
           {d.pending?(
             <span className="text-xs text-blue-700">Negotiating</span>
+          ):d.can_approach_club?(
+            <button
+              className="border rounded px-2 py-1 text-xs"
+              onClick={()=>setClubApproachDriver(d)}
+              title={"Suggested club offer: "+money(d.negotiation_buyout?.fee||0)}
+            >
+              Approach team
+            </button>
           ):d.can_negotiate?(
             <button
               className="border rounded px-2 py-1 text-xs"
               onClick={()=>setNegotiatingDriver(d)}
               title={d.negotiation_kind==="transfer"&&d.negotiation_buyout
-                ?("Transfer buyout: "+money(d.negotiation_buyout.fee))
+                ?((d.negotiation_buyout.type==="fixed_clause"?"Release clause: ":"Agreed transfer fee: ")+money(d.negotiation_buyout.fee))
                 :undefined}
             >
-              {d.negotiation_kind==="transfer"?"Approach transfer":"Approach"}
+              {d.negotiation_kind==="transfer"?"Negotiate terms":"Approach"}
             </button>
+          ):d.negotiation_reason==="club_negotiation_active"?(
+            <span className="text-xs text-amber-700">Team negotiation pending</span>
           ):d.negotiation_reason==="insufficient_buyout_funds"?(
             <span className="text-xs text-gray-500">
-              Buyout {money(d.negotiation_buyout?.fee||0)}
+              Transfer fee {money(d.negotiation_buyout?.fee||0)}
             </span>
           ):d.negotiation_reason==="under_contract"?(
             <span className="text-xs text-gray-500">Under contract</span>
@@ -339,11 +477,22 @@ export default function Drivers(){
           negotiatingDriver.negotiation_kind==="transfer"
             ?("This is a transfer from "+(negotiatingDriver.team_name||"the current team")+
               ". If the driver accepts, "+money(negotiatingDriver.negotiation_buyout?.fee||0)+
-              " will be paid as "+(negotiatingDriver.negotiation_buyout?.type==="fixed_clause"?"a release clause.":"buyout compensation."))
+              " will be paid as "+(negotiatingDriver.negotiation_buyout?.type==="fixed_clause"?"the release clause.":"the club-to-club transfer fee already agreed."))
             :""
         }
         onClose={()=>setNegotiatingDriver(null)}
         onSubmit={submitNegotiation}
+      />
+    )}
+
+    {clubApproachDriver&&(
+      <ClubTransferModal
+        driver={clubApproachDriver}
+        sellerTeamName={clubApproachDriver.team_name}
+        suggestedFee={clubApproachDriver.negotiation_buyout?.fee||0}
+        availableFunds={Number(gs?.finances?.balance??gs?.team?.budget??0)}
+        onClose={()=>setClubApproachDriver(null)}
+        onSubmit={submitClubApproach}
       />
     )}
   </div>;
