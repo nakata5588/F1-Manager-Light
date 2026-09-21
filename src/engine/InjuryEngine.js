@@ -180,7 +180,7 @@ function terminateDriverCareer(gs,driverId,today,gpId){
   const contracts=(gs?.contracts||[]).map((contract)=>{
     if(driverIdOf(contract)!==String(driverId))return contract;
     const status=String(contract?.status||"active").toLowerCase();
-    if(["terminated","expired","released","inactive","void"].includes(status))return contract;
+    if(["terminated","expired","released","bought_out","inactive","void"].includes(status))return contract;
     return {
       ...contract,
       status:"terminated",
