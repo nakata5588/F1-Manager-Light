@@ -362,6 +362,7 @@ export const useGame = create((set, get) => ({
     driverAvailability: {},
     medicalHistory: [],
     temporaryDriverAssignments: [],
+    driverNegotiations: [],
     raceEntryState: null,
     dbAchievements: [],
     achievements: [],
@@ -525,6 +526,7 @@ export const useGame = create((set, get) => ({
     try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
     try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
 
     set({ gameState: updated });
@@ -1085,6 +1087,7 @@ export const useGame = create((set, get) => ({
       driverAvailability: {},
       medicalHistory: [],
       temporaryDriverAssignments: [],
+      driverNegotiations: [],
       raceEntryState: null,
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
@@ -1176,6 +1179,7 @@ export const useGame = create((set, get) => ({
           driverAvailability: {},
           medicalHistory: [],
           temporaryDriverAssignments: [],
+          driverNegotiations: [],
           raceEntryState: null,
           settings: s.gameState?.settings ?? defaultSettings,
 
@@ -1227,6 +1231,7 @@ export const useGame = create((set, get) => ({
           driverAvailability: saved.driverAvailability || {},
           medicalHistory: Array.isArray(saved.medicalHistory) ? saved.medicalHistory : [],
           temporaryDriverAssignments: Array.isArray(saved.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
+          driverNegotiations: Array.isArray(saved.driverNegotiations) ? saved.driverNegotiations : [],
           raceEntryState: saved.raceEntryState || null,
           financeLog: Array.isArray(saved.financeLog) ? saved.financeLog : [],
           finances: saved.finances || null,
@@ -1280,6 +1285,7 @@ export const useGame = create((set, get) => ({
         driverAvailability: migrated.driverAvailability || {},
         medicalHistory: Array.isArray(migrated.medicalHistory) ? migrated.medicalHistory : [],
         temporaryDriverAssignments: Array.isArray(migrated.temporaryDriverAssignments) ? migrated.temporaryDriverAssignments : [],
+        driverNegotiations: Array.isArray(migrated.driverNegotiations) ? migrated.driverNegotiations : [],
         raceEntryState: migrated.raceEntryState || null,
         financeLog: Array.isArray(migrated.financeLog) ? migrated.financeLog : [],
         finances: migrated.finances || null,
