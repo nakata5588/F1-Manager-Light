@@ -266,7 +266,7 @@ test("negotiation eligibility exposes a real offer path only for available drive
   assert.ok(free.roles.includes("Test Driver"));
 });
 
-test("contracted rival without a release clause requires club approval before personal terms",()=>{
+test("contracted rival without a release clause requires team approval before personal terms",()=>{
   const gs=fixture("eligibility-contracted");
   const rival=driverNegotiationEligibility(gs,{driverId:"A1",teamId:"T1"});
   assert.equal(rival.canNegotiate,true);
@@ -292,18 +292,18 @@ test("contracted rival without a release clause requires club approval before pe
   assert.equal(approach.offer_fee,325_000);
   assert.equal(driverNegotiations(submitted).length,0,"personal terms must wait for seller approval");
 
-  const clubApproved=processDriverNegotiations(
+  const teamApproved=processDriverNegotiations(
     {...submitted,currentDateISO:approach.response_date},
     {forceTransferOutcomeById:{[approach.id]:"accepted"}}
   );
-  const negotiation=driverNegotiations(clubApproved).find((n)=>n.kind==="transfer");
+  const negotiation=driverNegotiations(teamApproved).find((n)=>n.kind==="transfer");
   assert.ok(negotiation,"seller approval should open personal terms");
   assert.equal(negotiation.seller_team_id,"T2");
   assert.equal(negotiation.buyout_fee,325_000);
-  assert.equal(negotiation.buyout_type,"negotiated_club_fee");
+  assert.equal(negotiation.buyout_type,"negotiated_team_fee");
 
   const resolved=processDriverNegotiations(
-    {...clubApproved,currentDateISO:negotiation.response_date},
+    {...teamApproved,currentDateISO:negotiation.response_date},
     {forceOutcomeById:{[negotiation.id]:"accepted"}}
   );
 
@@ -431,7 +431,7 @@ test("visible lower-series driver can be signed before historical F1 debut",()=>
 });
 
 
-test("fixed release clause overrides calculated compensation and skips club negotiation",()=>{
+test("fixed release clause overrides calculated compensation and skips team negotiation",()=>{
   const gs=fixture("fixed-clause");
   gs.contracts=gs.contracts.map((row)=>
     row.driver_id==="A2"?{...row,release_clause:125_000}:row
