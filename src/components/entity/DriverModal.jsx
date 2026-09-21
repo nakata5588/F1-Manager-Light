@@ -10,6 +10,7 @@ import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
   activeDriverContract,
+  driverContractsOf,
   expectedDriverSalary,
   releaseDriverContract,
   teamIdOf,
@@ -166,10 +167,10 @@ export default function DriverModal({ entity, onClose }) {
     const live = toArraySafe(gs?.driverRatings);
     return live.length ? live : toArraySafe(gs?.dbDriverRatings);
   }, [gs?.driverRatings, gs?.dbDriverRatings]);
-  const contractsList = useMemo(() => {
-    const live = toArraySafe(gs?.contracts);
-    return live.length ? live : toArraySafe(gs?.dbContracts);
-  }, [gs?.contracts, gs?.dbContracts]);
+  const contractsList = useMemo(
+    () => driverContractsOf(gs),
+    [gs?.contracts, gs?.dbContracts]
+  );
   const careerRaw = useMemo(() => {
     const live = toArraySafe(gs?.driverCareer);
     return live.length ? live : toArraySafe(gs?.dbDriverCareer);

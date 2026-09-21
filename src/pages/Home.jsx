@@ -3,6 +3,8 @@ import { useGame } from "../state/GameStore.js";
 import TeamOverview from "../components/tiles/TeamOverview.jsx";
 import InboxMini from "../components/tiles/InboxMini.jsx";
 import GpMiniLists from "../components/tiles/GpMiniLists.jsx";
+import { driverContractsOf, driverLineupSlots, driverIdOf } from "../domain/driverContracts.js";
+import { driverRoleLabelForSlot } from "../domain/contractRoles.js";
 
 /* ===== Debug card (stub seguro) ===== */
 function DebugCard(props) {
@@ -44,7 +46,7 @@ export default function Home() {
 
   // === Dados base
   const season     = gameState.activeYear ?? gameState.season ?? null;
-  const contracts  = firstArray(gameState.contracts, gameState.dbContracts);
+  const contracts  = driverContractsOf(gameState);
   const driversDb  = firstArray(gameState.drivers,   gameState.dbDrivers);
   const standings  = gameState.standings && (gameState.standings.drivers || gameState.standings.teams)
     ? gameState.standings : { drivers: [], teams: [] };
@@ -99,10 +101,10 @@ export default function Home() {
     return arr.filter(g => fromISO(g.date) < today);
   }, [normalizedCalendar, currentDateISO]);
 
-  // Pilotos da nossa equipa via contracts
+  // Os dois cards do Home representam explicitamente os dois race seats.
+  // Standings nunca decidem quem ocupa Main/Second; o live contract state decide.
   const teamDrivers = useMemo(() => {
-    const result = [];
-    if (!teamKey) return result;
+    if (!teamKey) return [];
 
     const driverIndex = new Map();
     for (const d of driversDb) {
@@ -110,47 +112,19 @@ export default function Home() {
       if (id != null) driverIndex.set(String(id), d);
     }
 
-    const isActive = (c) => {
-      if (!c) return false;
-      const status = String(c.status || "").toLowerCase();
-      if (status === "active") return true;
-      const end = c.contract_until || c.end_date || c.contract_end || c.valid_until || c.endDate || c.until;
-      if (!end) return true;
-      const endDt = fromISO(String(end));
-      if (Number.isNaN(endDt.getTime())) return true;
-      return !(endDt < today);
-    };
-
-    const isDriverContract = (c) => {
-      const role = String(c.role || "").toLowerCase();
-      const pid  = String(c.person_id || c.driver_id || c.id || "");
-      return role.includes("driver") || pid.startsWith("d_");
-    };
-
-    for (const c of contracts) {
-      if (season != null && c.year != null && String(c.year) !== String(season)) continue;
-      if (String(c?.team_id) !== String(teamKey)) continue;
-      if (!isDriverContract(c)) continue;
-      if (!isActive(c)) continue;
-
-      const personId = c?.person_id ?? c?.driver_id ?? c?.id;
-      const d = personId != null ? driverIndex.get(String(personId)) : undefined;
-      if (d) result.push({ ...d, __contract_role: c.role || null });
-    }
-
-    const posMap = new Map(
-      (standings?.drivers || []).map((r) => [String(r.driver_id ?? r.id ?? r.driverId), r.position])
-    );
-
-    return result
-      .slice()
-      .sort(
-        (a, b) =>
-          (posMap.get(String(a?.driver_id ?? a?.id ?? a?.driverId)) || 999) -
-          (posMap.get(String(b?.driver_id ?? b?.id ?? b?.driverId)) || 999)
-      )
-      .slice(0, 2);
-  }, [contracts, driversDb, standings, teamKey, currentDateISO, season]);
+    const lineup = driverLineupSlots(gameState, teamKey);
+    return ["main", "second"].map((slot) => {
+      const contract = lineup[slot];
+      if (!contract) return null;
+      const id = driverIdOf(contract);
+      const driver = driverIndex.get(String(id));
+      if (!driver) return null;
+      return {
+        ...driver,
+        __contract_role: driverRoleLabelForSlot(slot),
+      };
+    }).filter(Boolean);
+  }, [gameState, driversDb, teamKey]);
 
   // Pts/Pos por driver
   const driverPointsMap = useMemo(() => {

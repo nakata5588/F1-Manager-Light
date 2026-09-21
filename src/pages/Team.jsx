@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { useModalStore } from "@/state/ModalStore";
 import { useNavigate } from "react-router-dom";
+import { driverIdOf, driverLineupSlots } from "@/domain/driverContracts";
+import { driverRoleLabelForSlot } from "@/domain/contractRoles";
 
 /* ============== HELPERS ============== */
 const fetchJSON = async (url) => {
@@ -65,22 +67,6 @@ function resolveTeamLogoPath(teamIdLower, year, explicitPath) {
 }
 
 /** normalizadores */
-function normalizeDriverRole(role) {
-  const r = norm(role);
-  if (/(main|lead|first|driver1|race\s*driver|titular)/.test(r)) return "Main Driver";
-  if (/(second|driver2|segundo)/.test(r)) return "Second Driver";
-  if (/(reserve|reserva)/.test(r)) return "Reserve Driver";
-  if (/(test|tester)/.test(r)) return "Test Driver";
-  return "Driver";
-}
-function driverSlot(role) {
-  const rr = normalizeDriverRole(role);
-  if (rr === "Main Driver") return 0;
-  if (rr === "Second Driver") return 1;
-  if (rr === "Reserve Driver") return 2;
-  if (rr === "Test Driver") return 3;
-  return 9;
-}
 function normalizeStaffRole(role) {
   const r = norm(role).replaceAll("-", " ").replaceAll("_", " ").trim();
   if (/^(owner|propriet[aá]rio)/.test(r)) return "Owner";
@@ -112,34 +98,31 @@ export default function Team() {
 
   const [teamBrands, setTeamBrands] = useState(null);
   const [teamBrandColors, setTeamBrandColors] = useState(null);
-  const [contracts, setContracts] = useState(null);
   const [staffContracts, setStaffContracts] = useState(null);
   const [rdProjects, setRdProjects] = useState(null);
-  const [driversDb, setDriversDb] = useState(null);
   const [engines, setEngines] = useState(null);
 
   const seasonYear = seasonYearFrom(gameState);
   const team = gameState?.team || {};
   const teamAliases = teamAliasesFromState(team);
   const idLower = String(team?.team_id ?? team?.id ?? "").toLowerCase();
+  const driversDb = Array.isArray(gameState?.drivers)
+    ? gameState.drivers
+    : (Array.isArray(gameState?.dbDrivers) ? gameState.dbDrivers : []);
 
   useEffect(() => {
     (async () => {
-      const [tb, tbc, cts, staffs, devs, drv, eng] = await Promise.all([
+      const [tb, tbc, staffs, devs, eng] = await Promise.all([
         fetchJSON("/data/team_brands.json"),
         fetchJSON("/data/team_brand.json"),
-        fetchJSON("/data/contracts.json"),
         fetchJSON("/data/staff_contracts.json"),
         fetchJSON("/data/rd_projects.json"),
-        (async () => (await fetchJSON("/data/drivers.json")) ?? (await fetchJSON("/data/all_drivers.json")))(),
         fetchJSON("/data/team_engines.json"),
       ]);
       setTeamBrands(tb);
       setTeamBrandColors(tbc);
-      setContracts(cts);
       setStaffContracts(staffs);
       setRdProjects(devs);
-      setDriversDb(drv);
       setEngines(eng);
     })();
   }, [idLower, seasonYear]);
@@ -286,15 +269,16 @@ export default function Team() {
   }, [driversDb]);
 
   const teamDrivers = useMemo(() => {
-    if (!Array.isArray(contracts)) return [];
-    const rows = contracts.filter(
-      (r) => recordMatchesTeam(r, teamAliases) && String(recordYear(r)) === String(seasonYear)
-    );
+    const teamId = String(team?.team_id ?? team?.id ?? "");
+    if (!teamId) return [];
 
-    return rows
-      .map((r, i) => {
-        const name = firstNonEmpty(val(r, ["driver_name", "name", "driver"]), `Driver ${i + 1}`);
-        const driverId = val(r, ["driver_id", "id"]);
+    const lineup = driverLineupSlots(gameState, teamId);
+    return ["main", "second", "reserve", "test"]
+      .map((slot) => ({ slot, contract: lineup[slot] }))
+      .filter(({ contract }) => Boolean(contract))
+      .map(({ slot, contract }, i) => {
+        const driverId = driverIdOf(contract);
+        const name = firstNonEmpty(val(contract, ["driver_name", "name", "driver"]), `Driver ${i + 1}`);
         const normIdKey = driverId ? normKey(driverId) : null;
         const normNameKey = normKey(name);
 
@@ -307,15 +291,14 @@ export default function Team() {
         const profileUrl = firstNonEmpty(val(fromDb, ["url", "profile_url", "link"]), `/drivers/${slugify(name)}`);
 
         return {
-          driverId: driverId ?? val(fromDb, ["driver_id", "id"]) ?? normNameKey,
-          name,
-          role: normalizeDriverRole(val(r, ["role", "Role"])),
+          driverId: driverId || val(fromDb, ["driver_id", "id"]) || normNameKey,
+          name: firstNonEmpty(val(fromDb, ["display_name", "name", "driver_name"]), name),
+          role: driverRoleLabelForSlot(slot),
           portrait_path: portrait,
           profileUrl,
         };
-      })
-      .sort((a, b) => driverSlot(a.role) - driverSlot(b.role));
-  }, [contracts, teamAliases, seasonYear, driversIndex]);
+      });
+  }, [gameState, team, driversIndex]);
 
   /* --------- Staff --------- */
   const keyStaff = useMemo(() => {
