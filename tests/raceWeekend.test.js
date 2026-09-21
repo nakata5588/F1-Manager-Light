@@ -145,7 +145,8 @@ function finish1980Qualifying(options={}){
   assert.equal(gs.raceWeekendState.phase,"qualifying");
   gs=completeQualifyingSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
-  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-17"},"1980-05-17");
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
   assert.equal(gs.raceWeekendState.phase,"qualifying");
   gs=completeQualifyingSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"grid_ready");
@@ -216,7 +217,8 @@ test("RW3 saves and restores between Qualifying sessions without recalculating Q
     q1
   );
 
-  loaded=syncRaceWeekendPhaseForDate({...loaded,currentDateISO:"1980-05-17"},"1980-05-17");
+  loaded={...loaded,currentDateISO:"1980-05-17"};
+  loaded=continueRaceWeekendSession(loaded);
   loaded=completeQualifyingSession(loaded,{gp});
   assert.equal(loaded.raceWeekendState.phase,"grid_ready");
   assert.deepEqual(
@@ -327,7 +329,8 @@ test("RW3 pre-qualifying is rule-driven and can eliminate DNPQ before main Quali
   let gs=startAfterPractice({qualifyingRules,currentDateISO:"1980-05-15"});
   assert.equal(gs.raceWeekendState.phase,"practice_complete");
 
-  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-16"},"1980-05-16");
+  gs={...gs,currentDateISO:"1980-05-16"};
+  gs=continueRaceWeekendSession(gs);
   assert.equal(gs.raceWeekendState.phase,"qualifying");
   assert.equal(gs.raceWeekendState.active_session_id,"prequalifying");
   gs=completeQualifyingSession(gs,{gp});
@@ -337,7 +340,8 @@ test("RW3 pre-qualifying is rule-driven and can eliminate DNPQ before main Quali
   assert.equal(prequal.results.filter((row)=>row.status==="DNPQ").length,1);
   assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
 
-  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-17"},"1980-05-17");
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
   gs=completeQualifyingSession(gs,{gp});
   assert.equal(gs.raceWeekendState.qualifying.classification.filter((row)=>row.status==="DNPQ").length,1);
   assert.equal(gs.raceWeekendState.qualifying.classification.filter((row)=>row.status==="DNQ").length,1);
