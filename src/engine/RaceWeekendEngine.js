@@ -2,6 +2,7 @@
 import { buildRaceEntryState, raceEntryDriverIds } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
+import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 
 const clampISO=(iso)=>String(iso||"").slice(0,10);
 
@@ -71,6 +72,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     ...schedule,
     entrants:(raceEntryState.entries||[]).map((entry)=>({...entry})),
     practice:null,
+    practice_selections:{},
     qualifying:null,
     grid:null,
     completed_at:null,
@@ -116,23 +118,43 @@ export function shouldCreateWeekendForDate(gs,{roundIndex,gp,dateISO}={}){
   return true;
 }
 
-export function completePracticeSession(gs){
+export function setPracticeProgramme(gs,{driverId,programmeId}={}){
   const weekend=gs?.raceWeekendState;
-  if(!weekend||weekend.phase!=="practice")return gs;
-  const entryIds=raceEntryDriverIds(gs?.raceEntryState);
-  const practice={
-    completed_at:clampISO(gs?.currentDateISO),
-    status:"completed",
-    source:"rw1_skeleton",
-    note:"Practice session boundary established. Setup learning is added in 21.RW2.",
-    participants:entryIds.map((driver_id)=>({driver_id})),
-  };
+  if(!weekend||weekend.phase!=="practice"||!driverId)return gs;
+  const programme=practiceProgramme(programmeId);
   return {
     ...gs,
     raceWeekendState:{
       ...weekend,
+      practice_selections:{
+        ...(weekend.practice_selections||{}),
+        [String(driverId)]:programme.id,
+      },
+    },
+  };
+}
+
+export function completePracticeSession(gs,{gp}={}){
+  const weekend=gs?.raceWeekendState;
+  if(!weekend||weekend.phase!=="practice")return gs;
+  const targetGp=gp||{
+    gp_id:weekend.gp_id,
+    gp_name:weekend.gp_name,
+    track_id:weekend.track_id,
+    race_date:weekend.raceDate,
+  };
+  const session=simulatePracticeSession(gs,{
+    gp:targetGp,
+    selections:weekend.practice_selections||{},
+  });
+  if(!session.practice)return gs;
+  return {
+    ...session.gameState,
+    raceWeekendState:{
+      ...weekend,
       phase:"practice_complete",
-      practice,
+      practice_selections:weekend.practice_selections||{},
+      practice:session.practice,
     },
   };
 }
