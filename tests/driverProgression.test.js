@@ -110,3 +110,61 @@ test("profile condition actions persist confidence, morale and preparation",()=>
   assert.equal(next.driverAttributes.d_0001.confidence,51);
   assert.equal(next.driverAttributes.d_0001.morale,51);
 });
+
+
+test("high fatigue blocks intensive training instead of allowing endless sessions",()=>{
+  const gs={
+    currentDateISO:"1980-01-04",
+    drivers:[{driver_id:"d_0001",display_name:"Tired Driver"}],
+    driverRatings:[{...baseRating,driver_id:"d_0001"}],
+    driverAttributes:{d_0001:{confidence:50,fatigue:75,morale:50,preparation:50}},
+    eventsQueue:[{
+      id:"ev_tired_train",
+      type:"driver_action",
+      title:"Simulator — Pace",
+      participants:["d_0001"],
+      meta:{driverId:"d_0001",uiKey:"sim_pace"},
+      effects:[
+        {key:"driver_attr",driverId:"d_0001",attr:"pace",delta:1},
+        {key:"fatigue",delta:2},
+      ],
+      dateISO:"1980-01-04",
+      done:false,
+    }],
+    inbox:[],
+  };
+
+  const next=triggerDailyTick(gs);
+  const rating=next.driverRatings.find((r)=>r.driver_id==="d_0001");
+  assert.equal(rating.pace,80);
+  assert.equal(next.driverAttributes.d_0001.fatigue,75);
+  assert.ok(next.inbox.some((m)=>/Training cancelled/.test(String(m.body||""))));
+});
+
+test("moderate fatigue reduces intensive training gains before the hard block",()=>{
+  const gs={
+    currentDateISO:"1980-01-05",
+    drivers:[{driver_id:"d_0001",display_name:"Loaded Driver"}],
+    driverRatings:[{...baseRating,driver_id:"d_0001"}],
+    driverAttributes:{d_0001:{confidence:50,fatigue:50,morale:50,preparation:50}},
+    eventsQueue:[{
+      id:"ev_loaded_train",
+      type:"driver_action",
+      title:"Simulator — Pace",
+      participants:["d_0001"],
+      meta:{driverId:"d_0001",uiKey:"sim_pace"},
+      effects:[
+        {key:"driver_attr",driverId:"d_0001",attr:"pace",delta:1},
+        {key:"fatigue",delta:2},
+      ],
+      dateISO:"1980-01-05",
+      done:false,
+    }],
+    inbox:[],
+  };
+
+  const next=triggerDailyTick(gs);
+  const rating=next.driverRatings.find((r)=>r.driver_id==="d_0001");
+  assert.equal(rating.pace,80.75);
+  assert.equal(next.driverAttributes.d_0001.fatigue,52);
+});
