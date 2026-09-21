@@ -168,9 +168,12 @@ function sanitizeFutureDriver(driver,targetYear){
 function ratingBaseline(rows,id,targetYear,idFn){
   const candidates=(rows||[]).filter((r)=>idFn(r)===id);
   if(!candidates.length)return null;
+  // Never import a future historical rating into an earlier alternate-history
+  // season. If no rating exists on/before targetYear the runtime uses its
+  // neutral/career-derived fallback until the new Rating Model V2 replaces it.
   const past=candidates.filter((r)=>Number.isFinite(yearOf(r))&&yearOf(r)<=targetYear)
     .sort((a,b)=>yearOf(b)-yearOf(a));
-  const source=past[0]||candidates.slice().sort((a,b)=>yearOf(a)-yearOf(b))[0];
+  const source=past[0]||null;
   return source?{...source,year:targetYear,source_baseline_year:yearOf(source),source:"global_identity_baseline"}:null;
 }
 
