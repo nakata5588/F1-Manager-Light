@@ -21,7 +21,7 @@ const [
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
-  trackLayoutByYear,teamSeasons,
+  trackLayoutByYear,teamSeasons,coreTracks,
 ]=await Promise.all([
   readJson("drivers.json"),
   readJson("calendar.json"),
@@ -51,6 +51,7 @@ const [
   readJson("scouting_zones.json"),
   readJson("track_layout_by_year.json"),
   readJson("team_seasons.json"),
+  readJson("core_tracks.json"),
 ]);
 
 const globalData={
@@ -58,7 +59,7 @@ const globalData={
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
-  agendaBlocks,contractRules,youthIntakeRules,scoutingZones,trackLayoutByYear,teamSeasons,
+  agendaBlocks,contractRules,youthIntakeRules,scoutingZones,trackLayoutByYear,teamSeasons,coreTracks,
 };
 
 const requestedArg=process.argv.find((arg)=>arg.startsWith("--years="));
