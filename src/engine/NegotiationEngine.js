@@ -638,13 +638,25 @@ export function processDriverNegotiations(gs,{forceOutcomeById={}}={}){
     if(!negotiation||negotiation.status!=="submitted")continue;
 
     const contract=activeDriverContract(next,negotiation.driver_id);
-    const renewal=String(negotiation?.kind||"")==="renewal";
-    if(contract&&!renewal){
+    const kind=String(negotiation?.kind||"new_contract");
+    const renewal=kind==="renewal";
+    const transfer=kind==="transfer";
+    const transferContractStillValid=
+      transfer &&
+      contract &&
+      teamIdOf(contract)===String(negotiation.seller_team_id||"");
+
+    if(
+      (!renewal&&!transfer&&contract) ||
+      (transfer&&!transferContractStillValid)
+    ){
       const signedElsewhere={
         ...negotiation,
         status:"signed_elsewhere",
         resolved_at:today,
-        resolution_note:"Driver is no longer available.",
+        resolution_note:transfer
+          ?"The driver's current contract changed before the transfer was completed."
+          :"Driver is no longer available.",
       };
       next={
         ...next,
@@ -661,7 +673,9 @@ export function processDriverNegotiations(gs,{forceOutcomeById={}}={}){
             from:"Driver Management",
             tag:"Contracts",
             subject:"Negotiation ended — "+negotiation.driver_name,
-            body:negotiation.driver_name+" is no longer available after agreeing terms elsewhere.",
+            body:transfer
+              ?negotiation.driver_name+"'s contractual situation changed before the transfer could be completed."
+              :negotiation.driver_name+" is no longer available after agreeing terms elsewhere.",
             driver_id:negotiation.driver_id,
           },...(next?.inbox||[])],
         };
