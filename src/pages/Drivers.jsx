@@ -2,17 +2,34 @@ import React, { useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { ageOn } from "../utils/date.js";
 import { DriverPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
-import { expectedDriverSalary, makeDriverContract } from "../domain/driverContracts.js";
-import { isReserveDriverContract } from "../domain/contractRoles.js";
+import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
+import { expectedDriverSalary } from "../domain/driverContracts.js";
+import {
+  acceptCounterOffer,
+  availableContractRoles,
+  driverNegotiations,
+  isNegotiationActive,
+  startDriverNegotiation,
+  withdrawNegotiation,
+} from "../engine/NegotiationEngine.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 const nameOf=(d)=>d?.display_name||d?.name||d?.driver_name||`${d?.first_name??""} ${d?.last_name??""}`.trim()||idOf(d)||"—";
+const money=(value)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)||0);
+const statusClass=(status)=>{
+  if(status==="accepted")return "bg-green-100 text-green-800";
+  if(status==="countered")return "bg-amber-100 text-amber-800";
+  if(status==="rejected"||status==="signed_elsewhere")return "bg-red-100 text-red-800";
+  if(status==="withdrawn")return "bg-gray-100 text-gray-600";
+  return "bg-blue-100 text-blue-800";
+};
 
-function marketStatus(driver, contract){
+function marketStatus(driver, contract, pending){
   if(contract) return "Contracted";
+  if(pending) return "Negotiating";
   if(driver?.status==="junior_only" || driver?.canHireAcademy) return "Youth";
   if(driver?.status==="lower_series") return "Lower Series";
   if(driver?.canHireF1 || driver?.status==="eligible") return "Free";
@@ -36,16 +53,29 @@ export default function Drivers(){
   const [sortKey,setSortKey]=useState("name");
   const [sortDir,setSortDir]=useState("asc");
   const [page,setPage]=useState(1);
+  const [negotiatingDriver,setNegotiatingDriver]=useState(null);
   const PAGE_SIZE=16;
 
   const teamNames=useMemo(()=>new Map(teams.map(t=>[String(t?.team_id??t?.id??""),t?.team_name||t?.name||t?.short_name||"—"])),[teams]);
-  const hasReserve=useMemo(()=>contracts.some(c=>{
-    if(teamIdOf(c)!==userTeamId||!isReserveDriverContract(c)) return false;
-    const st=String(c?.status||"active").toLowerCase();
-    if(["terminated","expired","released","inactive","void"].includes(st)) return false;
-    const y=Number(pick(c,["year","season_year"],activeYear));
-    return !Number.isFinite(activeYear)||!Number.isFinite(y)||y===activeYear;
-  }),[contracts,userTeamId,activeYear]);
+  const negotiations=driverNegotiations(gs);
+  const playerNegotiations=useMemo(
+    ()=>negotiations
+      .filter((n)=>n.origin==="player"&&String(n.team_id)===userTeamId)
+      .slice()
+      .sort((a,b)=>String(b.submitted_at||"").localeCompare(String(a.submitted_at||""))),
+    [negotiations,userTeamId]
+  );
+  const activePlayerByDriver=useMemo(()=>{
+    const map=new Map();
+    for(const n of playerNegotiations){
+      if(isNegotiationActive(n)&&!map.has(String(n.driver_id)))map.set(String(n.driver_id),n);
+    }
+    return map;
+  },[playerNegotiations]);
+  const availableRoles=useMemo(
+    ()=>userTeamId?availableContractRoles(gs,userTeamId):[],
+    [gs,userTeamId]
+  );
   const ratingById=useMemo(()=>new Map(ratings.map(r=>[idOf(r),r])),[ratings]);
   const contractById=useMemo(()=>{
     const m=new Map();
