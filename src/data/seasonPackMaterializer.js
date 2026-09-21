@@ -140,6 +140,19 @@ function effectiveRange(rows,year){
   if(ranged.length)return clean(ranged);
   return effectiveSingle(rows,year);
 }
+function effectiveQualifyingRules(g,year){
+  const historical=effectiveSingle(g.qualifyingRules||[],year)[0]||{};
+  const overrides=rowsInRange(g.qualifyingRuleOverrides||[],year).map(clean);
+  const generic=overrides.filter((row)=>!pick(row,["gp_id","event_id","track_id","circuit_id"],null));
+  const eventOverrides=overrides.filter((row)=>pick(row,["gp_id","event_id","track_id","circuit_id"],null));
+  const merged=generic.reduce((acc,row)=>({...acc,...row}),{...clean(historical)});
+  return {
+    ...merged,
+    year,
+    rule_source:"historical_seed_calibration",
+    event_overrides:eventOverrides,
+  };
+}
 function calendarRows(rows,year){
   return rowsAtYear(rows,year)
     .map((r,index)=>{
@@ -393,6 +406,7 @@ export function materializeSeasonPack(globalData,yearInput){
       carStats,
       sponsorsContracts,
       rules:effectiveSingle(g.rules,year),
+      qualifyingRules:effectiveQualifyingRules(g,year),
       eraSafety:effectiveSingle(g.eraSafety,year),
       accidentModel:effectiveSingle(Array.isArray(g.accidentModel)?g.accidentModel:[],year),
       tyres:effectiveRange(g.tyres,year),
@@ -420,6 +434,7 @@ export function validateSeasonPack(pack){
   if(!Array.isArray(s.calendar)||!s.calendar.length)issues.push("no_calendar");
   if(!Array.isArray(s.teams)||!s.teams.length)issues.push("no_teams");
   if(!Array.isArray(s.drivers)||!s.drivers.length)issues.push("no_drivers");
+  if(!s.qualifyingRules||typeof s.qualifyingRules!=="object")issues.push("no_qualifying_rules");
 
   const teamIds=new Set((s.teams||[]).map(teamId).filter(Boolean));
   const driverIds=new Set((s.drivers||[]).map(driverId).filter(Boolean));
