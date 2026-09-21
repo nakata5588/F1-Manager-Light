@@ -83,6 +83,9 @@ jobs:
       - name: Test AI reserve hiring and missing ratings fallback
         run: npm run test:ai-reserves
 
+      - name: Test driver contract negotiations
+        run: npm run test:negotiations
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 

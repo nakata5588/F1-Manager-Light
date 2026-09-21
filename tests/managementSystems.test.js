@@ -10,6 +10,7 @@ import {
   terminationCost,
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
+import { processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
 import { isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../src/domain/contractRoles.js";
 
 function baseState(){
@@ -107,13 +108,26 @@ test("driver contract helpers fall back to hydrated db collections",()=>{
   assert.ok(expectedDriverSalary(gs,"D2")>=450_000);
 });
 
-test("AI market fills a vacant race seat with an available driver",()=>{
+test("AI market opens a negotiation before filling a vacant race seat",()=>{
   const gs=baseState();
-  const next=applyMarketTick(gs);
-  const aiContracts=(next.contracts||[]).filter((c)=>String(c.team_id)==="T2" && !/reserve|test/i.test(String(c.role||"")));
-  assert.equal(aiContracts.length,2);
-  assert.ok(aiContracts.some((c)=>String(c.driver_id)==="D3"));
-  assert.equal(next._lastAIDriverMarketMonth,"1980-02");
+  const pending=applyMarketTick(gs);
+  const before=(pending.contracts||[]).filter((c)=>String(c.team_id)==="T2" && isRaceDriverContract(c));
+  assert.equal(before.length,1);
+  const negotiation=(pending.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    String(n.driver_id)==="D3" &&
+    n.offer?.role==="Second Driver"
+  );
+  assert.ok(negotiation);
+  assert.equal(negotiation.status,"submitted");
+  assert.equal(pending._lastAIDriverMarketMonth,"1980-02");
+
+  const due={...pending,currentDateISO:negotiation.response_date};
+  const resolved=processDriverNegotiations(due,{forceOutcomeById:{[negotiation.id]:"accepted"}});
+  const after=(resolved.contracts||[]).filter((c)=>String(c.team_id)==="T2" && isRaceDriverContract(c));
+  assert.equal(after.length,2);
+  assert.ok(after.some((c)=>String(c.driver_id)==="D3"));
 });
 
 
@@ -130,15 +144,27 @@ test("test and reserve contracts do not occupy race seats",()=>{
   assert.equal(raceSeatCount(gs,"T2"),1);
 });
 
-test("AI market fills a second race seat even when a test driver is contracted",()=>{
+test("AI negotiates a second race seat even when a test driver is contracted",()=>{
   const gs=baseState();
   gs.drivers.push({driver_id:"D5",display_name:"Test Driver",status:"eligible"});
   gs.driverRatings.push({driver_id:"D5",current_ability:55,pace:58,reputation:45,market_value:250_000});
   gs.contracts.push({year:1980,team_id:"T2",driver_id:"D5",role:"test_driver",salary:100_000});
-  const next=applyMarketTick(gs);
-  const raceContracts=(next.contracts||[]).filter((c)=>String(c.team_id)==="T2" && isRaceDriverContract(c));
-  assert.equal(raceContracts.length,2);
-  assert.ok(raceContracts.some((c)=>String(c.driver_id)==="D3"));
+  const pending=applyMarketTick(gs);
+  const raceBefore=(pending.contracts||[]).filter((c)=>String(c.team_id)==="T2" && isRaceDriverContract(c));
+  assert.equal(raceBefore.length,1);
+  const negotiation=(pending.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    String(n.driver_id)==="D3" &&
+    n.offer?.role==="Second Driver"
+  );
+  assert.ok(negotiation);
+
+  const due={...pending,currentDateISO:negotiation.response_date};
+  const resolved=processDriverNegotiations(due,{forceOutcomeById:{[negotiation.id]:"accepted"}});
+  const raceAfter=(resolved.contracts||[]).filter((c)=>String(c.team_id)==="T2" && isRaceDriverContract(c));
+  assert.equal(raceAfter.length,2);
+  assert.ok(raceAfter.some((c)=>String(c.driver_id)==="D3"));
 });
 
 

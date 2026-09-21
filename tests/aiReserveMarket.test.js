@@ -5,6 +5,7 @@ import { driverMarketEvaluation, compareDriverMarketValue } from "../src/domain/
 import { reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { isReserveDriverContract } from "../src/domain/contractRoles.js";
+import { isNegotiationActive, processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
 
 function marketState(){
   return {
@@ -96,40 +97,65 @@ test("career experience can evaluate a driver even when ratings are missing",()=
   assert.equal(sorted[0].driver_id,"R1");
 });
 
-test("AI teams with complete race seats immediately try to fill one reserve seat",()=>{
+test("AI teams with complete race seats open reserve negotiations instead of signing instantly",()=>{
   const gs=marketState();
-  const next=applyMarketTick(gs);
+  const pending=applyMarketTick(gs);
 
-  assert.equal(reserveSeatCount(next,"T2"),1);
-  assert.equal(reserveSeatCount(next,"T3"),1);
+  assert.equal(reserveSeatCount(pending,"T2"),0);
+  assert.equal(reserveSeatCount(pending,"T3"),0);
 
-  const reserves=(next.contracts||[]).filter((c)=>isReserveDriverContract(c));
+  const reserveNegotiations=(pending.driverNegotiations||[]).filter((n)=>
+    n.origin==="ai" &&
+    n.offer?.role==="Reserve Driver" &&
+    isNegotiationActive(n)
+  );
+  assert.equal(reserveNegotiations.length,2);
+  assert.equal(new Set(reserveNegotiations.map((n)=>n.team_id)).size,2);
+  assert.ok(reserveNegotiations.every((n)=>n.market_evaluation&&Number.isFinite(n.market_evaluation.score)));
+  assert.ok(pending.inbox.some((msg)=>msg.subject==="Reserve Driver position vacant"));
+
+  const responseDate=reserveNegotiations.map((n)=>n.response_date).sort().at(-1);
+  const forced=Object.fromEntries(reserveNegotiations.map((n)=>[n.id,"accepted"]));
+  const resolved=processDriverNegotiations({...pending,currentDateISO:responseDate},{forceOutcomeById:forced});
+
+  assert.equal(reserveSeatCount(resolved,"T2"),1);
+  assert.equal(reserveSeatCount(resolved,"T3"),1);
+  const reserves=(resolved.contracts||[]).filter((c)=>isReserveDriverContract(c));
   assert.equal(reserves.length,2);
-  assert.ok(reserves.every((c)=>c.source==="ai_reserve_fill"));
-  assert.ok(reserves.every((c)=>c.market_evaluation&&Number.isFinite(c.market_evaluation.score)));
-  assert.ok(next.inbox.some((msg)=>msg.subject==="Reserve Driver position vacant"));
-  assert.ok(next.inbox.some((msg)=>/joins .* as Reserve Driver/.test(String(msg.subject||""))));
+  assert.ok(reserves.every((c)=>c.source==="ai_negotiation"));
+  assert.ok(resolved.inbox.some((msg)=>/signs with/.test(String(msg.subject||""))));
 });
 
 test("a test driver does not satisfy the AI reserve requirement",()=>{
   const gs=marketState();
   gs.drivers.push({driver_id:"TEST",display_name:"Test Specialist",status:"eligible",canHireF1:true});
   gs.contracts.push({year:1980,team_id:"T2",driver_id:"TEST",role:"test_driver",status:"active"});
-  const next=applyMarketTick(gs);
+  const pending=applyMarketTick(gs);
 
-  assert.equal(reserveSeatCount(next,"T2"),1);
-  const reserve=(next.contracts||[]).find((c)=>String(c.team_id)==="T2"&&isReserveDriverContract(c));
-  assert.ok(reserve);
-  assert.notEqual(reserve.driver_id,"TEST");
+  assert.equal(reserveSeatCount(pending,"T2"),0);
+  const negotiation=(pending.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    n.offer?.role==="Reserve Driver"
+  );
+  assert.ok(negotiation);
+  assert.notEqual(negotiation.driver_id,"TEST");
 });
 
-test("AI does not sign a second reserve when one is already active",()=>{
+test("AI does not negotiate a second reserve when one is already active",()=>{
   const gs=marketState();
   gs.contracts.push({year:1980,team_id:"T2",driver_id:"R1",role:"Reserve Driver",status:"active"});
   const before=reserveSeatCount(gs,"T2");
   const next=applyMarketTick(gs);
   const after=reserveSeatCount(next,"T2");
+  const extra=(next.driverNegotiations||[]).filter((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    n.offer?.role==="Reserve Driver" &&
+    isNegotiationActive(n)
+  );
 
   assert.equal(before,1);
   assert.equal(after,1);
+  assert.equal(extra.length,0);
 });
