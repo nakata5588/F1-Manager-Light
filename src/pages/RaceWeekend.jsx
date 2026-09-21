@@ -14,7 +14,7 @@ const STEPS=[
 
 function phaseIndex(phase){
   if(phase==="practice"||phase==="practice_complete")return 0;
-  if(phase==="qualifying")return 1;
+  if(phase==="qualifying"||phase==="qualifying_wait")return 1;
   if(phase==="grid_ready")return 2;
   if(phase==="race")return 3;
   if(phase==="results"||phase==="completed")return 4;
@@ -49,6 +49,12 @@ export default function RaceWeekend(){
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
   const currentIndex=phaseIndex(weekend?.phase);
   const classification=weekend?.qualifying?.classification||[];
+  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
+  const qualifyingSessions=(weekend?.sessions||[]).filter((row)=>["prequalifying","qualifying"].includes(row?.type));
+  const activeSession=(weekend?.sessions||[]).find((row)=>String(row?.id)===String(weekend?.active_session_id||""))
+    ||qualifyingSessions.find((row)=>row?.status!=="completed")
+    ||null;
+  const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
     if(!key)return null;
@@ -80,7 +86,7 @@ export default function RaceWeekend(){
           <div className="text-xs uppercase tracking-wide text-gray-500">Round {weekend.round}</div>
           <h2 className="text-xl font-semibold">{weekend.gp_name}</h2>
           <div className="text-sm text-gray-600 mt-1">
-            Practice {weekend.practiceDate} · Qualifying {weekend.qualifyingDate} · Race {weekend.raceDate}
+            {(weekend.sessions||[]).map((session)=>`${session.label} ${session.dateISO}`).join(" · ")}
           </div>
         </div>
         <div className="text-sm px-3 py-1.5 rounded-full bg-slate-100">
@@ -207,12 +213,57 @@ export default function RaceWeekend(){
 
     {weekend.phase==="qualifying"&&(
       <div className="bg-white rounded-xl shadow p-5">
-        <h3 className="font-semibold">Qualifying</h3>
-        <p className="text-sm text-gray-600 mt-1">
-          Qualifying now consumes the Preparation, Setup Quality and programme effects created in Practice. Its classification becomes the persistent starting grid consumed by the Race.
-        </p>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">{activeSession?.label||"Qualifying"}</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Every entrant uses the same era rule, setup/preparation model and deterministic session seed. Completed sessions are locked into the Save.
+            </p>
+          </div>
+          <div className="text-xs text-gray-500 text-right">
+            <div>{activeSession?.dateISO||weekend.qualifyingDate}</div>
+            <div>{weekend.qualifying_rule_snapshot?.strategy?.replaceAll("_"," ")||"era rules"}</div>
+          </div>
+        </div>
+
+        {qualifyingSessions.some((session)=>session.status==="completed")&&(
+          <div className="mt-4 grid gap-2">
+            {qualifyingSessions.filter((session)=>session.status==="completed").map((session)=>(
+              <div key={session.id} className="border rounded-lg p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-sm">{session.label}</span>
+                  <span className="text-xs text-emerald-700">Completed</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {(session.results||[]).length} drivers · best {session.results?.[0]?.lap_time_ms?formatLapTime(session.results[0].lap_time_ms):"—"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runQualifying)}>
-          {busy?"Running…":"Run Qualifying"}
+          {busy?"Running…":`Run ${activeSession?.label||"Qualifying"}`}
+        </button>
+      </div>
+    )}
+
+    {weekend.phase==="qualifying_wait"&&(
+      <div className="bg-white rounded-xl shadow p-5">
+        <h3 className="font-semibold">Qualifying Session Complete</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          The completed session is saved and will not be recalculated. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.
+        </p>
+        <div className="mt-3 grid gap-2">
+          {qualifyingSessions.filter((session)=>session.status==="completed").map((session)=>(
+            <div key={session.id} className="border rounded-lg px-3 py-2 text-sm flex justify-between gap-3">
+              <span>{session.label}</span>
+              <span className="text-emerald-700">Saved</span>
+            </div>
+          ))}
+        </div>
+        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
+          {busy?"Advancing…":"Advance toward next session"}
         </button>
       </div>
     )}
@@ -222,7 +273,7 @@ export default function RaceWeekend(){
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold">Starting Grid</h3>
-            <p className="text-sm text-gray-600 mt-1">{classification.length} qualified starters.</p>
+            <p className="text-sm text-gray-600 mt-1">{startingGridRows.length} starters · {dnqRows.length} DNQ/DNPQ.</p>
           </div>
           {weekend.phase==="grid_ready"&&<span className="text-xs text-gray-500">Race day: {weekend.raceDate}</span>}
         </div>
@@ -232,9 +283,9 @@ export default function RaceWeekend(){
               <tr><th className="px-3 py-2 text-right">Grid</th><th className="px-3 py-2 text-left">Driver</th><th className="px-3 py-2 text-left">Team</th></tr>
             </thead>
             <tbody>
-              {classification.map((row)=>(
+              {startingGridRows.map((row)=>(
                 <tr className="border-t" key={row.driver_id}>
-                  <td className="px-3 py-2 text-right font-semibold">P{row.position}</td>
+                  <td className="px-3 py-2 text-right font-semibold">P{row.grid}</td>
                   <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
                   <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
                 </tr>
@@ -242,6 +293,18 @@ export default function RaceWeekend(){
             </tbody>
           </table>
         </div>
+        {dnqRows.length>0&&(
+          <div className="mt-4 border rounded-lg p-3">
+            <div className="text-sm font-medium">Did not start</div>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {dnqRows.map((row)=>(
+                <span key={row.driver_id} className="bg-amber-50 text-amber-800 rounded px-2 py-1">
+                  {driverName(drivers,row.driver_id)} · {row.status}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {weekend.phase==="grid_ready"?(
           <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
             {busy?"Advancing…":"Advance to Race Day"}
