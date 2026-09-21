@@ -38,7 +38,7 @@ function activeOfferCount(gs,driverId){
 function candidateForTeam(gs,drivers,teamId){
   const activeDriverIds=new Set(
     (gs?.contracts||[])
-      .filter((c)=>isDriverContract(c)&&activeContractForYear(c,Number(gs?.activeYear)))
+      .filter((c)=>isDriverContract(c)&&contractActiveForYear(c,Number(gs?.activeYear)))
       .map(driverIdOf)
       .filter(Boolean)
   );
