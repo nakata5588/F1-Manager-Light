@@ -116,7 +116,7 @@ test("1980 uses a 15 percent neutral accident baseline with driver and fatigue m
   assert.ok(tiredRisk>base);
 });
 
-test("confidence and morale affect performance now while preparation is deferred until Practice",()=>{
+test("confidence morale and Practice preparation affect live performance",()=>{
   const base=gsFor(80,0);
   const driverId="d_1";
   const normal=combinedRacePerformance({gs:base,driver,rating,teamId:"t_ai"});
@@ -137,9 +137,8 @@ test("confidence and morale affect performance now while preparation is deferred
   };
 
   assert.ok(combinedRacePerformance({gs:positive,driver,rating,teamId:"t_ai"})>normal);
-  assert.equal(
-    combinedRacePerformance({gs:highPrepOnly,driver,rating,teamId:"t_ai"}),
-    normal,
-    "preparation should remain tracked but inactive until the Practice/GP-prep loop"
+  assert.ok(
+    combinedRacePerformance({gs:highPrepOnly,driver,rating,teamId:"t_ai"})>normal,
+    "RW2 activates Preparation as a real performance input"
   );
 });
