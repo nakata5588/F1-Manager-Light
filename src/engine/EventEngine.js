@@ -1,5 +1,5 @@
 // src/engine/EventEngine.js
-import { defaultDriverCondition, ensureAbilityAnchor, recalculateCurrentAbility } from "../domain/driverRating.js";
+import { defaultDriverCondition, ensureAbilityAnchor, intensiveTrainingStatus, recalculateCurrentAbility } from "../domain/driverRating.js";
 
 /** Pequenas utils */
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -107,6 +107,14 @@ function flattenAgendaEffects(effectsJson, evMeta = {}) {
  * - logLines: linhas human-readable para a mensagem do inbox
  * - changes: entradas estruturadas para o histórico do piloto (attributes tab)
  */
+const INTENSIVE_TRAINING_KEYS=new Set([
+  "sim_braking","sim_pace","qual_runs","wet_practice","tyre_drills","racecraft","physical",
+]);
+
+function isIntensiveTrainingEvent(ev){
+  return ev?.type==="driver_action" && INTENSIVE_TRAINING_KEYS.has(String(ev?.meta?.uiKey||""));
+}
+
 function applyEffects(gs, ev, ctx) {
   // clonamos listas que vamos mexer
   const drivers = gs.drivers?.length ? gs.drivers.slice() : (gs.dbDrivers || []).slice();
@@ -124,10 +132,19 @@ function applyEffects(gs, ev, ctx) {
       ? flattenAgendaEffects(ev.effects_json, ev.meta || {})
       : [];
 
-  const allEffects = [...(ev.effects || []), ...flatFromAgenda];
+  const trainingDriverId=ev.meta?.driverId ?? ev.participants?.[0];
+  const trainingStatus=isIntensiveTrainingEvent(ev)
+    ? intensiveTrainingStatus(gs,trainingDriverId)
+    : null;
+  const allEffects = trainingStatus?.allowed===false
+    ? []
+    : [...(ev.effects || []), ...flatFromAgenda];
 
   const logLines = [];
   const changes  = []; // para este evento específico
+  if(trainingStatus?.allowed===false){
+    logLines.push("• Training cancelled: fatigue "+Math.round(trainingStatus.fatigue)+"/100 is too high. Rest is required before another intensive session.");
+  }
 
   for (const fx of allEffects) {
     switch (fx.key) {
@@ -135,6 +152,9 @@ function applyEffects(gs, ev, ctx) {
         const driverIdRaw = fx.driverId ?? ev.meta?.driverId ?? ev.participants?.[0];
         const idn = normDriverId(driverIdRaw);
         const { attr, delta = 0 } = fx;
+        const effectiveDelta=trainingStatus
+          ? Number(delta)*Number(trainingStatus.efficiency||0)
+          : Number(delta);
 
         const ratingIndex = ratings.findIndex(r => normDriverId(r?.driver_id ?? r?.id ?? r?.driverId) === idn);
         const drv = findDriver(drivers, driverIdRaw);
@@ -143,7 +163,7 @@ function applyEffects(gs, ev, ctx) {
           let rr = ensureAbilityAnchor({ ...ratings[ratingIndex] });
           const before = Number(rr[attr] ?? 0);
           const overallBefore = Number(rr.current_ability);
-          const after  = Math.max(0, Math.min(100, before + Number(delta)));
+          const after  = Math.max(0, Math.min(100, before + effectiveDelta));
           rr[attr] = after;
           rr = recalculateCurrentAbility(rr);
           ratings[ratingIndex] = rr;
@@ -155,7 +175,7 @@ function applyEffects(gs, ev, ctx) {
             attr,
             before,
             after,
-            delta: Number(delta),
+            delta: after-before,
             overallBefore: Number.isFinite(overallBefore) ? overallBefore : null,
             overallAfter: Number.isFinite(overallAfter) ? overallAfter : null,
             source: ev.title || ev.type || "event",
@@ -173,7 +193,11 @@ function applyEffects(gs, ev, ctx) {
           const overallNote = Number.isFinite(overallBefore) && Number.isFinite(overallAfter) && overallAfter !== overallBefore
             ? ` · OVR ${overallBefore.toFixed(1)} → ${overallAfter.toFixed(1)}`
             : "";
-          logLines.push(`• ${who}: ${attr.replaceAll("_"," ")} ${before} → ${after} (${delta>0?"+":""}${delta})${overallNote}`);
+          const appliedDelta=after-before;
+          const efficiencyNote=trainingStatus&&trainingStatus.efficiency<1
+            ? ` · training efficiency ${Math.round(trainingStatus.efficiency*100)}% (fatigue ${Math.round(trainingStatus.fatigue)}/100)`
+            : "";
+          logLines.push(`• ${who}: ${attr.replaceAll("_"," ")} ${before} → ${after} (${appliedDelta>0?"+":""}${appliedDelta.toFixed(2)})${overallNote}${efficiencyNote}`);
         } else {
           logLines.push(`• (nota) não consegui aplicar driver_attr em ${attr} (rating não encontrado).`);
         }
