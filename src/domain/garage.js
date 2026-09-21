@@ -138,5 +138,17 @@ export function installedAdjustmentForCar(gs,car){
 }
 
 export function garageCarForDriver(gs,driverId){
-  return (gs?.garage?.cars||[]).find((car)=>String(car?.driver_id??"")===String(driverId??""))||null;
+  const did=String(driverId??"");
+  const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const liveEntry=(gs?.raceEntryState?.entries||[]).find((entry)=>
+    String(entry?.driver_id??"")===did &&
+    String(entry?.team_id??"")===userTeamId &&
+    Number(entry?.car_slot)>=1 &&
+    Number(entry?.car_slot)<=2
+  );
+  if(liveEntry){
+    const raceCar=(gs?.garage?.cars||[]).find((car)=>String(car?.id)===`car_${Number(liveEntry.car_slot)}`);
+    if(raceCar)return raceCar;
+  }
+  return (gs?.garage?.cars||[]).find((car)=>String(car?.driver_id??"")===did)||null;
 }

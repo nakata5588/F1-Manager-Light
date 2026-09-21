@@ -839,7 +839,41 @@ export async function runRaceWeekend(gs, {
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
   const afterInjuries = applyRaceHealthOutcomes(afterRelations, { gp, race });
-  const afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
+  let afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
+
+  const wornComponents=(afterWear?.garage?.cars||[])
+    .filter((car)=>car?.kind==="race")
+    .flatMap((car)=>Object.entries(car?.componentCondition||{}).map(([slot,condition])=>({
+      car_id:car.id,
+      label:car.label||car.id,
+      slot,
+      condition:Number(condition),
+    })))
+    .filter((row)=>Number.isFinite(row.condition)&&row.condition<45)
+    .sort((a,b)=>a.condition-b.condition);
+
+  if(wornComponents.length){
+    const worst=wornComponents.slice(0,4)
+      .map((row)=>`${row.label} ${String(row.slot).replaceAll("_"," ")} ${row.condition.toFixed(0)}%`)
+      .join(", ");
+    afterWear={
+      ...afterWear,
+      inbox:[
+        {
+          id:`component_wear_${String(gs.currentDateISO||"date")}_${gpId}`,
+          date:gs.currentDateISO,
+          unread:true,
+          type:"DEV",
+          from:"Garage",
+          tag:"Reliability",
+          subject:"Component wear requires attention",
+          body:`The race left critical wear on the car: ${worst}. Worn components now reduce pace and reliability. Review the Car & Garage page before the next event.`,
+          actions:[{label:"Open Car & Garage",route:"/Car"}],
+        },
+        ...(afterWear.inbox||[]),
+      ],
+    };
+  }
 
   // Race weekends change physical and psychological condition. Conditions are
   // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
