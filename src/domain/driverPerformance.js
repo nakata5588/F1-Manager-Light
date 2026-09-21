@@ -9,14 +9,15 @@ export function conditionModifier(gs,driverId){
   const c=driverCondition(gs,driverId)||{};
   const confidence=n(c.confidence,50);
   const morale=n(c.morale,50);
-  const preparation=n(c.preparation,50);
   const fatigue=n(c.fatigue,0);
 
+  // Preparation is tracked in GameState already, but it is intentionally NOT
+  // part of performance yet. It will be activated with the Practice / GP-prep
+  // loop so the player has real ways to influence it.
   const positive=
-    (confidence-50)*0.045+
-    (morale-50)*0.025+
-    (preparation-50)*0.035;
-  const fatiguePenalty=Math.max(0,fatigue-25)*0.075;
+    (confidence-50)*0.050+
+    (morale-50)*0.030;
+  const fatiguePenalty=Math.max(0,fatigue-25)*0.080;
   return Math.max(-8,Math.min(6,positive-fatiguePenalty));
 }
 
