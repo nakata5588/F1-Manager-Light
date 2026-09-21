@@ -1,6 +1,7 @@
 // src/engine/ReplacementEngine.js
 import { buildRaceEntryState, driverAvailabilityForRace } from "../domain/raceEntry.js";
 import { activeDriverContract, driverIdOf, expectedDriverSalary } from "../domain/driverContracts.js";
+import { compareDriverMarketValue, driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -16,17 +17,6 @@ const gpIdOf=(gp,roundIndex)=>{
 };
 const driverName=(d)=>d?.display_name||d?.name||d?.driver_name||driverIdOf(d);
 
-function ratingFor(gs,driverId){
-  return (gs?.driverRatings||[]).find((r)=>String(r?.driver_id??r?.id??"")===String(driverId))||{};
-}
-function replacementScore(gs,driver){
-  const r=ratingFor(gs,driverIdOf(driver));
-  const ability=Number(r?.current_ability??r?.overall??r?.pace??55);
-  const reputation=Number(r?.reputation??ability);
-  const consistency=Number(r?.consistency??ability);
-  const experience=Number(r?.experience??r?.racecraft??ability);
-  return ability*0.60+experience*0.20+consistency*0.12+reputation*0.08;
-}
 function activeAssignmentFor(assignments,gpId,teamId,slot){
   return assignments.find((a)=>
     String(a?.gp_id||"")===String(gpId) &&
@@ -86,11 +76,7 @@ export function eligibleEmergencyDrivers(gs,gp,{excludeIds=[]}={}){
       if(!driverAvailabilityForRace(gs,id,gp).available)return false;
       return true;
     })
-    .sort((a,b)=>{
-      const scoreDiff=replacementScore(gs,b)-replacementScore(gs,a);
-      if(Math.abs(scoreDiff)>0.0001)return scoreDiff;
-      return driverIdOf(a).localeCompare(driverIdOf(b));
-    });
+    .sort((a,b)=>compareDriverMarketValue(gs,a,b));
 }
 
 export function ensureTemporaryReplacements(gs,{gp,roundIndex}={}){
@@ -153,6 +139,7 @@ export function ensureTemporaryReplacements(gs,{gp,roundIndex}={}){
       status:"active",
       fee,
       source:"emergency_market",
+      market_evaluation:driverMarketEvaluation(gs,driver),
       created_at:gs?.currentDateISO||null,
     };
     newAssignments.push(assignment);
