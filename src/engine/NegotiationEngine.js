@@ -118,10 +118,16 @@ export function hasActiveNegotiationForDriver(gs,driverId){
 }
 export function hasActiveNegotiationForTeamRole(gs,teamId,role){
   const target=slotKeyForRole(role);
-  return driverNegotiations(gs).some((n)=>
+  const personal=driverNegotiations(gs).some((n)=>
     isNegotiationActive(n)&&
     String(n.team_id)===String(teamId)&&
     slotKeyForRole(n?.offer?.role)===target
+  );
+  if(personal)return true;
+  return driverTransferApproaches(gs).some((approach)=>
+    isTransferApproachActive(approach)&&
+    String(approach.buyer_team_id)===String(teamId)&&
+    slotKeyForRole(approach?.personal_offer?.role)===target
   );
 }
 
