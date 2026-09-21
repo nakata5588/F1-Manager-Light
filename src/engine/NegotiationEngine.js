@@ -205,18 +205,18 @@ export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
     if(pending){
       return {canNegotiate:false,reason:"active_negotiation",roles:[],contract,pending};
     }
-    const clubApproach=driverTransferApproaches(gs).find((approach)=>
+    const teamApproach=driverTransferApproaches(gs).find((approach)=>
       isTransferApproachActive(approach) &&
       String(approach?.driver_id)===did &&
       String(approach?.buyer_team_id)===tid
     )||null;
-    if(clubApproach){
+    if(teamApproach){
       return {
         canNegotiate:false,
-        reason:"club_negotiation_active",
+        reason:"team_negotiation_active",
         roles:[],
         contract,
-        pending:clubApproach,
+        pending:teamApproach,
         buyout:driverBuyoutQuote(gs,contract,{driverId:did}),
       };
     }
@@ -304,7 +304,7 @@ export function startDriverNegotiation(gs,{
         buyout:{
           allowed:true,
           fee:Number(approvedTransferApproach?.approved_fee||approvedTransferApproach?.offer_fee||0),
-          type:"negotiated_club_fee",
+          type:"negotiated_team_fee",
           sellerTeamId:String(approvedTransferApproach?.seller_team_id||""),
         },
       }
@@ -473,7 +473,7 @@ export function startTransferApproach(gs,{
   };
 }
 
-function openPersonalTermsAfterClubApproval(gs,approach,approvedFee){
+function openPersonalTermsAfterTeamApproval(gs,approach,approvedFee){
   const accepted={
     ...approach,
     status:"accepted",
@@ -499,7 +499,7 @@ export function acceptTransferCounter(gs,approachId){
   const approach=driverTransferApproaches(gs).find((row)=>row.id===approachId);
   if(!approach||approach.status!=="countered"||!Number.isFinite(Number(approach.counter_fee)))return gs;
   if(!canAffordTransfer(gs,approach.buyer_team_id,Number(approach.counter_fee)))return gs;
-  return openPersonalTermsAfterClubApproval(gs,approach,Number(approach.counter_fee));
+  return openPersonalTermsAfterTeamApproval(gs,approach,Number(approach.counter_fee));
 }
 
 export function withdrawTransferApproach(gs,approachId){
@@ -548,7 +548,7 @@ export function processTransferApproaches(gs,{forceOutcomeById={}}={}){
     }
 
     if(outcome==="accepted"){
-      next=openPersonalTermsAfterClubApproval(next,approach,offer);
+      next=openPersonalTermsAfterTeamApproval(next,approach,offer);
       continue;
     }
 
