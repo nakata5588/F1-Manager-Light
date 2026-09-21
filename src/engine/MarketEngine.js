@@ -65,14 +65,6 @@ function candidateForTeam(gs,drivers,teamId){
   return candidates[0]||null;
 }
 
-function salaryMultiplierForRole(role){
-  const key=String(role||"").toLowerCase();
-  if(key.includes("main"))return 1.05;
-  if(key.includes("second"))return 1.00;
-  if(key.includes("reserve"))return 0.84;
-  return 0.78;
-}
-
 function renewalRetentionChance(gs,contract){
   const driverId=driverIdOf(contract);
   const evaluation=driverMarketEvaluation(gs,driverId);
@@ -135,7 +127,8 @@ export function applyMarketTick(gs){
           if(!retain)continue;
 
           const did=driverIdOf(contract);
-          const expected=expectedDriverSalary(next,did);
+          const role=contractRoleLabel(contract);
+          const expected=expectedDriverSalary(next,did,{role});
           const currentSalary=Number(contract?.salary??contract?.salary_yearly??0);
           const salary=Math.round(Math.max(expected,currentSalary*1.04)/5_000)*5_000;
           next=startDriverRenewal(next,{
@@ -145,7 +138,7 @@ export function applyMarketTick(gs){
             offer:{
               salary:Math.max(75_000,salary),
               years:marketRng.chance(0.35)?2:1,
-              role:contractRoleLabel(contract),
+              role,
             },
             origin:"ai",
           });
@@ -159,8 +152,8 @@ export function applyMarketTick(gs){
         const driver=candidateForTeam(next,f1EligibleDrivers,tid);
         if(!driver)break;
         const did=driverIdOf(driver);
-        const expected=expectedDriverSalary(next,did);
-        const salary=Math.round(expected*salaryMultiplierForRole(role)/5_000)*5_000;
+        const expected=expectedDriverSalary(next,did,{role});
+        const salary=Math.round(expected/5_000)*5_000;
         next=startDriverNegotiation(next,{
           driverId:did,
           teamId:tid,

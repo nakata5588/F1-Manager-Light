@@ -125,19 +125,40 @@ function teamIdsForEntries(gs){
   )];
 }
 
-export function buildRaceEntryState(gs,{gp,roundIndex}={}){
+function normalizedTeamEntryLimits(value){
+  const out=new Map();
+  if(Array.isArray(value)){
+    for(const row of value){
+      const teamId=String(row?.team_id??row?.team??"");
+      const limit=Number(row?.entries??row?.cars??row?.limit);
+      if(teamId&&Number.isFinite(limit))out.set(teamId,Math.max(0,Math.min(2,Math.round(limit))));
+    }
+    return out;
+  }
+  if(value&&typeof value==="object"){
+    for(const [teamId,raw] of Object.entries(value)){
+      const limit=Number(raw);
+      if(teamId&&Number.isFinite(limit))out.set(String(teamId),Math.max(0,Math.min(2,Math.round(limit))));
+    }
+  }
+  return out;
+}
+
+export function buildRaceEntryState(gs,{gp,roundIndex,teamEntryLimits=null}={}){
   const year=Number(gs?.activeYear)||Number(pick(gp,["year","season_year"],NaN))||null;
   const round=Number.isFinite(Number(roundIndex))?Number(roundIndex)+1:Number(pick(gp,["round"],NaN))||null;
   const gpFallback=round?"round_"+round:"gp";
   const gpId=String(pick(gp,["gp_id","id","track_id"],gpFallback));
   const entries=[];
+  const entryLimits=normalizedTeamEntryLimits(teamEntryLimits);
 
   for(const teamId of teamIdsForEntries(gs)){
     const contracts=activeRaceContracts(gs,teamId);
     const reserveContracts=activeReserveContracts(gs,teamId);
     const usedReserveIds=new Set();
+    const slotLimit=entryLimits.has(String(teamId))?entryLimits.get(String(teamId)):2;
 
-    for(let slot=1;slot<=2;slot+=1){
+    for(let slot=1;slot<=slotLimit;slot+=1){
       const contract=contracts[slot-1]||null;
       const contractedDriverId=contract?driverIdOf(contract):null;
       const availability=driverAvailabilityForRace(gs,contractedDriverId,gp);
@@ -199,6 +220,7 @@ export function buildRaceEntryState(gs,{gp,roundIndex}={}){
     year,
     round,
     dateISO:gpDateISO(gp)||null,
+    entry_limits:Object.fromEntries(entryLimits),
     entries,
   };
 }

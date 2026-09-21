@@ -6,6 +6,7 @@ import {
   completePracticeSession,
   completeQualifyingSession,
   completeRaceSession,
+  continueRaceWeekendSession,
   createRaceWeekendState,
   raceWeekendSchedule,
   setPracticeProgramme,
@@ -134,6 +135,8 @@ function fixture({qualifyingRules=defaultQualifyingRule,currentDateISO="1980-05-
 function startAfterPractice(options={}){
   let gs=createRaceWeekendState(fixture(options),{roundIndex:0,gp});
   gs=completePracticeSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.phase,"practice_complete");
+  gs=continueRaceWeekendSession(gs);
   return gs;
 }
 
@@ -170,6 +173,31 @@ test("RW3 1980 rule creates two timed Qualifying sessions and a persistent sessi
   assert.equal(gs.raceWeekendState.qualifying_rule_snapshot.session_count,2);
   assert.equal(gs.raceWeekendState.qualifying_rule_snapshot.max_starters,24);
   assert.equal(gs.raceWeekendState.sessions.length,5);
+});
+
+test("RW3.1 Practice always exposes its report before same-day Qualifying",()=>{
+  let gs=createRaceWeekendState(fixture(),{roundIndex:0,gp});
+  gs=completePracticeSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.phase,"practice_complete");
+  assert.ok(gs.raceWeekendState.practice?.results?.length>0);
+
+  gs=continueRaceWeekendSession(gs);
+  assert.equal(gs.raceWeekendState.phase,"qualifying");
+  assert.equal(gs.raceWeekendState.active_session_id,"qualifying_1");
+  assert.equal(gs.currentDateISO,"1980-05-16","same-day transition must not advance the calendar");
+});
+
+test("RW3.1 event entry limits preserve historical car counts without pinning driver identities",()=>{
+  const qualifyingRules={
+    ...defaultQualifyingRule,
+    team_entry_limits:{T2:1},
+  };
+  const gs=createRaceWeekendState(fixture({qualifyingRules}),{roundIndex:0,gp});
+  const entries=gs.raceWeekendState.entrants.filter((row)=>row.status==="confirmed");
+  assert.equal(entries.length,3);
+  assert.equal(entries.filter((row)=>row.team_id==="T1").length,2);
+  assert.equal(entries.filter((row)=>row.team_id==="T2").length,1);
+  assert.equal(gs.raceEntryState.entry_limits.T2,1);
 });
 
 test("RW3 saves and restores between Qualifying sessions without recalculating Q1",()=>{
@@ -348,7 +376,7 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   const beforeP2=gs.development.parts.find((p)=>p.id==="P2").condition;
 
   gs=completePracticeSession(gs,{gp});
-  assert.equal(gs.raceWeekendState.phase,"qualifying");
+  assert.equal(gs.raceWeekendState.phase,"practice_complete");
   const d1=gs.raceWeekendState.practice.results.find((row)=>row.driver_id==="D1");
   const d2=gs.raceWeekendState.practice.results.find((row)=>row.driver_id==="D2");
   assert.equal(d1.programme_id,"reliability");

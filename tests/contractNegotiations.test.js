@@ -84,6 +84,19 @@ function playerOffer(gs,{driverId="F1",salary=null,years=1,role="Reserve Driver"
   });
 }
 
+test("role-adjusted salary expectations keep Main > Second > Reserve > Test for the same driver",()=>{
+  const gs=fixture("role-salary");
+  const main=expectedDriverSalary(gs,"F1",{role:"Main Driver"});
+  const second=expectedDriverSalary(gs,"F1",{role:"Second Driver"});
+  const reserve=expectedDriverSalary(gs,"F1",{role:"Reserve Driver"});
+  const testSalary=expectedDriverSalary(gs,"F1",{role:"Test Driver"});
+
+  assert.ok(main>second);
+  assert.ok(second>reserve);
+  assert.ok(reserve>testSalary);
+  assert.ok(reserve<expectedDriverSalary(gs,"F1"),"reserve expectation should be below the role-neutral market baseline");
+});
+
 test("player contract offer remains pending until its response date",()=>{
   const gs=fixture();
   const next=playerOffer(gs);

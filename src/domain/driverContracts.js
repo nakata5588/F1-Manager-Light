@@ -76,7 +76,16 @@ export function ratingForDriver(gs,driverId){
   return ratingsOf(gs).find((r)=>driverIdOf(r)===String(driverId))||{};
 }
 
-export function expectedDriverSalary(gs,driverId){
+export function driverRoleSalaryMultiplier(role){
+  const key=String(role||"").toLowerCase().replace(/[_-]+/g," ");
+  if(/main|first|lead/.test(key))return 1.08;
+  if(/second|driver 2/.test(key))return 1.00;
+  if(/reserve/.test(key))return 0.72;
+  if(/test/.test(key))return 0.60;
+  return 1.00;
+}
+
+export function expectedDriverSalary(gs,driverId,{role=null}={}){
   const rating=ratingForDriver(gs,driverId);
   const evaluation=driverMarketEvaluation(gs,driverId);
   const contract=activeDriverContract(gs,driverId);
@@ -88,11 +97,14 @@ export function expectedDriverSalary(gs,driverId){
   const market=Number.isFinite(rawMarket)&&rawMarket>0?rawMarket:Number(evaluation.market_value||0);
   const existing=Number(pickValue(contract||{},["salary","salary_yearly"],0));
   const model=Math.round((Math.max(45,ability)**2)*120 + Math.max(0,rep-50)*18_000);
-  return Math.max(150_000,existing,Math.round(market*0.16),model);
+  const baseline=Math.max(150_000,existing,Math.round(market*0.16),model);
+  if(!role)return baseline;
+  const adjusted=Math.round((baseline*driverRoleSalaryMultiplier(role))/5_000)*5_000;
+  return Math.max(75_000,adjusted);
 }
 
 export function contractAcceptanceChance(gs,driverId,offer,{renewal=false}={}){
-  const expected=expectedDriverSalary(gs,driverId);
+  const expected=expectedDriverSalary(gs,driverId,{role:offer?.role});
   const salary=Math.max(0,Number(offer?.salary||0));
   const years=Math.max(1,Number(offer?.years||1));
   const rating=ratingForDriver(gs,driverId);

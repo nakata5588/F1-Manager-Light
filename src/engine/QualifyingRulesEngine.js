@@ -101,6 +101,13 @@ export function normalizeQualifyingRule(raw={}){
     raw?.prequalifying_advance_count??raw?.prequalifying_max_advance??raw?.prequalifying_limit,
     null
   );
+  const teamEntryLimits=raw?.team_entry_limits&&typeof raw.team_entry_limits==="object"
+    ?Object.fromEntries(
+      Object.entries(raw.team_entry_limits)
+        .map(([teamId,value])=>[String(teamId),asPositiveInt(value,null)])
+        .filter(([,value])=>value!=null)
+    )
+    :{};
 
   return {
     ...raw,
@@ -109,6 +116,8 @@ export function normalizeQualifyingRule(raw={}){
     session_count:sessionCount,
     session_length:raw?.session_length??raw?.length??raw?.lenght??null,
     max_starters:maxStarters,
+    max_entries:asPositiveInt(raw?.max_entries??raw?.entry_limit,null),
+    team_entry_limits:teamEntryLimits,
     practice_day_offset:asNumber(raw?.practice_day_offset,-2),
     session_day_offsets:normalizeOffsets(
       raw?.session_day_offsets??raw?.qualifying_day_offsets,
