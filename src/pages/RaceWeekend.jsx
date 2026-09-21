@@ -29,6 +29,12 @@ function teamName(teams,id){
   const t=(teams||[]).find((row)=>String(row?.team_id??row?.id??"")===String(id));
   return t?.team_name||t?.name||String(id||"—");
 }
+function currentFatigue(gs,id){
+  const direct=gs?.driverAttributes?.[String(id)];
+  if(direct&&Number.isFinite(Number(direct.fatigue)))return Number(direct.fatigue);
+  const digits=String(id??"").match(/(\d+)/)?.[1]?.padStart(4,"0");
+  return Number(gs?.driverAttributes?.[digits]?.fatigue||0);
+}
 function formatLapTime(ms){
   const n=Number(ms);
   if(!Number.isFinite(n)||n<=0)return "—";
@@ -230,9 +236,10 @@ export default function RaceWeekend(){
                 </div>
                 <p className="mt-2 text-sm text-gray-600">{PRACTICE_PROGRAMMES[selected]?.description||PRACTICE_PROGRAMMES.balanced.description}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <span className="bg-gray-100 rounded px-2 py-1">Fatigue +{PRACTICE_PROGRAMMES[selected]?.fatigue??5}</span>
+                  <span className="bg-gray-100 rounded px-2 py-1">Current fatigue {currentFatigue(gs,did).toFixed(0)}/100</span>
+                  <span className="bg-gray-100 rounded px-2 py-1">Practice load +{PRACTICE_PROGRAMMES[selected]?.fatigue??5}</span>
                   <span className="bg-gray-100 rounded px-2 py-1">Mileage ×{Number(PRACTICE_PROGRAMMES[selected]?.mileageFactor??1).toFixed(2)}</span>
-                  <span className="bg-gray-100 rounded px-2 py-1">Wear ×{Number(PRACTICE_PROGRAMMES[selected]?.wearFactor??1).toFixed(2)}</span>
+                  <span className="bg-gray-100 rounded px-2 py-1">Component wear ×{Number(PRACTICE_PROGRAMMES[selected]?.wearFactor??1).toFixed(2)}</span>
                 </div>
               </div>;
             })}
@@ -287,10 +294,22 @@ export default function RaceWeekend(){
                     <span className="bg-emerald-50 text-emerald-800 rounded px-2 py-1">Setup {Math.round(row.setup_quality)}%</span>
                     <span className="bg-blue-50 text-blue-800 rounded px-2 py-1">Knowledge {Math.round(row.setup_knowledge)}%</span>
                     <span className="bg-slate-100 rounded px-2 py-1">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
-                    <span className="bg-slate-100 rounded px-2 py-1">Fatigue +{row.fatigue_cost}</span>
+                    <span className="bg-slate-100 rounded px-2 py-1">Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {Number(row.fatigue_after??row.fatigue_cost??0).toFixed(0)}</span>
+                    <span className="bg-slate-100 rounded px-2 py-1">Learning efficiency {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
+                    <span className="bg-amber-50 text-amber-800 rounded px-2 py-1">Component wear {Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
                   </div>
                 </div>
                 <p className="mt-2 text-sm">{row.feedback}</p>
+                {row.component_wear?.lowest_slot&&(
+                  <p className="mt-1 text-xs text-gray-500">
+                    Lowest component after Practice: {String(row.component_wear.lowest_slot).replaceAll("_"," ")} · {Number(row.component_wear.lowest_condition??0).toFixed(1)}%.
+                  </p>
+                )}
+                {Number(row.fatigue_performance_penalty_before||0)>0&&(
+                  <p className="mt-1 text-xs text-amber-700">
+                    Existing fatigue reduced the driver's effective performance by about {Number(row.fatigue_performance_penalty_before).toFixed(1)} driver-score points before this session.
+                  </p>
+                )}
                 {row.issue_note&&<p className="mt-2 text-sm text-amber-700">{row.issue_note}</p>}
               </div>
             ))}
