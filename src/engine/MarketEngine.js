@@ -6,7 +6,7 @@ import {
 } from "../domain/driverContracts.js";
 import { rngFor } from "../core/random.js";
 import { contractRoleLabel, isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../domain/contractRoles.js";
-import { compareDriverMarketValue } from "../domain/driverMarketEvaluation.js";
+import { compareDriverMarketValue, driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 import {
   availableContractRoles,
   driverNegotiations,
