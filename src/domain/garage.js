@@ -51,6 +51,17 @@ export const PART_SLOT_EFFECTS=Object.freeze({
   turbocharger:{qualifying:0.62,race:0.50,reliability:0.04},
 });
 
+export const PART_CONDITION_RELIABILITY_RISK=Object.freeze({
+  chassis:3.0,
+  aero_front:0.8,
+  aero_rear:0.8,
+  suspension:5.0,
+  gearbox:7.0,
+  brakes:4.0,
+  cooling:8.0,
+  turbocharger:6.0,
+});
+
 export function installedPartsForCar(gs,car){
   const byId=new Map((gs?.development?.parts||[]).map((part)=>[String(part.id),part]));
   return Object.entries(car?.installedParts||{})
@@ -67,6 +78,9 @@ export function installedAdjustmentForCar(gs,car){
     qualifying+=perf*profile.qualifying*condition;
     race+=perf*profile.race*condition;
     reliability+=perf*profile.reliability*condition;
+    const conditionLoss=Math.max(0,0.80-condition)/0.80;
+    const reliabilityRisk=Number(PART_CONDITION_RELIABILITY_RISK[slot]??3);
+    reliability-=conditionLoss*reliabilityRisk;
   }
   return {qualifying,race,reliability};
 }
