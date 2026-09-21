@@ -238,14 +238,15 @@ function aiProgrammeFor(gs,teamId,driverId,engineering){
   return PRACTICE_PROGRAMMES.balanced;
 }
 
-function issueFor(gs,{driverId,teamId,programme,weekendKey}){
+function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50}){
   const rating=ratingFor(gs,driverId);
   const car=teamCarPerformance(gs,teamId,driverId);
   const crash=num(rating?.crash_likelihood,25)/100;
   const reliability=num(car?.reliability,75)/100;
   const rng=rngFor(gs,`${weekendKey}-practice-issue-${driverId}`);
 
-  const contactChance=clamp((0.002+crash*0.018)*programme.incidentRisk,0,0.05);
+  const trackRiskFactor=0.80+clamp(trackRisk,0,100)/250;
+  const contactChance=clamp((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor,0,0.05);
   const mechanicalChance=clamp((0.003+(1-reliability)*0.028)*programme.incidentRisk,0,0.06);
   const roll=rng.next();
   if(roll<contactChance)return {issue_type:"contact",issue_slot:"aero_front",issue_note:"Minor contact interrupted part of the programme."};
@@ -303,7 +304,13 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       programme.mileageFactor*12+
       (programme.id==="setup"?8:0)
     ));
-    const issue=issueFor(gs,{driverId,teamId,programme,weekendKey:weekend.key});
+    const issue=issueFor(gs,{
+      driverId,
+      teamId,
+      programme,
+      weekendKey:weekend.key,
+      trackRisk:profile.inputs.crash_risk,
+    });
     const issuePenalty=issue.issue_type?2:0;
     const prepGain=clamp(
       programme.preparationGain+
@@ -340,7 +347,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       race_bonus:programme.raceBonus,
       reliability_bonus:programme.reliabilityBonus,
       mileage_factor:programme.mileageFactor,
-      wear_factor:programme.wearFactor,
+      wear_factor:round1(programme.wearFactor*(0.85+profile.inputs.tyre_wear/100*0.30)),
       fatigue_cost:programme.fatigue,
       ...issue,
     });
