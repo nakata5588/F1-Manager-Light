@@ -140,8 +140,8 @@ export default function Drivers(){
 
   return <div className="grid gap-4">
     <div className="bg-white rounded-xl shadow p-4">
-      <h2 className="text-lg font-semibold">All Drivers</h2>
-      <p className="text-sm text-gray-500">Visible driver market for season {activeYear||"—"} · contracted, free and youth talent.</p>
+      <h2 className="text-lg font-semibold">Driver Market</h2>
+      <p className="text-sm text-gray-500">Browse contracted, free and youth drivers for season {activeYear||"—"}. Free drivers can be approached for open roles.</p>
       <div className="mt-3 flex flex-col lg:flex-row gap-2">
         <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search driver/team/nationality/status…" value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}/>
         <button

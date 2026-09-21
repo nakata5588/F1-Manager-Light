@@ -1,13 +1,16 @@
 import { X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 /** Espera message:
  * { id, title, dateISO|date, subtitle?, body?, meta?: { effects?: [{entity,id,name,attr,label,before,delta,after}] } }
  * - Se não houver meta.effects, mostra só o body.
  */
 export default function MessageModal({ message, onClose }) {
+  const navigate = useNavigate();
   if (!message) return null;
   const effects = message?.meta?.effects || [];
   const dateLabel = message?.dateISO || message?.date || "";
+  const actions = message?.actions || message?.meta?.actions || [];
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/40 flex items-center justify-center p-3">
@@ -97,7 +100,23 @@ export default function MessageModal({ message, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 p-3 border-t dark:border-zinc-700">
+        <div className="flex items-center justify-between gap-2 p-3 border-t dark:border-zinc-700">
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action, idx) => (
+              <button
+                key={action?.label || idx}
+                type="button"
+                onClick={() => {
+                  const route = action?.route;
+                  onClose?.();
+                  if (route) navigate(route);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700"
+              >
+                {action?.label || "Open"}
+              </button>
+            ))}
+          </div>
           <button
             onClick={onClose}
             className="px-3 py-1.5 rounded-lg border hover:bg-gray-50 dark:hover:bg-zinc-800"
