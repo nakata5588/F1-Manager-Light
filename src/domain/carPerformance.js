@@ -2,7 +2,7 @@
 //
 // Shared car-performance model. This is intentionally independent from the UI
 // so race simulation, comparisons and the Garage/Car page use the same numbers.
-import { garageCarForDriver, installedAdjustmentForCar } from "./garage.js";
+import { baseConditionAdjustmentForCar, garageCarForDriver, installedAdjustmentForCar } from "./garage.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v))return v.result ?? v.value ?? null;
@@ -90,26 +90,36 @@ export function teamCarPerformance(gs,teamId,driverId=null){
     (chassis??70)*0.52+power*0.28+reliability*0.08+brakes*0.06+suspension*0.06
   );
   let installed={qualifying:0,race:0,reliability:0};
+  let condition={qualifying:0,race:0,reliability:0};
   if(String(teamId??"")===String(gs?.team?.team_id??gs?.team?.id??"")){
     if(driverId){
       const garageCar=garageCarForDriver(gs,driverId);
-      if(garageCar)installed=installedAdjustmentForCar(gs,garageCar);
+      if(garageCar){
+        installed=installedAdjustmentForCar(gs,garageCar);
+        condition=baseConditionAdjustmentForCar(gs,garageCar);
+      }
     }else{
       const raceCars=(gs?.garage?.cars||[]).filter((x)=>x?.kind==="race");
       if(raceCars.length){
-        const rows=raceCars.map((x)=>installedAdjustmentForCar(gs,x));
+        const installedRows=raceCars.map((x)=>installedAdjustmentForCar(gs,x));
+        const conditionRows=raceCars.map((x)=>baseConditionAdjustmentForCar(gs,x));
         installed={
-          qualifying:rows.reduce((a,b)=>a+b.qualifying,0)/rows.length,
-          race:rows.reduce((a,b)=>a+b.race,0)/rows.length,
-          reliability:rows.reduce((a,b)=>a+b.reliability,0)/rows.length,
+          qualifying:installedRows.reduce((a,b)=>a+b.qualifying,0)/installedRows.length,
+          race:installedRows.reduce((a,b)=>a+b.race,0)/installedRows.length,
+          reliability:installedRows.reduce((a,b)=>a+b.reliability,0)/installedRows.length,
+        };
+        condition={
+          qualifying:conditionRows.reduce((a,b)=>a+b.qualifying,0)/conditionRows.length,
+          race:conditionRows.reduce((a,b)=>a+b.race,0)/conditionRows.length,
+          reliability:conditionRows.reduce((a,b)=>a+b.reliability,0)/conditionRows.length,
         };
       }
     }
   }
 
-  const finalQualifying=clamp(qualifying+installed.qualifying);
-  const finalRace=clamp(race+installed.race);
-  const finalReliability=clamp(reliability+installed.reliability);
+  const finalQualifying=clamp(qualifying+installed.qualifying+condition.qualifying);
+  const finalRace=clamp(race+installed.race+condition.race);
+  const finalReliability=clamp(reliability+installed.reliability+condition.reliability);
   const overall=clamp(finalQualifying*0.42+finalRace*0.48+finalReliability*0.10);
 
   return {
@@ -124,6 +134,11 @@ export function teamCarPerformance(gs,teamId,driverId=null){
       qualifying:round1(installed.qualifying),
       race:round1(installed.race),
       reliability:round1(installed.reliability),
+    },
+    wear_penalty:{
+      qualifying:round1(condition.qualifying),
+      race:round1(condition.race),
+      reliability:round1(condition.reliability),
     },
     source:{car,engine},
   };
