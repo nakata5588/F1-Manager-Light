@@ -1,5 +1,6 @@
 // src/domain/developmentTesting.js
 import { isTestDriverContract } from "./contractRoles.js";
+import { activeDriverContracts } from "./driverContracts.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
 const pick=(o,keys,fb=undefined)=>{
@@ -12,29 +13,8 @@ const pick=(o,keys,fb=undefined)=>{
 const driverIdOf=(row)=>String(pick(row,["driver_id","person_id","id"],""));
 const teamIdOf=(row)=>String(pick(row,["team_id","constructor_id","team","constructor"],""));
 
-function activeForYear(contract,year){
-  const status=String(pick(contract,["status"],"active")).toLowerCase();
-  if(["terminated","expired","released","inactive"].includes(status))return false;
-  const direct=Number(pick(contract,["year","season_year"],NaN));
-  const start=Number(pick(contract,["contract_start_year","start_year","contract_start"],NaN));
-  const end=Number(pick(contract,["contract_until_year","end_year","contract_until"],NaN));
-  if(Number.isFinite(start)||Number.isFinite(end)){
-    const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
-    const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
-    return year>=lo&&year<=hi;
-  }
-  return !Number.isFinite(direct)||direct===year;
-}
-
 export function activeTestDriverContracts(gs,teamId){
-  const year=Number(gs?.activeYear);
-  const live=Array.isArray(gs?.contracts)?gs.contracts:[];
-  const contracts=live.length?live:(Array.isArray(gs?.dbContracts)?gs.dbContracts:[]);
-  return contracts.filter((contract)=>
-    teamIdOf(contract)===String(teamId) &&
-    isTestDriverContract(contract) &&
-    (!Number.isFinite(year)||activeForYear(contract,year))
-  );
+  return activeDriverContracts(gs,{teamId}).filter(isTestDriverContract);
 }
 
 export function testDriverDevelopmentProfile(gs,teamId){

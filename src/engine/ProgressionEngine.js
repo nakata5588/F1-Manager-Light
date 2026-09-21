@@ -5,6 +5,7 @@ import {
   ensureAbilityAnchor,
   recalculateCurrentAbility,
 } from "../domain/driverRating.js";
+import { currentDriverTeamId } from "../domain/driverContracts.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -39,15 +40,7 @@ function meanRevert(value,target=50,rate=0.025){
   return clamp(v+(target-v)*rate);
 }
 function resolveDriverTeamId(gs,driverId){
-  const year=Number(gs?.activeYear);
-  const row=(gs?.contracts||[]).find((c)=>{
-    if(idOf(c)!==String(driverId))return false;
-    const role=String(pick(c,["role","position","contract_role"],"driver")).toLowerCase();
-    const cy=Number(pick(c,["year","season_year"],year));
-    return (!role||role.includes("driver")||role.includes("main")||role.includes("second")) &&
-      (!Number.isFinite(cy)||cy===year);
-  });
-  return row?String(pick(row,["team_id","team","constructor_id","constructor"],"")):"";
+  return currentDriverTeamId(gs,driverId);
 }
 function simulatorLevel(gs,teamId){
   const userTeam=String(gs?.team?.team_id??gs?.team?.id??"");

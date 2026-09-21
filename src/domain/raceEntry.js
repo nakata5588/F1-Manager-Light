@@ -1,5 +1,6 @@
 // src/domain/raceEntry.js
 import { isRaceDriverContract, isReserveDriverContract, normalizedContractRole } from "./contractRoles.js";
+import { contractActiveForYear, preferLiveRows } from "./liveContracts.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -17,20 +18,9 @@ const pick=(o,keys,fb=undefined)=>{
   return fb;
 };
 
-const asRows=(value)=>{
-  const raw=unwrap(value);
-  if(Array.isArray(raw))return raw;
-  if(!raw||typeof raw!=="object")return [];
-  for(const key of ["items","rows","list","data"])if(Array.isArray(raw[key]))return raw[key];
-  return Object.values(raw).filter((row)=>row&&typeof row==="object"&&!Array.isArray(row));
-};
-
 const driverIdOf=(row)=>String(pick(row,["driver_id","person_id","id"],""));
 const teamIdOf=(row)=>String(pick(row,["team_id","constructor_id","team","constructor","id"],""));
-const contractsOf=(gs)=>{
-  const live=asRows(gs?.contracts);
-  return live.length?live:asRows(gs?.dbContracts);
-};
+const contractsOf=(gs)=>preferLiveRows(gs,"contracts","dbContracts");
 
 function dateOnly(value){
   const s=String(value||"");
@@ -39,22 +29,6 @@ function dateOnly(value){
 
 function gpDateISO(gp){
   return dateOnly(pick(gp,["dateISO","date","race_date","raceDate","start_date","end_date"],""));
-}
-
-function contractActiveForYear(contract,year){
-  const status=String(pick(contract,["status"],"active")).toLowerCase();
-  if(["terminated","expired","released","inactive","void"].includes(status))return false;
-
-  const direct=Number(pick(contract,["year","season_year"],NaN));
-  const start=Number(pick(contract,["contract_start_year","start_year","contract_start"],NaN));
-  const end=Number(pick(contract,["contract_until_year","end_year","contract_until"],NaN));
-
-  if(Number.isFinite(start)||Number.isFinite(end)){
-    const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
-    const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
-    return year>=lo&&year<=hi;
-  }
-  return !Number.isFinite(direct)||direct===year;
 }
 
 function seatRank(contract,index){
