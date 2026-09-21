@@ -247,16 +247,17 @@ export function startDriverNegotiation(gs,{
   }
 
   const role=normalizedRoleLabel(offer?.role||existingContract?.role||"Reserve Driver");
-  if(!renewal){
-    const eligibility=driverNegotiationEligibility(gs,{driverId:did,teamId:tid});
-    if(!eligibility.canNegotiate||!eligibility.roles.includes(role))return gs;
-  }
+  const eligibility=renewal
+    ?{canNegotiate:true,kind:"renewal",roles:[role],contract:existingContract,buyout:null}
+    :driverNegotiationEligibility(gs,{driverId:did,teamId:tid});
+  if(!eligibility.canNegotiate||!eligibility.roles.includes(role))return gs;
+  const kind=renewal?"renewal":(eligibility.kind||"new_contract");
 
   const duplicate=driverNegotiations(gs).some((n)=>
     isNegotiationActive(n)&&
     String(n.driver_id)===did&&
     String(n.team_id)===tid&&
-    String(n.kind||"new_contract")===(renewal?"renewal":"new_contract")
+    String(n.kind||"new_contract")===kind
   );
   if(duplicate)return gs;
 
@@ -270,7 +271,7 @@ export function startDriverNegotiation(gs,{
   const negotiation={
     id,
     origin,
-    kind:renewal?"renewal":"new_contract",
+    kind,
     driver_id:did,
     driver_name:driverNameFor(gs,did),
     team_id:tid,
@@ -281,7 +282,10 @@ export function startDriverNegotiation(gs,{
     response_date:addDaysISO(submitted,responseDays),
     expected_salary:expected,
     offer:{salary,years,role},
-    existing_contract_end:renewal?contractEndYear(existingContract,Number(gs?.activeYear)):null,
+    existing_contract_end:existingContract?contractEndYear(existingContract,Number(gs?.activeYear)):null,
+    seller_team_id:kind==="transfer"?teamIdOf(existingContract):null,
+    buyout_fee:kind==="transfer"?Number(eligibility?.buyout?.fee||0):0,
+    buyout_type:kind==="transfer"?(eligibility?.buyout?.type||"compensation"):null,
     market_evaluation:driverMarketEvaluation(gs,driver),
   };
 
@@ -294,10 +298,12 @@ export function startDriverNegotiation(gs,{
       type:"STAFF",
       from:"Driver Management",
       tag:"Contracts",
-      subject:(renewal?"Renewal offer submitted — ":"Contract offer submitted — ")+negotiation.driver_name,
+      subject:(renewal?"Renewal offer submitted — ":(kind==="transfer"?"Transfer offer submitted — ":"Contract offer submitted — "))+negotiation.driver_name,
       body:renewal
         ?("A "+years+"-year extension worth $"+salary.toLocaleString("en-US")+" per season has been offered. A response is expected within "+responseDays+" day(s).")
-        :("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. A response is expected within "+responseDays+" day(s)."),
+        :(kind==="transfer"
+          ?("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. If the driver accepts, a "+(negotiation.buyout_type==="fixed_clause"?"release clause":"buyout compensation")+" of $"+Number(negotiation.buyout_fee||0).toLocaleString("en-US")+" will be paid to the current team.")
+          :("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. A response is expected within "+responseDays+" day(s).")),
       driver_id:did,
       negotiation_id:id,
       actions:[{label:"View negotiations",route:renewal?"/MyDrivers":"/Drivers"}],
