@@ -107,3 +107,16 @@ export function fatiguePenalty(gs,driverId){
   if(!Number.isFinite(fatigue)||fatigue<=25)return 0;
   return Math.min(6,(fatigue-25)*0.08);
 }
+
+export function intensiveTrainingStatus(gs,driverId){
+  const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
+  const value=Number.isFinite(fatigue)?clamp(fatigue):0;
+  const allowed=value<70;
+  const efficiency=value>=60?0.50:value>=45?0.75:1;
+  return {
+    fatigue:value,
+    allowed,
+    efficiency:allowed?efficiency:0,
+    label:!allowed?"Too fatigued":value>=60?"Severely fatigued":value>=45?"Fatigued":"Ready",
+  };
+}

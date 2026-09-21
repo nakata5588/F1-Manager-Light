@@ -159,9 +159,26 @@ function incidentSeverity(rng, reason) {
   return { label, score:Number(score.toFixed(3)) };
 }
 
-function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
+export function raceAccidentChance(gs,rating,driverId){
   const model=accidentModelForYear(gs);
+  const year=Number(gs?.activeYear);
   const damageProb=clamp(Number(pick(model,["damage_DNF_prob","damage_dnf_prob"],0.10)),0.04,0.25);
+  const crashLik=clamp(Number(pick(rating||{},["crash_likelihood"],35))/100,0.05,0.95);
+  const fatigue=Number(driverCondition(gs,driverId)?.fatigue ?? 0);
+  const fatigueRisk=Math.max(0,fatigue-60)*0.0004;
+
+  // 1980 is intentionally calibrated as a much more dangerous era for gameplay:
+  // a neutral driver starts at a 15% Accident/Collision DNF chance per GP.
+  // Driver crash tendency and extreme fatigue can move that risk around the baseline.
+  if(year===1980){
+    const crashAdjustment=(crashLik-0.35)*0.10;
+    return clamp(0.15+crashAdjustment+fatigueRisk,0.08,0.25);
+  }
+
+  return clamp(0.012+crashLik*damageProb*0.32+fatigueRisk,0.01,0.12);
+}
+
+function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
   const finishers=[];
   const retirees=[];
 
@@ -169,13 +186,10 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     const driver=row.driver||{};
     const rating=(ratings||[]).find((r)=>String(r?.driver_id)===String(driver?.driver_id))||{};
     const rel=teamReliability(gs,driver);
-    const crashLik=clamp(Number(pick(rating,["crash_likelihood"],35))/100,0.05,0.95);
-    const fatigue=Number(driverCondition(gs,driver?.driver_id)?.fatigue ?? 0);
 
-    // Older/less reliable cars fail more often. Crash likelihood is a separate route to DNF.
+    // Older/less reliable cars fail more often. Accident risk is calibrated separately.
     const mechanicalChance=clamp((1-rel)*0.68,0.015,0.28);
-    const fatigueRisk=Math.max(0,fatigue-60)*0.0004;
-    const accidentChance=clamp(0.012 + crashLik*damageProb*0.32 + fatigueRisk,0.01,0.12);
+    const accidentChance=raceAccidentChance(gs,rating,driver?.driver_id);
     const roll=rng.next();
 
     let reason=null;
@@ -723,10 +737,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp }) {
       moraleDelta+=0.5;
     }
 
+    const raceFatigue=(row.retired?8:12)+(wet?2:0);
     conditionDict[did]={
       ...curr,
-      fatigue:clamp(Number(curr.fatigue||0)+8,0,100),
-      preparation:clamp(Number(curr.preparation||50)-8,0,100),
+      fatigue:clamp(Number(curr.fatigue||0)+raceFatigue,0,100),
+      preparation:clamp(Number(curr.preparation||50)-10,0,100),
       confidence:clamp(Number(curr.confidence||50)+confidenceDelta,0,100),
       morale:clamp(Number(curr.morale||50)+moraleDelta,0,100),
     };
