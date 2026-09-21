@@ -72,6 +72,8 @@ export function seasonPackStatePatch(pack) {
     penaltiesRules: Array.isArray(s.penaltiesRules) ? s.penaltiesRules : [],
     financialRules: Array.isArray(s.financialRules) ? s.financialRules : [],
     agendaBlocks: Array.isArray(s.agendaBlocks) ? s.agendaBlocks : [],
+    coreTracks: Array.isArray(s.coreTracks) ? s.coreTracks : [],
+    trackLayoutByYear: Array.isArray(s.trackLayoutByYear) ? s.trackLayoutByYear : [],
     seasonPackMeta: {
       format: pack.format,
       schemaVersion: pack.schemaVersion,
