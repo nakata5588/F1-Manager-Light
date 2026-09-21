@@ -4,6 +4,8 @@ import { ageOn } from "../utils/date.js";
 import { DriverPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import { expectedDriverSalary } from "../domain/driverContracts.js";
+import { contractRoleLabel } from "../domain/contractRoles.js";
+import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import {
   acceptCounterOffer,
   availableContractRoles,
@@ -97,6 +99,10 @@ export default function Drivers(){
     const pending=activePlayerByDriver.get(id)||null;
     const tid=teamIdOf(contract)||teamIdOf(d);
     const ms=marketStatus(d,contract,pending);
+    const overallView=driverOverallPresentation(gs,d);
+    const role=contract?contractRoleLabel(contract):(pending?.offer?.role||null);
+    const contractSalary=contract?Number(pick(contract,["salary","salary_yearly"],0))||0:0;
+    const pendingSalary=pending?Number(pending?.offer?.salary||0)||0:0;
     return {
       ...d,id,name:nameOf(d),
       team_id:tid||null,
@@ -104,13 +110,17 @@ export default function Drivers(){
       nationality:pick(d,["country_name","nationality","country"],"—"),
       country_code:pick(d,["country_code","nationality_code"],""),
       age:d?.age??ageOn(gs?.currentDateISO,d?.birthdate??d?.dob),
-      overall:pick(rating,["current_ability","overall","pace"],"—"),
+      overall:overallView.value,
+      overall_estimated:overallView.estimated,
+      role,
+      wage:contractSalary||pendingSalary||0,
+      wage_source:contractSalary?"contract":(pendingSalary?"offer":null),
       contract_until:contract?pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"):"—",
       market_status:ms,
       pending,
       can_negotiate:!contract && d?.canHireF1!==false && !["hidden","junior_only","deceased","retired"].includes(String(d?.status||"").toLowerCase()),
     };
-  }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs?.currentDateISO]);
+  }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
   const statusOptions=["ALL","Contracted","Negotiating","Free","Youth","Lower Series","Available"];
@@ -137,7 +147,7 @@ export default function Drivers(){
 
   const headers=[
     ["name","Driver"],["team_name","Team"],["nationality","Nationality"],["market_status","Status"],
-    ["age","Age"],["overall","Overall"],["contract_until","Contract"]
+    ["age","Age"],["overall","Overall"],["wage","Wage"],["contract_until","Contract"]
   ];
 
   const submitNegotiation=(offer)=>{
@@ -218,8 +228,24 @@ export default function Drivers(){
         <td className="px-4 py-2"><button type="button" data-entity="driver" data-id={d.id} className="flex items-center gap-3 font-medium hover:underline text-left"><DriverPortrait driver={d} size="h-10 w-10"/><span>{d.name}</span></button></td>
         <td className="px-4 py-2">{d.team_name}</td>
         <td className="px-4 py-2">{flagFromCountry(d.nationality,d.country_code)} {d.nationality}</td>
-        <td className="px-4 py-2"><span className="px-2 py-1 rounded bg-gray-100 text-xs">{d.market_status}</span></td>
-        <td className="px-4 py-2">{d.age??"—"}</td><td className="px-4 py-2 font-semibold">{d.overall}</td><td className="px-4 py-2">{d.contract_until}</td>
+        <td className="px-4 py-2">
+          <div className="flex flex-col items-start gap-1">
+            <span className="px-2 py-1 rounded bg-gray-100 text-xs">{d.market_status}</span>
+            {d.role&&<span className="text-xs text-gray-500">{d.role}</span>}
+          </div>
+        </td>
+        <td className="px-4 py-2">{d.age??"—"}</td>
+        <td className="px-4 py-2 font-semibold" title={d.overall_estimated?"Estimated from available market/career information":"Rated overall"}>
+          {d.overall_estimated?"~":""}{d.overall}
+        </td>
+        <td className="px-4 py-2">
+          {d.wage?(
+            <span title={d.wage_source==="offer"?"Current negotiation offer":"Current contract wage"}>
+              {d.wage_source==="offer"?"Offer ":""}{money(d.wage)}
+            </span>
+          ):"—"}
+        </td>
+        <td className="px-4 py-2">{d.contract_until}</td>
         <td className="px-4 py-2 text-right">
           {d.pending?(
             <span className="text-xs text-blue-700">Negotiating</span>
