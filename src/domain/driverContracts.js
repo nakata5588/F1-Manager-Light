@@ -35,16 +35,41 @@ function ratingsOf(gs){
 export const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
 export const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 
+export function contractEndYear(contract,fallbackYear=NaN){
+  const value=Number(pick(contract,["contract_until_year","contract_until","end_year"],fallbackYear));
+  return Number.isFinite(value)?value:Number(fallbackYear);
+}
+
+export function contractActiveForYear(contract,year){
+  if(!contract)return false;
+  const status=String(pick(contract,["status"],"active")).toLowerCase();
+  if(["terminated","expired","released","inactive","void"].includes(status))return false;
+  const direct=Number(pick(contract,["year","season_year"],NaN));
+  const start=Number(pick(contract,["contract_start_year","start_year"],direct));
+  const end=contractEndYear(contract,direct);
+  const y=Number(year);
+  if(!Number.isFinite(y))return true;
+  const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
+  const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
+  return y>=lo&&y<=hi;
+}
+
+export function expiringDriverContracts(gs,{teamId=null}={}){
+  const year=Number(gs?.activeYear);
+  return contractsOf(gs).filter((contract)=>{
+    if(!isDriverContract(contract)||!contractActiveForYear(contract,year))return false;
+    if(teamId!=null&&teamIdOf(contract)!==String(teamId))return false;
+    return contractEndYear(contract,year)===year;
+  });
+}
+
 export function activeDriverContract(gs,driverId){
   const year=Number(gs?.activeYear);
-  return contractsOf(gs).find((c)=>{
-    if(driverIdOf(c)!==String(driverId))return false;
-    if(!isDriverContract(c))return false;
-    const status=String(pick(c,["status"],"active")).toLowerCase();
-    if(["terminated","expired","released","inactive","void"].includes(status))return false;
-    const cy=Number(pick(c,["year","season_year"],year));
-    return !Number.isFinite(cy)||!Number.isFinite(year)||cy===year;
-  })||null;
+  return contractsOf(gs).find((c)=>
+    driverIdOf(c)===String(driverId) &&
+    isDriverContract(c) &&
+    contractActiveForYear(c,year)
+  )||null;
 }
 
 export function ratingForDriver(gs,driverId){
@@ -117,10 +142,12 @@ export function makeDriverContract({gs,driver,teamId,teamName,offer,source="play
 }
 
 export function raceSeatCount(gs,teamId){
-  return contractsOf(gs).filter((c)=>{
-    if(teamIdOf(c)!==String(teamId))return false;
-    return isRaceDriverContract(c);
-  }).length;
+  const year=Number(gs?.activeYear);
+  return contractsOf(gs).filter((c)=>
+    teamIdOf(c)===String(teamId) &&
+    isRaceDriverContract(c) &&
+    contractActiveForYear(c,year)
+  ).length;
 }
 
 
@@ -128,9 +155,96 @@ export function reserveSeatCount(gs,teamId){
   const year=Number(gs?.activeYear);
   return contractsOf(gs).filter((c)=>{
     if(teamIdOf(c)!==String(teamId)||!isReserveDriverContract(c))return false;
-    const status=String(pick(c,["status"],"active")).toLowerCase();
-    if(["terminated","expired","released","inactive","void"].includes(status))return false;
-    const cy=Number(pick(c,["year","season_year"],year));
-    return !Number.isFinite(cy)||!Number.isFinite(year)||cy===year;
+    return contractActiveForYear(c,year);
   }).length;
+}
+
+
+export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}){
+  if(!gs)return gs;
+  const contract=activeDriverContract(gs,driverId);
+  if(!contract)return gs;
+
+  const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  if(teamIdOf(contract)!==userTeamId)return gs;
+
+  const cost=terminationCost(gs,contract);
+  const today=String(gs?.currentDateISO||"").slice(0,10);
+  const nextContracts=(gs?.contracts||[]).map((row)=>{
+    if(row!==contract)return row;
+    return {
+      ...row,
+      status:"released",
+      released_at:today||null,
+      termination_reason:reason,
+      termination_cost:cost,
+    };
+  });
+
+  const oldBalance=Number(gs?.finances?.balance??gs?.team?.budget??0);
+  const nextBalance=oldBalance-cost;
+  const financeLog=Array.isArray(gs?.financeLog)?gs.financeLog:[];
+  const sig="driver-release:"+driverId+":"+today;
+  const tx=cost>0&&!financeLog.some((row)=>row?.sig===sig)
+    ? [{
+        id:"tx_"+sig,
+        dateISO:today,
+        type:"expense",
+        category:"Driver",
+        desc:"Contract termination — "+(contract.driver_name||driverId),
+        amount:-cost,
+        sig,
+      }]
+    : [];
+
+  return {
+    ...gs,
+    contracts:nextContracts,
+    team:{...(gs?.team||{}),budget:Number(gs?.team?.budget??oldBalance)-cost},
+    finances:{
+      ...(gs?.finances||{}),
+      balance:nextBalance,
+      budget:Number(gs?.finances?.budget??oldBalance)-cost,
+      season_spend:Number(gs?.finances?.season_spend||0)+cost,
+    },
+    financeLog:[...tx,...financeLog],
+    inbox:[{
+      id:"release_"+driverId+"_"+today,
+      date:today,
+      unread:true,
+      type:"STAFF",
+      from:"Driver Management",
+      tag:"Contracts",
+      subject:"Contract terminated — "+(contract.driver_name||driverId),
+      body:(contract.driver_name||driverId)+" has been released from the team. Termination cost: $"+cost.toLocaleString("en-US")+".",
+      driver_id:String(driverId),
+      team_id:userTeamId,
+    },...(gs?.inbox||[])],
+  };
+}
+
+export function extendDriverContract(gs,driverId,offer){
+  const contract=activeDriverContract(gs,driverId);
+  if(!contract)return gs;
+  const year=Number(gs?.activeYear);
+  const currentEnd=contractEndYear(contract,year);
+  const extensionYears=Math.max(1,Math.min(5,Math.round(Number(offer?.years||1))));
+  const newEnd=Math.max(year,currentEnd)+extensionYears;
+  const salary=Math.max(0,Math.round(Number(offer?.salary??contract?.salary??0)));
+  const role=offer?.role||contract?.role||"Driver";
+
+  return {
+    ...gs,
+    contracts:(gs?.contracts||[]).map((row)=>row===contract?{
+      ...row,
+      role,
+      salary,
+      contract_until_year:newEnd,
+      contract_until:newEnd,
+      end_year:newEnd,
+      status:"active",
+      renewed_at:String(gs?.currentDateISO||"").slice(0,10)||null,
+      renewal_extension_years:extensionYears,
+    }:row),
+  };
 }
