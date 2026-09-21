@@ -181,3 +181,17 @@ test("garage assigns the spare car to reserve driver, never test driver",()=>{
   const garage=syncGarageState(gs,{});
   assert.equal(garage.cars[2].driver_id,"D5");
 });
+
+
+test("activeDriverContract ignores historical/expired rows and returns the current deal",()=>{
+  const gs=baseState();
+  gs.contracts=[
+    {year:1979,team_id:"OLD",driver_id:"D1",role:"Main Driver",contract_start_year:1978,contract_until_year:1979,status:"expired"},
+    {year:1980,team_id:"T1",driver_id:"D1",role:"Main Driver",salary:700_000,contract_start_year:1979,contract_until_year:1980,status:"active"},
+  ];
+  const contract=activeDriverContract(gs,"D1");
+  assert.ok(contract);
+  assert.equal(contract.team_id,"T1");
+  assert.equal(contract.contract_start_year,1979);
+  assert.equal(contract.contract_until_year,1980);
+});
