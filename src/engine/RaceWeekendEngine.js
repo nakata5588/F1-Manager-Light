@@ -3,6 +3,7 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
+import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import {
   advancingDriverIds,
   buildQualifyingClassification,
@@ -58,6 +59,22 @@ function phaseAfterCompetitiveSession(weekend,currentDate){
   const next=nextPendingCompetitiveSession(weekend);
   if(!next)return "grid_ready";
   return dateReached(currentDate,next.dateISO)?"qualifying":"qualifying_wait";
+}
+
+function applyQualifyingFatigue(gs,rows,sessionType){
+  const cost=sessionType==="prequalifying"?2:3;
+  const dict={...(gs?.driverAttributes||{})};
+  for(const row of rows||[]){
+    const did=driverIdOf(row);
+    if(!did)continue;
+    const current=driverCondition(gs,did);
+    dict[did]={
+      ...defaultDriverCondition(),
+      ...current,
+      fatigue:Math.max(0,Math.min(100,Number(current?.fatigue||0)+cost)),
+    };
+  }
+  return {...gs,driverAttributes:dict};
 }
 
 export const RACE_WEEKEND_PHASES=Object.freeze([
@@ -276,6 +293,8 @@ export function completeQualifyingSession(gs,{gp}={}){
     eligibleDriverIds,
   });
 
+  const sessionGameState=applyQualifyingFatigue(simulated.gameState,simulated.qualifying,current.type);
+
   let normalized=simulated.qualifying.map((row,index)=>({
     position:Number(row.pos??index+1),
     driver_id:driverIdOf(row),
@@ -321,7 +340,7 @@ export function completeQualifyingSession(gs,{gp}={}){
       classification:weekend.qualifying?.classification||[],
     };
     return {
-      ...simulated.gameState,
+      ...sessionGameState,
       raceEntryState:simulated.raceEntryState,
       raceWeekendState:{
         ...interim,
@@ -347,7 +366,7 @@ export function completeQualifyingSession(gs,{gp}={}){
   });
 
   return {
-    ...simulated.gameState,
+    ...sessionGameState,
     raceEntryState:simulated.raceEntryState,
     raceWeekendState:{
       ...interim,

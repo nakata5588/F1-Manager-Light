@@ -1,8 +1,8 @@
 // src/engine/PracticeSetupEngine.js
 import { rngFor } from "../core/random.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
-import { applyPracticeComponentWear } from "../domain/componentWear.js";
-import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
+import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
+import { defaultDriverCondition, driverCondition, fatiguePenalty } from "../domain/driverRating.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const round1=(n)=>Math.round(Number(n||0)*10)/10;
@@ -20,7 +20,7 @@ export const PRACTICE_PROGRAMMES=Object.freeze({
     mileageFactor:1.00,
     learningMultiplier:1.00,
     preparationGain:7,
-    fatigue:5,
+    fatigue:7,
     wearFactor:1.00,
     incidentRisk:1.00,
     qualifyingBonus:0.25,
@@ -34,7 +34,7 @@ export const PRACTICE_PROGRAMMES=Object.freeze({
     mileageFactor:0.95,
     learningMultiplier:1.28,
     preparationGain:8,
-    fatigue:5,
+    fatigue:6,
     wearFactor:0.90,
     incidentRisk:0.85,
     qualifyingBonus:0.20,
@@ -48,7 +48,7 @@ export const PRACTICE_PROGRAMMES=Object.freeze({
     mileageFactor:0.82,
     learningMultiplier:0.92,
     preparationGain:6,
-    fatigue:7,
+    fatigue:10,
     wearFactor:1.10,
     incidentRisk:1.22,
     qualifyingBonus:1.10,
@@ -62,7 +62,7 @@ export const PRACTICE_PROGRAMMES=Object.freeze({
     mileageFactor:1.25,
     learningMultiplier:0.92,
     preparationGain:8,
-    fatigue:8,
+    fatigue:12,
     wearFactor:1.22,
     incidentRisk:1.12,
     qualifyingBonus:0.00,
@@ -76,7 +76,7 @@ export const PRACTICE_PROGRAMMES=Object.freeze({
     mileageFactor:0.88,
     learningMultiplier:0.82,
     preparationGain:5,
-    fatigue:4,
+    fatigue:5,
     wearFactor:0.72,
     incidentRisk:0.68,
     qualifyingBonus:0.00,
@@ -243,11 +243,13 @@ function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50}){
   const car=teamCarPerformance(gs,teamId,driverId);
   const crash=num(rating?.crash_likelihood,25)/100;
   const reliability=num(car?.reliability,75)/100;
+  const fatigue=num(driverCondition(gs,driverId)?.fatigue,0);
   const rng=rngFor(gs,`${weekendKey}-practice-issue-${driverId}`);
 
   const trackRiskFactor=0.80+clamp(trackRisk,0,100)/250;
-  const contactChance=clamp((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor,0,0.05);
-  const mechanicalChance=clamp((0.003+(1-reliability)*0.028)*programme.incidentRisk,0,0.06);
+  const fatigueRisk=Math.max(0,fatigue-35)*0.00032;
+  const contactChance=clamp(((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor)+fatigueRisk,0,0.075);
+  const mechanicalChance=clamp(((0.003+(1-reliability)*0.028)*programme.incidentRisk)+(fatigueRisk*0.35),0,0.075);
   const roll=rng.next();
   if(roll<contactChance)return {issue_type:"contact",issue_slot:"aero_front",issue_note:"Minor contact interrupted part of the programme."};
   if(roll<contactChance+mechanicalChance){
@@ -280,12 +282,15 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
     const feedback=clamp(num(rating?.technical_feedback,50));
     const adaptability=clamp(num(rating?.adaptability,50));
     const consistency=clamp(num(rating?.consistency,50));
-    const learning=clamp(
+    const previous=driverCondition(gs,driverId);
+    const fatigueBefore=clamp(num(previous?.fatigue,0));
+    const fatigueEfficiency=clamp(1-Math.max(0,fatigueBefore-15)*0.006,0.55,1);
+    const learning=clamp((
       feedback*0.38+
       adaptability*0.20+
       consistency*0.12+
       engineering*0.30
-    );
+    )*fatigueEfficiency);
 
     const rng=rngFor(gs,`${weekend.key}-practice-setup-${driverId}`);
     const initial={};
@@ -312,20 +317,19 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       trackRisk:profile.inputs.crash_risk,
     });
     const issuePenalty=issue.issue_type?2:0;
-    const prepGain=clamp(
+    const prepGain=clamp((
       programme.preparationGain+
       Math.max(0,quality-60)*0.05+
       Math.max(0,knowledge-60)*0.025-
-      issuePenalty,
-      2,14
-    );
+      issuePenalty
+    )*(0.70+fatigueEfficiency*0.30),2,14);
 
-    const previous=driverCondition(gs,driverId);
+    const fatigueAfter=round1(clamp(fatigueBefore+programme.fatigue));
     conditionDict[driverId]={
       ...defaultDriverCondition(),
       ...previous,
       preparation:round1(clamp(num(previous.preparation,50)+prepGain)),
-      fatigue:round1(clamp(num(previous.fatigue,0)+programme.fatigue)),
+      fatigue:fatigueAfter,
       confidence:round1(clamp(num(previous.confidence,50)+(quality>=82?1:quality<55?-0.5:0))),
     };
 
@@ -339,6 +343,10 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       setup_knowledge:knowledge,
       setup_quality:quality,
       preparation_gain:round1(prepGain),
+      fatigue_before:round1(fatigueBefore),
+      fatigue_after:fatigueAfter,
+      fatigue_efficiency:round1(fatigueEfficiency*100),
+      fatigue_performance_penalty_before:round1(fatiguePenalty(gs,driverId)),
       initial_setup:initial,
       setup:final,
       target_setup:profile.target,
@@ -355,13 +363,17 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
 
   let next={...gs,driverAttributes:conditionDict};
   next=applyPracticeComponentWear(next,{practiceResults:results,gp});
+  const enrichedResults=results.map((row)=>({
+    ...row,
+    component_wear:practiceWearSummary(next,{driverId:row.driver_id,gp}),
+  }));
 
   const practice={
     completed_at:String(gs?.currentDateISO||"").slice(0,10),
     status:"completed",
     source:"rw2_practice_setup",
     track_profile:profile,
-    results,
+    results:enrichedResults,
   };
   return {gameState:next,practice};
 }
