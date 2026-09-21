@@ -1,5 +1,5 @@
 // src/domain/driverContracts.js
-import { isDriverContract, isRaceDriverContract } from "./contractRoles.js";
+import { isDriverContract, isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -112,5 +112,17 @@ export function raceSeatCount(gs,teamId){
   return contractsOf(gs).filter((c)=>{
     if(teamIdOf(c)!==String(teamId))return false;
     return isRaceDriverContract(c);
+  }).length;
+}
+
+
+export function reserveSeatCount(gs,teamId){
+  const year=Number(gs?.activeYear);
+  return contractsOf(gs).filter((c)=>{
+    if(teamIdOf(c)!==String(teamId)||!isReserveDriverContract(c))return false;
+    const status=String(pick(c,["status"],"active")).toLowerCase();
+    if(["terminated","expired","released","inactive","void"].includes(status))return false;
+    const cy=Number(pick(c,["year","season_year"],year));
+    return !Number.isFinite(cy)||!Number.isFinite(year)||cy===year;
   }).length;
 }
