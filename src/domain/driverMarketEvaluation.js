@@ -25,7 +25,9 @@ const driverIdOf=(row)=>String(pick(row,["driver_id","person_id","id"],""));
 
 function finiteValue(...values){
   for(const value of values){
-    const n=Number(unwrap(value));
+    const raw=unwrap(value);
+    if(raw===undefined||raw===null||raw==="")continue;
+    const n=Number(raw);
     if(Number.isFinite(n))return n;
   }
   return null;
