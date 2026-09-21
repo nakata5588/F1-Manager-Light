@@ -42,9 +42,17 @@ for(const year of targetYears){
     assert.ok(Array.isArray(state.driverHistory),`${year} must carry driver history in the Season Pack`);
     assert.ok(Array.isArray(state.coreTracks)&&state.coreTracks.length>0,`${year} must expose circuit profiles for race-weekend gameplay`);
     assert.ok(Array.isArray(state.trackLayoutByYear),`${year} must expose effective track layouts`);
+    assert.ok(state.qualifyingRules&&typeof state.qualifyingRules==="object",`${year} must carry Qualifying rules into the Season Pack`);
+    assert.equal(Object.prototype.hasOwnProperty.call(state.qualifyingRules,"classification"),false,`${year} Qualifying rules must never carry a historical classification`);
     if(year===1980){
       assert.ok(state.trackLayoutByYear.length>0,"1980 track layouts must resolve year_from/year_to ranges");
       assert.ok(state.trackLayoutByYear.every((row)=>1980>=Number(row.year_from)&&1980<=Number(row.year_to)),"1980 pack contains an out-of-range track layout");
+      assert.equal(Number(state.qualifyingRules.session_count),2,"1980 must seed two Qualifying sessions");
+      assert.equal(state.qualifyingRules.strategy,"best_time_across_sessions");
+      assert.equal(Number(state.qualifyingRules.max_starters),24,"1980 normal grid limit must be 24");
+      const monaco=(state.qualifyingRules.event_overrides||[]).find((row)=>String(row.gp_id)==="gp_006");
+      assert.ok(monaco,"1980 Monaco Qualifying override must be present");
+      assert.equal(Number(monaco.max_starters),20,"1980 Monaco starting-grid limit must be 20");
     }
     if(year===1987){
       const priorIds=new Set(state.driverHistory.filter((r)=>Number(r.year)<1987).map((r)=>String(r.driver_id)));
