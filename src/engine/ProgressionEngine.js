@@ -192,7 +192,9 @@ export function applyProgressionTick(gs){
     if(!id)continue;
     const curr=normalizeDriverCondition(dict[id]||defaultDriverCondition());
     const dow=new Date(`${dateISO}T00:00:00Z`).getUTCDay();
-    const recovery=(dow===0||dow===6)?2.5:1.5;
+    const baseRecovery=(dow===0||dow===6)?1.7:1.1;
+    const highLoadRecovery=curr.fatigue>=60?0.3:curr.fatigue>=40?0.15:0;
+    const recovery=baseRecovery+highLoadRecovery;
     dict[id]={
       ...curr,
       fatigue:clamp(curr.fatigue-recovery),
