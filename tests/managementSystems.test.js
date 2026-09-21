@@ -5,13 +5,18 @@ import { teamCarPerformance } from "../src/domain/carPerformance.js";
 import {
   activeDriverContract,
   contractAcceptanceChance,
+  currentDriverTeamId,
   expectedDriverSalary,
+  freeAgentDrivers,
   raceSeatCount,
   terminationCost,
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
 import { isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../src/domain/contractRoles.js";
+import { buildSeasonResultStats } from "../src/domain/seasonStats.js";
+import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
+import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
 
 function baseState(){
   return {
@@ -194,4 +199,106 @@ test("activeDriverContract ignores historical/expired rows and returns the curre
   assert.equal(contract.team_id,"T1");
   assert.equal(contract.contract_start_year,1979);
   assert.equal(contract.contract_until_year,1980);
+});
+
+
+test("live empty contract collection never resurrects historical db contracts",()=>{
+  const gs=baseState();
+  gs.dbContracts=[...gs.contracts];
+  gs.contracts=[];
+
+  assert.equal(activeDriverContract(gs,"D1"),null);
+  assert.equal(currentDriverTeamId(gs,"D1"),"");
+  assert.equal(raceSeatCount(gs,"T1"),0);
+  assert.ok(freeAgentDrivers(gs).some((driver)=>driver.driver_id==="D1"));
+});
+
+test("released driver disappears from garage and current team assignment immediately",()=>{
+  const gs=baseState();
+  gs.contracts=gs.contracts.map((row)=>
+    row.driver_id==="D1"?{...row,status:"released",released_at:"1980-02-01"}:row
+  );
+
+  const garage=syncGarageState(gs,{});
+  assert.equal(currentDriverTeamId(gs,"D1"),"");
+  assert.equal(garage.cars.some((car)=>car.driver_id==="D1"),false);
+  assert.equal(garage.cars[0].driver_id,"D2");
+});
+
+test("standings counting stats are isolated to the active season",()=>{
+  const results=[
+    {
+      key:"1980:1",year:1980,round:1,
+      classification:[
+        {driver_id:"D1",team_id:"T1",position:1,points:9,fastest_lap:true},
+        {driver_id:"D2",team_id:"T1",position:2,points:6},
+      ],
+    },
+    {
+      key:"1981:1",year:1981,round:1,
+      classification:[
+        {driver_id:"D1",team_id:"T1",position:2,points:6,fastest_lap:true},
+        {driver_id:"D3",team_id:"T2",position:1,points:9},
+      ],
+    },
+  ];
+
+  const stats=buildSeasonResultStats(results,1981);
+  assert.deepEqual(stats.drivers.get("D1"),{races:1,wins:0,podiums:1,fastestLaps:1});
+  assert.deepEqual(stats.drivers.get("D3"),{races:1,wins:1,podiums:1,fastestLaps:0});
+  assert.equal(stats.teams.get("T1").races.size,1);
+  assert.equal(stats.teams.get("T1").wins,0);
+  assert.equal(stats.teams.get("T2").wins,1);
+});
+
+test("released drivers no longer receive AI-team training through their former team",()=>{
+  const gs=baseState();
+  gs.currentDateISO="1980-03-01";
+  gs.driverAttributes={};
+  gs.contracts=gs.contracts.map((row)=>
+    row.driver_id==="D4"?{...row,status:"released",released_at:"1980-02-28"}:row
+  );
+
+  const next=applyProgressionTick(gs);
+  const changes=Object.values(next.driverAttrLog||{}).flat();
+  const d4Changes=changes.filter((row)=>String(row.driverId)==="D4");
+  assert.ok(d4Changes.length>0);
+  assert.equal(d4Changes.some((row)=>row.source==="ai_training"),false);
+});
+
+test("monthly payroll uses live contracts and never revives released historical rows",()=>{
+  const gs=baseState();
+  gs.currentDateISO="1980-03-01";
+  gs.calendar=[];
+  gs.standings={drivers:[],teams:[]};
+  gs.financeLog=[];
+  gs.financeFlags={};
+  gs.finances={budget:5_000_000,balance:5_000_000,season_spend:0,season_income:0};
+
+  gs.dbContracts=[
+    {year:1980,team_id:"T1",driver_id:"D1",driver_name:"Historical Ghost",role:"Main Driver",salary:12_000_000,status:"active"},
+  ];
+  gs.contracts=[
+    {year:1980,team_id:"T1",driver_id:"D1",driver_name:"Released Driver",role:"Main Driver",salary:500_000,status:"released"},
+    {year:1980,team_id:"T1",driver_id:"D2",driver_name:"Live Driver",role:"Second Driver",salary:1_200_000,status:"active"},
+  ];
+
+  gs.dbStaffContracts=[
+    {year:1980,team_id:"T1",staff_id:"S_OLD",staff_name:"Historical Staff",role:"engineer",salary:1_200_000,status:"active"},
+  ];
+  gs.staffContracts=[];
+
+  gs.dbSponsorsContracts=[
+    {year:1980,team_id:"T1",sponsor_id:"SP_OLD",sponsor_name:"Historical Sponsor",monthly_fee:500_000,status:"active"},
+  ];
+  gs.sponsorsContracts=[];
+
+  const next=applyEconomyTick(gs);
+  const salaries=next.financeLog.filter((row)=>row.category==="Salary - Driver");
+  assert.equal(salaries.length,1);
+  assert.equal(salaries[0].desc,"Live Driver");
+  assert.equal(salaries[0].amount,-100_000);
+  assert.equal(next.financeLog.some((row)=>String(row.desc).includes("Historical Ghost")),false);
+  assert.equal(next.financeLog.some((row)=>row.category==="Salary - Staff"),false);
+  assert.equal(next.financeLog.some((row)=>String(row.category).startsWith("Sponsor")),false);
 });
