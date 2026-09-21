@@ -11,6 +11,7 @@ import {
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import {
+  activeDriverContracts,
   expectedDriverSalary,
   releaseDriverContract,
   terminationCost,
@@ -39,20 +40,6 @@ const SLOT_ORDER=[
   {key:"test",label:"Test Driver",description:"Development and testing specialist"},
 ];
 
-function isActiveContract(contract,year){
-  const status=String(pick(contract,["status"],"active")).toLowerCase();
-  if(["terminated","expired","released","inactive","void"].includes(status))return false;
-  const direct=Number(pick(contract,["year","season_year"],NaN));
-  const start=Number(pick(contract,["contract_start_year","start_year"],NaN));
-  const end=Number(pick(contract,["contract_until_year","contract_until","end_year"],NaN));
-  if(Number.isFinite(start)||Number.isFinite(end)){
-    const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
-    const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
-    return !Number.isFinite(year)||(year>=lo&&year<=hi);
-  }
-  return !Number.isFinite(year)||!Number.isFinite(direct)||direct===year;
-}
-
 function slotForContract(contract){
   if(isReserveDriverContract(contract))return "reserve";
   if(isTestDriverContract(contract))return "test";
@@ -78,7 +65,6 @@ export default function MyDrivers(){
   const myTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const myTeamName=gs?.team?.team_name||gs?.team?.name||"My Team";
   const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
-  const contracts=gs?.contracts?.length?gs.contracts:gs?.dbContracts||[];
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
   const [renewingRow,setRenewingRow]=useState(null);
   const negotiations=driverNegotiations(gs);
@@ -96,11 +82,10 @@ export default function MyDrivers(){
     return map;
   },[negotiations]);
 
-  const activeTeamContracts=useMemo(()=>contracts.filter((contract)=>
-    teamIdOf(contract)===myTeamId &&
-    isActiveContract(contract,year) &&
-    slotForContract(contract)
-  ),[contracts,myTeamId,year]);
+  const activeTeamContracts=useMemo(()=>
+    activeDriverContracts(gs,{teamId:myTeamId}).filter(slotForContract),
+    [gs?.contracts,gs?.dbContracts,myTeamId,year]
+  );
 
   const slotRows=useMemo(()=>{
     const rows=new Map();
