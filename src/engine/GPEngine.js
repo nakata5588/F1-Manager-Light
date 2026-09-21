@@ -539,29 +539,65 @@ function awardRaceBonuses(next, race, gpName) {
 }
 
 
-export function simulateQualifyingSession(gs,{roundIndex,gp,raceEntryOverride=null}={}){
+function qualifyingReferenceLapMs(gs,gp){
+  const trackId=String(gp?.track_id??gs?.raceWeekendState?.track_id??"");
+  const year=Number(gs?.activeYear??gp?.year);
+  const layouts=gs?.trackLayoutByYear?.length?gs.trackLayoutByYear:(gs?.dbTrackLayoutByYear||[]);
+  const layout=(layouts||[]).find((row)=>{
+    if(trackId&&String(row?.track_id??row?.circuit_id??"")!==trackId)return false;
+    const from=Number(row?.year_from??row?.year??-Infinity);
+    const to=Number(row?.year_to??row?.year??Infinity);
+    return (!Number.isFinite(year)||year>=from&&year<=to);
+  })||{};
+  const km=Number(layout?.lap_length_km??gp?.lap_length_km??4.5);
+  const safeKm=Number.isFinite(km)&&km>0?km:4.5;
+  return Math.round((safeKm/205)*3600000);
+}
+
+export function simulateQualifyingSession(gs,{
+  roundIndex,
+  gp,
+  raceEntryOverride=null,
+  sessionKey="qualifying",
+  eligibleDriverIds=null,
+}={}){
   let next=ensureTemporaryReplacements(gs,{roundIndex,gp});
   const raceEntryState=raceEntryOverride||buildRaceEntryState(next,{roundIndex,gp});
   next={...next,raceEntryState};
 
   const allDrivers=(next.drivers||[]).slice();
   const enteredIds=new Set(raceEntryDriverIds(raceEntryState));
-  const drivers=allDrivers.filter((driver)=>enteredIds.has(String(driver?.driver_id??driver?.id??"")));
+  const eligibleSet=Array.isArray(eligibleDriverIds)&&eligibleDriverIds.length
+    ?new Set(eligibleDriverIds.map(String))
+    :null;
+  const drivers=allDrivers.filter((driver)=>{
+    const did=String(driver?.driver_id??driver?.id??"");
+    return enteredIds.has(did)&&(!eligibleSet||eligibleSet.has(did));
+  });
   const ratings=next.driverRatings||[];
   const activeYear=Number(next?.activeYear);
   const gpEntropyId=gp?.gp_id||gp?.id||gp?.track_id||`round_${Number(roundIndex)+1}`;
-  const qualifyingRng=rngFor(next,`${activeYear||"season"}-${gpEntropyId}-qualifying`);
+  const qualifyingRng=rngFor(next,`${activeYear||"season"}-${gpEntropyId}-${sessionKey}`);
   const wet=isWetGP(gp);
+  const referenceLapMs=qualifyingReferenceLapMs(next,gp);
 
   const qualifying=drivers
     .map((driver)=>{
       const rating=ratingFor(ratings,driver);
       const teamId=resolveDriverTeamId(next,driver);
       const score=combinedQualifyingPerformance({gs:next,driver,rating,teamId,wet})+rnorm(qualifyingRng)*4;
-      return {d:driver,score};
+      const paceDelta=Math.max(-12,Math.min(65,100-score));
+      const lapTimeMs=Math.max(25000,Math.round(referenceLapMs*(1+paceDelta*0.0034)));
+      return {d:driver,score,lapTimeMs};
     })
-    .sort((a,b)=>b.score-a.score)
-    .map((row,index)=>({pos:index+1,driver:row.d,performance:row.score}));
+    .sort((a,b)=>a.lapTimeMs-b.lapTimeMs||String(a.d?.driver_id??"").localeCompare(String(b.d?.driver_id??"")))
+    .map((row,index)=>({
+      pos:index+1,
+      driver:row.d,
+      performance:row.score,
+      lap_time_ms:row.lapTimeMs,
+      session_key:String(sessionKey),
+    }));
 
   return {gameState:next,raceEntryState,qualifying};
 }
@@ -580,16 +616,59 @@ function qualifyingFromOverride(gs,rows=[]){
         pos:Number(row?.position??row?.pos??index+1),
         driver,
         performance:Number(row?.performance??row?.score??0),
+        lap_time_ms:row?.best_time_ms??row?.lap_time_ms??null,
+        status:row?.status??null,
       };
     })
     .filter(Boolean)
     .sort((a,b)=>a.pos-b.pos);
 }
 
-export async function runRaceWeekend(gs, { roundIndex, gp, qualifyingOverride=null, raceEntryOverride=null } = {}) {
-  const qualifyingSession=simulateQualifyingSession(gs,{roundIndex,gp,raceEntryOverride});
-  gs=qualifyingSession.gameState;
-  const raceEntryState=qualifyingSession.raceEntryState;
+function startingGridFromOverride(gs,rows=[]){
+  const driverById=new Map((gs?.drivers||[]).map((driver)=>[
+    String(driver?.driver_id??driver?.id??""),
+    driver,
+  ]));
+  return (rows||[])
+    .map((row,index)=>{
+      const driverId=String(row?.driver_id??row?.driver?.driver_id??"");
+      const driver=driverById.get(driverId);
+      if(!driver)return null;
+      return {
+        pos:Number(row?.grid??row?.position??row?.pos??index+1),
+        driver,
+        performance:Number(row?.qualifying_performance??row?.performance??row?.score??0),
+        lap_time_ms:row?.best_time_ms??row?.qualifying_time_ms??row?.lap_time_ms??null,
+        qualifying_position:Number(row?.qualifying_position??row?.position??index+1),
+        penalty_places:Number(row?.penalty_places??0),
+      };
+    })
+    .filter(Boolean)
+    .sort((a,b)=>a.pos-b.pos);
+}
+
+export async function runRaceWeekend(gs, {
+  roundIndex,
+  gp,
+  qualifyingOverride=null,
+  qualifyingClassificationOverride=null,
+  startingGridOverride=null,
+  raceEntryOverride=null,
+} = {}) {
+  const hasPersistentGrid=Array.isArray(startingGridOverride)&&startingGridOverride.length>0;
+  let qualifyingSession=null;
+  let raceEntryState=raceEntryOverride||null;
+
+  if(hasPersistentGrid){
+    // RW3 contract: once a Starting Grid exists, Race must never re-run
+    // Qualifying. The saved grid is the authoritative race field.
+    raceEntryState=raceEntryState||buildRaceEntryState(gs,{roundIndex,gp});
+    gs={...gs,raceEntryState};
+  }else{
+    qualifyingSession=simulateQualifyingSession(gs,{roundIndex,gp,raceEntryOverride});
+    gs=qualifyingSession.gameState;
+    raceEntryState=qualifyingSession.raceEntryState;
+  }
   const next={...gs};
   const allDrivers=(gs.drivers||[]).slice();
   const activeYear=Number(gs?.activeYear);
@@ -605,9 +684,11 @@ export async function runRaceWeekend(gs, { roundIndex, gp, qualifyingOverride=nu
   const incidentRng=rngFor(gs,`${entropyBase}-incidents`);
 
   const wet=isWetGP(gp);
-  const qualy=Array.isArray(qualifyingOverride)&&qualifyingOverride.length
-    ?qualifyingFromOverride(gs,qualifyingOverride)
-    :qualifyingSession.qualifying;
+  const qualy=hasPersistentGrid
+    ?startingGridFromOverride(gs,startingGridOverride)
+    :Array.isArray(qualifyingOverride)&&qualifyingOverride.length
+      ?qualifyingFromOverride(gs,qualifyingOverride)
+      :(qualifyingSession?.qualifying||[]);
 
   const fieldSize=Math.max(1,qualy.length);
   const raceOrder = qualy
@@ -702,6 +783,16 @@ export async function runRaceWeekend(gs, { roundIndex, gp, qualifyingOverride=nu
     fastest_lap: Boolean(row.fastest_lap),
   }));
 
+  const persistedQualifying=Array.isArray(qualifyingClassificationOverride)&&qualifyingClassificationOverride.length
+    ?qualifyingClassificationOverride
+    :qualy.map((row)=>({
+      position:row.qualifying_position??row.pos,
+      driver_id:row.driver?.driver_id??null,
+      team_id:resolveDriverTeamId(gs,row.driver),
+      best_time_ms:row.lap_time_ms??null,
+      status:"QUALIFIED",
+    }));
+
   const resultEntry = {
     key: resultKey,
     year,
@@ -709,10 +800,19 @@ export async function runRaceWeekend(gs, { roundIndex, gp, qualifyingOverride=nu
     gp_id: gpId,
     name: gpName,
     dateISO: clampISO(gs.currentDateISO),
-    qualifying: qualy.map((row) => ({
-      position: row.pos,
-      driver_id: row.driver?.driver_id ?? null,
-      team_id: resolveDriverTeamId(gs, row.driver),
+    qualifying: persistedQualifying.map((row,index) => ({
+      position:Number(row?.position??index+1),
+      driver_id:row?.driver_id??row?.driver?.driver_id??null,
+      team_id:row?.team_id??resolveDriverTeamId(gs,row?.driver),
+      best_time_ms:row?.best_time_ms??row?.lap_time_ms??null,
+      status:row?.status??"QUALIFIED",
+    })),
+    startingGrid: qualy.map((row,index)=>({
+      grid:Number(row.pos??index+1),
+      driver_id:row.driver?.driver_id??null,
+      team_id:resolveDriverTeamId(gs,row.driver),
+      qualifying_position:Number(row.qualifying_position??row.pos??index+1),
+      penalty_places:Number(row.penalty_places??0),
     })),
     raceEntry: raceEntryState.entries.map((entry) => ({ ...entry })),
     classification,
@@ -728,6 +828,8 @@ export async function runRaceWeekend(gs, { roundIndex, gp, qualifyingOverride=nu
     gpName,
     date: gs.currentDateISO,
     qualy,
+    qualifying:resultEntry.qualifying,
+    startingGrid:resultEntry.startingGrid,
     race,
     driverStandings,
     teamStandings,
