@@ -2,7 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "../src/core/saveSafety.js";
-import { expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
+import {
+  activeDriverContract,
+  contractEndYear,
+  expectedDriverSalary,
+  releaseDriverContract,
+  reserveSeatCount,
+  terminationCost,
+} from "../src/domain/driverContracts.js";
 import {
   acceptCounterOffer,
   availableContractRoles,
@@ -10,6 +17,7 @@ import {
   isNegotiationActive,
   processDriverNegotiations,
   startDriverNegotiation,
+  startDriverRenewal,
   withdrawNegotiation,
 } from "../src/engine/NegotiationEngine.js";
 
@@ -18,7 +26,9 @@ function fixture(seed="contract-negotiations"){
     saveMeta:createNewSaveMeta({year:1980,teamId:"T1",seed}),
     activeYear:1980,
     currentDateISO:"1980-02-01",
-    team:{team_id:"T1",team_name:"Player Team"},
+    team:{team_id:"T1",team_name:"Player Team",budget:2_000_000},
+    finances:{budget:2_000_000,balance:2_000_000,season_spend:0,season_income:0},
+    financeLog:[],
     teams:[
       {team_id:"T1",team_name:"Player Team"},
       {team_id:"T2",team_name:"AI Team"},
@@ -41,10 +51,10 @@ function fixture(seed="contract-negotiations"){
     ],
     driverCareer:[],
     contracts:[
-      {year:1980,team_id:"T1",driver_id:"P1",role:"Main Driver",status:"active"},
-      {year:1980,team_id:"T1",driver_id:"P2",role:"Second Driver",status:"active"},
-      {year:1980,team_id:"T2",driver_id:"A1",role:"Main Driver",status:"active"},
-      {year:1980,team_id:"T2",driver_id:"A2",role:"Second Driver",status:"active"},
+      {year:1980,team_id:"T1",driver_id:"P1",driver_name:"Player One",role:"Main Driver",salary:700_000,contract_start_year:1979,contract_until_year:1980,status:"active"},
+      {year:1980,team_id:"T1",driver_id:"P2",driver_name:"Player Two",role:"Second Driver",salary:600_000,contract_start_year:1980,contract_until_year:1981,status:"active"},
+      {year:1980,team_id:"T2",driver_id:"A1",driver_name:"AI One",role:"Main Driver",salary:500_000,contract_start_year:1979,contract_until_year:1980,status:"active"},
+      {year:1980,team_id:"T2",driver_id:"A2",driver_name:"AI Two",role:"Second Driver",salary:450_000,contract_start_year:1980,contract_until_year:1980,status:"active"},
     ],
     driverNegotiations:[],
     inbox:[],
@@ -180,4 +190,56 @@ test("same save seed produces the same negotiation response timing",()=>{
   const first=playerOffer(fixture("same-seed"));
   const second=playerOffer(fixture("same-seed"));
   assert.deepEqual(first.driverNegotiations,second.driverNegotiations);
+});
+
+
+test("player can negotiate a renewal with a currently contracted driver",()=>{
+  const gs=fixture("renewal-flow");
+  const expected=expectedDriverSalary(gs,"P1");
+  const submitted=startDriverRenewal(gs,{
+    driverId:"P1",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:expected+50_000,years:2,role:"Main Driver"},
+    origin:"player",
+  });
+  const negotiation=submitted.driverNegotiations.find((n)=>n.kind==="renewal");
+  assert.ok(negotiation);
+  assert.equal(negotiation.status,"submitted");
+  assert.equal(submitted.contracts.length,4,"renewal must not create a duplicate contract while pending");
+
+  const resolved=processDriverNegotiations(
+    {...submitted,currentDateISO:negotiation.response_date},
+    {forceOutcomeById:{[negotiation.id]:"accepted"}}
+  );
+  const contract=activeDriverContract(resolved,"P1");
+  assert.ok(contract);
+  assert.equal(contractEndYear(contract,1980),1982);
+  assert.equal(contract.salary,expected+50_000);
+  assert.equal(contract.renewal_source,"player_renewal");
+  assert.equal(resolved.contracts.length,4,"accepted renewal should extend the existing contract");
+  assert.ok(resolved.inbox.some((m)=>/renews with Player Team/.test(String(m.subject||""))));
+});
+
+test("player can release a driver and immediately open the seat for hiring",()=>{
+  const gs=fixture("release-flow");
+  const contract=activeDriverContract(gs,"P1");
+  const cost=terminationCost(gs,contract);
+  assert.equal(cost,315_000);
+
+  const released=releaseDriverContract(gs,"P1");
+  const old= released.contracts.find((c)=>c.driver_id==="P1");
+  assert.equal(old.status,"released");
+  assert.equal(activeDriverContract(released,"P1"),null);
+  assert.equal(released.finances.balance,2_000_000-cost);
+  assert.equal(released.team.budget,2_000_000-cost);
+  assert.ok(released.financeLog.some((tx)=>tx.amount===-cost));
+  assert.equal(availableContractRoles(released,"T1").includes("Main Driver"),true);
+});
+
+test("release is idempotent and cannot charge termination twice",()=>{
+  const first=releaseDriverContract(fixture("release-idempotent"),"P1");
+  const second=releaseDriverContract(first,"P1");
+  assert.equal(second.finances.balance,first.finances.balance);
+  assert.equal(second.financeLog.length,first.financeLog.length);
 });
