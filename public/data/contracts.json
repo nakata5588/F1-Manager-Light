@@ -580,7 +580,7 @@
     "team_name": "Shadow",
     "driver_id": {
       "formula": "IFERROR(INDEX(drivers!$A:$A,MATCH($E28,drivers!$B:$B,0)),\"\")",
-      "result": "d_0862"
+      "result": "d_0225"
     },
     "driver_name": "David Kennedy",
     "role": "test_driver",

@@ -492,26 +492,36 @@
     "anual_income": 4500000,
     "cash_upfront": {
       "formula": "J26*0.1",
-      "result": 450000
+      "result": 450000,
+      "ref": "K26:K56",
+      "shareType": "shared"
     },
     "monthly_fee": {
       "formula": "J26/12",
-      "result": 375000
+      "result": 375000,
+      "ref": "L26:L56",
+      "shareType": "shared"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
       "formula": "J26*0.01",
-      "result": 45000
+      "result": 45000,
+      "ref": "P26:P56",
+      "shareType": "shared"
     },
     "bonus_podium": {
       "formula": "J26*0.05",
-      "result": 225000
+      "result": 225000,
+      "ref": "Q26:Q56",
+      "shareType": "shared"
     },
     "bonus_championship": {
       "formula": "J26*0.4",
-      "result": 1800000
+      "result": 1800000,
+      "ref": "R26:R56",
+      "shareType": "shared"
     }
   },
   {
@@ -529,27 +539,27 @@
     "end_year": 2004,
     "anual_income": 10000000,
     "cash_upfront": {
-      "formula": "J27*0.1",
-      "result": 1000000
+      "result": 1000000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J27/12",
-      "result": 833333.3333333334
+      "result": 833333.3333333334,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-25% if no",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J27*0.01",
-      "result": 100000
+      "result": 100000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J27*0.05",
-      "result": 500000
+      "result": 500000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J27*0.4",
-      "result": 4000000
+      "result": 4000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -564,27 +574,27 @@
     "end_year": 2004,
     "anual_income": 25000000,
     "cash_upfront": {
-      "formula": "J28*0.1",
-      "result": 2500000
+      "result": 2500000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J28/12",
-      "result": 2083333.3333333333
+      "result": 2083333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-15% if ou",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J28*0.01",
-      "result": 250000
+      "result": 250000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J28*0.05",
-      "result": 1250000
+      "result": 1250000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J28*0.4",
-      "result": 10000000
+      "result": 10000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -602,27 +612,27 @@
     "end_year": 2004,
     "anual_income": 1000000,
     "cash_upfront": {
-      "formula": "J29*0.1",
-      "result": 100000
+      "result": 100000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J29/12",
-      "result": 83333.33333333333
+      "result": 83333.33333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J29*0.01",
-      "result": 10000
+      "result": 10000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J29*0.05",
-      "result": 50000
+      "result": 50000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J29*0.4",
-      "result": 400000
+      "result": 400000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -640,27 +650,27 @@
     "end_year": 2004,
     "anual_income": 3500000,
     "cash_upfront": {
-      "formula": "J30*0.1",
-      "result": 350000
+      "result": 350000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J30/12",
-      "result": 291666.6666666667
+      "result": 291666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J30*0.01",
-      "result": 35000
+      "result": 35000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J30*0.05",
-      "result": 175000
+      "result": 175000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J30*0.4",
-      "result": 1400000
+      "result": 1400000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -675,27 +685,27 @@
     "end_year": 2004,
     "anual_income": 4000000,
     "cash_upfront": {
-      "formula": "J31*0.1",
-      "result": 400000
+      "result": 400000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J31/12",
-      "result": 333333.3333333333
+      "result": 333333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J31*0.01",
-      "result": 40000
+      "result": 40000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J31*0.05",
-      "result": 200000
+      "result": 200000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J31*0.4",
-      "result": 1600000
+      "result": 1600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -710,27 +720,27 @@
     "end_year": 2004,
     "anual_income": 3500000,
     "cash_upfront": {
-      "formula": "J32*0.1",
-      "result": 350000
+      "result": 350000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J32/12",
-      "result": 291666.6666666667
+      "result": 291666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J32*0.01",
-      "result": 35000
+      "result": 35000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J32*0.05",
-      "result": 175000
+      "result": 175000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J32*0.4",
-      "result": 1400000
+      "result": 1400000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -745,27 +755,27 @@
     "end_year": 2004,
     "anual_income": 3000000,
     "cash_upfront": {
-      "formula": "J33*0.1",
-      "result": 300000
+      "result": 300000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J33/12",
-      "result": 250000
+      "result": 250000,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J33*0.01",
-      "result": 30000
+      "result": 30000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J33*0.05",
-      "result": 150000
+      "result": 150000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J33*0.4",
-      "result": 1200000
+      "result": 1200000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -783,27 +793,27 @@
     "end_year": 2004,
     "anual_income": 1500000,
     "cash_upfront": {
-      "formula": "J34*0.1",
-      "result": 150000
+      "result": 150000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J34/12",
-      "result": 125000
+      "result": 125000,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J34*0.01",
-      "result": 15000
+      "result": 15000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J34*0.05",
-      "result": 75000
+      "result": 75000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J34*0.4",
-      "result": 600000
+      "result": 600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -821,27 +831,27 @@
     "end_year": 2004,
     "anual_income": 2500000,
     "cash_upfront": {
-      "formula": "J35*0.1",
-      "result": 250000
+      "result": 250000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J35/12",
-      "result": 208333.33333333334
+      "result": 208333.33333333334,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J35*0.01",
-      "result": 25000
+      "result": 25000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J35*0.05",
-      "result": 125000
+      "result": 125000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J35*0.4",
-      "result": 1000000
+      "result": 1000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -856,27 +866,27 @@
     "end_year": 2004,
     "anual_income": 3800000,
     "cash_upfront": {
-      "formula": "J36*0.1",
-      "result": 380000
+      "result": 380000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J36/12",
-      "result": 316666.6666666667
+      "result": 316666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J36*0.01",
-      "result": 38000
+      "result": 38000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J36*0.05",
-      "result": 190000
+      "result": 190000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J36*0.4",
-      "result": 1520000
+      "result": 1520000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -894,27 +904,27 @@
     "end_year": 2004,
     "anual_income": 6000000,
     "cash_upfront": {
-      "formula": "J37*0.1",
-      "result": 600000
+      "result": 600000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J37/12",
-      "result": 500000
+      "result": 500000,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J37*0.01",
-      "result": 60000
+      "result": 60000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J37*0.05",
-      "result": 300000
+      "result": 300000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J37*0.4",
-      "result": 2400000
+      "result": 2400000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -929,27 +939,27 @@
     "end_year": 2004,
     "anual_income": 5000000,
     "cash_upfront": {
-      "formula": "J38*0.1",
-      "result": 500000
+      "result": 500000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J38/12",
-      "result": 416666.6666666667
+      "result": 416666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J38*0.01",
-      "result": 50000
+      "result": 50000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J38*0.05",
-      "result": 250000
+      "result": 250000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J38*0.4",
-      "result": 2000000
+      "result": 2000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -967,27 +977,27 @@
     "end_year": 2004,
     "anual_income": 14000000,
     "cash_upfront": {
-      "formula": "J39*0.1",
-      "result": 1400000
+      "result": 1400000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J39/12",
-      "result": 1166666.6666666667
+      "result": 1166666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-20% if no",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J39*0.01",
-      "result": 140000
+      "result": 140000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J39*0.05",
-      "result": 700000
+      "result": 700000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J39*0.4",
-      "result": 5600000
+      "result": 5600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1002,27 +1012,27 @@
     "end_year": 2004,
     "anual_income": 20000000,
     "cash_upfront": {
-      "formula": "J40*0.1",
-      "result": 2000000
+      "result": 2000000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J40/12",
-      "result": 1666666.6666666667
+      "result": 1666666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-15% if ou",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J40*0.01",
-      "result": 200000
+      "result": 200000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J40*0.05",
-      "result": 1000000
+      "result": 1000000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J40*0.4",
-      "result": 8000000
+      "result": 8000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1037,27 +1047,27 @@
     "end_year": 2004,
     "anual_income": 10000000,
     "cash_upfront": {
-      "formula": "J41*0.1",
-      "result": 1000000
+      "result": 1000000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J41/12",
-      "result": 833333.3333333334
+      "result": 833333.3333333334,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J41*0.01",
-      "result": 100000
+      "result": 100000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J41*0.05",
-      "result": 500000
+      "result": 500000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J41*0.4",
-      "result": 4000000
+      "result": 4000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1072,27 +1082,27 @@
     "end_year": 2004,
     "anual_income": 5500000,
     "cash_upfront": {
-      "formula": "J42*0.1",
-      "result": 550000
+      "result": 550000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J42/12",
-      "result": 458333.3333333333
+      "result": 458333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J42*0.01",
-      "result": 55000
+      "result": 55000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J42*0.05",
-      "result": 275000
+      "result": 275000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J42*0.4",
-      "result": 2200000
+      "result": 2200000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1107,27 +1117,27 @@
     "end_year": 2004,
     "anual_income": 22000000,
     "cash_upfront": {
-      "formula": "J43*0.1",
-      "result": 2200000
+      "result": 2200000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J43/12",
-      "result": 1833333.3333333333
+      "result": 1833333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-15% if ou",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J43*0.01",
-      "result": 220000
+      "result": 220000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J43*0.05",
-      "result": 1100000
+      "result": 1100000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J43*0.4",
-      "result": 8800000
+      "result": 8800000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1142,27 +1152,27 @@
     "end_year": 2004,
     "anual_income": 5000000,
     "cash_upfront": {
-      "formula": "J44*0.1",
-      "result": 500000
+      "result": 500000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J44/12",
-      "result": 416666.6666666667
+      "result": 416666.6666666667,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J44*0.01",
-      "result": 50000
+      "result": 50000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J44*0.05",
-      "result": 250000
+      "result": 250000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J44*0.4",
-      "result": 2000000
+      "result": 2000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1177,27 +1187,27 @@
     "end_year": 2004,
     "anual_income": 18000000,
     "cash_upfront": {
-      "formula": "J45*0.1",
-      "result": 1800000
+      "result": 1800000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J45/12",
-      "result": 1500000
+      "result": 1500000,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-20% if ou",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J45*0.01",
-      "result": 180000
+      "result": 180000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J45*0.05",
-      "result": 900000
+      "result": 900000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J45*0.4",
-      "result": 7200000
+      "result": 7200000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1212,27 +1222,27 @@
     "end_year": 2004,
     "anual_income": 4000000,
     "cash_upfront": {
-      "formula": "J46*0.1",
-      "result": 400000
+      "result": 400000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J46/12",
-      "result": 333333.3333333333
+      "result": 333333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J46*0.01",
-      "result": 40000
+      "result": 40000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J46*0.05",
-      "result": 200000
+      "result": 200000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J46*0.4",
-      "result": 1600000
+      "result": 1600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1247,27 +1257,27 @@
     "end_year": 2004,
     "anual_income": 15000000,
     "cash_upfront": {
-      "formula": "J47*0.1",
-      "result": 1500000
+      "result": 1500000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J47/12",
-      "result": 1250000
+      "result": 1250000,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-20% if no",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J47*0.01",
-      "result": 150000
+      "result": 150000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J47*0.05",
-      "result": 750000
+      "result": 750000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J47*0.4",
-      "result": 6000000
+      "result": 6000000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1282,27 +1292,27 @@
     "end_year": 2004,
     "anual_income": 4500000,
     "cash_upfront": {
-      "formula": "J48*0.1",
-      "result": 450000
+      "result": 450000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J48/12",
-      "result": 375000
+      "result": 375000,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J48*0.01",
-      "result": 45000
+      "result": 45000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J48*0.05",
-      "result": 225000
+      "result": 225000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J48*0.4",
-      "result": 1800000
+      "result": 1800000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1320,27 +1330,27 @@
     "end_year": 2004,
     "anual_income": 4500000,
     "cash_upfront": {
-      "formula": "J49*0.1",
-      "result": 450000
+      "result": 450000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J49/12",
-      "result": 375000
+      "result": 375000,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J49*0.01",
-      "result": 45000
+      "result": 45000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J49*0.05",
-      "result": 225000
+      "result": 225000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J49*0.4",
-      "result": 1800000
+      "result": 1800000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1355,27 +1365,27 @@
     "end_year": 2004,
     "anual_income": 6000000,
     "cash_upfront": {
-      "formula": "J50*0.1",
-      "result": 600000
+      "result": 600000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J50/12",
-      "result": 500000
+      "result": 500000,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J50*0.01",
-      "result": 60000
+      "result": 60000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J50*0.05",
-      "result": 300000
+      "result": 300000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J50*0.4",
-      "result": 2400000
+      "result": 2400000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1393,27 +1403,27 @@
     "end_year": 2004,
     "anual_income": 4000000,
     "cash_upfront": {
-      "formula": "J51*0.1",
-      "result": 400000
+      "result": 400000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J51/12",
-      "result": 333333.3333333333
+      "result": 333333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J51*0.01",
-      "result": 40000
+      "result": 40000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J51*0.05",
-      "result": 200000
+      "result": 200000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J51*0.4",
-      "result": 1600000
+      "result": 1600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1428,27 +1438,27 @@
     "end_year": 2004,
     "anual_income": 4000000,
     "cash_upfront": {
-      "formula": "J52*0.1",
-      "result": 400000
+      "result": 400000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J52/12",
-      "result": 333333.3333333333
+      "result": 333333.3333333333,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J52*0.01",
-      "result": 40000
+      "result": 40000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J52*0.05",
-      "result": 200000
+      "result": 200000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J52*0.4",
-      "result": 1600000
+      "result": 1600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1466,27 +1476,27 @@
     "end_year": 2004,
     "anual_income": 2000000,
     "cash_upfront": {
-      "formula": "J53*0.1",
-      "result": 200000
+      "result": 200000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J53/12",
-      "result": 166666.66666666666
+      "result": 166666.66666666666,
+      "sharedFormula": "L26"
     },
     "objective_type": "branding",
     "penalties": "none",
     "activation_slots_required": 2,
     "bonus_win": {
-      "formula": "J53*0.01",
-      "result": 20000
+      "result": 20000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J53*0.05",
-      "result": 100000
+      "result": 100000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J53*0.4",
-      "result": 800000
+      "result": 800000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1501,27 +1511,27 @@
     "end_year": 2004,
     "anual_income": 28000000,
     "cash_upfront": {
-      "formula": "J54*0.1",
-      "result": 2800000
+      "result": 2800000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J54/12",
-      "result": 2333333.3333333335
+      "result": 2333333.3333333335,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-10% if no",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J54*0.01",
-      "result": 280000
+      "result": 280000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J54*0.05",
-      "result": 1400000
+      "result": 1400000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J54*0.4",
-      "result": 11200000
+      "result": 11200000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1536,27 +1546,27 @@
     "end_year": 2004,
     "anual_income": 24000000,
     "cash_upfront": {
-      "formula": "J55*0.1",
-      "result": 2400000
+      "result": 2400000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J55/12",
-      "result": 2000000
+      "result": 2000000,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-15% if ou",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J55*0.01",
-      "result": 240000
+      "result": 240000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J55*0.05",
-      "result": 1200000
+      "result": 1200000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J55*0.4",
-      "result": 9600000
+      "result": 9600000,
+      "sharedFormula": "R26"
     }
   },
   {
@@ -1574,27 +1584,27 @@
     "end_year": 2004,
     "anual_income": 8000000,
     "cash_upfront": {
-      "formula": "J56*0.1",
-      "result": 800000
+      "result": 800000,
+      "sharedFormula": "K26"
     },
     "monthly_fee": {
-      "formula": "J56/12",
-      "result": 666666.6666666666
+      "result": 666666.6666666666,
+      "sharedFormula": "L26"
     },
     "objective_type": "performance",
     "penalties": "-25% if no",
     "activation_slots_required": 3,
     "bonus_win": {
-      "formula": "J56*0.01",
-      "result": 80000
+      "result": 80000,
+      "sharedFormula": "P26"
     },
     "bonus_podium": {
-      "formula": "J56*0.05",
-      "result": 400000
+      "result": 400000,
+      "sharedFormula": "Q26"
     },
     "bonus_championship": {
-      "formula": "J56*0.4",
-      "result": 3200000
+      "result": 3200000,
+      "sharedFormula": "R26"
     }
   },
   {
