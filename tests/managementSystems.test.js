@@ -17,6 +17,8 @@ import { isDriverContract, isRaceDriverContract, isReserveDriverContract, isTest
 import { buildSeasonResultStats } from "../src/domain/seasonStats.js";
 import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
 import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
+import { buildRaceEntryState } from "../src/domain/raceEntry.js";
+import { activeTestDriverContracts } from "../src/domain/developmentTesting.js";
 
 function baseState(){
   return {
@@ -305,4 +307,26 @@ test("monthly payroll uses live contracts and never revives released historical 
   assert.equal(next.financeLog.some((row)=>String(row.desc).includes("Historical Ghost")),false);
   assert.equal(next.financeLog.some((row)=>row.category==="Salary - Staff"),false);
   assert.equal(next.financeLog.some((row)=>String(row.category).startsWith("Sponsor")),false);
+});
+
+
+test("race entry never revives historical contracts when the live career collection is empty",()=>{
+  const gs=baseState();
+  gs.dbContracts=[...gs.contracts];
+  gs.contracts=[];
+  const state=buildRaceEntryState(gs,{
+    roundIndex:0,
+    gp:{year:1980,gp_id:"GP1",race_date:"1980-03-10"},
+  });
+  assert.ok(state.entries.length>0);
+  assert.equal(state.entries.some((entry)=>entry.driver_id),false);
+});
+
+test("test-driver development never falls back to historical contracts once live contracts exist",()=>{
+  const gs=baseState();
+  gs.dbContracts=[
+    {year:1980,team_id:"T1",driver_id:"D3",role:"test_driver",status:"active"},
+  ];
+  gs.contracts=[];
+  assert.deepEqual(activeTestDriverContracts(gs,"T1"),[]);
 });
