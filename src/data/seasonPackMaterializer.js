@@ -123,7 +123,8 @@ function driverStatus(driver,year,contracted){
   const lower=explicit||inferred;
   if(lower){
     const youth=age!==null&&age>=16&&age<=19;
-    return {status:youth?"junior_only":"lower_series",active_lower_series:true,canHireF1:false,canHireAcademy:youth,youth_eligible:youth};
+    const canHireF1=age!==null&&age>=18;
+    return {status:youth?"junior_only":"lower_series",active_lower_series:true,canHireF1,canHireAcademy:youth,youth_eligible:youth};
   }
   if(Number.isFinite(debut)&&debut<=year)return {status:"eligible",active_lower_series:false,canHireF1:true,canHireAcademy:false,youth_eligible:false};
   return null;
