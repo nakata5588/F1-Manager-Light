@@ -32,8 +32,15 @@ const statusClass=(status)=>{
 function marketStatus(driver, contract, pending){
   if(contract) return "Contracted";
   if(pending) return "Negotiating";
-  if(driver?.status==="junior_only" || driver?.canHireAcademy) return "Youth";
-  if(driver?.status==="lower_series") return "Lower Series";
+  const age=Number(driver?.age);
+  const lowerSeries=
+    driver?.status==="lower_series" ||
+    driver?.status==="junior_only" ||
+    driver?.active_lower_series===true;
+  if(lowerSeries){
+    if(Number.isFinite(age)&&age<=19) return "Youth";
+    return "Lower Series";
+  }
   if(driver?.canHireF1 || driver?.status==="eligible") return "Free";
   return "Available";
 }
