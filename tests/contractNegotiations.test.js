@@ -12,6 +12,12 @@ import {
 } from "../src/domain/driverContracts.js";
 import { effectiveContractRule } from "../src/domain/driverTransfers.js";
 import {
+  acceptClubTransferCounter,
+  processClubTransferApproaches,
+  startClubTransferApproach,
+  transferApproaches,
+} from "../src/engine/TransferEngine.js";
+import {
   acceptCounterOffer,
   availableContractRoles,
   driverNegotiationEligibility,
@@ -66,6 +72,7 @@ function fixture(seed="contract-negotiations"){
       buyout_allowed:"TRUE",
       clauses:{buyout_fee_min:50_000,buyout_fee_max:500_000},
     }],
+    transferApproaches:[],
     driverNegotiations:[],
     inbox:[],
   };
@@ -264,18 +271,65 @@ test("negotiation eligibility exposes a real offer path only for available drive
   assert.ok(free.roles.includes("Test Driver"));
 });
 
-test("contracted rival can be approached through a transfer buyout",()=>{
+test("contracted rival without release clause requires club agreement before personal terms",()=>{
   const gs=fixture("eligibility-contracted");
-  const rival=driverNegotiationEligibility(gs,{driverId:"A1",teamId:"T1"});
-  assert.equal(rival.canNegotiate,true);
-  assert.equal(rival.reason,"transfer_available");
-  assert.equal(rival.kind,"transfer");
-  assert.equal(rival.contract?.team_id,"T2");
-  assert.equal(rival.buyout?.allowed,true);
-  assert.equal(rival.buyout?.fee,325_000);
-  assert.ok(rival.roles.includes("Reserve Driver"));
+  const initial=driverNegotiationEligibility(gs,{driverId:"A1",teamId:"T1"});
+  assert.equal(initial.canNegotiate,false);
+  assert.equal(initial.canApproachClub,true);
+  assert.equal(initial.reason,"club_approach_required");
+  assert.equal(initial.kind,"transfer");
+  assert.equal(initial.contract?.team_id,"T2");
+  assert.equal(initial.buyout?.allowed,true);
+  assert.equal(initial.buyout?.type,"compensation");
+  assert.equal(initial.buyout?.fee,325_000);
+  assert.ok(initial.roles.includes("Reserve Driver"));
 
-  const submitted=startDriverNegotiation(gs,{
+  const premature=startDriverNegotiation(gs,{
+    driverId:"A1",
+    teamId:"T1",
+    teamName:"Player Team",
+    offer:{salary:1_000_000,years:2,role:"Reserve Driver"},
+    origin:"player",
+  });
+  assert.equal(premature.driverNegotiations.length,0,"personal terms cannot start before club permission");
+
+  const clubSubmitted=startClubTransferApproach(gs,{
+    driverId:"A1",
+    buyerTeamId:"T1",
+    buyerTeamName:"Player Team",
+    offerFee:250_000,
+    origin:"player",
+  });
+  const club=transferApproaches(clubSubmitted)[0];
+  assert.ok(club);
+  assert.equal(club.status,"submitted");
+  assert.equal(club.seller_team_id,"T2");
+  assert.equal(club.offer_fee,250_000);
+
+  const pendingEligibility=driverNegotiationEligibility(clubSubmitted,{driverId:"A1",teamId:"T1"});
+  assert.equal(pendingEligibility.canNegotiate,false);
+  assert.equal(pendingEligibility.reason,"club_negotiation_active");
+
+  const countered=processClubTransferApproaches(
+    {...clubSubmitted,currentDateISO:club.response_date},
+    {forceOutcomeById:{[club.id]:"countered"}}
+  );
+  const counter=transferApproaches(countered).find((row)=>row.id===club.id);
+  assert.equal(counter.status,"countered");
+  assert.ok(counter.counter_fee>=counter.offer_fee);
+
+  const clubAgreed=acceptClubTransferCounter(countered,club.id);
+  const agreement=transferApproaches(clubAgreed).find((row)=>row.id===club.id);
+  assert.equal(agreement.status,"accepted");
+  assert.equal(agreement.agreed_fee,agreement.counter_fee);
+
+  const allowed=driverNegotiationEligibility(clubAgreed,{driverId:"A1",teamId:"T1"});
+  assert.equal(allowed.canNegotiate,true);
+  assert.equal(allowed.reason,"club_agreement");
+  assert.equal(allowed.buyout.type,"club_agreement");
+  assert.equal(allowed.buyout.fee,agreement.agreed_fee);
+
+  const submitted=startDriverNegotiation(clubAgreed,{
     driverId:"A1",
     teamId:"T1",
     teamName:"Player Team",
@@ -285,7 +339,8 @@ test("contracted rival can be approached through a transfer buyout",()=>{
   const negotiation=submitted.driverNegotiations.find((n)=>n.kind==="transfer");
   assert.ok(negotiation);
   assert.equal(negotiation.seller_team_id,"T2");
-  assert.equal(negotiation.buyout_fee,325_000);
+  assert.equal(negotiation.buyout_fee,agreement.agreed_fee);
+  assert.equal(negotiation.club_approach_id,club.id);
 
   const resolved=processDriverNegotiations(
     {...submitted,currentDateISO:negotiation.response_date},
@@ -296,14 +351,17 @@ test("contracted rival can be approached through a transfer buyout",()=>{
     row.driver_id==="A1"&&row.team_id==="T2"
   );
   const newContract=activeDriverContract(resolved,"A1");
+  const completedApproach=transferApproaches(resolved).find((row)=>row.id===club.id);
   assert.equal(oldContract.status,"bought_out");
   assert.equal(newContract.team_id,"T1");
   assert.equal(newContract.role,"Reserve Driver");
   assert.equal(newContract.source,"player_transfer");
-  assert.equal(newContract.buyout_fee,325_000);
-  assert.equal(resolved.finances.balance,1_675_000);
+  assert.equal(newContract.buyout_fee,agreement.agreed_fee);
+  assert.equal(newContract.buyout_type,"club_agreement");
+  assert.equal(completedApproach.status,"completed");
+  assert.equal(resolved.finances.balance,2_000_000-agreement.agreed_fee);
   assert.ok(resolved.financeLog.some((tx)=>
-    tx.category==="Driver Transfer"&&tx.amount===-325_000
+    tx.category==="Driver Transfer"&&tx.amount===-agreement.agreed_fee
   ));
   assert.ok(resolved.inbox.some((m)=>/transfers to Player Team/.test(String(m.subject||""))));
 });
@@ -391,13 +449,14 @@ test("visible lower-series driver can be signed before historical F1 debut",()=>
 });
 
 
-test("fixed release clause overrides calculated compensation",()=>{
+test("fixed release clause bypasses club negotiation and opens personal terms directly",()=>{
   const gs=fixture("fixed-clause");
   gs.contracts=gs.contracts.map((row)=>
     row.driver_id==="A2"?{...row,release_clause:125_000}:row
   );
   const state=driverNegotiationEligibility(gs,{driverId:"A2",teamId:"T1"});
   assert.equal(state.canNegotiate,true);
+  assert.equal(state.canApproachClub,false);
   assert.equal(state.kind,"transfer");
   assert.equal(state.buyout.type,"fixed_clause");
   assert.equal(state.buyout.fee,125_000);
@@ -485,4 +544,38 @@ test("unknown non-active negotiation statuses stay out of the active visual buck
   ]);
   assert.deepEqual(buckets.active.map((n)=>n.id),["active"]);
   assert.deepEqual(buckets.history.map((n)=>n.id),["future"]);
+});
+
+
+test("club transfer offer can be rejected without blocking a later approach",()=>{
+  const gs=fixture("club-reject");
+  const submitted=startClubTransferApproach(gs,{
+    driverId:"A1",
+    buyerTeamId:"T1",
+    offerFee:100_000,
+  });
+  const approach=transferApproaches(submitted)[0];
+  const rejected=processClubTransferApproaches(
+    {...submitted,currentDateISO:approach.response_date},
+    {forceOutcomeById:{[approach.id]:"rejected"}}
+  );
+  const resolved=transferApproaches(rejected).find((row)=>row.id===approach.id);
+  assert.equal(resolved.status,"rejected");
+
+  const eligibility=driverNegotiationEligibility(rejected,{driverId:"A1",teamId:"T1"});
+  assert.equal(eligibility.canNegotiate,false);
+  assert.equal(eligibility.canApproachClub,true);
+  assert.equal(eligibility.reason,"club_approach_required");
+});
+
+test("club transfer approaches survive save and load",()=>{
+  const gs=fixture("club-save");
+  const submitted=startClubTransferApproach(gs,{
+    driverId:"A1",
+    buyerTeamId:"T1",
+    offerFee:300_000,
+  });
+  const saved=prepareGameStateForSave(submitted);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"Club transfer save"},gameState:saved});
+  assert.deepEqual(loaded.transferApproaches,submitted.transferApproaches);
 });
