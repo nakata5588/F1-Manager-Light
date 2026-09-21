@@ -364,6 +364,7 @@ export const useGame = create((set, get) => ({
     temporaryDriverAssignments: [],
     driverNegotiations: [],
     raceEntryState: null,
+    raceWeekendState: null,
     dbAchievements: [],
     achievements: [],
     dbDriverCareer: [],
@@ -1091,6 +1092,7 @@ export const useGame = create((set, get) => ({
       temporaryDriverAssignments: [],
       driverNegotiations: [],
       raceEntryState: null,
+      raceWeekendState: null,
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
       careerMeta: createCareerMeta(db, y),
@@ -1183,6 +1185,7 @@ export const useGame = create((set, get) => ({
           temporaryDriverAssignments: [],
           driverNegotiations: [],
           raceEntryState: null,
+          raceWeekendState: null,
           settings: s.gameState?.settings ?? defaultSettings,
 
           financeLog: [],
@@ -1235,6 +1238,7 @@ export const useGame = create((set, get) => ({
           temporaryDriverAssignments: Array.isArray(saved.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
           driverNegotiations: Array.isArray(saved.driverNegotiations) ? saved.driverNegotiations : [],
           raceEntryState: saved.raceEntryState || null,
+          raceWeekendState: saved.raceWeekendState || null,
           financeLog: Array.isArray(saved.financeLog) ? saved.financeLog : [],
           finances: saved.finances || null,
           showSeasonSummary: false,
@@ -1289,6 +1293,7 @@ export const useGame = create((set, get) => ({
         temporaryDriverAssignments: Array.isArray(migrated.temporaryDriverAssignments) ? migrated.temporaryDriverAssignments : [],
         driverNegotiations: Array.isArray(migrated.driverNegotiations) ? migrated.driverNegotiations : [],
         raceEntryState: migrated.raceEntryState || null,
+        raceWeekendState: migrated.raceWeekendState || null,
         financeLog: Array.isArray(migrated.financeLog) ? migrated.financeLog : [],
         finances: migrated.finances || null,
         showSeasonSummary: false,
@@ -1373,6 +1378,7 @@ export const useGame = create((set, get) => ({
             driverAttrLog: gs.driverAttrLog || {},
             driverAvailability: gs.driverAvailability || {},
             raceEntryState: gs.raceEntryState || null,
+            raceWeekendState: gs.raceWeekendState || null,
             financeLog: Array.isArray(gs.financeLog) ? gs.financeLog : [],
             finances: gs.finances || null,
             showSeasonSummary: false,
@@ -1426,109 +1432,173 @@ export const useGame = create((set, get) => ({
     });
   },
 
-  /** ===================== AVANÇAR ATÉ BREAK ===================== */
-  advanceOneDayUntilBreak: async () => {
-    const s = get().gameState;
-    if (!s) return { oldDate: null, newDate: null, roundChanged: false, round: 0 };
-
-    const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
-    const newISO  = addDaysISO(baseISO, 1);
-
-    const round = s.currentRound ?? 0;
-    const nextGP = s.calendar?.[round] ?? null;
-    const nextISO = gpDateISO(nextGP);
-
-    let roundChanged = false;
-    let newRound = round;
-
-    if (nextISO) {
-      const tNew  = parseISO(newISO).getTime();
-      const tNext = parseISO(nextISO).getTime();
-      if (isFinite(tNew) && isFinite(tNext) && tNew > tNext) {
-        const lastIdx = Math.max(0, (s.calendar?.length || 1) - 1);
-        newRound = Math.min(round + 1, lastIdx);
-        roundChanged = newRound !== round;
-      }
-    }
-
-    let updated = { ...s, currentDateISO: newISO, currentRound: newRound };
-    const nextCalendarYear = Number(String(newISO).slice(0, 4));
-    if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
-      updated = rolloverSeasonPure(s, nextCalendarYear);
-      newRound = 0;
-      roundChanged = true;
-    }
-
+  /** ===================== RACE WEEKEND ACTIONS ===================== */
+  completeRaceWeekendPractice: async () => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.completePracticeSession(gs);
+    set({gameState:next});
     try {
-      const res = triggerDailyTick(updated);
-      const { state: next1, patched, changes, attrChanges } = res || {};
-      updated = next1 || patched || res || updated;
-      updated = processScoutingTick(updated);
-      const ch = changes || attrChanges || [];
-      if (Array.isArray(ch) && ch.length) {
-        if (typeof applyAttrChangesDict === "function") {
-          updated = { ...updated, driverAttrLog: applyAttrChangesDict(updated.driverAttrLog, ch) };
-        }
-      }
-    } catch (e) {
-      console.warn("[EventEngine] daily tick failed:", e);
-    }
-
-    // ticks extra
-    try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
-
-    // corre GP se for o dia
-    try {
-      const roundNow = updated.currentRound ?? 0;
-      const gp = updated.calendar?.[roundNow];
-      const raceISO = gpDateISO(gp);
-      if (raceISO && clampISO(updated.currentDateISO) === raceISO) {
-        const mod = await import("@/engine/GPEngine");
-        if (typeof mod.runRaceWeekend === "function") {
-          updated = (await mod.runRaceWeekend(updated, { roundIndex: roundNow, gp })) || updated;
-        }
-      }
-    } catch (e) {
-      console.warn("[GPEngine] runRaceWeekend failed:", e);
-    }
-
-    set({ gameState: updated });
-
-    // ---- Fim de época: abre Season Summary quando passas a última corrida ----
-    try {
-      const gs = get().gameState || updated || {};
-      const lastIdx = Math.max(0, (gs.calendar?.length || 1) - 1);
-      const lastRaceISO = gpDateISO(gs.calendar?.[lastIdx]);
-      const todayISO = clampISO(gs.currentDateISO);
-      const yearNow = gs.activeYear || gs.seasonYear || gs.season || null;
-
-      const canTrigger =
-        lastRaceISO &&
-        todayISO > lastRaceISO &&
-        gs._seasonFinishedAt !== yearNow;
-
-      if (canTrigger) {
-        set({ gameState: { ...gs, _seasonFinishedAt: yearNow, showSeasonSummary: true } });
-      }
-    } catch (e) {
-      console.warn("end-of-season check failed:", e);
-    }
-
-    try {
-      if (updated?.settings?.autosave !== false) {
-        const light = makeLightSnapshot(updated);
-        localStorage.setItem("f1ml.autosave", JSON.stringify({ gameState: light, ts: Date.now() }));
-        // Continue always resumes the latest autosaved state, without adding a
-        // second card to the Load Game screen.
-        setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
+      if(next?.settings?.autosave!==false){
+        const light=makeLightSnapshot(next);
+        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
+        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
       }
     } catch {}
-    return { oldDate: baseISO, newDate: newISO, roundChanged, round: newRound };
+    return next?.raceWeekendState||null;
+  },
+
+  completeRaceWeekendQualifying: async () => {
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
+    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.completeQualifyingSession(gs,{gp});
+    set({gameState:next});
+    try {
+      if(next?.settings?.autosave!==false){
+        const light=makeLightSnapshot(next);
+        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
+        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+      }
+    } catch {}
+    return next?.raceWeekendState||null;
+  },
+
+  completeRaceWeekendRace: async () => {
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
+    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=await mod.completeRaceSession(gs,{gp});
+    set({gameState:next});
+    try {
+      if(next?.settings?.autosave!==false){
+        const light=makeLightSnapshot(next);
+        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
+        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+      }
+    } catch {}
+    return next?.raceWeekendState||null;
+  },
+
+  /** ===================== AVANÇAR ATÉ BREAK ===================== */
+  advanceOneDayUntilBreak: async () => {
+    let s=get().gameState;
+    if(!s)return {oldDate:null,newDate:null,roundChanged:false,round:0};
+
+    const currentWeekend=s?.raceWeekendState;
+    if(currentWeekend&&["practice","qualifying","race"].includes(String(currentWeekend.phase))){
+      return {
+        oldDate:clampISO(s.currentDateISO),
+        newDate:clampISO(s.currentDateISO),
+        roundChanged:false,
+        round:s.currentRound??0,
+        breakReason:"race_weekend",
+        raceWeekendPhase:currentWeekend.phase,
+      };
+    }
+
+    const baseISO=clampISO(s.currentDateISO||firstDayISO(s.activeYear||1980));
+    const newISO=addDaysISO(baseISO,1);
+    const round=s.currentRound??0;
+    const nextGP=s.calendar?.[round]??null;
+    const nextISO=gpDateISO(nextGP);
+
+    let roundChanged=false;
+    let newRound=round;
+
+    if(nextISO){
+      const tNew=parseISO(newISO).getTime();
+      const tNext=parseISO(nextISO).getTime();
+      if(isFinite(tNew)&&isFinite(tNext)&&tNew>tNext){
+        const lastIdx=Math.max(0,(s.calendar?.length||1)-1);
+        newRound=Math.min(round+1,lastIdx);
+        roundChanged=newRound!==round;
+      }
+    }
+
+    let updated={...s,currentDateISO:newISO,currentRound:newRound};
+    const nextCalendarYear=Number(String(newISO).slice(0,4));
+    if(Number.isInteger(nextCalendarYear)&&nextCalendarYear>Number(s.activeYear||0)){
+      updated=rolloverSeasonPure(s,nextCalendarYear);
+      newRound=0;
+      roundChanged=true;
+    }
+
+    try {
+      const res=triggerDailyTick(updated);
+      const {state:next1,patched,changes,attrChanges}=res||{};
+      updated=next1||patched||res||updated;
+      updated=processScoutingTick(updated);
+      updated=refreshDriverAvailability(updated,updated.currentDateISO);
+      const ch=changes||attrChanges||[];
+      if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
+        updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};
+      }
+    } catch(e){
+      console.warn("[EventEngine] daily tick failed:",e);
+    }
+
+    try { const mod=await import("@/engine/RuleEngine"); if(typeof mod.applyRulesTick==="function") updated=mod.applyRulesTick(updated)||updated; } catch {}
+    try { const mod=await import("@/engine/ProgressionEngine"); if(typeof mod.applyProgressionTick==="function") updated=mod.applyProgressionTick(updated)||updated; } catch {}
+    try { const mod=await import("@/engine/EconomyEngine"); if(typeof mod.applyEconomyTick==="function") updated=mod.applyEconomyTick(updated)||updated; } catch {}
+    try { const mod=await import("@/engine/MarketEngine"); if(typeof mod.applyMarketTick==="function") updated=mod.applyMarketTick(updated)||updated; } catch {}
+    try { const mod=await import("@/engine/NegotiationEngine"); if(typeof mod.processDriverNegotiations==="function") updated=mod.processDriverNegotiations(updated)||updated; } catch {}
+    try { const mod=await import("@/engine/InboxEngine"); if(typeof mod.syncInbox==="function") updated=mod.syncInbox(updated)||updated; } catch {}
+
+    let weekendBreak=null;
+    try {
+      const mod=await import("@/engine/RaceWeekendEngine");
+      updated=mod.syncRaceWeekendPhaseForDate(updated,updated.currentDateISO);
+
+      const roundNow=updated.currentRound??0;
+      const gp=updated.calendar?.[roundNow]??null;
+      if(mod.shouldCreateWeekendForDate(updated,{roundIndex:roundNow,gp,dateISO:updated.currentDateISO})){
+        updated=mod.createRaceWeekendState(updated,{roundIndex:roundNow,gp});
+      }
+      const phase=String(updated?.raceWeekendState?.phase||"");
+      if(["practice","qualifying","race"].includes(phase)){
+        weekendBreak={breakReason:"race_weekend",raceWeekendPhase:phase};
+      }
+    } catch(e){
+      console.warn("[RaceWeekend] state sync failed:",e);
+    }
+
+    set({gameState:updated});
+
+    try {
+      const gs=get().gameState||updated||{};
+      const lastIdx=Math.max(0,(gs.calendar?.length||1)-1);
+      const lastRaceISO=gpDateISO(gs.calendar?.[lastIdx]);
+      const todayISO=clampISO(gs.currentDateISO);
+      const yearNow=gs.activeYear||gs.seasonYear||gs.season||null;
+      const canTrigger=lastRaceISO&&todayISO>lastRaceISO&&gs._seasonFinishedAt!==yearNow;
+      if(canTrigger){
+        set({gameState:{...gs,_seasonFinishedAt:yearNow,showSeasonSummary:true}});
+        updated=get().gameState;
+      }
+    } catch(e){
+      console.warn("end-of-season check failed:",e);
+    }
+
+    try {
+      if(updated?.settings?.autosave!==false){
+        const light=makeLightSnapshot(updated);
+        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
+        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+      }
+    } catch {}
+
+    return {
+      oldDate:baseISO,
+      newDate:newISO,
+      roundChanged,
+      round:newRound,
+      ...(weekendBreak||{}),
+    };
   },
 
   /* ======================= SELECTORS ======================= */

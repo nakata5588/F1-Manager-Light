@@ -34,6 +34,7 @@ import Staff from "./pages/Staff.jsx";
 import Standings from "./pages/Standings.jsx";
 import Team from "./pages/Team.jsx";
 import Results from "./pages/Results.jsx";
+import RaceWeekend from "./pages/RaceWeekend.jsx";
 
 import DebugToolbar from "@/components/dev/DebugToolbar";
 
@@ -126,6 +127,7 @@ export default function App() {
           <Route path="/MyStaff" element={<MyStaff />} />
           <Route path="/Standings" element={<Standings />} />
           <Route path="/Results" element={<Results />} />
+          <Route path="/RaceWeekend" element={<RaceWeekend />} />
           <Route path="/Settings" element={<Settings />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
           <Route path="/Development" element={<Development />} />

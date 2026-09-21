@@ -531,35 +531,76 @@ function awardRaceBonuses(next, race, gpName) {
   return next;
 }
 
-export async function runRaceWeekend(gs, { roundIndex, gp }) {
-  gs = ensureTemporaryReplacements(gs, { roundIndex, gp });
-  const raceEntryState = buildRaceEntryState(gs, { roundIndex, gp });
-  gs = { ...gs, raceEntryState };
-  const next = { ...gs };
-  const allDrivers = (gs.drivers || []).slice();
-  const activeYear = Number(gs?.activeYear);
-  const enteredIds = new Set(raceEntryDriverIds(raceEntryState));
-  const drivers = allDrivers.filter((d) => enteredIds.has(String(d?.driver_id ?? d?.id ?? "")));
-  const ratings = gs.driverRatings || [];
-  const teamsById = new Map((gs.teams||[]).map(t => [String(t.team_id||t.id||t.name), t]));
-  const pointsTable = getActivePointsTable(gs);
-  const gpEntropyId = gp?.gp_id || gp?.id || gp?.track_id || `round_${Number(roundIndex) + 1}`;
-  const entropyBase = `${activeYear || "season"}-${gpEntropyId}`;
-  const qualifyingRng = rngFor(gs, `${entropyBase}-qualifying`);
-  const raceOrderRng = rngFor(gs, `${entropyBase}-race-order`);
-  const timingRng = rngFor(gs, `${entropyBase}-timing`);
-  const incidentRng = rngFor(gs, `${entropyBase}-incidents`);
+
+export function simulateQualifyingSession(gs,{roundIndex,gp,raceEntryOverride=null}={}){
+  let next=ensureTemporaryReplacements(gs,{roundIndex,gp});
+  const raceEntryState=raceEntryOverride||buildRaceEntryState(next,{roundIndex,gp});
+  next={...next,raceEntryState};
+
+  const allDrivers=(next.drivers||[]).slice();
+  const enteredIds=new Set(raceEntryDriverIds(raceEntryState));
+  const drivers=allDrivers.filter((driver)=>enteredIds.has(String(driver?.driver_id??driver?.id??"")));
+  const ratings=next.driverRatings||[];
+  const activeYear=Number(next?.activeYear);
+  const gpEntropyId=gp?.gp_id||gp?.id||gp?.track_id||`round_${Number(roundIndex)+1}`;
+  const qualifyingRng=rngFor(next,`${activeYear||"season"}-${gpEntropyId}-qualifying`);
+  const wet=isWetGP(gp);
+
+  const qualifying=drivers
+    .map((driver)=>{
+      const rating=ratingFor(ratings,driver);
+      const teamId=resolveDriverTeamId(next,driver);
+      const score=combinedQualifyingPerformance({gs:next,driver,rating,teamId,wet})+rnorm(qualifyingRng)*4;
+      return {d:driver,score};
+    })
+    .sort((a,b)=>b.score-a.score)
+    .map((row,index)=>({pos:index+1,driver:row.d,performance:row.score}));
+
+  return {gameState:next,raceEntryState,qualifying};
+}
+
+function qualifyingFromOverride(gs,rows=[]){
+  const driverById=new Map((gs?.drivers||[]).map((driver)=>[
+    String(driver?.driver_id??driver?.id??""),
+    driver,
+  ]));
+  return (rows||[])
+    .map((row,index)=>{
+      const driverId=String(row?.driver_id??row?.driver?.driver_id??"");
+      const driver=driverById.get(driverId);
+      if(!driver)return null;
+      return {
+        pos:Number(row?.position??row?.pos??index+1),
+        driver,
+        performance:Number(row?.performance??row?.score??0),
+      };
+    })
+    .filter(Boolean)
+    .sort((a,b)=>a.pos-b.pos);
+}
+
+export async function runRaceWeekend(gs, { roundIndex, gp, qualifyingOverride=null, raceEntryOverride=null } = {}) {
+  const qualifyingSession=simulateQualifyingSession(gs,{roundIndex,gp,raceEntryOverride});
+  gs=qualifyingSession.gameState;
+  const raceEntryState=qualifyingSession.raceEntryState;
+  const next={...gs};
+  const allDrivers=(gs.drivers||[]).slice();
+  const activeYear=Number(gs?.activeYear);
+  const enteredIds=new Set(raceEntryDriverIds(raceEntryState));
+  const drivers=allDrivers.filter((d)=>enteredIds.has(String(d?.driver_id??d?.id??"")));
+  const ratings=gs.driverRatings||[];
+  const teamsById=new Map((gs.teams||[]).map(t=>[String(t.team_id||t.id||t.name),t]));
+  const pointsTable=getActivePointsTable(gs);
+  const gpEntropyId=gp?.gp_id||gp?.id||gp?.track_id||`round_${Number(roundIndex)+1}`;
+  const entropyBase=`${activeYear||"season"}-${gpEntropyId}`;
+  const raceOrderRng=rngFor(gs,`${entropyBase}-race-order`);
+  const timingRng=rngFor(gs,`${entropyBase}-timing`);
+  const incidentRng=rngFor(gs,`${entropyBase}-incidents`);
 
   const wet=isWetGP(gp);
-  const qualy = drivers
-    .map((d) => {
-      const rating=ratingFor(ratings,d);
-      const teamId=resolveDriverTeamId(gs,d);
-      const score=combinedQualifyingPerformance({gs,driver:d,rating,teamId,wet}) + rnorm(qualifyingRng)*4;
-      return {d,score};
-    })
-    .sort((a,b) => b.score - a.score)
-    .map((x,i) => ({ pos:i+1, driver:x.d, performance:x.score }));
+  const qualy=Array.isArray(qualifyingOverride)&&qualifyingOverride.length
+    ?qualifyingFromOverride(gs,qualifyingOverride)
+    :qualifyingSession.qualifying;
 
   const fieldSize=Math.max(1,qualy.length);
   const raceOrder = qualy
