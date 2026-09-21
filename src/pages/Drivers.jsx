@@ -94,8 +94,9 @@ export default function Drivers(){
 
   const rows=useMemo(()=>drivers.map(d=>{
     const id=idOf(d), rating=ratingById.get(id)||{}, contract=contractById.get(id)||null;
+    const pending=activePlayerByDriver.get(id)||null;
     const tid=teamIdOf(contract)||teamIdOf(d);
-    const ms=marketStatus(d,contract);
+    const ms=marketStatus(d,contract,pending);
     return {
       ...d,id,name:nameOf(d),
       team_id:tid||null,
@@ -106,12 +107,13 @@ export default function Drivers(){
       overall:pick(rating,["current_ability","overall","pace"],"—"),
       contract_until:contract?pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"):"—",
       market_status:ms,
-      can_sign_reserve:!contract && d?.canHireF1!==false && !["hidden","junior_only","deceased","retired"].includes(String(d?.status||"").toLowerCase()),
+      pending,
+      can_negotiate:!contract && d?.canHireF1!==false && !["hidden","junior_only","deceased","retired"].includes(String(d?.status||"").toLowerCase()),
     };
-  }),[drivers,ratingById,contractById,teamNames,gs?.currentDateISO]);
+  }),[drivers,ratingById,contractById,activePlayerByDriver,teamNames,gs?.currentDateISO]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
-  const statusOptions=["ALL","Contracted","Free","Youth","Lower Series","Available"];
+  const statusOptions=["ALL","Contracted","Negotiating","Free","Youth","Lower Series","Available"];
 
   const filtered=useMemo(()=>{
     const n=q.trim().toLowerCase();
@@ -138,35 +140,20 @@ export default function Drivers(){
     ["age","Age"],["overall","Overall"],["contract_until","Contract"]
   ];
 
-  const signReserve=(driver)=>{
-    if(!driver?.can_sign_reserve||!userTeamId||hasReserve) return;
-    const salary=expectedDriverSalary(gs,driver.id);
-    const contract=makeDriverContract({
-      gs,
-      driver,
+  const submitNegotiation=(offer)=>{
+    if(!negotiatingDriver||!userTeamId)return;
+    const next=startDriverNegotiation(gs,{
+      driverId:negotiatingDriver.id,
       teamId:userTeamId,
       teamName:userTeamName,
-      offer:{salary,years:1,role:"Reserve Driver"},
-      source:"player_reserve_market",
+      offer,
+      origin:"player",
     });
-    setGameState({
-      contracts:[...contracts,contract],
-      inbox:[
-        {
-          id:"reserve_sign_"+activeYear+"_"+driver.id,
-          date:gs?.currentDateISO,
-          unread:true,
-          type:"STAFF",
-          from:"Team Management",
-          tag:"Contracts",
-          subject:driver.name+" signed as Reserve Driver",
-          body:driver.name+" has joined "+userTeamName+" as Reserve Driver for the current season on a $"+salary.toLocaleString("en-US")+" salary.",
-          driver_id:driver.id,
-        },
-        ...(gs?.inbox||[]),
-      ],
-    });
+    setGameState(next);
+    setNegotiatingDriver(null);
   };
+  const acceptCounter=(id)=>setGameState(acceptCounterOffer(gs,id));
+  const withdraw=(id)=>setGameState(withdrawNegotiation(gs,id));
 
   return <div className="grid gap-4">
     <div className="bg-white rounded-xl shadow p-4">
