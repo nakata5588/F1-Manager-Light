@@ -7,7 +7,7 @@ import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategy
 import { teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
-import { Activity, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
+import { Activity, Car, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
 
 const STEPS=[
   ["practice","Practice"],
@@ -229,7 +229,55 @@ function controlNotice(plan,liveRace,drivers){
   else if(incident){
     reason=incidentNoticeText(incident,drivers);
   }else if(period?.cause)reason=String(period.cause).replaceAll("_"," ");
-  return {label,reason,type:current};
+  return {label,reason,type:current,period};
+}
+function raceFlagNotice(plan,liveRace,drivers){
+  if(String(liveRace?.status||"")==="finished"){
+    return {type:"CHEQUERED",label:"CHEQUERED FLAG",subtitle:"RACE FINISHED",reason:"Race distance complete"};
+  }
+  const current=String(liveRace?.current_control||"GREEN");
+  if(current==="GREEN"){
+    return {type:"GREEN",label:"GREEN FLAG",subtitle:"TRACK CLEAR",reason:"Racing conditions"};
+  }
+  const notice=controlNotice(plan,liveRace,drivers)||{type:current,label:current.replaceAll("_"," "),reason:"Race control intervention"};
+  const lap=Number(liveRace?.current_lap)||0;
+  const safetyCarInThisLap=notice.type==="SAFETY_CAR"&&Number(notice?.period?.to_lap)===lap;
+  const subtitle={
+    LOCAL_YELLOW:"CAUTION",
+    SAFETY_CAR:safetyCarInThisLap?"IN THIS LAP":"DEPLOYED",
+    VSC:"VIRTUAL SAFETY CAR",
+    RED_FLAG:"SESSION STOPPED",
+  }[notice.type]||"RACE CONTROL";
+  return {...notice,subtitle};
+}
+function RaceFlagBanner({notice}){
+  if(!notice)return null;
+  const type=String(notice.type||"GREEN");
+  const palette={
+    GREEN:"border-emerald-400 bg-emerald-950/90 text-emerald-300 shadow-emerald-500/10",
+    LOCAL_YELLOW:"border-yellow-300 bg-yellow-950/90 text-yellow-300 shadow-yellow-500/10",
+    SAFETY_CAR:"border-yellow-300 bg-[#171500]/95 text-yellow-300 shadow-yellow-500/10",
+    VSC:"border-yellow-300 bg-[#171500]/95 text-yellow-300 shadow-yellow-500/10",
+    RED_FLAG:"border-red-500 bg-red-950/90 text-red-300 shadow-red-500/10",
+    CHEQUERED:"border-slate-200 bg-[#111318]/95 text-white shadow-white/10",
+  }[type]||"border-slate-400 bg-slate-950/90 text-slate-100 shadow-black/20";
+  const icon=type==="SAFETY_CAR"
+    ?<Car className="h-6 w-6"/>
+    :type==="CHEQUERED"
+      ?<span aria-hidden="true" className="grid h-6 w-6 grid-cols-3 grid-rows-3 overflow-hidden rounded-sm border border-white/40">
+          {Array.from({length:9},(_,index)=><span key={index} className={(Math.floor(index/3)+index%3)%2===0?"bg-white":"bg-slate-950"}/>)}
+        </span>
+      :<Flag className="h-6 w-6 fill-current"/>;
+  return <div className={"min-w-[230px] overflow-hidden rounded-lg border-2 shadow-lg "+palette}>
+    <div className="flex items-center gap-3 px-3 py-2">
+      <div className="flex h-9 w-10 shrink-0 items-center justify-center border-r border-current/30 pr-3">{icon}</div>
+      <div className="min-w-0">
+        <div className="text-sm font-black italic tracking-wide">{notice.label}</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-80">{notice.subtitle}</div>
+      </div>
+    </div>
+    {notice.reason&&type!=="GREEN"&&type!=="CHEQUERED"?<div className="border-t border-current/15 px-3 py-1.5 text-right text-[10px] opacity-75">{notice.reason}</div>:null}
+  </div>;
 }
 function controlNoticeTone(type){
   if(type==="RED_FLAG")return "border-red-500/50 bg-red-950/80 text-red-100";
@@ -798,7 +846,15 @@ export default function RaceWeekend(){
         )}
         {lastCompletedQualifyingSession&&(
           <div className="mt-4">
-            <QualifyingTable title={lastCompletedQualifyingSession.label+" — classification"} rows={lastCompletedQualifyingSession.results||[]} drivers={drivers} teams={teams} session={lastCompletedQualifyingSession}/>
+            <QualifyingTable
+              title={(weekend.qualifying?.status==="completed"?"Overall Qualifying":"Session")+" — classification"}
+              rows={lastCompletedQualifyingSession.results||[]}
+              drivers={drivers}
+              teams={teams}
+              session={lastCompletedQualifyingSession}
+              overall={weekend.qualifying?.status==="completed"}
+              cutoff={weekend.qualifying?.status==="completed"?qualifyingCutoff:null}
+            />
           </div>
         )}
       </div>
@@ -929,11 +985,7 @@ export default function RaceWeekend(){
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  {activeControlNotice&&<div className={"max-w-xl rounded-lg border px-3 py-2 text-right text-xs "+controlNoticeTone(activeControlNotice.type)}>
-                    <div className="flex items-center justify-end gap-1.5 font-bold"><Flag className="h-3.5 w-3.5"/>{activeControlNotice.label}</div>
-                    <div className="mt-0.5 opacity-80">{activeControlNotice.reason}</div>
-                    {activeControlNotice.type==="RED_FLAG"&&<div className="mt-0.5 opacity-70">Restart: {String(raceControlRules?.restart_style||"era rules").replaceAll("_"," ")}.</div>}
-                  </div>}
+                  <RaceFlagBanner notice={raceFlagNotice(raceControlPlan,liveRace,drivers)}/>
                   <div className="flex flex-wrap justify-end gap-2">
                     {liveRace.status==="running"&&<>
                       <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
