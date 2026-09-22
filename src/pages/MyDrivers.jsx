@@ -4,6 +4,7 @@ import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
+import { conditionModifierBreakdown } from "../domain/driverPerformance.js";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import {
   changeDriverContractRole,
@@ -23,6 +24,7 @@ const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const idOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
 const num=(v,fb=0)=>Number.isFinite(Number(unbox(v)))?Number(unbox(v)):fb;
+const one=(v)=>Number.isFinite(Number(unbox(v)))?Number(unbox(v)).toFixed(1):"—";
 
 const SLOT_ORDER=[
   {key:"main",label:"Main Driver",description:"Primary race seat"},
@@ -107,13 +109,14 @@ export default function MyDrivers(){
       const overallView=driverOverallPresentation(gs,driver);
       const condition=driverCondition(gs,id);
       const fatigue=fatigueStatus(gs,id);
+      const conditionImpact=conditionModifierBreakdown(gs,id);
       const rating=ratingById.get(id)||{};
       const stats=raceStats(results,year,id);
       const standing=standings.find((row)=>String(row?.driver_id??row?.id??"")===id)||null;
       const availability=availabilityFor(gs,id);
       const medical=latestMedical(gs,id);
       return {
-        ...slot,contract,id,driver,rating,condition,fatigue,stats,standing,availability,medical,
+        ...slot,contract,id,driver,rating,condition,fatigue,conditionImpact,stats,standing,availability,medical,
         name:driver.display_name||driver.name||pick(contract,["driver_name","name"],id),
         overall:overallView.estimated?`~${overallView.value}`:overallView.value,
         salary:num(pick(contract,["salary","salary_yearly"],0),0),
@@ -177,14 +180,31 @@ export default function MyDrivers(){
         </button>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10 border-y border-white/10">
-          <div className="bg-[#12141c] p-4 space-y-3"><Bar label="Confidence" value={row.condition.confidence}/><Bar label="Morale" value={row.condition.morale}/><Bar label="Preparation" value={row.condition.preparation}/><Bar label="Fatigue" value={row.condition.fatigue} inverse/></div>
+          <div className="bg-[#12141c] p-4 space-y-3">
+            <Bar label="Confidence" value={row.condition.confidence}/>
+            <Bar label="Morale" value={row.condition.morale}/>
+            <Bar label="Preparation" value={row.condition.preparation}/>
+            <Bar label="Fatigue" value={row.condition.fatigue} inverse/>
+            <div className="pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Current performance effect</span>
+                <strong className={row.conditionImpact.total>=0?"text-emerald-300":"text-rose-300"}>{row.conditionImpact.total>=0?"+":""}{row.conditionImpact.total.toFixed(1)}</strong>
+              </div>
+              <div className="mt-2 grid grid-cols-4 gap-1 text-[10px]">
+                <span title="Confidence changes mainly with practice quality and race outcomes">Conf {row.conditionImpact.confidenceEffect>=0?"+":""}{row.conditionImpact.confidenceEffect.toFixed(1)}</span>
+                <span title="Morale changes mainly with race results and team/contract events">Mor {row.conditionImpact.moraleEffect>=0?"+":""}{row.conditionImpact.moraleEffect.toFixed(1)}</span>
+                <span title="Preparation rises through Practice and decays after a race">Prep {row.conditionImpact.preparationEffect>=0?"+":""}{row.conditionImpact.preparationEffect.toFixed(1)}</span>
+                <span title="Fatigue directly reduces qualifying/race pace and also raises accident risk">Fat {row.conditionImpact.fatigueEffect.toFixed(1)}</span>
+              </div>
+            </div>
+          </div>
           <div className="bg-[#12141c] p-4 grid grid-cols-3 gap-2">
             <Metric label="Starts" value={row.stats.races}/><Metric label="Wins" value={row.stats.wins}/><Metric label="Podiums" value={row.stats.podiums}/><Metric label="DNF" value={row.stats.dnfs} tone={row.stats.dnfs?"text-rose-300":""}/><Metric label="Best" value={row.stats.bestFinish?("P"+row.stats.bestFinish):"—"}/><Metric label="Avg finish" value={row.stats.avgFinish??"—"}/>
           </div>
         </div>
 
         <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-          <Metric label="Pace" value={pick(row.rating,["pace"],"—")}/><Metric label="Qualifying" value={pick(row.rating,["qualifying"],"—")}/><Metric label="Racecraft" value={pick(row.rating,["racecraft"],"—")}/><Metric label="Consistency" value={pick(row.rating,["consistency"],"—")}/><Metric label="Wet skill" value={pick(row.rating,["wet_skill"],"—")}/><Metric label="Tyre mgmt" value={pick(row.rating,["tire_management"],"—")}/><Metric label="Feedback" value={pick(row.rating,["technical_feedback"],"—")}/><Metric label="Salary" value={money(row.salary)}/>
+          <Metric label="Pace" value={one(pick(row.rating,["pace"],NaN))}/><Metric label="Qualifying" value={one(pick(row.rating,["qualifying"],NaN))}/><Metric label="Racecraft" value={one(pick(row.rating,["racecraft"],NaN))}/><Metric label="Consistency" value={one(pick(row.rating,["consistency"],NaN))}/><Metric label="Wet skill" value={one(pick(row.rating,["wet_skill"],NaN))}/><Metric label="Tyre mgmt" value={one(pick(row.rating,["tire_management"],NaN))}/><Metric label="Feedback" value={one(pick(row.rating,["technical_feedback"],NaN))}/><Metric label="Salary" value={money(row.salary)}/>
         </div>
 
         {(row.availability||row.medical)?<div className="mx-4 mb-4 rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
