@@ -268,12 +268,14 @@ export default function Car(){
     if(!quote||!currentDateISO)return false;
     const budget=Number(gs?.team?.budget??gs?.finances?.balance??0);
     if(budget<Number(quote.cost||0))return false;
-    if(!spend(quote.cost,title))return false;
+    const beforeJobs=(carState?.garage?.serviceJobs||[]).length;
     const next=queueWorkshopJob(carState,quote,{
       id:`workshop_${Date.now()}`,
       title,
       startedAt:currentDateISO,
     });
+    if((next?.garage?.serviceJobs||[]).length<=beforeJobs)return false;
+    if(!spend(quote.cost,title))return false;
     setGameState({
       garage:next?.garage,
       development:next?.development||carState?.development,
