@@ -2,6 +2,7 @@
 import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffects } from "./RaceStrategyEngine.js";
 import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
+import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -43,7 +44,7 @@ function severityAdjective(severity){
     critical:"serious",
   }[String(severity||"").toLowerCase()]||"significant";
 }
-export function formatRaceIncidentMessage({controlType=null,driverName="Driver",incident={}}={}){
+export function formatRaceIncidentMessage({controlType=null,driverName="Driver",incident={},medicalConcern=null}={}){
   const kind=String(incident?.kind||"").toLowerCase();
   const reason=String(incident?.reason||incident?.kind||"incident").trim();
   const prefix=controlType?controlLabel(controlType)+" — ":"";
@@ -53,10 +54,32 @@ export function formatRaceIncidentMessage({controlType=null,driverName="Driver",
   }
   const noun=incidentNoun(incident);
   const severity=String(incident?.severity||"medium").toLowerCase();
+  const medicalSuffix=medicalConcern===true
+    ?" Might be injured."
+    :medicalConcern===false
+      ?" Seems to be OK."
+      :"";
   if(severity==="critical"){
-    return `${prefix}Serious ${noun} involving ${driverName}.`;
+    return `${prefix}Serious ${noun} involving ${driverName}.${medicalSuffix}`;
   }
-  return `${prefix}${driverName} involved in a ${severityAdjective(severity)} ${noun}.`;
+  return `${prefix}${driverName} involved in a ${severityAdjective(severity)} ${noun}.${medicalSuffix}`;
+}
+function incidentMedicalStatus(gs,incident){
+  const kind=String(incident?.kind||incident?.reason||"").toLowerCase();
+  if(!/accident|collision/.test(kind))return {medicalConcern:null,injuryProbability:null};
+  if(gs?.settings?.gameplay?.enableInjuryRandomEvents===false){
+    return {medicalConcern:false,injuryProbability:0};
+  }
+  const probabilities=healthOutcomeProbabilities(gs,{
+    incident_severity:incident?.severity,
+    incident_severity_score:incident?.severity_score,
+  },{year:Number(gs?.activeYear)});
+  const severity=String(probabilities?.incidentSeverity||incident?.severity||"medium").toLowerCase();
+  const injuryProbability=Number(probabilities?.injuryProbability||0);
+  return {
+    medicalConcern:["high","critical"].includes(severity)||injuryProbability>=0.08,
+    injuryProbability:Number(injuryProbability.toFixed(4)),
+  };
 }
 function formatWeatherControlMessage(type,state){
   const weather=String(state||"extreme weather").replaceAll("_"," ").toLowerCase();
@@ -649,6 +672,7 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
         Number(row?.from_lap)===Number(incident.lap)&&String(row?.driver_id??"")===String(incident.driver_id)
       );
       const driver=driverDisplayName(working,incident.driver_id);
+      const medical=incidentMedicalStatus(working,incident);
       const eventKey=`incident:${incident.driver_id}:${incident.lap}:${incident.kind||incident.reason||"incident"}`;
       if(period){
         controlPeriodsStarted.add(`${period.type}:${period.from_lap}:${period.driver_id||""}`);
@@ -662,7 +686,9 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
           cause:"incident",
           incident_kind:String(incident.kind||"incident").toLowerCase(),
           incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
-          message:formatRaceIncidentMessage({controlType:period.type,driverName:driver,incident}),
+          medical_concern:medical.medicalConcern,
+          injury_probability:medical.injuryProbability,
+          message:formatRaceIncidentMessage({controlType:period.type,driverName:driver,incident,medicalConcern:medical.medicalConcern}),
         });
       }else{
         pushUniqueEvent(events,{
@@ -674,7 +700,9 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
           cause:"incident",
           incident_kind:String(incident.kind||"incident").toLowerCase(),
           incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
-          message:formatRaceIncidentMessage({driverName:driver,incident}),
+          medical_concern:medical.medicalConcern,
+          injury_probability:medical.injuryProbability,
+          message:formatRaceIncidentMessage({driverName:driver,incident,medicalConcern:medical.medicalConcern}),
         });
       }
     }

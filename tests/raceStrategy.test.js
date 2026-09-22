@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   createRaceStrategyState,
   ensureRaceStrategyWorld,
+  fuelStopTargetsForRace,
   raceStrategyRulesForYear,
   raceTrackProfile,
   setRaceStrategySelection,
@@ -112,22 +113,95 @@ function grid(gs){
   ];
 }
 
-test("1980 rules do not import modern refuelling or mandatory compound rules",()=>{
+test("refuelling rules follow the historical 1980-2010 era boundaries",()=>{
   const r1980=raceStrategyRulesForYear(1980);
   assert.equal(r1980.refuelling_allowed,false);
+  assert.equal(r1980.refuelling_style,"prohibited");
   assert.equal(r1980.mandatory_dry_compounds,1);
   assert.equal(r1980.default_pit_plan,"no_stop");
 
   const r1982=raceStrategyRulesForYear(1982);
+  const r1983=raceStrategyRulesForYear(1983);
   assert.equal(r1982.refuelling_allowed,true);
+  assert.equal(r1982.refuelling_style,"optional_experimental");
+  assert.equal(r1983.refuelling_allowed,true);
 
+  const r1984=raceStrategyRulesForYear(1984);
+  const r1993=raceStrategyRulesForYear(1993);
+  assert.equal(r1984.refuelling_allowed,false);
+  assert.equal(r1993.refuelling_allowed,false);
+
+  const r1994=raceStrategyRulesForYear(1994);
   const r2008=raceStrategyRulesForYear(2008);
+  const r2009=raceStrategyRulesForYear(2009);
+  assert.equal(r1994.refuelling_allowed,true);
+  assert.equal(r1994.refuelling_style,"strategic_standard");
   assert.equal(r2008.refuelling_allowed,true);
   assert.equal(r2008.mandatory_dry_compounds,2);
+  assert.equal(r2009.refuelling_allowed,true);
 
   const r2010=raceStrategyRulesForYear(2010);
   assert.equal(r2010.refuelling_allowed,false);
+  assert.equal(r2010.refuelling_style,"prohibited");
   assert.equal(r2010.mandatory_dry_compounds,2);
+});
+
+test("era-aware fuel plans create stops only where refuelling is legal",()=>{
+  const laps=60;
+  const early=raceStrategyRulesForYear(1983);
+  assert.deepEqual(fuelStopTargetsForRace(early,"balanced",laps),[]);
+  assert.deepEqual(fuelStopTargetsForRace(early,"heavy_start",laps),[]);
+  assert.deepEqual(fuelStopTargetsForRace(early,"light_start",laps),[31]);
+
+  const banned=raceStrategyRulesForYear(1984);
+  assert.deepEqual(fuelStopTargetsForRace(banned,"light_start",laps),[]);
+
+  const standard=raceStrategyRulesForYear(1994);
+  assert.deepEqual(fuelStopTargetsForRace(standard,"balanced",laps),[30]);
+  assert.deepEqual(fuelStopTargetsForRace(standard,"heavy_start",laps),[40]);
+  assert.deepEqual(fuelStopTargetsForRace(standard,"light_start",laps),[20,40]);
+
+  const modern=raceStrategyRulesForYear(2010);
+  assert.deepEqual(fuelStopTargetsForRace(modern,"light_start",laps),[]);
+});
+
+test("1994-2009 balanced strategy actually executes a refuelling stop",()=>{
+  const year=2004;
+  const gs=fixture({
+    activeYear:year,
+    currentDateISO:"2004-05-23",
+    trackLayoutByYear:[{track_id:"monaco",year_from:1994,year_to:2009,lap_length_km:3.34,laps:30,pit_lane_loss_s:24}],
+    dbPitcrewRoster:[
+      {team_id:"t_williams",year,avg_time:6.2,consistency:85,error_rate:0.02},
+      {team_id:"t_ferrari",year,avg_time:6.4,consistency:82,error_rate:0.03},
+    ],
+    facilities:[
+      {team_id:"t_williams",year,pitcrew_training_level:7},
+      {team_id:"t_ferrari",year,pitcrew_training_level:6},
+    ],
+    carStats:[
+      {team_id:"t_williams",year,chassis_spec:76,aero_spec:75,gearbox_spec:74,suspension_spec:74,brakes_spec:75,cooling_spec:74,reliability:0.84},
+      {team_id:"t_ferrari",year,chassis_spec:77,aero_spec:76,gearbox_spec:75,suspension_spec:75,brakes_spec:76,cooling_spec:74,reliability:0.83},
+    ],
+    teamEngines:[
+      {team_id:"t_williams",year,power:78,reliability:82,chassis_integration:76},
+      {team_id:"t_ferrari",year,power:80,reliability:80,chassis_integration:77},
+    ],
+  });
+  const gp2004={...gp,gp_id:"gp_monaco_2004",race_date:"2004-05-23",year};
+  const raceGs=withStrategy(gs,gp2004);
+  const simulated=simulateManagedRace(raceGs,{
+    gp:gp2004,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+  });
+  const player=simulated.race.find((row)=>String(row?.driver?.driver_id)==="d_w1");
+  assert.ok(player);
+  assert.equal(player.strategy_summary.refuelled,true);
+  assert.equal(player.strategy_summary.refuel_count,1);
+  assert.deepEqual(player.strategy_summary.fuel_stop_targets,[15]);
+  assert.ok(player.pit_stops.some((stop)=>stop.refuelled===true&&Number(stop.lap)>=15));
 });
 
 test("1980 supplier calibration seeds the world once and Save World stays authoritative",()=>{

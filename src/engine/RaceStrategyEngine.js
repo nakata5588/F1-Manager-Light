@@ -35,6 +35,7 @@ export function raceStrategyRulesForYear(yearInput){
     era_id:"classic_non_stop",
     label:"Classic non-stop era",
     refuelling_allowed:false,
+    refuelling_style:"prohibited",
     mandatory_dry_compounds:1,
     tyre_changes:"optional",
     default_pit_plan:"no_stop",
@@ -45,6 +46,7 @@ export function raceStrategyRulesForYear(yearInput){
     era_id:"early_refuelling",
     label:"Early refuelling strategy era",
     refuelling_allowed:true,
+    refuelling_style:"optional_experimental",
     mandatory_dry_compounds:1,
     tyre_changes:"strategic",
     default_pit_plan:"adaptive",
@@ -55,6 +57,7 @@ export function raceStrategyRulesForYear(yearInput){
     era_id:"no_refuelling",
     label:"Tyre strategy era",
     refuelling_allowed:false,
+    refuelling_style:"prohibited",
     mandatory_dry_compounds:1,
     tyre_changes:"strategic",
     default_pit_plan:"adaptive",
@@ -65,6 +68,7 @@ export function raceStrategyRulesForYear(yearInput){
     era_id:"refuelling",
     label:"Refuelling era",
     refuelling_allowed:true,
+    refuelling_style:"strategic_standard",
     mandatory_dry_compounds:1,
     tyre_changes:"strategic",
     default_pit_plan:"adaptive",
@@ -75,6 +79,7 @@ export function raceStrategyRulesForYear(yearInput){
     era_id:"refuelling_two_compounds",
     label:"Refuelling and two-compound era",
     refuelling_allowed:true,
+    refuelling_style:"strategic_standard",
     mandatory_dry_compounds:2,
     tyre_changes:"strategic",
     default_pit_plan:"one_stop",
@@ -85,12 +90,38 @@ export function raceStrategyRulesForYear(yearInput){
     era_id:"modern_no_refuelling",
     label:"Modern no-refuelling era",
     refuelling_allowed:false,
+    refuelling_style:"prohibited",
     mandatory_dry_compounds:2,
     tyre_changes:"strategic",
     default_pit_plan:"one_stop",
     undercut_strength:1,
     notes:"Dry races require two dry specifications; in-race refuelling is unavailable.",
   };
+}
+
+export function fuelStopTargetsForRace(rules={},fuelPlan="balanced",totalLaps=1){
+  if(!rules?.refuelling_allowed)return [];
+  const laps=Math.max(3,Math.round(num(totalLaps,1)));
+  const clampLap=(fraction)=>Math.max(2,Math.min(laps-1,Math.round(laps*fraction)));
+  const style=String(rules?.refuelling_style||"strategic_standard");
+  const plan=String(fuelPlan||"balanced");
+
+  // 1982-83: refuelling was a permitted strategic experiment rather than the
+  // default shape of every race. Only an explicitly light start plans a stop.
+  if(style==="optional_experimental"){
+    return plan==="light_start"?[clampLap(0.52)]:[];
+  }
+
+  // 1994-2009: refuelling became a normal strategic tool. These targets are
+  // deliberately generic rather than replaying historical stop patterns.
+  if(style==="strategic_standard"){
+    if(plan==="light_start"){
+      return [...new Set([clampLap(0.34),clampLap(0.67)])];
+    }
+    if(plan==="heavy_start")return [clampLap(0.66)];
+    return [clampLap(0.50)];
+  }
+  return [];
 }
 
 function teamId(team){return String(team?.team_id??team?.id??"");}
@@ -768,7 +799,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const pits=[];
     const lapTimes=[];
     const tyreStates=[];
-    let refuelled=false;
+    const fuelStopTargets=fuelStopTargetsForRace(rules,strategy.fuel_plan,track.laps);
+    let refuelCount=0;
     let activePaceMode=strategy.pace_mode;
     let liveCommandIndex=0;
     let accumulatedFatigueLoad=0;
@@ -798,6 +830,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const category=weatherCategory(tyreState);
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
       const remaining=track.laps-lap+1;
+      const nextFuelTarget=fuelStopTargets[refuelCount]??null;
+      const hasFuelTarget=nextFuelTarget!==null&&nextFuelTarget!==undefined&&Number.isFinite(Number(nextFuelTarget));
+      const fuelStopDue=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget)&&remaining>1;
       const mismatch=tyreWeatherPenalty(tyre,tyreState);
       const projectedTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,Math.max(1,stintLap+1));
       const projectedOptimum=optimalTyreTemp(tyre);
@@ -829,7 +864,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         else if(strategy.pit_plan==="adaptive"&&condition<34&&remaining>6)stopReason="degradation";
         else if(criticalTyre||severeTyre&&projectedCritical)stopReason="tyre_safety";
         if(!hasStopped&&rules.mandatory_dry_compounds>1&&!hasUsedWet&&category==="dry"&&lap===plannedLap)stopReason=stopReason||"mandatory_compound";
-        if(rules.refuelling_allowed&&strategy.fuel_plan==="light_start"&&!refuelled&&lap>=Math.round(track.laps*0.54))stopReason=stopReason||"fuel";
+        if(fuelStopDue)stopReason=stopReason||"fuel";
       }
       if(stopReason){
         strategyDecisions.push({
@@ -848,7 +883,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
         const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,tyreState,stopReason);
-        const refuel=rules.refuelling_allowed&&!refuelled&&(strategy.fuel_plan==="light_start"||stopReason==="fuel");
+        const refuel=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget);
         const error=rng.chance(clamp(num(crew.error_rate,0.05),0,0.35));
         const errorDelay=error?3+rng.next()*8:0;
         const fuelDelay=refuel?(Number(working?.activeYear)<=1983?9:6):0;
@@ -867,7 +902,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           refuelled:refuel,
           race_control:control.type,
         });
-        if(refuel)refuelled=true;
+        if(refuel)refuelCount+=1;
         tyre=nextTyre||tyre;
         condition=100;
         stintStart=lap;
@@ -894,7 +929,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const warmupPenalty=stintLap<=2?num(tyre?.warmup_time_s,2.5)*(stintLap===1?0.65:0.24):0;
       const perfPenalty=Math.max(-1.4,(100-basePerf)*0.105);
       const fuelDelta=rules.refuelling_allowed
-        ?strategy.fuel_plan==="light_start"&&!refuelled?-0.28:strategy.fuel_plan==="heavy_start"?0.22:0
+        ?strategy.fuel_plan==="light_start"&&refuelCount===0
+          ?-0.28
+          :strategy.fuel_plan==="heavy_start"&&refuelCount===0
+            ?0.22
+            :0
         :0;
       const gridTraffic=lap===1?(gridIndex)*0.055*(0.75+track.overtaking_difficulty/100):0;
       const controlDelta=control.type==="SAFETY_CAR"?Math.max(12,18-gridIndex*0.30):control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
@@ -963,7 +1002,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         pit_laps:pits.map((p)=>p.lap),
         used_tyres:stints.map((s)=>s.compound),
         used_dry_compounds:[...usedDry],
-        refuelled,
+        refuelled:refuelCount>0,
+        refuel_count:refuelCount,
+        fuel_stop_targets:fuelStopTargets.slice(),
+        fuel_stop_laps:pits.filter((pit)=>pit.refuelled).map((pit)=>pit.lap),
         race_fatigue_gain:raceFatigueGain,
         lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
         strategy_decisions:strategyDecisions,
