@@ -425,7 +425,7 @@ export default function Board() {
               <option value="">Choose target…</option>
               {EXPECTATION_ORDER.filter((x)=>x!==expectation).map((x)=><option key={x} value={x}>{EXPECTATION_LABEL[x]}</option>)}
             </select>
-            <Button size="sm" variant="outline" onClick={proposeGoal} disabled={!goalProposal}>Submit Proposal</Button>
+            <Button size="sm" variant="darkOutline" onClick={proposeGoal} disabled={!goalProposal}>Submit Proposal</Button>
           </ActionInfo>
 
           <ActionInfo
@@ -434,7 +434,7 @@ export default function Board() {
               ? `Funding requests have a 60-day cooldown. Next request is available in ${60-cooldownDays} day(s).`
               : `Ask for a specific amount and explain its purpose. Current estimated approval ceiling: ${fmtMoney(approvalCeiling)}.`}
           >
-            <Button size="sm" variant="outline" onClick={()=>setShowBudget((v)=>!v)} disabled={budgetCooldown}>Request Budget</Button>
+            <Button size="sm" variant="darkOutline" onClick={()=>setShowBudget((v)=>!v)} disabled={budgetCooldown}>Request Budget</Button>
           </ActionInfo>
 
           <ActionInfo
@@ -445,7 +445,7 @@ export default function Board() {
                 ? "A Board Review can be requested once every 3 races."
                 : `Compares objective score (${pct(objectiveScore)}) with expected season progress (${pct(Math.max(0.10,seasonProgress))}) and updates Board Reputation.`}
           >
-            <Button size="sm" variant="outline" onClick={requestBoardReview} disabled={metrics.races===0||reviewCooldown}>Request Board Review</Button>
+            <Button size="sm" variant="darkOutline" onClick={requestBoardReview} disabled={metrics.races===0||reviewCooldown}>Request Board Review</Button>
           </ActionInfo>
         </div>
       </CardContent></Card>
