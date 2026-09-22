@@ -13,6 +13,7 @@ import {
 } from "../src/engine/RaceControlEngine.js";
 import { createNewSaveMeta } from "../src/core/saveSafety.js";
 import { raceReliabilityProfile } from "../src/domain/carPerformance.js";
+import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../src/domain/carReliability.js";
 
 function gs(year=1980){
   return {
@@ -170,7 +171,7 @@ test("race-control planning is deterministic for the same Save seed",()=>{
   assert.deepEqual(a,b);
 });
 
-test("RW4.9 canonical reliability reacts to component condition and Reliability Focus",()=>{
+test("unified reliability reacts to physical condition without practice magic bonuses",()=>{
   const base=gs(1980);
   base.garage={cars:[
     {
@@ -193,39 +194,37 @@ test("RW4.9 canonical reliability reacts to component condition and Reliability 
   const wornProfile=raceReliabilityProfile(worn,"T1","D1");
   const wornRisk=mechanicalRetirementChance(worn,{driver:{driver_id:"D1"},mechanical_risk_multiplier:1});
 
-  assert.ok(wornProfile.reliability_pct<healthyProfile.reliability_pct-5);
+  assert.ok(wornProfile.reliability_pct<healthyProfile.reliability_pct-3);
+  assert.ok(wornProfile.condition_penalty_pct>healthyProfile.condition_penalty_pct);
   assert.ok(wornRisk>healthyRisk);
 
   const focused=structuredClone(worn);
   focused.raceWeekendState={practice:{results:[
-    {driver_id:"D1",programme_id:"reliability",reliability_bonus:1.35},
+    {driver_id:"D1",programme_id:"reliability",reliability_bonus:99},
   ]}};
   const focusedProfile=raceReliabilityProfile(focused,"T1","D1");
   const focusedRisk=mechanicalRetirementChance(focused,{driver:{driver_id:"D1"},mechanical_risk_multiplier:1});
 
-  assert.equal(focusedProfile.practice_bonus_pct,1.4);
-  assert.ok(focusedProfile.reliability_pct>wornProfile.reliability_pct);
-  assert.ok(focusedRisk<wornRisk);
+  assert.equal(focusedProfile.practice_bonus_pct,0);
+  assert.equal(focusedProfile.reliability_pct,wornProfile.reliability_pct);
+  assert.equal(focusedRisk,wornRisk);
 });
 
-test("RW4.9 facilities and completed reliability work feed the same canonical race profile",()=>{
+test("facilities and placeholder research no longer add hidden race reliability",()=>{
   const base=gs(1980);
   const baseline=raceReliabilityProfile(base,"T1","D1");
 
-  const improved=structuredClone(base);
-  improved.hq={facilityLevels:{manufacturing_level:9}};
-  improved.development={
-    projects:[
-      {id:"REL1",area:"Reliability",status:"completed",target_gain:3},
-    ],
+  const changed=structuredClone(base);
+  changed.hq={facilityLevels:{manufacturing_level:9}};
+  changed.development={
+    projects:[{id:"REL1",area:"Reliability",status:"completed",target_gain:50}],
+    research:[{id:"reliability",area:"Reliability",status:"completed",gain:50}],
   };
-  const profile=raceReliabilityProfile(improved,"T1","D1");
+  const profile=raceReliabilityProfile(changed,"T1","D1");
 
-  assert.equal(profile.manufacturing_level,9);
-  assert.equal(profile.facility_bonus_pct,1.6);
-  assert.equal(profile.development_bonus_pct,1.2);
-  assert.ok(profile.reliability_pct>baseline.reliability_pct);
-  assert.equal(profile.source,"canonical_race_reliability");
+  assert.equal(profile.facility_bonus_pct,0);
+  assert.equal(profile.reliability_pct,baseline.reliability_pct);
+  assert.equal(profile.source,"unified_car_reliability_v1");
 });
 
 test("RW4.9 canonical accident and mechanical risk stay deterministic inputs for both race paths",()=>{
@@ -265,4 +264,38 @@ test("past incidents stay locked while future risk can be recalculated",()=>{
   assert.equal(merged.incidents.find((row)=>row.driver_id==="D2").lap,6);
   assert.equal(raceControlAtLap(merged,2).type,"VSC");
   assert.equal(raceControlAtLap(merged,6).type,"SAFETY_CAR");
+});
+
+
+test("unified failure probability is the same function consumed by Race Control",()=>{
+  const state=gs(1980);
+  state.garage={cars:[{
+    id:"car_1",kind:"race",driver_id:"D1",installedParts:{},
+    componentCondition:{gearbox:52,cooling:58,suspension:70,brakes:75},
+  }]};
+  const profile=carReliabilityProfile(state,"T1","D1");
+  const direct=mechanicalFailureChance(profile,{
+    session:"race",
+    riskMultiplier:1.2,
+    fatigue:20,
+  });
+  const control=mechanicalRetirementChance(state,{
+    driver:{driver_id:"D1"},
+    mechanical_risk_multiplier:1.2,
+  });
+  assert.equal(control,direct);
+});
+
+test("failure cause weighting follows component condition",()=>{
+  const state=gs(1980);
+  state.garage={cars:[{
+    id:"car_1",kind:"race",driver_id:"D1",installedParts:{},
+    componentCondition:{gearbox:8,cooling:95,suspension:95,brakes:95,fuel_system:95,exhaust_system:95},
+  }]};
+  const profile=carReliabilityProfile(state,"T1","D1");
+  const gearbox=profile.components.find((row)=>row.slot==="gearbox");
+  const cooling=profile.components.find((row)=>row.slot==="cooling");
+  assert.ok(gearbox.condition_penalty_pct>cooling.condition_penalty_pct);
+  const lowRoll=selectMechanicalFailureReason(profile,0);
+  assert.ok(lowRoll.reason);
 });

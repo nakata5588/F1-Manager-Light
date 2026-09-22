@@ -3,7 +3,7 @@
 
 import { rngFor } from "../core/random.js";
 import { driverCondition } from "../domain/driverRating.js";
-import { raceReliabilityProfile } from "../domain/carPerformance.js";
+import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -135,12 +135,12 @@ export function accidentRetirementChance(gs,row){
 export function mechanicalRetirementChance(gs,row){
   const did=idOf(row?.driver||row);
   const tid=teamIdForDriver(gs,did);
-  const profile=raceReliabilityProfile(gs,tid,did);
-  return clamp(
-    (1-profile.reliability)*0.68*num(row?.mechanical_risk_multiplier,1),
-    0.015,
-    0.36
-  );
+  const profile=carReliabilityProfile(gs,tid,did);
+  return mechanicalFailureChance(profile,{
+    session:"race",
+    riskMultiplier:num(row?.mechanical_risk_multiplier,1),
+    fatigue:num(driverCondition(gs,did)?.fatigue,0),
+  });
 }
 function weightedIncidentLap(rng,timeline){
   const weighted=[];
@@ -222,7 +222,9 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     let kind=null,reason=null;
     if(roll<mech){
       kind="mechanical";
-      reason=rng.pick(["Engine","Gearbox","Transmission","Electrical","Cooling","Fuel system","Suspension"]);
+      const driverId=idOf(row?.driver||row);
+      const reliability=carReliabilityProfile(gs,teamIdForDriver(gs,driverId),driverId);
+      reason=selectMechanicalFailureReason(reliability,rng.next()).reason;
     }else if(roll<mech+accident){
       kind=rng.next()<0.72?"accident":"collision";
       reason=kind==="accident"?"Accident":"Collision";
@@ -234,7 +236,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     const sev=kind==="mechanical"?{label:"low",score:0.2}:severity(rng,kind,weatherLap.state);
     const driverId=idOf(row?.driver||row);
     const reliability=kind==="mechanical"
-      ?raceReliabilityProfile(gs,teamIdForDriver(gs,driverId),driverId)
+      ?carReliabilityProfile(gs,teamIdForDriver(gs,driverId),driverId)
       :null;
     const incident={
       driver_id:driverId,
