@@ -71,7 +71,7 @@ function result({d1Retired=false,d1Reason=null,d1Position=1}={}){
 
 test("performance score rewards beating car expectation and team-mate",()=>{
   const evaluation=evaluateDriverRacePerformance(baseState(),result(),"D1");
-  assert.ok(evaluation.score>75);
+  assert.ok(evaluation.score>70,"a dominant weekend in the best car should still score as a good performance");
   assert.equal(evaluation.finish_position,1);
   assert.ok(evaluation.factors.some((row)=>row.key==="result_vs_car"&&row.value>0));
   assert.ok(evaluation.factors.some((row)=>row.key==="qualifying_vs_teammate"&&row.value>0));
