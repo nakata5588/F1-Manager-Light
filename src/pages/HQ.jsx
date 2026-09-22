@@ -123,7 +123,7 @@ export default function HQ(){
       </div>
     </div>
 
-    {!baseRow&&<Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 text-sm text-amber-300">No facility record is available for this team in {year}.</CardContent></Card>}
+    {!baseRow&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 text-sm text-amber-300">No facility record is available for this team in {year}.</CardContent></Card>}
 
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <Stat label="Available Facilities" value={available.length}/>
@@ -144,7 +144,7 @@ export default function HQ(){
         const maintenance=Number(baseRow?.maintenance_cost||1_000_000);
         const nextCost=Math.round(maintenance*(0.18+level*0.035));
         const pct=u?progress(u.started_at,u.finishes_at,date):0;
-        return <Card className="bg-[#12141c] border-white/10 text-slate-100" key={f.key}><CardContent className="p-4 space-y-3">
+        return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={f.key}><CardContent className="p-4 space-y-3">
           <div><div className="text-xs text-slate-400">{f.category}</div><div className="text-lg font-semibold">{f.name}</div></div>
           <p className="text-sm text-slate-400 min-h-[2.5rem]">{f.desc}</p>
           <div className="text-xs rounded-lg bg-white/5 border px-3 py-2"><strong>Current effect:</strong> {effectText(f,level)}</div>
@@ -162,14 +162,14 @@ export default function HQ(){
       })}
     </div>
 
-    <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+    <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
       <div className="font-semibold mb-3">Upgrade History</div>
       {upgrades.length?<div className="space-y-2">{[...upgrades].reverse().map((u)=><div key={u.id} className="flex flex-col md:flex-row md:items-center gap-2 border rounded-lg p-3 text-sm"><strong>{u.name}</strong><span>Level {u.from_level} → {u.target_level}</span><span className="text-slate-400">{u.started_at} → {u.finishes_at}</span><span className="md:ml-auto">{fmtMoney(u.cost)} · {u.status}</span></div>)}</div>:<div className="text-sm text-slate-400">No facility upgrades in this career.</div>}
     </CardContent></Card>
   </div>;
 }
 
-function Stat({label,value}){return <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
+function Stat({label,value}){return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
 
 
 function MiniStat({label,value}){
