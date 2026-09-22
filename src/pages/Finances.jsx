@@ -319,7 +319,7 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
 
       {/* Mini sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Card className="bg-[#12141c] border-white/10 text-slate-100">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
           <CardContent className="p-4">
             <div className="text-sm text-slate-400 mb-1">Latest Cashflow</div>
             {last3.length === 0 ? (
@@ -351,7 +351,7 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#12141c] border-white/10 text-slate-100">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
           <CardContent className="p-4">
             <div className="text-sm text-slate-400 mb-1">This Season (est.)</div>
             <div className="grid grid-cols-2 gap-2">
@@ -372,14 +372,14 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
 function CashflowTab({ cashflow }) {
   if (!cashflow.length) {
     return (
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-4 text-sm text-slate-400">No cashflow data.</CardContent>
       </Card>
     );
   }
   const maxAbs = Math.max(1, ...cashflow.map((m) => Math.abs(m.net)));
   return (
-    <Card className="bg-[#12141c] border-white/10 text-slate-100">
+    <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
       <CardContent className="p-4">
         <table className="w-full text-sm">
           <thead className="bg-[#171a23] text-slate-300">
@@ -724,7 +724,7 @@ function SponsorsTab({ sponsors }) {
 
   return (
     <>
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex items-center gap-2">
             <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1">
@@ -754,7 +754,7 @@ function SponsorsTab({ sponsors }) {
         </CardContent>
       </Card>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="p-4 text-sm text-slate-400">No sponsors.</div>
@@ -800,7 +800,7 @@ function SponsorsTab({ sponsors }) {
       </Card>
 
       {negotiating && (
-        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 space-y-4">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-semibold">Sponsor Negotiation — {String(pick(negotiating,["sponsor_name","name"],"Sponsor"))}</div>
@@ -828,7 +828,7 @@ function SponsorsTab({ sponsors }) {
       )}
 
       {catalog && (
-        <Card className="bg-[#12141c] border-white/10 text-slate-100">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
           <CardContent className="p-0">
             {catalog.length === 0 ? (
               <div className="p-4 text-sm text-slate-400">
@@ -908,7 +908,7 @@ function SalariesTab({ salaries }) {
 
   return (
     <>
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat title="Weekly total" value={fmtMoney(totalWeekly)} />
           <Stat title="Monthly total" value={fmtMoney(totalMonthly)} />
@@ -917,7 +917,7 @@ function SalariesTab({ salaries }) {
         </CardContent>
       </Card>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-0">
           {salaries.length === 0 ? (
             <div className="p-4 text-sm text-slate-400">No salaries configured.</div>
@@ -981,7 +981,7 @@ function TransactionsTab({ transactions }) {
 
   return (
     <>
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
             <select value={type} onChange={(e) => setType(e.target.value)} className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1">
@@ -1014,7 +1014,7 @@ function TransactionsTab({ transactions }) {
         </CardContent>
       </Card>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
             <div className="p-4 text-sm text-slate-400">No transactions.</div>
@@ -1059,7 +1059,7 @@ function TransactionsTab({ transactions }) {
 /* --------------- small UI bits -------------- */
 function Stat({ title, value }) {
   return (
-    <Card className="bg-[#12141c] border-white/10 text-slate-100">
+    <Card className="!bg-[#12141c] !border-white/10 !text-slate-100">
       <CardContent className="p-4">
         <div className="text-sm text-slate-400 mb-1">{title}</div>
         <div className="text-xl font-semibold">{value}</div>
