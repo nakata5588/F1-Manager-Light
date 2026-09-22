@@ -1,8 +1,9 @@
 // src/components/entity/DriverModal.jsx
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, MessageSquare
+  Handshake, FileText, Coffee, Search
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -10,6 +11,14 @@ import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../
 import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
+import {
+  driverAttributeGroups,
+  driverAttributeGroupScore,
+  driverAttributeGroupBehaviourForScore,
+  driverAttributeValue,
+  driverDevelopmentFocus,
+  driverWheelToWheelBehaviour,
+} from "../../domain/driverAttributeGroups.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
@@ -32,15 +41,15 @@ import {
 
 const TABS = [
   { key: "overview",    label: "Overview" },
-  { key: "performance", label: "Performance" },
   { key: "attributes",  label: "Attributes" },
   { key: "development", label: "Development" },
-  { key: "contract",    label: "Contract" },
   { key: "career",      label: "Career" },
 ];
 
 const TAB_ALIASES = Object.freeze({
-  statistics: "performance",
+  statistics: "career",
+  performance: "career",
+  contract: "overview",
   achievements: "career",
 });
 
@@ -161,6 +170,7 @@ function extractDriverId(obj) {
 /* ======================== Component ======================== */
 
 export default function DriverModal({ entity, onClose }) {
+  const navigate = useNavigate();
   const setTab = useModalStore((s) => s.setTab);
   const rawTab = unbox(entity.tab) || "overview";
   const activeTab = TAB_ALIASES[rawTab] || rawTab;
@@ -174,6 +184,7 @@ export default function DriverModal({ entity, onClose }) {
   const [contractTalkOpen, setContractTalkOpen] = useState(false);
   const [marketTalkOpen, setMarketTalkOpen] = useState(false);
   const [compareDriverId, setCompareDriverId] = useState("");
+  const [compareQuery, setCompareQuery] = useState("");
   const [compareMode, setCompareMode] = useState("performance");
 
   const driversList = useMemo(() => {
