@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -12,6 +12,24 @@ const tyres=[
   {tyre_id:"gy_i",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Intermediate",category:"intermediate",grip_index:65,wear_rate:0.018,warmup_time_s:3.1},
   {tyre_id:"gy_w",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Wet",category:"wet",grip_index:55,wear_rate:0.020,warmup_time_s:3.5},
 ];
+
+function advanceTo(gs,target){
+  let next=gs;
+  let guard=0;
+  while(Number(next?.raceWeekendState?.live_race?.current_lap||0)<target&&guard<20){
+    if(next?.raceWeekendState?.live_race?.status==="red_flag")next=resumeLiveRace(next);
+    const current=Number(next?.raceWeekendState?.live_race?.current_lap||0);
+    next=advanceLiveRace(next,{gp,laps:Math.max(1,target-current)});
+    guard+=1;
+  }
+  if(next?.raceWeekendState?.live_race?.status==="red_flag"){
+    next=resumeLiveRace(next);
+    if(Number(next?.raceWeekendState?.live_race?.current_lap||0)>=Number(next?.raceWeekendState?.live_race?.total_laps||Infinity)){
+      next=advanceLiveRace(next,{gp,laps:1});
+    }
+  }
+  return next;
+}
 
 function fixture(){
   const drivers=[
@@ -45,7 +63,7 @@ function fixture(){
 test("live race starts at lap zero and advances incrementally",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   assert.equal(gs.raceWeekendState.live_race.current_lap,0);
-  gs=advanceLiveRace(gs,{gp,laps:1});
+  gs=advanceTo(gs,Number(gs.raceWeekendState.live_race.current_lap)+1);
   assert.equal(gs.raceWeekendState.live_race.current_lap,1);
   assert.equal(gs.raceWeekendState.live_race.classification.length,4);
   assert.equal(gs.raceWeekendState.live_race.status,"running");
@@ -53,24 +71,24 @@ test("live race starts at lap zero and advances incrementally",()=>{
 
 test("pace command is lap-scoped and changes only future simulation",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
-  gs=advanceLiveRace(gs,{gp,laps:3});
+  gs=advanceTo(gs,3);
   const before=structuredClone(gs.raceWeekendState.live_race.classification);
   gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pace",paceMode:"attack"});
   const commands=gs.raceWeekendState.race_strategy.live_commands.D1;
   assert.equal(commands.at(-1).effective_lap,4);
-  gs=advanceLiveRace(gs,{gp,laps:1});
+  gs=advanceTo(gs,Number(gs.raceWeekendState.live_race.current_lap)+1);
   assert.equal(gs.raceWeekendState.live_race.current_lap,4);
   assert.ok(gs.raceWeekendState.live_race.projected_race.find((r)=>r.driver.driver_id==="D1").strategy_summary.live_command_count>=1);
   assert.equal(before.find((r)=>r.driver_id==="D1").elapsed_ms,
-    advanceLiveRace(createLiveRaceState(fixture(),{gp}),{gp,laps:3}).raceWeekendState.live_race.classification.find((r)=>r.driver_id==="D1").elapsed_ms);
+    advanceTo(createLiveRaceState(fixture(),{gp}),3).raceWeekendState.live_race.classification.find((r)=>r.driver_id==="D1").elapsed_ms);
 });
 
 test("Pit Now schedules the selected tyre for the next lap",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
-  gs=advanceLiveRace(gs,{gp,laps:2});
+  gs=advanceTo(gs,2);
   gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
   assert.equal(gs.raceWeekendState.race_strategy.live_commands.D1.at(-1).effective_lap,3);
-  gs=advanceLiveRace(gs,{gp,laps:1});
+  gs=advanceTo(gs,Number(gs.raceWeekendState.live_race.current_lap)+1);
   const row=gs.raceWeekendState.live_race.projected_race.find((r)=>r.driver.driver_id==="D1");
   const stop=row.pit_stops.find((p)=>p.lap===3);
   assert.ok(stop);
@@ -86,22 +104,46 @@ test("AI driver cannot receive player live commands",()=>{
 
 test("live race survives save/load at the exact lap with commands intact",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
-  gs=advanceLiveRace(gs,{gp,laps:4});
+  gs=advanceTo(gs,4);
   gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pace",paceMode:"conserve"});
   const stored=prepareGameStateForSave(gs);
   const loaded=extractGameStateFromStoredSave({meta:{name:"Live race"},gameState:stored});
   assert.equal(loaded.raceWeekendState.live_race.current_lap,4);
   assert.deepEqual(loaded.raceWeekendState.race_strategy.live_commands,gs.raceWeekendState.race_strategy.live_commands);
-  const a=advanceLiveRace(gs,{gp,laps:1});
-  const b=advanceLiveRace(loaded,{gp,laps:1});
+  const a=advanceTo(gs,5);
+  const b=advanceTo(loaded,5);
   assert.deepEqual(a.raceWeekendState.live_race.classification,b.raceWeekendState.live_race.classification);
 });
 
 test("race must reach its final lap before it can be finalized",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   assert.equal(liveRaceReadyToFinalize(gs),false);
-  gs=advanceLiveRace(gs,{gp,laps:99});
+  gs=advanceTo(gs,12);
   assert.equal(gs.raceWeekendState.live_race.current_lap,12);
   assert.equal(gs.raceWeekendState.live_race.status,"finished");
   assert.equal(liveRaceReadyToFinalize(gs),true);
+});
+
+
+test("red flag state can be resumed without rebuilding the race",()=>{
+  let gs=createLiveRaceState(fixture(),{gp});
+  const plan=gs.raceWeekendState.race_strategy.race_control_plan;
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      live_race:{
+        ...gs.raceWeekendState.live_race,
+        status:"red_flag",
+        current_lap:5,
+        current_control:"RED_FLAG",
+        red_flag_period:{type:"RED_FLAG",from_lap:5,to_lap:5,cause:"incident"},
+      },
+    },
+  };
+  const resumed=resumeLiveRace(gs);
+  assert.equal(resumed.raceWeekendState.live_race.status,"running");
+  assert.equal(resumed.raceWeekendState.live_race.current_lap,5);
+  assert.equal(resumed.raceWeekendState.race_strategy.race_control_plan,plan);
+  assert.equal(resumed.raceWeekendState.live_race.events.at(-1).type,"restart");
 });

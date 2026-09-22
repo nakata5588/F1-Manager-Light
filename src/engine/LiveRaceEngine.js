@@ -1,5 +1,6 @@
 // src/engine/LiveRaceEngine.js
 import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES } from "./RaceStrategyEngine.js";
+import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap } from "./RaceControlEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
@@ -36,20 +37,34 @@ function tyreStateAtLap(row,lap){
     temperature_c:Number(num(stint?.avg_temperature_c,0).toFixed(1)),
   };
 }
-function visibleClassification(race,lap){
-  const rows=(race||[]).map((row)=>({
-    driver_id:idOf(row?.driver||row),
-    elapsed_ms:cumulativeAtLap(row,lap),
-    last_lap_ms:num(row?.lap_times_ms?.[lap-1],null),
-    tyre:tyreStateAtLap(row,lap),
-    pit_stops:(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=lap),
+function visibleClassification(race,lap,plan){
+  const rows=(race||[]).map((row)=>{
+    const did=idOf(row?.driver||row);
+    const incident=incidentForDriver(plan,did);
+    const retired=Boolean(incident&&Number(incident.lap)<=lap);
+    const effectiveLap=retired?Math.max(1,Number(incident.lap)):lap;
+    return {
+    driver_id:did,
+    elapsed_ms:cumulativeAtLap(row,effectiveLap),
+    last_lap_ms:num(row?.lap_times_ms?.[Math.max(0,effectiveLap-1)],null),
+    tyre:tyreStateAtLap(row,effectiveLap),
+    pit_stops:(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=effectiveLap),
     projected_finish_position:Number(row?.pos)||null,
-  })).sort((a,b)=>a.elapsed_ms-b.elapsed_ms||a.driver_id.localeCompare(b.driver_id));
-  const leader=rows[0]?.elapsed_ms||0;
+    retired,
+    status:retired?"DNF":"RUNNING",
+    retirement_reason:retired?incident.reason:null,
+    incident_lap:retired?incident.lap:null,
+  };
+  });
+  const active=rows.filter((row)=>!row.retired).sort((a,b)=>a.elapsed_ms-b.elapsed_ms||a.driver_id.localeCompare(b.driver_id));
+  const retired=rows.filter((row)=>row.retired).sort((a,b)=>Number(b.incident_lap)-Number(a.incident_lap)||a.elapsed_ms-b.elapsed_ms);
+  const ordered=[...active,...retired];
+  const leader=active[0]?.elapsed_ms||ordered[0]?.elapsed_ms||0;
   let previous=leader;
-  return rows.map((row,index)=>{
-    const out={...row,position:index+1,gap_to_leader_ms:Math.max(0,row.elapsed_ms-leader),gap_to_previous_ms:index?Math.max(0,row.elapsed_ms-previous):0};
-    previous=row.elapsed_ms;
+  return ordered.map((row,index)=>{
+    const gap=row.retired?null:Math.max(0,row.elapsed_ms-leader);
+    const out={...row,position:index+1,gap_to_leader_ms:gap,gap_to_previous_ms:index&&!row.retired?Math.max(0,row.elapsed_ms-previous):0};
+    if(!row.retired)previous=row.elapsed_ms;
     return out;
   });
 }
@@ -57,17 +72,20 @@ function visibleClassification(race,lap){
 export function createLiveRaceState(gs,{gp={}}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
-  if(["running","finished"].includes(String(weekend.live_race?.status)))return gs;
+  if(["running","red_flag","finished"].includes(String(weekend.live_race?.status)))return gs;
   const track=weekend?.race_strategy?.track_snapshot||{};
+  const prepared={...gs,raceWeekendState:{...weekend,race_strategy:{...(weekend.race_strategy||{}),live_commands:{...(weekend.race_strategy?.live_commands||{})}}}};
+  const preliminary=simulateManagedRace(prepared,{gp,grid:gridForWeekend(prepared),ratings:prepared?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
+  const plan=createRaceControlPlan(preliminary.gameState,{gp,race:preliminary.race,weather:preliminary.weather,track:preliminary.track});
   return {
-    ...gs,
+    ...preliminary.gameState,
     raceWeekendState:{
-      ...weekend,
-      race_strategy:{...(weekend.race_strategy||{}),live_commands:{...(weekend.race_strategy?.live_commands||{})}},
+      ...preliminary.gameState.raceWeekendState,
+      race_strategy:{...preliminary.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
         version:1,status:"running",current_lap:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
         classification:[],events:[{lap:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
-        last_weather:null,started_at:gs?.currentDateISO||null,
+        last_weather:null,current_control:"GREEN",track_state:plan.weather_timeline?.[0]||null,started_at:gs?.currentDateISO||null,
       },
     },
   };
@@ -104,15 +122,52 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   let working=createLiveRaceState(gs,{gp});
   const weekend=working?.raceWeekendState, live=weekend?.live_race;
   if(!live||live.status!=="running")return working;
-  const target=Math.min(Number(live.total_laps),Number(live.current_lap)+Math.max(1,Math.round(Number(laps)||1)));
+  const requestedTarget=Math.min(Number(live.total_laps),Number(live.current_lap)+Math.max(1,Math.round(Number(laps)||1)));
+  const planBefore=working?.raceWeekendState?.race_strategy?.race_control_plan||null;
+
+  // Recalculate only the future hazard map from the current strategy state.
+  // Completed laps remain authoritative, so changing pace can alter future risk
+  // without rewriting an incident the player has already seen.
+  const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
+  const freshPlan=createRaceControlPlan(hazardSimulation.gameState,{gp,race:hazardSimulation.race,weather:hazardSimulation.weather,track:hazardSimulation.track});
+  const plan=mergeRaceControlHistory(planBefore,freshPlan,live.current_lap);
+  working={
+    ...hazardSimulation.gameState,
+    raceWeekendState:{
+      ...hazardSimulation.gameState.raceWeekendState,
+      race_strategy:{...hazardSimulation.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
+    },
+  };
+
+  const upcomingRed=(plan?.periods||[]).find((period)=>period.type==="RED_FLAG"&&Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=requestedTarget);
+  const target=upcomingRed?Number(upcomingRed.from_lap):requestedTarget;
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
-  const classification=visibleClassification(simulation.race,target);
+  const classification=visibleClassification(simulation.race,target,plan);
   const weatherSegment=simulation.weather?.segments?.find((s)=>target>=Number(s?.from_lap)&&target<=Number(s?.to_lap));
   const weather=String(weatherSegment?.state||simulation.weather?.state||"SUNNY");
   const previousWeather=String(live.last_weather||"");
+  const previousControl=String(live.current_control||"GREEN");
+  const currentControl=raceControlAtLap(plan,target);
+  const trackState=plan?.weather_timeline?.[Math.max(0,target-1)]||null;
   const events=[...(live.events||[])];
   if(previousWeather&&weather!==previousWeather)events.push({lap:target,type:"weather",message:`Conditions changed from ${previousWeather.replaceAll("_"," ")} to ${weather.replaceAll("_"," ")}.`});
+  for(const incident of plan?.incidents||[]){
+    if(Number(incident.lap)>Number(live.current_lap)&&Number(incident.lap)<=target){
+      events.push({lap:Number(incident.lap),type:"incident",driver_id:incident.driver_id,message:`${incident.driver_id}: ${incident.reason} (${incident.severity}).`});
+    }
+  }
+  for(const period of plan?.periods||[]){
+    if(Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=target){
+      events.push({lap:Number(period.from_lap),type:"race_control",message:`${period.type.replaceAll("_"," ")} deployed due to ${period.cause}.`});
+    }
+    if(Number(period.to_lap)>=Number(live.current_lap)&&Number(period.to_lap)<target&&period.type!=="LOCAL_YELLOW"){
+      events.push({lap:Number(period.to_lap)+1,type:"race_control",message:`${period.type.replaceAll("_"," ")} ending — GREEN FLAG.`});
+    }
+  }
+  if(previousControl!==currentControl.type&&target===Number(live.current_lap)+1&&currentControl.type!=="GREEN"){
+    events.push({lap:target,type:"race_control",message:`Race Control: ${currentControl.type.replaceAll("_"," ")}.`});
+  }
   for(const row of simulation.race){
     for(const stop of row?.pit_stops||[]){
       if(Number(stop?.lap)>Number(live.current_lap)&&Number(stop?.lap)<=target){
@@ -124,7 +179,31 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
-      live_race:{...live,current_lap:target,status:target>=Number(live.total_laps)?"finished":"running",classification,last_weather:weather,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-80)},
+      live_race:{...live,current_lap:target,status:upcomingRed?"red_flag":target>=Number(live.total_laps)?"finished":"running",classification,last_weather:weather,current_control:currentControl.type,track_state:trackState,red_flag_period:upcomingRed||null,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-100)},
+    },
+  };
+}
+
+export function resumeLiveRace(gs){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||live?.status!=="red_flag")return gs;
+  const rules=weekend?.race_strategy?.race_control_plan?.rules||{};
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:{
+        ...live,
+        status:"running",
+        current_control:"GREEN",
+        red_flag_period:null,
+        events:[...(live.events||[]),{
+          lap:Number(live.current_lap),
+          type:"restart",
+          message:`Race restarting under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
+        }].slice(-100),
+      },
     },
   };
 }
