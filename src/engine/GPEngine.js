@@ -595,7 +595,7 @@ export function simulateQualifyingSession(gs,{
     .map((driver)=>{
       const rating=ratingFor(ratings,driver);
       const teamId=resolveDriverTeamId(next,driver);
-      const score=combinedQualifyingPerformance({gs:next,driver,rating,teamId,wet})+rnorm(qualifyingRng)*4;
+      const score=combinedQualifyingPerformance({gs:next,driver,rating,teamId,wet,gp})+rnorm(qualifyingRng)*4;
       const paceDelta=Math.max(-12,Math.min(65,100-score));
       const lapTimeMs=Math.max(25000,Math.round(referenceLapMs*(1+paceDelta*0.0034)*weatherTimeFactor));
       return {d:driver,score,lapTimeMs};

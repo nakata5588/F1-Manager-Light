@@ -1,6 +1,7 @@
 // src/domain/driverPerformance.js
 import { driverCondition, fatiguePenalty } from "./driverRating.js";
 import { teamCarPerformance } from "./carPerformance.js";
+import { trackSensitiveUpgradeModifier } from "./carCharacteristics.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const n=(v,fb=50)=>{const x=Number(v);return Number.isFinite(x)?x:fb;};
@@ -105,21 +106,23 @@ export function practiceWeekendImpact(gs,driverId){
   };
 }
 
-export function combinedQualifyingPerformance({gs,driver,rating,teamId,wet=false}){
+export function combinedQualifyingPerformance({gs,driver,rating,teamId,wet=false,gp=null,track=null}){
   const driverScore=qualifyingDriverScore(rating,gs,driver?.driver_id);
   const car=teamCarPerformance(gs,teamId,driver?.driver_id);
   const wetMod=wet?wetDriverModifier(rating):0;
   const synergy=teamSynergyModifier(gs);
   // Car matters slightly more than driver over a single lap.
   const practice=practicePerformanceModifier(gs,driver?.driver_id,"qualifying");
-  return driverScore*0.47+car.qualifying*0.53+wetMod+synergy+practice;
+  const trackFit=trackSensitiveUpgradeModifier(gs,{teamId,driverId:driver?.driver_id,gp,track}).modifier;
+  return driverScore*0.47+car.qualifying*0.53+wetMod+synergy+practice+trackFit;
 }
 
-export function combinedRacePerformance({gs,driver,rating,teamId,wet=false}){
+export function combinedRacePerformance({gs,driver,rating,teamId,wet=false,gp=null,track=null}){
   const driverScore=raceDriverScore(rating,gs,driver?.driver_id);
   const car=teamCarPerformance(gs,teamId,driver?.driver_id);
   const wetMod=wet?wetDriverModifier(rating):0;
   const synergy=teamSynergyModifier(gs);
   const practice=practicePerformanceModifier(gs,driver?.driver_id,"race");
-  return driverScore*0.52+car.race*0.48+wetMod+synergy+practice;
+  const trackFit=trackSensitiveUpgradeModifier(gs,{teamId,driverId:driver?.driver_id,gp,track}).modifier;
+  return driverScore*0.52+car.race*0.48+wetMod+synergy+practice+trackFit;
 }

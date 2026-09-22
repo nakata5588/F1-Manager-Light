@@ -33,6 +33,8 @@ export const COMPONENT_WORKSHOP_PROFILE=Object.freeze({
   chassis:{build_days:63,restore_days_at_50:18},
   aero_front:{build_days:8,restore_days_at_50:3},
   aero_rear:{build_days:9,restore_days_at_50:4},
+  sidepods:{build_days:11,restore_days_at_50:5},
+  underfloor:{build_days:14,restore_days_at_50:6},
   suspension:{build_days:11,restore_days_at_50:5},
   gearbox:{build_days:18,restore_days_at_50:7},
   brakes:{build_days:5,restore_days_at_50:3},
