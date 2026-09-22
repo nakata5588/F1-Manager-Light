@@ -93,10 +93,20 @@ export function raceStrategyRulesForYear(yearInput){
 
 function teamId(team){return String(team?.team_id??team?.id??"");}
 function teamName(team){return String(team?.team_name??team?.name??team?.short_name??teamId(team));}
+function genericTyres(year){
+  const prefix=`generic_${Number(year)||"era"}`;
+  return [
+    {tyre_id:`${prefix}_hard`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Hard",category:"dry",grip_index:74,wear_rate:0.015,warmup_time_s:2.8},
+    {tyre_id:`${prefix}_soft`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Soft",category:"dry",grip_index:80,wear_rate:0.022,warmup_time_s:2.2},
+    {tyre_id:`${prefix}_inter`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Intermediate",category:"intermediate",grip_index:65,wear_rate:0.018,warmup_time_s:3.1},
+    {tyre_id:`${prefix}_wet`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Wet",category:"wet",grip_index:55,wear_rate:0.020,warmup_time_s:3.5},
+  ];
+}
 function activeTyres(gs){
   const year=Number(gs?.activeYear);
   if(Array.isArray(gs?.tyres)&&gs.tyres.length)return gs.tyres;
   const source=Array.isArray(gs?.dbTyres)?gs.dbTyres:[];
+  if(!source.length)return genericTyres(year);
   const exact=source.filter((row)=>{
     const from=num(row?.year_from,row?.year??-Infinity);
     const to=num(row?.year_to,row?.year??Infinity);
@@ -110,7 +120,7 @@ function activeTyres(gs){
   const priorYears=source
     .map((row)=>num(row?.year_to,row?.year??row?.year_from??NaN))
     .filter((value)=>Number.isFinite(value)&&value<=year);
-  if(!priorYears.length)return source;
+  if(!priorYears.length)return genericTyres(year);
   const nearest=Math.max(...priorYears);
   return source.filter((row)=>num(row?.year_to,row?.year??row?.year_from??NaN)===nearest);
 }
