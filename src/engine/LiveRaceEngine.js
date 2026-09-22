@@ -19,7 +19,7 @@ function controlLabel(type){
   const key=String(type||"GREEN").toUpperCase();
   return {
     GREEN:"Green flag",
-    LOCAL_YELLOW:"Local yellow",
+    LOCAL_YELLOW:"Yellow flag",
     SAFETY_CAR:"Safety Car",
     VSC:"Virtual Safety Car",
     RED_FLAG:"Red flag",
@@ -591,7 +591,7 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId}={}){
         effective_lap:effectiveLap,
         command,
         message:commandMessage,
-      }].slice(-80)},
+      }]},
     },
   };
 }
@@ -697,7 +697,7 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
           :`${controlLabel(period.type)} — Race control intervention.`,
       });
     }
-    if(Number(period.to_lap)>=Number(live.current_lap)&&Number(period.to_lap)<target&&period.type!=="LOCAL_YELLOW"){
+    if(Number(period.to_lap)>=Number(live.current_lap)&&Number(period.to_lap)<target){
       pushUniqueEvent(events,{
         event_key:`race_control:GREEN:${Number(period.to_lap)+1}:${period.type}`,
         lap:Number(period.to_lap)+1,
@@ -708,9 +708,15 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
     }
   }
   for(const row of simulation.race){
+    const did=idOf(row.driver);
+    const retirementIncident=incidentForDriver(plan,did);
+    const retirementLap=retirementIncident?Number(retirementIncident.lap):null;
     for(const stop of row?.pit_stops||[]){
-      if(Number(stop?.lap)>Number(live.current_lap)&&Number(stop?.lap)<=target){
-        const did=idOf(row.driver);
+      if(
+        Number(stop?.lap)>Number(live.current_lap)&&
+        Number(stop?.lap)<=target&&
+        (!Number.isFinite(retirementLap)||Number(stop?.lap)<=retirementLap)
+      ){
         const driverName=driverDisplayName(working,did);
         const previousTyre=tyreDisplayName(working,did,stop.tyre_from);
         const nextTyre=tyreDisplayName(working,did,stop.tyre_to);
@@ -760,7 +766,7 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
-      live_race:{...live,current_lap:target,status:upcomingRed?"red_flag":target>=Number(live.total_laps)?"finished":"running",classification,timing_summary:timingSummary,last_weather:weather,current_control:currentControl.type,track_state:trackState,red_flag_period:upcomingRed||null,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-100)},
+      live_race:{...live,current_lap:target,status:upcomingRed?"red_flag":target>=Number(live.total_laps)?"finished":"running",classification,timing_summary:timingSummary,last_weather:weather,current_control:currentControl.type,track_state:trackState,red_flag_period:upcomingRed||null,projected_race:simulation.race,projected_summary:simulation.summary,events},
     },
   };
 }
@@ -783,7 +789,7 @@ export function resumeLiveRace(gs){
           lap:Number(live.current_lap),
           type:"restart",
           message:`Race restarting under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
-        }].slice(-100),
+        }],
       },
     },
   };
@@ -810,6 +816,29 @@ export function finalizedLiveRaceRows(gs){
       if(!visible)return {...row,pos:Number(row?.pos??index+1)};
       const retired=Boolean(visible?.retired);
       const incidentLap=retired?Number(visible?.incident_lap)||null:null;
+      const completedLaps=retired?Math.max(0,Math.min(totalLaps,incidentLap||0)):totalLaps;
+      const filterToCompletedLap=(items,lapKey="lap")=>
+        Array.isArray(items)
+          ?items.filter((item)=>Number(item?.[lapKey]??0)<=completedLaps)
+          :items;
+      const lapTimes=Array.isArray(row?.lap_times_ms)
+        ?row.lap_times_ms.slice(0,completedLaps)
+        :row?.lap_times_ms;
+      const pitStops=filterToCompletedLap(row?.pit_stops,"lap");
+      const tyreStates=filterToCompletedLap(row?.tyre_state_by_lap,"lap");
+      const strategyDecisions=filterToCompletedLap(row?.strategy_decisions,"lap");
+      const stints=Array.isArray(row?.stints)
+        ?row.stints
+          .filter((stint)=>Number(stint?.start_lap??1)<=Math.max(1,completedLaps))
+          .map((stint)=>({
+            ...stint,
+            end_lap:Math.min(Number(stint?.end_lap??completedLaps),completedLaps),
+            laps:Math.max(
+              0,
+              Math.min(Number(stint?.end_lap??completedLaps),completedLaps)-Number(stint?.start_lap??1)+1
+            ),
+          }))
+        :row?.stints;
       return {
         ...row,
         pos:Number(visible?.position??row?.pos??index+1),
@@ -817,8 +846,20 @@ export function finalizedLiveRaceRows(gs){
         status:retired?"DNF":"Finished",
         retirement_reason:retired?(visible?.retirement_reason||"Retired"):null,
         incident_lap:incidentLap,
-        laps_completed:retired?Math.max(0,Math.min(totalLaps,incidentLap||0)):totalLaps,
+        laps_completed:completedLaps,
         race_laps:totalLaps,
+        lap_times_ms:lapTimes,
+        pit_stops:pitStops,
+        tyre_state_by_lap:tyreStates,
+        strategy_decisions:strategyDecisions,
+        stints,
+        strategy_summary:row?.strategy_summary
+          ?{
+            ...row.strategy_summary,
+            pit_stops:Array.isArray(pitStops)?pitStops.length:row.strategy_summary.pit_stops,
+            used_tyres:Array.isArray(stints)?stints.map((stint)=>stint.compound).filter(Boolean):row.strategy_summary.used_tyres,
+          }
+          :row?.strategy_summary,
       };
     })
     .sort((a,b)=>Number(a?.pos??999)-Number(b?.pos??999));
