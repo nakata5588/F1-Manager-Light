@@ -6,6 +6,7 @@ import {
   recalculateCurrentAbility,
 } from "../domain/driverRating.js";
 import { currentDriverTeamId } from "../domain/driverContracts.js";
+import { academyProgramDefinition } from "../domain/academyPrograms.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -143,16 +144,6 @@ const ATTRIBUTE_MULTIPLIER={
   technical_feedback:0.50,start_launch:0.85,
 };
 
-const ACADEMY_PLAN_DELTAS=Object.freeze({
-  "General Development":{pace:0.05,racecraft:0.05,consistency:0.05,technical_feedback:0.03},
-  "Racecraft":{racecraft:0.12,race_intelligence:0.08,consistency:0.04},
-  "Technical Feedback":{technical_feedback:0.14,adaptability:0.06,race_intelligence:0.04},
-  "Fitness":{consistency:0.08,pressure_handling:0.06,start_launch:0.04},
-  "Private Testing Support":{technical_feedback:0.09,pace:0.05,qualifying:0.04},
-  "Race Entry Support":{racecraft:0.10,race_intelligence:0.08,pressure_handling:0.05},
-  "Technical Mentoring":{technical_feedback:0.12,consistency:0.05,adaptability:0.06},
-});
-
 function academySupportEntry(gs,driverId){
   return (gs?.academy?.drivers||[]).find((row)=>
     String(row?.driver_id??row?.person_id??row?.id??"")===String(driverId) &&
@@ -252,7 +243,7 @@ function monthlyProgression(gs,ratings,dateISO){
     const academyEntry=academySupportEntry(gs,did);
     if(academyEntry){
       const plan=String(academyEntry.program||"General Development");
-      const deltas=ACADEMY_PLAN_DELTAS[plan]||ACADEMY_PLAN_DELTAS["General Development"];
+      const deltas=academyProgramDefinition(plan).deltas;
       const youthLevel=youthProgrammeLevel(gs);
       const formal=String(academyEntry.mode||"").toLowerCase()==="academy";
       const supportFactor=formal
