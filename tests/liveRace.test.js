@@ -76,6 +76,9 @@ test("pace command is lap-scoped and changes only future simulation",()=>{
   gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pace",paceMode:"attack"});
   const commands=gs.raceWeekendState.race_strategy.live_commands.D1;
   assert.equal(commands.at(-1).effective_lap,4);
+  const commandEvent=gs.raceWeekendState.live_race.events.at(-1);
+  assert.equal(commandEvent.type,"command");
+  assert.match(commandEvent.message,/Player One was told to push/);
   gs=advanceTo(gs,Number(gs.raceWeekendState.live_race.current_lap)+1);
   assert.equal(gs.raceWeekendState.live_race.current_lap,4);
   assert.ok(gs.raceWeekendState.live_race.projected_race.find((r)=>r.driver.driver_id==="D1").strategy_summary.live_command_count>=1);
@@ -97,7 +100,13 @@ test("Pit Now schedules the selected tyre for the next lap",()=>{
   const pitEvent=gs.raceWeekendState.live_race.events.find((event)=>event.type==="pit"&&event.driver_id==="D1");
   assert.ok(pitEvent);
   assert.equal(pitEvent.driver_name,"Player One");
-  assert.match(pitEvent.message,/Player One pits for Soft tyres/);
+  assert.equal(pitEvent.tyre_from,"Hard");
+  assert.equal(pitEvent.tyre_to,"Soft");
+  assert.ok(Number.isFinite(pitEvent.total_loss_s));
+  assert.ok(Number.isFinite(pitEvent.position_before));
+  assert.ok(Number.isFinite(pitEvent.position_after));
+  assert.match(pitEvent.message,/Player One changed from Hard to Soft tyres/);
+  assert.match(pitEvent.message,/P\d+ → P\d+/);
   assert.equal(pitEvent.message.includes("D1 pitted"),false);
   assert.equal(pitEvent.message.includes("gy_s"),false);
   assert.equal(pitEvent.message.includes("gy_h"),false);
