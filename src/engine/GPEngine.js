@@ -966,7 +966,10 @@ export async function runRaceWeekend(gs, {
     const distanceLoad=row.retired
       ?6+Math.max(0,Math.min(1,Number(row?.laps_completed||0)/Math.max(1,Number(row?.race_laps)||60)))*8
       :16;
-    const raceFatigue=distanceLoad+(raceWet?3:0);
+    const modeledFatigue=Number(row?.race_fatigue_gain);
+    const raceFatigue=Number.isFinite(modeledFatigue)
+      ?modeledFatigue*(row.retired?Math.max(0.38,Math.min(1,Number(row?.laps_completed||0)/Math.max(1,Number(row?.race_laps)||60))):1)
+      :distanceLoad+(raceWet?3:0);
     conditionDict[did]={
       ...curr,
       fatigue:clamp(Number(curr.fatigue||0)+raceFatigue,0,100),
