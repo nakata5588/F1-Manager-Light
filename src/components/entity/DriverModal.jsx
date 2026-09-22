@@ -116,11 +116,11 @@ function toArraySafe(x) {
 }
 function attrColorClass(n, { inverse = false } = {}) {
   const raw = Number(unbox(n));
-  if (!Number.isFinite(raw)) return "text-gray-800";
+  if (!Number.isFinite(raw)) return "text-slate-500";
   const v = Math.max(0, Math.min(100, raw));
   const idx = v < 25 ? 0 : v < 50 ? 1 : v < 63 ? 2 : v < 75 ? 3 : v < 85 ? 4 : 5;
-  const pos = ["text-red-700","text-red-600","text-amber-500","text-amber-600","text-green-500","text-green-600"];
-  const neg = ["text-green-600","text-green-500","text-amber-600","text-amber-500","text-red-600","text-red-700"];
+  const pos = ["text-rose-400","text-rose-300","text-amber-300","text-amber-200","text-emerald-300","text-emerald-200"];
+  const neg = ["text-emerald-200","text-emerald-300","text-amber-200","text-amber-300","text-rose-300","text-rose-400"];
   return (inverse ? neg : pos)[idx];
 }
 function normDriverId(x) {
@@ -308,7 +308,7 @@ export default function DriverModal({ entity, onClose }) {
     contract?.team,
     null
   );
-  const contractRole = niceRole(contract?.role);
+  const contractRole = contract ? niceRole(contract?.role) : null;
   const contractSalary = unbox(contract?.salary ?? contract?.salary_yearly);
 
   const futureTransfer = useMemo(() => {
@@ -567,7 +567,10 @@ export default function DriverModal({ entity, onClose }) {
     return v < 0 ? 0 : v;
   }, [driver?.f1_rookie_season, gameYear]);
 
-  const computedAge = useMemo(() => ageOnYear(driver?.dob, gameYear), [driver?.dob, gameYear]);
+  const computedAge = useMemo(() => {
+    const explicit = Number(driver?.age);
+    return Number.isFinite(explicit) ? explicit : ageOnYear(driver?.dob, gameYear);
+  }, [driver?.age, driver?.dob, gameYear]);
 
   const overallView  = profileSnapshot?.overall || driverOverallPresentation(gs, driver || entity.id);
   const overall       = Number(overallView?.value);
@@ -578,7 +581,7 @@ export default function DriverModal({ entity, onClose }) {
   const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
   const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
   const driverName    = displayValue(driver?.display_name ?? driver?.name, "Unknown Driver");
-  const driverNumber  = displayValue(driver?.prefered_number, null);
+  const driverNumber  = displayValue(driver?.prefered_number ?? driver?.preferred_number ?? driver?.driver_number, null);
   const driverCountry = displayValue(driver?.country_name ?? driver?.nationality ?? driver?.country, "—");
 
   const isOwnDriver =
@@ -1160,10 +1163,10 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
               {perYear.map((r) => {
                 const isChampion = isNumeric(r.champ_pos) && Number(r.champ_pos) === 1;
                 return (
-                  <tr key={r.year} className={r.year===gameYear ? "bg-blue-50" : (isChampion ? "bg-amber-100/70" : "")}>
+                  <tr key={r.year} className={r.year===gameYear ? "bg-sky-500/10" : (isChampion ? "bg-amber-500/10" : "")}>
                     <td className="pr-3 py-1">{r.year}{r.year===gameYear ? " (current)" : ""}</td>
                     <td className="text-right pr-3 py-1">{r.starts}</td>
-                    <td className={`text-right pr-3 py-1 ${Number(r.wins) > 0 ? "text-red-600 font-semibold" : ""}`}>{r.wins}</td>
+                    <td className={`text-right pr-3 py-1 ${Number(r.wins) > 0 ? "text-rose-300 font-semibold" : ""}`}>{r.wins}</td>
                     <td className="text-right pr-3 py-1">{r.podiums}</td>
                     <td className="text-right pr-3 py-1">{r.poles}</td>
                     <td className="text-right pr-3 py-1">{r.fl}</td>
@@ -1217,7 +1220,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
               const isTransfer = String(unbox(r.champ_pos) ?? "").toLowerCase() === "transfer";
               const isChampion = isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
               return (
-                <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-100/70" : ""}>
+                <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-500/10" : ""}>
                   <td className="pr-3 py-1">{displayValue(r.year)}</td>
                   <td className="pr-3 py-1">{series}</td>
                   <td className="pr-3 py-1">
@@ -1230,7 +1233,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
                     )}
                   </td>
                   <td className="text-right pr-3 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
-                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-red-600 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
+                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
                   <td className="text-right pr-3 py-1">{displayValue(r.podiums, 0)}</td>
                   <td className="text-right pr-3 py-1">{displayValue(r.poles, 0)}</td>
                   <td className="text-right pr-3 py-1">{displayValue(r.fastest_laps, 0)}</td>
@@ -1238,7 +1241,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
                   <td className="text-right pr-0 py-1">
                     {isNumeric(r.champ_pos)
                       ? `P${unbox(r.champ_pos)}`
-                      : (isTransfer ? <span className="italic text-purple-700">Transfer</span> : displayValue(r.champ_pos))}
+                      : (isTransfer ? <span className="italic text-purple-300">Transfer</span> : displayValue(r.champ_pos))}
                   </td>
                 </tr>
               );
@@ -1373,7 +1376,7 @@ function SeriesFilter({ seriesSel, setSeriesSel, seriesOptions }) {
         <Filter size={14}/> Series
       </span>
       <select
-        className="border rounded-md px-2 py-1 text-sm"
+        className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-2 py-1 text-sm"
         value={seriesSel}
         onChange={(e) => setSeriesSel(e.target.value)}
       >
