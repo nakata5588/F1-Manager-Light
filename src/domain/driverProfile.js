@@ -7,6 +7,7 @@ import { driverOverallPresentation } from "./driverMarketEvaluation.js";
 import { driverCondition } from "./driverRating.js";
 import { conditionModifierBreakdown } from "./driverPerformance.js";
 import { activeDriverContract, driverIdOf, teamIdOf } from "./driverContracts.js";
+import { driverKnowledgeState } from "./driverKnowledge.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -164,6 +165,7 @@ export function driverProfileSnapshot(gs,driverOrId){
   const overall=driverOverallPresentation(gs,driver||driverId);
   const season=driverSeasonSnapshot(gs,driverId);
   const availability=driverAvailabilitySnapshot(gs,driverId);
+  const knowledge=driverKnowledgeState(gs,driver||driverId);
 
   return {
     driverId,
@@ -178,5 +180,6 @@ export function driverProfileSnapshot(gs,driverOrId){
     conditionImpact,
     season,
     availability,
+    knowledge,
   };
 }
