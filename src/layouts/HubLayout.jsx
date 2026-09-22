@@ -1,23 +1,44 @@
 // src/layouts/HubLayout.jsx
 import React from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
-
-// ✅ usa o Header oficial (minúsculas!)
 import Header from "../components/ui/header";
 
+const PAGE_TITLES = {
+  "/Home": "Home",
+  "/Inbox": "Inbox",
+  "/CalendarPage": "Calendar",
+  "/Team": "My Team",
+  "/Car": "Cars",
+  "/MyDrivers": "Drivers",
+  "/MyStaff": "Staff",
+  "/Development": "Development",
+  "/HQ": "Facilities",
+  "/Academy": "Academy",
+  "/Scouting": "Scouting",
+  "/Standings": "Standings",
+  "/Results": "Results",
+  "/Finances": "Finances",
+  "/Board": "Board",
+  "/Teams": "Teams",
+  "/Drivers": "Driver Market",
+  "/Staff": "Staff Market",
+  "/RaceWeekend": "Race Weekend",
+  "/Settings": "Settings",
+  "/AssetTest": "Asset Test",
+};
+
 export default function HubLayout() {
+  const { pathname } = useLocation();
+  const pageTitle = PAGE_TITLES[pathname] || "F1 Manager Light";
+
   return (
-    <div className="min-h-screen flex bg-gray-100">
+    <div className="min-h-screen flex bg-slate-100">
       <Sidebar />
-
-      <div className="flex-1 flex flex-col">
-        {/* Top header único */}
-        <Header pageTitle="" />
-
-        {/* Content */}
-        <main className="flex-1">
-          <div className="max-w-9xl mx-auto px-4 py-6">
+      <div className="flex-1 min-w-0 flex flex-col">
+        <Header pageTitle={pageTitle} />
+        <main className="flex-1 min-w-0">
+          <div className="max-w-[1600px] mx-auto px-3 md:px-5 py-4 md:py-5">
             <Outlet />
           </div>
         </main>
