@@ -8,6 +8,15 @@ import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
+import {
+  applyOpeningStateToDriver,
+  openingDriverId,
+  openingStateExcluded,
+  openingStateIsRaceSeat,
+  openingStateIsTeamCommitment,
+  openingStateRowsForYear,
+  openingTeamId,
+} from "@/domain/driverOpeningState";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -78,7 +87,7 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbStaffRatings",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbDriverOpeningState","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
@@ -317,6 +326,7 @@ export const useGame = create((set, get) => ({
     dbTeams: [],
     dbDriverRatings: [],
     dbDriverHistory: [],
+    dbDriverOpeningState: [],
     dbStaffRatings: [],
     dbTeamBrands: [],
     dbTeamEngines: [],
@@ -361,6 +371,7 @@ export const useGame = create((set, get) => ({
     drivers: [],
     teams: [],
     driverRatings: [],
+    driverOpeningState: [],
     staffRatings: [],
     staffCore: [],
     teamBrands: [],
@@ -586,7 +597,7 @@ export const useGame = create((set, get) => ({
   loadData: async () => {
     try {
       const [
-        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, achievementsRaw,
+        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, driverOpeningStateRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
@@ -600,6 +611,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/driver_ratings.json"),
         fetchJsonSafe("/data/driver_career.json"),
         fetchOptional("/data/driver_f1_history.json", []),
+        fetchOptional("/data/driver_opening_state.json", []),
         fetchJsonSafe("/data/achievements.json"),
         fetchJsonSafe("/data/staff_ratings.json"),
         fetchOptional("/data/staff_core.json", []),
@@ -642,6 +654,7 @@ export const useGame = create((set, get) => ({
       const driverRatings     = unexcelDeep(driverRatingsRaw);
       const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
       const driverHistory     = Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : [];
+      const driverOpeningState = Array.isArray(driverOpeningStateRaw) ? unexcelDeep(driverOpeningStateRaw) : [];
       const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
       const staffRatings      = unexcelDeep(staffRatingsRaw);
       const staffCore         = unexcelDeep(staffCoreRaw);
@@ -698,6 +711,7 @@ export const useGame = create((set, get) => ({
           dbTeams: teams,
           dbDriverRatings: driverRatings,
           dbDriverHistory: driverHistory,
+          dbDriverOpeningState: driverOpeningState,
           dbStaffRatings: staffRatings,
           dbStaffCore: staffCore,
           dbDriverCareer: driverCareer,
@@ -801,6 +815,11 @@ export const useGame = create((set, get) => ({
     const normalizeDate = Boolean(opts.normalizeDate);
 
     const calendar = (prev.dbCalendar || []).filter((gp) => extractGPYear(gp) === y);
+    const driverOpeningState = openingStateRowsForYear(prev.dbDriverOpeningState || [], y);
+    const hasOpeningState = driverOpeningState.length > 0;
+    const openingByDriver = new Map(
+      driverOpeningState.map((row) => [openingDriverId(row), row]).filter(([id]) => id)
+    );
 
     const contractsExact = filterByYear(prev.dbContracts, y);
     const contractsRange = filterByYearRange(prev.dbContracts, y);
@@ -811,7 +830,46 @@ export const useGame = create((set, get) => ({
     ].join("|");
     const contractsMap = new Map();
     for (const row of [...contractsRange, ...contractsExact]) contractsMap.set(contractKey(row), row);
-    const contracts = [...contractsMap.values()];
+    const historicalContracts = [...contractsMap.values()];
+    const historicalByDriverTeam = new Map(
+      historicalContracts.map((row) => [[
+        String(pick(row, ["driver_id","person_id","id"], "")),
+        String(pick(row, ["team_id","team","constructor_id","constructor"], "")),
+      ].join("|"), row])
+    );
+
+    const contracts = hasOpeningState
+      ? driverOpeningState
+          .filter(openingStateIsTeamCommitment)
+          .map((opening) => {
+            const did = openingDriverId(opening);
+            const tid = openingTeamId(opening);
+            if (!did || !tid) return null;
+            const base = historicalByDriverTeam.get([did, tid].join("|")) || {};
+            const rawRole = String(pick(opening, ["opening_role"], pick(base, ["role","position","contract_role"], "")) || "");
+            const role = openingStateIsRaceSeat(opening)
+              ? (/second/i.test(rawRole) ? "Second Driver" : (/main|first|lead/i.test(rawRole) ? "Main Driver" : "Race Driver"))
+              : (rawRole || "Driver");
+            return {
+              ...base,
+              year: y,
+              team_id: tid,
+              team_name: pick(opening, ["opening_team_name"], pick(base, ["team_name"], tid)),
+              driver_id: did,
+              driver_name: pick(opening, ["display_name"], pick(base, ["driver_name","name"], did)),
+              role,
+              status: "active",
+              contract_start_year: Number(pick(base, ["contract_start_year","contract_start","start_year"], y)) || y,
+              contract_until_year: Number(pick(base, ["contract_until_year","contract_until","end_year"], y)) || y,
+              opening_state_seed: true,
+              synthetic: false,
+              source: "driver_opening_state",
+              opening_world_status: pick(opening, ["opening_world_status"], null),
+              opening_availability: pick(opening, ["opening_availability"], null),
+            };
+          })
+          .filter(Boolean)
+      : historicalContracts;
 
     const teamsAll = prev.dbTeams || [];
     let teams = teamsAll.filter((t) => contracts.some((c) => sameTeam(c, t)));
@@ -845,14 +903,38 @@ export const useGame = create((set, get) => ({
     const youthMinAge = Number(pick(youthRule, ["min_age"], 16));
     const youthMaxAge = Number(pick(youthRule, ["max_age"], 19));
 
-    const driversWithStatus = (prev.dbDrivers || []).map((d) => {
+    const openingDriverIds = new Set(driverOpeningState.map(openingDriverId).filter(Boolean));
+    const driverPool = hasOpeningState
+      ? (prev.dbDrivers || []).filter((d) => openingDriverIds.has(String(d.driver_id ?? d.id ?? d.code ?? "")))
+      : (prev.dbDrivers || []);
+
+    const driversWithStatus = driverPool.map((d) => {
       const first = d.first_name ?? d.firstname ?? d.given_name ?? d.forename ?? d.first ?? "";
       const last = d.last_name ?? d.lastname ?? d.family_name ?? d.surname ?? d.last ?? "";
       const combo = `${first} ${last}`.trim();
       const display_name = d.driver_name || d.name || d.display_name || d.full_name || d.fullname || combo || d.code || "";
       const driverId = String(d.driver_id ?? d.id ?? d.code ?? "");
-      const baseStatus = computeDriverStatus(y, d);
       const age = ageOnYear(d.dob ?? d.date_of_birth, y);
+      const openingRow = openingByDriver.get(driverId) || null;
+      if (hasOpeningState) {
+        if (!openingRow || openingStateExcluded(openingRow)) return null;
+        return applyOpeningStateToDriver({
+          ...d,
+          driver_id: driverId || null,
+          display_name,
+          name: display_name || d.name || "",
+          country: d.country_name ?? d.country ?? "",
+          country_code: d.country_code ?? d.nationality_code ?? "",
+          dob: d.dob ?? d.date_of_birth ?? "",
+          prefered_number: d.prefered_number ?? d.number ?? "",
+          portrait_path: d.portrait_path ?? d.portrait ?? "",
+          helmet_color_primary: d.helmet_color_primary ?? "",
+          helmet_color_secondary: d.helmet_color_secondary ?? "",
+          age,
+        }, openingRow, y, { youthMinAge, youthMaxAge });
+      }
+
+      const baseStatus = computeDriverStatus(y, d);
       const hasF1Contract = driverIdsFromContracts.has(driverId);
       const careerStart = d.career_start_year == null || d.career_start_year === ""
         ? NaN
@@ -923,7 +1005,10 @@ export const useGame = create((set, get) => ({
 
     const drivers = driversWithStatus.filter(
       (d) =>
-        ["eligible", "lower_series", "junior_only"].includes(d.status) &&
+        d &&
+        (hasOpeningState
+          ? ["eligible", "lower_series", "junior_only", "retired"].includes(d.status)
+          : ["eligible", "lower_series", "junior_only"].includes(d.status)) &&
         d.driver_id &&
         (d.display_name || d.name)
     );
@@ -1034,6 +1119,7 @@ export const useGame = create((set, get) => ({
       teams,
       drivers,
       driverRatings,
+      driverOpeningState,
       staffRatings,
       staffCore,
       teamBrands,
