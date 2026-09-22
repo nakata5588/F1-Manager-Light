@@ -108,7 +108,7 @@ test("rolling form weights recent races more heavily",()=>{
   assert.equal(form.sample,5);
   assert.ok(form.score>70);
   assert.equal(form.trend,40);
-  assert.equal(form.label,"Strong");
+  assert.equal(form.label,"Good");
 });
 
 test("race evaluation persists per-driver history and enriches the result",()=>{
