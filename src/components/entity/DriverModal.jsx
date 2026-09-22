@@ -1243,6 +1243,37 @@ function DevelopmentTab({
               </div>
             </div>
           )}
+          {canSeeHistory&&latestAbility&&(
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-400">Latest ability movement</span>
+                <strong className={Number(latestAbility.delta)>0?"text-emerald-300":Number(latestAbility.delta)<0?"text-rose-300":"text-slate-300"}>
+                  {Number(latestAbility.delta)>0?"+":""}{Number(latestAbility.delta||0).toFixed(2)}
+                </strong>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500">
+                {latestAbility.before!=null?Number(latestAbility.before).toFixed(1):"—"} → {latestAbility.after!=null?Number(latestAbility.after).toFixed(1):"—"} · {niceRole(latestAbility.stage||"development")}
+              </div>
+            </div>
+          )}
+
+          {canSeeHistory&&lifecycle&&(
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <ProfileMetric label="Positive pressure" value={Math.round(Number(lifecycle.positivePressure||0))}/>
+                <ProfileMetric
+                  label="Regression pressure"
+                  value={Math.round(Number(lifecycle.negativePressure||0))}
+                  tone={Number(lifecycle.negativePressure)>Number(lifecycle.positivePressure)?"text-rose-300":"text-slate-200"}
+                />
+              </div>
+              {!!lifecycle.reasons?.length&&(
+                <div className="mt-2 space-y-1 text-[11px] text-slate-500">
+                  {lifecycle.reasons.slice(0,4).map((reason,index)=><div key={index}>• {reason}</div>)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] p-4">
