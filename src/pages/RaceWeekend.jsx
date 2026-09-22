@@ -1006,19 +1006,37 @@ export default function RaceWeekend(){
                     </div>
                   </label>
                   {selection.pit_plan==="one_stop"?(
-                    <label className="text-xs text-slate-400">Target lap
+                    <label className="text-xs text-slate-400">Target tyre-stop lap
                       <input className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" type="number" min="2" max={Math.max(2,Number(raceStrategy?.track_snapshot?.laps||3)-2)} value={selection.planned_stop_lap||Math.round(Number(raceStrategy?.track_snapshot?.laps||0)/2)} onChange={(e)=>setRaceStrategy(did,{planned_stop_lap:Number(e.target.value)})}/>
                     </label>
-                  ):raceStrategy?.rules_snapshot?.refuelling_allowed?(
+                  ):null}
+                  {raceStrategy?.rules_snapshot?.refuelling_allowed?(
                     <label className="text-xs text-slate-400">Fuel plan
                       <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.fuel_plan||"balanced"} onChange={(e)=>setRaceStrategy(did,{fuel_plan:e.target.value})}>
-                        <option value="light_start">Light start / refuel</option>
-                        <option value="balanced">Balanced</option>
-                        <option value="heavy_start">Heavy start</option>
+                        <option value="light_start">
+                          {raceStrategy?.rules_snapshot?.refuelling_style==="optional_experimental"
+                            ?"Light start / one refuel"
+                            :"Light start / shorter fuel stints"}
+                        </option>
+                        <option value="balanced">
+                          {raceStrategy?.rules_snapshot?.refuelling_style==="optional_experimental"
+                            ?"Balanced / no planned refuel"
+                            :"Balanced / mid-race refuel"}
+                        </option>
+                        <option value="heavy_start">
+                          {raceStrategy?.rules_snapshot?.refuelling_style==="optional_experimental"
+                            ?"Heavy start / no planned refuel"
+                            :"Heavy start / later refuel"}
+                        </option>
                       </select>
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        {raceStrategy?.rules_snapshot?.refuelling_style==="optional_experimental"
+                          ?"Refuelling is available in this era but remains an optional strategy."
+                          :"Refuelling is available and forms part of normal fuel-load strategy in this era."}
+                      </div>
                     </label>
                   ):(
-                    <div className="text-xs text-slate-500 border rounded-lg px-2 py-2">Fuel strategy disabled for this era.</div>
+                    <div className="text-xs text-slate-500 border rounded-lg px-2 py-2">In-race refuelling is prohibited in this era.</div>
                   )}
                 </div>
               </div>;
