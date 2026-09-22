@@ -10,6 +10,7 @@ import { preferLiveRows } from "../domain/liveContracts.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
 import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
+import { incidentForDriver } from "./RaceControlEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -176,8 +177,32 @@ export function raceAccidentChance(gs,rating,driverId){
 function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
   const finishers=[];
   const retirees=[];
+  const livePlan=gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
 
   for(const row of timedRace){
+    const plannedIncident=incidentForDriver(livePlan,row?.driver?.driver_id);
+    if(plannedIncident){
+      const raceLaps=Math.max(1,Number(row?.race_laps)||60);
+      const incidentLap=Math.max(1,Math.min(raceLaps-1,Number(plannedIncident.lap)||1));
+      retirees.push({
+        ...row,
+        status:"DNF",
+        retired:true,
+        retirement_reason:plannedIncident.reason||"Incident",
+        incident_severity:plannedIncident.severity??null,
+        incident_severity_score:plannedIncident.severity_score??null,
+        laps_completed:incidentLap,
+        incident_lap:incidentLap,
+        total_time_ms:null,
+        gap_to_winner_ms:null,
+        gap_to_previous_ms:null,
+      });
+      continue;
+    }
+    if(livePlan){
+      finishers.push({...row,status:"Finished",retired:false,retirement_reason:null});
+      continue;
+    }
     const driver=row.driver||{};
     const rating=(ratings||[]).find((r)=>String(r?.driver_id)===String(driver?.driver_id))||{};
     const rel=teamReliability(gs,driver);
