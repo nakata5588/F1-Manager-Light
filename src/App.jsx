@@ -15,7 +15,6 @@ import Academy from "./pages/Academy.jsx";
 import AssetTest from "./pages/AssetTest.jsx";
 import Board from "./pages/Board.jsx";
 import CalendarPage from "./pages/CalendarPage.jsx";
-import Development from "./pages/Development.jsx";
 import CarPage from "./pages/Car.jsx";
 import Drivers from "./pages/Drivers.jsx";
 import Finances from "./pages/Finances.jsx";
@@ -130,7 +129,7 @@ export default function App() {
           <Route path="/Results" element={<Results />} />
           <Route path="/Settings" element={<Settings />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
-          <Route path="/Development" element={<Development />} />
+          <Route path="/Development" element={<Navigate to="/Car?view=development" replace />} />
           <Route path="/Car" element={<CarPage />} />
           <Route path="/HQ" element={<HQ />} />
           <Route path="/Finances" element={<Finances />} />
