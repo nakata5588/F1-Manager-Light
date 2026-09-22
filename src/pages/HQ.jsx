@@ -104,9 +104,9 @@ export default function HQ(){
       const costMult=Math.max(0.72,1.12-level*0.025);
       return `Manufacturing jobs: ~${buildDays} days; cost multiplier ×${costMult.toFixed(2)}. Also improves development efficiency.`;
     }
-    if(facility.key==="pitcrew_training_level") return `Seeds/improves pit-crew operational quality; the live pit-stop model uses crew pace, consistency and error rate.`;
-    if(facility.key==="youth_program_level") return level>0?"Unlocks the formal Academy model and expands junior-driver support.":"No formal Academy is available at this level.";
-    if(facility.key==="simulator_level") return "Infrastructure is tracked for era-aware driver/technical capability; deeper simulator effects can be layered on without changing the facility ID.";
+    if(facility.key==="pitcrew_training_level") return `Improves the daily pit-crew training rate. Training Load is managed in Development → Pit Crew and feeds live pit-stop pace, consistency and error risk.`;
+    if(facility.key==="youth_program_level") return level>0?`Unlocks the formal Academy and scales monthly academy development programmes (current level ${level}).`:"No formal Academy is available; only lower-effect era-appropriate junior support can be used.";
+    if(facility.key==="simulator_level") return "Scales monthly driver development and AI training efficiency. Higher levels accelerate progression toward a driver’s potential.";
     return "Improves the related team operation.";
   };
 
