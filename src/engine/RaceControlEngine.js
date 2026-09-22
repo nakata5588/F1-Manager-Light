@@ -3,6 +3,7 @@
 
 import { rngFor } from "../core/random.js";
 import { driverCondition } from "../domain/driverRating.js";
+import { raceReliabilityProfile } from "../domain/carPerformance.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -99,17 +100,12 @@ function activeYearRow(rows,year){
 function ratingFor(gs,did){
   return (gs?.driverRatings||[]).find((row)=>String(row?.driver_id??row?.id??"")===String(did))||{};
 }
-function teamReliability(gs,did){
-  const tid=raceEntryTeamForDriver(gs?.raceEntryState,did)
-    ||String((gs?.drivers||[]).find((d)=>idOf(d)===String(did))?.team_id||"");
-  const year=Number(gs?.activeYear);
-  const car=(gs?.carStats||[]).find((row)=>String(row?.team_id??"")===tid&&Number(row?.year??year)===year)||{};
-  const eng=(gs?.teamEngines||[]).find((row)=>String(row?.team_id??"")===tid&&Number(row?.year??year)===year)||{};
-  let carRel=num(car?.reliability,82); if(carRel>1)carRel/=100;
-  let engRel=num(eng?.reliability,82); if(engRel>1)engRel/=100;
-  return clamp(carRel*0.56+engRel*0.44,0.5,0.98);
+function teamIdForDriver(gs,did){
+  return raceEntryTeamForDriver(gs?.raceEntryState,did)
+    ||String((gs?.drivers||[]).find((driver)=>idOf(driver)===String(did))?.team_id||"");
 }
-function accidentChance(gs,row){
+
+export function accidentRetirementChance(gs,row){
   const year=Number(gs?.activeYear)||1980;
   const did=idOf(row?.driver||row);
   const rating=ratingFor(gs,did);
@@ -119,13 +115,21 @@ function accidentChance(gs,row){
   const model=activeYearRow(gs?.accidentModel??gs?.dbAccidentModel,year);
   const damageProb=clamp(num(model?.damage_DNF_prob??model?.damage_dnf_prob,0.10),0.04,0.25);
   const weatherMult=clamp(num(row?.incident_risk_multiplier,1),0.6,4);
-  if(year===1980)return clamp((0.15+(crashLik-0.35)*0.10+fatigueRisk)*weatherMult,0.06,0.52);
-  return clamp((0.012+crashLik*damageProb*0.32+fatigueRisk)*weatherMult,0.004,0.38);
+  const base=year===1980
+    ?clamp(0.15+(crashLik-0.35)*0.10+fatigueRisk,0.08,0.30)
+    :clamp(0.012+crashLik*damageProb*0.32+fatigueRisk,0.01,0.16);
+  return clamp(base*weatherMult,0.005,0.55);
 }
-function mechanicalChance(gs,row){
+
+export function mechanicalRetirementChance(gs,row){
   const did=idOf(row?.driver||row);
-  const rel=teamReliability(gs,did);
-  return clamp((1-rel)*0.68*num(row?.mechanical_risk_multiplier,1),0.012,0.34);
+  const tid=teamIdForDriver(gs,did);
+  const profile=raceReliabilityProfile(gs,tid,did);
+  return clamp(
+    (1-profile.reliability)*0.68*num(row?.mechanical_risk_multiplier,1),
+    0.015,
+    0.36
+  );
 }
 function weightedIncidentLap(rng,timeline){
   const weighted=[];
@@ -185,8 +189,8 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
 
   for(const row of race||[]){
     const roll=rng.next();
-    const mech=mechanicalChance(gs,row);
-    const accident=accidentChance(gs,row);
+    const mech=mechanicalRetirementChance(gs,row);
+    const accident=accidentRetirementChance(gs,row);
     let kind=null,reason=null;
     if(roll<mech){
       kind="mechanical";
@@ -199,7 +203,21 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     const lap=weightedIncidentLap(rng,timeline);
     const weatherLap=timeline[Math.max(0,lap-1)]||{state:"SUNNY",red_flag_chance_pct:0};
     const sev=kind==="mechanical"?{label:"low",score:0.2}:severity(rng,kind,weatherLap.state);
-    const incident={driver_id:idOf(row?.driver||row),lap,kind,reason,severity:sev.label,severity_score:sev.score,weather_state:weatherLap.state};
+    const driverId=idOf(row?.driver||row);
+    const reliability=kind==="mechanical"
+      ?raceReliabilityProfile(gs,teamIdForDriver(gs,driverId),driverId)
+      :null;
+    const incident={
+      driver_id:driverId,
+      lap,
+      kind,
+      reason,
+      severity:sev.label,
+      severity_score:sev.score,
+      weather_state:weatherLap.state,
+      reliability_pct:reliability?.reliability_pct??null,
+      reliability_source:reliability?.source??null,
+    };
     incidents.push(incident);
     if(kind!=="mechanical"){
       const response=responseForIncident(rules,incident,weatherLap,rng);
