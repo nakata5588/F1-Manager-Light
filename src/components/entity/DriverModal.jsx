@@ -1077,24 +1077,7 @@ function OverviewTab({
         </div>
       </div>
 
-      <div className="xl:col-span-7 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contract & Role</div>
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          <KV label="Team" value={contractTeam||"Free Agent"}/>
-          <KV label="Role" value={contractRole||"—"}/>
-          <KV label="Start" value={contractStart||"—"}/>
-          <KV label="End" value={contractEnd||"—"}/>
-          <KV label="Salary" value={fmtMoney(contractSalary)}/>
-          <KV label="Market status" value={snapshot?.contract?"Contracted":"Available"}/>
-        </div>
-        {futureTransfer && (
-          <div className="mt-4 rounded-lg border border-purple-400/20 bg-purple-500/10 p-3 text-sm text-purple-200">
-            Transfer arranged to {futureTransfer.team_name} in {futureTransfer.whenLabel}.
-          </div>
-        )}
-      </div>
-
-      <div className="xl:col-span-5 rounded-xl border border-white/10 bg-[#12141c] p-4">
+      <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge & Decision Support</div>
         <p className="mt-2 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</p>
         <p className="mt-1 text-xs text-slate-400">
@@ -1108,27 +1091,86 @@ function OverviewTab({
   );
 }
 
-function DevelopmentTab({ attrs, log, knowledge }) {
+function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFocus }) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
   const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",attrs?.potential_ability,{kind:"potential"});
   const canSeeHistory=Boolean(knowledge?.canSeeDevelopmentHistory);
+  const groups=driverAttributeGroups();
+
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-      <div className="xl:col-span-4 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development State</div>
-          <span className="text-[10px] uppercase tracking-wide text-sky-300">{knowledge?.label||"Unscouted"}</span>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-4 rounded-xl border border-white/10 bg-[#12141c] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development State</div>
+            <span className="text-[10px] uppercase tracking-wide text-sky-300">{knowledge?.label||"Unscouted"}</span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <ProfileMetric label="Current ability" value={overall.label}/>
+            <ProfileMetric label="Potential" value={potential.label}/>
+          </div>
+          <p className="mt-3 text-xs text-slate-400">
+            Development is applied monthly. Gains slow as Current Ability approaches Potential, and every attribute has a potential-derived ceiling rather than an automatic path to 100.
+          </p>
+          {isOwnDriver && (
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
+              Active focus: <strong className="text-slate-200">{groups.find((group)=>group.key===focusKey)?.label||"None selected"}</strong>
+            </div>
+          )}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <ProfileMetric label="Current ability" value={overall.label}/>
-          <ProfileMetric label="Potential" value={potential.label}/>
+
+        <div className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development Focus</div>
+              <div className="mt-1 text-sm text-slate-300">
+                {isOwnDriver ? "Choose one group. Its attributes receive focused monthly development." : "Development focus is only managed for drivers under your team control."}
+              </div>
+            </div>
+            {isOwnDriver&&focusKey&&(
+              <button onClick={()=>onSetFocus?.(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/5 hover:text-white">
+                Clear focus
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {groups.map((group)=>{
+              const rawScore=driverAttributeGroupScore(attrs,group.key);
+              const shown=presentDriverKnowledgeValue(knowledge,`group_${group.key}`,rawScore,{kind:"attribute"});
+              const behaviour=shown.sortValue!=null
+                ?driverAttributeGroupBehaviourForScore(group.key,shown.sortValue)
+                :null;
+              const active=focusKey===group.key;
+              return (
+                <div key={group.key} className={`rounded-xl border p-3 ${active?"border-sky-400/40 bg-sky-500/10":"border-white/10 bg-[#171a23]"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">{group.label}</div>
+                      <div className="mt-0.5 text-[11px] text-slate-500">{group.attributes.map((attribute)=>attribute.label).join(" · ")}</div>
+                    </div>
+                    <div className={`text-lg font-semibold ${presentationColorClass(shown)}`}>{shown.label}</div>
+                  </div>
+                  <p className="mt-2 min-h-[34px] text-xs text-slate-400">
+                    {behaviour?.text||"Scout the driver to assess this development area."}
+                  </p>
+                  {isOwnDriver&&(
+                    <button
+                      onClick={()=>onSetFocus?.(group.key)}
+                      disabled={active}
+                      className={`mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-default`}
+                    >
+                      {active?"Current focus":"Set development focus"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <p className="mt-3 text-xs text-slate-400">
-          Exact values require internal team access or a full individual scouting report. A regional report only provides estimate ranges.
-        </p>
       </div>
 
-      <div className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] p-4">
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Development</div>
@@ -1139,7 +1181,7 @@ function DevelopmentTab({ attrs, log, knowledge }) {
 
         {!canSeeHistory ? (
           <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
-            Development history is internal team/Academy data. Scouting reports can reveal the driver's current ability and potential, but not the hidden month-by-month progression log.
+            Development history is internal team/Academy data. Scouting reports can reveal current ability and potential, but not the hidden month-by-month progression log.
           </div>
         ) : (
           <div className="mt-3 overflow-x-auto">
@@ -1181,7 +1223,6 @@ function DevelopmentTab({ attrs, log, knowledge }) {
     </div>
   );
 }
-
 function ContractTab({ team, start, end, salary, role }) {
   const fmtStartEnd = (v) => {
     if (!v) return "—";
@@ -1305,18 +1346,18 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
   );
 }
 
-function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals }) {
+function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, showFilter = true }) {
   if (!timeline?.length) {
     return (
       <div className="space-y-4">
-        <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
+        {showFilter && <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />}
         <p className="text-gray-500 text-sm">No career data.</p>
       </div>
     );
   }
   return (
     <div className="space-y-3">
-      <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
+      {showFilter && <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />}
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
