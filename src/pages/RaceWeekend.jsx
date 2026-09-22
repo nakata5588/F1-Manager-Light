@@ -85,7 +85,7 @@ function positionDelta(value){
 }
 function pitWindowLabel(window){
   if(!window)return "Stay out";
-  if(Number(window.from_lap)===Number(window.to_lap))return "L"+window.from_lap+"–"+window.to_lap;
+  if(Number(window.from_lap)===Number(window.to_lap))return "L"+window.from_lap;
   return "L"+window.from_lap+"–"+window.to_lap;
 }
 function strategyReasonLabel(reason){
@@ -1431,6 +1431,41 @@ export default function RaceWeekend(){
             .slice().sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
           const retirements=rows.filter((row)=>row?.retired||String(row?.status).toUpperCase()==="DNF").length;
           const weatherState=String(lastResult?.weather?.state||raceStrategy?.weather_snapshot?.state||"—").replaceAll("_"," ");
+
+          const racePointsByDriver=new Map(rows.map((row)=>[
+            String(row?.driver_id??""),
+            Number(row?.points||0),
+          ]));
+          const racePointsByTeam=new Map();
+          for(const row of rows){
+            const tid=String(row?.team_id??"");
+            if(!tid)continue;
+            racePointsByTeam.set(tid,(racePointsByTeam.get(tid)||0)+Number(row?.points||0));
+          }
+          const preDriverStandings=(driverStandings||[])
+            .map((standing)=>({
+              ...standing,
+              points:Math.max(0,Number(standing?.points||0)-Number(racePointsByDriver.get(String(standing?.driver_id??""))||0)),
+            }))
+            .sort((a,b)=>Number(b.points)-Number(a.points)||String(a.name||"").localeCompare(String(b.name||"")))
+            .map((standing,index)=>({...standing,position:index+1}));
+          const preDriverById=new Map(preDriverStandings.map((standing)=>[String(standing?.driver_id??""),standing]));
+
+          const preTeamStandings=(constructorStandings||[])
+            .map((standing)=>({
+              ...standing,
+              points:Math.max(0,Number(standing?.points||0)-Number(racePointsByTeam.get(String(standing?.team_id??standing?.constructor_id??""))||0)),
+            }))
+            .sort((a,b)=>Number(b.points)-Number(a.points)||String(a.team_name||"").localeCompare(String(b.team_name||"")))
+            .map((standing,index)=>({...standing,position:index+1}));
+          const preTeamById=new Map(preTeamStandings.map((standing)=>[
+            String(standing?.team_id??standing?.constructor_id??""),
+            standing,
+          ]));
+          const playerResultRows=rows.filter((row)=>String(row?.team_id??"")===playerTeamId);
+          const prePlayerTeam=preTeamById.get(playerTeamId);
+          const postPlayerTeam=constructorStandingById.get(playerTeamId);
+
           return <>
             <div className="p-5 border-b border-white/10">
               <div className="flex flex-wrap items-end justify-between gap-4">
