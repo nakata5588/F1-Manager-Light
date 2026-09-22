@@ -31,7 +31,7 @@ function advanceTo(gs,target){
   return next;
 }
 
-function fixture(){
+function fixture(seed="rw4-live"){
   const drivers=[
     {driver_id:"D1",display_name:"Player One",team_id:"T1"},
     {driver_id:"D2",display_name:"Player Two",team_id:"T1"},
@@ -39,7 +39,7 @@ function fixture(){
     {driver_id:"D4",display_name:"AI Two",team_id:"T2"},
   ];
   let gs={
-    saveMeta:createNewSaveMeta({year:1980,teamId:"T1",seed:"rw4-live"}),
+    saveMeta:createNewSaveMeta({year:1980,teamId:"T1",seed}),
     activeYear:1980,currentDateISO:"1980-05-18",team:{team_id:"T1",name:"Player"},teams:[{team_id:"T1",team_name:"Player"},{team_id:"T2",team_name:"AI"}],
     drivers,tyres,dbTyres:tyres,
     driverRatings:drivers.map((d,i)=>({driver_id:d.driver_id,pace:78-i,racecraft:76,consistency:75,tire_management:70,race_intelligence:72,start_launch:70,mentality:72,pressure_handling:72,adaptability:72,current_ability:77-i,crash_likelihood:20})),
@@ -107,6 +107,30 @@ test("live race starts at lap zero and advances incrementally",()=>{
   assert.equal(gs.raceWeekendState.live_race.current_lap,1);
   assert.equal(gs.raceWeekendState.live_race.classification.length,4);
   assert.equal(gs.raceWeekendState.live_race.status,"running");
+});
+
+test("RW4.6.1 each incident produces one human Race Feed event",()=>{
+  let gs=null;
+  let incident=null;
+  for(let index=0;index<60&&!incident;index+=1){
+    const candidate=createLiveRaceState(fixture(`rw4.6.1-feed-${index}`),{gp});
+    const first=candidate.raceWeekendState.race_strategy.race_control_plan?.incidents?.[0]||null;
+    if(first){
+      gs=candidate;
+      incident=first;
+    }
+  }
+  assert.ok(gs&&incident,"expected a deterministic seed with a race incident");
+
+  gs=advanceTo(gs,Number(incident.lap));
+  const matching=(gs.raceWeekendState.live_race.events||[]).filter((event)=>
+    Number(event?.lap)===Number(incident.lap)&&
+    String(event?.driver_id||"")===String(incident.driver_id)&&
+    ["incident","race_control"].includes(String(event?.type))
+  );
+  assert.equal(matching.length,1,"one incident should produce one player-facing incident/control message");
+  assert.doesNotMatch(matching[0].message,/\((?:low|medium|high|critical)\)/i);
+  assert.doesNotMatch(matching[0].message,/\b(?:low|medium|high|critical)\b/i);
 });
 
 test("pace command is lap-scoped and changes only future simulation",()=>{
