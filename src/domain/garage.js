@@ -3,6 +3,7 @@ import { isRaceDriverContract, isReserveDriverContract } from "./contractRoles.j
 import { activeDriverContracts as canonicalActiveDriverContracts } from "./driverContracts.js";
 import { COMPONENT_FALLBACK_CATALOG, availableCarComponentSlots } from "./carComponents.js";
 import { partDesignIdOfUnit, partUnits } from "./partUnits.js";
+import { combineTechnicalAdjustments, technicalAdjustmentForPart } from "./carPartPerformance.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -199,21 +200,26 @@ export function baseConditionAdjustmentForCar(gs,car){
 }
 
 export function installedAdjustmentForCar(gs,car){
-  let qualifying=0,race=0,reliability=0;
   const eligible=new Set(componentSlotsForTeam(gs));
+  const rows=[];
+  let wearReliabilityPenalty=0;
   for(const {slot,part,unit} of installedPartsForCar(gs,car)){
     if(!eligible.has(slot))continue;
-    const profile=PART_SLOT_EFFECTS[slot]||{qualifying:0.45,race:0.45,reliability:0.04};
-    const perf=Math.max(0,Number(part?.perf||0));
-    const condition=Math.max(0,Math.min(100,Number(unit?.condition??part?.condition??100)))/100;
-    qualifying+=perf*profile.qualifying*condition;
-    race+=perf*profile.race*condition;
-    reliability+=perf*profile.reliability*condition;
+    const conditionPct=Math.max(0,Math.min(100,Number(unit?.condition??part?.condition??100)));
+    rows.push(technicalAdjustmentForPart(gs,{slot,part,condition:conditionPct}));
+
+    const condition=conditionPct/100;
     const conditionLoss=Math.max(0,0.80-condition)/0.80;
     const reliabilityRisk=Number(PART_CONDITION_RELIABILITY_RISK[slot]??3);
-    reliability-=conditionLoss*reliabilityRisk;
+    wearReliabilityPenalty+=conditionLoss*reliabilityRisk;
   }
-  return {qualifying,race,reliability};
+  const combined=combineTechnicalAdjustments(rows);
+  return {
+    qualifying:combined.qualifying,
+    race:combined.race,
+    reliability:combined.reliability-wearReliabilityPenalty,
+    technical:combined.technical,
+  };
 }
 
 export function garageCarForDriver(gs,driverId){
