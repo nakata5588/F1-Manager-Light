@@ -236,6 +236,27 @@ test("RW3 saves and restores between Qualifying sessions without recalculating Q
   );
 });
 
+test("RW4.7 final Qualifying report marks non-starters as CUT before Strategy",()=>{
+  const qualifyingRules={...defaultQualifyingRule,max_starters:2};
+  let gs=startAfterPractice({qualifyingRules});
+  gs=completeQualifyingSession(gs,{gp});
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
+  gs=completeQualifyingSession(gs,{gp});
+
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
+  assert.equal(gs.raceWeekendState.qualifying.status,"completed");
+  const finalSession=gs.raceWeekendState.sessions.find((row)=>row.id==="qualifying_2");
+  const cutRows=(finalSession.results||[]).filter((row)=>row.status==="CUT");
+  const qualifiedRows=(finalSession.results||[]).filter((row)=>row.status==="QUALIFIED");
+  assert.equal(cutRows.length,2);
+  assert.equal(qualifiedRows.length,2);
+  assert.equal(gs.raceWeekendState.startingGrid.rows.length,2);
+
+  gs=continueRaceWeekendSession(gs);
+  assert.equal(gs.raceWeekendState.phase,"grid_ready");
+});
+
 test("RW3 1980 classification uses each driver's best time across sessions",()=>{
   const gs=finish1980Qualifying();
   const qSessions=gs.raceWeekendState.sessions.filter((row)=>row.type==="qualifying");
