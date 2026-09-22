@@ -10,6 +10,17 @@ const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
 
+function pointOrdinal(lap,sector=3){
+  const l=Math.max(1,Number(lap)||1);
+  const s=Math.max(1,Math.min(3,Number(sector)||1));
+  return (l-1)*3+s;
+}
+function periodStartOrdinal(period){
+  return pointOrdinal(period?.from_lap,period?.from_sector??1);
+}
+function periodEndOrdinal(period){
+  return pointOrdinal(period?.to_lap,period?.to_sector??3);
+}
 export function raceControlRulesForYear(yearInput){
   const year=Number(yearInput)||1980;
   if(year<=1992)return {
@@ -149,12 +160,21 @@ function severity(rng,type,state){
   return {score:Number(score.toFixed(3)),label:score>=0.94?"critical":score>=0.78?"high":score>=0.50?"medium":"low"};
 }
 function responseForIncident(rules,incident,weatherLap,rng){
-  if(rules.red_flag&&(incident.severity==="critical"||weatherLap.state==="STORM")&&rng.chance(clamp(num(weatherLap.red_flag_chance_pct,0)/100+0.10,0,0.42))){
+  const severity=String(incident?.severity||"medium");
+  const weatherRed=clamp(num(weatherLap.red_flag_chance_pct,0)/100,0,0.35);
+  const eraRedBoost=!rules.safety_car
+    ?severity==="critical"?0.34:severity==="high"?0.10:0
+    :severity==="critical"?0.16:severity==="high"?0.03:0;
+  if(
+    rules.red_flag&&
+    (["high","critical"].includes(severity)||weatherLap.state==="STORM")&&
+    rng.chance(clamp(weatherRed+eraRedBoost,0,0.55))
+  ){
     return "RED_FLAG";
   }
-  if(rules.safety_car&&["high","critical"].includes(incident.severity))return "SAFETY_CAR";
-  if(rules.virtual_safety_car&&incident.severity==="medium"&&rng.chance(0.55))return "VSC";
-  if(rules.safety_car&&incident.severity==="medium"&&rng.chance(0.48))return "SAFETY_CAR";
+  if(rules.safety_car&&["high","critical"].includes(severity))return "SAFETY_CAR";
+  if(rules.virtual_safety_car&&severity==="medium"&&rng.chance(0.55))return "VSC";
+  if(rules.safety_car&&severity==="medium"&&rng.chance(0.48))return "SAFETY_CAR";
   return "LOCAL_YELLOW";
 }
 function durationFor(response,rng,laps){
@@ -164,13 +184,21 @@ function durationFor(response,rng,laps){
   return 1;
 }
 function mergePeriods(periods,totalLaps){
-  const sorted=periods.slice().sort((a,b)=>a.from_lap-b.from_lap||a.priority-b.priority);
+  const sorted=periods.slice().sort((a,b)=>periodStartOrdinal(a)-periodStartOrdinal(b)||a.priority-b.priority);
   const out=[];
   for(const period of sorted){
-    const p={...period,to_lap:Math.min(totalLaps,period.to_lap)};
+    const p={
+      ...period,
+      from_sector:Math.max(1,Math.min(3,Number(period?.from_sector)||1)),
+      to_lap:Math.min(totalLaps,Number(period?.to_lap)||Number(period?.from_lap)||1),
+      to_sector:Math.max(1,Math.min(3,Number(period?.to_sector)||3)),
+    };
     const last=out.at(-1);
-    if(last&&p.from_lap<=last.to_lap&&p.type===last.type){
-      last.to_lap=Math.max(last.to_lap,p.to_lap);
+    if(last&&periodStartOrdinal(p)<=periodEndOrdinal(last)&&p.type===last.type){
+      if(periodEndOrdinal(p)>periodEndOrdinal(last)){
+        last.to_lap=p.to_lap;
+        last.to_sector=p.to_sector;
+      }
       continue;
     }
     out.push(p);
@@ -201,6 +229,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     }
     if(!kind)continue;
     const lap=weightedIncidentLap(rng,timeline);
+    const sector=1+Math.floor(rng.next()*3);
     const weatherLap=timeline[Math.max(0,lap-1)]||{state:"SUNNY",red_flag_chance_pct:0};
     const sev=kind==="mechanical"?{label:"low",score:0.2}:severity(rng,kind,weatherLap.state);
     const driverId=idOf(row?.driver||row);
@@ -210,6 +239,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     const incident={
       driver_id:driverId,
       lap,
+      sector,
       kind,
       reason,
       severity:sev.label,
@@ -222,7 +252,16 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     if(kind!=="mechanical"){
       const response=responseForIncident(rules,incident,weatherLap,rng);
       const duration=durationFor(response,rng,timeline.length);
-      periods.push({type:response,from_lap:lap,to_lap:Math.min(timeline.length,lap+duration-1),cause:"incident",driver_id:incident.driver_id,priority:response==="RED_FLAG"?0:response==="SAFETY_CAR"?1:response==="VSC"?2:3});
+      periods.push({
+        type:response,
+        from_lap:lap,
+        from_sector:sector,
+        to_lap:Math.min(timeline.length,lap+duration-1),
+        to_sector:3,
+        cause:"incident",
+        driver_id:incident.driver_id,
+        priority:response==="RED_FLAG"?0:response==="SAFETY_CAR"?1:response==="VSC"?2:3,
+      });
     }
   }
 
@@ -239,13 +278,21 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     else if(rules.virtual_safety_car&&wrng.chance(scChance*0.5))type="VSC";
     if(type){
       const duration=durationFor(type,wrng,timeline.length);
-      periods.push({type,from_lap:row.lap,to_lap:Math.min(timeline.length,row.lap+duration-1),cause:"weather",priority:type==="RED_FLAG"?0:type==="SAFETY_CAR"?1:2});
+      periods.push({
+        type,
+        from_lap:row.lap,
+        from_sector:1,
+        to_lap:Math.min(timeline.length,row.lap+duration-1),
+        to_sector:3,
+        cause:"weather",
+        priority:type==="RED_FLAG"?0:type==="SAFETY_CAR"?1:2,
+      });
       break;
     }
   }
 
   return {
-    version:1,
+    version:2,
     rules,
     incidents:incidents.sort((a,b)=>a.lap-b.lap),
     periods:mergePeriods(periods,timeline.length),
@@ -253,7 +300,14 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
   };
 }
 
+export function raceControlAtPoint(plan,lap,sector=3){
+  const ordinal=pointOrdinal(lap,sector);
+  const matches=(plan?.periods||[]).filter((row)=>ordinal>=periodStartOrdinal(row)&&ordinal<=periodEndOrdinal(row));
+  if(!matches.length)return {type:"GREEN",from_lap:lap,from_sector:sector,to_lap:lap,to_sector:sector,cause:null};
+  return matches.slice().sort((a,b)=>Number(a.priority??9)-Number(b.priority??9))[0];
+}
 export function raceControlAtLap(plan,lap){
+  // Lap-level simulation keeps a conservative whole-lap view for backwards compatibility.
   const matches=(plan?.periods||[]).filter((row)=>lap>=Number(row?.from_lap)&&lap<=Number(row?.to_lap));
   if(!matches.length)return {type:"GREEN",from_lap:lap,to_lap:lap,cause:null};
   return matches.slice().sort((a,b)=>Number(a.priority??9)-Number(b.priority??9))[0];
@@ -262,18 +316,19 @@ export function incidentForDriver(plan,driverId){
   return (plan?.incidents||[]).find((row)=>String(row?.driver_id)===String(driverId))||null;
 }
 
-export function mergeRaceControlHistory(previous,fresh,currentLap){
+export function mergeRaceControlHistory(previous,fresh,currentLap,currentSector=3){
   if(!previous)return fresh;
   if(!fresh)return previous;
-  const lap=Number(currentLap)||0;
-  const historicalIncidents=(previous.incidents||[]).filter((row)=>Number(row.lap)<=lap);
+  const ordinal=Number(currentLap)>0?pointOrdinal(currentLap,currentSector):0;
+  const incidentOrdinal=(row)=>pointOrdinal(row?.lap,row?.sector??1);
+  const historicalIncidents=(previous.incidents||[]).filter((row)=>incidentOrdinal(row)<=ordinal);
   const historicalIds=new Set(historicalIncidents.map((row)=>String(row.driver_id)));
-  const futureIncidents=(fresh.incidents||[]).filter((row)=>Number(row.lap)>lap&&!historicalIds.has(String(row.driver_id)));
-  const historicalPeriods=(previous.periods||[]).filter((row)=>Number(row.from_lap)<=lap);
-  const futurePeriods=(fresh.periods||[]).filter((row)=>Number(row.from_lap)>lap);
+  const futureIncidents=(fresh.incidents||[]).filter((row)=>incidentOrdinal(row)>ordinal&&!historicalIds.has(String(row.driver_id)));
+  const historicalPeriods=(previous.periods||[]).filter((row)=>periodStartOrdinal(row)<=ordinal);
+  const futurePeriods=(fresh.periods||[]).filter((row)=>periodStartOrdinal(row)>ordinal);
   return {
     ...fresh,
-    incidents:[...historicalIncidents,...futureIncidents].sort((a,b)=>Number(a.lap)-Number(b.lap)),
+    incidents:[...historicalIncidents,...futureIncidents].sort((a,b)=>incidentOrdinal(a)-incidentOrdinal(b)),
     periods:mergePeriods([...historicalPeriods,...futurePeriods],fresh.weather_timeline?.length||previous.weather_timeline?.length||999),
   };
 }
