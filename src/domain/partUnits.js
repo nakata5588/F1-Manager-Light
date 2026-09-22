@@ -209,10 +209,15 @@ export function createManufacturedPartUnits(gs,{designId,qty=1,batchId=null,manu
 
   const existing=partUnits(normalized).map((unit)=>({...unit}));
   const used=new Set(existing.map((unit)=>str(unit?.id)));
-  const count=Math.max(0,Math.floor(Number(qty||0)));
+  const requested=Math.max(0,Math.floor(Number(qty||0)));
+  const existingFromBatch=batchId
+    ?existing.filter((unit)=>partDesignIdOfUnit(unit)===str(design.id)&&str(unit?.batch_id)===str(batchId)).length
+    :0;
+  const count=Math.max(0,requested-existingFromBatch);
   const prefix=`unit_${safeId(design.id)}_${safeId(batchId||"batch")}`;
   for(let i=0;i<count;i+=1){
-    const id=uniqueUnitId(`${prefix}_${String(i+1).padStart(2,"0")}`,used);
+    const ordinal=existingFromBatch+i+1;
+    const id=uniqueUnitId(`${prefix}_${String(ordinal).padStart(2,"0")}`,used);
     existing.push({
       id,
       design_id:design.id,
