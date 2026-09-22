@@ -1358,13 +1358,14 @@ function DevelopmentTab({
               <tbody className="divide-y divide-white/10">
                 {(log||[]).slice(0,12).map((row,index)=>{
                   const delta=Number(row?.delta??(Number(row?.after)-Number(row?.before)));
+                  const effectiveDelta=String(row?.attr||"")==="crash_likelihood"?-delta:delta;
                   return (
                     <tr key={`${row?.dateISO||"date"}-${row?.attr||"attr"}-${index}`}>
                       <td className="py-2 pr-3 text-slate-400">{row?.dateISO||"—"}</td>
                       <td className="py-2 pr-3 font-medium">{niceRole(String(row?.attr||"—").replaceAll("_"," "))}</td>
                       <td className="py-2 pr-3 text-right">{isNumeric(row?.before)?Number(row.before).toFixed(2):"—"}</td>
                       <td className="py-2 pr-3 text-right">{isNumeric(row?.after)?Number(row.after).toFixed(2):"—"}</td>
-                      <td className={`py-2 pr-3 text-right font-medium ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
+                      <td className={`py-2 pr-3 text-right font-medium ${effectiveDelta>0?"text-emerald-300":effectiveDelta<0?"text-rose-300":"text-slate-400"}`}>
                         {Number.isFinite(delta)?`${delta>0?"+":""}${delta.toFixed(2)}`:"—"}
                       </td>
                       <td className="py-2 text-slate-400">{displayValue(row?.source,"—")}</td>
