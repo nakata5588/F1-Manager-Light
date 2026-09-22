@@ -110,6 +110,8 @@ test("monthly progression applies the selected group focus and logs its source",
     }],
     facilities:[{year:1980,team_id:"T1",simulator_level:5}],
     driverDevelopmentFocus:{D1:"pace"},
+    driverDevelopmentFocusMeta:{D1:{groupKey:"pace",monthKey:"1980-01",selectedAt:"1980-01-01"}},
+    driverDevelopmentTraining:{D1:{monthKey:"1980-01",groupKey:"pace",trainingDays:18,fatigueSpent:36,lastTrainingDate:"1980-01-31"}},
     results:[],
   };
 
@@ -120,4 +122,30 @@ test("monthly progression applies the selected group focus and logs its source",
   assert.ok(focusChanges.length>0);
   assert.ok(focusChanges.every((row)=>["pace","qualifying","start_launch"].includes(row.attr)));
   assert.equal(next.driverDevelopmentFocus.D1,"pace");
+  assert.equal(next.driverDevelopmentTraining.D1.monthKey,"1980-02");
+});
+
+test("monthly focus adds weekday fatigue progressively and auto-locks a carried focus",()=>{
+  const gs={
+    activeYear:1980,
+    currentDateISO:"1980-02-04",
+    _lastDriverProgressionMonth:"1980-02",
+    team:{team_id:"T1"},
+    drivers:[{driver_id:"D1",display_name:"Focused Driver",age:22}],
+    driverRatings:[{...rating}],
+    driverAttributes:{D1:{confidence:50,fatigue:10,morale:50,preparation:50}},
+    contracts:[{year:1980,driver_id:"D1",team_id:"T1",role:"Main Driver",status:"active",contract_until_year:1981}],
+    driverDevelopmentFocus:{D1:"pace"},
+    driverDevelopmentFocusMeta:{D1:{groupKey:"pace",monthKey:"1980-01",selectedAt:"1980-01-01"}},
+  };
+
+  const next=applyProgressionTick(gs);
+  assert.ok(next.driverAttributes.D1.fatigue>10,"weekday development load should exceed normal recovery");
+  assert.equal(next.driverDevelopmentTraining.D1.trainingDays,1);
+  assert.equal(next.driverDevelopmentTraining.D1.fatigueSpent,2);
+  assert.equal(next.driverDevelopmentFocusMeta.D1.monthKey,"1980-02");
+  assert.equal(next.driverDevelopmentFocusMeta.D1.groupKey,"pace");
+
+  const sameDay=applyProgressionTick(next);
+  assert.equal(sameDay.driverDevelopmentTraining.D1.trainingDays,1,"training load must be idempotent on the same date");
 });

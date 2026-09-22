@@ -8,6 +8,7 @@ import { driverCondition } from "./driverRating.js";
 import { conditionModifierBreakdown } from "./driverPerformance.js";
 import { activeDriverContract, driverIdOf, teamIdOf } from "./driverContracts.js";
 import { driverKnowledgeState } from "./driverKnowledge.js";
+import { driverFormSnapshot, driverPerformanceEntries } from "./driverForm.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -166,6 +167,10 @@ export function driverProfileSnapshot(gs,driverOrId){
   const season=driverSeasonSnapshot(gs,driverId);
   const availability=driverAvailabilitySnapshot(gs,driverId);
   const knowledge=driverKnowledgeState(gs,driver||driverId);
+  const form=driverFormSnapshot(gs,driverId);
+  const performanceHistory=driverPerformanceEntries(gs,driverId)
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||""))||Number(b?.round||0)-Number(a?.round||0));
 
   return {
     driverId,
@@ -181,5 +186,7 @@ export function driverProfileSnapshot(gs,driverOrId){
     season,
     availability,
     knowledge,
+    form,
+    performanceHistory,
   };
 }

@@ -12,6 +12,7 @@ import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
 import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
+import { applyRacePerformanceEvaluation } from "../domain/driverForm.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -846,9 +847,13 @@ export async function runRaceWeekend(gs, {
     classification,
   };
 
+  const performancePass=applyRacePerformanceEvaluation(next,resultEntry);
+  Object.assign(next,performancePass.gameState);
+  const evaluatedResultEntry=performancePass.resultEntry;
+
   next.results = [
     ...(Array.isArray(gs.results) ? gs.results.filter((r) => r?.key !== resultKey) : []),
-    resultEntry,
+    evaluatedResultEntry,
   ];
 
   next.lastRace = {
@@ -856,9 +861,10 @@ export async function runRaceWeekend(gs, {
     gpName,
     date: gs.currentDateISO,
     qualy,
-    qualifying:resultEntry.qualifying,
-    startingGrid:resultEntry.startingGrid,
+    qualifying:evaluatedResultEntry.qualifying,
+    startingGrid:evaluatedResultEntry.startingGrid,
     race,
+    classification:evaluatedResultEntry.classification,
     driverStandings,
     teamStandings,
     strategySummary:managedRace.summary,

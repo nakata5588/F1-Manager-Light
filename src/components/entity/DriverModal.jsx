@@ -17,6 +17,7 @@ import {
   driverAttributeGroupBehaviourForScore,
   driverAttributeValue,
   driverDevelopmentFocus,
+  driverDevelopmentFocusState,
   driverWheelToWheelBehaviour,
 } from "../../domain/driverAttributeGroups.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
@@ -539,57 +540,46 @@ export default function DriverModal({ entity, onClose }) {
     };
   }, [careerTimeline]);
 
-  // Historical achievement IDs are not fully aligned with the current driver IDs.
-  // Prefer exact achievement records, then fill gaps from the driver's own career rows.
+  // Achievements are championship outcomes, not a duplicate wins/podium log.
+  // Historical seasons use career/achievement data; played seasons use the
+  // archived standings derived from actual race results.
   const achievementsList = useMemo(() => {
-    const direct = achievementsArr
-      .filter((a) => sameDriver(extractDriverId(a), idNorm))
-      .filter((a) => Number(unbox(a.year)) < Number(careerStartYear))
-      .map((a) => ({ ...a, __source: "achievements" }));
-
-    const derived = (careerAll || [])
-      .filter((r) => Number(unbox(r?.year)) < Number(careerStartYear))
-      .filter((r) => {
-        const wins = Number(unbox(r?.wins) || 0);
-        const podiums = Number(unbox(r?.podiums) || 0);
-        const pos = Number(unbox(r?.champ_pos));
-        return wins > 0 || podiums > 0 || (Number.isFinite(pos) && pos <= 3);
-      })
-      .map((r) => ({
-        driver_id: driver?.driver_id ?? entity.id,
-        team_id: unbox(r?.team_id) ?? null,
-        team_name: unbox(r?.team_name) ?? "—",
-        year: Number(unbox(r?.year)),
-        wins: Number(unbox(r?.wins) || 0),
-        podiums: Number(unbox(r?.podiums) || 0),
-        driver_championship: isNumeric(r?.champ_pos) ? Number(unbox(r?.champ_pos)) : null,
-        team_championship: null,
-        __source: "career",
-      }));
-
-    if (liveSeasonRow && (liveSeasonRow.wins > 0 || liveSeasonRow.podiums > 0)) {
-      derived.push({
-        driver_id: driver?.driver_id ?? entity.id,
-        team_id: liveSeasonRow.team_id,
-        team_name: liveSeasonRow.team_name,
-        year: gameYear,
-        wins: liveSeasonRow.wins,
-        podiums: liveSeasonRow.podiums,
-        driver_championship: liveSeasonRow.champ_pos,
-        team_championship: null,
-        __source: "live",
-        __live: true,
+    const map=new Map();
+    const add=(row,priority=0)=>{
+      const year=Number(unbox(row?.year));
+      const pos=Number(unbox(
+        row?.driver_championship ??
+        row?.championship_position ??
+        row?.champ_pos ??
+        row?.position
+      ));
+      if(!Number.isFinite(year)||year>=Number(gameYear))return;
+      if(!Number.isFinite(pos)||pos<1||pos>3)return;
+      const series=String(getSeries(row)||"F1").toUpperCase();
+      if(series&&series!=="F1")return;
+      const key=String(year);
+      const prev=map.get(key);
+      if(prev&&Number(prev.__priority||0)>priority)return;
+      map.set(key,{
+        year,
+        position:pos,
+        achievement:pos===1?"World Champion":`Championship P${pos}`,
+        team_id:unbox(row?.team_id)??null,
+        team_name:displayValue(row?.team_name??row?.team,"—"),
+        __priority:priority,
       });
-    }
+    };
 
-    const map = new Map();
-    for (const row of [...derived, ...direct]) {
-      const key = [Number(unbox(row.year)), String(unbox(row.team_id) ?? unbox(row.team_name) ?? "")].join("|");
-      map.set(key, row);
+    for(const row of achievementsArr||[]){
+      if(sameDriver(extractDriverId(row),idNorm))add(row,1);
     }
-    return [...map.values()].sort((a,b) => Number(unbox(a.year)||0) - Number(unbox(b.year)||0));
-  }, [achievementsArr, careerAll, liveSeasonRow, idNorm, gameYear, careerStartYear, driver?.driver_id, entity.id]);
+    for(const row of careerAll||[])add(row,2);
+    for(const row of simulatedCareerRows||[])add(row,3);
 
+    return [...map.values()]
+      .map(({__priority,...row})=>row)
+      .sort((a,b)=>Number(a.year)-Number(b.year));
+  }, [achievementsArr,careerAll,simulatedCareerRows,idNorm,gameYear]);
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
     if (!Number.isFinite(rookie) || !Number.isFinite(gameYear)) return null;
@@ -643,13 +633,30 @@ export default function DriverModal({ entity, onClose }) {
 
   const releaseCost = isOwnDriver && contract ? terminationCost(gs, contract) : 0;
   const developmentFocusKey = driverDevelopmentFocus(gs, driverId);
+  const developmentFocusState = driverDevelopmentFocusState(gs, driverId);
+  const developmentTraining = gs?.driverDevelopmentTraining?.[driverId]||null;
+  const potentialLog = (gs?.driverPotentialLog?.[driverId]||[])
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
 
   function setDriverDevelopmentFocus(groupKey) {
-    if (!isOwnDriver || !driverId) return;
-    const next={...(gs?.driverDevelopmentFocus||{})};
-    if(groupKey) next[driverId]=groupKey;
-    else delete next[driverId];
-    setGameState({driverDevelopmentFocus:next});
+    if (!isOwnDriver || !driverId || !groupKey) return;
+    if(developmentFocusState?.locked && developmentFocusState?.groupKey!==groupKey)return;
+    const monthKey=String(gameDateISO||"").slice(0,7);
+    setGameState({
+      driverDevelopmentFocus:{
+        ...(gs?.driverDevelopmentFocus||{}),
+        [driverId]:groupKey,
+      },
+      driverDevelopmentFocusMeta:{
+        ...(gs?.driverDevelopmentFocusMeta||{}),
+        [driverId]:{
+          groupKey,
+          monthKey,
+          selectedAt:gameDateISO,
+        },
+      },
+    });
   }
 
   function openScoutingForDriver() {
@@ -882,6 +889,9 @@ export default function DriverModal({ entity, onClose }) {
               knowledge={knowledge}
               isOwnDriver={!!isOwnDriver}
               focusKey={developmentFocusKey}
+              focusState={developmentFocusState}
+              training={developmentTraining}
+              potentialLog={potentialLog}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
@@ -898,6 +908,21 @@ export default function DriverModal({ entity, onClose }) {
                   rows={filteredCareer}
                   agg={statsAgg}
                 />
+              </div>
+              <div className="border-t border-white/10 pt-5">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Played-Race Performance</div>
+                    <div className="mt-1 text-sm text-slate-300">Form evaluates results against the car, qualifying, team-mate comparison and incident responsibility.</div>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-right">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Current Form</div>
+                    <div className={`text-lg font-semibold ${Number(profileSnapshot?.form?.score)>=76?"text-emerald-300":Number(profileSnapshot?.form?.score)<58?"text-rose-300":"text-slate-200"}`}>
+                      {profileSnapshot?.form?.score!=null?`${Number(profileSnapshot.form.score).toFixed(1)} · ${profileSnapshot.form.label}`:"—"}
+                    </div>
+                  </div>
+                </div>
+                <PerformanceHistory items={profileSnapshot?.performanceHistory||[]} />
               </div>
               <div className="border-t border-white/10 pt-5">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Season History by Team</div>
@@ -1032,9 +1057,9 @@ function OverviewTab({
           <ProfileMetric label="Championship" value={season.championshipPosition?`P${season.championshipPosition}`:"—"}/>
           <ProfileMetric label="Points" value={season.points??0}/>
           <ProfileMetric
-            label="Performance effect"
-            value={Number.isFinite(impactValue)?`${impactValue>=0?"+":""}${impactValue.toFixed(1)}`:"Private"}
-            tone={impactTone}
+            label="Form"
+            value={snapshot?.form?.score!=null?`${Number(snapshot.form.score).toFixed(1)} · ${snapshot.form.label}`:"—"}
+            tone={snapshot?.form?.score!=null?(Number(snapshot.form.score)>=76?"text-emerald-300":Number(snapshot.form.score)<58?"text-rose-300":"text-slate-200"):""}
           />
         </div>
 
@@ -1077,6 +1102,30 @@ function OverviewTab({
         </div>
       </div>
 
+      {snapshot?.performanceHistory?.[0]&&(
+        <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest Race Evaluation</div>
+              <div className="mt-1 text-sm text-slate-200">{snapshot.performanceHistory[0].gp_name||`Round ${snapshot.performanceHistory[0].round||"—"}`}</div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                Expected ~P{Number(snapshot.performanceHistory[0].expected_finish||0).toFixed(1)} · {snapshot.performanceHistory[0].retired?(snapshot.performanceHistory[0].retirement_reason||"DNF"):`Finished P${snapshot.performanceHistory[0].finish_position||"—"}`}
+              </div>
+            </div>
+            <div className={`rounded-lg border px-3 py-2 text-xl font-semibold ${Number(snapshot.performanceHistory[0].score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(snapshot.performanceHistory[0].score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
+              {Number(snapshot.performanceHistory[0].score||0).toFixed(1)}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {(snapshot.performanceHistory[0].factors||[]).slice(0,4).map((factor,index)=>(
+              <div key={`${factor.key||"factor"}-${index}`} className={`rounded-lg border border-white/5 bg-[#171a23] p-2 text-xs ${factor.tone==="positive"?"text-emerald-300":factor.tone==="negative"?"text-rose-300":"text-slate-400"}`}>
+                {factor.value>0?"+":""}{Number(factor.value||0).toFixed(1)} · {factor.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge & Decision Support</div>
         <p className="mt-2 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</p>
@@ -1091,11 +1140,25 @@ function OverviewTab({
   );
 }
 
-function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFocus }) {
+function DevelopmentTab({
+  attrs,
+  log,
+  knowledge,
+  isOwnDriver,
+  focusKey,
+  focusState,
+  training,
+  potentialLog,
+  onSetFocus,
+}) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
   const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",attrs?.potential_ability,{kind:"potential"});
   const canSeeHistory=Boolean(knowledge?.canSeeDevelopmentHistory);
   const groups=driverAttributeGroups();
+  const latestPotential=(potentialLog||[])[0]||null;
+  const trainingDays=Number(training?.trainingDays||0);
+  const fatigueSpent=Number(training?.fatigueSpent||0);
+  const focusLocked=Boolean(focusState?.locked);
 
   return (
     <div className="space-y-4">
@@ -1107,32 +1170,63 @@ function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFoc
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <ProfileMetric label="Current ability" value={overall.label}/>
-            <ProfileMetric label="Potential" value={potential.label}/>
+            <ProfileMetric label="Dynamic potential" value={potential.label}/>
           </div>
           <p className="mt-3 text-xs text-slate-400">
-            Development is applied monthly. Gains slow as Current Ability approaches Potential, and every attribute has a potential-derived ceiling rather than an automatic path to 100.
+            Potential is a live career ceiling, not a guaranteed destination. Results relative to the car, team environment and sustained development can raise or lower it over time.
           </p>
+
           {isOwnDriver && (
-            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
-              Active focus: <strong className="text-slate-200">{groups.find((group)=>group.key===focusKey)?.label||"None selected"}</strong>
+            <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
+              <div className="flex justify-between gap-3">
+                <span>Active focus</span>
+                <strong className="text-slate-200">{groups.find((group)=>group.key===focusKey)?.label||"None selected"}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Training days this month</span>
+                <strong className="text-slate-200">{trainingDays}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Development fatigue</span>
+                <strong className="text-amber-200">+{fatigueSpent.toFixed(1)}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Focus status</span>
+                <strong className={focusLocked?"text-sky-300":"text-slate-200"}>{focusLocked?"Locked for this month":"Can select this month"}</strong>
+              </div>
+            </div>
+          )}
+
+          {canSeeHistory&&latestPotential&&(
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-400">Latest potential movement</span>
+                <strong className={Number(latestPotential.delta)>0?"text-emerald-300":Number(latestPotential.delta)<0?"text-rose-300":"text-slate-300"}>
+                  {Number(latestPotential.delta)>0?"+":""}{Number(latestPotential.delta||0).toFixed(2)}
+                </strong>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500">
+                Form {latestPotential.form_score??"—"} · {latestPotential.environment_label||"Environment"} · {latestPotential.training_days||0} training days
+              </div>
             </div>
           )}
         </div>
 
         <div className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development Focus</div>
-              <div className="mt-1 text-sm text-slate-300">
-                {isOwnDriver ? "Choose one group. Its attributes receive focused monthly development." : "Development focus is only managed for drivers under your team control."}
-              </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Monthly Development Focus</div>
+            <div className="mt-1 text-sm text-slate-300">
+              {isOwnDriver
+                ?"Choose one group for the month. Training load accumulates fatigue during weekdays; the month's work is converted into development at the next monthly progression."
+                :"Development focus is only managed for drivers under your team control."}
             </div>
-            {isOwnDriver&&focusKey&&(
-              <button onClick={()=>onSetFocus?.(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/5 hover:text-white">
-                Clear focus
-              </button>
-            )}
           </div>
+
+          {isOwnDriver&&focusLocked&&(
+            <div className="mt-3 rounded-lg border border-sky-400/20 bg-sky-500/10 p-3 text-xs text-sky-200">
+              This month's focus is locked. You can choose a different group when the calendar moves into the next month.
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {groups.map((group)=>{
@@ -1142,6 +1236,7 @@ function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFoc
                 ?driverAttributeGroupBehaviourForScore(group.key,shown.sortValue)
                 :null;
               const active=focusKey===group.key;
+              const unavailable=Boolean(isOwnDriver&&focusLocked&&!active);
               return (
                 <div key={group.key} className={`rounded-xl border p-3 ${active?"border-sky-400/40 bg-sky-500/10":"border-white/10 bg-[#171a23]"}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -1157,10 +1252,10 @@ function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFoc
                   {isOwnDriver&&(
                     <button
                       onClick={()=>onSetFocus?.(group.key)}
-                      disabled={active}
-                      className={`mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-default`}
+                      disabled={active||unavailable}
+                      className={`mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-not-allowed disabled:opacity-50`}
                     >
-                      {active?"Current focus":"Set development focus"}
+                      {active?"Current monthly focus":unavailable?"Available next month":"Select for this month"}
                     </button>
                   )}
                 </div>
@@ -1847,44 +1942,73 @@ function AttributesTab({
     </div>
   );
 }
-function AchievementsTab({ items }) {
-  if (!items?.length) return <p className="text-gray-500 text-sm">No achievements yet.</p>;
+function PerformanceHistory({ items }) {
+  const rows=(items||[]).slice(0,8);
+  if(!rows.length){
+    return <p className="text-slate-500 text-sm">No played-race performance evaluations yet.</p>;
+  }
   return (
-    <div className="space-y-2">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-gray-500 text-xs">
-            <tr>
-              <th className="text-left pr-3 py-1">Year</th>
-              <th className="text-left pr-3 py-1">Team</th>
-              <th className="text-left pr-3 py-1">Drivers' Champ</th>
-              <th className="text-left pr-3 py-1">Constructors' Champ</th>
-              <th className="text-right pr-3 py-1">Wins</th>
-              <th className="text-right pr-0 py-1">Podiums</th>
+    <div className="space-y-3">
+      {rows.map((row,index)=>(
+        <div key={`${row?.year||"year"}-${row?.round||index}`} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">{row?.gp_name||`Round ${row?.round||"—"}`}</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                {row?.year||"—"} · expected ~P{Number(row?.expected_finish||0).toFixed(1)} · {row?.retired?(row?.retirement_reason||"DNF"):`finished P${row?.finish_position||"—"}`}
+              </div>
+            </div>
+            <div className={`rounded-lg border px-3 py-1.5 text-lg font-semibold ${Number(row?.score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(row?.score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
+              {Number(row?.score||0).toFixed(1)}
+            </div>
+          </div>
+          {!!row?.factors?.length&&(
+            <div className="mt-3 space-y-1">
+              {row.factors.slice(0,4).map((factor,i)=>(
+                <div key={`${factor.key||"factor"}-${i}`} className={`text-xs ${factor.tone==="positive"?"text-emerald-300":factor.tone==="negative"?"text-rose-300":"text-slate-400"}`}>
+                  {factor.value>0?"+":""}{Number(factor.value||0).toFixed(1)} · {factor.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AchievementsTab({ items }) {
+  if (!items?.length) return <p className="text-gray-500 text-sm">No championship top-three achievements yet.</p>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="text-gray-500 text-xs">
+          <tr>
+            <th className="text-left pr-3 py-1">Year</th>
+            <th className="text-left pr-3 py-1">Achievement</th>
+            <th className="text-left pr-0 py-1">Team</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/10">
+          {items.map((a, i) => (
+            <tr key={`${a.year||"year"}-${i}`} className={Number(a.position)===1?"bg-amber-500/10":""}>
+              <td className="pr-3 py-2">{displayValue(a.year)}</td>
+              <td className={`pr-3 py-2 font-medium ${Number(a.position)===1?"text-amber-200":"text-slate-200"}`}>
+                {displayValue(a.achievement)}
+              </td>
+              <td className="pr-0 py-2">
+                {a.team_id ? (
+                  <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
+                    {displayValue(a.team_name ?? a.team_id)}
+                  </span>
+                ) : (
+                  displayValue(a.team_name)
+                )}
+              </td>
             </tr>
-          </thead>
-          <tbody className="divide-y">
-            {items.map((a, i) => (
-              <tr key={i}>
-                <td className="pr-3 py-1">{displayValue(a.year)}{a.__live ? " (current)" : ""}</td>
-                <td className="pr-3 py-1">
-                  {a.team_id ? (
-                    <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
-                      {displayValue(a.team_name ?? a.team_id)}
-                    </span>
-                  ) : (
-                    displayValue(a.team_name)
-                  )}
-                </td>
-                <td className="pr-3 py-1">{displayValue(a.driver_championship)}</td>
-                <td className="pr-3 py-1">{displayValue(a.team_championship)}</td>
-                <td className="text-right pr-3 py-1">{displayValue(a.wins, 0)}</td>
-                <td className="text-right pr-0 py-1">{displayValue(a.podiums, 0)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
