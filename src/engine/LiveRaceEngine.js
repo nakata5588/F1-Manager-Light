@@ -1,6 +1,6 @@
 // src/engine/LiveRaceEngine.js
 import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES } from "./RaceStrategyEngine.js";
-import { createRaceControlPlan, incidentForDriver, raceControlAtLap } from "./RaceControlEngine.js";
+import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap } from "./RaceControlEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
@@ -124,11 +124,25 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   if(!live||live.status!=="running")return working;
   const requestedTarget=Math.min(Number(live.total_laps),Number(live.current_lap)+Math.max(1,Math.round(Number(laps)||1)));
   const planBefore=working?.raceWeekendState?.race_strategy?.race_control_plan||null;
-  const upcomingRed=(planBefore?.periods||[]).find((period)=>period.type==="RED_FLAG"&&Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=requestedTarget);
+
+  // Recalculate only the future hazard map from the current strategy state.
+  // Completed laps remain authoritative, so changing pace can alter future risk
+  // without rewriting an incident the player has already seen.
+  const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
+  const freshPlan=createRaceControlPlan(hazardSimulation.gameState,{gp,race:hazardSimulation.race,weather:hazardSimulation.weather,track:hazardSimulation.track});
+  const plan=mergeRaceControlHistory(planBefore,freshPlan,live.current_lap);
+  working={
+    ...hazardSimulation.gameState,
+    raceWeekendState:{
+      ...hazardSimulation.gameState.raceWeekendState,
+      race_strategy:{...hazardSimulation.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
+    },
+  };
+
+  const upcomingRed=(plan?.periods||[]).find((period)=>period.type==="RED_FLAG"&&Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=requestedTarget);
   const target=upcomingRed?Number(upcomingRed.from_lap):requestedTarget;
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
-  const plan=simulation?.strategyState?.race_control_plan||working?.raceWeekendState?.race_strategy?.race_control_plan||null;
   const classification=visibleClassification(simulation.race,target,plan);
   const weatherSegment=simulation.weather?.segments?.find((s)=>target>=Number(s?.from_lap)&&target<=Number(s?.to_lap));
   const weather=String(weatherSegment?.state||simulation.weather?.state||"SUNNY");
