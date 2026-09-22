@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
+import { teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import { Activity, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
@@ -189,48 +190,23 @@ function liveEventText(event,drivers,tyres=[]){
   if(raw.startsWith(id+" "))return name+raw.slice(id.length);
   return raw.includes(name)?raw:name+" · "+raw;
 }
-function raceControlFeedLabel(type){
-  return {
-    LOCAL_YELLOW:"Yellow flag",
-    SAFETY_CAR:"Safety Car",
-    VSC:"Virtual Safety Car",
-    RED_FLAG:"Red flag",
-  }[String(type||"").toUpperCase()]||String(type||"Race control").replaceAll("_"," ");
-}
-function severityTone(value){
-  const key=String(value||"").toLowerCase();
-  if(key==="critical"||key==="severe")return "bg-red-500/20 text-red-200";
-  if(key==="high")return "bg-orange-500/20 text-orange-200";
-  if(key==="medium"||key==="moderate")return "bg-amber-500/20 text-amber-200";
-  return "bg-slate-500/20 text-slate-300";
-}
-function strategyForecastText(forecast,totalLaps){
-  const laps=Math.max(1,Number(totalLaps)||1);
-  const state=String(forecast?.predicted_state||"SUNNY").toUpperCase();
-  if(["HEAVY_RAIN","STORM","LIGHT_RAIN"].includes(state))return "Rain expected from the opening laps.";
-  if(state==="WETTING")return `Rain may start in ~${Math.max(2,Math.round(laps*0.34))} laps.`;
-  if(state==="DRYING")return `Rain may ease after ~${Math.max(2,Math.round(laps*0.52))} laps.`;
-  return `No rain expected in the next ~${Math.min(15,laps)} laps.`;
-}
-function isWetState(state){
-  return /RAIN|STORM|WETTING|DRIZZLE/i.test(String(state||""));
-}
-function teamForecastText(weatherSnapshot,currentLap,currentState,confidence){
-  const lap=Math.max(0,Number(currentLap)||0);
-  const segments=(weatherSnapshot?.segments||[]).slice().sort((a,b)=>Number(a.from_lap)-Number(b.from_lap));
-  const wetNow=isWetState(currentState);
-  const next=segments.find((segment)=>Number(segment.from_lap)>lap&&isWetState(segment.state)!==wetNow);
-  const conf=Number.isFinite(Number(confidence))?Math.round(Number(confidence)):null;
-  if(!next){
-    const base=wetNow?"Rain expected to persist for now.":"No major rain change expected soon.";
-    return conf==null?base:`${base} Forecast confidence ${conf}%.`;
+function incidentNoticeText(incident,drivers){
+  if(!incident)return "Race control intervention";
+  const who=driverName(drivers,incident.driver_id);
+  const kind=String(incident.kind||incident.reason||"incident").toLowerCase();
+  if(kind==="mechanical"){
+    return `${who} — ${String(incident.reason||"mechanical").toLowerCase()} problem`;
   }
-  const laps=Math.max(1,Number(next.from_lap)-lap);
-  const timing=laps===1?"next lap":`~${laps} laps`;
-  const text=!wetNow&&isWetState(next.state)
-    ?`Rain might start in ${timing}.`
-    :`Rain may ease or stop in ${timing}.`;
-  return conf==null?text:`${text} Forecast confidence ${conf}%.`;
+  const noun=kind.includes("collision")?"collision":kind.includes("accident")?"accident":"incident";
+  const adjective={
+    low:"minor",
+    medium:"significant",
+    high:"heavy",
+    critical:"serious",
+  }[String(incident.severity||"medium").toLowerCase()]||"significant";
+  return incident.severity==="critical"
+    ?`Serious ${noun} involving ${who}`
+    :`${who} — ${adjective} ${noun}`;
 }
 function controlNotice(plan,liveRace,drivers){
   const lap=Number(liveRace?.current_lap)||0;
@@ -251,8 +227,7 @@ function controlNotice(plan,liveRace,drivers){
   let reason="Race control intervention";
   if(period?.cause==="weather")reason="Extreme weather conditions";
   else if(incident){
-    const who=driverName(drivers,incident.driver_id);
-    reason=`${who} — ${String(incident.reason||incident.kind||"incident").replaceAll("_"," ")} (${incident.severity||"unknown"})`;
+    reason=incidentNoticeText(incident,drivers);
   }else if(period?.cause)reason=String(period.cause).replaceAll("_"," ");
   return {label,reason,type:current};
 }
@@ -414,16 +389,19 @@ export default function RaceWeekend(){
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
   const activeControlNotice=controlNotice(raceControlPlan,liveRace,drivers);
-  const liveTeamForecast=teamForecastText(
-    raceStrategy?.weather_snapshot,
-    liveRace?.current_lap,
-    liveRace?.last_weather||raceStrategy?.weather_snapshot?.state,
-    raceForecast?.confidence_pct
-  );
+  const liveTeamForecast=teamRaceForecast(gs,{
+    currentLap:liveRace?.current_lap||0,
+    currentWeather:liveRace?.last_weather||null,
+    totalLaps:liveRace?.total_laps||raceStrategy?.track_snapshot?.laps,
+  });
   const lastObservedWeather=lastCompletedQualifyingSession
     ?weekendWeather?.sessions?.[String(lastCompletedQualifyingSession.id)]
     :null;
-  const strategyTeamForecast=strategyForecastText(raceForecast,raceStrategy?.track_snapshot?.laps);
+  const strategyTeamForecast=teamRaceForecast(gs,{
+    currentLap:0,
+    currentWeather:null,
+    totalLaps:raceStrategy?.track_snapshot?.laps,
+  });
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
@@ -743,7 +721,7 @@ export default function RaceWeekend(){
                   <div><div className="text-slate-500">Condition</div><div className={conditionImpact.total>=0?"font-bold text-emerald-300":"font-bold text-rose-300"}>{conditionImpact.total>=0?"+":""}{conditionImpact.total.toFixed(2)}</div></div>
                 </div>
                 <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                  Setup quality and programme focus directly modify qualifying/race performance. Preparation, confidence and fatigue feed the driver condition modifier; component wear feeds car performance and reliability. Setup knowledge is indirect: it helps generate setup quality and preparation rather than adding a second hidden bonus.
+                  Setup Quality measures how close the final setup is to the circuit target and directly affects qualifying/race performance. Setup Knowledge measures what the Team learned in Practice and contributes to preparation rather than applying a second hidden performance bonus. Confidence, fatigue and component wear continue to affect driver/car performance through their existing systems.
                 </p>
               </div>
 
@@ -870,10 +848,10 @@ export default function RaceWeekend(){
             </div>
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.08] px-3 py-2 text-sm text-sky-100">
               <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-sky-300"><Droplets className="h-3.5 w-3.5"/>Team Forecast</div>
-              <div className="mt-1 font-semibold">{strategyTeamForecast}</div>
+              <div className="mt-1 font-semibold">{strategyTeamForecast.message}</div>
               <div className="mt-0.5 text-xs text-sky-200/70">
-                {String(raceForecast?.predicted_state||"UNKNOWN").replaceAll("_"," ")} · rain {Number(raceForecast?.rain_chance_pct||0).toFixed(0)}%
-                {raceForecast?<>{" · confidence "}{Number(raceForecast.confidence_pct||0).toFixed(0)}%</>:null}
+                {String(strategyTeamForecast.predicted_state||"UNKNOWN").replaceAll("_"," ")} · rain {Number(strategyTeamForecast.rain_chance_pct||0).toFixed(0)}%
+                {Number.isFinite(Number(strategyTeamForecast.confidence_pct))?<>{" · confidence "}{Number(strategyTeamForecast.confidence_pct).toFixed(0)}%</>:null}
               </div>
             </div>
           </div>
@@ -948,7 +926,7 @@ export default function RaceWeekend(){
                     <h3 className="text-xl font-semibold">Lap {liveRace.current_lap} / {liveRace.total_laps}</h3>
                     <span className="text-sm text-slate-400">{String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}</span>
                     <span className="hidden h-4 w-px bg-white/10 sm:block"/>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-sky-200"><Droplets className="h-3.5 w-3.5 text-sky-300"/><span className="font-semibold">Team Forecast:</span> {liveTeamForecast}</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-sky-200"><Droplets className="h-3.5 w-3.5 text-sky-300"/><span className="font-semibold">Team Forecast:</span> {liveTeamForecast.message}{Number.isFinite(Number(liveTeamForecast.confidence_pct))?<>{" "}<span className="text-sky-300/70">({Number(liveTeamForecast.confidence_pct).toFixed(0)}% confidence)</span></>:null}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
@@ -1014,23 +992,12 @@ export default function RaceWeekend(){
                 <div className="text-[10px] text-slate-600">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} running · {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length} DNF</div>
               </div>
               <div className="mt-2 grid gap-x-5 gap-y-1 text-xs md:grid-cols-2">
-                {(liveRace.events||[]).slice(-6).reverse().map((event,index)=>{
-                  const severity=event?.severity?String(event.severity).toUpperCase():null;
-                  const incidentReason=String(event?.incident_reason||"incident").replaceAll("_"," ");
-                  const structuredControl=event?.type==="race_control"&&event?.driver_id&&severity;
-                  return <div className="flex min-w-0 items-center gap-2" key={index}>
+                {(liveRace.events||[]).slice(-6).reverse().map((event,index)=>(
+                  <div className="flex min-w-0 items-center gap-2" key={event?.event_key||index}>
                     <span className="shrink-0 font-mono text-slate-600">L{event.lap}</span>
-                    {structuredControl?(
-                      <span className="min-w-0 truncate text-slate-300">
-                        {raceControlFeedLabel(event.control_type)} due to {driverName(drivers,event.driver_id)}'s{" "}
-                        <span className={"mx-0.5 inline-flex rounded px-1 py-0.5 text-[9px] font-bold "+severityTone(event.severity)}>{severity}</span>{" "}
-                        {incidentReason}.
-                      </span>
-                    ):(
-                      <span className="truncate text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
-                    )}
-                  </div>;
-                })}
+                    <span className="truncate text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
+                  </div>
+                ))}
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
               </div>
             </div>
