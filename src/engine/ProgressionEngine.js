@@ -143,6 +143,35 @@ const ATTRIBUTE_MULTIPLIER={
   technical_feedback:0.50,start_launch:0.85,
 };
 
+const ACADEMY_PLAN_DELTAS=Object.freeze({
+  "General Development":{pace:0.05,racecraft:0.05,consistency:0.05,technical_feedback:0.03},
+  "Racecraft":{racecraft:0.12,race_intelligence:0.08,consistency:0.04},
+  "Technical Feedback":{technical_feedback:0.14,adaptability:0.06,race_intelligence:0.04},
+  "Fitness":{consistency:0.08,pressure_handling:0.06,start_launch:0.04},
+  "Private Testing Support":{technical_feedback:0.09,pace:0.05,qualifying:0.04},
+  "Race Entry Support":{racecraft:0.10,race_intelligence:0.08,pressure_handling:0.05},
+  "Technical Mentoring":{technical_feedback:0.12,consistency:0.05,adaptability:0.06},
+});
+
+function academySupportEntry(gs,driverId){
+  return (gs?.academy?.drivers||[]).find((row)=>
+    String(row?.driver_id??row?.person_id??row?.id??"")===String(driverId) &&
+    String(row?.status??"active").toLowerCase()!=="inactive"
+  )||null;
+}
+function youthProgrammeLevel(gs){
+  const direct=Number(gs?.hq?.facilityLevels?.youth_program_level);
+  if(Number.isFinite(direct))return clamp(direct,0,10);
+  const year=Number(gs?.activeYear);
+  const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const row=(gs?.facilities||gs?.dbFacilities||[]).find((r)=>
+    String(pick(r,["team_id","team"],""))===teamId &&
+    (!Number.isFinite(Number(pick(r,["year","season_year"],year)))||Number(pick(r,["year","season_year"],year))===year)
+  );
+  const value=Number(pick(row||{},["youth_program_level"],0));
+  return Number.isFinite(value)?clamp(value,0,10):0;
+}
+
 function applyDelta(rating,key,delta,changes,driverId,dateISO,source){
   if(!Number.isFinite(Number(rating?.[key]))||!Number.isFinite(Number(delta))||Math.abs(delta)<0.001)return;
   const before=Number(rating[key]);
@@ -217,6 +246,21 @@ function monthlyProgression(gs,ratings,dateISO){
       if(weakest){
         const autoGain=(0.055+Math.max(0,Math.min(10,sim))*0.006)*(age<=32?1:0.55);
         applyDelta(rating,weakest,autoGain,changes,did,dateISO,"ai_training");
+      }
+    }
+
+    const academyEntry=academySupportEntry(gs,did);
+    if(academyEntry){
+      const plan=String(academyEntry.program||"General Development");
+      const deltas=ACADEMY_PLAN_DELTAS[plan]||ACADEMY_PLAN_DELTAS["General Development"];
+      const youthLevel=youthProgrammeLevel(gs);
+      const formal=String(academyEntry.mode||"").toLowerCase()==="academy";
+      const supportFactor=formal
+        ?Math.max(0.85,Math.min(1.35,0.90+youthLevel*0.045))
+        :0.68;
+      const ageFactor=age<=22?1:age<=25?0.75:0.45;
+      for(const [key,delta] of Object.entries(deltas)){
+        applyDelta(rating,key,delta*supportFactor*ageFactor,changes,did,dateISO,"academy_"+plan.toLowerCase().replaceAll(" ","_"));
       }
     }
 
