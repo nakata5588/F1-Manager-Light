@@ -6,6 +6,14 @@ import AdvanceButton from "./AdvanceButton";   // 👈 novo import
 import { useGame } from "../../state/GameStore";
 
 /* ==== helpers brand ==== */
+function resolvePlayerTeam(gameState) {
+  if (gameState?.team) return gameState.team;
+  const savedId = gameState?.saveMeta?.teamId ?? gameState?.saveMeta?.team_id ?? gameState?.teamId ?? null;
+  if (!savedId) return null;
+  return (gameState?.teams || []).find(
+    (row) => String(row?.team_id ?? row?.id ?? "") === String(savedId)
+  ) || null;
+}
 function readLS(key) {
   try {
     return window.localStorage.getItem(key);
@@ -104,8 +112,8 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
 
   if (!gameState) return null;
 
+  const team = useMemo(() => resolvePlayerTeam(gameState), [gameState]);
   const {
-    team,
     standings,
     calendar = [],
     currentRound = 0,
