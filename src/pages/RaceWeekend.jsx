@@ -242,14 +242,15 @@ export default function RaceWeekend(){
     {position:Number(row?.position??index+1),points:Number(row?.points??0)},
   ]));
 
+  const terminalWeekend=["results","completed"].includes(String(weekend?.phase));
   const windowTabs=[
     {id:"overview",label:"Overview",enabled:true},
-    {id:"practice",label:"Practice",enabled:Boolean(weekend?.practice)||["practice","practice_complete"].includes(String(weekend?.phase))},
-    {id:"qualifying",label:"Qualifying",enabled:qualifyingSessions.length>0},
-    {id:"strategy",label:"Strategy",enabled:Boolean(raceStrategy)},
-    {id:"grid",label:"Starting Grid",enabled:startingGridRows.length>0},
-    {id:"live",label:"Live Timing",enabled:Boolean(liveRace)||String(weekend?.phase)==="race"},
-    {id:"classification",label:"Classification",enabled:Boolean(lastResult)||["results","completed"].includes(String(weekend?.phase))},
+    {id:"practice",label:"Practice",enabled:!terminalWeekend&&(Boolean(weekend?.practice)||["practice","practice_complete"].includes(String(weekend?.phase)))},
+    {id:"qualifying",label:"Qualifying",enabled:!terminalWeekend&&qualifyingSessions.length>0},
+    {id:"strategy",label:"Strategy",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&Boolean(raceStrategy)},
+    {id:"grid",label:"Starting Grid",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&startingGridRows.length>0},
+    {id:"live",label:"Live Timing",enabled:String(weekend?.phase)==="race"},
+    {id:"classification",label:"Classification",enabled:Boolean(lastResult)||terminalWeekend},
   ];
 
   if(!weekend){
