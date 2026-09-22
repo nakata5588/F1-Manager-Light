@@ -1,7 +1,8 @@
 // src/core/saveSafety.js
 import { hashSeed } from "./random.js";
+import { normalizePhysicalPartState } from "../domain/partUnits.js";
 
-export const SAVE_SCHEMA_VERSION = 1;
+export const SAVE_SCHEMA_VERSION = 2;
 export const MIN_SUPPORTED_SAVE_SCHEMA_VERSION = 0;
 export const GAME_VERSION = "1.0.1";
 
@@ -84,8 +85,30 @@ function migrateV0ToV1(state) {
   return next;
 }
 
+function migrateV1ToV2(state) {
+  const normalized = normalizePhysicalPartState(clone(state));
+  const existingMeta = isRecord(normalized.saveMeta) ? normalized.saveMeta : {};
+  normalized.saveMeta = {
+    ...existingMeta,
+    schemaVersion: 2,
+    gameVersion: String(existingMeta.gameVersion ?? GAME_VERSION),
+    seed: String(existingMeta.seed ?? stableLegacySeed(normalized)),
+    migrations: [
+      ...(Array.isArray(existingMeta.migrations) ? existingMeta.migrations : []),
+      {
+        id: "save-schema-v1-to-v2-physical-part-units",
+        from: 1,
+        to: 2,
+        policy: "migrate_part_design_inventory_to_independent_physical_units",
+      },
+    ],
+  };
+  return normalized;
+}
+
 const MIGRATIONS = new Map([
   [0, migrateV0ToV1],
+  [1, migrateV1ToV2],
 ]);
 
 export function migrateGameState(input) {
