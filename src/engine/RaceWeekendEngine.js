@@ -3,9 +3,10 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
-import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
+import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
+import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import {
   advancingDriverIds,
   buildQualifyingClassification,
@@ -117,7 +118,16 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     teamEntryLimits:qualifyingRule.team_entry_limits,
   });
   const schedule=raceWeekendSchedule(gp,qualifyingRule);
-  const strategyBuilt=createRaceStrategyState(next,{gp,raceEntryState});
+  const weekendWeather=createWeekendWeatherState(next,{gp,sessions:schedule.sessions});
+  const provisionalWeekend={
+    key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
+    gp_id:id,
+    track_id:gp?.track_id||null,
+    raceDate:schedule.raceDate,
+    active_session_id:"practice",
+    weekend_weather:weekendWeather,
+  };
+  const strategyBuilt=createRaceStrategyState({...next,raceWeekendState:provisionalWeekend},{gp,raceEntryState});
   next=strategyBuilt.gameState;
   const state={
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
@@ -139,6 +149,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     qualifying_rule_snapshot:{...qualifyingRule},
     practice:null,
     practice_selections:{},
+    weekend_weather:weekendWeather,
     qualifying:{
       status:"pending",
       strategy:qualifyingRule.strategy,
@@ -289,10 +300,12 @@ export function completePracticeSession(gs,{gp}={}){
   const interim={...weekend,sessions};
   const nextCompetitive=nextPendingCompetitiveSession(interim);
 
+  const weatherObserved=observeWeekendWeatherSession(session.gameState,"practice");
   return {
-    ...session.gameState,
+    ...weatherObserved,
     raceWeekendState:{
       ...interim,
+      weekend_weather:weatherObserved?.raceWeekendState?.weekend_weather||interim.weekend_weather,
       phase:"practice_complete",
       active_session_id:nextCompetitive?.id||"grid",
       practice_selections:weekend.practice_selections||{},
@@ -318,7 +331,10 @@ export function completeQualifyingSession(gs,{gp}={}){
     eligibleDriverIds,
   });
 
-  const sessionGameState=applyQualifyingFatigue(simulated.gameState,simulated.qualifying,current.type);
+  const sessionGameState=observeWeekendWeatherSession(
+    applyQualifyingFatigue(simulated.gameState,simulated.qualifying,current.type),
+    current.id
+  );
 
   let normalized=simulated.qualifying.map((row,index)=>({
     position:Number(row.pos??index+1),
@@ -326,6 +342,12 @@ export function completeQualifyingSession(gs,{gp}={}){
     team_id:teamForDriver(simulated.raceEntryState,driverIdOf(row)),
     performance:Number(row.performance||0),
     lap_time_ms:Number(row.lap_time_ms||0),
+    wet_session:Boolean(row.wet_session),
+    weather_state:row.weather_state??null,
+    track_wetness:Number(row.track_wetness||0),
+    track_grip:Number(row.track_grip||0),
+    air_temp_c:Number(row.air_temp_c||0),
+    track_temp_c:Number(row.track_temp_c||0),
   }));
 
   const rule=weekend.qualifying_rule_snapshot||resolveQualifyingRules(simulated.gameState,targetGp);
@@ -369,6 +391,7 @@ export function completeQualifyingSession(gs,{gp}={}){
       raceEntryState:simulated.raceEntryState,
       raceWeekendState:{
         ...interim,
+        weekend_weather:sessionGameState?.raceWeekendState?.weekend_weather||interim.weekend_weather,
         phase,
         active_session_id:next.id,
         qualifying,
@@ -390,11 +413,12 @@ export function completeQualifyingSession(gs,{gp}={}){
     results:startingGrid.rows,
   });
 
-  return {
+  const completedState={
     ...sessionGameState,
     raceEntryState:simulated.raceEntryState,
     raceWeekendState:{
       ...interim,
+      weekend_weather:sessionGameState?.raceWeekendState?.weekend_weather||interim.weekend_weather,
       sessions,
       phase:"grid_ready",
       active_session_id:"grid",
@@ -413,6 +437,7 @@ export function completeQualifyingSession(gs,{gp}={}){
       grid:startingGrid.rows,
     },
   };
+  return refreshPlayerRaceStrategyFromForecast(completedState);
 }
 
 export async function completeRaceSession(gs,{gp}={}){

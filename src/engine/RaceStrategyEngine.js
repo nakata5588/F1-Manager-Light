@@ -10,6 +10,7 @@ import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { raceControlAtLap } from "./RaceControlEngine.js";
+import { raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -273,6 +274,34 @@ function weatherStateRisk(gs,state){
   return {SUNNY:1,CLOUDY:1,WINDY:1.2,LIGHT_RAIN:1.6,HEAVY_RAIN:2.4,STORM:3.2}[state]||1;
 }
 export function buildRaceWeatherSnapshot(gs,gp={},track=raceTrackProfile(gs,gp)){
+  const weekendRace=raceWeekendWeatherSession(gs);
+  if(weekendRace){
+    const pctSegments=Array.isArray(weekendRace.segments)&&weekendRace.segments.length
+      ?weekendRace.segments
+      :[{from_pct:0,to_pct:1,state:weekendRace.state||"SUNNY"}];
+    const segments=pctSegments.map((segment,index)=>{
+      const from=Math.max(1,index===0?1:Math.floor(Number(segment.from_pct||0)*track.laps)+1);
+      const to=index===pctSegments.length-1
+        ?track.laps
+        :Math.max(from,Math.floor(Number(segment.to_pct??1)*track.laps));
+      return {from_lap:from,to_lap:Math.min(track.laps,to),state:segment.state||weekendRace.state||"SUNNY"};
+    });
+    return {
+      source:"weekend_weather_world",
+      state:weekendRace.state||segments[0]?.state||"SUNNY",
+      avg_temp_c:num(weekendRace.air_temp_c,22),
+      track_temp_c:num(weekendRace.track_temp_c,28),
+      rain_chance_pct:num(weekendRace.rain_chance_profile_pct,0),
+      storm_chance_pct:num(weekendRace.storm_chance_profile_pct,0),
+      wind_profile:weekendRace.wind_profile||"medium",
+      wet_race:segments.some((s)=>/RAIN|STORM|WETTING/.test(String(s.state)))||num(weekendRace?.track?.start_wetness,0)>=0.18,
+      starting_track_wetness:num(weekendRace?.track?.start_wetness,0),
+      starting_grip_index:num(weekendRace?.track?.grip_index,88),
+      rubber_level:num(weekendRace?.track?.rubber_level,0),
+      segments,
+    };
+  }
+
   const year=Number(gs?.activeYear)||Number(gp?.year)||1980;
   const gpId=String(gp?.gp_id??gp?.id??gp?.track_id??"race");
   const rng=rngFor(gs,`${year}-${gpId}-rw4-weather`);
@@ -399,11 +428,25 @@ export function createRaceStrategyState(gs,{gp={},raceEntryState=gs?.raceEntrySt
   const rules=raceStrategyRulesForYear(worldGs?.activeYear??gp?.year);
   const track=raceTrackProfile(worldGs,gp);
   const weather=buildRaceWeatherSnapshot(worldGs,gp,track);
+  const raceSession=raceWeekendWeatherSession(worldGs);
+  const playerForecast=raceSession
+    ?worldGs?.raceWeekendState?.weekend_weather?.forecast?.[String(raceSession.id)]
+    :null;
+  const forecastWeather=playerForecast?{
+    source:"team_forecast",
+    state:playerForecast.predicted_state||"SUNNY",
+    avg_temp_c:num(playerForecast.air_temp_c,weather.avg_temp_c),
+    rain_chance_pct:num(playerForecast.rain_chance_pct,0),
+    wet_race:/RAIN|STORM|WETTING|DRYING/.test(String(playerForecast.predicted_state||"")),
+    segments:[{from_lap:1,to_lap:track.laps,state:playerForecast.predicted_state||"SUNNY"}],
+  }:weather;
+  const playerTeam=teamId(worldGs?.team||{});
   const selections={};
   for(const entry of raceEntryState?.entries||[]){
     if(entry?.status&&entry.status!=="confirmed")continue;
     if(!entry?.driver_id)continue;
-    selections[String(entry.driver_id)]=defaultStrategy(worldGs,entry,weather,track,rules);
+    const planningWeather=String(entry?.team_id??"")===playerTeam?forecastWeather:weather;
+    selections[String(entry.driver_id)]=defaultStrategy(worldGs,entry,planningWeather,track,rules);
   }
   return {
     gameState:worldGs,
@@ -415,6 +458,38 @@ export function createRaceStrategyState(gs,{gp={},raceEntryState=gs?.raceEntrySt
       weather_snapshot:weather,
       selections,
       race_summary:null,
+    },
+  };
+}
+
+export function refreshPlayerRaceStrategyFromForecast(gs){
+  const weekend=gs?.raceWeekendState;
+  const existing=weekend?.race_strategy;
+  if(!weekend||!existing)return gs;
+  const raceSession=raceWeekendWeatherSession(gs);
+  const forecast=raceSession?weekend?.weekend_weather?.forecast?.[String(raceSession.id)]:null;
+  if(!forecast)return gs;
+  const track=existing.track_snapshot||raceTrackProfile(gs,{});
+  const rules=existing.rules_snapshot||raceStrategyRulesForYear(gs?.activeYear);
+  const planningWeather={
+    source:"team_forecast",
+    state:forecast.predicted_state||"SUNNY",
+    avg_temp_c:num(forecast.air_temp_c,existing?.weather_snapshot?.avg_temp_c??22),
+    rain_chance_pct:num(forecast.rain_chance_pct,0),
+    wet_race:/RAIN|STORM|WETTING|DRYING/.test(String(forecast.predicted_state||"")),
+    segments:[{from_lap:1,to_lap:track.laps,state:forecast.predicted_state||"SUNNY"}],
+  };
+  const playerTeam=teamId(gs?.team||{});
+  const selections={...(existing.selections||{})};
+  for(const entry of gs?.raceEntryState?.entries||[]){
+    if(String(entry?.team_id??"")!==playerTeam||!entry?.driver_id)continue;
+    selections[String(entry.driver_id)]=defaultStrategy(gs,entry,planningWeather,track,rules);
+  }
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      race_strategy:{...existing,selections,forecast_revision_used:Number(weekend?.weekend_weather?.forecast_revision||0)},
     },
   };
 }
