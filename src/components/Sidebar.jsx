@@ -30,6 +30,15 @@ const HelmetIcon = ({ className = "w-5 h-5" }) => (
   </svg>
 );
 
+function resolvePlayerTeam(gameState) {
+  if (gameState?.team) return gameState.team;
+  const savedId = gameState?.saveMeta?.teamId ?? gameState?.saveMeta?.team_id ?? gameState?.teamId ?? null;
+  if (!savedId) return null;
+  return (gameState?.teams || []).find(
+    (row) => String(row?.team_id ?? row?.id ?? "") === String(savedId)
+  ) || null;
+}
+
 function resolveTeamBrand(teamBrands, teamObj) {
   if (!Array.isArray(teamBrands) || !teamBrands.length || !teamObj) return null;
   const keyId = String(teamObj.team_id ?? teamObj.id ?? "").toLowerCase();
@@ -75,7 +84,7 @@ const Item = ({ to, label, icon: IconComp, brand, badge = 0 }) => {
 export default function Sidebar() {
   const { gameState } = useGame();
   const eventNews = useEventStore((s) => s.news);
-  const team = gameState?.team || null;
+  const team = useMemo(() => resolvePlayerTeam(gameState), [gameState]);
   const [brands, setBrands] = useState([]);
 
   useEffect(() => {
