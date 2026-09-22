@@ -153,7 +153,7 @@ export default function HQ(){
             <div className="flex justify-between text-sm"><span>Upgrade to level {u.target_level}</span><strong>{Math.round(pct*100)}%</strong></div>
             <div className="h-2 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-200" style={{width:`${pct*100}%`}}/></div>
             <div className="text-xs text-slate-400">{niceDate(u.started_at)} → {niceDate(u.finishes_at)} · {fmtMoney(u.cost)}</div>
-            <Button size="sm" variant="outline" onClick={()=>cancelUpgrade(u.id)}>Cancel (50% refund)</Button>
+            <Button size="sm" variant="darkOutline" onClick={()=>cancelUpgrade(u.id)}>Cancel (50% refund)</Button>
           </div>:<div className="flex items-center justify-between gap-2">
             <div className="text-xs text-slate-400">Next level: {fmtMoney(nextCost)}</div>
             <Button size="sm" onClick={()=>startUpgrade(f)} disabled={level>=10||budget<nextCost}>{level>=10?"Max level":"Upgrade"}</Button>
