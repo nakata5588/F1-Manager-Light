@@ -83,6 +83,9 @@ jobs:
       - name: Test live race control
         run: npm run test:live-race
 
+      - name: Test race control and weather effects
+        run: npm run test:race-control
+
       - name: Test injuries and replacement drivers
         run: npm run test:injuries
 
