@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "../../state/GameStore.js";
 import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
-import { activeDriverContract, driverContractsOf, driverIdOf, teamIdOf } from "../../domain/driverContracts.js";
+import { driverContractsOf, driverIdOf, teamIdOf } from "../../domain/driverContracts.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 import { entityProfilePath } from "../../domain/entityRoutes.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
@@ -162,7 +162,13 @@ export function TeamQuickView({entity,onClose}){
   const base=pick(team,["team_base","base"],pick(brand,["base"],""));
   const standings=asRows(gs?.standings?.teams);
   const standing=standings.find((row)=>String(row?.team_id??row?.id??"")===id)||null;
-  const contracts=driverContractsOf(gs).filter((row)=>String(teamIdOf(row))===id&&isDriverContract(row));
+  const contracts=driverContractsOf(gs).filter((row)=>{
+    if(String(teamIdOf(row))!==id||!isDriverContract(row))return false;
+    const rowYear=Number(row?.year??row?.season_year);
+    const status=String(row?.status??"active").toLowerCase();
+    if(["inactive","ended","cancelled","released"].includes(status))return false;
+    return !Number.isFinite(year)||!Number.isFinite(rowYear)||rowYear===year;
+  });
   const drivers=[...asRows(gs?.dbDrivers),...asRows(gs?.drivers)];
   const lineUp=contracts
     .map((contract)=>{
