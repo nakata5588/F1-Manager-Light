@@ -77,6 +77,9 @@ jobs:
       - name: Test era-aware race strategy
         run: npm run test:race-strategy
 
+      - name: Test live race control
+        run: npm run test:live-race
+
       - name: Test injuries and replacement drivers
         run: npm run test:injuries
 
