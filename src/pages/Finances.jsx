@@ -748,7 +748,7 @@ function SponsorsTab({ sponsors }) {
             </div>
           </div>
           <div className="flex-1" />
-          <Button variant="outline" onClick={loadCatalog} disabled={loading}>
+          <Button variant="darkOutline" onClick={loadCatalog} disabled={loading}>
             {loading ? "Loading…" : "Find sponsors"}
           </Button>
         </CardContent>
@@ -806,7 +806,7 @@ function SponsorsTab({ sponsors }) {
               <div className="font-semibold">Sponsor Negotiation — {String(pick(negotiating,["sponsor_name","name"],"Sponsor"))}</div>
               <div className="text-xs text-slate-400">Round {negotiationRound} · Commercial Score {commercialScore}/100</div>
             </div>
-            <Button size="sm" variant="outline" onClick={()=>{setNegotiating(null);setNegotiationNote("");}}>Walk Away</Button>
+            <Button size="sm" variant="darkOutline" onClick={()=>{setNegotiating(null);setNegotiationNote("");}}>Walk Away</Button>
           </div>
           <p className="text-sm text-slate-400">{negotiationNote}</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -822,7 +822,7 @@ function SponsorsTab({ sponsors }) {
           </div>
           <div className="flex gap-2">
             <Button onClick={submitSponsorOffer}>Submit Offer</Button>
-            <Button variant="outline" onClick={()=>startSponsorNegotiation(negotiating)}>Reset to Sponsor Terms</Button>
+            <Button variant="darkOutline" onClick={()=>startSponsorNegotiation(negotiating)}>Reset to Sponsor Terms</Button>
           </div>
         </CardContent></Card>
       )}
