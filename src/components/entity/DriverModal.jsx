@@ -540,57 +540,46 @@ export default function DriverModal({ entity, onClose }) {
     };
   }, [careerTimeline]);
 
-  // Historical achievement IDs are not fully aligned with the current driver IDs.
-  // Prefer exact achievement records, then fill gaps from the driver's own career rows.
+  // Achievements are championship outcomes, not a duplicate wins/podium log.
+  // Historical seasons use career/achievement data; played seasons use the
+  // archived standings derived from actual race results.
   const achievementsList = useMemo(() => {
-    const direct = achievementsArr
-      .filter((a) => sameDriver(extractDriverId(a), idNorm))
-      .filter((a) => Number(unbox(a.year)) < Number(careerStartYear))
-      .map((a) => ({ ...a, __source: "achievements" }));
-
-    const derived = (careerAll || [])
-      .filter((r) => Number(unbox(r?.year)) < Number(careerStartYear))
-      .filter((r) => {
-        const wins = Number(unbox(r?.wins) || 0);
-        const podiums = Number(unbox(r?.podiums) || 0);
-        const pos = Number(unbox(r?.champ_pos));
-        return wins > 0 || podiums > 0 || (Number.isFinite(pos) && pos <= 3);
-      })
-      .map((r) => ({
-        driver_id: driver?.driver_id ?? entity.id,
-        team_id: unbox(r?.team_id) ?? null,
-        team_name: unbox(r?.team_name) ?? "—",
-        year: Number(unbox(r?.year)),
-        wins: Number(unbox(r?.wins) || 0),
-        podiums: Number(unbox(r?.podiums) || 0),
-        driver_championship: isNumeric(r?.champ_pos) ? Number(unbox(r?.champ_pos)) : null,
-        team_championship: null,
-        __source: "career",
-      }));
-
-    if (liveSeasonRow && (liveSeasonRow.wins > 0 || liveSeasonRow.podiums > 0)) {
-      derived.push({
-        driver_id: driver?.driver_id ?? entity.id,
-        team_id: liveSeasonRow.team_id,
-        team_name: liveSeasonRow.team_name,
-        year: gameYear,
-        wins: liveSeasonRow.wins,
-        podiums: liveSeasonRow.podiums,
-        driver_championship: liveSeasonRow.champ_pos,
-        team_championship: null,
-        __source: "live",
-        __live: true,
+    const map=new Map();
+    const add=(row,priority=0)=>{
+      const year=Number(unbox(row?.year));
+      const pos=Number(unbox(
+        row?.driver_championship ??
+        row?.championship_position ??
+        row?.champ_pos ??
+        row?.position
+      ));
+      if(!Number.isFinite(year)||year>=Number(gameYear))return;
+      if(!Number.isFinite(pos)||pos<1||pos>3)return;
+      const series=String(getSeries(row)||"F1").toUpperCase();
+      if(series&&series!=="F1")return;
+      const key=String(year);
+      const prev=map.get(key);
+      if(prev&&Number(prev.__priority||0)>priority)return;
+      map.set(key,{
+        year,
+        position:pos,
+        achievement:pos===1?"World Champion":`Championship P${pos}`,
+        team_id:unbox(row?.team_id)??null,
+        team_name:displayValue(row?.team_name??row?.team,"—"),
+        __priority:priority,
       });
-    }
+    };
 
-    const map = new Map();
-    for (const row of [...derived, ...direct]) {
-      const key = [Number(unbox(row.year)), String(unbox(row.team_id) ?? unbox(row.team_name) ?? "")].join("|");
-      map.set(key, row);
+    for(const row of achievementsArr||[]){
+      if(sameDriver(extractDriverId(row),idNorm))add(row,1);
     }
-    return [...map.values()].sort((a,b) => Number(unbox(a.year)||0) - Number(unbox(b.year)||0));
-  }, [achievementsArr, careerAll, liveSeasonRow, idNorm, gameYear, careerStartYear, driver?.driver_id, entity.id]);
+    for(const row of careerAll||[])add(row,2);
+    for(const row of simulatedCareerRows||[])add(row,3);
 
+    return [...map.values()]
+      .map(({__priority,...row})=>row)
+      .sort((a,b)=>Number(a.year)-Number(b.year));
+  }, [achievementsArr,careerAll,simulatedCareerRows,idNorm,gameYear]);
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
     if (!Number.isFinite(rookie) || !Number.isFinite(gameYear)) return null;
