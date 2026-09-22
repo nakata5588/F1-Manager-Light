@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
+import { flagFromCountry } from "./EntityVisuals.jsx";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -17,22 +18,6 @@ const TABS = [
 /* ===================== HELPERS ===================== */
 const fmtMoney = (n) =>
   n == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
-
-function flagFromCountry(country = "", code = "") {
-  const cc = (code || "").toUpperCase();
-  if (cc.length === 2) return String.fromCodePoint(...[...cc].map((c) => 0x1f1a5 + c.charCodeAt(0)));
-  const s = String(country).toLowerCase();
-  if (s.includes("austria")) return "🇦🇹";
-  if (s.includes("united kingdom") || s.includes("uk") || s.includes("brit")) return "🇬🇧";
-  if (s.includes("ital")) return "🇮🇹";
-  if (s.includes("german")) return "🇩🇪";
-  if (s.includes("france")) return "🇫🇷";
-  if (s.includes("spain")) return "🇪🇸";
-  if (s.includes("japan")) return "🇯🇵";
-  if (s.includes("nether")) return "🇳🇱";
-  if (s.includes("brazil")) return "🇧🇷";
-  return "🏳️";
-}
 
 function Info({ label, value }) {
   return (
