@@ -26,22 +26,24 @@ export function defaultBaseComponentStock(slots=CAR_COMPONENT_SLOTS){
   return Object.fromEntries((slots||CAR_COMPONENT_SLOTS).map((slot)=>[slot,0]));
 }
 
+// Game-economy values are calibrated to public relative modern F1 cost anchors
+// (chassis >> gearbox >> wings) rather than claiming exact historical invoices.
 export const BASE_COMPONENT_BUILD_COST=Object.freeze({
-  chassis:250000,
-  aero_front:65000,
-  aero_rear:80000,
-  suspension:95000,
-  gearbox:145000,
-  brakes:55000,
-  cooling:70000,
-  turbocharger:170000,
-  electronics:90000,
-  kers:240000,
-  ers_mgu_k:290000,
-  ers_mgu_h:315000,
-  battery_pack:260000,
-  fuel_system:80000,
-  exhaust_system:75000,
+  chassis:600000,
+  aero_front:90000,
+  aero_rear:110000,
+  suspension:125000,
+  gearbox:350000,
+  brakes:70000,
+  cooling:95000,
+  turbocharger:200000,
+  electronics:100000,
+  kers:250000,
+  ers_mgu_k:350000,
+  ers_mgu_h:400000,
+  battery_pack:280000,
+  fuel_system:100000,
+  exhaust_system:80000,
 });
 
 export function baseComponentConstructionCost(gs,slot){
