@@ -192,7 +192,20 @@ function rangeFor(knowledge,field,value,kind){
   const left=1+(stableHash(`${knowledge.driver_id}:${field}:${knowledge.level}`)%(span-1));
   let min=raw-left;
   min=Math.max(0,Math.min(100-span,min));
-  const max=min+span;
+  let max=min+span;
+
+  // Never make the exact value trivially recoverable as the midpoint of a
+  // displayed estimate range. Keep the real value inside the interval while
+  // shifting the range when necessary.
+  if((min+max)/2===raw){
+    if(max<100){
+      min+=1;
+      max+=1;
+    }else if(min>0){
+      min-=1;
+      max-=1;
+    }
+  }
   return {min,max};
 }
 
