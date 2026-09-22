@@ -4,6 +4,7 @@ import { ageOn } from "../utils/date.js";
 import { DriverPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import { expectedDriverSalary } from "../domain/driverContracts.js";
+import { openingMarketLabel } from "../domain/driverOpeningState.js";
 import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import {
@@ -33,9 +34,11 @@ const statusClass=(status)=>{
   return "bg-blue-100 text-blue-800";
 };
 
-function marketStatus(driver, contract, pending){
+function marketStatus(driver, contract, pending, activeYear){
   if(pending) return "Negotiating";
   if(contract) return "Contracted";
+  const openingLabel=openingMarketLabel(driver,activeYear);
+  if(openingLabel) return openingLabel;
   const age=Number(driver?.age);
   const lowerSeries=
     driver?.status==="lower_series" ||
@@ -138,7 +141,7 @@ export default function Drivers(){
       ?driverNegotiationEligibility(gs,{driverId:id,teamId:userTeamId})
       :{canNegotiate:false,reason:"no_team",roles:[]};
     const tid=teamIdOf(contract)||teamIdOf(d);
-    const ms=marketStatus(d,contract,pending);
+    const ms=marketStatus(d,contract,pending,activeYear);
     const overallView=driverOverallPresentation(gs,d);
     const role=contract?contractRoleLabel(contract):(pending?.offer?.role||pending?.personal_offer?.role||null);
     const contractSalary=contract?Number(pick(contract,["salary","salary_yearly"],0))||0:0;
@@ -167,7 +170,7 @@ export default function Drivers(){
   }),[drivers,ratingById,contractById,activePlayerByDriver,activeTransferByDriver,teamNames,gs]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
-  const statusOptions=["ALL","Contracted","Negotiating","Free","Youth","Lower Series","Available"];
+  const statusOptions=["ALL","Contracted","Negotiating","Free","Other Series","Prospect","Youth","Lower Series","Team Commitment","Status Review","Retired","Unavailable","Available"];
 
   const filtered=useMemo(()=>{
     const n=q.trim().toLowerCase();
