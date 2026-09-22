@@ -964,9 +964,12 @@ export default function RaceWeekend(){
                 </div>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
                   <label className="text-xs text-slate-400">Start tyre
-                    <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
-                      {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
-                    </select>
+                    <div className="mt-1 flex items-center gap-2">
+                      <TyreCompoundIcon compound={tyreName(tyres,selection.start_tyre_id)} size={30}/>
+                      <select className="min-w-0 flex-1 border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
+                        {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                      </select>
+                    </div>
                   </label>
                   <label className="text-xs text-slate-400">Pace
                     <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pace_mode||"balanced"} onChange={(e)=>setRaceStrategy(did,{pace_mode:e.target.value})}>
@@ -979,9 +982,12 @@ export default function RaceWeekend(){
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Next tyre
-                    <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
-                      {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
-                    </select>
+                    <div className="mt-1 flex items-center gap-2">
+                      <TyreCompoundIcon compound={tyreName(tyres,selection.next_tyre_id||selection.start_tyre_id)} size={30}/>
+                      <select className="min-w-0 flex-1 border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
+                        {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                      </select>
+                    </div>
                   </label>
                   {selection.pit_plan==="one_stop"?(
                     <label className="text-xs text-slate-400">Target lap
@@ -1083,6 +1089,11 @@ export default function RaceWeekend(){
                 {(liveRace.events||[]).slice(-6).reverse().map((event,index)=>(
                   <div className="flex min-w-0 items-center gap-2" key={event?.event_key||index}>
                     <span className="shrink-0 font-mono text-slate-600">L{event.lap}</span>
+                    {(()=>{
+                      const eventCompound=event?.tyre_to
+                        ||(event?.command?.tyre_id?tyreName(gs?.tyres||gs?.dbTyres||[],event.command.tyre_id):null);
+                      return eventCompound?<TyreCompoundIcon compound={eventCompound} size={20}/>:null;
+                    })()}
                     <span className="truncate text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
                   </div>
                 ))}
@@ -1198,6 +1209,9 @@ export default function RaceWeekend(){
                         {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
                       </select>
                       <Wrench className="h-4 w-4 text-slate-500"/>
+                      <div className="flex items-center gap-1" title="Available pit compounds">
+                        {teamTyres.map((tyre)=><TyreCompoundIcon key={tyre.tyre_id} compound={tyre.compound_name} size={20}/>)}
+                      </div>
                       <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
                         <option value="">Stay out</option>
                         {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
