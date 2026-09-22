@@ -732,6 +732,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     let refuelled=false;
     let activePaceMode=strategy.pace_mode;
     let liveCommandIndex=0;
+    let accumulatedFatigueLoad=0;
+    let maxTyreRiskMultiplier=1;
+    const strategyDecisions=[];
 
     for(let lap=1;lap<=track.laps;lap++){
       const commandsThisLap=[];
@@ -757,17 +760,49 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
       const remaining=track.laps-lap+1;
       const mismatch=tyreWeatherPenalty(tyre,tyreState);
+      const projectedTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,Math.max(1,stintLap+1));
+      const projectedOptimum=optimalTyreTemp(tyre);
+      const projectedHotWear=projectedTemp>projectedOptimum+8?1+Math.min(0.25,(projectedTemp-projectedOptimum-8)*0.018):1;
+      const currentWearPerLap=projectedWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult:projectedHotWear});
+      const stayOut=estimateStayOutCost({condition,wearPerLap:currentWearPerLap,remaining,window:Math.min(8,remaining)});
+      const pitLossEstimate=effectivePitLoss(track,control,crew);
+      const currentEffects=tyreConditionEffects(condition);
+      const intelligence=clamp(num(rating?.race_intelligence,60));
+      const isAi=tid!==userTeam;
+      const criticalTyre=condition<=14&&remaining>2;
+      const severeTyre=condition<=24&&remaining>3;
+      const projectedCritical=stayOut.condition_end<=12&&remaining>4;
+      const neutralised=["SAFETY_CAR","VSC"].includes(control.type);
+      const cheapStop=neutralised&&pitLossEstimate<=track.pit_lane_loss_s*0.88+num(crew.avg_time_s,6.8);
+      const strategicStopValue=isAi&&strategy.pit_plan!=="no_stop"&&remaining>5&&(
+        (condition<48&&stayOut.seconds>Math.max(1.2,pitLossEstimate*0.20))||
+        (condition<38&&projectedCritical)||
+        (condition<30&&currentEffects.pace_penalty_s>0.9)
+      );
       let stopReason=null;
 
       if(lap>1){
         if(forcedPit&&remaining>1)stopReason="player_call";
         else if(mismatch>=3.5&&remaining>3)stopReason="weather";
-        else if(["SAFETY_CAR","VSC"].includes(control.type)&&!hasStopped&&remaining>8&&strategy.pit_plan!=="no_stop"&&condition<72&&rng.chance(0.42+clamp(num(rating?.race_intelligence,60),0,100)*0.003))stopReason="neutralisation_window";
+        else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
-        else if(strategy.pit_plan==="adaptive"&&condition<28&&remaining>7)stopReason="degradation";
-        else if(strategy.pit_plan==="no_stop"&&condition<9&&remaining>6)stopReason="safety";
+        else if(isAi&&strategicStopValue&&rng.chance(0.44+intelligence*0.0045))stopReason="degradation_value";
+        else if(strategy.pit_plan==="adaptive"&&condition<34&&remaining>6)stopReason="degradation";
+        else if(criticalTyre||severeTyre&&projectedCritical)stopReason="tyre_safety";
         if(!hasStopped&&rules.mandatory_dry_compounds>1&&!hasUsedWet&&category==="dry"&&lap===plannedLap)stopReason=stopReason||"mandatory_compound";
         if(rules.refuelling_allowed&&strategy.fuel_plan==="light_start"&&!refuelled&&lap>=Math.round(track.laps*0.54))stopReason=stopReason||"fuel";
+      }
+      if(stopReason){
+        strategyDecisions.push({
+          lap,
+          action:"pit",
+          reason:stopReason,
+          tyre_condition:Number(condition.toFixed(1)),
+          estimated_pit_loss_s:Number(pitLossEstimate.toFixed(2)),
+          projected_stay_out_loss_s:stayOut.seconds,
+          projected_condition:stayOut.condition_end,
+          pace_mode:activePaceMode,
+        });
       }
 
       if(stopReason){
