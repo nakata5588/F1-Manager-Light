@@ -118,6 +118,10 @@ function visibleClassification(gs,race,lap,plan,strategyState){
     const retired=Boolean(incident&&Number(incident.lap)<=lap);
     const effectiveLap=retired?Math.max(1,Number(incident.lap)):lap;
     const lastLapMs=num(row?.lap_times_ms?.[Math.max(0,effectiveLap-1)],null);
+    const previousLapMs=effectiveLap>1?num(row?.lap_times_ms?.[Math.max(0,effectiveLap-2)],null):null;
+    const lastLapDeltaMs=Number.isFinite(Number(lastLapMs))&&Number.isFinite(Number(previousLapMs))
+      ?Number(lastLapMs)-Number(previousLapMs)
+      :null;
     const tyre=tyreStateAtLap(row,effectiveLap);
     const pits=(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=effectiveLap);
     const best=bestLapAt(row,effectiveLap);
@@ -129,6 +133,8 @@ function visibleClassification(gs,race,lap,plan,strategyState){
       laps_completed:effectiveLap,
       elapsed_ms:cumulativeAtLap(row,effectiveLap),
       last_lap_ms:lastLapMs,
+      previous_lap_ms:previousLapMs,
+      last_lap_delta_ms:lastLapDeltaMs,
       ...best,
       ...sectors,
       tyre,
