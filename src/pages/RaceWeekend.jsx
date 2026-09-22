@@ -1047,6 +1047,7 @@ export default function RaceWeekend(){
             Number(row?.grid??index+1),
           ]));
           const winner=rows[0]||null;
+          const podium=[rows[1],rows[0],rows[2]].filter(Boolean);
           const fastest=rows.find((row)=>row?.fastest_lap)||rows
             .filter((row)=>Number.isFinite(Number(row?.best_lap_ms))&&Number(row.best_lap_ms)>0)
             .slice().sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
@@ -1066,6 +1067,28 @@ export default function RaceWeekend(){
                   <div className="text-xs text-slate-400">{winner?teamName(teams,winner.team_id):"—"}</div>
                 </div>
               </div>
+
+              {podium.length>0&&<div className="mt-5 grid items-end gap-3 md:grid-cols-3">
+                {podium.map((row)=>{
+                  const pos=Number(row?.position)||rows.findIndex((r)=>r===row)+1;
+                  const isWinner=pos===1;
+                  const gap=isWinner
+                    ?formatRaceTime(row?.total_time_ms)
+                    :Number.isFinite(Number(row?.gap_to_winner_ms))
+                      ?formatInterval(row.gap_to_winner_ms)
+                      :(row?.retirement_reason||row?.status||"—");
+                  return <div key={row.driver_id||pos} className={"relative rounded-xl border p-4 text-center "+(isWinner?"md:min-h-[205px] border-amber-400/40 bg-amber-400/[0.08]":"md:min-h-[175px] border-white/10 bg-[#171d27]")}>
+                    <div className={"mx-auto mb-2 flex items-center justify-center rounded-full font-black "+(isWinner?"h-9 w-9 bg-amber-300 text-slate-950":"h-8 w-8 bg-white/10 text-slate-100")}>P{pos}</div>
+                    <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size={isWinner?"h-20 w-20":"h-16 w-16"} className="mx-auto ring-white/15"/>
+                    <div className="mt-2 font-bold">{driverName(drivers,row.driver_id)}</div>
+                    <div className="mt-1 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                      <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-5 w-5" className="p-0.5"/>
+                      <span>{teamName(teams,row.team_id)}</span>
+                    </div>
+                    <div className={"mt-2 font-mono text-sm "+(isWinner?"text-amber-200":"text-slate-300")}>{gap}</div>
+                  </div>;
+                })}
+              </div>}
 
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
