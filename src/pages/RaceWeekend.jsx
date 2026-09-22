@@ -128,6 +128,14 @@ function paceTone(mode){
   if(key==="conserve")return "text-cyan-300 bg-cyan-500/10";
   return "text-slate-200 bg-white/[0.04]";
 }
+function temperatureTone(value){
+  const n=Number(value);
+  if(!Number.isFinite(n))return "text-slate-400";
+  if(n<75)return "text-cyan-300";
+  if(n<=105)return "text-emerald-300";
+  if(n<=120)return "text-amber-300";
+  return "text-rose-300";
+}
 function tyreTone(compound){
   const key=String(compound||"").toLowerCase();
   if(key.includes("soft"))return "bg-rose-500 text-white";
