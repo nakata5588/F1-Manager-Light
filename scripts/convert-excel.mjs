@@ -671,6 +671,7 @@ const SHEET_CONFIG = {
   // ===== Ratings V2 / Historical R2B =====
   driver_rating_profiles: { out: "driver_rating_profiles.json" },
   driver_year_status: { out: "driver_year_status.json" },
+  driver_opening_state: { out: "driver_opening_state.json" },
   historical_rating_snapshots: { out: "historical_rating_snapshots.json" },
   driver_development_history: { out: "driver_development_history.json" },
   driver_availability_history: { out: "driver_availability_history.json" },
