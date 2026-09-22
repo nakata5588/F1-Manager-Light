@@ -7,6 +7,8 @@ import {
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../domain/driverMarketEvaluation.js";
+import { driverProfileSnapshot } from "../../domain/driverProfile.js";
+import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
   activeDriverContract,
@@ -27,12 +29,18 @@ import {
 /* ======================== Helpers & Const ======================== */
 
 const TABS = [
-  { key: "contract",     label: "Contract" },
-  { key: "statistics",   label: "Statistics" },
-  { key: "career",       label: "Career" },
-  { key: "attributes",   label: "Attributes" },
-  { key: "achievements", label: "Achievements" },
+  { key: "overview",    label: "Overview" },
+  { key: "performance", label: "Performance" },
+  { key: "attributes",  label: "Attributes" },
+  { key: "development", label: "Development" },
+  { key: "contract",    label: "Contract" },
+  { key: "career",      label: "Career" },
 ];
+
+const TAB_ALIASES = Object.freeze({
+  statistics: "performance",
+  achievements: "career",
+});
 
 // --- unwrap Excel-like cells or Rich values { formula, result } / { value } / { text }
 function unbox(v) {
@@ -147,8 +155,8 @@ function extractDriverId(obj) {
 
 export default function DriverModal({ entity, onClose }) {
   const setTab = useModalStore((s) => s.setTab);
-  const rawTab = unbox(entity.tab) || "contract";
-  const activeTab = rawTab === "overview" ? "contract" : rawTab; // compat
+  const rawTab = unbox(entity.tab) || "overview";
+  const activeTab = TAB_ALIASES[rawTab] || rawTab;
   const idNorm = useMemo(() => normDriverId(entity.id), [entity.id]);
 
   // Read the store through stable primitive/reference selectors. All collections
@@ -251,6 +259,22 @@ export default function DriverModal({ entity, onClose }) {
   }, [driverAttributesDict, driver?.driver_id, entity.id, idNorm]);
 
   const driverId = String(unbox(driver?.driver_id ?? driver?.person_id ?? driver?.id ?? entity.id) ?? "");
+  const profileSnapshot = useMemo(
+    () => driverProfileSnapshot(gs, driver || driverId),
+    [gs, driver, driverId]
+  );
+  const developmentLog = useMemo(() => {
+    const log = isRecord(gs?.driverAttrLog) ? gs.driverAttrLog : {};
+    const direct = toArraySafe(log?.[driverId]);
+    const compat = idNorm ? toArraySafe(log?.[idNorm]) : [];
+    return [...direct, ...compat]
+      .filter((row, index, rows) => rows.findIndex((x) =>
+        String(x?.dateISO||"")===String(row?.dateISO||"") &&
+        String(x?.attr||"")===String(row?.attr||"") &&
+        Number(x?.after)===Number(row?.after)
+      )===index)
+      .sort((a,b) => String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
+  }, [gs?.driverAttrLog, driverId, idNorm]);
 
   const contract = useMemo(
     () => activeDriverContract(gs, driverId),
@@ -545,7 +569,7 @@ export default function DriverModal({ entity, onClose }) {
 
   const computedAge = useMemo(() => ageOnYear(driver?.dob, gameYear), [driver?.dob, gameYear]);
 
-  const overallView  = driverOverallPresentation(gs, driver || entity.id);
+  const overallView  = profileSnapshot?.overall || driverOverallPresentation(gs, driver || entity.id);
   const overall       = Number(overallView?.value);
   const overallLabel  = Number.isFinite(overall)
     ? (overallView?.estimated ? `~${overall.toFixed(0)} (est.)` : overall.toFixed(1))
@@ -632,100 +656,123 @@ export default function DriverModal({ entity, onClose }) {
   }
 
   return (
-    <div className="flex h-[92vh]">
-      {/* Left */}
-      <aside className="w-80 border-r p-5 overflow-y-auto">
-        <div className="text-lg font-semibold leading-tight">
-          {driverName}
-        </div>
-        <div className="text-xs text-gray-500 mb-3">
-          {driverCountry} • #{driverNumber ?? "—"}
-        </div>
-
-        {unbox(driver.portrait_path) ? (
-          <img
-            src={unbox(driver.portrait_path)}
-            alt={driverName}
-            className="w-full rounded-xl object-cover"
-            onError={(e) => { e.currentTarget.style.display = "none"; }}
-          />
-        ) : (
-          <div className="w-full aspect-[5/4] rounded-xl bg-gray-100 flex items-center justify-center text-xl font-semibold">
-            {(driverName || "?").slice(0, 2).toUpperCase()}
+    <div className="flex h-[92vh] bg-[#090b10] text-slate-100">
+      <aside className="w-[290px] shrink-0 border-r border-white/10 bg-[#11141c] p-5 overflow-y-auto">
+        <div className="flex items-center gap-3">
+          <DriverPortrait driver={driver} size="h-20 w-20" className="!rounded-xl"/>
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Driver</div>
+            <div className="text-xl font-semibold leading-tight truncate">{driverName}</div>
+            <div className="mt-1 text-xs text-slate-400">
+              {flagFromCountry(driverCountry, driver?.country_code)} {driverCountry}
+              {driverNumber ? ` · #${driverNumber}` : ""}
+            </div>
           </div>
-        )}
-
-        <div className="mt-4 grid gap-2 text-sm">
-          <Row label="Age"           value={computedAge ?? "—"} />
-          <Row label="DOB"           value={driver?.dob ? `${unbox(driver.dob)}${computedAge != null ? ` (${computedAge})` : ""}` : "—"} />
-          <Row label="Team"          value={contractTeam ?? "—"} />
-          <Row label="Role"          value={contractRole ?? "—"} />
-          <Row label="Overall"       value={overallLabel} />
-          <Row label="Fatigue"       value={Number(condition?.fatigue ?? 20).toFixed(0)} />
-          <Row label="Confidence"    value={Number(condition?.confidence ?? 50).toFixed(0)} />
-          <Row label="Morale"        value={Number(condition?.morale ?? 50).toFixed(0)} />
-          <Row label="Preparation"   value={Number(condition?.preparation ?? 50).toFixed(0)} />
-          <Row label="Rookie Season" value={unbox(driver?.f1_rookie_season) ?? "—"} />
-          <Row label="Years Raced"   value={yearsRaced ?? "—"} />
-          <Row label="Market Value"  value={fmtMoney(marketValue)} />
-          <Row label="Salary"        value={fmtMoney(contractSalary)} />
         </div>
 
-        {futureTransfer && (
-          <p className="mt-3 text-sm italic text-purple-700">
-            Will transfer to <span className="font-medium">{futureTransfer.team_name}</span> in {futureTransfer.whenLabel}.
-          </p>
-        )}
+        <div className="mt-4 rounded-xl border border-white/10 bg-[#171a23] p-3">
+          <div className="flex items-center gap-3">
+            <TeamLogo teamId={contractTeamId || profileSnapshot?.teamId} name={contractTeam || profileSnapshot?.teamName || "Team"} size="h-10 w-10"/>
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{contractTeam || profileSnapshot?.teamName || "Free Agent"}</div>
+              <div className="text-xs text-slate-500">{contractRole || "No active role"}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <ProfileMetric label="OVR" value={overallLabel}/>
+          <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"}/>
+          <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0}/>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
+          <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
+          <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
+          <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4 text-xs text-slate-400 space-y-2">
+          <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
+          <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
+          <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
+          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{fmtMoney(marketValue)}</strong></div>
+        </div>
       </aside>
 
-      {/* Right */}
-      <main className="min-w-0 flex-1 flex flex-col">
-        <header className="flex items-center justify-between border-b px-5">
-          <nav className="flex gap-1 py-2">
+      <main className="min-w-0 flex-1 flex flex-col bg-[#0c0f15]">
+        <header className="border-b border-white/10 bg-[#11141c]">
+          <div className="flex items-start justify-between gap-4 px-5 pt-4">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Driver Profile</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-semibold truncate">{driverName}</h2>
+                {isOwnDriver && <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-300">YOUR DRIVER</span>}
+                {!profileSnapshot?.availability?.available && (
+                  <span className="rounded bg-rose-500/15 px-2 py-1 text-[10px] font-medium uppercase text-rose-300">
+                    {profileSnapshot?.availability?.status || "Unavailable"}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                {contractTeam || profileSnapshot?.teamName || "Free Agent"} · {contractRole || "No active role"}
+                {Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))
+                  ? ` · Current performance ${Number(profileSnapshot.conditionImpact.total)>=0?"+":""}${Number(profileSnapshot.conditionImpact.total).toFixed(1)}`
+                  : ""}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <DriverActionsMenu
+                driver={driver}
+                condition={condition}
+                isOwnDriver={!!isOwnDriver}
+                label={isOwnDriver ? "Actions" : "Interact"}
+                queueEvent={queueEvent}
+                currentDateISO={gameDateISO}
+                onContractTalk={() => setContractTalkOpen(true)}
+                onRelease={releaseCurrentDriver}
+                onOpenNegotiation={() => setMarketTalkOpen(true)}
+                renewalPending={renewalPending}
+                releaseCost={releaseCost}
+                marketEligibility={marketEligibility}
+              />
+              <button onClick={onClose} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5 hover:text-white" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <nav className="mt-4 flex gap-1 overflow-x-auto px-5">
             {TABS.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`px-3 py-2 text-sm rounded-t ${activeTab === t.key ? "bg-white border-x border-t" : "text-gray-600 hover:text-black"}`}
+                className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${activeTab === t.key ? "border-sky-300 text-white" : "border-transparent text-slate-500 hover:text-slate-200"}`}
               >
                 {t.label}
               </button>
             ))}
           </nav>
-
-          <div className="flex items-center gap-2">
-            <DriverActionsMenu
-              driver={driver}
-              condition={condition}
-              isOwnDriver={!!isOwnDriver}
-              label={isOwnDriver ? "Actions" : "Interact"}
-              queueEvent={queueEvent}
-              currentDateISO={gameDateISO}
-              onContractTalk={() => setContractTalkOpen(true)}
-              onRelease={releaseCurrentDriver}
-              onOpenNegotiation={() => setMarketTalkOpen(true)}
-              renewalPending={renewalPending}
-              releaseCost={releaseCost}
-              marketEligibility={marketEligibility}
-            />
-            <button onClick={onClose} className="m-1 p-2 rounded hover:bg-gray-100" aria-label="Close">
-              <X size={18} />
-            </button>
-          </div>
         </header>
 
-        <section className="p-5 overflow-y-auto">
-          {activeTab === "contract" && (
-            <ContractTab
-              team={contractTeam}
-              start={contractStart}
-              end={contractEnd}
-              salary={contractSalary}
-              role={contractRole}
+        <section className="min-h-0 flex-1 overflow-y-auto p-5">
+          {activeTab === "overview" && (
+            <OverviewTab
+              snapshot={profileSnapshot}
+              condition={condition}
+              overallLabel={overallLabel}
+              contractTeam={contractTeam}
+              contractRole={contractRole}
+              contractStart={contractStart}
+              contractEnd={contractEnd}
+              contractSalary={contractSalary}
+              futureTransfer={futureTransfer}
             />
           )}
 
-          {activeTab === "statistics" && (
+          {activeTab === "performance" && (
             <StatisticsTab
               gameYear={gameYear}
               seriesSel={seriesSel}
@@ -736,19 +783,41 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "career" && (
-            <CareerTab
-              seriesSel={seriesSel}
-              setSeriesSel={setSeriesSel}
-              seriesOptions={seriesOptions}
-              timeline={careerTimeline}
-              totals={careerTotals}
+          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} />}
+
+          {activeTab === "development" && (
+            <DevelopmentTab
+              attrs={meaningfulAttrs}
+              log={developmentLog}
+              isOwnDriver={!!isOwnDriver}
             />
           )}
 
-          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} />}
+          {activeTab === "contract" && (
+            <ContractTab
+              team={contractTeam}
+              start={contractStart}
+              end={contractEnd}
+              salary={contractSalary}
+              role={contractRole}
+            />
+          )}
 
-          {activeTab === "achievements" && <AchievementsTab items={achievementsList} />}
+          {activeTab === "career" && (
+            <div className="space-y-6">
+              <CareerTab
+                seriesSel={seriesSel}
+                setSeriesSel={setSeriesSel}
+                seriesOptions={seriesOptions}
+                timeline={careerTimeline}
+                totals={careerTotals}
+              />
+              <div className="border-t border-white/10 pt-5">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Achievements</div>
+                <AchievementsTab items={achievementsList} />
+              </div>
+            </div>
+          )}
         </section>
       </main>
 
@@ -804,6 +873,200 @@ function KV({ label, value, className = "" }) {
 }
 
 /* ======================== Tabs ======================== */
+
+function ProfileMetric({ label, value, tone = "" }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mt-0.5 text-sm font-semibold ${tone}`}>{displayValue(value)}</div>
+    </div>
+  );
+}
+
+function ConditionBar({ label, value, inverse = false }) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  const effective = inverse ? 100-v : v;
+  const tone = effective >= 70 ? "bg-emerald-300" : effective >= 45 ? "bg-amber-300" : "bg-rose-400";
+  return (
+    <div>
+      <div className="flex justify-between text-xs">
+        <span className="text-slate-400">{label}</span>
+        <strong>{Math.round(v)}</strong>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full ${tone}`} style={{width:`${v}%`}}/>
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab({
+  snapshot,
+  condition,
+  overallLabel,
+  contractTeam,
+  contractRole,
+  contractStart,
+  contractEnd,
+  contractSalary,
+  futureTransfer,
+}) {
+  const season=snapshot?.season||{};
+  const impact=snapshot?.conditionImpact||{};
+  const availability=snapshot?.availability||{};
+  const impactValue=Number(impact?.total);
+  const impactTone=Number.isFinite(impactValue)
+    ?(impactValue>=0?"text-emerald-300":"text-rose-300")
+    :"text-slate-200";
+
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      {!availability.available && (
+        <div className="xl:col-span-12 rounded-xl border border-rose-500/25 bg-rose-500/10 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-rose-300">{String(availability.status||"Unavailable").replaceAll("_"," ")}</div>
+          <div className="mt-1 text-sm text-slate-200">
+            {availability.reason||"Driver is currently unavailable."}
+            {availability.expectedReturnDate?` · Expected return ${availability.expectedReturnDate}`:""}
+          </div>
+        </div>
+      )}
+
+      <div className="xl:col-span-7 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current State</div>
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <ProfileMetric label="Overall" value={overallLabel}/>
+          <ProfileMetric label="Championship" value={season.championshipPosition?`P${season.championshipPosition}`:"—"}/>
+          <ProfileMetric label="Points" value={season.points??0}/>
+          <ProfileMetric
+            label="Performance effect"
+            value={Number.isFinite(impactValue)?`${impactValue>=0?"+":""}${impactValue.toFixed(1)}`:"—"}
+            tone={impactTone}
+          />
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <ConditionBar label="Confidence" value={condition?.confidence??50}/>
+            <ConditionBar label="Morale" value={condition?.morale??50}/>
+          </div>
+          <div className="space-y-3">
+            <ConditionBar label="Preparation" value={condition?.preparation??50}/>
+            <ConditionBar label="Fatigue" value={condition?.fatigue??0} inverse/>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-4">
+          <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
+          <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
+          <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
+          <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
+        </div>
+      </div>
+
+      <div className="xl:col-span-5 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Season Snapshot</div>
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+          <ProfileMetric label="Starts" value={season.starts??0}/>
+          <ProfileMetric label="Wins" value={season.wins??0}/>
+          <ProfileMetric label="Podiums" value={season.podiums??0}/>
+          <ProfileMetric label="Poles" value={season.poles??0}/>
+          <ProfileMetric label="DNF" value={season.dnfs??0} tone={season.dnfs?"text-rose-300":""}/>
+          <ProfileMetric label="Best finish" value={season.bestFinish?`P${season.bestFinish}`:"—"}/>
+        </div>
+      </div>
+
+      <div className="xl:col-span-7 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contract & Role</div>
+        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <KV label="Team" value={contractTeam||"Free Agent"}/>
+          <KV label="Role" value={contractRole||"—"}/>
+          <KV label="Start" value={contractStart||"—"}/>
+          <KV label="End" value={contractEnd||"—"}/>
+          <KV label="Salary" value={fmtMoney(contractSalary)}/>
+          <KV label="Market status" value={snapshot?.contract?"Contracted":"Available"}/>
+        </div>
+        {futureTransfer && (
+          <div className="mt-4 rounded-lg border border-purple-400/20 bg-purple-500/10 p-3 text-sm text-purple-200">
+            Transfer arranged to {futureTransfer.team_name} in {futureTransfer.whenLabel}.
+          </div>
+        )}
+      </div>
+
+      <div className="xl:col-span-5 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Decision Support</div>
+        <p className="mt-2 text-sm text-slate-400">
+          Overall ability stays separate from current performance. Confidence, morale, preparation and fatigue modify race-weekend output without permanently rewriting the driver's base ability.
+        </p>
+        <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
+          Performance and Development tabs use live Save World data. Form, lifecycle stages and projected development are intentionally not invented in this foundation pass.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DevelopmentTab({ attrs, log, isOwnDriver }) {
+  const overall=attrs?.current_ability;
+  const potential=isOwnDriver?attrs?.potential_ability:null;
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      <div className="xl:col-span-4 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development State</div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <ProfileMetric label="Current ability" value={overall??"—"}/>
+          <ProfileMetric label="Potential" value={isOwnDriver?(potential??"—"):"Scouting required"}/>
+        </div>
+        <p className="mt-3 text-xs text-slate-400">
+          The live rating is recalculated from permanent attribute changes. Temporary race-weekend condition is kept separate.
+        </p>
+      </div>
+
+      <div className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Development</div>
+            <div className="mt-1 text-sm text-slate-300">Permanent attribute changes recorded in this save.</div>
+          </div>
+          <span className="text-xs text-slate-500">{Math.min(log?.length||0,12)} shown</span>
+        </div>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-xs text-slate-500">
+              <tr>
+                <th className="py-2 pr-3 text-left">Date</th>
+                <th className="py-2 pr-3 text-left">Attribute</th>
+                <th className="py-2 pr-3 text-right">Before</th>
+                <th className="py-2 pr-3 text-right">After</th>
+                <th className="py-2 pr-3 text-right">Δ</th>
+                <th className="py-2 text-left">Source</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {(log||[]).slice(0,12).map((row,index)=>{
+                const delta=Number(row?.delta??(Number(row?.after)-Number(row?.before)));
+                return (
+                  <tr key={`${row?.dateISO||"date"}-${row?.attr||"attr"}-${index}`}>
+                    <td className="py-2 pr-3 text-slate-400">{row?.dateISO||"—"}</td>
+                    <td className="py-2 pr-3 font-medium">{niceRole(String(row?.attr||"—").replaceAll("_"," "))}</td>
+                    <td className="py-2 pr-3 text-right">{isNumeric(row?.before)?Number(row.before).toFixed(2):"—"}</td>
+                    <td className="py-2 pr-3 text-right">{isNumeric(row?.after)?Number(row.after).toFixed(2):"—"}</td>
+                    <td className={`py-2 pr-3 text-right font-medium ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
+                      {Number.isFinite(delta)?`${delta>0?"+":""}${delta.toFixed(2)}`:"—"}
+                    </td>
+                    <td className="py-2 text-slate-400">{displayValue(row?.source,"—")}</td>
+                  </tr>
+                );
+              })}
+              {!(log||[]).length && (
+                <tr><td colSpan={6} className="py-6 text-center text-sm text-slate-500">No permanent development changes have been recorded in this save yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ContractTab({ team, start, end, salary, role }) {
   const fmtStartEnd = (v) => {
