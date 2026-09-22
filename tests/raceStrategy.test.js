@@ -261,7 +261,11 @@ test("RW4.5 Attack on Softs wears tyres and loads the driver more than Conserve 
 
 test("RW4.5 AI does not routinely run a severely worn tyre down to ten percent before reacting",()=>{
   const longTrack={...gp,gp_id:"gp_rw45_ai",track_id:"monaco"};
-  let gs=withStrategy(fixture(),longTrack);
+  const highWearFixture=fixture({
+    trackLayoutByYear:[{track_id:"monaco",year_from:1973,year_to:1985,lap_length_km:3.34,laps:50,pit_lane_loss_s:24}],
+    coreTracks:[{track_id:"monaco",track_name:"Monaco",tyre_wear:90,overtaking_difficulty:88,lap_length_km:3.34,pit_lane_loss_s:25}],
+  });
+  let gs=withStrategy(highWearFixture,longTrack);
   gs={
     ...gs,
     raceWeekendState:{
