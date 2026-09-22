@@ -337,6 +337,7 @@ export const useGame = create((set, get) => ({
     dbAccidentModel: [],
     dbFacilities: [],
     dbCarStats: [],
+    dbCarParts: [],
     dbStaffContracts: [],
     dbStaffCore: [],
 
@@ -599,7 +600,7 @@ export const useGame = create((set, get) => ({
       const [
         driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, driverOpeningStateRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
-        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
+        rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, carPartsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
         scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, coreTracksRaw,
@@ -624,6 +625,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/accident_model.json").catch(() => ({})),
         fetchJsonSafe("/data/facilities.json"),
         fetchOptional("/data/car_stats_by_year.json", []),
+        fetchOptional("/data/car_parts.json", []),
         fetchJsonSafe("/data/staff_contracts.json"),
 
         fetchOptional("/data/tyres_catalog.json", []),
@@ -667,6 +669,7 @@ export const useGame = create((set, get) => ({
       const accidentModel     = (Array.isArray(accidentModelRaw) || typeof accidentModelRaw === "object") ? unexcelDeep(accidentModelRaw) : {};
       const facilities        = unexcelDeep(facilitiesRaw);
       const carStats          = unexcelDeep(carStatsRaw);
+      const carParts          = unexcelDeep(carPartsRaw);
       const staffContracts    = unexcelDeep(staffContractsRaw);
 
       const tyres              = unexcelDeep(tyresRaw);
@@ -725,6 +728,7 @@ export const useGame = create((set, get) => ({
           dbAccidentModel: accidentModel,
           dbFacilities: facilities,
           dbCarStats: carStats,
+          dbCarParts: carParts,
           dbStaffContracts: staffContracts,
 
           dbTyres: tyres,
