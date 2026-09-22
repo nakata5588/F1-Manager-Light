@@ -158,6 +158,9 @@ export default function RaceWeekend(){
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
   const liveRows=liveRace?.classification||[];
+  const trackState=liveRace?.track_state||null;
+  const raceControlPlan=raceStrategy?.race_control_plan||null;
+  const raceControlRules=raceControlPlan?.rules||null;
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
@@ -495,7 +498,10 @@ export default function RaceWeekend(){
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold">Live Race Control</h3>
-                <p className="text-sm text-gray-600 mt-1">Lap {liveRace.current_lap} / {liveRace.total_laps} · {String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Lap {liveRace.current_lap} / {liveRace.total_laps} · {String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
+                  {" · "}{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}
+                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {liveRace.status==="running"&&<>
@@ -507,17 +513,30 @@ export default function RaceWeekend(){
               </div>
             </div>
 
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-sm">
+              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Race Control</div><div className="font-semibold">{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div></div>
+              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Rain intensity</div><div className="font-semibold">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div></div>
+              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Track wetness</div><div className="font-semibold">{Math.round(Number(trackState?.track_wetness||0)*100)}%</div></div>
+              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Grip</div><div className="font-semibold">{Number(trackState?.grip_index??100).toFixed(0)}%</div></div>
+              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Visibility</div><div className="font-semibold">{Number(trackState?.visibility_index??100).toFixed(0)}%</div></div>
+              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Race-control era</div><div className="font-semibold">{raceControlRules?.label||"Era rules"}</div></div>
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              {raceControlRules?.notes||"Race control follows the active era."} Weather changes grip, tyre suitability, tyre temperature, incident risk and the probability of race-control intervention.
+            </div>
+
             <div className="mt-4 overflow-x-auto border rounded-xl">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50"><tr>
                   <th className="px-3 py-2 text-right">Pos</th><th className="px-3 py-2 text-left">Driver</th>
-                  <th className="px-3 py-2 text-right">Gap</th><th className="px-3 py-2 text-left">Tyre</th>
+                  <th className="px-3 py-2 text-right">Gap</th><th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2 text-left">Tyre</th>
                   <th className="px-3 py-2 text-right">Condition</th><th className="px-3 py-2 text-right">Last Lap</th>
                 </tr></thead>
                 <tbody>{liveRows.map((row,index)=><tr className="border-t" key={row.driver_id}>
                   <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
                   <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{index===0?"LEADER":"+"+(Number(row.gap_to_leader_ms||0)/1000).toFixed(3)+"s"}</td>
+                  <td className="px-3 py-2 text-right font-mono">{row.retired?(row.retirement_reason||"DNF"):index===0?"LEADER":"+"+(Number(row.gap_to_leader_ms||0)/1000).toFixed(3)+"s"}</td>
+                  <td className="px-3 py-2"><span className={"rounded px-2 py-1 text-xs "+(row.retired?"bg-amber-50 text-amber-800":"bg-emerald-50 text-emerald-800")}>{row.retired?`DNF · L${row.incident_lap}`:"RUNNING"}</span></td>
                   <td className="px-3 py-2">{row.tyre?.compound||tyreName(gs?.tyres,row.tyre?.tyre_id)}</td>
                   <td className="px-3 py-2 text-right">{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</td>
                   <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
@@ -531,16 +550,18 @@ export default function RaceWeekend(){
                 const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
                 const commands=raceStrategy?.live_commands?.[did]||[];
                 const latestPace=commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
+                const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
+                const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                 return <div className="border rounded-xl p-3" key={did}>
                   <div className="font-medium">{driverName(drivers,did)}</div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <label className="text-xs text-gray-600">Pace next lap
-                      <select disabled={liveRace.status!=="running"} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                      <select disabled={unavailable} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
                         {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
                       </select>
                     </label>
                     <label className="text-xs text-gray-600">Pit next lap
-                      <select disabled={liveRace.status!=="running"} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                      <select disabled={unavailable} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
                         <option value="">Stay out</option>
                         {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                       </select>
