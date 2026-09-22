@@ -81,7 +81,7 @@ function practiceResult(gs,driverId){
   )||null;
 }
 
-function practicePerformanceModifier(gs,driverId,session){
+export function practicePerformanceModifier(gs,driverId,session){
   const row=practiceResult(gs,driverId);
   if(!row)return 0;
   const quality=n(row.setup_quality,50);
@@ -90,6 +90,19 @@ function practicePerformanceModifier(gs,driverId,session){
     ?n(row.qualifying_bonus,0)
     :n(row.race_bonus,0);
   return Math.max(-3,Math.min(4,qualityModifier+programmeBonus));
+}
+
+export function practiceWeekendImpact(gs,driverId){
+  const row=practiceResult(gs,driverId);
+  if(!row)return {qualifying:0,race:0,setupQuality:null,setupKnowledge:null,qualifyingBonus:0,raceBonus:0};
+  return {
+    qualifying:practicePerformanceModifier(gs,driverId,"qualifying"),
+    race:practicePerformanceModifier(gs,driverId,"race"),
+    setupQuality:n(row.setup_quality,50),
+    setupKnowledge:n(row.setup_knowledge,50),
+    qualifyingBonus:n(row.qualifying_bonus,0),
+    raceBonus:n(row.race_bonus,0),
+  };
 }
 
 export function combinedQualifyingPerformance({gs,driver,rating,teamId,wet=false}){
