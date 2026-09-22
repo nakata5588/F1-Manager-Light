@@ -100,6 +100,49 @@ test("RW4.6.1 race-control incident messages use natural language instead of int
   }
 });
 
+test("race incident feed adds a cautious medical status after collisions",()=>{
+  assert.equal(
+    formatRaceIncidentMessage({
+      controlType:"LOCAL_YELLOW",
+      driverName:"Nelson Piquet",
+      incident:{kind:"collision",reason:"Collision",severity:"high"},
+      medicalConcern:true,
+    }),
+    "Yellow flag — Nelson Piquet involved in a heavy collision. Might be injured."
+  );
+  assert.equal(
+    formatRaceIncidentMessage({
+      controlType:"LOCAL_YELLOW",
+      driverName:"Nelson Piquet",
+      incident:{kind:"collision",reason:"Collision",severity:"low"},
+      medicalConcern:false,
+    }),
+    "Yellow flag — Nelson Piquet involved in a minor collision. Seems to be OK."
+  );
+});
+
+test("high-risk crash events carry medical concern into the observed Race Feed",()=>{
+  let gs=null;
+  let incident=null;
+  for(let index=0;index<160&&!incident;index+=1){
+    const candidate=createLiveRaceState(fixture(`medical-feed-${index}`),{gp});
+    const found=(candidate.raceWeekendState.race_strategy.race_control_plan?.incidents||[])
+      .find((row)=>["high","critical"].includes(String(row?.severity||"").toLowerCase())&&/accident|collision/i.test(String(row?.kind||row?.reason||"")));
+    if(found){
+      gs=candidate;
+      incident=found;
+    }
+  }
+  assert.ok(gs&&incident,"expected a deterministic high-risk crash seed");
+  gs=advanceTo(gs,Number(incident.lap));
+  const event=(gs.raceWeekendState.live_race.events||[])
+    .find((row)=>String(row?.driver_id)===String(incident.driver_id)&&Number(row?.lap)===Number(incident.lap));
+  assert.ok(event);
+  assert.equal(event.medical_concern,true);
+  assert.ok(Number(event.injury_probability)>0);
+  assert.match(event.message,/might be injured/i);
+});
+
 test("live race starts at lap zero and advances incrementally",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   assert.equal(gs.raceWeekendState.live_race.current_lap,0);
