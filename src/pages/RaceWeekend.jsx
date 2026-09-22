@@ -181,53 +181,64 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
   const ordered=rows.slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
   const times=ordered.map((row)=>Number(row?.best_time_ms??row?.lap_time_ms)).filter((value)=>Number.isFinite(value)&&value>0);
   const best=times.length?Math.min(...times):null;
-  return <div className="border rounded-xl overflow-hidden">
-    {title&&<div className="px-4 py-3 bg-[#121722] border-b flex flex-wrap items-center justify-between gap-2">
+  const split=ordered.length>14;
+  const midpoint=split?Math.ceil(ordered.length/2):ordered.length;
+  const groups=split
+    ?[{rows:ordered.slice(0,midpoint),offset:0},{rows:ordered.slice(midpoint),offset:midpoint}]
+    :[{rows:ordered,offset:0}];
+
+  const renderGroup=({rows:group,offset})=><div className="overflow-hidden rounded-lg border border-white/10 bg-[#11161f]" key={offset}>
+    <table className="w-full text-xs">
+      <thead className="bg-[#171d27] text-slate-400 uppercase tracking-wide">
+        <tr>
+          <th className="px-2 py-2 text-right w-10">Pos</th>
+          <th className="px-2 py-2 text-left">Driver / Team</th>
+          <th className="px-2 py-2 text-right">Time / Gap</th>
+          <th className="px-2 py-2 text-right">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {group.map((row,localIndex)=>{
+          const globalIndex=offset+localIndex;
+          const time=Number(row?.best_time_ms??row?.lap_time_ms);
+          const status=overall?String(row?.status||"").toUpperCase():sessionStatus(row,session);
+          const atCutoff=Number.isFinite(Number(cutoff))&&globalIndex===Number(cutoff);
+          return <React.Fragment key={row.driver_id||globalIndex}>
+            {atCutoff&&<tr className="border-y border-amber-400/30 bg-amber-500/10">
+              <td colSpan={4} className="px-2 py-1 text-[10px] font-medium text-amber-300">
+                Qualification cut — first {cutoff} qualify
+              </td>
+            </tr>}
+            <tr className="border-t border-white/5 hover:bg-white/[0.025]">
+              <td className="px-2 py-2 text-right font-bold">P{row.position??globalIndex+1}</td>
+              <td className="px-2 py-2">
+                <div className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</div>
+                <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-4 w-4" className="p-0.5"/>
+                  <span>{teamName(teams,row.team_id)}</span>
+                </div>
+              </td>
+              <td className="px-2 py-2 text-right font-mono">
+                <div>{formatLapTime(time)}</div>
+                <div className="text-[10px] text-slate-500">{formatGap(time,best)}</div>
+              </td>
+              <td className="px-2 py-2 text-right">
+                <span className={"rounded px-1.5 py-1 text-[10px] "+statusClass(status)}>{status||"—"}</span>
+              </td>
+            </tr>
+          </React.Fragment>;
+        })}
+      </tbody>
+    </table>
+  </div>;
+
+  return <div className="rounded-xl border border-white/10 bg-[#0f141d] p-3">
+    {title&&<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <div className="font-medium text-sm">{title}</div>
-      <div className="text-xs text-slate-500">{ordered.length} drivers</div>
+      <div className="text-xs text-slate-500">{ordered.length} drivers{split?" · split view":""}</div>
     </div>}
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead className="bg-[#121722]">
-          <tr>
-            <th className="px-3 py-2 text-right">Pos</th>
-            <th className="px-3 py-2 text-left">Driver</th>
-            <th className="px-3 py-2 text-left">Team</th>
-            <th className="px-3 py-2 text-right">Time</th>
-            <th className="px-3 py-2 text-right">Gap</th>
-            <th className="px-3 py-2 text-left">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ordered.map((row,index)=>{
-            const time=Number(row?.best_time_ms??row?.lap_time_ms);
-            const status=overall?String(row?.status||"").toUpperCase():sessionStatus(row,session);
-            const atCutoff=Number.isFinite(Number(cutoff))&&index===Number(cutoff);
-            return <React.Fragment key={row.driver_id||index}>
-              {atCutoff&&<tr className="bg-amber-50 border-y-2 border-amber-300">
-                <td colSpan={6} className="px-3 py-1 text-xs font-medium text-amber-900">
-                  Qualification cut — only the first {cutoff} cars qualify for the race
-                </td>
-              </tr>}
-              <tr className="border-t">
-                <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
-                <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-6 w-6" className="p-0.5"/>
-                    <span>{teamName(teams,row.team_id)}</span>
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right font-mono">{formatLapTime(time)}</td>
-                <td className="px-3 py-2 text-right font-mono text-slate-500">{formatGap(time,best)}</td>
-                <td className="px-3 py-2">
-                  <span className={"rounded px-2 py-1 text-xs "+statusClass(status)}>{status||"—"}</span>
-                </td>
-              </tr>
-            </React.Fragment>;
-          })}
-        </tbody>
-      </table>
+    <div className={split?"grid gap-3 xl:grid-cols-2":"grid gap-3"}>
+      {groups.map(renderGroup)}
     </div>
   </div>;
 }
