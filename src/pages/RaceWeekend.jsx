@@ -395,7 +395,7 @@ export default function RaceWeekend(){
                     <div className="text-xs text-slate-500">{teamName(teams,entry.team_id)}</div>
                   </div>
                   <select
-                    className="border rounded-lg px-3 py-2 text-sm min-w-[210px]"
+                    className="border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-3 py-2 text-sm min-w-[210px]"
                     value={selected}
                     onChange={(e)=>setPracticeProgramme(did,e.target.value)}
                   >
@@ -406,10 +406,10 @@ export default function RaceWeekend(){
                 </div>
                 <p className="mt-2 text-sm text-slate-400">{PRACTICE_PROGRAMMES[selected]?.description||PRACTICE_PROGRAMMES.balanced.description}</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <span className="bg-gray-100 rounded px-2 py-1">Current fatigue {currentFatigue(gs,did).toFixed(0)}/100</span>
-                  <span className="bg-gray-100 rounded px-2 py-1">Practice load +{PRACTICE_PROGRAMMES[selected]?.fatigue??5}</span>
-                  <span className="bg-gray-100 rounded px-2 py-1">Mileage ×{Number(PRACTICE_PROGRAMMES[selected]?.mileageFactor??1).toFixed(2)}</span>
-                  <span className="bg-gray-100 rounded px-2 py-1">Component wear ×{Number(PRACTICE_PROGRAMMES[selected]?.wearFactor??1).toFixed(2)}</span>
+                  <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Current fatigue {currentFatigue(gs,did).toFixed(0)}/100</span>
+                  <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Practice load +{PRACTICE_PROGRAMMES[selected]?.fatigue??5}</span>
+                  <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Mileage ×{Number(PRACTICE_PROGRAMMES[selected]?.mileageFactor??1).toFixed(2)}</span>
+                  <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Component wear ×{Number(PRACTICE_PROGRAMMES[selected]?.wearFactor??1).toFixed(2)}</span>
                 </div>
               </div>;
             })}
@@ -463,9 +463,9 @@ export default function RaceWeekend(){
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="bg-emerald-50 text-emerald-800 rounded px-2 py-1">Setup {Math.round(row.setup_quality)}%</span>
                     <span className="bg-blue-50 text-blue-800 rounded px-2 py-1">Knowledge {Math.round(row.setup_knowledge)}%</span>
-                    <span className="bg-slate-100 rounded px-2 py-1">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
-                    <span className="bg-slate-100 rounded px-2 py-1">Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {Number(row.fatigue_after??row.fatigue_cost??0).toFixed(0)}</span>
-                    <span className="bg-slate-100 rounded px-2 py-1">Learning efficiency {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
+                    <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
+                    <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {Number(row.fatigue_after??row.fatigue_cost??0).toFixed(0)}</span>
+                    <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Learning efficiency {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
                     <span className="bg-amber-50 text-amber-800 rounded px-2 py-1">Component wear {Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
                     <span className="bg-cyan-50 text-cyan-800 rounded px-2 py-1">Race relevance {Number(row.race_weather_relevance??0).toFixed(0)}%</span>
                     <span className="bg-violet-50 text-violet-800 rounded px-2 py-1">Qualifying relevance {Number(row.qualifying_weather_relevance??0).toFixed(0)}%</span>
@@ -583,7 +583,7 @@ export default function RaceWeekend(){
             </div>
           </div>
 
-          <div className="mt-3 rounded-lg bg-slate-50 border px-3 py-2 text-sm">
+          <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300">
             <span className="font-medium">Race forecast:</span>{" "}
             {String(raceForecast?.predicted_state||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
             {" · "}{Number(raceForecast?.air_temp_c??raceStrategy?.weather_snapshot?.avg_temp_c??0).toFixed(0)}°C
@@ -608,32 +608,32 @@ export default function RaceWeekend(){
                 </div>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
                   <label className="text-xs text-slate-400">Start tyre
-                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
                       {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Pace
-                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.pace_mode||"balanced"} onChange={(e)=>setRaceStrategy(did,{pace_mode:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pace_mode||"balanced"} onChange={(e)=>setRaceStrategy(did,{pace_mode:e.target.value})}>
                       {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Pit plan
-                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.pit_plan||"adaptive"} onChange={(e)=>setRaceStrategy(did,{pit_plan:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pit_plan||"adaptive"} onChange={(e)=>setRaceStrategy(did,{pit_plan:e.target.value})}>
                       {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Next tyre
-                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
                       {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                     </select>
                   </label>
                   {selection.pit_plan==="one_stop"?(
                     <label className="text-xs text-slate-400">Target lap
-                      <input className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" type="number" min="2" max={Math.max(2,Number(raceStrategy?.track_snapshot?.laps||3)-2)} value={selection.planned_stop_lap||Math.round(Number(raceStrategy?.track_snapshot?.laps||0)/2)} onChange={(e)=>setRaceStrategy(did,{planned_stop_lap:Number(e.target.value)})}/>
+                      <input className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" type="number" min="2" max={Math.max(2,Number(raceStrategy?.track_snapshot?.laps||3)-2)} value={selection.planned_stop_lap||Math.round(Number(raceStrategy?.track_snapshot?.laps||0)/2)} onChange={(e)=>setRaceStrategy(did,{planned_stop_lap:Number(e.target.value)})}/>
                     </label>
                   ):raceStrategy?.rules_snapshot?.refuelling_allowed?(
                     <label className="text-xs text-slate-400">Fuel plan
-                      <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.fuel_plan||"balanced"} onChange={(e)=>setRaceStrategy(did,{fuel_plan:e.target.value})}>
+                      <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.fuel_plan||"balanced"} onChange={(e)=>setRaceStrategy(did,{fuel_plan:e.target.value})}>
                         <option value="light_start">Light start / refuel</option>
                         <option value="balanced">Balanced</option>
                         <option value="heavy_start">Heavy start</option>
