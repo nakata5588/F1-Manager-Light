@@ -162,6 +162,12 @@ export default function RaceWeekend(){
   const trackState=liveRace?.track_state||null;
   const raceControlPlan=raceStrategy?.race_control_plan||null;
   const raceControlRules=raceControlPlan?.rules||null;
+  const weekendWeather=weekend?.weekend_weather||null;
+  const weatherObserved=new Set(weekendWeather?.observed_sessions||[]);
+  const weatherSessionRows=(weekend?.sessions||[]).filter((session)=>weekendWeather?.sessions?.[String(session?.id||"")]);
+  const activeWeather=weekendWeather?.sessions?.[String(weekend?.active_session_id||"")]||null;
+  const raceWeatherRow=Object.values(weekendWeather?.sessions||{}).find((row)=>row?.kind==="race")||null;
+  const raceForecast=raceWeatherRow?weekendWeather?.forecast?.[String(raceWeatherRow.id)]:null;
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
@@ -223,6 +229,55 @@ export default function RaceWeekend(){
       </div>
     </div>
 
+    {weekendWeather&&(
+      <div className="bg-white rounded-xl shadow p-5">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">Weekend Weather Centre</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Forecasts are estimates. Actual conditions are fixed in the Save, while forecast confidence improves as the weekend progresses.
+            </p>
+          </div>
+          <div className="text-xs text-gray-500 md:text-right">
+            <div>Team forecast capability {Math.round(Number(weekendWeather.forecast_accuracy||0)*100)}%</div>
+            <div>Revision {Number(weekendWeather.forecast_revision||0)+1}</div>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {weatherSessionRows.map((session)=>{
+            const sid=String(session.id);
+            const actual=weekendWeather.sessions?.[sid];
+            const forecast=weekendWeather.forecast?.[sid];
+            const current=String(weekend.active_session_id||"")===sid&&["practice","qualifying","race"].includes(String(weekend.phase));
+            const known=weatherObserved.has(sid)||current;
+            const state=known?actual?.state:forecast?.predicted_state;
+            return <div key={sid} className={"border rounded-xl p-3 "+(current?"ring-2 ring-slate-300":"")}>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-medium text-sm">{session.label}</div>
+                  <div className="text-xs text-gray-500">{session.dateISO}</div>
+                </div>
+                <span className={"text-[11px] rounded px-2 py-1 "+(known?"bg-emerald-50 text-emerald-800":"bg-blue-50 text-blue-800")}>
+                  {current?"LIVE":known?"OBSERVED":"FORECAST"}
+                </span>
+              </div>
+              <div className="mt-3 font-semibold">{String(state||"UNKNOWN").replaceAll("_"," ")}</div>
+              {known?<div className="mt-2 grid grid-cols-2 gap-1 text-xs text-gray-600">
+                <div>Air {Number(actual?.air_temp_c||0).toFixed(1)}°C</div>
+                <div>Track {Number(actual?.track_temp_c||0).toFixed(1)}°C</div>
+                <div>Wetness {Math.round(Number(actual?.track?.start_wetness||0)*100)}%</div>
+                <div>Grip {Number(actual?.track?.grip_index||0).toFixed(0)}%</div>
+                <div>Rubber {Number(actual?.track?.rubber_level||0).toFixed(0)}%</div>
+                <div>Rain {Math.round(Number(actual?.rain_intensity||0)*100)}%</div>
+              </div>:<div className="mt-2 text-xs text-gray-600">
+                Rain {Number(forecast?.rain_chance_pct||0).toFixed(0)}% · Air {Number(forecast?.air_temp_c||0).toFixed(1)}°C ±{Number(forecast?.temperature_range_c||0).toFixed(1)} · confidence {Number(forecast?.confidence_pct||0).toFixed(0)}%
+              </div>}
+            </div>;
+          })}
+        </div>
+      </div>
+    )}
+
     {weekend.phase==="practice"&&(
       <div className="grid gap-4">
         <div className="bg-white rounded-xl shadow p-5">
@@ -261,7 +316,7 @@ export default function RaceWeekend(){
             })}
           </div>
           <div className="mt-3 text-xs text-gray-500">
-            AI teams select programmes from the same five options using their car reliability, staff support and driver profile.
+            AI teams select programmes from the same five options using car reliability, staff support, driver profile and the session conditions. Wet running improves wet-condition knowledge but can be less representative of a dry Qualifying or Race.
           </div>
           <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runPractice)}>
             {busy?"Running…":"Run Practice"}
@@ -313,6 +368,8 @@ export default function RaceWeekend(){
                     <span className="bg-slate-100 rounded px-2 py-1">Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {Number(row.fatigue_after??row.fatigue_cost??0).toFixed(0)}</span>
                     <span className="bg-slate-100 rounded px-2 py-1">Learning efficiency {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
                     <span className="bg-amber-50 text-amber-800 rounded px-2 py-1">Component wear {Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
+                    <span className="bg-cyan-50 text-cyan-800 rounded px-2 py-1">Race relevance {Number(row.race_weather_relevance??0).toFixed(0)}%</span>
+                    <span className="bg-violet-50 text-violet-800 rounded px-2 py-1">Qualifying relevance {Number(row.qualifying_weather_relevance??0).toFixed(0)}%</span>
                   </div>
                 </div>
                 <p className="mt-2 text-sm">{row.feedback}</p>
@@ -428,10 +485,11 @@ export default function RaceWeekend(){
           </div>
 
           <div className="mt-3 rounded-lg bg-slate-50 border px-3 py-2 text-sm">
-            <span className="font-medium">Forecast:</span>{" "}
-            {String(raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
-            {" · "}{Number(raceStrategy?.weather_snapshot?.avg_temp_c||0).toFixed(0)}°C
-            {" · rain "}{Number(raceStrategy?.weather_snapshot?.rain_chance_pct||0).toFixed(0)}%
+            <span className="font-medium">Race forecast:</span>{" "}
+            {String(raceForecast?.predicted_state||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
+            {" · "}{Number(raceForecast?.air_temp_c??raceStrategy?.weather_snapshot?.avg_temp_c??0).toFixed(0)}°C
+            {" · rain "}{Number(raceForecast?.rain_chance_pct??raceStrategy?.weather_snapshot?.rain_chance_pct??0).toFixed(0)}%
+            {raceForecast?<>{" · confidence "}{Number(raceForecast.confidence_pct||0).toFixed(0)}%</>:null}
             {" · refuelling "}{raceStrategy?.rules_snapshot?.refuelling_allowed?"available":"not allowed"}
           </div>
 
