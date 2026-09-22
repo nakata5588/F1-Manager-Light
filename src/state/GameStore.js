@@ -346,6 +346,9 @@ export const useGame = create((set, get) => ({
     dbTrackLayoutByYear: [],
     dbTeamSeasons: [],
     dbCoreTracks: [],
+    dbWeatherProfiles: [],
+    dbWeatherStates: [],
+    dbPitcrewRoster: [],
 
     yearsAvailable: [],
     seasonPackIndex: [],
@@ -587,7 +590,8 @@ export const useGame = create((set, get) => ({
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
-        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, coreTracksRaw, seasonIndexRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, coreTracksRaw,
+        weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
@@ -625,6 +629,9 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/track_layout_by_year.json", []),
         fetchOptional("/data/team_seasons.json", []),
         fetchOptional("/data/core_tracks.json", []),
+        fetchOptional("/data/weather_profiles.json", []),
+        fetchOptional("/data/weather_states.json", []),
+        fetchOptional("/data/pitcrew_roster.json", []),
         fetchOptional("/data/seasons/index.json", { years: [] }),
       ]);
 
@@ -664,6 +671,9 @@ export const useGame = create((set, get) => ({
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
       const teamSeasons         = unexcelDeep(teamSeasonsRaw);
       const coreTracks          = unexcelDeep(coreTracksRaw);
+      const weatherProfiles     = unexcelDeep(weatherProfilesRaw);
+      const weatherStates       = unexcelDeep(weatherStatesRaw);
+      const pitcrewRoster       = unexcelDeep(pitcrewRosterRaw);
       const seasonPackIndex      = Array.isArray(seasonIndexRaw?.years) ? unexcelDeep(seasonIndexRaw.years) : [];
 
       const packYears = seasonPackIndex
@@ -718,6 +728,9 @@ export const useGame = create((set, get) => ({
           dbTrackLayoutByYear: trackLayoutByYear,
           dbTeamSeasons: teamSeasons,
           dbCoreTracks: coreTracks,
+          dbWeatherProfiles: weatherProfiles,
+          dbWeatherStates: weatherStates,
+          dbPitcrewRoster: pitcrewRoster,
           coreTracks,
           trackLayoutByYear,
 
@@ -1478,6 +1491,14 @@ export const useGame = create((set, get) => ({
     const next=mod.setPracticeProgramme(gs,{driverId,programmeId});
     set({gameState:next});
     return next?.raceWeekendState||null;
+  },
+
+  setRaceWeekendStrategy: async (driverId,patch) => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.setRaceStrategy(gs,{driverId,patch});
+    set({gameState:next});
+    return next?.raceWeekendState?.race_strategy||null;
   },
 
   completeRaceWeekendPractice: async () => {
