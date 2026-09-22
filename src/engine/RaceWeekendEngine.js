@@ -6,6 +6,7 @@ import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngin
 import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
+import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import {
   advancingDriverIds,
   buildQualifyingClassification,
@@ -117,7 +118,16 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     teamEntryLimits:qualifyingRule.team_entry_limits,
   });
   const schedule=raceWeekendSchedule(gp,qualifyingRule);
-  const strategyBuilt=createRaceStrategyState(next,{gp,raceEntryState});
+  const weekendWeather=createWeekendWeatherState(next,{gp,sessions:schedule.sessions});
+  const provisionalWeekend={
+    key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
+    gp_id:id,
+    track_id:gp?.track_id||null,
+    raceDate:schedule.raceDate,
+    active_session_id:"practice",
+    weekend_weather:weekendWeather,
+  };
+  const strategyBuilt=createRaceStrategyState({...next,raceWeekendState:provisionalWeekend},{gp,raceEntryState});
   next=strategyBuilt.gameState;
   const state={
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
@@ -139,6 +149,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     qualifying_rule_snapshot:{...qualifyingRule},
     practice:null,
     practice_selections:{},
+    weekend_weather:weekendWeather,
     qualifying:{
       status:"pending",
       strategy:qualifyingRule.strategy,
@@ -289,8 +300,9 @@ export function completePracticeSession(gs,{gp}={}){
   const interim={...weekend,sessions};
   const nextCompetitive=nextPendingCompetitiveSession(interim);
 
+  const weatherObserved=observeWeekendWeatherSession(session.gameState,"practice");
   return {
-    ...session.gameState,
+    ...weatherObserved,
     raceWeekendState:{
       ...interim,
       phase:"practice_complete",
@@ -318,7 +330,10 @@ export function completeQualifyingSession(gs,{gp}={}){
     eligibleDriverIds,
   });
 
-  const sessionGameState=applyQualifyingFatigue(simulated.gameState,simulated.qualifying,current.type);
+  const sessionGameState=observeWeekendWeatherSession(
+    applyQualifyingFatigue(simulated.gameState,simulated.qualifying,current.type),
+    current.id
+  );
 
   let normalized=simulated.qualifying.map((row,index)=>({
     position:Number(row.pos??index+1),
