@@ -831,7 +831,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
       const remaining=track.laps-lap+1;
       const nextFuelTarget=fuelStopTargets[refuelCount]??null;
-      const fuelStopDue=rules.refuelling_allowed&&Number.isFinite(Number(nextFuelTarget))&&lap>=Number(nextFuelTarget)&&remaining>1;
+      const hasFuelTarget=nextFuelTarget!==null&&nextFuelTarget!==undefined&&Number.isFinite(Number(nextFuelTarget));
+      const fuelStopDue=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget)&&remaining>1;
       const mismatch=tyreWeatherPenalty(tyre,tyreState);
       const projectedTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,Math.max(1,stintLap+1));
       const projectedOptimum=optimalTyreTemp(tyre);
@@ -882,7 +883,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
         const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,tyreState,stopReason);
-        const refuel=rules.refuelling_allowed&&Number.isFinite(Number(nextFuelTarget))&&lap>=Number(nextFuelTarget);
+        const refuel=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget);
         const error=rng.chance(clamp(num(crew.error_rate,0.05),0,0.35));
         const errorDelay=error?3+rng.next()*8:0;
         const fuelDelay=refuel?(Number(working?.activeYear)<=1983?9:6):0;
