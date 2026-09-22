@@ -22,7 +22,6 @@ export default function RaceWeekendLayout(){
   const [saveLabel,setSaveLabel]=useState("Save Game");
 
   const dateLabel=useMemo(()=>formatGameDate(gameState?.currentDateISO),[gameState?.currentDateISO]);
-  const gpName=gameState?.raceWeekendState?.gp_name||"Race Weekend";
 
   const runAdvance=async()=>{
     if(busy)return;
@@ -55,12 +54,6 @@ export default function RaceWeekendLayout(){
         <button type="button" disabled={busy} onClick={runAdvance} className="rounded-md bg-slate-100 text-slate-950 px-3 py-2 text-xs font-bold hover:bg-white disabled:opacity-50">
           {busy?"Advancing…":"Advance"}
         </button>
-
-        <div className="hidden md:block h-6 w-px bg-white/10 mx-1"/>
-        <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Race Weekend</div>
-          <div className="text-sm font-semibold truncate">{gpName}</div>
-        </div>
 
         <div className="flex-1"/>
         <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-300">
