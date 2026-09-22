@@ -4,7 +4,7 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize } from "./LiveRaceEngine.js";
+import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import {
   advancingDriverIds,
@@ -266,6 +266,10 @@ export function advanceLiveRaceSession(gs,{gp,laps=1}={}){
 
 export function setLiveRaceCommand(gs,command={}){
   return issueLiveRaceCommand(gs,command);
+}
+
+export function resumeLiveRaceSession(gs){
+  return resumeLiveRace(gs);
 }
 
 export function completePracticeSession(gs,{gp}={}){
