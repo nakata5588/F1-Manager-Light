@@ -1232,7 +1232,12 @@ export default function RaceWeekend(){
                           :"—";
                     const standing=driverStandingById.get(did);
                     const teamStanding=constructorStandingById.get(tid);
-                    return <tr key={did||index} className={"border-t border-white/5 "+(tid===playerTeamId?"bg-white/[0.06]":"hover:bg-white/[0.025]")}>
+                    const resultRowTone=row?.retired||String(status).toUpperCase()==="DNF"
+                      ?"bg-red-950/55 text-red-100"
+                      :tid===playerTeamId
+                        ?"bg-white/[0.06]"
+                        :"hover:bg-white/[0.025]";
+                    return <tr key={did||index} className={"border-t border-white/5 "+resultRowTone}>
                       <td className="px-3 py-3 text-right text-base font-bold">P{finish}</td>
                       <td className={"px-2 py-3 text-center font-semibold "+(delta>0?"text-emerald-400":delta<0?"text-rose-400":"text-slate-600")}>{positionDelta(delta)}</td>
                       <td className="px-3 py-3">
@@ -1249,7 +1254,7 @@ export default function RaceWeekend(){
                         </div>
                       </td>
                       <td className="px-3 py-3">
-                        <span className={"rounded px-2 py-1 text-xs "+(row?.retired?"bg-amber-500/15 text-amber-300":"bg-emerald-500/15 text-emerald-300")}>{status}</span>
+                        <span className={"rounded px-2 py-1 text-xs "+(row?.retired?"bg-red-500/20 text-red-200":"bg-emerald-500/15 text-emerald-300")}>{status}</span>
                         {Number.isFinite(Number(row?.laps_completed))&&<div className="mt-1 text-[11px] text-slate-500">{row.laps_completed}/{row.race_laps??row.laps_completed} laps</div>}
                       </td>
                       <td className="px-3 py-3 text-right">
