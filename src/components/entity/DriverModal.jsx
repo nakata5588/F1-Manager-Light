@@ -8,6 +8,7 @@ import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../domain/driverMarketEvaluation.js";
 import { driverProfileSnapshot } from "../../domain/driverProfile.js";
+import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
@@ -573,10 +574,14 @@ export default function DriverModal({ entity, onClose }) {
   }, [driver?.age, driver?.dob, gameYear]);
 
   const overallView  = profileSnapshot?.overall || driverOverallPresentation(gs, driver || entity.id);
-  const overall       = Number(overallView?.value);
-  const overallLabel  = Number.isFinite(overall)
-    ? (overallView?.estimated ? `~${overall.toFixed(0)} (est.)` : overall.toFixed(1))
-    : "—";
+  const knowledge     = profileSnapshot?.knowledge || null;
+  const overallPresentation = presentDriverKnowledgeValue(
+    knowledge,
+    "current_ability",
+    overallView?.value,
+    {kind:"ability",estimated:overallView?.estimated}
+  );
+  const overallLabel  = overallPresentation.label;
   const rawMarketValue = Number(unbox(attrs?.market_value));
   const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
   const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
@@ -689,11 +694,20 @@ export default function DriverModal({ entity, onClose }) {
           <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0}/>
         </div>
 
-        <div className="mt-4 space-y-3">
-          <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
-          <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
-          <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
-          <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
+        <div className="mt-4">
+          {knowledge?.canSeeCondition ? (
+            <div className="space-y-3">
+              <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
+              <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
+              <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
+              <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Private condition data</div>
+              <div className="mt-1 text-xs text-slate-400">Confidence, morale, preparation and fatigue are only visible for your contracted race team drivers.</div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4 text-xs text-slate-400 space-y-2">
@@ -720,7 +734,7 @@ export default function DriverModal({ entity, onClose }) {
               </div>
               <div className="mt-1 text-xs text-slate-400">
                 {contractTeam || profileSnapshot?.teamName || "Free Agent"} · {contractRole || "No active role"}
-                {Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))
+                {knowledge?.canSeeCondition && Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))
                   ? ` · Current performance ${Number(profileSnapshot.conditionImpact.total)>=0?"+":""}${Number(profileSnapshot.conditionImpact.total).toFixed(1)}`
                   : ""}
               </div>
@@ -765,6 +779,7 @@ export default function DriverModal({ entity, onClose }) {
             <OverviewTab
               snapshot={profileSnapshot}
               condition={condition}
+              knowledge={knowledge}
               overallLabel={overallLabel}
               contractTeam={contractTeam}
               contractRole={contractRole}
@@ -786,13 +801,13 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} />}
+          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} knowledge={knowledge} />}
 
           {activeTab === "development" && (
             <DevelopmentTab
               attrs={meaningfulAttrs}
               log={developmentLog}
-              isOwnDriver={!!isOwnDriver}
+              knowledge={knowledge}
             />
           )}
 
