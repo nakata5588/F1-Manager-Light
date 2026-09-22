@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
+import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import { Activity, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
 
@@ -166,6 +167,55 @@ function liveEventText(event,drivers){
   if(raw.startsWith(id+" "))return name+raw.slice(id.length);
   return raw.includes(name)?raw:name+" · "+raw;
 }
+function isWetState(state){
+  return /RAIN|STORM|WETTING|DRIZZLE/i.test(String(state||""));
+}
+function teamForecastText(weatherSnapshot,currentLap,currentState,confidence){
+  const lap=Math.max(0,Number(currentLap)||0);
+  const segments=(weatherSnapshot?.segments||[]).slice().sort((a,b)=>Number(a.from_lap)-Number(b.from_lap));
+  const wetNow=isWetState(currentState);
+  const next=segments.find((segment)=>Number(segment.from_lap)>lap&&isWetState(segment.state)!==wetNow);
+  const conf=Number.isFinite(Number(confidence))?Math.round(Number(confidence)):null;
+  if(!next){
+    const base=wetNow?"Rain expected to persist for now.":"No major rain change expected soon.";
+    return conf==null?base:`${base} Forecast confidence ${conf}%.`;
+  }
+  const laps=Math.max(1,Number(next.from_lap)-lap);
+  const timing=laps===1?"next lap":`~${laps} laps`;
+  const text=!wetNow&&isWetState(next.state)
+    ?`Rain might start in ${timing}.`
+    :`Rain may ease or stop in ${timing}.`;
+  return conf==null?text:`${text} Forecast confidence ${conf}%.`;
+}
+function controlNotice(plan,liveRace,drivers){
+  const lap=Number(liveRace?.current_lap)||0;
+  const current=String(liveRace?.current_control||"GREEN");
+  if(current==="GREEN")return null;
+  const period=(plan?.periods||[]).find((row)=>lap>=Number(row?.from_lap)&&lap<=Number(row?.to_lap))
+    ||liveRace?.red_flag_period
+    ||null;
+  const incident=period?.driver_id
+    ?(plan?.incidents||[]).find((row)=>String(row?.driver_id)===String(period.driver_id)&&Number(row?.lap)===Number(period?.from_lap))
+    :null;
+  const label={
+    LOCAL_YELLOW:"LOCAL YELLOW",
+    SAFETY_CAR:"SAFETY CAR",
+    VSC:"VIRTUAL SAFETY CAR",
+    RED_FLAG:"RED FLAG",
+  }[current]||current.replaceAll("_"," ");
+  let reason="Race control intervention";
+  if(period?.cause==="weather")reason="Extreme weather conditions";
+  else if(incident){
+    const who=driverName(drivers,incident.driver_id);
+    reason=`${who} — ${String(incident.reason||incident.kind||"incident").replaceAll("_"," ")} (${incident.severity||"unknown"})`;
+  }else if(period?.cause)reason=String(period.cause).replaceAll("_"," ");
+  return {label,reason,type:current};
+}
+function controlNoticeTone(type){
+  if(type==="RED_FLAG")return "border-red-500/50 bg-red-950/80 text-red-100";
+  if(type==="SAFETY_CAR"||type==="VSC")return "border-amber-400/50 bg-amber-500/15 text-amber-100";
+  return "border-yellow-400/50 bg-yellow-500/15 text-yellow-100";
+}
 function raceWindowForPhase(phase,hasLive=false){
   if(phase==="practice"||phase==="practice_complete")return "practice";
   if(phase==="qualifying"||phase==="qualifying_wait")return "qualifying";
@@ -189,20 +239,21 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
   const ordered=rows.slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
   const times=ordered.map((row)=>Number(row?.best_time_ms??row?.lap_time_ms)).filter((value)=>Number.isFinite(value)&&value>0);
   const best=times.length?Math.min(...times):null;
-  const split=ordered.length>14;
-  const midpoint=split?Math.ceil(ordered.length/2):ordered.length;
-  const groups=split
-    ?[{rows:ordered.slice(0,midpoint),offset:0},{rows:ordered.slice(midpoint),offset:midpoint}]
-    :[{rows:ordered,offset:0}];
+  const columnCount=ordered.length>=24?3:ordered.length>14?2:1;
+  const groupSize=Math.ceil(ordered.length/columnCount);
+  const groups=Array.from({length:columnCount},(_,index)=>({
+    rows:ordered.slice(index*groupSize,(index+1)*groupSize),
+    offset:index*groupSize,
+  })).filter((group)=>group.rows.length);
 
   const renderGroup=({rows:group,offset})=><div className="overflow-hidden rounded-lg border border-white/10 bg-[#11161f]" key={offset}>
-    <table className="w-full text-xs">
-      <thead className="bg-[#171d27] text-slate-400 uppercase tracking-wide">
+    <table className="w-full text-[11px] leading-tight">
+      <thead className="bg-[#171d27] text-[9px] uppercase tracking-wide text-slate-500">
         <tr>
-          <th className="px-2 py-2 text-right w-10">Pos</th>
-          <th className="px-2 py-2 text-left">Driver / Team</th>
-          <th className="px-2 py-2 text-right">Time / Gap</th>
-          <th className="px-2 py-2 text-right">Status</th>
+          <th className="px-2 py-1.5 text-right w-8">Pos</th>
+          <th className="px-2 py-1.5 text-left">Driver / Team</th>
+          <th className="px-2 py-1.5 text-right">Time / Gap</th>
+          <th className="px-2 py-1.5 text-right">Status</th>
         </tr>
       </thead>
       <tbody>
@@ -213,25 +264,21 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
           const atCutoff=Number.isFinite(Number(cutoff))&&globalIndex===Number(cutoff);
           return <React.Fragment key={row.driver_id||globalIndex}>
             {atCutoff&&<tr className="border-y border-amber-400/30 bg-amber-500/10">
-              <td colSpan={4} className="px-2 py-1 text-[10px] font-medium text-amber-300">
-                Qualification cut — first {cutoff} qualify
-              </td>
+              <td colSpan={4} className="px-2 py-1 text-[9px] font-medium text-amber-300">Cut — first {cutoff} qualify</td>
             </tr>}
             <tr className="border-t border-white/5 hover:bg-white/[0.025]">
-              <td className="px-2 py-2 text-right font-bold">P{row.position??globalIndex+1}</td>
-              <td className="px-2 py-2">
-                <div className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
-                  <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-4 w-4" className="p-0.5"/>
-                  <span>{teamName(teams,row.team_id)}</span>
-                </div>
+              <td className="px-2 py-1.5 text-right font-bold">P{row.position??globalIndex+1}</td>
+              <td className="px-2 py-1.5 min-w-0">
+                <span className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</span>
+                <span className="text-slate-600"> · </span>
+                <span className="text-[10px] text-slate-500">{teamName(teams,row.team_id)}</span>
               </td>
-              <td className="px-2 py-2 text-right font-mono">
-                <div>{formatLapTime(time)}</div>
-                <div className="text-[10px] text-slate-500">{formatGap(time,best)}</div>
+              <td className="px-2 py-1.5 text-right font-mono whitespace-nowrap">
+                <span>{formatLapTime(time)}</span>
+                <span className="ml-1.5 text-[9px] text-slate-600">{formatGap(time,best)}</span>
               </td>
-              <td className="px-2 py-2 text-right">
-                <span className={"rounded px-1.5 py-1 text-[10px] "+statusClass(status)}>{status||"—"}</span>
+              <td className="px-2 py-1.5 text-right">
+                <span className={"rounded px-1.5 py-0.5 text-[9px] "+statusClass(status)}>{status||"—"}</span>
               </td>
             </tr>
           </React.Fragment>;
@@ -240,14 +287,17 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
     </table>
   </div>;
 
-  return <div className="rounded-xl border border-white/10 bg-[#0f141d] p-3">
-    {title&&<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="font-medium text-sm">{title}</div>
-      <div className="text-xs text-slate-500">{ordered.length} drivers{split?" · split view":""}</div>
+  const gridClass=columnCount===3
+    ?"grid gap-2 xl:grid-cols-3"
+    :columnCount===2
+      ?"grid gap-2 xl:grid-cols-2"
+      :"grid gap-2";
+  return <div className="rounded-xl border border-white/10 bg-[#0f141d] p-2.5">
+    {title&&<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className="font-medium text-xs">{title}</div>
+      <div className="text-[10px] text-slate-500">{ordered.length} drivers · {columnCount} column{columnCount>1?"s":""}</div>
     </div>}
-    <div className={split?"grid gap-3 xl:grid-cols-2":"grid gap-3"}>
-      {groups.map(renderGroup)}
-    </div>
+    <div className={gridClass}>{groups.map(renderGroup)}</div>
   </div>;
 }
 
@@ -309,6 +359,13 @@ export default function RaceWeekend(){
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
+  const activeControlNotice=controlNotice(raceControlPlan,liveRace,drivers);
+  const liveTeamForecast=teamForecastText(
+    raceStrategy?.weather_snapshot,
+    liveRace?.current_lap,
+    liveRace?.last_weather||raceStrategy?.weather_snapshot?.state,
+    raceForecast?.confidence_pct
+  );
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
