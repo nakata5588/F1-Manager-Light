@@ -53,8 +53,6 @@ export default function MyDrivers(){
   const myTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const myTeamName=gs?.team?.team_name||gs?.team?.name||"My Team";
   const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
-  const ratings=gs?.driverRatings?.length?gs.driverRatings:gs?.dbDriverRatings||[];
-  const results=Array.isArray(gs?.results)?gs.results:[];
   const standings=gs?.standings?.drivers||[];
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
   const [renewingRow,setRenewingRow]=useState(null);
