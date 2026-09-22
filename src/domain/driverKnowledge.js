@@ -162,6 +162,10 @@ export function driverKnowledgeState(gs,driverOrId){
     exactAttributes:exactAbility,
     rangedAttributes:rangedAbility,
     canSeeCondition:level===DRIVER_KNOWLEDGE_LEVELS.OWN,
+    canSeeDevelopmentHistory:[
+      DRIVER_KNOWLEDGE_LEVELS.OWN,
+      DRIVER_KNOWLEDGE_LEVELS.ACADEMY,
+    ].includes(level),
     canSeeExactAbility:exactAbility,
     canSeeExactPotential:exactPotential,
     specificReport:specific,
