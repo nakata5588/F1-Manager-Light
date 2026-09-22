@@ -3,7 +3,7 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
-import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
+import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
@@ -413,7 +413,7 @@ export function completeQualifyingSession(gs,{gp}={}){
     results:startingGrid.rows,
   });
 
-  return {
+  const completedState={
     ...sessionGameState,
     raceEntryState:simulated.raceEntryState,
     raceWeekendState:{
@@ -437,6 +437,7 @@ export function completeQualifyingSession(gs,{gp}={}){
       grid:startingGrid.rows,
     },
   };
+  return refreshPlayerRaceStrategyFromForecast(completedState);
 }
 
 export async function completeRaceSession(gs,{gp}={}){
