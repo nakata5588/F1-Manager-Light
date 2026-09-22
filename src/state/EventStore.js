@@ -65,5 +65,21 @@ export const useEventStore = create((set, get) => ({
   },
 
   pushEvent(ev) { set((s) => ({ events: [...s.events, ev] })); },
-  pushNews(nw)  { set((s) => ({ news:   [...s.news,   nw] })); },
+  pushNews(nw)  { set((s) => ({ news: [...s.news, nw] })); },
+
+  markNewsRead(id) {
+    set((s) => ({
+      news: s.news.map((item) =>
+        String(item?.id ?? "") === String(id)
+          ? { ...item, unread: false, read: true, is_unread: false }
+          : item
+      ),
+    }));
+  },
+
+  markAllNewsRead() {
+    set((s) => ({
+      news: s.news.map((item) => ({ ...item, unread: false, read: true, is_unread: false })),
+    }));
+  },
 }));
