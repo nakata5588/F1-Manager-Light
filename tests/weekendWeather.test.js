@@ -9,6 +9,7 @@ import {
   raceWeekendWeatherSession,
   sessionWeatherIsWet,
   sessionWeatherPerformanceMultiplier,
+  teamRaceForecast,
   weatherSimilarity,
 } from "../src/engine/WeekendWeatherEngine.js";
 import { buildRaceWeatherSnapshot } from "../src/engine/RaceStrategyEngine.js";
@@ -68,6 +69,63 @@ test("forecast capability is era-aware and 1980 remains intentionally uncertain"
   assert.ok(modernAccuracy>oldAccuracy);
 });
 
+test("RW4.6.1 Team Forecast is deterministic and never reads the hidden future timeline directly",()=>{
+  const gs=baseGs(1980,"rw4.6.1-known-info");
+  const world=createWeekendWeatherState(gs,{gp,sessions});
+  const state={
+    ...gs,
+    raceWeekendState:{
+      gp_id:gp.gp_id,
+      track_id:gp.track_id,
+      active_session_id:"race",
+      weekend_weather:world,
+      race_strategy:{
+        track_snapshot:{laps:60},
+        weather_snapshot:{segments:[{from_lap:1,to_lap:60,state:"STORM"}]},
+      },
+    },
+  };
+  const first=teamRaceForecast(state,{currentLap:12,currentWeather:"SUNNY",totalLaps:60});
+  const repeat=teamRaceForecast(state,{currentLap:12,currentWeather:"SUNNY",totalLaps:60});
+  assert.deepEqual(first,repeat,"same Save + revision must produce exactly the same team forecast");
+
+  const alteredTruth=structuredClone(state);
+  alteredTruth.raceWeekendState.race_strategy.weather_snapshot.segments=[
+    {from_lap:1,to_lap:20,state:"SUNNY"},
+    {from_lap:21,to_lap:60,state:"HEAVY_RAIN"},
+  ];
+  alteredTruth.raceWeekendState.weekend_weather.sessions.race.segments=[
+    {from_pct:0,to_pct:0.9,state:"SUNNY"},
+    {from_pct:0.9,to_pct:1,state:"STORM"},
+  ];
+  alteredTruth.raceWeekendState.weekend_weather.sessions.race.state="STORM";
+
+  assert.deepEqual(
+    teamRaceForecast(alteredTruth,{currentLap:12,currentWeather:"SUNNY",totalLaps:60}),
+    first,
+    "player forecast must depend on weekend_weather.forecast + observed conditions, not the hidden real timeline"
+  );
+  assert.equal(first.source,"weekend_weather.forecast");
+});
+
+test("RW4.6.1 stronger forecast capability narrows the timing model and raises confidence",()=>{
+  const low=baseGs(2020,"rw4.6.1-capability");
+  low.staffRatings=low.staffRatings.map((row)=>({...row,technical:20,data_analysis:20,communication:20}));
+  low.facilities=[{team_id:"T1",year:2020,pitcrew_training_level:1}];
+
+  const high=baseGs(2020,"rw4.6.1-capability");
+  high.staffRatings=high.staffRatings.map((row)=>({...row,technical:100,data_analysis:100,communication:100}));
+  high.facilities=[{team_id:"T1",year:2020,pitcrew_training_level:10}];
+
+  const lowWorld=createWeekendWeatherState(low,{gp:{...gp,year:2020,race_date:"2020-05-18"},sessions:sessions.map((row)=>({...row,dateISO:row.dateISO.replace("1980","2020")}))});
+  const highWorld=createWeekendWeatherState(high,{gp:{...gp,year:2020,race_date:"2020-05-18"},sessions:sessions.map((row)=>({...row,dateISO:row.dateISO.replace("1980","2020")}))});
+
+  assert.ok(highWorld.forecast_accuracy>lowWorld.forecast_accuracy);
+  assert.ok(highWorld.forecast.race.confidence_pct>lowWorld.forecast.race.confidence_pct);
+  assert.ok(highWorld.forecast.race.timing.uncertainty_pct<lowWorld.forecast.race.timing.uncertainty_pct);
+  assert.ok(highWorld.forecast.race.timing.max_timing_error_pct<lowWorld.forecast.race.timing.max_timing_error_pct);
+});
+
 test("observing a session refreshes future forecast without rewriting actual weather",()=>{
   const gs=baseGs();
   const world=createWeekendWeatherState(gs,{gp,sessions});
@@ -81,13 +139,25 @@ test("observing a session refreshes future forecast without rewriting actual wea
   assert.notDeepEqual(next.raceWeekendState.weekend_weather.forecast,forecastBefore);
 });
 
-test("weekend weather state is save/load safe",()=>{
+test("weekend weather state and Team Forecast are save/load safe",()=>{
   const gs=baseGs();
   const world=createWeekendWeatherState(gs,{gp,sessions});
-  const state={...gs,raceWeekendState:{gp_id:gp.gp_id,track_id:gp.track_id,active_session_id:"practice",weekend_weather:world}};
+  const state={...gs,raceWeekendState:{
+    gp_id:gp.gp_id,
+    track_id:gp.track_id,
+    active_session_id:"practice",
+    weekend_weather:world,
+    race_strategy:{track_snapshot:{laps:60}},
+  }};
+  const before=teamRaceForecast(state,{currentLap:8,currentWeather:"SUNNY",totalLaps:60});
   const saved=prepareGameStateForSave(state);
   const loaded=extractGameStateFromStoredSave({meta:{name:"weather"},gameState:saved});
   assert.deepEqual(loaded.raceWeekendState.weekend_weather,world);
+  assert.deepEqual(
+    teamRaceForecast(loaded,{currentLap:8,currentWeather:"SUNNY",totalLaps:60}),
+    before,
+    "save/load must preserve exactly the same player-facing forecast"
+  );
 });
 
 test("wet Practice changes the setup target and session performance model",()=>{
