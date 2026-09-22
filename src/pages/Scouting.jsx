@@ -3,6 +3,7 @@ import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
+import { driverKnowledgeState, presentDriverKnowledgeValue } from "@/domain/driverKnowledge.js";
 
 const DAY = 86_400_000;
 const unbox = (v) => v && typeof v === "object" && !Array.isArray(v)
@@ -110,12 +111,7 @@ export default function Scouting() {
       const age=Number(d?.age);
       return Number.isFinite(age) && age >= 16 && age <= 24;
     })
-    .sort((a,b) => {
-      const ar = ratingById.get(idOf(a)) || {};
-      const br = ratingById.get(idOf(b)) || {};
-      return Number(pick(br,["potential_ability","potential"],0)) -
-             Number(pick(ar,["potential_ability","potential"],0));
-    }), [drivers, ratingById]);
+    .sort((a,b) => String(a?.display_name||a?.name||"").localeCompare(String(b?.display_name||b?.name||""))), [drivers]);
 
   const prospects = useMemo(() => allProspects.filter((d) => {
     if (!q) return true;
@@ -329,14 +325,6 @@ export default function Scouting() {
     });
   }
 
-  const hasReport = (driverId) => assignments.some((a) =>
-    a.status === "completed" &&
-    (
-      String(a.prospect_id || "") === String(driverId) ||
-      (Array.isArray(a.discovered_ids) && a.discovered_ids.map(String).includes(String(driverId)))
-    )
-  );
-
   return (
     <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
@@ -396,7 +384,7 @@ export default function Scouting() {
           {mode === "region" && effectiveZone && (
             <div className="text-xs text-slate-400">
               Countries covered: {Array.from(zoneCountries(effectiveZone)).join(", ") || "—"}.
-              A regional search can discover several active lower-series drivers; their ratings stay hidden until the assignment finishes.
+              A regional search can discover several active lower-series drivers. Completion unlocks estimate ranges; a specific driver report is required for exact ratings.
             </div>
           )}
 
@@ -486,7 +474,19 @@ export default function Scouting() {
             {(tab==="shortlist" ? prospects.filter((d)=>shortlist.includes(idOf(d))) : prospects).map((d) => {
               const id = idOf(d);
               const rt = ratingById.get(id) || {};
-              const known = hasReport(id);
+              const knowledge = driverKnowledgeState(gameState,d);
+              const ability = presentDriverKnowledgeValue(
+                knowledge,
+                "current_ability",
+                pick(rt,["current_ability","overall","pace"],pick(d,["overall","current_ability"],NaN)),
+                {kind:"ability"}
+              );
+              const potential = presentDriverKnowledgeValue(
+                knowledge,
+                "potential_ability",
+                pick(rt,["potential_ability","potential"],pick(d,["potential","potential_ability"],NaN)),
+                {kind:"potential"}
+              );
               const active = assignments.some((a)=>String(a.prospect_id||"")===id && ["active","paused"].includes(a.status));
               return (
                 <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={id}><CardContent className="p-4 space-y-3">
@@ -501,9 +501,10 @@ export default function Scouting() {
                   </button>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <Mini label="Ability" value={known ? pick(rt,["current_ability","overall","pace"],pick(d,["overall","current_ability"],"No data")) : "?"}/>
-                    <Mini label="Potential" value={known ? pick(rt,["potential_ability","potential"],pick(d,["potential","potential_ability"],"No data")) : "?"}/>
+                    <Mini label="Ability" value={ability.label}/>
+                    <Mini label="Potential" value={potential.label}/>
                   </div>
+                  <div className="text-[10px] uppercase tracking-wide text-sky-300">{knowledge.label}</div>
 
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -511,7 +512,7 @@ export default function Scouting() {
                       disabled={active}
                       onClick={()=>{setMode("driver");setTarget(id);setShowStart(true);setTab("assignments");}}
                     >
-                      {active ? "Scouting…" : known ? "Refresh Report" : "Request Report"}
+                      {active ? "Scouting…" : knowledge.level==="scouted" ? "Refresh Report" : "Request Full Report"}
                     </Button>
                     <Button size="sm" variant="darkOutline" onClick={()=>toggleShortlist(id)}>
                       {shortlist.includes(id) ? "Remove Shortlist" : "Add Shortlist"}

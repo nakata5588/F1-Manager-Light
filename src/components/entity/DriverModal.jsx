@@ -8,6 +8,7 @@ import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../domain/driverMarketEvaluation.js";
 import { driverProfileSnapshot } from "../../domain/driverProfile.js";
+import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
@@ -573,10 +574,14 @@ export default function DriverModal({ entity, onClose }) {
   }, [driver?.age, driver?.dob, gameYear]);
 
   const overallView  = profileSnapshot?.overall || driverOverallPresentation(gs, driver || entity.id);
-  const overall       = Number(overallView?.value);
-  const overallLabel  = Number.isFinite(overall)
-    ? (overallView?.estimated ? `~${overall.toFixed(0)} (est.)` : overall.toFixed(1))
-    : "—";
+  const knowledge     = profileSnapshot?.knowledge || null;
+  const overallPresentation = presentDriverKnowledgeValue(
+    knowledge,
+    "current_ability",
+    overallView?.value,
+    {kind:"ability",estimated:overallView?.estimated}
+  );
+  const overallLabel  = overallPresentation.label;
   const rawMarketValue = Number(unbox(attrs?.market_value));
   const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
   const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
@@ -689,18 +694,27 @@ export default function DriverModal({ entity, onClose }) {
           <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0}/>
         </div>
 
-        <div className="mt-4 space-y-3">
-          <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
-          <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
-          <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
-          <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
+        <div className="mt-4">
+          {knowledge?.canSeeCondition ? (
+            <div className="space-y-3">
+              <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
+              <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
+              <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
+              <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Private condition data</div>
+              <div className="mt-1 text-xs text-slate-400">Confidence, morale, preparation and fatigue are only visible for your contracted team drivers.</div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4 text-xs text-slate-400 space-y-2">
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
-          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{fmtMoney(marketValue)}</strong></div>
+          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}</strong></div>
         </div>
       </aside>
 
@@ -720,7 +734,7 @@ export default function DriverModal({ entity, onClose }) {
               </div>
               <div className="mt-1 text-xs text-slate-400">
                 {contractTeam || profileSnapshot?.teamName || "Free Agent"} · {contractRole || "No active role"}
-                {Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))
+                {knowledge?.canSeeCondition && Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))
                   ? ` · Current performance ${Number(profileSnapshot.conditionImpact.total)>=0?"+":""}${Number(profileSnapshot.conditionImpact.total).toFixed(1)}`
                   : ""}
               </div>
@@ -765,6 +779,7 @@ export default function DriverModal({ entity, onClose }) {
             <OverviewTab
               snapshot={profileSnapshot}
               condition={condition}
+              knowledge={knowledge}
               overallLabel={overallLabel}
               contractTeam={contractTeam}
               contractRole={contractRole}
@@ -786,13 +801,13 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} />}
+          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} knowledge={knowledge} />}
 
           {activeTab === "development" && (
             <DevelopmentTab
               attrs={meaningfulAttrs}
               log={developmentLog}
-              isOwnDriver={!!isOwnDriver}
+              knowledge={knowledge}
             />
           )}
 
@@ -897,6 +912,7 @@ function ConditionBar({ label, value, inverse = false }) {
 function OverviewTab({
   snapshot,
   condition,
+  knowledge,
   overallLabel,
   contractTeam,
   contractRole,
@@ -908,7 +924,8 @@ function OverviewTab({
   const season=snapshot?.season||{};
   const impact=snapshot?.conditionImpact||{};
   const availability=snapshot?.availability||{};
-  const impactValue=Number(impact?.total);
+  const canSeeCondition=Boolean(knowledge?.canSeeCondition);
+  const impactValue=canSeeCondition?Number(impact?.total):NaN;
   const impactTone=Number.isFinite(impactValue)
     ?(impactValue>=0?"text-emerald-300":"text-rose-300")
     :"text-slate-200";
@@ -926,35 +943,46 @@ function OverviewTab({
       )}
 
       <div className="xl:col-span-7 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current State</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current State</div>
+          <span className="rounded bg-sky-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-sky-300">{knowledge?.label||"Unscouted"}</span>
+        </div>
         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
           <ProfileMetric label="Overall" value={overallLabel}/>
           <ProfileMetric label="Championship" value={season.championshipPosition?`P${season.championshipPosition}`:"—"}/>
           <ProfileMetric label="Points" value={season.points??0}/>
           <ProfileMetric
             label="Performance effect"
-            value={Number.isFinite(impactValue)?`${impactValue>=0?"+":""}${impactValue.toFixed(1)}`:"—"}
+            value={Number.isFinite(impactValue)?`${impactValue>=0?"+":""}${impactValue.toFixed(1)}`:"Private"}
             tone={impactTone}
           />
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <ConditionBar label="Confidence" value={condition?.confidence??50}/>
-            <ConditionBar label="Morale" value={condition?.morale??50}/>
-          </div>
-          <div className="space-y-3">
-            <ConditionBar label="Preparation" value={condition?.preparation??50}/>
-            <ConditionBar label="Fatigue" value={condition?.fatigue??0} inverse/>
-          </div>
-        </div>
+        {canSeeCondition ? (
+          <>
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-3">
+                <ConditionBar label="Confidence" value={condition?.confidence??50}/>
+                <ConditionBar label="Morale" value={condition?.morale??50}/>
+              </div>
+              <div className="space-y-3">
+                <ConditionBar label="Preparation" value={condition?.preparation??50}/>
+                <ConditionBar label="Fatigue" value={condition?.fatigue??0} inverse/>
+              </div>
+            </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-4">
-          <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
-          <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
-          <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
-          <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
-        </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-4">
+              <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
+              <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
+              <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
+              <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
+            </div>
+          </>
+        ) : (
+          <div className="mt-5 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
+            Day-to-day condition is private team data. Public/scouting knowledge does not reveal current confidence, morale, preparation or fatigue.
+          </div>
+        )}
       </div>
 
       <div className="xl:col-span-5 rounded-xl border border-white/10 bg-[#12141c] p-4">
@@ -987,31 +1015,36 @@ function OverviewTab({
       </div>
 
       <div className="xl:col-span-5 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Decision Support</div>
-        <p className="mt-2 text-sm text-slate-400">
-          Overall ability stays separate from current performance. Confidence, morale, preparation and fatigue modify race-weekend output without permanently rewriting the driver's base ability.
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge & Decision Support</div>
+        <p className="mt-2 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</p>
+        <p className="mt-1 text-xs text-slate-400">
+          Exact driver ratings are only available through your own team, Academy support or a completed specific scouting report. Regional scouting and public F1 knowledge use ranges instead of database-perfect numbers.
         </p>
         <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
-          Performance and Development tabs use live Save World data. Form, lifecycle stages and projected development are intentionally not invented in this foundation pass.
+          Overall ability stays separate from current performance. Hidden day-to-day condition never changes the permanent Overall shown by the rating model.
         </div>
       </div>
     </div>
   );
 }
 
-function DevelopmentTab({ attrs, log, isOwnDriver }) {
-  const overall=attrs?.current_ability;
-  const potential=isOwnDriver?attrs?.potential_ability:null;
+function DevelopmentTab({ attrs, log, knowledge }) {
+  const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
+  const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",attrs?.potential_ability,{kind:"potential"});
+  const canSeeHistory=Boolean(knowledge?.canSeeDevelopmentHistory);
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
       <div className="xl:col-span-4 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development State</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development State</div>
+          <span className="text-[10px] uppercase tracking-wide text-sky-300">{knowledge?.label||"Unscouted"}</span>
+        </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <ProfileMetric label="Current ability" value={overall??"—"}/>
-          <ProfileMetric label="Potential" value={isOwnDriver?(potential??"—"):"Scouting required"}/>
+          <ProfileMetric label="Current ability" value={overall.label}/>
+          <ProfileMetric label="Potential" value={potential.label}/>
         </div>
         <p className="mt-3 text-xs text-slate-400">
-          The live rating is recalculated from permanent attribute changes. Temporary race-weekend condition is kept separate.
+          Exact values require internal team access or a full individual scouting report. A regional report only provides estimate ranges.
         </p>
       </div>
 
@@ -1021,42 +1054,49 @@ function DevelopmentTab({ attrs, log, isOwnDriver }) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent Development</div>
             <div className="mt-1 text-sm text-slate-300">Permanent attribute changes recorded in this save.</div>
           </div>
-          <span className="text-xs text-slate-500">{Math.min(log?.length||0,12)} shown</span>
+          {canSeeHistory && <span className="text-xs text-slate-500">{Math.min(log?.length||0,12)} shown</span>}
         </div>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="text-xs text-slate-500">
-              <tr>
-                <th className="py-2 pr-3 text-left">Date</th>
-                <th className="py-2 pr-3 text-left">Attribute</th>
-                <th className="py-2 pr-3 text-right">Before</th>
-                <th className="py-2 pr-3 text-right">After</th>
-                <th className="py-2 pr-3 text-right">Δ</th>
-                <th className="py-2 text-left">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {(log||[]).slice(0,12).map((row,index)=>{
-                const delta=Number(row?.delta??(Number(row?.after)-Number(row?.before)));
-                return (
-                  <tr key={`${row?.dateISO||"date"}-${row?.attr||"attr"}-${index}`}>
-                    <td className="py-2 pr-3 text-slate-400">{row?.dateISO||"—"}</td>
-                    <td className="py-2 pr-3 font-medium">{niceRole(String(row?.attr||"—").replaceAll("_"," "))}</td>
-                    <td className="py-2 pr-3 text-right">{isNumeric(row?.before)?Number(row.before).toFixed(2):"—"}</td>
-                    <td className="py-2 pr-3 text-right">{isNumeric(row?.after)?Number(row.after).toFixed(2):"—"}</td>
-                    <td className={`py-2 pr-3 text-right font-medium ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
-                      {Number.isFinite(delta)?`${delta>0?"+":""}${delta.toFixed(2)}`:"—"}
-                    </td>
-                    <td className="py-2 text-slate-400">{displayValue(row?.source,"—")}</td>
-                  </tr>
-                );
-              })}
-              {!(log||[]).length && (
-                <tr><td colSpan={6} className="py-6 text-center text-sm text-slate-500">No permanent development changes have been recorded in this save yet.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+
+        {!canSeeHistory ? (
+          <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
+            Development history is internal team/Academy data. Scouting reports can reveal the driver's current ability and potential, but not the hidden month-by-month progression log.
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="text-xs text-slate-500">
+                <tr>
+                  <th className="py-2 pr-3 text-left">Date</th>
+                  <th className="py-2 pr-3 text-left">Attribute</th>
+                  <th className="py-2 pr-3 text-right">Before</th>
+                  <th className="py-2 pr-3 text-right">After</th>
+                  <th className="py-2 pr-3 text-right">Δ</th>
+                  <th className="py-2 text-left">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {(log||[]).slice(0,12).map((row,index)=>{
+                  const delta=Number(row?.delta??(Number(row?.after)-Number(row?.before)));
+                  return (
+                    <tr key={`${row?.dateISO||"date"}-${row?.attr||"attr"}-${index}`}>
+                      <td className="py-2 pr-3 text-slate-400">{row?.dateISO||"—"}</td>
+                      <td className="py-2 pr-3 font-medium">{niceRole(String(row?.attr||"—").replaceAll("_"," "))}</td>
+                      <td className="py-2 pr-3 text-right">{isNumeric(row?.before)?Number(row.before).toFixed(2):"—"}</td>
+                      <td className="py-2 pr-3 text-right">{isNumeric(row?.after)?Number(row.after).toFixed(2):"—"}</td>
+                      <td className={`py-2 pr-3 text-right font-medium ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
+                        {Number.isFinite(delta)?`${delta>0?"+":""}${delta.toFixed(2)}`:"—"}
+                      </td>
+                      <td className="py-2 text-slate-400">{displayValue(row?.source,"—")}</td>
+                    </tr>
+                  );
+                })}
+                {!(log||[]).length && (
+                  <tr><td colSpan={6} className="py-6 text-center text-sm text-slate-500">No permanent development changes have been recorded in this save yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1265,59 +1305,87 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
   );
 }
 
-function AttributesTab({ attrs, condition }) {
-  if (!attrs) return <p className="text-gray-500 text-sm">No attributes.</p>;
+function AttributesTab({ attrs, condition, knowledge }) {
+  if (!attrs) return <p className="text-slate-500 text-sm">No attributes.</p>;
   const rows = [
-    ["Overall",               attrs.current_ability,               false],
-    ["Potential",             attrs.potential_ability,             false],
-    ["Pace",                  attrs.pace,                           false],
-    ["Qualifying",            attrs.qualifying,                     false],
-    ["Start/Launch",          attrs.start_launch,                   false],
-    ["Racecraft",             attrs.racecraft,                      false],
-    ["Wet Skill",             attrs.wet_skill,                      false],
-    ["Consistency",           attrs.consistency,                    false],
-    ["Tyre Management",       attrs.tire_management,                false],
-    ["Race Intelligence",     attrs.race_intelligence,              false],
-    ["Technical Feedback",    attrs.technical_feedback,             false],
-    ["Adaptability",          attrs.adaptability,                   false],
-    ["ERS/Fuel Management",   attrs.ers_fuel_management,            false],
-    ["Mentality",             attrs.mentality,                      false],
-    ["Aggression",            attrs.agression ?? attrs.aggression,  false],
-    ["Crash Likelihood",      attrs.crash_likelihood,               true],
-    ["Pressure Handling",     attrs.pressure_handling,              false],
-    ["Leadership",            attrs.leadership,                     false],
-    ["Team Player",           attrs.team_player,                    false],
-    ["Car Dev. Impact",       attrs.car_development_impact,         false],
-    ["Reputation",            attrs.reputation,                     false],
+    ["Overall",               "current_ability",           attrs.current_ability,               false, "ability"],
+    ["Potential",             "potential_ability",         attrs.potential_ability,             false, "potential"],
+    ["Pace",                  "pace",                      attrs.pace,                           false, "attribute"],
+    ["Qualifying",            "qualifying",                attrs.qualifying,                     false, "attribute"],
+    ["Start/Launch",          "start_launch",              attrs.start_launch,                   false, "attribute"],
+    ["Racecraft",             "racecraft",                 attrs.racecraft,                      false, "attribute"],
+    ["Wet Skill",             "wet_skill",                 attrs.wet_skill,                      false, "attribute"],
+    ["Consistency",           "consistency",               attrs.consistency,                    false, "attribute"],
+    ["Tyre Management",       "tire_management",           attrs.tire_management,                false, "attribute"],
+    ["Race Intelligence",     "race_intelligence",         attrs.race_intelligence,              false, "attribute"],
+    ["Technical Feedback",    "technical_feedback",        attrs.technical_feedback,             false, "attribute"],
+    ["Adaptability",          "adaptability",              attrs.adaptability,                   false, "attribute"],
+    ["ERS/Fuel Management",   "ers_fuel_management",       attrs.ers_fuel_management,            false, "attribute"],
+    ["Mentality",             "mentality",                 attrs.mentality,                       false, "attribute"],
+    ["Aggression",            "aggression",                attrs.agression ?? attrs.aggression,  false, "attribute"],
+    ["Crash Likelihood",      "crash_likelihood",          attrs.crash_likelihood,               true,  "attribute"],
+    ["Pressure Handling",     "pressure_handling",         attrs.pressure_handling,              false, "attribute"],
+    ["Leadership",            "leadership",                attrs.leadership,                     false, "attribute"],
+    ["Team Player",           "team_player",               attrs.team_player,                    false, "attribute"],
+    ["Car Dev. Impact",       "car_development_impact",    attrs.car_development_impact,         false, "attribute"],
+    ["Reputation",            "reputation",                attrs.reputation,                     false, "attribute"],
   ];
   const conditionRows = [
-    ["Fatigue", condition?.fatigue ?? 0, true],
-    ["Confidence", condition?.confidence ?? 50, false],
-    ["Morale", condition?.morale ?? 50, false],
-    ["Preparation", condition?.preparation ?? 50, false],
+    ["Fatigue", "fatigue", condition?.fatigue ?? 0, true],
+    ["Confidence", "confidence", condition?.confidence ?? 50, false],
+    ["Morale", "morale", condition?.morale ?? 50, false],
+    ["Preparation", "preparation", condition?.preparation ?? 50, false],
   ];
   return (
     <div className="space-y-5">
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Driver Condition</div>
-        <div className="grid grid-cols-2 gap-3">
-          {conditionRows.map(([label, value, inverse]) => (
-            <div key={label} className="flex justify-between gap-3 text-sm">
-              <span className="text-gray-500">{label}</span>
-              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{Number(value).toFixed(0)}</span>
-            </div>
-          ))}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge</div>
+          <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
+        </div>
+        <div className="max-w-md text-right text-xs text-slate-500">
+          Exact ratings are not shown unless the driver is internal to your team/Academy or has a completed full scouting report.
         </div>
       </div>
+
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Ability</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Driver Condition</div>
+        {knowledge?.canSeeCondition ? (
+          <div className="grid grid-cols-2 gap-3">
+            {conditionRows.map(([label, field, value, inverse]) => {
+              const shown=presentDriverKnowledgeValue(knowledge,field,value,{kind:"condition"});
+              return (
+                <div key={label} className="flex justify-between gap-3 text-sm">
+                  <span className="text-slate-500">{label}</span>
+                  <span className={`font-medium ${shown.visibility==="exact"?attrColorClass(shown.value,{inverse}):"text-slate-300"}`}>{shown.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm text-slate-400">
+            Private team data — unavailable for external drivers.
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Ability</div>
         <div className="grid grid-cols-2 gap-3">
-          {rows.map(([label, value, inverse]) => (
-            <div key={label} className="flex justify-between gap-3 text-sm">
-              <span className="text-gray-500">{label}</span>
-              <span className={`font-medium ${attrColorClass(value, { inverse })}`}>{displayValue(value)}</span>
-            </div>
-          ))}
+          {rows.map(([label, field, value, inverse, kind]) => {
+            const shown=presentDriverKnowledgeValue(knowledge,field,value,{kind});
+            return (
+              <div key={label} className="flex justify-between gap-3 text-sm">
+                <span className="text-slate-500">{label}</span>
+                <span
+                  className={`font-medium ${shown.visibility==="exact"?attrColorClass(shown.value,{inverse}):shown.visibility==="range"?"text-sky-300":"text-slate-500"}`}
+                  title={shown.visibility==="range"?"Scouting/public estimate range":shown.visibility==="hidden"?"Requires scouting":"Exact known value"}
+                >
+                  {shown.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

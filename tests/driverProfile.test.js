@@ -82,4 +82,6 @@ test("driver profile snapshot keeps permanent ability separate from condition ef
   assert.equal(snap.season.starts,2);
   assert.equal(snap.availability.status,"injured");
   assert.equal(snap.contract.role,"Main Driver");
+  assert.equal(snap.knowledge.level,"own");
+  assert.equal(snap.knowledge.canSeeCondition,true);
 });
