@@ -2,6 +2,7 @@
 import { isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
 import { activeDriverContracts as canonicalActiveDriverContracts } from "./driverContracts.js";
 import { COMPONENT_FALLBACK_CATALOG, availableCarComponentSlots } from "./carComponents.js";
+import { partDesignIdOfUnit, partUnits } from "./partUnits.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -140,15 +141,26 @@ export const PART_CONDITION_RELIABILITY_RISK=Object.freeze({
 });
 
 export function installedPartsForCar(gs,car){
-  const byId=new Map((gs?.development?.parts||[]).map((part)=>[String(part.id),part]));
+  const designs=new Map((gs?.development?.parts||[]).map((part)=>[String(part.id),part]));
+  const units=new Map(partUnits(gs).map((unit)=>[String(unit?.id??""),unit]));
   return Object.entries(car?.installedParts||{})
-    .map(([slot,id])=>({slot,part:byId.get(String(id))}))
+    .map(([slot,ref])=>{
+      const id=String(ref??"");
+      const unit=units.get(id)||null;
+      const design=unit
+        ?designs.get(partDesignIdOfUnit(unit))
+        :designs.get(id);
+      return {slot,part:design||null,unit};
+    })
     .filter((x)=>x.part);
 }
 
 export function componentConditionForCar(gs,car,slot){
   const installedId=car?.installedParts?.[slot];
   if(installedId){
+    const unit=partUnits(gs).find((row)=>String(row?.id??"")===String(installedId));
+    if(unit)return Math.max(0,Math.min(100,Number(unit?.condition??100)));
+    // Legacy save fallback until schema migration is persisted.
     const part=(gs?.development?.parts||[]).find((row)=>String(row?.id??"")===String(installedId));
     if(part)return Math.max(0,Math.min(100,Number(part?.condition??100)));
   }
@@ -189,11 +201,11 @@ export function baseConditionAdjustmentForCar(gs,car){
 export function installedAdjustmentForCar(gs,car){
   let qualifying=0,race=0,reliability=0;
   const eligible=new Set(componentSlotsForTeam(gs));
-  for(const {slot,part} of installedPartsForCar(gs,car)){
+  for(const {slot,part,unit} of installedPartsForCar(gs,car)){
     if(!eligible.has(slot))continue;
     const profile=PART_SLOT_EFFECTS[slot]||{qualifying:0.45,race:0.45,reliability:0.04};
     const perf=Math.max(0,Number(part?.perf||0));
-    const condition=Math.max(0,Math.min(100,Number(part?.condition??100)))/100;
+    const condition=Math.max(0,Math.min(100,Number(unit?.condition??part?.condition??100)))/100;
     qualifying+=perf*profile.qualifying*condition;
     race+=perf*profile.race*condition;
     reliability+=perf*profile.reliability*condition;
