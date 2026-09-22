@@ -30,7 +30,12 @@ const PAGE_TITLES = {
 
 export default function HubLayout() {
   const { pathname } = useLocation();
-  const pageTitle = PAGE_TITLES[pathname] || "F1 Manager Light";
+  const pageTitle =
+    PAGE_TITLES[pathname] ||
+    (pathname.startsWith("/drivers/") ? "Driver Profile" :
+      pathname.startsWith("/teams/") ? "Team Profile" :
+      pathname.startsWith("/staff/") ? "Staff Profile" :
+      "F1 Manager Light");
 
   return (
     <div className="min-h-screen flex bg-[#090b10]">
