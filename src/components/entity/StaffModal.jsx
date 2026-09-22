@@ -44,7 +44,21 @@ export default function StaffModal({entity,onClose,pageMode=false}){
     <div className="p-5 grid gap-5">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Info label="Overall" value={overall??"—"}/>
-        <Info label="Team" value={pick(contract,["team_name","team"],"Free")}/>
+        <div className="border rounded-lg p-3">
+          <div className="text-xs text-gray-500">Team</div>
+          {(contract?.team_id ?? contract?.team) ? (
+            <button
+              type="button"
+              data-entity="team"
+              data-id={contract?.team_id ?? contract?.team}
+              className="font-medium hover:text-sky-600 hover:underline"
+            >
+              {pick(contract,["team_name","team"],"Free")}
+            </button>
+          ) : (
+            <div className="font-medium">Free</div>
+          )}
+        </div>
         <Info label="Contract to" value={pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—")}/>
         <Info label="Salary" value={fmtMoney(pick(contract,["salary","salary_yearly"],null))}/>
         <Info label="Primary role" value={role}/>
