@@ -329,12 +329,14 @@ export default function Development({ embedded = false, initialTab = "projects",
   const restoreUnit = (part, unit) => {
     const quote=partUnitRestoreQuote(physicalState,unit?.id);
     if(!quote||!currentDateISO||budget<Number(quote.cost||0))return;
-    applyExpense(quote.cost,`Restoration — ${part?.name||unit?.id}`);
+    const beforeJobs=(physicalState?.garage?.serviceJobs||[]).length;
     const next=queueWorkshopJob(physicalState,quote,{
       id:`workshop_${Date.now()}`,
       title:`Restore ${part?.name||part?.version||unit?.id} · ${unit?.id}`,
       startedAt:currentDateISO,
     });
+    if((next?.garage?.serviceJobs||[]).length<=beforeJobs)return;
+    applyExpense(quote.cost,`Restoration — ${part?.name||unit?.id}`);
     setGameState({
       garage:next?.garage,
       development:next?.development,
