@@ -110,7 +110,7 @@ export default function Academy(){
       </div>
     </div>
 
-    <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+    <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
       <div className="font-semibold">{formalAcademy?"Era availability":"Historical context"}</div>
       <p className="text-sm text-slate-400 mt-1">{formalAcademy
         ?"This team has a youth-programme facility in the historical database, so formal academy programmes are available."
@@ -123,7 +123,7 @@ export default function Academy(){
     </div>
 
     {tab==="supported"&&<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-      {supportedRows.map(({entry,driver,id,overall,potential})=><Card className="bg-[#12141c] border-white/10 text-slate-100" key={id}><CardContent className="p-4 space-y-3">
+      {supportedRows.map(({entry,driver,id,overall,potential})=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={id}><CardContent className="p-4 space-y-3">
         <button type="button" data-entity="driver" data-id={id} className="flex items-center gap-3 text-left w-full hover:underline">
           <DriverPortrait driver={driver} size="h-16 w-16"/>
           <div><div className="font-semibold">{driver?.display_name||driver?.name||id}</div><div className="text-xs text-slate-400">{flagFromCountry(driver?.country_name||driver?.nationality,driver?.country_code)} {driver?.country_name||driver?.nationality||"—"} · Age {driver?.age??"—"}</div></div>
@@ -136,15 +136,15 @@ export default function Academy(){
         </label>
         <Button size="sm" variant="outline" onClick={()=>removeDriver(id)}>End Support</Button>
       </CardContent></Card>)}
-      {!supportedRows.length&&<Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No junior drivers are currently supported. Open “Find Talent” to add one.</CardContent></Card>}
+      {!supportedRows.length&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No junior drivers are currently supported. Open “Find Talent” to add one.</CardContent></Card>}
     </div>}
 
     {tab==="market"&&<>
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><input className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search junior driver or nationality…"/></CardContent></Card>
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><input className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search junior driver or nationality…"/></CardContent></Card>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {candidates.map((d)=>{
           const cost=formalAcademy?100_000:35_000;
-          return <Card className="bg-[#12141c] border-white/10 text-slate-100" key={idOf(d)}><CardContent className="p-4 space-y-3">
+          return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={idOf(d)}><CardContent className="p-4 space-y-3">
             <button type="button" data-entity="driver" data-id={idOf(d)} className="flex items-center gap-3 text-left w-full hover:underline">
               <DriverPortrait driver={d} size="h-16 w-16"/>
               <div className="min-w-0">
@@ -162,7 +162,7 @@ export default function Academy(){
             <div className="flex items-center justify-between gap-2"><span className="text-xs text-slate-400">{formalAcademy?"Academy entry":"Support fee"}: {fmtMoney(cost)}</span><Button size="sm" disabled={budget<cost} onClick={()=>supportDriver(d)}>{formalAcademy?"Sign to Academy":"Support Driver"}</Button></div>
           </CardContent></Card>;
         })}
-        {!candidates.length&&<Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No visible junior candidates match the current search.</CardContent></Card>}
+        {!candidates.length&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No visible junior candidates match the current search.</CardContent></Card>}
       </div>
     </>}
   </div>;
