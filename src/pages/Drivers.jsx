@@ -57,7 +57,6 @@ export default function Drivers(){
   const gs=useGame(s=>s.gameState);
   const setGameState=useGame(s=>s.setGameState);
   const drivers=Array.isArray(gs?.drivers)?gs.drivers:[];
-  const ratings=Array.isArray(gs?.driverRatings)?gs.driverRatings:[];
   const contracts=Array.isArray(gs?.contracts)?gs.contracts:[];
   const teams=Array.isArray(gs?.teams)?gs.teams:[];
   const activeYear=Number(gs?.activeYear);
@@ -120,7 +119,6 @@ export default function Drivers(){
     }
     return map;
   },[activePlayerNegotiations]);
-  const ratingById=useMemo(()=>new Map(ratings.map(r=>[idOf(r),r])),[ratings]);
   const contractById=useMemo(()=>{
     const m=new Map();
     for(const c of contracts){
@@ -136,7 +134,7 @@ export default function Drivers(){
   },[contracts,activeYear]);
 
   const rows=useMemo(()=>drivers.map(d=>{
-    const id=idOf(d), rating=ratingById.get(id)||{}, contract=contractById.get(id)||null;
+    const id=idOf(d), contract=contractById.get(id)||null;
     const pending=activePlayerByDriver.get(id)||activeTransferByDriver.get(id)||null;
     const eligibility=userTeamId
       ?driverNegotiationEligibility(gs,{driverId:id,teamId:userTeamId})
@@ -177,7 +175,7 @@ export default function Drivers(){
       negotiation_roles:eligibility.roles,
       negotiation_buyout:eligibility.buyout||null,
     };
-  }),[drivers,ratingById,contractById,activePlayerByDriver,activeTransferByDriver,teamNames,gs]);
+  }),[drivers,contractById,activePlayerByDriver,activeTransferByDriver,teamNames,gs]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
   const statusOptions=["ALL","Contracted","Negotiating","Free","Academy","Other Series","Prospect","Youth","Lower Series","Team Commitment","Status Review","Retired","Unavailable","Available"];
