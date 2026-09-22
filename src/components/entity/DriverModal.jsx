@@ -160,12 +160,28 @@ export default function DriverModal({ entity, onClose }) {
   const [marketTalkOpen, setMarketTalkOpen] = useState(false);
 
   const driversList = useMemo(() => {
-    const live = toArraySafe(gs?.drivers);
-    return live.length ? live : toArraySafe(gs?.dbDrivers);
+    const merged = new Map();
+    for (const row of toArraySafe(gs?.dbDrivers)) {
+      const id = normDriverId(row?.driver_id ?? row?.driverId ?? row?.id);
+      if (id) merged.set(id, row);
+    }
+    for (const row of toArraySafe(gs?.drivers)) {
+      const id = normDriverId(row?.driver_id ?? row?.driverId ?? row?.id);
+      if (id) merged.set(id, { ...(merged.get(id) || {}), ...row });
+    }
+    return [...merged.values()];
   }, [gs?.drivers, gs?.dbDrivers]);
   const ratingsList = useMemo(() => {
-    const live = toArraySafe(gs?.driverRatings);
-    return live.length ? live : toArraySafe(gs?.dbDriverRatings);
+    const merged = new Map();
+    for (const row of toArraySafe(gs?.dbDriverRatings)) {
+      const id = normDriverId(row?.driver_id ?? row?.driverId ?? row?.id);
+      if (id) merged.set(id, row);
+    }
+    for (const row of toArraySafe(gs?.driverRatings)) {
+      const id = normDriverId(row?.driver_id ?? row?.driverId ?? row?.id);
+      if (id) merged.set(id, { ...(merged.get(id) || {}), ...row });
+    }
+    return [...merged.values()];
   }, [gs?.driverRatings, gs?.dbDriverRatings]);
   const contractsList = useMemo(
     () => driverContractsOf(gs),
@@ -185,7 +201,18 @@ export default function DriverModal({ entity, onClose }) {
   );
   const results = useMemo(() => toArraySafe(gs?.results), [gs?.results]);
   const historySeasons = useMemo(() => toArraySafe(gs?.historySeasons), [gs?.historySeasons]);
-  const teamsList = useMemo(() => toArraySafe(gs?.teams), [gs?.teams]);
+  const teamsList = useMemo(() => {
+    const merged = new Map();
+    for (const row of toArraySafe(gs?.dbTeams)) {
+      const id = String(unbox(row?.team_id ?? row?.id ?? ""));
+      if (id) merged.set(id, row);
+    }
+    for (const row of toArraySafe(gs?.teams)) {
+      const id = String(unbox(row?.team_id ?? row?.id ?? ""));
+      if (id) merged.set(id, { ...(merged.get(id) || {}), ...row });
+    }
+    return [...merged.values()];
+  }, [gs?.teams, gs?.dbTeams]);
   const standings = isRecord(gs?.standings) ? gs.standings : { drivers: [], teams: [] };
   const driverAttributesDict = isRecord(gs?.driverAttributes) ? gs.driverAttributes : {};
   const gameYear = Number(gs?.activeYear ?? (gs?.currentDateISO ? String(gs.currentDateISO).slice(0,4) : NaN));
