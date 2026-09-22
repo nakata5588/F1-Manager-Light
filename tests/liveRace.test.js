@@ -65,12 +65,12 @@ test("RW4.6.1 race-control incident messages use natural language instead of int
     {
       controlType:"LOCAL_YELLOW",
       incident:{kind:"collision",reason:"Collision",severity:"low"},
-      expected:"Local yellow — John Watson involved in a minor collision.",
+      expected:"Yellow flag — John Watson involved in a minor collision.",
     },
     {
       controlType:"LOCAL_YELLOW",
       incident:{kind:"collision",reason:"Collision",severity:"medium"},
-      expected:"Local yellow — John Watson involved in a significant collision.",
+      expected:"Yellow flag — John Watson involved in a significant collision.",
     },
     {
       controlType:"SAFETY_CAR",
@@ -205,6 +205,67 @@ test("race must reach its final lap before it can be finalized",()=>{
 });
 
 
+test("RW4.11 local yellow is followed by an observed green-flag event",()=>{
+  let gs=createLiveRaceState(fixture("rw4.11-yellow-green"),{gp});
+  gs=advanceTo(gs,1);
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:{
+          ...gs.raceWeekendState.race_strategy.race_control_plan,
+          periods:[{type:"LOCAL_YELLOW",from_lap:1,to_lap:1,cause:"incident",priority:3}],
+          incidents:[],
+        },
+      },
+      live_race:{
+        ...gs.raceWeekendState.live_race,
+        current_control:"LOCAL_YELLOW",
+        events:[
+          ...(gs.raceWeekendState.live_race.events||[]),
+          {lap:1,type:"race_control",control_type:"LOCAL_YELLOW",message:"Yellow flag — Race control intervention."},
+        ],
+      },
+    },
+  };
+
+  gs=advanceTo(gs,2);
+  const green=(gs.raceWeekendState.live_race.events||[]).find(
+    (event)=>event.control_type==="GREEN"&&Number(event.lap)===2
+  );
+  assert.ok(green,"a one-lap yellow must explicitly return to green on the following lap");
+  assert.match(green.message,/green flag/i);
+});
+
+test("RW4.11 Race Feed history is not truncated after 100 observed events",()=>{
+  let gs=createLiveRaceState(fixture("rw4.11-event-history"),{gp});
+  gs=advanceTo(gs,2);
+  const historical=Array.from({length:120},(_,index)=>({
+    lap:Math.min(2,index%3),
+    type:"history_test",
+    event_key:`history:${index}`,
+    message:`Observed event ${index}`,
+  }));
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      live_race:{...gs.raceWeekendState.live_race,events:historical},
+    },
+  };
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pace",paceMode:"attack"});
+  assert.equal(gs.raceWeekendState.live_race.events.length,121);
+  assert.equal(gs.raceWeekendState.live_race.events[0].event_key,"history:0");
+  assert.equal(gs.raceWeekendState.live_race.events.at(-1).type,"command");
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW4.11 full race history"},gameState:stored});
+  assert.equal(loaded.raceWeekendState.live_race.events.length,121);
+  assert.equal(loaded.raceWeekendState.live_race.events[0].event_key,"history:0");
+});
+
 test("red flag state can be resumed without rebuilding the race",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   const plan=gs.raceWeekendState.race_strategy.race_control_plan;
@@ -233,23 +294,55 @@ test("finalized live rows preserve exactly the retirements visible to the player
   let gs=createLiveRaceState(fixture(),{gp});
   gs=advanceTo(gs,12);
   const live=gs.raceWeekendState.live_race;
+  const retiredId=live.classification.at(-1).driver_id;
   const forced=live.classification.map((row,index)=>index===live.classification.length-1
-    ? {...row,retired:true,status:"DNF",retirement_reason:"Engine",incident_lap:9}
+    ? {...row,retired:true,status:"DNF",retirement_reason:"Engine",incident_lap:1}
     : {...row,retired:false,status:"RUNNING",retirement_reason:null,incident_lap:null}
   );
+  const projectedWithFuturePits=live.projected_race.map((row)=>{
+    const did=String(row?.driver?.driver_id||"");
+    if(did!==String(retiredId))return row;
+    return {
+      ...row,
+      pit_stops:[
+        {lap:2,tyre_from:"gy_h",tyre_to:"gy_s",total_loss_s:24},
+        {lap:8,tyre_from:"gy_s",tyre_to:"gy_h",total_loss_s:24},
+      ],
+      lap_times_ms:Array.from({length:12},()=>90000),
+      tyre_state_by_lap:Array.from({length:12},(_,index)=>({lap:index+1,condition:100-index})),
+      strategy_decisions:[{lap:2,type:"pit"},{lap:8,type:"pit"}],
+      stints:[
+        {compound:"Hard",start_lap:1,end_lap:1,laps:1},
+        {compound:"Soft",start_lap:2,end_lap:7,laps:6},
+      ],
+      strategy_summary:{pit_stops:2,used_tyres:["Hard","Soft"]},
+    };
+  });
   gs={
     ...gs,
     raceWeekendState:{
       ...gs.raceWeekendState,
-      live_race:{...live,status:"finished",current_lap:live.total_laps,classification:forced},
+      live_race:{
+        ...live,
+        status:"finished",
+        current_lap:live.total_laps,
+        classification:forced,
+        projected_race:projectedWithFuturePits,
+      },
     },
   };
   const rows=finalizedLiveRaceRows(gs);
   assert.equal(rows.filter((row)=>row.retired).length,1);
   const retired=rows.find((row)=>row.retired);
   assert.equal(retired.retirement_reason,"Engine");
-  assert.equal(retired.incident_lap,9);
-  assert.equal(retired.laps_completed,9);
+  assert.equal(retired.incident_lap,1);
+  assert.equal(retired.laps_completed,1);
+  assert.equal(retired.pit_stops.length,0,"a lap-one DNF cannot retain future simulated pit stops");
+  assert.equal(retired.lap_times_ms.length,1);
+  assert.equal(retired.tyre_state_by_lap.length,1);
+  assert.equal(retired.strategy_decisions.length,0);
+  assert.equal(retired.strategy_summary.pit_stops,0);
+  assert.deepEqual(retired.strategy_summary.used_tyres,["Hard"]);
   assert.equal(rows.filter((row)=>!row.retired).every((row)=>row.status==="Finished"),true);
 });
 
