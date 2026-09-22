@@ -433,6 +433,7 @@ export default function RaceWeekend(){
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const [busy,setBusy]=useState(false);
   const [activeWindow,setActiveWindow]=useState("overview");
+  const [liveTimingMode,setLiveTimingMode]=useState("timing");
 
   const weekend=gs?.raceWeekendState;
   const drivers=gs?.drivers||[];
@@ -1103,29 +1104,75 @@ export default function RaceWeekend(){
               </div>
             </div>
 
+            <div className="border-b border-white/10 bg-[#0c1118] px-4 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex rounded-lg border border-white/10 bg-black/20 p-1">
+                  {[
+                    ["timing","Timing"],
+                    ["tyres","Tyres"],
+                    ["strategy","Strategy"],
+                  ].map(([id,label])=>(
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={()=>setLiveTimingMode(id)}
+                      className={
+                        "rounded-md px-3 py-1.5 text-[11px] font-semibold transition "+
+                        (liveTimingMode===id
+                          ?"bg-slate-100 text-slate-950"
+                          :"text-slate-400 hover:bg-white/[0.06] hover:text-slate-200")
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  {liveTimingMode==="timing"
+                    ?"Lap timing, sectors and gaps"
+                    :liveTimingMode==="tyres"
+                      ?"Compound, tyre life and temperatures"
+                      :"Pace, pit window and projected strategy outcome"}
+                </div>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
-              <table className="min-w-[1780px] w-full text-xs">
+              <table
+                className="w-full text-xs"
+                style={{minWidth:liveTimingMode==="timing"?"1040px":liveTimingMode==="tyres"?"820px":"900px"}}
+              >
                 <thead className="bg-[#171d27] text-slate-400 uppercase tracking-wide">
                   <tr>
-                    <th className="px-3 py-2 text-right">Pos</th>
-                    <th className="px-2 py-2 text-center">Δ Lap</th>
-                    <th className="px-3 py-2 text-left">Driver</th>
-                    <th className="px-3 py-2 text-right">Interval</th>
-                    <th className="px-3 py-2 text-right">Leader</th>
-                    <th className="px-3 py-2 text-right">S1</th>
-                    <th className="px-3 py-2 text-right">S2</th>
-                    <th className="px-3 py-2 text-right">S3</th>
-                    <th className="px-3 py-2 text-right">Last</th>
-                    <th className="px-3 py-2 text-right">Δ Last</th>
-                    <th className="px-3 py-2 text-right">Best</th>
-                    <th className="px-3 py-2 text-center">Tyre</th>
-                    <th className="px-3 py-2 text-right">Age</th>
-                    <th className="px-3 py-2 text-right">Cond</th>
-                    <th className="px-3 py-2 text-right">Temp</th>
-                    <th className="px-3 py-2 text-right">Stops</th>
-                    <th className="px-3 py-2 text-center">Pace</th>
-                    <th className="px-3 py-2 text-left">Pit window</th>
-                    <th className="px-3 py-2 text-right">Proj</th>
+                    <th className="sticky left-0 z-30 w-14 min-w-14 bg-[#171d27] px-2 py-2 text-right">Pos</th>
+                    <th className="sticky left-14 z-30 min-w-[210px] bg-[#171d27] px-3 py-2 text-left">Driver</th>
+                    {liveTimingMode==="timing"&&<>
+                      <th className="px-2 py-2 text-center">Δ Lap</th>
+                      <th className="px-3 py-2 text-right">Interval</th>
+                      <th className="px-3 py-2 text-right">Leader</th>
+                      <th className="px-3 py-2 text-right">S1</th>
+                      <th className="px-3 py-2 text-right">S2</th>
+                      <th className="px-3 py-2 text-right">S3</th>
+                      <th className="px-3 py-2 text-right">Last</th>
+                      <th className="px-3 py-2 text-right">Δ Last</th>
+                      <th className="px-3 py-2 text-right">Best</th>
+                    </>}
+                    {liveTimingMode==="tyres"&&<>
+                      <th className="px-3 py-2 text-center">Tyre</th>
+                      <th className="px-3 py-2 text-right">Age</th>
+                      <th className="px-3 py-2 text-right">Condition</th>
+                      <th className="px-3 py-2 text-right">Temp</th>
+                      <th className="px-3 py-2 text-right">Stops</th>
+                      <th className="px-3 py-2 text-right">Last Lap</th>
+                    </>}
+                    {liveTimingMode==="strategy"&&<>
+                      <th className="px-3 py-2 text-center">Pace</th>
+                      <th className="px-3 py-2 text-left">Pit Window</th>
+                      <th className="px-3 py-2 text-right">Rejoin</th>
+                      <th className="px-3 py-2 text-right">Traffic</th>
+                      <th className="px-3 py-2 text-right">Projection</th>
+                      <th className="px-3 py-2 text-right">Confidence</th>
+                    </>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1142,44 +1189,103 @@ export default function RaceWeekend(){
                       :mine
                         ?"bg-white/[0.07]"
                         :"hover:bg-white/[0.025]";
+                    const stickyTone=row.retired
+                      ?"bg-red-950"
+                      :mine
+                        ?"bg-[#1a202b]"
+                        :"bg-[#11161f]";
+                    const projectionBest=Number(row.projected_finish_best);
+                    const projectionWorst=Number(row.projected_finish_worst);
+                    const rejoinBest=Number(row.pit_rejoin_best);
+                    const rejoinWorst=Number(row.pit_rejoin_worst);
                     return <tr className={"border-t border-white/5 "+rowTone} key={row.driver_id}>
-                      <td className="px-3 py-2 text-right text-sm font-bold">P{row.position??index+1}</td>
-                      <td className={"px-2 py-2 text-center font-semibold "+(lapGain>0?"text-emerald-400":lapGain<0?"text-rose-400":"text-slate-600")}>{positionDelta(lapGain)}</td>
-                      <td className="px-3 py-2">
+                      <td className={"sticky left-0 z-20 w-14 min-w-14 px-2 py-2 text-right text-sm font-bold "+stickyTone}>P{row.position??index+1}</td>
+                      <td className={"sticky left-14 z-20 min-w-[210px] px-3 py-2 "+stickyTone}>
                         <div className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</div>
-                        <div className="text-[10px] text-slate-500">{teamName(teams,row.team_id)} · Grid P{row.grid_position??"—"} · net {positionDelta(gridGain)}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {teamName(teams,row.team_id)} · Grid P{row.grid_position??"—"} · net {positionDelta(gridGain)}
+                        </div>
+                        {row.retired?<div className="mt-0.5 text-[9px] font-semibold text-red-300">DNF · L{row.incident_lap} · {row.retirement_reason||"Retired"}</div>:null}
                       </td>
-                      <td className="px-3 py-2 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
-                      <td className={"px-3 py-2 text-right font-mono "+(s1Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_1_ms)}</td>
-                      <td className={"px-3 py-2 text-right font-mono "+(s2Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_2_ms)}</td>
-                      <td className={"px-3 py-2 text-right font-mono "+(s3Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_3_ms)}</td>
-                      <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
-                      <td className={"px-3 py-2 text-right font-mono font-semibold "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-emerald-300">{formatLapTime(row.best_lap_ms)}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={"inline-flex min-w-12 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} compact/></span>
-                        {row.retired?<div className="mt-1 text-[9px] font-semibold text-red-300">DNF · L{row.incident_lap}</div>:null}
-                      </td>
-                      <td className="px-3 py-2 text-right">{row.tyre?.age_laps??"—"}L</td>
-                      <td className="px-3 py-2 text-right"><span className={"rounded px-1.5 py-1 font-semibold "+conditionTone(row.tyre?.condition)}>{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</span></td>
-                      <td className={"px-3 py-2 text-right font-semibold "+temperatureTone(row.tyre?.temperature_c)}>{Number.isFinite(Number(row.tyre?.temperature_c))?Number(row.tyre.temperature_c).toFixed(0)+"°":"—"}</td>
-                      <td className="px-3 py-2 text-right">{row.pit_count??0}</td>
-                      <td className="px-3 py-2 text-center"><span className={"rounded px-2 py-1 text-[10px] font-semibold "+paceTone(row.current_pace)}>{paceLabel(row.current_pace)}</span></td>
-                      <td className="px-3 py-2">
-                        <span className="rounded bg-white/5 px-2 py-1">{pitWindowLabel(row.pit_window)}</span>
-                        {!row.retired&&Number.isFinite(Number(row.pit_rejoin_position))?<div className="mt-1 text-[9px] text-sky-300">pit now → ~P{row.pit_rejoin_position}</div>:null}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold">P{row.projected_finish_position??"—"}</td>
+
+                      {liveTimingMode==="timing"&&<>
+                        <td className={"px-2 py-2 text-center font-semibold "+(lapGain>0?"text-emerald-400":lapGain<0?"text-rose-400":"text-slate-600")}>{positionDelta(lapGain)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
+                        <td className={"px-3 py-2 text-right font-mono "+(s1Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_1_ms)}</td>
+                        <td className={"px-3 py-2 text-right font-mono "+(s2Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_2_ms)}</td>
+                        <td className={"px-3 py-2 text-right font-mono "+(s3Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_3_ms)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
+                        <td className={"px-3 py-2 text-right font-mono font-semibold "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-emerald-300">{formatLapTime(row.best_lap_ms)}</td>
+                      </>}
+
+                      {liveTimingMode==="tyres"&&<>
+                        <td className="px-3 py-2 text-center">
+                          <span className={"inline-flex min-w-12 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}>
+                            <TyreCompoundBadge compound={compound} compact/>
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">{row.tyre?.age_laps??"—"}L</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={"rounded px-1.5 py-1 font-semibold "+conditionTone(row.tyre?.condition)}>
+                            {Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}
+                          </span>
+                        </td>
+                        <td className={"px-3 py-2 text-right font-semibold "+temperatureTone(row.tyre?.temperature_c)}>
+                          {Number.isFinite(Number(row.tyre?.temperature_c))?Number(row.tyre.temperature_c).toFixed(0)+"°":"—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">{row.pit_count??0}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
+                      </>}
+
+                      {liveTimingMode==="strategy"&&<>
+                        <td className="px-3 py-2 text-center">
+                          <span className={"rounded px-2 py-1 text-[10px] font-semibold "+paceTone(row.current_pace)}>{paceLabel(row.current_pace)}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="rounded bg-white/5 px-2 py-1">{pitWindowLabel(row.pit_window)}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {!row.retired&&Number.isFinite(Number(row.pit_rejoin_position))
+                            ?<>
+                              <div className="font-semibold text-sky-300">P{row.pit_rejoin_position}</div>
+                              {Number.isFinite(rejoinBest)&&Number.isFinite(rejoinWorst)
+                                ?<div className="text-[9px] text-slate-500">P{rejoinBest}–P{rejoinWorst}</div>
+                                :null}
+                            </>
+                            :"—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {!row.retired&&Number.isFinite(Number(row.pit_rejoin_traffic_count))
+                            ?<><div>{row.pit_rejoin_traffic_count}</div><div className="text-[9px] text-slate-500">cars ±3.5s</div></>
+                            :"—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {!row.retired&&Number.isFinite(Number(row.projected_finish_position))
+                            ?<>
+                              <div className="font-semibold">P{row.projected_finish_position}</div>
+                              {Number.isFinite(projectionBest)&&Number.isFinite(projectionWorst)
+                                ?<div className="text-[9px] text-slate-500">P{projectionBest}–P{projectionWorst}</div>
+                                :null}
+                            </>
+                            :"—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {!row.retired&&Number.isFinite(Number(row.projection_confidence_pct))
+                            ?Number(row.projection_confidence_pct).toFixed(0)+"%"
+                            :"—"}
+                        </td>
+                      </>}
                     </tr>;
                   })}
-                  {!liveRows.length?<tr><td colSpan={19} className="px-4 py-6 text-center text-slate-500">Race timing will populate after the first completed lap.</td></tr>:null}
+                  {!liveRows.length?<tr><td colSpan={liveTimingMode==="timing"?11:8} className="px-4 py-6 text-center text-slate-500">Race timing will populate after the first completed lap.</td></tr>:null}
                 </tbody>
               </table>
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl md:left-56">
-              <div className="grid gap-2 xl:grid-cols-2">
+            <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[44vh] overflow-y-auto border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl xl:max-h-none xl:overflow-visible">
+              <div className="mx-auto grid max-w-[1800px] gap-2 xl:grid-cols-2">
                 {playerEntrants.map((entry)=>{
                   const did=String(entry.driver_id);
                   const driver=driverObject(drivers,did);
