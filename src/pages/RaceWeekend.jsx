@@ -136,6 +136,7 @@ export default function RaceWeekend(){
   const startLiveRace=useGame((s)=>s.startRaceWeekendLiveRace);
   const advanceLiveRace=useGame((s)=>s.advanceRaceWeekendLiveRace);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
+  const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const [busy,setBusy]=useState(false);
@@ -509,9 +510,17 @@ export default function RaceWeekend(){
                   <button disabled={busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
                   <button disabled={busy} className="rounded-lg bg-slate-900 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Math.max(1,Number(liveRace.total_laps)-Number(liveRace.current_lap))))}>Run to Finish</button>
                 </>}
+                {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-700 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
+                  {busy?"Restarting…":"Restart Race"}
+                </button>}
                 {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-700 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
               </div>
             </div>
+
+            {liveRace.status==="red_flag"&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 text-red-900 p-3 text-sm">
+              <div className="font-semibold">RED FLAG — race suspended on lap {liveRace.current_lap}</div>
+              <div className="mt-1">Cars are stopped. Continue with Restart Race when ready; the restart style follows {String(raceControlRules?.restart_style||"era rules").replaceAll("_"," ")}.</div>
+            </div>}
 
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-sm">
               <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Race Control</div><div className="font-semibold">{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div></div>
