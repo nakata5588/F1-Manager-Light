@@ -5,19 +5,32 @@ import { teamCarPerformance } from "./carPerformance.js";
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const n=(v,fb=50)=>{const x=Number(v);return Number.isFinite(x)?x:fb;};
 
-export function conditionModifier(gs,driverId){
+export function conditionModifierBreakdown(gs,driverId){
   const c=driverCondition(gs,driverId)||{};
   const confidence=n(c.confidence,50);
   const morale=n(c.morale,50);
   const fatigue=n(c.fatigue,0);
   const preparation=n(c.preparation,50);
-
-  const positive=
-    (confidence-50)*0.050+
-    (morale-50)*0.030+
-    (preparation-50)*0.040;
+  const confidenceEffect=(confidence-50)*0.050;
+  const moraleEffect=(morale-50)*0.030;
+  const preparationEffect=(preparation-50)*0.040;
   const fatigueCost=fatiguePenalty(gs,driverId);
-  return Math.max(-12,Math.min(6,positive-fatigueCost));
+  const raw=confidenceEffect+moraleEffect+preparationEffect-fatigueCost;
+  return {
+    confidence,
+    morale,
+    fatigue,
+    preparation,
+    confidenceEffect,
+    moraleEffect,
+    preparationEffect,
+    fatigueEffect:-fatigueCost,
+    total:Math.max(-12,Math.min(6,raw)),
+  };
+}
+
+export function conditionModifier(gs,driverId){
+  return conditionModifierBreakdown(gs,driverId).total;
 }
 
 export function qualifyingDriverScore(rating,gs,driverId){

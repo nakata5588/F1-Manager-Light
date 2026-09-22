@@ -9,6 +9,7 @@ import { driverCondition, fatigueStatus } from "@/domain/driverRating.js";
 import { driverOverallPresentation } from "@/domain/driverMarketEvaluation.js";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
+import { deriveBoardState } from "@/domain/boardState.js";
 
 const firstArray=(...rows)=>rows.find(Array.isArray)||[];
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
@@ -93,7 +94,8 @@ export default function Team(){
     });
   const sponsorValue=sponsors.reduce((sum,row)=>sum+num(row?.annual_income??row?.anual_income,0),0);
   const balance=num(gs?.finances?.balance??team?.budget,0);
-  const boardConfidence=gs?.board?.confidence??gs?.board?.rating??gs?.board?.reputation??null;
+  const boardState=deriveBoardState(gs);
+  const boardConfidence=boardState?.confidence??null;
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
     <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-5 flex flex-col lg:flex-row lg:items-center gap-4">
@@ -110,7 +112,7 @@ export default function Team(){
         <Metric label="Car rank" value={myRank?`#${myRank.rank}`:"—"}/>
         <Metric label="Balance" value={money(balance)}/>
         <Metric label="Engineering" value={Math.round(engineeringSupport)+"/100"}/>
-        <Metric label="Board" value={boardConfidence==null?"—":(Number(boardConfidence)<=1?Math.round(Number(boardConfidence)*100)+"%":Math.round(Number(boardConfidence))+"%")}/>
+        <Metric label="Board" value={boardConfidence==null?"—":Math.round(Number(boardConfidence)*100)+"%"}/>
       </div>
     </div>
 
@@ -177,7 +179,15 @@ export default function Team(){
         </div>
       </Panel>
 
-      <Panel title="Management shortcuts" className="xl:col-span-7">
+      <Panel title="Board objectives" className="xl:col-span-7" action={<Link to="/Board" className="text-xs text-slate-300 hover:text-white">Board ›</Link>}>
+        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+          <Metric label="Season expectation" value={boardState.expectationLabel}/>
+          <Metric label="Primary objective" value={boardState.objectives?.[0]?.title||"—"}/>
+          <Metric label="Objective progress" value={boardState.objectives?.[0]?Math.round(Number(boardState.objectives[0].progress||0)*100)+"%":"—"}/>
+        </div>
+      </Panel>
+
+      <Panel title="Management shortcuts" className="xl:col-span-5">
         <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-2">
           <QuickLink to="/Board" label="Board" sub="Objectives & confidence"/>
           <QuickLink to="/Academy" label="Academy" sub="Junior support"/>

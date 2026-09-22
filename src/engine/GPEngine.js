@@ -84,7 +84,8 @@ function resolveDriverTeamId(gs, driver) {
 
 function facilityLevel(gs, teamId, key) {
   if (!teamId) return 5;
-  const override = gs?.hq?.facilityLevels?.[key];
+  const aliases = key === "manufacturing_level" ? ["manufacturing_level","manufacturing_leve"] : [key];
+  const override = aliases.map((alias)=>gs?.hq?.facilityLevels?.[alias]).find((value)=>value != null && value !== "");
   if (override != null && override !== "") return Number(override) || 0;
   const year = Number(gs?.activeYear);
   const row = (gs?.facilities || gs?.dbFacilities || []).find((r) => {
@@ -92,7 +93,7 @@ function facilityLevel(gs, teamId, key) {
     const ry = Number(pick(r, ["year","season_year"], year));
     return tid === String(teamId) && (!Number.isFinite(year) || !Number.isFinite(ry) || ry === year);
   });
-  const value = pick(row || {}, [key], 5);
+  const value = pick(row || {}, aliases, 5);
   return value == null || value === "" ? 5 : Number(value) || 0;
 }
 

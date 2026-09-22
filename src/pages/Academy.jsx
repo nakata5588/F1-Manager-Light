@@ -3,6 +3,7 @@ import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
+import { academyProgramDefinition, academyProgramNames } from "@/domain/academyPrograms.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -110,7 +111,7 @@ export default function Academy(){
       </div>
     </div>
 
-    <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+    <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
       <div className="font-semibold">{formalAcademy?"Era availability":"Historical context"}</div>
       <p className="text-sm text-slate-400 mt-1">{formalAcademy
         ?"This team has a youth-programme facility in the historical database, so formal academy programmes are available."
@@ -123,7 +124,7 @@ export default function Academy(){
     </div>
 
     {tab==="supported"&&<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-      {supportedRows.map(({entry,driver,id,overall,potential})=><Card className="bg-[#12141c] border-white/10 text-slate-100" key={id}><CardContent className="p-4 space-y-3">
+      {supportedRows.map(({entry,driver,id,overall,potential})=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={id}><CardContent className="p-4 space-y-3">
         <button type="button" data-entity="driver" data-id={id} className="flex items-center gap-3 text-left w-full hover:underline">
           <DriverPortrait driver={driver} size="h-16 w-16"/>
           <div><div className="font-semibold">{driver?.display_name||driver?.name||id}</div><div className="text-xs text-slate-400">{flagFromCountry(driver?.country_name||driver?.nationality,driver?.country_code)} {driver?.country_name||driver?.nationality||"—"} · Age {driver?.age??"—"}</div></div>
@@ -131,20 +132,28 @@ export default function Academy(){
         <div className="grid grid-cols-3 gap-2"><Mini label="Overall" value={overall}/><Mini label="Potential" value={potential}/><Mini label="Weekly" value={fmtMoney(entry.stipend_weekly||0)}/></div>
         <label className="text-xs text-slate-400">Development plan
           <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-2 w-full text-sm" value={entry.program||""} onChange={(e)=>setProgram(id,e.target.value)}>
-            {formalAcademy?<><option>General Development</option><option>Racecraft</option><option>Technical Feedback</option><option>Fitness</option></>:<><option>Private Testing Support</option><option>Race Entry Support</option><option>Technical Mentoring</option></>}
+            {academyProgramNames(formalAcademy?"academy":"supported_prospect").map((name)=><option key={name}>{name}</option>)}
           </select>
         </label>
-        <Button size="sm" variant="outline" onClick={()=>removeDriver(id)}>End Support</Button>
+        <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs">
+          <div className="font-medium text-slate-200">{entry.program||"Development plan"}</div>
+          <div className="text-slate-400 mt-1">{academyProgramDefinition(entry.program).description}</div>
+          <div className="mt-2 text-slate-500">
+            Monthly focus: {Object.entries(academyProgramDefinition(entry.program).deltas).map(([key,value])=>`${nice(key)} +${Number(value).toFixed(2)}`).join(" · ")}
+          </div>
+          <div className="mt-1 text-slate-500">{formalAcademy?`Youth Programme level ${youthLevel} scales the training effect.`:"Informal junior support runs at reduced effectiveness compared with a formal academy."}</div>
+        </div>
+        <Button size="sm" variant="darkOutline" onClick={()=>removeDriver(id)}>End Support</Button>
       </CardContent></Card>)}
-      {!supportedRows.length&&<Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No junior drivers are currently supported. Open “Find Talent” to add one.</CardContent></Card>}
+      {!supportedRows.length&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No junior drivers are currently supported. Open “Find Talent” to add one.</CardContent></Card>}
     </div>}
 
     {tab==="market"&&<>
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><input className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search junior driver or nationality…"/></CardContent></Card>
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><input className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search junior driver or nationality…"/></CardContent></Card>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {candidates.map((d)=>{
           const cost=formalAcademy?100_000:35_000;
-          return <Card className="bg-[#12141c] border-white/10 text-slate-100" key={idOf(d)}><CardContent className="p-4 space-y-3">
+          return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={idOf(d)}><CardContent className="p-4 space-y-3">
             <button type="button" data-entity="driver" data-id={idOf(d)} className="flex items-center gap-3 text-left w-full hover:underline">
               <DriverPortrait driver={d} size="h-16 w-16"/>
               <div className="min-w-0">
@@ -162,7 +171,7 @@ export default function Academy(){
             <div className="flex items-center justify-between gap-2"><span className="text-xs text-slate-400">{formalAcademy?"Academy entry":"Support fee"}: {fmtMoney(cost)}</span><Button size="sm" disabled={budget<cost} onClick={()=>supportDriver(d)}>{formalAcademy?"Sign to Academy":"Support Driver"}</Button></div>
           </CardContent></Card>;
         })}
-        {!candidates.length&&<Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No visible junior candidates match the current search.</CardContent></Card>}
+        {!candidates.length&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No visible junior candidates match the current search.</CardContent></Card>}
       </div>
     </>}
   </div>;

@@ -157,7 +157,11 @@ export default function MyStaff(){
             <PitMetric label="Average stop" value={Number(pick(pit,["avg_time_s","avg_time"],0)).toFixed(1)+"s"} progress={Math.max(0,100-(Number(pick(pit,["avg_time_s","avg_time"],10))-4)*15)}/>
             <PitMetric label="Consistency" value={Math.round(Number(pick(pit,["consistency"],0)))+"%"} progress={Number(pick(pit,["consistency"],0))}/>
             <PitMetric label="Error rate" value={(Number(pick(pit,["error_rate"],0))*100).toFixed(1)+"%"} progress={Math.max(0,100-Number(pick(pit,["error_rate"],0))*1000)}/>
-            <PitMetric label="Training load" value={pick(pit,["training_load"],"—")} progress={Number(pick(pit,["training_load"],0))*10}/>
+            <PitMetric label="Training load" value={Math.round(Number(pick(pit,["training_load"],50)))+"%"} progress={Number(pick(pit,["training_load"],50))}/>
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
+              Training Load is now managed in Development → Pit Crew. Higher load improves the crew faster, but sustained load above 60% creates a temporary race-day penalty to stop time, consistency and error risk.
+            </div>
+            <Link to="/Development" className="inline-flex rounded-md border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10">Manage pit crew training →</Link>
             <div className="pt-2 border-t border-white/10 text-xs text-slate-500">Source: {pick(pit,["source"],"historical/team data")} · used by the race-strategy pit-stop model.</div>
           </div>:<div className="p-5 text-sm text-slate-500">No pit-crew record for this Team/season.</div>}
         </section>

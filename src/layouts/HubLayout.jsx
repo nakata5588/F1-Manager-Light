@@ -9,7 +9,7 @@ const PAGE_TITLES = {
   "/Inbox": "Inbox",
   "/CalendarPage": "Calendar",
   "/Team": "My Team",
-  "/Car": "Cars",
+  "/Car": "My Cars",
   "/MyDrivers": "Drivers",
   "/MyStaff": "Staff",
   "/Development": "Development",

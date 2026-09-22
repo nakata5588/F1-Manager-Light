@@ -173,6 +173,7 @@ function seedPitCrew(gs,tid){
       avg_time_s:clamp(num(historical.avg_time,6.8),2,18),
       consistency:clamp(num(historical.consistency,70)),
       error_rate:clamp(num(historical.error_rate,0.05),0,0.35),
+      training_load:clamp(num(historical.training_load,50),0,100),
       source:"career_seed",
     };
   }
@@ -181,6 +182,7 @@ function seedPitCrew(gs,tid){
     avg_time_s:Number(clamp(8.2-level*0.32,2.2,9).toFixed(2)),
     consistency:Math.round(clamp(48+level*5,40,95)),
     error_rate:Number(clamp(0.12-level*0.012,0.015,0.12).toFixed(3)),
+    training_load:50,
     source:"facility_seed",
   };
 }
@@ -554,8 +556,24 @@ function optimalTyreTemp(tyre){
   const category=String(tyre?.category||"dry");
   return category==="wet"?68:category==="intermediate"?78:96;
 }
+export function pitCrewEffectiveProfile(crew={}){
+  const load=clamp(num(crew?.training_load,50),0,100);
+  const over=Math.max(0,load-60);
+  return {
+    ...crew,
+    training_load:load,
+    avg_time_s:Number(clamp(num(crew?.avg_time_s,6.8)+over*0.005,2,18).toFixed(2)),
+    consistency:Number(clamp(num(crew?.consistency,70)-over*0.15,35,100).toFixed(1)),
+    error_rate:Number(clamp(num(crew?.error_rate,0.05)+over*0.0004,0.005,0.35).toFixed(3)),
+    training_penalty:over>0?{
+      avg_time_s:Number((over*0.005).toFixed(2)),
+      consistency:Number((over*0.15).toFixed(1)),
+      error_rate:Number((over*0.0004).toFixed(3)),
+    }:null,
+  };
+}
 function pitCrew(gs,tid){
-  return gs?.raceStrategyWorld?.pitCrews?.[String(tid)]||seedPitCrew(gs,tid);
+  return pitCrewEffectiveProfile(gs?.raceStrategyWorld?.pitCrews?.[String(tid)]||seedPitCrew(gs,tid));
 }
 function strategyForGridRow(gs,row,strategyState){
   const did=idOf(row?.driver||row);

@@ -68,6 +68,9 @@ jobs:
       - name: Test management timeline
         run: npm run test:management-events
 
+      - name: Test management depth mechanics
+        run: npm run test:management-depth
+
       - name: Test save safety and deterministic RNG
         run: npm run test:save-safety
 

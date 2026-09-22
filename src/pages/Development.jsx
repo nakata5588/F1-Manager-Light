@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
+import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 
 const DAY = 86_400_000;
@@ -116,6 +117,10 @@ export default function Development() {
     [gameState, teamId]
   );
   const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
+  const rawPitCrew=gameState?.raceStrategyWorld?.pitCrews?.[teamId]||{
+    avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,source:"fallback"
+  };
+  const effectivePitCrew=pitCrewEffectiveProfile(rawPitCrew);
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -296,6 +301,12 @@ export default function Development() {
     setGameState({development:{...dev,projects,parts,manufacturing,research:next}});
   };
 
+  const setPitCrewTrainingLoad=(load)=>{
+    const pitCrews={...(gameState?.raceStrategyWorld?.pitCrews||{})};
+    pitCrews[teamId]={...rawPitCrew,training_load:Math.max(0,Math.min(100,Number(load)||0))};
+    setGameState({raceStrategyWorld:{...(gameState?.raceStrategyWorld||{}),pitCrews}});
+  };
+
   function applyExpense(amount, desc) {
     const value = Math.abs(Number(amount || 0));
     const oldBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
@@ -340,7 +351,7 @@ export default function Development() {
       </div>
 
       {showCreate && (
-        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 grid gap-3">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 grid gap-3">
           <div className="font-semibold">Create development project</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-sm">Project name<input className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. Revised rear wing"/></label>
@@ -373,14 +384,14 @@ export default function Development() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {["projects","parts","manufacturing","research"].map((key)=><Button key={key} variant={tab===key?"default":"outline"} onClick={()=>setTab(key)}>{nice(key)}</Button>)}
+        {["projects","parts","manufacturing","research","pit_crew"].map((key)=><Button key={key} variant={tab===key?"default":"outline"} onClick={()=>setTab(key)}>{nice(key)}</Button>)}
       </div>
 
       {tab==="projects" && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {projects.map((p)=>{
             const progress = p.status==="completed" ? 1 : p.status==="paused" ? Number(p.progress||0) : progressBetween(p.started_at,p.finishes_at,currentDateISO);
-            return <Card className="bg-[#12141c] border-white/10 text-slate-100" key={p.id}><CardContent className="p-4 space-y-3">
+            return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={p.id}><CardContent className="p-4 space-y-3">
               <div className="flex justify-between gap-2"><div><div className="text-xs text-slate-400">{nice(p.type)} · {nice(p.phase)}</div><div className="font-semibold">{p.name}</div></div><span className="text-xs rounded bg-white/10 px-2 py-1 h-fit">{nice(p.status)}</span></div>
               <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-800" style={{width:`${progress*100}%`}}/></div></div>
               <div className="grid grid-cols-3 gap-2 text-sm"><Mini label="Engineers" value={p.engineers}/><Mini label="CFD" value={`${p.cfd_hours||0}h`}/><Mini label="WT" value={`${p.wt_hours||0}h`}/></div>
@@ -388,17 +399,17 @@ export default function Development() {
               {p.test_driver_name && <div className="text-xs text-slate-400">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
-                <Button size="sm" variant="outline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
-                <Button size="sm" variant="outline" onClick={()=>addHours(p,"wt_hours")}>+5 WT</Button>
+                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
+                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"wt_hours")}>+5 WT</Button>
               </div>}
             </CardContent></Card>;
           })}
-          {!projects.length && <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No development projects yet. Start one with “New Project”.</CardContent></Card>}
+          {!projects.length && <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No development projects yet. Start one with “New Project”.</CardContent></Card>}
         </div>
       )}
 
       {tab==="parts" && (
-        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
           <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
           <tbody>{parts.map((p)=><tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{nice(p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right">{Number(p.inv||0)}{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</td><td className="px-3 py-2 text-right"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button></td></tr>)}
           {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
@@ -406,7 +417,7 @@ export default function Development() {
       )}
 
       {tab==="manufacturing" && (
-        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
           <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
           <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
           {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">No manufacturing batches.</td></tr>}</tbody>
@@ -415,16 +426,48 @@ export default function Development() {
 
       {tab==="research" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {research.map((r)=><Card className="bg-[#12141c] border-white/10 text-slate-100" key={r.id}><CardContent className="p-4">
+          {research.map((r)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
             <div className="flex justify-between"><div className="font-semibold">{r.area}</div><div className="text-sm">{r.focus||0}% focus</div></div>
             <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
             <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
           </CardContent></Card>)}
         </div>
       )}
+
+      {tab==="pit_crew" && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
+              <div className="text-lg font-semibold">Pit Crew Training Load</div>
+              <p className="text-sm text-slate-400 mt-1">Training improves pit-stop pace, consistency and error rate over time. Heavy training accelerates development but creates a temporary race-day fatigue penalty.</p>
+            </div>
+            <input className="w-full" type="range" min="0" max="100" step="5" value={Number(rawPitCrew.training_load??50)} onChange={(e)=>setPitCrewTrainingLoad(e.target.value)}/>
+            <div className="flex items-center justify-between text-sm"><span className="text-slate-400">Current load</span><strong>{Math.round(Number(rawPitCrew.training_load??50))}%</strong></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[["Recovery",20],["Balanced",50],["Intensive",80],["Maximum",100]].map(([label,value])=><Button key={label} size="sm" variant={Number(rawPitCrew.training_load??50)===value?"default":"outline"} onClick={()=>setPitCrewTrainingLoad(value)}>{label}</Button>)}
+            </div>
+            <div className="text-xs text-slate-500">Suggestion: taper the load before a race weekend if you want to avoid the race-day penalty from very high training intensity.</div>
+          </CardContent></Card>
+
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4">
+            <div className="font-semibold mb-3">Pit Crew Performance</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <Mini label="Base stop" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+              <Mini label="Race-day stop" value={Number(effectivePitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+              <Mini label="Consistency" value={Number(effectivePitCrew.consistency??70).toFixed(1)+"%"}/>
+              <Mini label="Error rate" value={(Number(effectivePitCrew.error_rate??0.05)*100).toFixed(1)+"%"}/>
+            </div>
+            <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
+              <div className="font-medium">How it works</div>
+              <div className="text-slate-400 mt-1">Daily training progression is affected by the Pit Crew Training facility. Loads above 60% improve the crew faster but temporarily add stop-time and error risk on race day. This is now the same crew profile used by the race-strategy pit-stop simulation.</div>
+            </div>
+          </CardContent></Card>
+        </div>
+      )}
     </div>
   );
 }
 
-function Stat({label,value}){return <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
+function Stat({label,value}){return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
 function Mini({label,value}){return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value}</div></div>;}

@@ -127,7 +127,7 @@ export default function Sidebar() {
 
       <div className="px-2 py-1 mt-2 text-xs font-semibold opacity-80">Team</div>
       <Item to="/Team" label="My Team" icon={Car} brand={brand} />
-      <Item to="/Car" label="Car" icon={Car} brand={brand} badge={attention.car} />
+      <Item to="/Car" label="My Cars" icon={Car} brand={brand} badge={attention.car} />
       <Item to="/MyDrivers" label="My Drivers" icon={HelmetIcon} brand={brand} badge={attention.drivers} />
       <Item to="/MyStaff" label="My Staff" icon={Users} brand={brand} />
       <Item to="/Development" label="Development" icon={Wrench} brand={brand} />

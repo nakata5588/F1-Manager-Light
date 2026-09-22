@@ -6,6 +6,7 @@ import {
   recalculateCurrentAbility,
 } from "../domain/driverRating.js";
 import { currentDriverTeamId } from "../domain/driverContracts.js";
+import { academyProgramDefinition } from "../domain/academyPrograms.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -38,6 +39,52 @@ function meanRevert(value,target=50,rate=0.025){
   const v=Number(value);
   if(!Number.isFinite(v))return target;
   return clamp(v+(target-v)*rate);
+}
+function pitCrewFacilityLevel(gs,teamId){
+  const userTeam=String(gs?.team?.team_id??gs?.team?.id??"");
+  if(String(teamId)===userTeam){
+    const direct=Number(gs?.hq?.facilityLevels?.pitcrew_training_level);
+    if(Number.isFinite(direct))return clamp(direct,1,10);
+  }
+  const year=Number(gs?.activeYear);
+  const rows=Array.isArray(gs?.facilities)&&gs.facilities.length?gs.facilities:(gs?.dbFacilities||[]);
+  const row=rows.find((r)=>
+    String(pick(r,["team_id","team"],""))===String(teamId) &&
+    (!Number.isFinite(Number(pick(r,["year","season_year"],year)))||Number(pick(r,["year","season_year"],year))===year)
+  );
+  const value=Number(pick(row||{},["pitcrew_training_level"],5));
+  return Number.isFinite(value)?clamp(value,1,10):5;
+}
+function applyPitCrewTraining(gs,dateISO){
+  const world=gs?.raceStrategyWorld;
+  if(!world?.pitCrews||typeof world.pitCrews!=="object")return gs;
+  const pitCrews={...world.pitCrews};
+  let changed=false;
+  for(const [teamId,raw] of Object.entries(pitCrews)){
+    const crew={...(raw||{})};
+    const load=clamp(Number(crew.training_load??50),0,100);
+    const intensity=load/100;
+    const facility=pitCrewFacilityLevel(gs,teamId);
+    const facilityFactor=0.82+facility*0.036;
+    const avg=Number(crew.avg_time_s??6.8);
+    const consistency=Number(crew.consistency??70);
+    const error=Number(crew.error_rate??0.05);
+
+    const paceGain=Math.max(0,avg-2.2)*0.00055*intensity*facilityFactor;
+    const consistencyGain=Math.max(0,100-consistency)*0.00045*intensity*facilityFactor;
+    const errorGain=Math.max(0,error-0.005)*0.0017*intensity*facilityFactor;
+
+    pitCrews[teamId]={
+      ...crew,
+      training_load:load,
+      avg_time_s:Number(Math.max(2.2,avg-paceGain).toFixed(3)),
+      consistency:Number(Math.min(100,consistency+consistencyGain).toFixed(3)),
+      error_rate:Number(Math.max(0.005,error-errorGain).toFixed(5)),
+      last_training_date:dateISO,
+    };
+    changed=true;
+  }
+  return changed?{...gs,raceStrategyWorld:{...world,pitCrews}}:gs;
 }
 function resolveDriverTeamId(gs,driverId){
   return currentDriverTeamId(gs,driverId);
@@ -96,6 +143,25 @@ const ATTRIBUTE_MULTIPLIER={
   race_intelligence:0.70,pressure_handling:0.55,adaptability:0.60,mentality:0.55,
   technical_feedback:0.50,start_launch:0.85,
 };
+
+function academySupportEntry(gs,driverId){
+  return (gs?.academy?.drivers||[]).find((row)=>
+    String(row?.driver_id??row?.person_id??row?.id??"")===String(driverId) &&
+    String(row?.status??"active").toLowerCase()!=="inactive"
+  )||null;
+}
+function youthProgrammeLevel(gs){
+  const direct=Number(gs?.hq?.facilityLevels?.youth_program_level);
+  if(Number.isFinite(direct))return clamp(direct,0,10);
+  const year=Number(gs?.activeYear);
+  const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const row=(gs?.facilities||gs?.dbFacilities||[]).find((r)=>
+    String(pick(r,["team_id","team"],""))===teamId &&
+    (!Number.isFinite(Number(pick(r,["year","season_year"],year)))||Number(pick(r,["year","season_year"],year))===year)
+  );
+  const value=Number(pick(row||{},["youth_program_level"],0));
+  return Number.isFinite(value)?clamp(value,0,10):0;
+}
 
 function applyDelta(rating,key,delta,changes,driverId,dateISO,source){
   if(!Number.isFinite(Number(rating?.[key]))||!Number.isFinite(Number(delta))||Math.abs(delta)<0.001)return;
@@ -174,6 +240,21 @@ function monthlyProgression(gs,ratings,dateISO){
       }
     }
 
+    const academyEntry=academySupportEntry(gs,did);
+    if(academyEntry){
+      const plan=String(academyEntry.program||"General Development");
+      const deltas=academyProgramDefinition(plan).deltas;
+      const youthLevel=youthProgrammeLevel(gs);
+      const formal=String(academyEntry.mode||"").toLowerCase()==="academy";
+      const supportFactor=formal
+        ?Math.max(0.85,Math.min(1.35,0.90+youthLevel*0.045))
+        :0.68;
+      const ageFactor=age<=22?1:age<=25?0.75:0.45;
+      for(const [key,delta] of Object.entries(deltas)){
+        applyDelta(rating,key,delta*supportFactor*ageFactor,changes,did,dateISO,"academy_"+plan.toLowerCase().replaceAll(" ","_"));
+      }
+    }
+
     rating=recalculateCurrentAbility(rating);
     return rating;
   });
@@ -204,6 +285,9 @@ export function applyProgressionTick(gs){
     };
   }
   next.driverAttributes=dict;
+
+  const afterPitCrew=applyPitCrewTraining(next,dateISO);
+  next.raceStrategyWorld=afterPitCrew.raceStrategyWorld;
 
   const monthKey=dateISO.slice(0,7);
   if(gs?._lastDriverProgressionMonth===monthKey)return next;
