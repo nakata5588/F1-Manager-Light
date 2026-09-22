@@ -253,7 +253,11 @@ export function driverMonthlyCareerDevelopmentPlan(gs,driverId,rating,dateISO=gs
 
 function recentAttributeTrajectory(gs,driverId,dateISO){
   const since=monthsBackDate(dateISO,4);
-  const log=rows(gs?.driverAttrLog?.[String(driverId)]);
+  const rawKey=String(driverId);
+  const normKey=rawKey.match(/(\d+)/)?.[1]?.padStart(4,"0")||rawKey;
+  const direct=rows(gs?.driverAttrLog?.[rawKey]);
+  const compat=normKey===rawKey?[]:rows(gs?.driverAttrLog?.[normKey]);
+  const log=[...direct,...compat];
   let impact=0;
   let count=0;
   for(const row of log){
