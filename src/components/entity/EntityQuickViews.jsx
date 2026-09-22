@@ -67,8 +67,11 @@ function Metric({label,value,tone=""}){
 }
 
 function openFull(navigate,onClose,path){
-  onClose?.();
-  navigate(path);
+  if(!path)return;
+  // Replace the modal deep-link history entry so browser Back returns to the
+  // originating page rather than reopening the same Quick View.
+  navigate(path,{replace:true});
+  queueMicrotask(()=>onClose?.());
 }
 
 export function DriverQuickView({entity,onClose}){
