@@ -92,6 +92,23 @@ test("1980 race control never invents modern Safety Car or VSC periods",()=>{
   assert.ok(plan.periods.every((row)=>!["SAFETY_CAR","VSC"].includes(row.type)));
 });
 
+test("1980 local yellow periods are single-lap warnings",()=>{
+  let found=null;
+  for(let index=0;index<80&&!found;index+=1){
+    const state=gs(1980);
+    state.saveMeta=createNewSaveMeta({year:1980,teamId:"T1",seed:`rw4.11-yellow-${index}`});
+    const race=[
+      {driver:{driver_id:"D1"},incident_risk_multiplier:4,mechanical_risk_multiplier:1},
+      {driver:{driver_id:"D2"},incident_risk_multiplier:4,mechanical_risk_multiplier:1},
+    ];
+    const plan=createRaceControlPlan(state,{gp:{gp_id:"historic-yellow",track_id:"t"},race,weather:dryWeather,track});
+    const yellows=plan.periods.filter((row)=>row.type==="LOCAL_YELLOW");
+    if(yellows.length)found=yellows;
+  }
+  assert.ok(found?.length,"expected at least one deterministic 1980 local-yellow plan");
+  assert.ok(found.every((row)=>Number(row.to_lap)===Number(row.from_lap)));
+});
+
 test("race-control planning is deterministic for the same Save seed",()=>{
   const state=gs(2015);
   const race=[
