@@ -39,6 +39,52 @@ function meanRevert(value,target=50,rate=0.025){
   if(!Number.isFinite(v))return target;
   return clamp(v+(target-v)*rate);
 }
+function pitCrewFacilityLevel(gs,teamId){
+  const userTeam=String(gs?.team?.team_id??gs?.team?.id??"");
+  if(String(teamId)===userTeam){
+    const direct=Number(gs?.hq?.facilityLevels?.pitcrew_training_level);
+    if(Number.isFinite(direct))return clamp(direct,1,10);
+  }
+  const year=Number(gs?.activeYear);
+  const rows=Array.isArray(gs?.facilities)&&gs.facilities.length?gs.facilities:(gs?.dbFacilities||[]);
+  const row=rows.find((r)=>
+    String(pick(r,["team_id","team"],""))===String(teamId) &&
+    (!Number.isFinite(Number(pick(r,["year","season_year"],year)))||Number(pick(r,["year","season_year"],year))===year)
+  );
+  const value=Number(pick(row||{},["pitcrew_training_level"],5));
+  return Number.isFinite(value)?clamp(value,1,10):5;
+}
+function applyPitCrewTraining(gs,dateISO){
+  const world=gs?.raceStrategyWorld;
+  if(!world?.pitCrews||typeof world.pitCrews!=="object")return gs;
+  const pitCrews={...world.pitCrews};
+  let changed=false;
+  for(const [teamId,raw] of Object.entries(pitCrews)){
+    const crew={...(raw||{})};
+    const load=clamp(Number(crew.training_load??50),0,100);
+    const intensity=load/100;
+    const facility=pitCrewFacilityLevel(gs,teamId);
+    const facilityFactor=0.82+facility*0.036;
+    const avg=Number(crew.avg_time_s??6.8);
+    const consistency=Number(crew.consistency??70);
+    const error=Number(crew.error_rate??0.05);
+
+    const paceGain=Math.max(0,avg-2.2)*0.00055*intensity*facilityFactor;
+    const consistencyGain=Math.max(0,100-consistency)*0.00045*intensity*facilityFactor;
+    const errorGain=Math.max(0,error-0.005)*0.0017*intensity*facilityFactor;
+
+    pitCrews[teamId]={
+      ...crew,
+      training_load:load,
+      avg_time_s:Number(Math.max(2.2,avg-paceGain).toFixed(3)),
+      consistency:Number(Math.min(100,consistency+consistencyGain).toFixed(3)),
+      error_rate:Number(Math.max(0.005,error-errorGain).toFixed(5)),
+      last_training_date:dateISO,
+    };
+    changed=true;
+  }
+  return changed?{...gs,raceStrategyWorld:{...world,pitCrews}}:gs;
+}
 function resolveDriverTeamId(gs,driverId){
   return currentDriverTeamId(gs,driverId);
 }
@@ -204,6 +250,9 @@ export function applyProgressionTick(gs){
     };
   }
   next.driverAttributes=dict;
+
+  const afterPitCrew=applyPitCrewTraining(next,dateISO);
+  next.raceStrategyWorld=afterPitCrew.raceStrategyWorld;
 
   const monthKey=dateISO.slice(0,7);
   if(gs?._lastDriverProgressionMonth===monthKey)return next;
