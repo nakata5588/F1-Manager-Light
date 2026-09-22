@@ -490,40 +490,48 @@ function pitRejoinEstimate(active,row,pitLossSeconds){
   };
 }
 
-function visibleClassification(gs,race,lap,plan,strategyState){
+function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
   const gridRows=gridForWeekend(gs);
   const gridById=new Map(gridRows.map((row)=>[idOf(row?.driver),Number(row?.pos)]));
   const totalLaps=Math.max(1,Number(gs?.raceWeekendState?.live_race?.total_laps||strategyState?.track_snapshot?.laps||1));
   const playerTeam=String(gs?.team?.team_id??gs?.team?.id??"");
   const playerForecast=raceForecastForTeam(gs,playerTeam);
   const forecastConfidence=num(playerForecast?.confidence_pct,50);
+  const currentOrdinal=pointOrdinal(lap,sector);
+  const progressLap=Math.max(0,(Number(lap)-1)+Number(sector)/3);
 
   const rows=(race||[]).map((row)=>{
     const did=idOf(row?.driver||row);
     const incident=incidentForDriver(plan,did);
-    const retired=Boolean(incident&&Number(incident.lap)<=lap);
-    const effectiveLap=retired?Math.max(1,Number(incident.lap)):lap;
-    const lastLapMs=num(row?.lap_times_ms?.[Math.max(0,effectiveLap-1)],null);
-    const previousLapMs=effectiveLap>1?num(row?.lap_times_ms?.[Math.max(0,effectiveLap-2)],null):null;
+    const retired=Boolean(incident&&incidentOrdinal(incident)<=currentOrdinal);
+    const pointLap=retired?Math.max(1,Number(incident?.lap)||1):Math.max(1,Number(lap)||1);
+    const pointSector=retired
+      ?Math.max(1,Math.min(3,Number(incident?.sector)||1))
+      :Math.max(1,Math.min(3,Number(sector)||3));
+    const completedLap=pointSector>=3?pointLap:Math.max(0,pointLap-1);
+    const lastLapMs=completedLap>0?num(row?.lap_times_ms?.[completedLap-1],null):null;
+    const previousLapMs=completedLap>1?num(row?.lap_times_ms?.[completedLap-2],null):null;
     const lastLapDeltaMs=Number.isFinite(Number(lastLapMs))&&Number.isFinite(Number(previousLapMs))
       ?Number(lastLapMs)-Number(previousLapMs)
       :null;
-    const tyre=tyreStateAtLap(row,effectiveLap);
-    const pits=(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=effectiveLap);
-    const best=bestLapAt(row,effectiveLap);
-    const sectors=sectorTimesForLap(lastLapMs,did,effectiveLap);
-    const recentPace=recentObservedPaceMs(row,effectiveLap);
-    const pitWindow=pitWindowAt(strategyState,did,effectiveLap,totalLaps,tyre);
-    const currentPace=paceAtLap(strategyState,did,effectiveLap);
-    const nextPace=nextPaceMode(strategyState,did,effectiveLap);
-    const sampleCount=(row?.lap_times_ms||[]).slice(Math.max(0,effectiveLap-4),effectiveLap)
+    const tyre=tyreStateAtPoint(row,pointLap,pointSector);
+    const pits=(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=pointLap);
+    const best=bestLapAt(row,completedLap);
+    const sectors=sectorDisplayForPoint(row,pointLap,pointSector);
+    const recentPace=completedLap>0?recentObservedPaceMs(row,completedLap):null;
+    const pitWindow=pitWindowAt(strategyState,did,Math.max(0,completedLap),totalLaps,tyre);
+    const currentPace=paceAtLap(strategyState,did,pointLap);
+    const nextPace=nextPaceMode(strategyState,did,pointLap);
+    const sampleCount=(row?.lap_times_ms||[]).slice(Math.max(0,completedLap-4),completedLap)
       .filter((value)=>Number.isFinite(Number(value))&&Number(value)>0).length;
     const visibleRow={
       driver_id:did,
       team_id:teamForDriver(gs,did),
       grid_position:gridById.get(did)||null,
-      laps_completed:effectiveLap,
-      elapsed_ms:cumulativeAtLap(row,effectiveLap),
+      current_lap:pointLap,
+      current_sector:pointSector,
+      laps_completed:completedLap,
+      elapsed_ms:cumulativeAtPoint(row,pointLap,pointSector),
       last_lap_ms:lastLapMs,
       previous_lap_ms:previousLapMs,
       last_lap_delta_ms:lastLapDeltaMs,
@@ -537,21 +545,26 @@ function visibleClassification(gs,race,lap,plan,strategyState){
       next_pace:nextPace,
       recent_pace_ms:recentPace,
       observed_sample_count:sampleCount,
-      observed_tyre_wear_per_lap:observedTyreWearPerLap(row,effectiveLap,tyre),
+      observed_tyre_wear_per_lap:observedTyreWearPerLap(row,Math.max(1,pointLap),tyre),
       pit_window:pitWindow,
       retired,
       status:retired?"DNF":"RUNNING",
       retirement_reason:retired?incident.reason:null,
       incident_lap:retired?incident.lap:null,
+      incident_sector:retired?(incident?.sector??null):null,
     };
     visibleRow.expected_future_pit_loss_s=expectedFuturePitLoss(
-      gs,strategyState,visibleRow,effectiveLap,totalLaps,plan,playerForecast
+      gs,strategyState,visibleRow,Math.max(0,completedLap),totalLaps,plan,playerForecast
     );
     return visibleRow;
   });
 
   const activeBase=rows.filter((row)=>!row.retired).sort((a,b)=>a.elapsed_ms-b.elapsed_ms||a.driver_id.localeCompare(b.driver_id));
-  const retired=rows.filter((row)=>row.retired).sort((a,b)=>Number(b.incident_lap)-Number(a.incident_lap)||a.elapsed_ms-b.elapsed_ms);
+  const retired=rows.filter((row)=>row.retired).sort((a,b)=>{
+    const aOrdinal=pointOrdinal(a.incident_lap||1,a.incident_sector||1);
+    const bOrdinal=pointOrdinal(b.incident_lap||1,b.incident_sector||1);
+    return bOrdinal-aOrdinal||a.elapsed_ms-b.elapsed_ms;
+  });
   const leader=activeBase[0]?.elapsed_ms||retired[0]?.elapsed_ms||0;
   let previous=leader;
   const positionedActive=activeBase.map((row,index)=>{
@@ -570,7 +583,7 @@ function visibleClassification(gs,race,lap,plan,strategyState){
     return out;
   });
   const projectedActive=projectObservedRaceState(positionedActive,{
-    lap,
+    lap:progressLap,
     totalLaps,
     forecastConfidencePct:forecastConfidence,
   });
@@ -578,7 +591,7 @@ function visibleClassification(gs,race,lap,plan,strategyState){
 
   const active=positionedActive.map((row)=>{
     const projected=projectedById.get(String(row.driver_id))||row;
-    const estimatedPitLoss=pitLossEstimate(gs,strategyState,row.driver_id,lap,plan,{observedLap:lap});
+    const estimatedPitLoss=pitLossEstimate(gs,strategyState,row.driver_id,Math.max(1,Number(lap)),plan,{observedLap:Math.max(1,Number(lap))});
     const rejoin=pitRejoinEstimate(positionedActive,row,estimatedPitLoss);
     return {
       ...projected,
