@@ -143,7 +143,7 @@ export default function Academy(){
           </div>
           <div className="mt-1 text-slate-500">{formalAcademy?`Youth Programme level ${youthLevel} scales the training effect.`:"Informal junior support runs at reduced effectiveness compared with a formal academy."}</div>
         </div>
-        <Button size="sm" variant="outline" onClick={()=>removeDriver(id)}>End Support</Button>
+        <Button size="sm" variant="darkOutline" onClick={()=>removeDriver(id)}>End Support</Button>
       </CardContent></Card>)}
       {!supportedRows.length&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No junior drivers are currently supported. Open “Find Talent” to add one.</CardContent></Card>}
     </div>}
