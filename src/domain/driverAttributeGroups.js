@@ -294,8 +294,29 @@ export function driverGroupDevelopmentPlan(rating,groupKey,{baseGain=0.32,effici
   return changes;
 }
 
+function focusKeyForDriver(dict,driverId){
+  return dict?.[String(driverId)]??dict?.[String(driverId||"").match(/(\d+)/)?.[1]?.padStart(4,"0")];
+}
+
 export function driverDevelopmentFocus(gs,driverId){
-  const dict=gs?.driverDevelopmentFocus||{};
-  const raw=dict?.[String(driverId)]??dict?.[String(driverId||"").match(/(\d+)/)?.[1]?.padStart(4,"0")];
+  const meta=focusKeyForDriver(gs?.driverDevelopmentFocusMeta||{},driverId);
+  const metaGroup=meta&&typeof meta==="object"?meta.groupKey:null;
+  if(driverAttributeGroup(metaGroup))return String(metaGroup);
+
+  const raw=focusKeyForDriver(gs?.driverDevelopmentFocus||{},driverId);
   return driverAttributeGroup(raw)?String(raw):null;
+}
+
+export function driverDevelopmentFocusState(gs,driverId){
+  const groupKey=driverDevelopmentFocus(gs,driverId);
+  const monthKey=String(gs?.currentDateISO||"").slice(0,7);
+  const meta=focusKeyForDriver(gs?.driverDevelopmentFocusMeta||{},driverId);
+  const selectedMonth=meta&&typeof meta==="object"?String(meta.monthKey||""):null;
+  return {
+    groupKey,
+    monthKey,
+    selectedMonth,
+    locked:Boolean(groupKey&&selectedMonth===monthKey),
+    selectedAt:meta&&typeof meta==="object"?meta.selectedAt||null:null,
+  };
 }
