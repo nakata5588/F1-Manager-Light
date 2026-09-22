@@ -170,11 +170,17 @@ function extractDriverId(obj) {
 
 /* ======================== Component ======================== */
 
-export default function DriverModal({ entity, onClose }) {
+export default function DriverModal({ entity, onClose, pageMode = false }) {
   const navigate = useNavigate();
-  const setTab = useModalStore((s) => s.setTab);
+  const modalSetTab = useModalStore((s) => s.setTab);
   const rawTab = unbox(entity.tab) || "overview";
-  const activeTab = TAB_ALIASES[rawTab] || rawTab;
+  const initialTab = TAB_ALIASES[rawTab] || rawTab;
+  const [pageTab, setPageTab] = useState(initialTab);
+  const activeTab = pageMode ? pageTab : initialTab;
+  const setTab = (tab) => {
+    if (pageMode) setPageTab(tab);
+    else modalSetTab(tab);
+  };
   const idNorm = useMemo(() => normDriverId(entity.id), [entity.id]);
 
   // Read the store through stable primitive/reference selectors. All collections
@@ -707,7 +713,7 @@ export default function DriverModal({ entity, onClose }) {
       <div className="p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Driver not found</h3>
-          <button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18} /></button>
+          {!pageMode && <button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18} /></button>}
         </div>
         <p className="text-sm text-gray-500">ID: {entity.id}</p>
       </div>
@@ -715,7 +721,7 @@ export default function DriverModal({ entity, onClose }) {
   }
 
   return (
-    <div className="flex h-[92vh] bg-[#090b10] text-slate-100">
+    <div className={`flex bg-[#090b10] text-slate-100 ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border border-white/10 shadow-xl" : "h-[92vh]"}`}>
       <aside className="w-[290px] shrink-0 border-r border-white/10 bg-[#11141c] p-5 overflow-y-auto">
         <div className="flex items-center gap-3">
           <DriverPortrait driver={driver} size="h-20 w-20" className="!rounded-xl"/>
@@ -729,15 +735,26 @@ export default function DriverModal({ entity, onClose }) {
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-white/10 bg-[#171a23] p-3">
-          <div className="flex items-center gap-3">
-            <TeamLogo teamId={contractTeamId || profileSnapshot?.teamId} name={contractTeam || profileSnapshot?.teamName || "Team"} size="h-10 w-10"/>
-            <div className="min-w-0">
-              <div className="text-sm font-medium truncate">{contractTeam || profileSnapshot?.teamName || "Free Agent"}</div>
-              <div className="text-xs text-slate-500">{contractRole || "No active role"}</div>
+        {(contractTeamId || profileSnapshot?.teamId) ? (
+          <button
+            type="button"
+            data-entity="team"
+            data-id={contractTeamId || profileSnapshot?.teamId}
+            className="mt-4 w-full rounded-xl border border-white/10 bg-[#171a23] p-3 text-left hover:bg-white/5"
+          >
+            <div className="flex items-center gap-3">
+              <TeamLogo teamId={contractTeamId || profileSnapshot?.teamId} name={contractTeam || profileSnapshot?.teamName || "Team"} size="h-10 w-10"/>
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{contractTeam || profileSnapshot?.teamName || "Team"}</div>
+                <div className="text-xs text-slate-500">{contractRole || "No active role"} · View team</div>
+              </div>
             </div>
+          </button>
+        ) : (
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#171a23] p-3 text-sm text-slate-400">
+            Free Agent
           </div>
-        </div>
+        )}
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           <ProfileMetric label="OVR" value={overallLabel}/>
@@ -824,9 +841,11 @@ export default function DriverModal({ entity, onClose }) {
                 releaseCost={releaseCost}
                 marketEligibility={marketEligibility}
               />
-              <button onClick={onClose} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5 hover:text-white" aria-label="Close">
-                <X size={18} />
-              </button>
+              {!pageMode && (
+                <button onClick={onClose} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5 hover:text-white" aria-label="Close">
+                  <X size={18} />
+                </button>
+              )}
             </div>
           </div>
 

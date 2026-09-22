@@ -14,7 +14,7 @@ function overallOf(rating){
   return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):null;
 }
 
-export default function StaffModal({entity,onClose}){
+export default function StaffModal({entity,onClose,pageMode=false}){
   const gs=useGame(s=>s.gameState);
   const year=Number(gs?.activeYear);
   const coreList=gs?.staffCore?.length?gs.staffCore:gs?.dbStaffCore||[];
@@ -27,7 +27,7 @@ export default function StaffModal({entity,onClose}){
   const contract=useMemo(()=>contracts.find(c=>staffIdOf(c)===id && (!Number.isFinite(year)||!Number.isFinite(Number(c?.year))||Number(c?.year)===year))||null,[contracts,id,year]);
 
   if(!staff&&!contract){
-    return <div className="p-6"><div className="flex justify-between"><h3 className="font-semibold">Staff member not found</h3><button onClick={onClose}><X size={18}/></button></div><p className="text-sm text-gray-500">{id}</p></div>;
+    return <div className="p-6"><div className="flex justify-between"><h3 className="font-semibold">Staff member not found</h3>{!pageMode&&<button onClick={onClose}><X size={18}/></button>}</div><p className="text-sm text-gray-500">{id}</p></div>;
   }
 
   const name=pick(staff,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id));
@@ -36,15 +36,29 @@ export default function StaffModal({entity,onClose}){
   const overall=overallOf(rating);
   const skills=Object.entries(rating||{}).filter(([k,v])=>!["staff_id","staff_name","year"].includes(k)&&Number.isFinite(Number(v))).sort((a,b)=>Number(b[1])-Number(a[1]));
 
-  return <div className="max-h-[92vh] overflow-y-auto">
+  return <div className={pageMode?"min-h-[calc(100vh-5rem)] rounded-2xl border bg-white shadow-xl":"max-h-[92vh] overflow-y-auto"}>
     <div className="p-5 border-b flex items-start justify-between gap-3">
       <div><h2 className="text-2xl font-bold">{name}</h2><p className="text-sm text-gray-500">{flagFromCountry(country,pick(staff,["country_code"],""))} {country||"—"} · {role}</p></div>
-      <button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18}/></button>
+      {!pageMode&&<button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18}/></button>}
     </div>
     <div className="p-5 grid gap-5">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Info label="Overall" value={overall??"—"}/>
-        <Info label="Team" value={pick(contract,["team_name","team"],"Free")}/>
+        <div className="border rounded-lg p-3">
+          <div className="text-xs text-gray-500">Team</div>
+          {(contract?.team_id ?? contract?.team) ? (
+            <button
+              type="button"
+              data-entity="team"
+              data-id={contract?.team_id ?? contract?.team}
+              className="font-medium hover:text-sky-600 hover:underline"
+            >
+              {pick(contract,["team_name","team"],"Free")}
+            </button>
+          ) : (
+            <div className="font-medium">Free</div>
+          )}
+        </div>
         <Info label="Contract to" value={pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—")}/>
         <Info label="Salary" value={fmtMoney(pick(contract,["salary","salary_yearly"],null))}/>
         <Info label="Primary role" value={role}/>

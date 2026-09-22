@@ -2,15 +2,13 @@
 import { createPortal } from "react-dom";
 import { useEffect, useRef } from "react";
 import { useModalStore } from "../../state/ModalStore.js";
-import DriverModal from "./DriverModal.jsx";
-import TeamModal from "./TeamModal.jsx";
-import StaffModal from "./StaffModal.jsx";
+import { DriverQuickView, TeamQuickView, StaffQuickView } from "./EntityQuickViews.jsx";
 import EntityErrorBoundary from "./EntityErrorBoundary.jsx";
 
 const MODALS = {
-  driver: DriverModal,
-  team: TeamModal,
-  staff: StaffModal,
+  driver: DriverQuickView,
+  team: TeamQuickView,
+  staff: StaffQuickView,
   // gp: GpModal,
   // sponsor: SponsorModal,
 };
@@ -46,7 +44,6 @@ export default function EntityModalRoot() {
 
   const Cmp = MODALS[entity.type];
   if (!Cmp) return null;
-  const isDriverProfile = entity.type === "driver";
 
   return createPortal(
     <div className="fixed inset-0 z-[100]">
@@ -62,14 +59,14 @@ export default function EntityModalRoot() {
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className={`
+        className="
           absolute left-1/2 top-1/2
-          ${isDriverProfile ? "w-[1380px] max-w-[98vw] bg-[#090b10] text-slate-100" : "w-[1200px] max-w-[96vw] bg-white text-slate-950"}
-          max-h-[92vh] overflow-hidden
+          w-[720px] max-w-[94vw]
+          max-h-[88vh] overflow-y-auto
           -translate-x-1/2 -translate-y-1/2
-          rounded-2xl shadow-2xl
+          rounded-2xl bg-[#0c0f15] text-slate-100 shadow-2xl
           outline-none
-        `}
+        "
         onWheel={(e) => e.stopPropagation()}
       >
         <EntityErrorBoundary entity={entity} onClose={close}>

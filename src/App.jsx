@@ -35,6 +35,9 @@ import Standings from "./pages/Standings.jsx";
 import Team from "./pages/Team.jsx";
 import Results from "./pages/Results.jsx";
 import RaceWeekend from "./pages/RaceWeekend.jsx";
+import DriverProfilePage from "./pages/DriverProfilePage.jsx";
+import TeamProfilePage from "./pages/TeamProfilePage.jsx";
+import StaffProfilePage from "./pages/StaffProfilePage.jsx";
 
 import DebugToolbar from "@/components/dev/DebugToolbar";
 
@@ -121,7 +124,9 @@ export default function App() {
           <Route path="/Home" element={<Home />} />
           <Route path="/Inbox" element={<Inbox />} />
           <Route path="/Drivers" element={<Drivers />} />
+          <Route path="/drivers/:driverId" element={<DriverProfilePage />} />
           <Route path="/Teams" element={<Teams />} />
+          <Route path="/teams/:teamId" element={<TeamProfilePage />} />
           <Route path="/Team" element={<Team />} />
           <Route path="/MyDrivers" element={<MyDrivers />} />
           <Route path="/MyStaff" element={<MyStaff />} />
@@ -137,6 +142,7 @@ export default function App() {
           <Route path="/Scouting" element={<Scouting />} />
           <Route path="/Academy" element={<Academy />} />
           <Route path="/Staff" element={<Staff />} />
+          <Route path="/staff/:staffId" element={<StaffProfilePage />} />
           <Route path="/AssetTest" element={<AssetTest />} />
         </Route>
 
