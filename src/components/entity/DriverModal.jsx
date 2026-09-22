@@ -1112,11 +1112,25 @@ function OverviewTab({
   );
 }
 
-function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFocus }) {
+function DevelopmentTab({
+  attrs,
+  log,
+  knowledge,
+  isOwnDriver,
+  focusKey,
+  focusState,
+  training,
+  potentialLog,
+  onSetFocus,
+}) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
   const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",attrs?.potential_ability,{kind:"potential"});
   const canSeeHistory=Boolean(knowledge?.canSeeDevelopmentHistory);
   const groups=driverAttributeGroups();
+  const latestPotential=(potentialLog||[])[0]||null;
+  const trainingDays=Number(training?.trainingDays||0);
+  const fatigueSpent=Number(training?.fatigueSpent||0);
+  const focusLocked=Boolean(focusState?.locked);
 
   return (
     <div className="space-y-4">
@@ -1128,32 +1142,63 @@ function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFoc
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <ProfileMetric label="Current ability" value={overall.label}/>
-            <ProfileMetric label="Potential" value={potential.label}/>
+            <ProfileMetric label="Dynamic potential" value={potential.label}/>
           </div>
           <p className="mt-3 text-xs text-slate-400">
-            Development is applied monthly. Gains slow as Current Ability approaches Potential, and every attribute has a potential-derived ceiling rather than an automatic path to 100.
+            Potential is a live career ceiling, not a guaranteed destination. Results relative to the car, team environment and sustained development can raise or lower it over time.
           </p>
+
           {isOwnDriver && (
-            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
-              Active focus: <strong className="text-slate-200">{groups.find((group)=>group.key===focusKey)?.label||"None selected"}</strong>
+            <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
+              <div className="flex justify-between gap-3">
+                <span>Active focus</span>
+                <strong className="text-slate-200">{groups.find((group)=>group.key===focusKey)?.label||"None selected"}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Training days this month</span>
+                <strong className="text-slate-200">{trainingDays}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Development fatigue</span>
+                <strong className="text-amber-200">+{fatigueSpent.toFixed(1)}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Focus status</span>
+                <strong className={focusLocked?"text-sky-300":"text-slate-200"}>{focusLocked?"Locked for this month":"Can select this month"}</strong>
+              </div>
+            </div>
+          )}
+
+          {canSeeHistory&&latestPotential&&(
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-400">Latest potential movement</span>
+                <strong className={Number(latestPotential.delta)>0?"text-emerald-300":Number(latestPotential.delta)<0?"text-rose-300":"text-slate-300"}>
+                  {Number(latestPotential.delta)>0?"+":""}{Number(latestPotential.delta||0).toFixed(2)}
+                </strong>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500">
+                Form {latestPotential.form_score??"—"} · {latestPotential.environment_label||"Environment"} · {latestPotential.training_days||0} training days
+              </div>
             </div>
           )}
         </div>
 
         <div className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Development Focus</div>
-              <div className="mt-1 text-sm text-slate-300">
-                {isOwnDriver ? "Choose one group. Its attributes receive focused monthly development." : "Development focus is only managed for drivers under your team control."}
-              </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Monthly Development Focus</div>
+            <div className="mt-1 text-sm text-slate-300">
+              {isOwnDriver
+                ?"Choose one group for the month. Training load accumulates fatigue during weekdays; the month's work is converted into development at the next monthly progression."
+                :"Development focus is only managed for drivers under your team control."}
             </div>
-            {isOwnDriver&&focusKey&&(
-              <button onClick={()=>onSetFocus?.(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/5 hover:text-white">
-                Clear focus
-              </button>
-            )}
           </div>
+
+          {isOwnDriver&&focusLocked&&(
+            <div className="mt-3 rounded-lg border border-sky-400/20 bg-sky-500/10 p-3 text-xs text-sky-200">
+              This month's focus is locked. You can choose a different group when the calendar moves into the next month.
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {groups.map((group)=>{
@@ -1163,6 +1208,7 @@ function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFoc
                 ?driverAttributeGroupBehaviourForScore(group.key,shown.sortValue)
                 :null;
               const active=focusKey===group.key;
+              const unavailable=Boolean(isOwnDriver&&focusLocked&&!active);
               return (
                 <div key={group.key} className={`rounded-xl border p-3 ${active?"border-sky-400/40 bg-sky-500/10":"border-white/10 bg-[#171a23]"}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -1178,10 +1224,10 @@ function DevelopmentTab({ attrs, log, knowledge, isOwnDriver, focusKey, onSetFoc
                   {isOwnDriver&&(
                     <button
                       onClick={()=>onSetFocus?.(group.key)}
-                      disabled={active}
-                      className={`mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-default`}
+                      disabled={active||unavailable}
+                      className={`mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-not-allowed disabled:opacity-50`}
                     >
-                      {active?"Current focus":"Set development focus"}
+                      {active?"Current monthly focus":unavailable?"Available next month":"Select for this month"}
                     </button>
                   )}
                 </div>
