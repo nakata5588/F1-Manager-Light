@@ -9,6 +9,7 @@ import { activeDriverContracts, currentDriverTeamId } from "../domain/driverCont
 import { preferLiveRows } from "../domain/liveContracts.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
 import { applyRaceComponentWear } from "../domain/componentWear.js";
+import { simulateManagedRace } from "./RaceStrategyEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -182,8 +183,12 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     const rel=teamReliability(gs,driver);
 
     // Older/less reliable cars fail more often. Accident risk is calibrated separately.
-    const mechanicalChance=clamp((1-rel)*0.68,0.015,0.28);
-    const accidentChance=raceAccidentChance(gs,rating,driver?.driver_id);
+    const mechanicalChance=clamp((1-rel)*0.68*Number(row?.mechanical_risk_multiplier||1),0.015,0.36);
+    const accidentChance=clamp(
+      raceAccidentChance(gs,rating,driver?.driver_id)*Number(row?.incident_risk_multiplier||1),
+      0.005,
+      0.55
+    );
     const roll=rng.next();
 
     let reason=null;
@@ -200,7 +205,8 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     }
 
     const progress=0.12+rng.next()*0.80;
-    const lapsCompleted=Math.max(1,Math.floor(60*progress));
+    const raceLaps=Math.max(1,Number(row?.race_laps)||60);
+    const lapsCompleted=Math.max(1,Math.min(raceLaps-1,Math.floor(raceLaps*progress)));
     const incident=/accident|collision/i.test(reason)?incidentSeverity(rng,reason):null;
     retirees.push({
       ...row,
@@ -210,6 +216,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
       incident_severity:incident?.label??null,
       incident_severity_score:incident?.score??null,
       laps_completed:lapsCompleted,
+      incident_lap:lapsCompleted,
       total_time_ms:null,
       gap_to_winner_ms:null,
       gap_to_previous_ms:null,
@@ -690,25 +697,16 @@ export async function runRaceWeekend(gs, {
       ?qualifyingFromOverride(gs,qualifyingOverride)
       :(qualifyingSession?.qualifying||[]);
 
-  const fieldSize=Math.max(1,qualy.length);
-  const raceOrder = qualy
-    .map((q) => {
-      const rating=ratingFor(ratings,q.driver);
-      const teamId=resolveDriverTeamId(gs,q.driver);
-      const racePerf=combinedRacePerformance({gs,driver:q.driver,rating,teamId,wet});
-      const gridBonus=(fieldSize-q.pos)*0.18;
-      const launchBonus=(Number(rating?.start_launch??60)-60)*0.025;
-      const opsBonus=raceOperationsBonus(gs,q.driver);
-      return {
-        ...q,
-        raceScore:racePerf+gridBonus+launchBonus+opsBonus+rnorm(raceOrderRng)*6,
-      };
-    })
-    .sort((a,b)=>b.raceScore-a.raceScore)
-    .map((x,i)=>({pos:i+1,driver:x.driver,performance:x.raceScore}));
-
-  const timedRace = buildRaceTiming(raceOrder, ratings, roundIndex, gs, timingRng);
-  const race = applyRetirements(gs, timedRace, ratings, roundIndex, incidentRng);
+  const managedRace=simulateManagedRace(gs,{
+    gp,
+    grid:qualy,
+    ratings,
+    roundIndex,
+  });
+  gs=managedRace.gameState;
+  Object.assign(next,managedRace.gameState);
+  const raceWet=Boolean(managedRace?.weather?.wet_race)||wet;
+  const race = applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng);
 
   const previousDriverStandings=gs.standings?.drivers||[];
   const prevDrv = new Map(previousDriverStandings.map(x => [String(x.driver_id), Number(x.points||0)]));
@@ -775,7 +773,16 @@ export async function runRaceWeekend(gs, {
     status: row.status || (row.retired ? "DNF" : "Finished"),
     retired: Boolean(row.retired),
     retirement_reason: row.retirement_reason || null,
-    laps_completed: row.laps_completed ?? null,
+    laps_completed: row.laps_completed ?? (row.retired ? null : row.race_laps ?? null),
+    race_laps: row.race_laps ?? null,
+    incident_lap: row.incident_lap ?? null,
+    pit_stops: Array.isArray(row.pit_stops) ? row.pit_stops.map((stop)=>({...stop})) : [],
+    stints: Array.isArray(row.stints) ? row.stints.map((stint)=>({...stint})) : [],
+    tyre_supplier: row.tyre_supplier ?? null,
+    start_tyre_id: row.start_tyre_id ?? null,
+    finish_tyre_id: row.finish_tyre_id ?? null,
+    tyre_condition_finish: row.tyre_condition_finish ?? null,
+    strategy_summary: row.strategy_summary ? {...row.strategy_summary} : null,
     total_time_ms: row.total_time_ms,
     gap_to_winner_ms: row.gap_to_winner_ms,
     gap_to_previous_ms: row.gap_to_previous_ms,
@@ -815,6 +822,9 @@ export async function runRaceWeekend(gs, {
       penalty_places:Number(row.penalty_places??0),
     })),
     raceEntry: raceEntryState.entries.map((entry) => ({ ...entry })),
+    raceStrategy:managedRace.summary,
+    weather:managedRace.weather,
+    track:managedRace.track,
     classification,
   };
 
@@ -833,6 +843,9 @@ export async function runRaceWeekend(gs, {
     race,
     driverStandings,
     teamStandings,
+    strategySummary:managedRace.summary,
+    weather:managedRace.weather,
+    track:managedRace.track,
     resultKey,
   };
 
@@ -904,9 +917,9 @@ export async function runRaceWeekend(gs, {
     }
 
     const distanceLoad=row.retired
-      ?6+Math.max(0,Math.min(1,Number(row?.laps_completed||0)/60))*8
+      ?6+Math.max(0,Math.min(1,Number(row?.laps_completed||0)/Math.max(1,Number(row?.race_laps)||60)))*8
       :16;
-    const raceFatigue=distanceLoad+(wet?3:0);
+    const raceFatigue=distanceLoad+(raceWet?3:0);
     conditionDict[did]={
       ...curr,
       fatigue:clamp(Number(curr.fatigue||0)+raceFatigue,0,100),
