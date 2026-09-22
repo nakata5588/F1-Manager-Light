@@ -235,3 +235,19 @@ export function raceControlAtLap(plan,lap){
 export function incidentForDriver(plan,driverId){
   return (plan?.incidents||[]).find((row)=>String(row?.driver_id)===String(driverId))||null;
 }
+
+export function mergeRaceControlHistory(previous,fresh,currentLap){
+  if(!previous)return fresh;
+  if(!fresh)return previous;
+  const lap=Number(currentLap)||0;
+  const historicalIncidents=(previous.incidents||[]).filter((row)=>Number(row.lap)<=lap);
+  const historicalIds=new Set(historicalIncidents.map((row)=>String(row.driver_id)));
+  const futureIncidents=(fresh.incidents||[]).filter((row)=>Number(row.lap)>lap&&!historicalIds.has(String(row.driver_id)));
+  const historicalPeriods=(previous.periods||[]).filter((row)=>Number(row.from_lap)<=lap);
+  const futurePeriods=(fresh.periods||[]).filter((row)=>Number(row.from_lap)>lap);
+  return {
+    ...fresh,
+    incidents:[...historicalIncidents,...futureIncidents].sort((a,b)=>Number(a.lap)-Number(b.lap)),
+    periods:mergePeriods([...historicalPeriods,...futurePeriods],fresh.weather_timeline?.length||previous.weather_timeline?.length||999),
+  };
+}
