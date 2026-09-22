@@ -95,12 +95,24 @@ function teamId(team){return String(team?.team_id??team?.id??"");}
 function teamName(team){return String(team?.team_name??team?.name??team?.short_name??teamId(team));}
 function activeTyres(gs){
   const year=Number(gs?.activeYear);
-  const source=Array.isArray(gs?.tyres)&&gs.tyres.length?gs.tyres:(gs?.dbTyres||[]);
-  return (source||[]).filter((row)=>{
+  if(Array.isArray(gs?.tyres)&&gs.tyres.length)return gs.tyres;
+  const source=Array.isArray(gs?.dbTyres)?gs.dbTyres:[];
+  const exact=source.filter((row)=>{
     const from=num(row?.year_from,row?.year??-Infinity);
     const to=num(row?.year_to,row?.year??Infinity);
     return !Number.isFinite(year)||(year>=from&&year<=to);
   });
+  if(exact.length)return exact;
+
+  // Sparse catalog years are calibration snapshots, not a reason to remove tyres
+  // from a career. Carry the nearest prior specification family until a newer
+  // catalog snapshot becomes available.
+  const priorYears=source
+    .map((row)=>num(row?.year_to,row?.year??row?.year_from??NaN))
+    .filter((value)=>Number.isFinite(value)&&value<=year);
+  if(!priorYears.length)return source;
+  const nearest=Math.max(...priorYears);
+  return source.filter((row)=>num(row?.year_to,row?.year??row?.year_from??NaN)===nearest);
 }
 function supplierNames(gs){
   return [...new Set(activeTyres(gs).map((row)=>String(row?.supplier||"").trim()).filter(Boolean))];
@@ -569,7 +581,6 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     for(let lap=1;lap<=track.laps;lap++){
       const state=stateAtLap(weather,lap);
       const category=weatherCategory(state);
-      if(category!=="dry")hasUsedWet=true;
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
       const remaining=track.laps-lap+1;
       const mismatch=tyreWeatherPenalty(tyre,state);
@@ -613,6 +624,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         hasStopped=true;
       }
 
+      if(String(tyre?.category||"dry")!=="dry")hasUsedWet=true;
       stintLap+=1;
       const tyreTemp=temperatureForLap(tyre,state,weather.avg_temp_c,strategy.pace_mode,stintLap);
       tempSum+=tyreTemp; tempCount+=1;
