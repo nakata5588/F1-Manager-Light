@@ -124,15 +124,23 @@ export default function ResultsPage() {
     return arr;
   }, [resultsRaw]);
 
-  const [yearFilter, setYearFilter] = useState("ALL");
+  const [yearFilter, setYearFilter] = useState(() => String(activeYear ?? "ALL"));
   const [driverFilter, setDriverFilter] = useState("ALL");
   const [gpFilter, setGpFilter] = useState("ALL");
   const [selectedKey, setSelectedKey] = useState(null);
 
-  const yearOptions = useMemo(
-    () => ["ALL", ...Array.from(new Set(results.map((r) => Number(r.year)).filter(Number.isFinite))).sort((a,b)=>a-b)],
-    [results]
-  );
+  const yearOptions = useMemo(() => {
+    const years = new Set(results.map((r) => Number(r.year)).filter(Number.isFinite));
+    if (Number.isFinite(Number(activeYear))) years.add(Number(activeYear));
+    return ["ALL", ...Array.from(years).sort((a,b)=>a-b)];
+  }, [results, activeYear]);
+
+  useEffect(() => {
+    setYearFilter(String(activeYear ?? "ALL"));
+    setDriverFilter("ALL");
+    setGpFilter("ALL");
+    setSelectedKey(null);
+  }, [activeYear]);
   const gpOptions = useMemo(() => {
     const map = new Map();
     for (const r of results) {
@@ -171,28 +179,28 @@ export default function ResultsPage() {
   );
 
   return (
-    <div className="grid gap-4">
-      <div className="bg-white rounded-xl shadow p-4">
+    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 grid gap-4">
+      <div className="bg-[#12141c] border border-white/10 rounded-xl shadow-lg p-4">
         <h2 className="text-lg font-semibold">Results</h2>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-slate-400">
           Todas as corridas disputadas nesta carreira. Seleciona uma corrida para ver a classificação.
         </p>
 
         <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select className="border rounded-md px-3 py-2 text-sm" value={yearFilter} onChange={(e)=>setYearFilter(e.target.value)}>
+          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={yearFilter} onChange={(e)=>setYearFilter(e.target.value)}>
             {yearOptions.map((y)=><option key={y} value={y}>{y==="ALL"?"All years":y}</option>)}
           </select>
-          <select className="border rounded-md px-3 py-2 text-sm" value={driverFilter} onChange={(e)=>setDriverFilter(e.target.value)}>
+          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={driverFilter} onChange={(e)=>setDriverFilter(e.target.value)}>
             {driverOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
           </select>
-          <select className="border rounded-md px-3 py-2 text-sm" value={gpFilter} onChange={(e)=>setGpFilter(e.target.value)}>
+          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={gpFilter} onChange={(e)=>setGpFilter(e.target.value)}>
             {gpOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
           </select>
         </div>
 
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-[#171a23] text-slate-300">
               <tr>
                 <th className="px-3 py-2 text-left">Ano</th>
                 <th className="px-3 py-2 text-left">Rnd</th>
@@ -204,7 +212,7 @@ export default function ResultsPage() {
               {filteredResults.map((r) => (
                 <tr
                   key={r.key}
-                  className={`border-t cursor-pointer ${selected?.key === r.key ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                  className={`border-t border-white/10 cursor-pointer ${selected?.key === r.key ? "bg-white/10" : "hover:bg-white/5"}`}
                   onClick={() => setSelectedKey(r.key)}
                 >
                   <td className="px-3 py-2">{r.year ?? "—"}</td>
@@ -215,7 +223,7 @@ export default function ResultsPage() {
               ))}
               {!filteredResults.length && (
                 <tr>
-                  <td className="px-3 py-3 text-gray-600" colSpan={4}>Sem resultados ainda.</td>
+                  <td className="px-3 py-3 text-slate-400" colSpan={4}>Sem resultados ainda.</td>
                 </tr>
               )}
             </tbody>
@@ -224,14 +232,14 @@ export default function ResultsPage() {
       </div>
 
       {selected && (
-        <div className="bg-white rounded-xl shadow p-4">
+        <div className="bg-[#12141c] border border-white/10 rounded-xl shadow-lg p-4">
           <h3 className="text-base font-semibold">
             {selected.name || selected.gp_name || "Grand Prix"}
-            {selected.round ? <span className="text-gray-500"> · Round {selected.round}</span> : null}
+            {selected.round ? <span className="text-slate-400"> · Round {selected.round}</span> : null}
           </h3>
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-[#171a23] text-slate-300">
                 <tr>
                   <th className="px-3 py-2 text-right w-16">Pos</th>
                   <th className="px-3 py-2 text-left">Driver</th>
@@ -261,7 +269,7 @@ export default function ResultsPage() {
                         ? Number(row.points)
                         : Number(pointsTable[position - 1] || 0);
                     return (
-                      <tr key={`${did}_${idx}`} className="border-t">
+                      <tr key={`${did}_${idx}`} className="border-t border-white/10">
                         <td className="px-3 py-2 text-right font-medium">{retired ? "DNF" : (row.position ?? "—")}</td>
                         <td className="px-3 py-2">
                           <button type="button" data-entity="driver" data-id={did} className="flex items-center gap-3 font-medium hover:underline text-left">
@@ -277,13 +285,13 @@ export default function ResultsPage() {
                         </td>
                         <td className="px-3 py-2">
                           {retired
-                            ? <span className="text-rose-700">{row.retirement_reason || "Retired"}{row.laps_completed ? ` · Lap ${row.laps_completed}` : ""}</span>
-                            : <span className="text-emerald-700">Finished</span>}
+                            ? <span className="text-rose-300">{row.retirement_reason || "Retired"}{row.laps_completed ? ` · Lap ${row.laps_completed}` : ""}</span>
+                            : <span className="text-emerald-300">Finished</span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{retired ? "—" : formatRaceTime(row.total_time_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_winner_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_previous_ms)}</td>
-                        <td className={`px-3 py-2 text-right tabular-nums ${row.fastest_lap ? "font-semibold text-purple-700" : ""}`}>
+                        <td className={`px-3 py-2 text-right tabular-nums ${row.fastest_lap ? "font-semibold text-purple-300" : ""}`}>
                           {formatLapTime(row.best_lap_ms)}{row.fastest_lap ? " FL" : ""}
                         </td>
                         <td className="px-3 py-2 text-right font-semibold">{points}</td>
@@ -292,7 +300,7 @@ export default function ResultsPage() {
                   })}
                 {!selected.classification?.length && (
                   <tr>
-                    <td className="px-3 py-3 text-gray-600" colSpan={9}>Sem classificação nesta corrida.</td>
+                    <td className="px-3 py-3 text-slate-400" colSpan={9}>Sem classificação nesta corrida.</td>
                   </tr>
                 )}
               </tbody>
