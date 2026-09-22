@@ -104,8 +104,8 @@ function raceWindowForPhase(phase,hasLive=false){
 }
 function statusClass(status){
   const key=String(status||"").toUpperCase();
-  if(["QUALIFIED","ADVANCED","STARTER","CONTINUES","FINISHED"].includes(key))return "bg-emerald-50 text-emerald-800";
-  if(["DNQ","DNPQ","ELIMINATED","DNF","RETIRED"].includes(key))return "bg-amber-50 text-amber-800";
+  if(["QUALIFIED","ADVANCED","STARTER","CONTINUES","FINISHED"].includes(key))return "bg-emerald-500/15 text-emerald-300";
+  if(["DNQ","DNPQ","ELIMINATED","DNF","RETIRED"].includes(key))return "bg-amber-500/15 text-amber-300";
   return "bg-slate-100 text-slate-700";
 }
 function sessionStatus(row,session){
@@ -356,7 +356,7 @@ export default function RaceWeekend(){
                   <div className="font-medium text-sm">{session.label}</div>
                   <div className="text-xs text-slate-500">{session.dateISO}</div>
                 </div>
-                <span className={"text-[11px] rounded px-2 py-1 "+(known?"bg-emerald-50 text-emerald-800":"bg-blue-50 text-blue-800")}>
+                <span className={"text-[11px] rounded px-2 py-1 "+(known?"bg-emerald-500/15 text-emerald-300":"bg-blue-500/15 text-blue-300")}>
                   {current?"LIVE":known?"OBSERVED":"FORECAST"}
                 </span>
               </div>
@@ -417,7 +417,7 @@ export default function RaceWeekend(){
           <div className="mt-3 text-xs text-slate-500">
             AI teams select programmes from the same five options using car reliability, staff support, driver profile and the session conditions. Wet running improves wet-condition knowledge but can be less representative of a dry Qualifying or Race.
           </div>
-          <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runPractice)}>
+          <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runPractice)}>
             {busy?"Running…":"Run Practice"}
           </button>
         </div>
@@ -461,14 +461,14 @@ export default function RaceWeekend(){
                     <div className="text-xs text-slate-500">{row.programme_label}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="bg-emerald-50 text-emerald-800 rounded px-2 py-1">Setup {Math.round(row.setup_quality)}%</span>
-                    <span className="bg-blue-50 text-blue-800 rounded px-2 py-1">Knowledge {Math.round(row.setup_knowledge)}%</span>
+                    <span className="bg-emerald-500/15 text-emerald-300 rounded px-2 py-1">Setup {Math.round(row.setup_quality)}%</span>
+                    <span className="bg-blue-500/15 text-blue-300 rounded px-2 py-1">Knowledge {Math.round(row.setup_knowledge)}%</span>
                     <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
                     <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {Number(row.fatigue_after??row.fatigue_cost??0).toFixed(0)}</span>
                     <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Learning efficiency {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
-                    <span className="bg-amber-50 text-amber-800 rounded px-2 py-1">Component wear {Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
-                    <span className="bg-cyan-50 text-cyan-800 rounded px-2 py-1">Race relevance {Number(row.race_weather_relevance??0).toFixed(0)}%</span>
-                    <span className="bg-violet-50 text-violet-800 rounded px-2 py-1">Qualifying relevance {Number(row.qualifying_weather_relevance??0).toFixed(0)}%</span>
+                    <span className="bg-amber-500/15 text-amber-300 rounded px-2 py-1">Component wear {Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
+                    <span className="bg-cyan-500/15 text-cyan-300 rounded px-2 py-1">Race relevance {Number(row.race_weather_relevance??0).toFixed(0)}%</span>
+                    <span className="bg-violet-500/15 text-violet-300 rounded px-2 py-1">Qualifying relevance {Number(row.qualifying_weather_relevance??0).toFixed(0)}%</span>
                   </div>
                 </div>
                 <p className="mt-2 text-sm">{row.feedback}</p>
@@ -478,11 +478,11 @@ export default function RaceWeekend(){
                   </p>
                 )}
                 {Number(row.fatigue_performance_penalty_before||0)>0&&(
-                  <p className="mt-1 text-xs text-amber-700">
+                  <p className="mt-1 text-xs text-amber-300">
                     Existing fatigue reduced the driver's effective performance by about {Number(row.fatigue_performance_penalty_before).toFixed(1)} driver-score points before this session.
                   </p>
                 )}
-                {row.issue_note&&<p className="mt-2 text-sm text-amber-700">{row.issue_note}</p>}
+                {row.issue_note&&<p className="mt-2 text-sm text-amber-300">{row.issue_note}</p>}
               </div>
             ))}
           </div>
@@ -524,7 +524,7 @@ export default function RaceWeekend(){
           </div>
         )}
 
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runQualifying)}>
+        <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runQualifying)}>
           {busy?"Running…":`Run ${activeSession?.label||"Qualifying"}`}
         </button>
       </div>
@@ -537,7 +537,7 @@ export default function RaceWeekend(){
           This classification is saved and will not be recalculated. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.
         </p>
         {weekend.qualifying_rule_snapshot?.strategy==="best_time_across_sessions"&&!lastCompletedQualifyingSession?.advance_count&&(
-          <div className="mt-3 rounded-lg bg-blue-50 text-blue-900 px-3 py-2 text-sm">
+          <div className="mt-3 rounded-lg bg-blue-500/15 text-blue-200 px-3 py-2 text-sm">
             No cars are eliminated after this session. The final order uses each driver's best valid time across all qualifying sessions.
           </div>
         )}
@@ -546,7 +546,7 @@ export default function RaceWeekend(){
             <QualifyingTable title={lastCompletedQualifyingSession.label+" — classification"} rows={lastCompletedQualifyingSession.results||[]} drivers={drivers} teams={teams} session={lastCompletedQualifyingSession}/>
           </div>
         )}
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
+        <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
           {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to next session":"Advance toward next session"}
         </button>
       </div>
@@ -854,11 +854,11 @@ export default function RaceWeekend(){
           )}
 
           {weekend.phase==="grid_ready"?(
-            <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
+            <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
               {busy?"Advancing…":"Advance to Race Day"}
             </button>
           ):!liveRace?(
-            <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
+            <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
               {busy?"Preparing…":"Start Race"}
             </button>
           ):null}
@@ -1001,7 +1001,7 @@ export default function RaceWeekend(){
     {activeWindow==="classification"&&weekend.phase==="completed"&&(
       <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
         <h3 className="font-semibold">Weekend Complete</h3>
-        <button className="mt-3 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm" onClick={()=>navigate("/Home")}>Return Home</button>
+        <button className="mt-3 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm" onClick={()=>navigate("/Home")}>Return Home</button>
       </div>
     )}
   </div>;
