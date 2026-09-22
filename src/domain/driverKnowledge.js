@@ -68,9 +68,15 @@ function completedRegionalDiscovery(gs,driverId){
 function hadPlayerContract(gs,driverId){
   const teamId=playerTeamId(gs);
   if(!teamId)return false;
-  return asRows(gs?.contracts).some((row)=>
-    sameDriver(driverIdOf(row),driverId)&&String(teamIdOf(row))===teamId
-  );
+  const activeYear=Number(gs?.activeYear);
+  const careerStart=Number(gs?.careerMeta?.sourceSeason??gs?.activeYear);
+  return asRows(gs?.contracts).some((row)=>{
+    if(!sameDriver(driverIdOf(row),driverId)||String(teamIdOf(row))!==teamId)return false;
+    const year=Number(pick(row,["year","season_year","contract_start_year","start_year"],NaN));
+    if(Number.isFinite(activeYear)&&Number.isFinite(year)&&year>activeYear)return false;
+    if(Number.isFinite(careerStart)&&Number.isFinite(year)&&year<careerStart)return false;
+    return true;
+  });
 }
 function hasF1Career(gs,driverId){
   const activeYear=Number(gs?.activeYear);
