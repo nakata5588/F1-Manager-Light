@@ -183,20 +183,22 @@ const BEHAVIOUR=Object.freeze({
   }),
 });
 
-export function driverAttributeGroupBehaviour(rating,groupKey){
-  const score=driverAttributeGroupScore(rating,groupKey);
+export function driverAttributeGroupBehaviourForScore(groupKey,score){
   const key=band(score);
   return {
-    score,
+    score:Number.isFinite(Number(score))?round1(score):null,
     band:key,
     text:BEHAVIOUR?.[groupKey]?.[key]||"Insufficient data to assess this area.",
   };
 }
 
-export function driverRaceBehaviour(rating){
-  const derived=driverDerivedRatings(rating);
-  const overtaking=Number(derived?.overtaking?.value);
-  const defending=Number(derived?.defending?.value);
+export function driverAttributeGroupBehaviour(rating,groupKey){
+  return driverAttributeGroupBehaviourForScore(groupKey,driverAttributeGroupScore(rating,groupKey));
+}
+
+export function driverWheelToWheelBehaviour(overtakingValue,defendingValue){
+  const overtaking=Number(overtakingValue);
+  const defending=Number(defendingValue);
   if(!Number.isFinite(overtaking)||!Number.isFinite(defending)){
     return {overtaking:null,defending:null,text:"Insufficient data to assess wheel-to-wheel behaviour."};
   }
@@ -220,6 +222,11 @@ export function driverRaceBehaviour(rating){
     text="Balanced wheel-to-wheel profile without a major attacking or defensive speciality.";
   }
   return {overtaking:round1(overtaking),defending:round1(defending),text};
+}
+
+export function driverRaceBehaviour(rating){
+  const derived=driverDerivedRatings(rating);
+  return driverWheelToWheelBehaviour(derived?.overtaking?.value,derived?.defending?.value);
 }
 
 function potentialOf(rating){
