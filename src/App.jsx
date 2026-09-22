@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useGame } from "./state/GameStore";
 import { useEventStore } from "./state/EventStore";
 import HubLayout from "./layouts/HubLayout.jsx";
+import RaceWeekendLayout from "./layouts/RaceWeekendLayout.jsx";
 
 import EntityModalRoot from "./components/entity/EntityModalRoot.jsx";
 import EntityClickBus from "./components/entity/EntityClickBus.jsx";
@@ -127,7 +128,6 @@ export default function App() {
           <Route path="/MyStaff" element={<MyStaff />} />
           <Route path="/Standings" element={<Standings />} />
           <Route path="/Results" element={<Results />} />
-          <Route path="/RaceWeekend" element={<RaceWeekend />} />
           <Route path="/Settings" element={<Settings />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
           <Route path="/Development" element={<Development />} />
@@ -139,6 +139,10 @@ export default function App() {
           <Route path="/Academy" element={<Academy />} />
           <Route path="/Staff" element={<Staff />} />
           <Route path="/AssetTest" element={<AssetTest />} />
+        </Route>
+
+        <Route element={<RaceWeekendLayout />}>
+          <Route path="/RaceWeekend" element={<RaceWeekend />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
