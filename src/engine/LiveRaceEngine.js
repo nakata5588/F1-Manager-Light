@@ -5,6 +5,10 @@ import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, race
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
 function driverById(gs,id){return (gs?.drivers||[]).find((d)=>String(d?.driver_id??d?.id??"")===String(id))||null;}
+function driverDisplayName(gs,id){
+  const driver=driverById(gs,id);
+  return driver?.display_name||driver?.name||[driver?.first_name,driver?.last_name].filter(Boolean).join(" ")||String(id||"Driver");
+}
 function teamForDriver(gs,did){
   const entry=(gs?.raceEntryState?.entries||[]).find((row)=>String(row?.driver_id??"")===String(did));
   return String(entry?.team_id??driverById(gs,did)?.team_id??"");
@@ -248,7 +252,7 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   if(previousWeather&&weather!==previousWeather)events.push({lap:target,type:"weather",message:`Conditions changed from ${previousWeather.replaceAll("_"," ")} to ${weather.replaceAll("_"," ")}.`});
   for(const incident of plan?.incidents||[]){
     if(Number(incident.lap)>Number(live.current_lap)&&Number(incident.lap)<=target){
-      events.push({lap:Number(incident.lap),type:"incident",driver_id:incident.driver_id,message:`${incident.driver_id}: ${incident.reason} (${incident.severity}).`});
+      events.push({lap:Number(incident.lap),type:"incident",driver_id:incident.driver_id,driver_name:driverDisplayName(working,incident.driver_id),message:`${driverDisplayName(working,incident.driver_id)}: ${incident.reason} (${incident.severity}).`});
     }
   }
   for(const period of plan?.periods||[]){
@@ -265,7 +269,7 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   for(const row of simulation.race){
     for(const stop of row?.pit_stops||[]){
       if(Number(stop?.lap)>Number(live.current_lap)&&Number(stop?.lap)<=target){
-        events.push({lap:Number(stop.lap),type:"pit",driver_id:idOf(row.driver),message:`${idOf(row.driver)} pitted: ${stop.tyre_from} → ${stop.tyre_to} (${Number(stop.total_loss_s).toFixed(1)}s loss).`});
+        events.push({lap:Number(stop.lap),type:"pit",driver_id:idOf(row.driver),driver_name:driverDisplayName(working,idOf(row.driver)),message:`${driverDisplayName(working,idOf(row.driver))} pitted: ${stop.tyre_from} → ${stop.tyre_to} (${Number(stop.total_loss_s).toFixed(1)}s loss).`});
       }
     }
   }

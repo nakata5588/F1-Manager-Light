@@ -94,6 +94,11 @@ test("Pit Now schedules the selected tyre for the next lap",()=>{
   assert.ok(stop);
   assert.equal(stop.reason,"player_call");
   assert.equal(stop.tyre_to,"gy_s");
+  const pitEvent=gs.raceWeekendState.live_race.events.find((event)=>event.type==="pit"&&event.driver_id==="D1");
+  assert.ok(pitEvent);
+  assert.equal(pitEvent.driver_name,"Player One");
+  assert.match(pitEvent.message,/Player One pitted/);
+  assert.equal(pitEvent.message.includes("D1 pitted"),false);
 });
 
 test("AI driver cannot receive player live commands",()=>{
