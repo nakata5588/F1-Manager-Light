@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,8 @@ function simpleHash(text) {
 }
 
 export default function Scouting() {
+  const [searchParams] = useSearchParams();
+  const requestedDriverId=String(searchParams.get("driver")||"");
   const gameState = useGame((s) => s.gameState);
   const setGameState = useGame((s) => s.setGameState);
 
@@ -119,6 +122,12 @@ export default function Scouting() {
       .some((v) => String(v || "").toLowerCase().includes(q.toLowerCase()));
   }), [allProspects, q]);
 
+  const specificScoutCandidates = useMemo(() => drivers
+    .filter((d) => !["hidden","deceased","retired"].includes(String(d?.status || "").toLowerCase()))
+    .filter((d) => !["own","academy"].includes(driverKnowledgeState(gameState,d).level))
+    .sort((a,b) => String(a?.display_name||a?.name||"").localeCompare(String(b?.display_name||b?.name||""))),
+  [drivers,gameState]);
+
   const zoneForDriver = (driver) => {
     const key = countryKey(driverCountry(driver));
     return zones.find((z) => zoneCountries(z).has(key)) || {
@@ -135,6 +144,16 @@ export default function Scouting() {
   const effectiveZone = mode === "driver"
     ? (selectedDriver ? zoneForDriver(selectedDriver) : null)
     : zones.find((z) => String(z.zone_id) === String(zoneId)) || null;
+
+  useEffect(() => {
+    if(!requestedDriverId)return;
+    const requested=driverById.get(requestedDriverId);
+    if(!requested)return;
+    setMode("driver");
+    setTarget(requestedDriverId);
+    setShowStart(true);
+    setTab("assignments");
+  }, [requestedDriverId,driverById]);
 
   const scoutingNetworkQuality=useMemo(()=>{
     const coreById=new Map(staffCore.map((s)=>[String(s?.staff_id??s?.id??""),s]));
@@ -333,7 +352,7 @@ export default function Scouting() {
           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Recruitment Network</div>
           <h1 className="text-2xl md:text-3xl font-semibold">Scouting</h1>
           <p className="text-sm text-slate-400">
-            Scout young drivers aged 16–24 who are active outside F1 in the current season, or explore a region for new talent.
+            Commission an individual report on an external driver, or explore a region for young lower-series talent.
           </p>
         </div>
         <div className="flex-1" />
@@ -359,8 +378,8 @@ export default function Scouting() {
             <label className="text-sm block">
               Driver
               <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
-                <option value="">Select active lower-series driver…</option>
-                {allProspects.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
+                <option value="">Select driver…</option>
+                {specificScoutCandidates.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
               </select>
             </label>
           ) : (
