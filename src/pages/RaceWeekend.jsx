@@ -583,82 +583,149 @@ export default function RaceWeekend(){
         </div>
 
         {weekend.phase==="race"&&liveRace&&(
-          <div className="bg-white rounded-xl shadow p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-semibold">Live Race Control</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Lap {liveRace.current_lap} / {liveRace.total_laps} · {String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
-                  {" · "}{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}
-                </p>
+          <div className="rounded-xl border border-white/10 bg-[#0b0e14] text-slate-100 shadow-xl overflow-hidden">
+            <div className="p-5 border-b border-white/10">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Advanced Live Timing</div>
+                  <h3 className="mt-1 text-xl font-semibold">Live Race Control</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Lap {liveRace.current_lap} / {liveRace.total_laps} · {String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
+                    {" · "}{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {liveRace.status==="running"&&<>
+                    <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
+                    <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
+                    <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Math.max(1,Number(liveRace.total_laps)-Number(liveRace.current_lap))))}>Run to Finish</button>
+                  </>}
+                  {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
+                    {busy?"Restarting…":"Restart Race"}
+                  </button>}
+                  {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-500 text-slate-950 px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {liveRace.status==="running"&&<>
-                  <button disabled={busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
-                  <button disabled={busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
-                  <button disabled={busy} className="rounded-lg bg-slate-900 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Math.max(1,Number(liveRace.total_laps)-Number(liveRace.current_lap))))}>Run to Finish</button>
-                </>}
-                {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-700 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
-                  {busy?"Restarting…":"Restart Race"}
-                </button>}
-                {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-700 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+
+              <div className="mt-4 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-slate-200 transition-all" style={{width:`${Math.max(0,Math.min(100,(Number(liveRace.current_lap||0)/Math.max(1,Number(liveRace.total_laps||1)))*100))}%`}}/>
+              </div>
+
+              {liveRace.status==="red_flag"&&<div className="mt-4 rounded-xl border border-red-500/40 bg-red-950/60 text-red-100 p-3 text-sm">
+                <div className="font-semibold">RED FLAG — race suspended on lap {liveRace.current_lap}</div>
+                <div className="mt-1 text-red-200/80">Cars are stopped. Restart style: {String(raceControlRules?.restart_style||"era rules").replaceAll("_"," ")}.</div>
+              </div>}
+
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 text-sm">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Race Control</div><div className="font-semibold mt-1">{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Rain</div><div className="font-semibold mt-1">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Wetness</div><div className="font-semibold mt-1">{Math.round(Number(trackState?.track_wetness||0)*100)}%</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Grip / Visibility</div><div className="font-semibold mt-1">{Number(trackState?.grip_index??100).toFixed(0)}% / {Number(trackState?.visibility_index??100).toFixed(0)}%</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Fastest Lap</div><div className="font-semibold mt-1">{formatLapTime(timingSummary?.fastest_lap_ms)}</div><div className="text-[11px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}{timingSummary?.fastest_lap_number?` · L${timingSummary.fastest_lap_number}`:""}</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Running / DNF</div><div className="font-semibold mt-1">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} / {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length}</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Field Spread</div><div className="font-semibold mt-1">{timingSummary&&Number(timingSummary.field_spread_ms)>0?formatInterval(timingSummary.field_spread_ms):"—"}</div></div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="text-[11px] uppercase tracking-wide text-slate-500">Era</div><div className="font-semibold mt-1 text-xs">{raceControlRules?.label||"Era rules"}</div></div>
               </div>
             </div>
 
-            {liveRace.status==="red_flag"&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 text-red-900 p-3 text-sm">
-              <div className="font-semibold">RED FLAG — race suspended on lap {liveRace.current_lap}</div>
-              <div className="mt-1">Cars are stopped. Continue with Restart Race when ready; the restart style follows {String(raceControlRules?.restart_style||"era rules").replaceAll("_"," ")}.</div>
-            </div>}
-
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-sm">
-              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Race Control</div><div className="font-semibold">{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div></div>
-              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Rain intensity</div><div className="font-semibold">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div></div>
-              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Track wetness</div><div className="font-semibold">{Math.round(Number(trackState?.track_wetness||0)*100)}%</div></div>
-              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Grip</div><div className="font-semibold">{Number(trackState?.grip_index??100).toFixed(0)}%</div></div>
-              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Visibility</div><div className="font-semibold">{Number(trackState?.visibility_index??100).toFixed(0)}%</div></div>
-              <div className="border rounded-lg p-3"><div className="text-xs text-gray-500">Race-control era</div><div className="font-semibold">{raceControlRules?.label||"Era rules"}</div></div>
-            </div>
-            <div className="mt-2 text-xs text-gray-500">
-              {raceControlRules?.notes||"Race control follows the active era."} Weather changes grip, tyre suitability, tyre temperature, incident risk and the probability of race-control intervention.
-            </div>
-
-            <div className="mt-4 overflow-x-auto border rounded-xl">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50"><tr>
-                  <th className="px-3 py-2 text-right">Pos</th><th className="px-3 py-2 text-left">Driver</th>
-                  <th className="px-3 py-2 text-right">Gap</th><th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2 text-left">Tyre</th>
-                  <th className="px-3 py-2 text-right">Condition</th><th className="px-3 py-2 text-right">Last Lap</th>
-                </tr></thead>
-                <tbody>{liveRows.map((row,index)=><tr className="border-t" key={row.driver_id}>
-                  <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
-                  <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{row.retired?(row.retirement_reason||"DNF"):index===0?"LEADER":"+"+(Number(row.gap_to_leader_ms||0)/1000).toFixed(3)+"s"}</td>
-                  <td className="px-3 py-2"><span className={"rounded px-2 py-1 text-xs "+(row.retired?"bg-amber-50 text-amber-800":"bg-emerald-50 text-emerald-800")}>{row.retired?`DNF · L${row.incident_lap}`:"RUNNING"}</span></td>
-                  <td className="px-3 py-2">{row.tyre?.compound||tyreName(gs?.tyres,row.tyre?.tyre_id)}</td>
-                  <td className="px-3 py-2 text-right">{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</td>
-                  <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
-                </tr>)}</tbody>
+            <div className="overflow-x-auto">
+              <table className="min-w-[1680px] w-full text-xs">
+                <thead className="bg-[#121722] text-slate-400 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-3 py-2 text-right">Pos</th>
+                    <th className="px-2 py-2 text-center">±</th>
+                    <th className="px-3 py-2 text-left">Driver</th>
+                    <th className="px-3 py-2 text-right">Interval</th>
+                    <th className="px-3 py-2 text-right">Leader</th>
+                    <th className="px-3 py-2 text-right">S1</th>
+                    <th className="px-3 py-2 text-right">S2</th>
+                    <th className="px-3 py-2 text-right">S3</th>
+                    <th className="px-3 py-2 text-right">Last</th>
+                    <th className="px-3 py-2 text-right">Best</th>
+                    <th className="px-3 py-2 text-left">Tyre</th>
+                    <th className="px-3 py-2 text-right">Age</th>
+                    <th className="px-3 py-2 text-right">Cond</th>
+                    <th className="px-3 py-2 text-right">Temp</th>
+                    <th className="px-3 py-2 text-right">Stops</th>
+                    <th className="px-3 py-2 text-left">Pace</th>
+                    <th className="px-3 py-2 text-left">Pit window</th>
+                    <th className="px-3 py-2 text-right">Proj</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveRows.map((row,index)=>{
+                    const mine=String(row.team_id||"")===playerTeamId;
+                    const s1Fast=Number(row.sector_1_ms)>0&&Number(row.sector_1_ms)===Number(liveBestSectors.sector_1_ms);
+                    const s2Fast=Number(row.sector_2_ms)>0&&Number(row.sector_2_ms)===Number(liveBestSectors.sector_2_ms);
+                    const s3Fast=Number(row.sector_3_ms)>0&&Number(row.sector_3_ms)===Number(liveBestSectors.sector_3_ms);
+                    const gain=Number(row.position_gain)||0;
+                    return <tr className={"border-t border-white/5 "+(mine?"bg-white/[0.06]":"hover:bg-white/[0.025]")} key={row.driver_id}>
+                      <td className="px-3 py-2 text-right text-sm font-bold">P{row.position??index+1}</td>
+                      <td className={"px-2 py-2 text-center font-semibold "+(gain>0?"text-emerald-400":gain<0?"text-rose-400":"text-slate-600")}>{positionDelta(gain)}</td>
+                      <td className="px-3 py-2">
+                        <div className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</div>
+                        <div className="text-[11px] text-slate-500">{teamName(teams,row.team_id)} · Grid P{row.grid_position??"—"}</div>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">{row.retired?"—":index===0?"LEADER":formatInterval(row.interval_ms)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-slate-400">{row.retired?(row.retirement_reason||"DNF"):index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
+                      <td className={"px-3 py-2 text-right font-mono "+(s1Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_1_ms)}</td>
+                      <td className={"px-3 py-2 text-right font-mono "+(s2Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_2_ms)}</td>
+                      <td className={"px-3 py-2 text-right font-mono "+(s3Fast?"text-fuchsia-300":"text-slate-300")}>{formatLapTime(row.sector_3_ms)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-300">{formatLapTime(row.best_lap_ms)}</td>
+                      <td className="px-3 py-2">
+                        <div className="font-semibold">{row.tyre?.compound||tyreName(gs?.tyres,row.tyre?.tyre_id)}</div>
+                        {row.retired?<div className="text-[10px] text-amber-300">DNF · L{row.incident_lap}</div>:null}
+                      </td>
+                      <td className="px-3 py-2 text-right">{row.tyre?.age_laps??"—"}L</td>
+                      <td className="px-3 py-2 text-right">{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</td>
+                      <td className="px-3 py-2 text-right">{Number.isFinite(Number(row.tyre?.temperature_c))?Number(row.tyre.temperature_c).toFixed(0)+"°":"—"}</td>
+                      <td className="px-3 py-2 text-right">{row.pit_count??0}</td>
+                      <td className="px-3 py-2">{paceLabel(row.current_pace)}</td>
+                      <td className="px-3 py-2"><span className="rounded bg-white/5 px-2 py-1">{pitWindowLabel(row.pit_window)}</span></td>
+                      <td className="px-3 py-2 text-right font-semibold">P{row.projected_finish_position??"—"}</td>
+                    </tr>;
+                  })}
+                  {!liveRows.length?<tr><td colSpan={18} className="px-4 py-6 text-center text-slate-500">Race timing will populate after the first completed lap.</td></tr>:null}
+                </tbody>
               </table>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="border-t border-white/10 p-4 grid gap-3 xl:grid-cols-2">
               {playerEntrants.map((entry)=>{
                 const did=String(entry.driver_id);
                 const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
                 const commands=raceStrategy?.live_commands?.[did]||[];
-                const latestPace=commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
                 const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
+                const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
                 const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
-                return <div className="border rounded-xl p-3" key={did}>
-                  <div className="font-medium">{driverName(drivers,did)}</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <label className="text-xs text-gray-600">Pace next lap
-                      <select disabled={unavailable} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                return <div className="rounded-xl border border-white/10 bg-[#121722] p-4" key={did}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Your car</div>
+                      <div className="font-semibold text-lg">{driverName(drivers,did)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg">P{liveDriver?.position??"—"} <span className="text-xs font-normal text-slate-500">→ projected P{liveDriver?.projected_finish_position??"—"}</span></div>
+                      <div className={"text-xs "+(Number(liveDriver?.position_gain)>0?"text-emerald-400":Number(liveDriver?.position_gain)<0?"text-rose-400":"text-slate-500")}>{positionDelta(liveDriver?.position_gain)} from grid</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 md:grid-cols-6 gap-2 text-xs">
+                    <div className="rounded bg-white/5 p-2"><div className="text-slate-500">Tyre</div><div className="font-semibold">{liveDriver?.tyre?.compound||"—"} · {liveDriver?.tyre?.age_laps??0}L</div></div>
+                    <div className="rounded bg-white/5 p-2"><div className="text-slate-500">Condition</div><div className="font-semibold">{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</div></div>
+                    <div className="rounded bg-white/5 p-2"><div className="text-slate-500">Tyre temp</div><div className="font-semibold">{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°C":"—"}</div></div>
+                    <div className="rounded bg-white/5 p-2"><div className="text-slate-500">Stops</div><div className="font-semibold">{liveDriver?.pit_count??0}</div></div>
+                    <div className="rounded bg-white/5 p-2"><div className="text-slate-500">Pit window</div><div className="font-semibold">{pitWindowLabel(liveDriver?.pit_window)}</div></div>
+                    <div className="rounded bg-white/5 p-2"><div className="text-slate-500">Best lap</div><div className="font-semibold font-mono">{formatLapTime(liveDriver?.best_lap_ms)}</div></div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="text-xs text-slate-400">Pace next lap
+                      <select disabled={unavailable} className="mt-1 w-full border border-white/10 bg-[#0b0e14] text-slate-100 rounded-lg px-2 py-2 text-sm disabled:opacity-50" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
                         {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
                       </select>
                     </label>
-                    <label className="text-xs text-gray-600">Pit next lap
-                      <select disabled={unavailable} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                    <label className="text-xs text-slate-400">Pit next lap
+                      <select disabled={unavailable} className="mt-1 w-full border border-white/10 bg-[#0b0e14] text-slate-100 rounded-lg px-2 py-2 text-sm disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
                         <option value="">Stay out</option>
                         {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                       </select>
@@ -668,9 +735,9 @@ export default function RaceWeekend(){
               })}
             </div>
 
-            {(liveRace.events||[]).length>0&&<div className="mt-4 rounded-xl bg-slate-50 border p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Race feed</div>
-              <div className="mt-2 space-y-1 text-sm">{(liveRace.events||[]).slice(-6).reverse().map((event,index)=><div key={index}><span className="font-medium">L{event.lap}</span> · {event.message||event.type}</div>)}</div>
+            {(liveRace.events||[]).length>0&&<div className="border-t border-white/10 bg-[#090c11] p-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Race feed</div>
+              <div className="mt-2 grid gap-1 text-sm">{(liveRace.events||[]).slice(-8).reverse().map((event,index)=><div className="flex gap-2" key={index}><span className="font-mono text-slate-500">L{event.lap}</span><span>{event.driver_id?<strong>{driverName(drivers,event.driver_id)} · </strong>:null}{event.message||event.type}</span></div>)}</div>
             </div>}
           </div>
         )}
