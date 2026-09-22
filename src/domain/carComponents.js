@@ -11,6 +11,8 @@ export const COMPONENT_FALLBACK_CATALOG=Object.freeze([
   {part_type:"chassis",label:"Chassis",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:165,base_drag:0.25,base_downforce:0.40,base_reliability:0.80},
   {part_type:"aero_front",label:"Front Wing",era_start_year:1968,era_end_year:null,impact_area:"aero",base_weight:10,base_drag:0.05,base_downforce:0.18,base_reliability:0.85},
   {part_type:"aero_rear",label:"Rear Wing",era_start_year:1968,era_end_year:null,impact_area:"aero",base_weight:12,base_drag:0.07,base_downforce:0.22,base_reliability:0.83},
+  {part_type:"sidepods",label:"Sidepods",era_start_year:1970,era_end_year:null,impact_area:"aero",base_weight:22,base_drag:0.06,base_downforce:0.12,base_reliability:0.84},
+  {part_type:"underfloor",label:"Underfloor",era_start_year:1977,era_end_year:null,impact_area:"aero",base_weight:24,base_drag:0.04,base_downforce:0.34,base_reliability:0.82},
   {part_type:"suspension",label:"Suspension",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:40,base_drag:0.03,base_downforce:0.10,base_reliability:0.78},
   {part_type:"gearbox",label:"Gearbox",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:55,base_drag:0.02,base_downforce:0.05,base_reliability:0.75},
   {part_type:"brakes",label:"Brakes",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:20,base_drag:0.01,base_downforce:0.02,base_reliability:0.82},
@@ -29,6 +31,8 @@ export const COMPONENT_STAT_KEY=Object.freeze({
   chassis:"chassis_spec",
   aero_front:"aero_spec",
   aero_rear:"aero_spec",
+  sidepods:"aero_spec",
+  underfloor:"aero_spec",
   suspension:"suspension_spec",
   gearbox:"gearbox_spec",
   brakes:"brakes_spec",
@@ -71,7 +75,7 @@ function normalizedCatalog(gs){
       ? gs.carParts
       : COMPONENT_FALLBACK_CATALOG;
   const fallbackByType=new Map(COMPONENT_FALLBACK_CATALOG.map((row)=>[row.part_type,row]));
-  return src.map((row)=>{
+  const sourceRows=src.map((row)=>{
     const type=String(pick(row,["part_type","slot","type"],""));
     const fallback=fallbackByType.get(type)||{};
     return {
@@ -81,9 +85,18 @@ function normalizedCatalog(gs){
       label:pick(row,["label","name"],fallback.label||type),
       era_start_year:num(pick(row,["era_start_year","year_from"],fallback.era_start_year??1950),1950),
       era_end_year:pick(row,["era_end_year","year_to"],fallback.era_end_year??null),
+      base_weight:num(pick(row,["base_weight"],fallback.base_weight??0),fallback.base_weight??0),
+      base_drag:num(pick(row,["base_drag"],fallback.base_drag??0),fallback.base_drag??0),
+      base_downforce:num(pick(row,["base_downforce"],fallback.base_downforce??0),fallback.base_downforce??0),
       base_reliability:num(pick(row,["base_reliability"],fallback.base_reliability??0.8),0.8),
+      impact_area:pick(row,["impact_area"],fallback.impact_area||"chassis"),
     };
   }).filter((row)=>row.part_type);
+  const present=new Set(sourceRows.map((row)=>row.part_type));
+  // Runtime fallback additions allow the game to expose newly modelled component
+  // families before the next canonical database workbook refresh.
+  const missing=COMPONENT_FALLBACK_CATALOG.filter((row)=>!present.has(row.part_type));
+  return [...sourceRows,...missing];
 }
 
 function explicitTechnologySupport(gs,teamId,slot){
@@ -147,6 +160,6 @@ export function componentLabel(gs,slot){
 
 export function componentGroup(slot){
   const key=String(slot||"");
-  if(["chassis","aero_front","aero_rear","suspension"].includes(key))return "aero";
+  if(["chassis","aero_front","aero_rear","sidepods","underfloor","suspension"].includes(key))return "aero";
   return "mechanical";
 }

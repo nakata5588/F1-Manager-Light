@@ -21,11 +21,12 @@ import { componentGroup, componentLabel } from "@/domain/carComponents.js";
 import { fitPhysicalPartUnit, inventoryCountForDesign, normalizePhysicalPartState, removePhysicalPartUnit, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 import { activeWorkshopJobFor, activeWorkshopJobs, partUnitRestoreQuote, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
+import { teamCarCharacteristics } from "@/domain/carCharacteristics.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const nice=(s)=>String(s||"").replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase());
 const currentKey=(v)=>JSON.stringify(v??null);
-const moneyCompact=(n)=>new Intl.NumberFormat("en-GB",{notation:"compact",maximumFractionDigits:1}).format(Number(n)||0);
+const moneyCompact=(n)=>"US$"+new Intl.NumberFormat("en-GB",{notation:"compact",maximumFractionDigits:1}).format(Number(n)||0);
 
 function Panel({title,action,children,className=""}){
   return <section className={"rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden "+className}>
@@ -61,6 +62,8 @@ const PART_ICON_BY_SLOT={
   chassis:CarFront,
   aero_front:Activity,
   aero_rear:Activity,
+  sidepods:Activity,
+  underfloor:CarFront,
   suspension:Wrench,
   gearbox:Settings2,
   brakes:CircleDot,
@@ -220,6 +223,7 @@ export default function Car(){
   const selectedDriver=selectedCar?driverById.get(String(selectedCar.driver_id||"")):null;
   const carState=physicalState;
   const selectedPerf=selectedCar?teamCarPerformance(carState,teamId,selectedCar.driver_id):null;
+  const selectedCharacteristics=selectedCar?teamCarCharacteristics(carState,teamId,selectedCar.driver_id):null;
   const selectedFitted=selectedCar?installedPartsForCar(carState,selectedCar):[];
   const eligibleComponentSlots=componentSlotsForTeam(carState,teamId);
   const componentRows=selectedCar?eligibleComponentSlots.map((slot)=>{
@@ -454,15 +458,38 @@ export default function Car(){
               {activeCarJob?<div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-[10px] text-cyan-200">Workshop · {activeCarJob.finishes_at}</div>:null}
               {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)} disabled={Boolean(activeCarJob)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
               {row.installed?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)} disabled={Boolean(activeCarJob)}>Remove</Button>:row.condition<99.5?<>
-                <Button size="sm" variant="darkOutline" disabled={Boolean(activeCarJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restoreQuote.cost||0)} onClick={()=>restoreStandardComponent(selectedCar,row.slot)}>Restore · {restoreQuote.days}d · {moneyCompact(restoreQuote.cost)}</Button>
-                <Button size="sm" variant="darkOutline" disabled={Boolean(activeCarJob)||(standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0))} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Build & fit · "+buildQuote.days+"d · "+moneyCompact(buildQuote.cost)}</Button>
-              </>:<Button size="sm" variant="darkOutline" disabled={Boolean(activeSpareJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0)} onClick={()=>buildStandardSpare(row.slot)}>{activeSpareJob?"Spare building":"Build spare · "+buildQuote.days+"d · "+moneyCompact(buildQuote.cost)}</Button>}
-              {restorable&&restorableQuote?<Button size="sm" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restorableQuote.cost||0)} onClick={()=>restoreDevelopedUnit(restorable.part,restorable.unit)}>Restore {restorable.part.version||"part"} · {Number(restorable.unit.condition||0).toFixed(0)}% · {restorableQuote.days}d · {moneyCompact(restorableQuote.cost)}</Button>:null}
+                <div>
+                  <Button size="sm" className="w-full" variant="darkOutline" disabled={Boolean(activeCarJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restoreQuote.cost||0)} onClick={()=>restoreStandardComponent(selectedCar,row.slot)}>Restore · {restoreQuote.days}d</Button>
+                  <div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {moneyCompact(restoreQuote.cost)}</div>
+                </div>
+                <div>
+                  <Button size="sm" className="w-full" variant="darkOutline" disabled={Boolean(activeCarJob)||(standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0))} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Build & fit · "+buildQuote.days+"d"}</Button>
+                  <div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {standardStock>0?"US$0":moneyCompact(buildQuote.cost)}</div>
+                </div>
+              </>:<div>
+                <Button size="sm" className="w-full" variant="darkOutline" disabled={Boolean(activeSpareJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0)} onClick={()=>buildStandardSpare(row.slot)}>{activeSpareJob?"Spare building":"Build spare · "+buildQuote.days+"d"}</Button>
+                {!activeSpareJob?<div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {moneyCompact(buildQuote.cost)}</div>:null}
+              </div>}
+              {restorable&&restorableQuote?<div>
+                <Button size="sm" className="w-full" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restorableQuote.cost||0)} onClick={()=>restoreDevelopedUnit(restorable.part,restorable.unit)}>Restore {restorable.part.version||"part"} · {Number(restorable.unit.condition||0).toFixed(0)}% · {restorableQuote.days}d</Button>
+                <div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {moneyCompact(restorableQuote.cost)}</div>
+              </div>:null}
             </div>
           </div>;
         })}</div>
       </Panel>
-      <div className="xl:col-span-4 space-y-4"><PerformancePanel ranking={carGrid} teamId={teamId} perf={selectedPerf} driverId={selectedCar?.driver_id}/><Panel title="Technical Delta"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Weight" value={(Number(selectedPerf?.technical_delta?.weight_kg||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.weight_kg||0).toFixed(2)+" kg"}/><Metric label="Drag" value={(Number(selectedPerf?.technical_delta?.drag||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.drag||0).toFixed(4)}/><Metric label="Downforce" value={"+"+Number(selectedPerf?.technical_delta?.downforce||0).toFixed(4)}/><Metric label="Design reliability" value={"+"+Number(selectedPerf?.technical_delta?.design_reliability_pct||0).toFixed(1)+" pp"}/></div></Panel><Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel></div>
+      <div className="xl:col-span-4 space-y-4"><PerformancePanel ranking={carGrid} teamId={teamId} perf={selectedPerf} driverId={selectedCar?.driver_id}/>
+        <Panel title="Car Characteristics"><div className="p-3 grid grid-cols-2 gap-2">
+          {["top_speed","acceleration","low_speed","medium_speed","high_speed","mechanical_grip","braking","tyre_preservation","cooling","ground_effect"].map((key)=>{
+            const value=selectedCharacteristics?.values?.[key];
+            if(value==null)return null;
+            const delta=Number(selectedCharacteristics?.upgrade_delta?.[key]||0);
+            return <Metric key={key} label={selectedCharacteristics?.labels?.[key]||nice(key)} value={<span>{Number(value).toFixed(1)}{Math.abs(delta)>=0.05?<span className={delta>=0?"ml-1 text-emerald-300 text-xs":"ml-1 text-amber-300 text-xs"}>{delta>=0?"+":""}{delta.toFixed(1)}</span>:null}</span>}/>;
+          })}
+        </div></Panel>
+        <Panel title="Technical Delta">{selectedFitted.length?<div className="p-3 grid grid-cols-2 gap-2"><Metric label="Weight" value={(Number(selectedPerf?.technical_delta?.weight_kg||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.weight_kg||0).toFixed(2)+" kg"}/><Metric label="Drag" value={(Number(selectedPerf?.technical_delta?.drag||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.drag||0).toFixed(4)}/><Metric label="Downforce" value={"+"+Number(selectedPerf?.technical_delta?.downforce||0).toFixed(4)}/><Metric label="Design reliability" value={"+"+Number(selectedPerf?.technical_delta?.design_reliability_pct||0).toFixed(1)+" pp"}/></div>:<div className="p-4 text-sm text-slate-400">No developed upgrades fitted. The car is currently using its historical baseline technical specification.</div>}</Panel>
+        <Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel>
+      </div>
     </div>}
 
     {view==="analysis"&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">

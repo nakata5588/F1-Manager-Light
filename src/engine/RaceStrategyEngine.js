@@ -768,7 +768,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     let tyre=tyreById(options,strategy.start_tyre_id)||bestTyreForCategory(options,weatherCategory(stateAtLap(weather,1)),{durable:true});
     if(!tyre)continue;
 
-    const basePerf=combinedRacePerformance({gs:working,driver,rating,teamId:tid,wet:weather.wet_race});
+    const basePerf=combinedRacePerformance({gs:working,driver,rating,teamId:tid,wet:weather.wet_race,gp,track});
     const management=clamp(num(rating?.tire_management,60));
     const fatigue=clamp(num(driverCondition(working,did)?.fatigue,0));
     const wearDriverMult=clamp(1+(60-management)*0.004+(Math.max(0,fatigue-50))*0.003,0.74,1.32);

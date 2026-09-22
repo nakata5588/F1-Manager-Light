@@ -38,6 +38,8 @@ const PART_PROFILES = {
   chassis:       { multiplier:1.00, facility:"_chassis_shop_level", label:"Chassis Workshop" },
   aero_front:    { multiplier:0.88, facility:"aero", label:"Aero + Wind Tunnel" },
   aero_rear:     { multiplier:0.96, facility:"aero", label:"Aero + Wind Tunnel" },
+  sidepods:      { multiplier:0.94, facility:"aero", label:"Aero + Wind Tunnel" },
+  underfloor:    { multiplier:1.10, facility:"aero", label:"Aero + Wind Tunnel" },
   suspension:    { multiplier:0.72, facility:"_chassis_shop_level", label:"Chassis Workshop" },
   gearbox:       { multiplier:0.82, facility:"manufacturing_leve", label:"Manufacturing" },
   brakes:        { multiplier:0.58, facility:"_chassis_shop_level", label:"Chassis Workshop" },

@@ -9,7 +9,8 @@ import { derivePartTechnicalProfile, technicalAdjustmentForPart } from "../src/d
 import { createManufacturedPartUnits, fitPhysicalPartUnit, inventoryCountForDesign, partUnitById, partUnitsForDesign, removePhysicalPartUnit, warehousePartUnitsForDesign } from "../src/domain/partUnits.js";
 import { partManufactureQuote, partUnitRestoreQuote, processWorkshopJobs, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "../src/domain/componentService.js";
 import { availableCarComponentSlots, componentEligibility } from "../src/domain/carComponents.js";
-import { conditionModifierBreakdown } from "../src/domain/driverPerformance.js";
+import { combinedRacePerformance, conditionModifierBreakdown } from "../src/domain/driverPerformance.js";
+import { teamCarCharacteristics, trackCharacteristicPriorities, trackSensitiveUpgradeModifier } from "../src/domain/carCharacteristics.js";
 import { pitCrewEffectiveProfile } from "../src/engine/RaceStrategyEngine.js";
 
 test("live Board state exposes objectives outside the Board page", () => {
@@ -365,4 +366,107 @@ test("canonical car performance exposes real technical deltas from the fitted ph
   assert.ok(after.technical_delta.drag<0);
   assert.ok(after.technical_delta.downforce>0);
   assert.ok(after.technical_delta.design_reliability_pct>0);
+});
+
+
+test("1980 aero registry includes sidepods and underfloor but still excludes future hybrid technology", () => {
+  const gs={
+    activeYear:1980,
+    dbCarParts:[
+      {part_type:"chassis",era_start_year:1950,impact_area:"chassis",base_reliability:0.8},
+      {part_type:"aero_front",era_start_year:1968,impact_area:"aero",base_reliability:0.85},
+      {part_type:"aero_rear",era_start_year:1968,impact_area:"aero",base_reliability:0.83},
+    ],
+    carStats:[{year:1980,team_id:"T1",aero_spec:84,chassis_spec:82}],
+    teamEngines:[{year:1980,team_id:"T1",engine_name:"Cosworth DFV V8"}],
+  };
+  const slots=availableCarComponentSlots(gs,"T1");
+  assert.ok(slots.includes("sidepods"),"runtime registry should add newly modelled sidepods even before DB workbook refresh");
+  assert.ok(slots.includes("underfloor"),"ground-effect era should expose the underfloor");
+  assert.equal(componentEligibility(gs,"T1","ers_mgu_k").available,false);
+});
+
+test("car characteristics expose a non-zero baseline even without developed upgrades", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    carStats:[{
+      year:1980,team_id:"T1",chassis_spec:82,aero_spec:84,gearbox_spec:78,
+      suspension_spec:80,brakes_spec:79,cooling_spec:76,reliability:0.82,weight:595,
+    }],
+    teamEngines:[{year:1980,team_id:"T1",power:81,reliability:80}],
+    garage:{cars:[{id:"car_1",kind:"race",driver_id:"D1",installedParts:{},componentCondition:{}}]},
+    development:{parts:[],partUnits:[]},
+  };
+  const profile=teamCarCharacteristics(gs,"T1","D1");
+  assert.ok(profile.values.top_speed>0);
+  assert.ok(profile.values.low_speed>0);
+  assert.ok(profile.values.ground_effect>0);
+  assert.equal(profile.upgrade_delta.top_speed,0);
+  assert.equal(profile.upgrade_delta.high_speed,0);
+});
+
+test("different developed components change different driving characteristics", () => {
+  const base={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    contracts:[
+      {year:1980,team_id:"T1",driver_id:"D1",role:"Main Driver",status:"active"},
+      {year:1980,team_id:"T1",driver_id:"D2",role:"Second Driver",status:"active"},
+    ],
+    carStats:[{
+      year:1980,team_id:"T1",chassis_spec:82,aero_spec:84,gearbox_spec:78,
+      suspension_spec:80,brakes_spec:79,cooling_spec:76,reliability:0.82,weight:595,
+    }],
+    teamEngines:[{year:1980,team_id:"T1",power:81,reliability:80}],
+    development:{
+      parts:[
+        {id:"UF2",slot:"underfloor",name:"Underfloor V2",perf:3},
+        {id:"GB2",slot:"gearbox",name:"Gearbox V2",perf:3},
+      ],
+      partUnits:[
+        {id:"UF2-U1",design_id:"UF2",slot:"underfloor",condition:100},
+        {id:"GB2-U1",design_id:"GB2",slot:"gearbox",condition:100},
+      ],
+    },
+  };
+  let garage=syncGarageState(base,{});
+  garage.cars[0].installedParts={underfloor:"UF2-U1"};
+  let underfloor=teamCarCharacteristics({...base,garage},"T1","D1");
+
+  garage=syncGarageState(base,{});
+  garage.cars[0].installedParts={gearbox:"GB2-U1"};
+  const gearbox=teamCarCharacteristics({...base,garage},"T1","D1");
+
+  assert.ok(underfloor.upgrade_delta.ground_effect>underfloor.upgrade_delta.acceleration);
+  assert.ok(gearbox.upgrade_delta.acceleration>gearbox.upgrade_delta.high_speed);
+  assert.notEqual(underfloor.upgrade_delta.medium_speed,gearbox.upgrade_delta.medium_speed);
+});
+
+test("track sensitivity changes the value of a developed package without inventing physical kmh figures", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    contracts:[{year:1980,team_id:"T1",driver_id:"D1",role:"Main Driver",status:"active"}],
+    drivers:[{driver_id:"D1"}],
+    driverRatings:[{driver_id:"D1",pace:80,racecraft:80,consistency:80,tire_management:80,race_intelligence:80,start_launch:80,mentality:80,pressure_handling:80,adaptability:80,current_ability:80}],
+    driverAttributes:{D1:{confidence:50,morale:50,preparation:50,fatigue:0}},
+    carStats:[{year:1980,team_id:"T1",chassis_spec:80,aero_spec:80,gearbox_spec:80,suspension_spec:80,brakes_spec:80,cooling_spec:80,reliability:0.82,weight:595}],
+    teamEngines:[{year:1980,team_id:"T1",power:80,reliability:80}],
+    development:{
+      parts:[{id:"UF2",slot:"underfloor",perf:4}],
+      partUnits:[{id:"UF2-U1",design_id:"UF2",slot:"underfloor",condition:100}],
+    },
+  };
+  const garage=syncGarageState(gs,{});
+  garage.cars[0].installedParts={underfloor:"UF2-U1"};
+  const state={...gs,garage};
+  const fastTrack={lap_length_km:7.0,tyre_wear:55,overtaking_difficulty:35,crash_risk:45};
+  const twistyTrack={lap_length_km:3.3,tyre_wear:80,overtaking_difficulty:85,crash_risk:75};
+
+  const fast=trackSensitiveUpgradeModifier(state,{teamId:"T1",driverId:"D1",track:fastTrack});
+  const twisty=trackSensitiveUpgradeModifier(state,{teamId:"T1",driverId:"D1",track:twistyTrack});
+  assert.ok(Number.isFinite(fast.modifier));
+  assert.ok(Number.isFinite(twisty.modifier));
+  assert.notDeepEqual(trackCharacteristicPriorities(state,{track:fastTrack}).important,trackCharacteristicPriorities(state,{track:twistyTrack}).important);
 });
