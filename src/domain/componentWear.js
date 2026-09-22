@@ -1,6 +1,6 @@
 // src/domain/componentWear.js
 import {
-  CAR_COMPONENT_SLOTS,
+  componentSlotsForTeam,
   garageCarForDriver,
   installedPartsForCar,
   syncGarageState,
@@ -18,6 +18,13 @@ export const BASE_COMPONENT_WEAR=Object.freeze({
   brakes:3.8,
   cooling:3.2,
   turbocharger:4.5,
+  electronics:2.1,
+  kers:3.6,
+  ers_mgu_k:4.0,
+  ers_mgu_h:4.3,
+  battery_pack:3.0,
+  fuel_system:3.2,
+  exhaust_system:2.6,
 });
 
 const ACCIDENT_SLOT_MULTIPLIER=Object.freeze({
@@ -29,6 +36,13 @@ const ACCIDENT_SLOT_MULTIPLIER=Object.freeze({
   brakes:0.55,
   cooling:0.35,
   turbocharger:0.20,
+  electronics:0.18,
+  kers:0.20,
+  ers_mgu_k:0.20,
+  ers_mgu_h:0.18,
+  battery_pack:0.15,
+  fuel_system:0.25,
+  exhaust_system:0.35,
 });
 
 const SEVERITY_DAMAGE=Object.freeze({
@@ -43,9 +57,9 @@ function mechanicalAffectedSlots(reason){
   if(/gearbox|transmission/.test(value))return new Set(["gearbox"]);
   if(/suspension/.test(value))return new Set(["suspension"]);
   if(/cooling/.test(value))return new Set(["cooling"]);
-  if(/engine/.test(value))return new Set(["cooling","turbocharger"]);
-  if(/electrical/.test(value))return new Set(["cooling"]);
-  if(/fuel/.test(value))return new Set(["cooling"]);
+  if(/engine/.test(value))return new Set(["cooling","turbocharger","fuel_system","exhaust_system"]);
+  if(/electrical/.test(value))return new Set(["electronics","ers_mgu_k","ers_mgu_h","battery_pack"]);
+  if(/fuel/.test(value))return new Set(["fuel_system","cooling"]);
   return new Set();
 }
 
@@ -100,9 +114,10 @@ function applyWearDeltas(gs,garage,partDeltas,baseDeltas,wearRows){
     };
   });
 
+  const eligibleSlots=componentSlotsForTeam(gs);
   const cars=(garage?.cars||[]).map((car)=>{
     const condition={...(car?.componentCondition||{})};
-    for(const slot of CAR_COMPONENT_SLOTS){
+    for(const slot of eligibleSlots){
       const wear=baseDeltas.get(String(car.id)+"::"+slot);
       if(!wear)continue;
       condition[slot]=Number(clamp(Number(condition[slot]??100)-wear).toFixed(1));
@@ -145,6 +160,7 @@ export function applyRaceComponentWear(gs,{race=[],gp=null}={}){
   const baseDeltas=new Map();
   const wearRows=[];
 
+  const eligibleSlots=componentSlotsForTeam({...gs,garage});
   for(const row of race||[]){
     const driverId=driverIdOf(row);
     if(!driverId)continue;
@@ -152,7 +168,7 @@ export function applyRaceComponentWear(gs,{race=[],gp=null}={}){
     if(!car)continue;
     const fittedBySlot=new Map(installedPartsForCar({...gs,garage},car).map((x)=>[x.slot,x.part]));
 
-    for(const slot of CAR_COMPONENT_SLOTS){
+    for(const slot of eligibleSlots){
       const wear=componentWearForRaceRow(row,slot);
       const part=fittedBySlot.get(slot)||null;
       if(part){
@@ -203,6 +219,7 @@ export function applyPracticeComponentWear(gs,{practiceResults=[],gp=null}={}){
   const baseDeltas=new Map();
   const wearRows=[];
 
+  const eligibleSlots=componentSlotsForTeam({...gs,garage});
   for(const result of practiceResults||[]){
     const driverId=String(result?.driver_id??"");
     if(!driverId)continue;
@@ -215,7 +232,7 @@ export function applyPracticeComponentWear(gs,{practiceResults=[],gp=null}={}){
     const issueSlot=String(result?.issue_slot||"");
     const fittedBySlot=new Map(installedPartsForCar({...gs,garage},car).map((x)=>[x.slot,x.part]));
 
-    for(const slot of CAR_COMPONENT_SLOTS){
+    for(const slot of eligibleSlots){
       let wear=Number(BASE_COMPONENT_WEAR[slot]??2.5)*0.34*mileageFactor*programmeWear;
       if(issue==="contact"){
         wear+=3.0*Number(ACCIDENT_SLOT_MULTIPLIER[slot]??0.4);

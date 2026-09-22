@@ -351,7 +351,8 @@ test("standard car components are created at full health and wear even without d
 
   const car=gs.garage.cars.find((row)=>row.id==="car_1");
   assert.ok(componentConditionForCar(gs,car,"gearbox")<70,"gearbox should require attention during a full season");
-  assert.ok(componentConditionForCar(gs,car,"turbocharger")<70,"turbo should require attention during a full season");
+  assert.ok(componentConditionForCar(gs,car,"fuel_system")<80,"fuel system should wear during a full season");
+  assert.equal(car.componentCondition.turbocharger,undefined,"normally aspirated 1980 cars must not seed a turbo component");
   assert.ok(gs.componentWearLog.some((row)=>row.component_source==="base_component"));
 });
 
