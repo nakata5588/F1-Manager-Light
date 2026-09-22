@@ -542,71 +542,83 @@ export default function RaceWeekend(){
     )}
 
     {activeWindow==="practice"&&Boolean(weekend.practice)&&weekend.phase!=="practice"&&(
-      <div className="grid gap-4">
-        <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-            <div>
-              <h3 className="font-semibold">Practice Complete</h3>
-              <p className="text-sm text-slate-400 mt-1">Setup, Preparation, fatigue and component wear have been committed to the Save.</p>
-            </div>
-            <div className="text-xs text-slate-500">
-              Profile: {weekend.practice?.track_profile?.source==="derived_gameplay_profile"?"gameplay-derived circuit demands":"circuit data"}
-            </div>
+      <div className="rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session review</div>
+            <h3 className="mt-1 text-lg font-semibold">Practice Complete</h3>
+            <p className="text-sm text-slate-400 mt-1">These are gameplay indices and session outcomes, not literal real-world percentages.</p>
           </div>
-
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-            {[
-              ["Crash Risk",weekend.practice?.track_profile?.inputs?.crash_risk],
-              ["Overtaking Difficulty",weekend.practice?.track_profile?.inputs?.overtaking_difficulty],
-              ["Tyre Wear",weekend.practice?.track_profile?.inputs?.tyre_wear],
-              ["Lap Length",weekend.practice?.track_profile?.inputs?.lap_length_km],
-            ].map(([label,value])=>(
-              <div key={label} className="border rounded-lg p-3">
-                <div className="text-xs text-slate-500">{label}</div>
-                <div className="font-semibold">{label==="Lap Length"?`${Number(value||0).toFixed(2)} km`:Math.round(Number(value)||0)}</div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">The exact ideal setup remains hidden. Driver feedback and Setup Quality show how close the team is to the working window.</p>
-
-          <div className="mt-4 grid gap-3">
-            {playerPracticeResults.map((row)=>(
-              <div key={row.driver_id} className="border rounded-xl p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">{driverName(drivers,row.driver_id)}</div>
-                    <div className="text-xs text-slate-500">{row.programme_label}</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="bg-emerald-500/15 text-emerald-300 rounded px-2 py-1">Setup {Math.round(row.setup_quality)}%</span>
-                    <span className="bg-blue-500/15 text-blue-300 rounded px-2 py-1">Knowledge {Math.round(row.setup_knowledge)}%</span>
-                    <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
-                    <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {Number(row.fatigue_after??row.fatigue_cost??0).toFixed(0)}</span>
-                    <span className="bg-white/[0.06] text-slate-300 rounded px-2 py-1">Learning efficiency {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
-                    <span className="bg-amber-500/15 text-amber-300 rounded px-2 py-1">Component wear {Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
-                    <span className="bg-cyan-500/15 text-cyan-300 rounded px-2 py-1">Race relevance {Number(row.race_weather_relevance??0).toFixed(0)}%</span>
-                    <span className="bg-violet-500/15 text-violet-300 rounded px-2 py-1">Qualifying relevance {Number(row.qualifying_weather_relevance??0).toFixed(0)}%</span>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm">{row.feedback}</p>
-                {row.component_wear?.lowest_slot&&(
-                  <p className="mt-1 text-xs text-slate-500">
-                    Lowest component after Practice: {String(row.component_wear.lowest_slot).replaceAll("_"," ")} · {Number(row.component_wear.lowest_condition??0).toFixed(1)}%.
-                  </p>
-                )}
-                {Number(row.fatigue_performance_penalty_before||0)>0&&(
-                  <p className="mt-1 text-xs text-amber-300">
-                    Existing fatigue reduced the driver's effective performance by about {Number(row.fatigue_performance_penalty_before).toFixed(1)} driver-score points before this session.
-                  </p>
-                )}
-                {row.issue_note&&<p className="mt-2 text-sm text-amber-300">{row.issue_note}</p>}
-              </div>
-            ))}
-          </div>
-
-          {weekend.phase==="practice_complete"&&<button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
+          {weekend.phase==="practice_complete"&&<button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
             {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to Qualifying":"Advance to Qualifying"}
           </button>}
+        </div>
+
+        {(()=>{
+          const inputs=weekend.practice?.track_profile?.inputs||{};
+          const crash=indexDescriptor(inputs.crash_risk);
+          const overtake=indexDescriptor(inputs.overtaking_difficulty);
+          const wear=indexDescriptor(inputs.tyre_wear);
+          return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Crash Risk Index</div>
+              <div className={"mt-1 text-xl font-bold "+crash.tone}>{Math.round(Number(inputs.crash_risk)||0)}/100</div>
+              <div className="text-xs text-slate-400">{crash.level} incident-proneness. This is not a {Math.round(Number(inputs.crash_risk)||0)}% crash probability.</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Overtaking Difficulty</div>
+              <div className={"mt-1 text-xl font-bold "+overtake.tone}>{Math.round(Number(inputs.overtaking_difficulty)||0)}/100</div>
+              <div className="text-xs text-slate-400">{overtake.level} difficulty. Higher means passing is harder, not a percentage chance.</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Tyre Wear Index</div>
+              <div className={"mt-1 text-xl font-bold "+wear.tone}>{Math.round(Number(inputs.tyre_wear)||0)}/100</div>
+              <div className="text-xs text-slate-400">{wear.level} circuit demand on tyres; used by degradation and strategy models.</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Lap Length</div>
+              <div className="mt-1 text-xl font-bold text-sky-300">{Number(inputs.lap_length_km||0).toFixed(2)} km</div>
+              <div className="text-xs text-slate-400">Physical circuit length used for race distance and session calculations.</div>
+            </div>
+          </div>;
+        })()}
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {playerPracticeResults.map((row)=>{
+            const fatigueAfter=Number(row.fatigue_after??row.fatigue_cost??0);
+            return <div key={row.driver_id} className="rounded-xl border border-white/10 bg-[#171d27] p-4">
+              <div className="flex items-start gap-3">
+                <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size="h-14 w-14" className="ring-white/10"/>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold">{driverName(drivers,row.driver_id)}</div>
+                  <div className="text-xs text-slate-500">{row.programme_label}</div>
+                  <p className="mt-1 text-sm text-slate-300">{row.feedback}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded bg-emerald-500/10 p-2 text-emerald-300"><div className="text-[10px] uppercase opacity-70">Setup quality</div><div className="text-lg font-bold">{Math.round(row.setup_quality)}%</div></div>
+                <div className="rounded bg-blue-500/10 p-2 text-blue-300"><div className="text-[10px] uppercase opacity-70">Setup knowledge</div><div className="text-lg font-bold">{Math.round(row.setup_knowledge)}%</div></div>
+                <div className="rounded bg-cyan-500/10 p-2 text-cyan-300"><div className="text-[10px] uppercase opacity-70">Race relevance</div><div className="text-lg font-bold">{Number(row.race_weather_relevance??0).toFixed(0)}%</div></div>
+                <div className="rounded bg-violet-500/10 p-2 text-violet-300"><div className="text-[10px] uppercase opacity-70">Qualifying relevance</div><div className="text-lg font-bold">{Number(row.qualifying_weather_relevance??0).toFixed(0)}%</div></div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                <span className="rounded bg-white/[0.05] px-2 py-1 text-slate-300">Preparation +{Number(row.preparation_gain).toFixed(1)}</span>
+                <span className={"rounded px-2 py-1 "+fatigueTone(fatigueAfter)}>Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {fatigueAfter.toFixed(0)}</span>
+                <span className="rounded bg-white/[0.05] px-2 py-1 text-slate-300">Learning {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
+                <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Wear +{Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
+              </div>
+
+              {row.component_wear?.lowest_slot&&<div className="mt-2 text-xs text-slate-500">
+                Lowest component: {String(row.component_wear.lowest_slot).replaceAll("_"," ")} · {Number(row.component_wear.lowest_condition??0).toFixed(1)}%.
+              </div>}
+              {Number(row.fatigue_performance_penalty_before||0)>0&&<div className="mt-2 text-xs text-amber-300">
+                Pre-session fatigue reduced effective driver score by ~{Number(row.fatigue_performance_penalty_before).toFixed(1)}.
+              </div>}
+              {row.issue_note&&<div className="mt-2 rounded bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300">{row.issue_note}</div>}
+            </div>;
+          })}
         </div>
       </div>
     )}
