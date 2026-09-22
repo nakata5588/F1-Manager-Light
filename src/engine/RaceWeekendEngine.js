@@ -419,13 +419,30 @@ export function completeQualifyingSession(gs,{gp}={}){
     String(row?.driver_id??""),
     String(row?.status||"QUALIFIED").toUpperCase(),
   ]));
-  const finalSessionResults=(completedCurrent.results||[]).map((row)=>{
-    const finalStatus=finalStatusByDriver.get(String(row?.driver_id??""))||"QUALIFIED";
-    return {
-      ...row,
-      status:["DNQ","DNPQ","ELIMINATED"].includes(finalStatus)?"CUT":"QUALIFIED",
-    };
-  });
+  // The final report is a weekend Qualifying classification, not merely the
+  // last session order. In multi-session best-time formats a driver can be
+  // slower in Q2 but still qualify thanks to a faster Q1 lap. Keep each
+  // session's raw timing intact, but order the visible final report by the
+  // authoritative combined classification and expose the real historical
+  // status (QUALIFIED / DNQ / DNPQ) instead of the ambiguous "CUT".
+  const currentResultByDriver=new Map(
+    (completedCurrent.results||[]).map((row)=>[String(row?.driver_id??""),row])
+  );
+  const finalSessionResults=classification
+    .filter((row)=>currentResultByDriver.has(String(row?.driver_id??"")))
+    .map((classified,index)=>{
+      const sessionRow=currentResultByDriver.get(String(classified.driver_id));
+      return {
+        ...sessionRow,
+        position:index+1,
+        session_position:Number(sessionRow?.position)||null,
+        session_lap_time_ms:Number(sessionRow?.lap_time_ms)||null,
+        lap_time_ms:Number(classified?.best_time_ms)||Number(sessionRow?.lap_time_ms)||0,
+        best_session_id:classified?.best_session_id??null,
+        status:String(classified?.status||"QUALIFIED").toUpperCase(),
+        final_classification:true,
+      };
+    });
   completedCurrent={...completedCurrent,results:finalSessionResults};
   sessions=sessionWithPatch(sessions,current.id,completedCurrent);
   interim={...interim,sessions};
