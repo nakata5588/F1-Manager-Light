@@ -18,9 +18,9 @@ const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
 const canon=(v)=>String(v??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
 
 export const RACE_PACE_MODES=Object.freeze({
-  conserve:{id:"conserve",label:"Conserve",lap_delta_s:0.38,wear_mult:0.84,risk_mult:0.90},
-  balanced:{id:"balanced",label:"Balanced",lap_delta_s:0,wear_mult:1,risk_mult:1},
-  attack:{id:"attack",label:"Attack",lap_delta_s:-0.34,wear_mult:1.18,risk_mult:1.10},
+  conserve:{id:"conserve",label:"Conserve",lap_delta_s:0.42,wear_mult:0.78,risk_mult:0.88,fatigue_mult:0.72},
+  balanced:{id:"balanced",label:"Balanced",lap_delta_s:0,wear_mult:1,risk_mult:1,fatigue_mult:1},
+  attack:{id:"attack",label:"Attack",lap_delta_s:-0.38,wear_mult:1.28,risk_mult:1.14,fatigue_mult:1.34},
 });
 
 export const PIT_PLANS=Object.freeze({
@@ -540,6 +540,52 @@ export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
   };
 }
 
+export function tyreConditionEffects(conditionInput){
+  const condition=clamp(conditionInput,0,100);
+  if(condition>=70)return {pace_penalty_s:0,grip_multiplier:1,risk_multiplier:1,band:"healthy"};
+  if(condition>=45){
+    const severity=(70-condition)/25;
+    return {
+      pace_penalty_s:Number((severity*0.42).toFixed(3)),
+      grip_multiplier:Number((1-severity*0.035).toFixed(4)),
+      risk_multiplier:Number((1+severity*0.06).toFixed(4)),
+      band:"used",
+    };
+  }
+  if(condition>=25){
+    const severity=(45-condition)/20;
+    return {
+      pace_penalty_s:Number((0.42+severity*1.05).toFixed(3)),
+      grip_multiplier:Number((0.965-severity*0.075).toFixed(4)),
+      risk_multiplier:Number((1.06+severity*0.22).toFixed(4)),
+      band:"worn",
+    };
+  }
+  const severity=(25-condition)/25;
+  return {
+    pace_penalty_s:Number((1.47+severity*3.3).toFixed(3)),
+    grip_multiplier:Number((0.89-severity*0.16).toFixed(4)),
+    risk_multiplier:Number((1.28+severity*0.72).toFixed(4)),
+    band:condition<12?"critical":"severe",
+  };
+}
+function projectedWearPerLap(tyre,{trackWearMult=1,pace=RACE_PACE_MODES.balanced,wearDriverMult=1,hotWearMult=1}={}){
+  return num(tyre?.wear_rate,0.018)*100*0.72*trackWearMult*num(pace?.wear_mult,1)*wearDriverMult*hotWearMult;
+}
+function estimateStayOutCost({condition,wearPerLap,remaining,window=6}={}){
+  const laps=Math.max(1,Math.min(Number(remaining)||1,Number(window)||6));
+  let total=0;
+  let projected=clamp(condition,0,100);
+  for(let i=0;i<laps;i++){
+    total+=tyreConditionEffects(projected).pace_penalty_s;
+    projected=clamp(projected-(Number(wearPerLap)||0),0,100);
+  }
+  return {seconds:Number(total.toFixed(3)),condition_end:Number(projected.toFixed(1)),laps};
+}
+function effectivePitLoss(track,control,crew){
+  const multiplier=control?.type==="SAFETY_CAR"?0.58:control?.type==="VSC"?0.76:control?.type==="RED_FLAG"?0.35:1;
+  return num(track?.pit_lane_loss_s,24)*multiplier+num(crew?.avg_time_s,6.8);
+}
 function tyreWeatherPenalty(tyre,state){
   const want=weatherCategory(state);
   const have=String(tyre?.category||"dry");
@@ -686,6 +732,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     let refuelled=false;
     let activePaceMode=strategy.pace_mode;
     let liveCommandIndex=0;
+    let accumulatedFatigueLoad=0;
+    let maxTyreRiskMultiplier=1;
+    const strategyDecisions=[];
 
     for(let lap=1;lap<=track.laps;lap++){
       const commandsThisLap=[];
@@ -711,17 +760,49 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
       const remaining=track.laps-lap+1;
       const mismatch=tyreWeatherPenalty(tyre,tyreState);
+      const projectedTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,Math.max(1,stintLap+1));
+      const projectedOptimum=optimalTyreTemp(tyre);
+      const projectedHotWear=projectedTemp>projectedOptimum+8?1+Math.min(0.25,(projectedTemp-projectedOptimum-8)*0.018):1;
+      const currentWearPerLap=projectedWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult:projectedHotWear});
+      const stayOut=estimateStayOutCost({condition,wearPerLap:currentWearPerLap,remaining,window:Math.min(8,remaining)});
+      const pitLossEstimate=effectivePitLoss(track,control,crew);
+      const currentEffects=tyreConditionEffects(condition);
+      const intelligence=clamp(num(rating?.race_intelligence,60));
+      const isAi=tid!==userTeam;
+      const criticalTyre=condition<=14&&remaining>2;
+      const severeTyre=condition<=24&&remaining>3;
+      const projectedCritical=stayOut.condition_end<=12&&remaining>4;
+      const neutralised=["SAFETY_CAR","VSC"].includes(control.type);
+      const cheapStop=neutralised&&pitLossEstimate<=track.pit_lane_loss_s*0.88+num(crew.avg_time_s,6.8);
+      const strategicStopValue=isAi&&strategy.pit_plan!=="no_stop"&&remaining>5&&(
+        (condition<48&&stayOut.seconds>Math.max(1.2,pitLossEstimate*0.20))||
+        (condition<38&&projectedCritical)||
+        (condition<30&&currentEffects.pace_penalty_s>0.9)
+      );
       let stopReason=null;
 
       if(lap>1){
         if(forcedPit&&remaining>1)stopReason="player_call";
         else if(mismatch>=3.5&&remaining>3)stopReason="weather";
-        else if(["SAFETY_CAR","VSC"].includes(control.type)&&!hasStopped&&remaining>8&&strategy.pit_plan!=="no_stop"&&condition<72&&rng.chance(0.42+clamp(num(rating?.race_intelligence,60),0,100)*0.003))stopReason="neutralisation_window";
+        else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
-        else if(strategy.pit_plan==="adaptive"&&condition<28&&remaining>7)stopReason="degradation";
-        else if(strategy.pit_plan==="no_stop"&&condition<9&&remaining>6)stopReason="safety";
+        else if(isAi&&strategicStopValue&&rng.chance(0.44+intelligence*0.0045))stopReason="degradation_value";
+        else if(strategy.pit_plan==="adaptive"&&condition<34&&remaining>6)stopReason="degradation";
+        else if(criticalTyre||severeTyre&&projectedCritical)stopReason="tyre_safety";
         if(!hasStopped&&rules.mandatory_dry_compounds>1&&!hasUsedWet&&category==="dry"&&lap===plannedLap)stopReason=stopReason||"mandatory_compound";
         if(rules.refuelling_allowed&&strategy.fuel_plan==="light_start"&&!refuelled&&lap>=Math.round(track.laps*0.54))stopReason=stopReason||"fuel";
+      }
+      if(stopReason){
+        strategyDecisions.push({
+          lap,
+          action:"pit",
+          reason:stopReason,
+          tyre_condition:Number(condition.toFixed(1)),
+          estimated_pit_loss_s:Number(pitLossEstimate.toFixed(2)),
+          projected_stay_out_loss_s:stayOut.seconds,
+          projected_condition:stayOut.condition_end,
+          pace_mode:activePaceMode,
+        });
       }
 
       if(stopReason){
@@ -764,10 +845,13 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const tempDelta=Math.abs(tyreTemp-optimum);
       const tempLapPenalty=Math.max(0,tempDelta-6)*0.035;
       const hotWearMult=tyreTemp>optimum+8?1+Math.min(0.25,(tyreTemp-optimum-8)*0.018):1;
-      const wearPerLap=num(tyre?.wear_rate,0.018)*100*0.72*trackWearMult*pace.wear_mult*wearDriverMult*hotWearMult;
-      const grip=num(tyre?.grip_index,75);
-      const gripDelta=(78-grip)*0.035;
-      const wearPenalty=condition>=55?0:(55-condition)*0.052+(condition<20?(20-condition)*0.11:0);
+      const wearPerLap=projectedWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult});
+      const tyreEffects=tyreConditionEffects(condition);
+      maxTyreRiskMultiplier=Math.max(maxTyreRiskMultiplier,tyreEffects.risk_multiplier);
+      accumulatedFatigueLoad+=num(pace.fatigue_mult,1);
+      const grip=num(tyre?.grip_index,75)*tyreEffects.grip_multiplier;
+      const gripDelta=(78-grip)*0.040;
+      const wearPenalty=tyreEffects.pace_penalty_s;
       const warmupPenalty=stintLap<=2?num(tyre?.warmup_time_s,2.5)*(stintLap===1?0.65:0.24):0;
       const perfPenalty=Math.max(-1.4,(100-basePerf)*0.105);
       const fuelDelta=rules.refuelling_allowed
@@ -788,10 +872,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
 
     stints.push(stintRecord(tyre,stintStart,track.laps,condition,tempSum,tempCount));
     const weatherRisk=raceRiskFromWeather(working,weather,track);
-    const wornTyreRisk=lowestCondition<20?1+(20-lowestCondition)*0.015:1;
     const finalPace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
-    const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*wornTyreRisk,0.7,4);
+    const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*maxTyreRiskMultiplier,0.7,4);
     const mechanicalRisk=clamp(finalPace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
+    const averageFatigueMult=track.laps?accumulatedFatigueLoad/track.laps:1;
+    const raceFatigueGain=Number((16*averageFatigueMult+(weather.wet_race?3:0)).toFixed(2));
 
     raceRows.push({
       pos:0,
@@ -812,6 +897,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
       incident_risk_multiplier:Number(incidentRisk.toFixed(3)),
       mechanical_risk_multiplier:Number(mechanicalRisk.toFixed(3)),
+      race_fatigue_gain:raceFatigueGain,
+      tyre_risk_multiplier:Number(maxTyreRiskMultiplier.toFixed(3)),
+      strategy_decisions:strategyDecisions,
       lap_times_ms:lapTimes.slice(),
       strategy_summary:{
         source:tid===userTeam?"player":"ai",
@@ -825,6 +913,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         used_tyres:stints.map((s)=>s.compound),
         used_dry_compounds:[...usedDry],
         refuelled,
+        race_fatigue_gain:raceFatigueGain,
+        lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
+        strategy_decisions:strategyDecisions,
       },
     });
   }
