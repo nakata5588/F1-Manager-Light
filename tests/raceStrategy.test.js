@@ -9,6 +9,7 @@ import {
   setRaceStrategySelection,
   simulateManagedRace,
   tyresForTeam,
+  tyreConditionEffects,
 } from "../src/engine/RaceStrategyEngine.js";
 
 const tyres=[
@@ -225,4 +226,61 @@ test("sparse tyre catalog carries the nearest prior family instead of producing 
   const built=createRaceStrategyState(gs1981,{gp:{...gp,race_date:"1981-05-17"},raceEntryState:gs1981.raceEntryState});
   assert.ok(built.state.selections.d_w1.start_tyre_id);
   assert.ok(tyresForTeam(built.gameState,"t_williams").length>0);
+});
+
+
+test("RW4.5 tyre condition has progressive pace, grip and incident consequences",()=>{
+  const fresh=tyreConditionEffects(90);
+  const used=tyreConditionEffects(55);
+  const worn=tyreConditionEffects(30);
+  const critical=tyreConditionEffects(8);
+  assert.equal(fresh.pace_penalty_s,0);
+  assert.ok(used.pace_penalty_s>fresh.pace_penalty_s);
+  assert.ok(worn.pace_penalty_s>used.pace_penalty_s);
+  assert.ok(critical.pace_penalty_s>worn.pace_penalty_s);
+  assert.ok(critical.grip_multiplier<worn.grip_multiplier);
+  assert.ok(critical.risk_multiplier>worn.risk_multiplier);
+  assert.equal(critical.band,"critical");
+});
+
+test("RW4.5 Attack on Softs wears tyres and loads the driver more than Conserve on Hards",()=>{
+  let attack=withStrategy(fixture());
+  attack=setRaceStrategySelection(attack,{driverId:"d_w1",patch:{start_tyre_id:"gy_s",next_tyre_id:"gy_h",pace_mode:"attack",pit_plan:"no_stop"}});
+  const attackRace=simulateManagedRace(attack,{gp,grid:grid(attack),ratings:attack.driverRatings,roundIndex:0});
+  const attackRow=attackRace.race.find((row)=>row.driver.driver_id==="d_w1");
+
+  let conserve=withStrategy(fixture());
+  conserve=setRaceStrategySelection(conserve,{driverId:"d_w1",patch:{start_tyre_id:"gy_h",next_tyre_id:"gy_h",pace_mode:"conserve",pit_plan:"no_stop"}});
+  const conserveRace=simulateManagedRace(conserve,{gp,grid:grid(conserve),ratings:conserve.driverRatings,roundIndex:0});
+  const conserveRow=conserveRace.race.find((row)=>row.driver.driver_id==="d_w1");
+
+  assert.ok(attackRow.lowest_tyre_condition<conserveRow.lowest_tyre_condition);
+  assert.ok(attackRow.race_fatigue_gain>conserveRow.race_fatigue_gain);
+  assert.ok(attackRow.tyre_risk_multiplier>=conserveRow.tyre_risk_multiplier);
+});
+
+test("RW4.5 AI does not routinely run a severely worn tyre down to ten percent before reacting",()=>{
+  const longTrack={...gp,gp_id:"gp_rw45_ai",track_id:"monaco"};
+  let gs=withStrategy(fixture(),longTrack);
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        selections:{
+          ...gs.raceWeekendState.race_strategy.selections,
+          d_f1:{...gs.raceWeekendState.race_strategy.selections.d_f1,start_tyre_id:"mi_s",next_tyre_id:"mi_h",pace_mode:"attack",pit_plan:"adaptive"},
+        },
+      },
+    },
+  };
+  const result=simulateManagedRace(gs,{gp:longTrack,grid:grid(gs),ratings:gs.driverRatings,roundIndex:0});
+  const ai=result.race.find((row)=>row.driver.driver_id==="d_f1");
+  assert.ok(ai.pit_stops.length>=1,"AI should react to degradation when a stop is worthwhile");
+  const degradationStop=ai.strategy_decisions.find((decision)=>["degradation_value","degradation","tyre_safety"].includes(decision.reason));
+  assert.ok(degradationStop,"AI should record why it reacted to tyre degradation");
+  assert.ok(degradationStop.tyre_condition>9,"AI reaction should happen before the old near-10% emergency threshold");
+  assert.ok(Number.isFinite(degradationStop.estimated_pit_loss_s));
+  assert.ok(Number.isFinite(degradationStop.projected_stay_out_loss_s));
 });
