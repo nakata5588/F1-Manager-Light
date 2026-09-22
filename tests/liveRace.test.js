@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -146,4 +146,29 @@ test("red flag state can be resumed without rebuilding the race",()=>{
   assert.equal(resumed.raceWeekendState.live_race.current_lap,5);
   assert.equal(resumed.raceWeekendState.race_strategy.race_control_plan,plan);
   assert.equal(resumed.raceWeekendState.live_race.events.at(-1).type,"restart");
+});
+
+
+test("finalized live rows preserve exactly the retirements visible to the player",()=>{
+  let gs=createLiveRaceState(fixture(),{gp});
+  gs=advanceTo(gs,12);
+  const live=gs.raceWeekendState.live_race;
+  const forced=live.classification.map((row,index)=>index===live.classification.length-1
+    ? {...row,retired:true,status:"DNF",retirement_reason:"Engine",incident_lap:9}
+    : {...row,retired:false,status:"RUNNING",retirement_reason:null,incident_lap:null}
+  );
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      live_race:{...live,status:"finished",current_lap:live.total_laps,classification:forced},
+    },
+  };
+  const rows=finalizedLiveRaceRows(gs);
+  assert.equal(rows.filter((row)=>row.retired).length,1);
+  const retired=rows.find((row)=>row.retired);
+  assert.equal(retired.retirement_reason,"Engine");
+  assert.equal(retired.incident_lap,9);
+  assert.equal(retired.laps_completed,9);
+  assert.equal(rows.filter((row)=>!row.retired).every((row)=>row.status==="Finished"),true);
 });
