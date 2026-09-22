@@ -32,11 +32,24 @@ function yearFrom(value){
 }
 
 function ageForYear(driver,year){
+  const dob=String(pick(driver,["dob","date_of_birth","birthdate","birth_date"],""));
+  const match=dob.match(/^(\d{4})(?:-(\d{2})-(\d{2}))?/);
+  if(match){
+    const born=Number(match[1]);
+    if(Number.isFinite(born)){
+      let age=Number(year)-born;
+      // Opening State is the January 1 world. When month/day are known, a
+      // birthday later in the year has not happened yet.
+      if(match[2]&&match[3]){
+        const month=Number(match[2]);
+        const day=Number(match[3]);
+        if(month>1||(month===1&&day>1))age-=1;
+      }
+      return Math.max(0,age);
+    }
+  }
   const explicit=Number(driver?.age);
-  if(Number.isFinite(explicit))return explicit;
-  const dob=pick(driver,["dob","date_of_birth","birthdate","birth_date"],"");
-  const born=yearFrom(dob);
-  return Number.isFinite(born)?Number(year)-born:null;
+  return Number.isFinite(explicit)?explicit:null;
 }
 
 export function openingStateYear(row){
