@@ -22,6 +22,12 @@ function advanceTo(gs,target){
     next=advanceLiveRace(next,{gp,laps:Math.max(1,target-current)});
     guard+=1;
   }
+  if(next?.raceWeekendState?.live_race?.status==="red_flag"){
+    next=resumeLiveRace(next);
+    if(Number(next?.raceWeekendState?.live_race?.current_lap||0)>=Number(next?.raceWeekendState?.live_race?.total_laps||Infinity)){
+      next=advanceLiveRace(next,{gp,laps:1});
+    }
+  }
   return next;
 }
 
