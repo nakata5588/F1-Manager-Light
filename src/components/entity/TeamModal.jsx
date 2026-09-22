@@ -1,5 +1,5 @@
 // src/components/entity/TeamModal.jsx
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -69,10 +69,16 @@ function findByTeamAndYear(list, idStr, year) {
 }
 
 /* ===================== COMPONENT ===================== */
-export default function TeamModal({ entity, onClose }) {
-  const setTab   = useModalStore((s) => s.setTab);
-  const rawTab   = entity.tab || "overview";
-  const activeTab = ["overview","staff","car","hq","history"].includes(rawTab) ? rawTab : "overview";
+export default function TeamModal({ entity, onClose, pageMode = false }) {
+  const modalSetTab = useModalStore((s) => s.setTab);
+  const rawTab = entity.tab || "overview";
+  const initialTab = ["overview","staff","car","hq","history"].includes(rawTab) ? rawTab : "overview";
+  const [pageTab,setPageTab] = useState(initialTab);
+  const activeTab = pageMode ? pageTab : initialTab;
+  const setTab = (tab) => {
+    if(pageMode) setPageTab(tab);
+    else modalSetTab(tab);
+  };
 
   const idStr = String(entity.id);
   const gs    = useGame((s) => s.gameState);
@@ -200,7 +206,7 @@ export default function TeamModal({ entity, onClose }) {
       <div className="p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Team not found</h3>
-          <button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18}/></button>
+          {!pageMode && <button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18}/></button>}
         </div>
         <p className="text-sm text-gray-500">ID: {entity.id}</p>
       </div>
@@ -250,7 +256,7 @@ export default function TeamModal({ entity, onClose }) {
   );
 
   return (
-    <div className="flex h-[92vh] flex-col">
+    <div className={`flex flex-col ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border bg-white shadow-xl" : "h-[92vh]"}`}>
       {/* HEADER */}
       <div className="px-5 py-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -305,9 +311,11 @@ export default function TeamModal({ entity, onClose }) {
             </div>
           </div>
         </div>
-        <button onClick={onClose} className="p-2 rounded hover:bg-gray-100" aria-label="Close">
-          <X size={18} />
-        </button>
+        {!pageMode && (
+          <button onClick={onClose} className="p-2 rounded hover:bg-gray-100" aria-label="Close">
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* TABS */}
