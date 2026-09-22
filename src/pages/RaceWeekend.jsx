@@ -867,7 +867,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {activeWindow==="classification"&&weekend.phase==="results"&&(
+    {activeWindow==="classification"&&["results","completed"].includes(String(weekend.phase))&&(
       <div className="rounded-xl border border-white/10 bg-[#0b0e14] shadow-xl overflow-hidden">
         {(()=>{
           const rows=Array.isArray(lastResult?.classification)?lastResult.classification:[];
@@ -990,20 +990,16 @@ export default function RaceWeekend(){
 
             <div className="p-4 border-t border-white/10 flex flex-wrap gap-2">
               <button className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm hover:bg-white/10" onClick={()=>navigate("/Results")}>Open Full Results</button>
-              <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={advanceSession}>
-                {busy?"Advancing…":"Continue after Grand Prix"}
-              </button>
+              {weekend.phase==="results"
+                ?<button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={advanceSession}>
+                  {busy?"Advancing…":"Continue after Grand Prix"}
+                </button>
+                :<button className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold" onClick={()=>navigate("/Home")}>Return Home</button>}
             </div>
           </>;
         })()}
       </div>
     )}
 
-    {activeWindow==="classification"&&weekend.phase==="completed"&&(
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
-        <h3 className="font-semibold">Weekend Complete</h3>
-        <button className="mt-3 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm" onClick={()=>navigate("/Home")}>Return Home</button>
-      </div>
-    )}
   </div>;
 }
