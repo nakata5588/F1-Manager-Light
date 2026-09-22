@@ -7,6 +7,7 @@ import { expectedDriverSalary } from "../domain/driverContracts.js";
 import { openingMarketLabel } from "../domain/driverOpeningState.js";
 import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
+import { driverKnowledgeState, presentDriverKnowledgeValue } from "../domain/driverKnowledge.js";
 import {
   acceptCounterOffer,
   acceptTransferCounter,
@@ -142,7 +143,14 @@ export default function Drivers(){
       :{canNegotiate:false,reason:"no_team",roles:[]};
     const tid=teamIdOf(contract)||teamIdOf(d);
     const ms=marketStatus(d,contract,pending,activeYear);
-    const overallView=driverOverallPresentation(gs,d);
+    const overallBase=driverOverallPresentation(gs,d);
+    const knowledge=driverKnowledgeState(gs,d);
+    const overallView=presentDriverKnowledgeValue(
+      knowledge,
+      "current_ability",
+      overallBase.value,
+      {kind:"ability",estimated:overallBase.estimated}
+    );
     const role=contract?contractRoleLabel(contract):(pending?.offer?.role||pending?.personal_offer?.role||null);
     const contractSalary=contract?Number(pick(contract,["salary","salary_yearly"],0))||0:0;
     const pendingSalary=pending?Number(pending?.offer?.salary||pending?.personal_offer?.salary||0)||0:0;
@@ -153,8 +161,10 @@ export default function Drivers(){
       nationality:pick(d,["country_name","nationality","country"],"—"),
       country_code:pick(d,["country_code","nationality_code"],""),
       age:d?.age??ageOn(gs?.currentDateISO,d?.birthdate??d?.dob),
-      overall:overallView.value,
-      overall_estimated:overallView.estimated,
+      overall:overallView.label,
+      overall_sort:overallView.sortValue,
+      overall_visibility:overallView.visibility,
+      knowledge,
       role,
       wage:contractSalary||pendingSalary||0,
       wage_source:contractSalary?"contract":(pendingSalary?"offer":null),
@@ -183,7 +193,11 @@ export default function Drivers(){
   },[rows,q,team,status]);
 
   const sorted=useMemo(()=>[...filtered].sort((a,b)=>{
-    const av=a[sortKey],bv=b[sortKey],an=Number(av),bn=Number(bv);
+    const av=sortKey==="overall"?a.overall_sort:a[sortKey];
+    const bv=sortKey==="overall"?b.overall_sort:b[sortKey];
+    if(av==null&&bv!=null)return sortDir==="asc"?1:-1;
+    if(av!=null&&bv==null)return sortDir==="asc"?-1:1;
+    const an=Number(av),bn=Number(bv);
     const cmp=(av!=="—"&&bv!=="—"&&Number.isFinite(an)&&Number.isFinite(bn))?an-bn:String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"});
     return sortDir==="asc"?cmp:-cmp;
   }),[filtered,sortKey,sortDir]);
@@ -357,8 +371,9 @@ export default function Drivers(){
           </div>
         </td>
         <td className="px-4 py-2">{d.age??"—"}</td>
-        <td className="px-4 py-2 font-semibold" title={d.overall_estimated?"Estimated from available market/career information":"Rated overall"}>
-          {d.overall_estimated?"~":""}{d.overall}
+        <td className="px-4 py-2">
+          <div className="font-semibold" title={d.knowledge?.label||"Driver knowledge"}>{d.overall}</div>
+          <div className="text-[10px] text-gray-500">{d.knowledge?.label||"Unscouted"}</div>
         </td>
         <td className="px-4 py-2">
           {d.wage?(
