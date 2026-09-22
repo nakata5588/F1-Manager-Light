@@ -19,6 +19,7 @@ import {
 import { isRaceDriverContract } from "@/domain/contractRoles.js";
 import { componentGroup, componentLabel } from "@/domain/carComponents.js";
 import { fitPhysicalPartUnit, inventoryCountForDesign, normalizePhysicalPartState, removePhysicalPartUnit, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
+import { activeWorkshopJobFor, activeWorkshopJobs, partUnitRestoreQuote, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "@/domain/componentService.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const nice=(s)=>String(s||"").replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase());
@@ -263,22 +264,40 @@ export default function Car(){
     return true;
   };
 
-  const buildStandardSpare=(slot)=>{
-    const cost=baseComponentConstructionCost(gs,slot);
-    const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
-    if(oldBudget<cost)return;
-    const stock={...baseStock,[slot]:Number(baseStock?.[slot]||0)+1};
-    const oldBalance=Number(gs?.finances?.balance??oldBudget);
-    setGameState({
-      team:{...(gs?.team||{}),budget:oldBudget-cost},
-      finances:{...(gs?.finances||{}),budget:oldBudget-cost,balance:oldBalance-cost,season_spend:Number(gs?.finances?.season_spend||0)+cost},
-      garage:{...syncedGarage,baseComponentStock:stock},
-      financeLog:[...(gs?.financeLog||[]),{
-        id:`tx_component_stock_${Date.now()}`,
-        dateISO:String(gs?.currentDateISO||"").slice(0,10),
-        type:"expense",category:"Car Components",desc:`Construct standard spare — ${nice(slot)}`,amount:-cost,
-      }],
+  const startWorkshopJob=(quote,title)=>{
+    if(!quote||!currentDateISO)return false;
+    const budget=Number(gs?.team?.budget??gs?.finances?.balance??0);
+    if(budget<Number(quote.cost||0))return false;
+    if(!spend(quote.cost,title))return false;
+    const next=queueWorkshopJob(carState,quote,{
+      id:`workshop_${Date.now()}`,
+      title,
+      startedAt:currentDateISO,
     });
+    setGameState({
+      garage:next?.garage,
+      development:next?.development||carState?.development,
+    });
+    return true;
+  };
+
+  const buildStandardSpare=(slot)=>{
+    const quote=standardBuildQuote(carState,slot);
+    startWorkshopJob(quote,`Build standard spare — ${componentLabel(carState,slot)}`);
+  };
+
+  const restoreStandardComponent=(car,slot)=>{
+    if(car?.installedParts?.[slot])return;
+    const condition=componentConditionForCar(carState,car,slot);
+    if(condition>=99.5)return;
+    const quote=standardRestoreQuote(carState,slot,condition,{carId:car.id});
+    startWorkshopJob(quote,`Restore — ${componentLabel(carState,slot)} · ${car.label}`);
+  };
+
+  const restoreDevelopedUnit=(part,unit)=>{
+    if(!part||!unit||Number(unit?.condition??100)>=99.5)return;
+    const quote=partUnitRestoreQuote(carState,unit.id);
+    startWorkshopJob(quote,`Restore ${part.name||part.version||componentLabel(carState,part.slot)} · ${unit.id}`);
   };
 
   const replaceBaseComponent=(car,slot)=>{
@@ -286,37 +305,30 @@ export default function Car(){
     const before=componentConditionForCar(carState,car,slot);
     if(before>=99.5)return;
     const stockCount=Number(baseStock?.[slot]||0);
-    const cost=baseComponentConstructionCost(gs,slot);
-    const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
-    if(stockCount<=0&&oldBudget<cost)return;
+
+    if(stockCount<=0){
+      const quote=standardBuildQuote(carState,slot,{fitCarId:car.id});
+      startWorkshopJob(quote,`Build & fit — ${componentLabel(carState,slot)} · ${car.label}`);
+      return;
+    }
 
     const nextStock={...baseStock,[slot]:Math.max(0,stockCount-1)};
     const nextCars=cars.map((c)=>c.id!==car.id?c:{...c,componentCondition:{...(c.componentCondition||{}),[slot]:100}});
-    const patch={
+    setGameState({
       garage:{...syncedGarage,baseComponentStock:nextStock,cars:nextCars},
       componentServiceLog:[{
         date:String(gs?.currentDateISO||"").slice(0,10),car_id:car.id,slot,
         condition_before:Number(before.toFixed(1)),condition_after:100,
-        action:stockCount>0?"replace_from_stock":"construct_and_replace",
-        cost:stockCount>0?0:cost,
-      },...(Array.isArray(gs?.componentServiceLog)?gs.componentServiceLog:[])].slice(0,200),
-    };
-    if(stockCount<=0){
-      const oldBalance=Number(gs?.finances?.balance??oldBudget);
-      patch.team={...(gs?.team||{}),budget:oldBudget-cost};
-      patch.finances={...(gs?.finances||{}),budget:oldBudget-cost,balance:oldBalance-cost,season_spend:Number(gs?.finances?.season_spend||0)+cost};
-      patch.financeLog=[...(gs?.financeLog||[]),{
-        id:`tx_component_fit_${Date.now()}`,
-        dateISO:String(gs?.currentDateISO||"").slice(0,10),
-        type:"expense",category:"Car Components",desc:`Construct & fit — ${nice(slot)} · ${car.label}`,amount:-cost,
-      }];
-    }
-    setGameState(patch);
+        action:"replace_from_stock",
+        cost:0,
+      },...(Array.isArray(gs?.componentServiceLog)?gs.componentServiceLog:[])].slice(0,300),
+    });
   };
 
   const availableParts=parts.filter((p)=>inventoryCountForDesign(carState,p.id)>0);
   const activeProjects=projects.filter((p)=>p.status==="active"||p.status==="paused");
   const activeManufacturing=manufacturing.filter((m)=>m.status==="active");
+  const workshop=activeWorkshopJobs(carState);
   const setView=(nextView,extra={})=>{
     const next=new URLSearchParams(searchParams);
     next.set("view",nextView);
@@ -411,23 +423,37 @@ export default function Car(){
       </div>
       <div className="xl:col-span-4 space-y-4">
         <PerformancePanel ranking={ranking} teamId={teamId} perf={myRank} title="Team Car Performance"/>
-        <Panel title="Technical Summary"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/><Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/><Metric label="Active projects" value={activeProjects.length}/><Metric label="Manufacturing" value={activeManufacturing.length}/><Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/><Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/></div></Panel>
+        <Panel title="Technical Summary"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/><Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/><Metric label="Active projects" value={activeProjects.length}/><Metric label="Manufacturing" value={activeManufacturing.length}/><Metric label="Workshop" value={workshop.length}/><Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/><Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/></div></Panel>
       </div>
     </div>}
 
     {view==="car"&&selectedCar&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
       <Panel title={(selectedCar.label||"Car")+" · Components"} className="xl:col-span-8" action={<div className="flex gap-1"><button onClick={()=>setCarGroup("aero")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(selectedGroup==="aero"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Aerodynamics</button><button onClick={()=>setCarGroup("mechanical")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(selectedGroup==="mechanical"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Mechanical</button></div>}>
         <div className="divide-y divide-white/10">{visibleComponents.map((row)=>{
-          const stocked=parts.find((p)=>String(p.slot)===row.slot&&Number(p.inv||0)>0);
+          const stocked=parts.find((p)=>String(p.slot)===row.slot&&inventoryCountForDesign(carState,p.id)>0);
           const standardStock=Number(baseStock?.[row.slot]||0);
-          const buildCost=baseComponentConstructionCost(gs,row.slot);
+          const buildQuote=standardBuildQuote(carState,row.slot);
+          const restoreQuote=standardRestoreQuote(carState,row.slot,row.condition,{carId:selectedCar.id});
+          const activeCarJob=activeWorkshopJobFor(carState,{carId:selectedCar.id,slot:row.slot});
+          const activeSpareJob=activeWorkshopJobFor(carState,{slot:row.slot,kind:"build_standard_spare"});
+          const restorable=parts
+            .filter((p)=>String(p.slot)===row.slot)
+            .flatMap((p)=>warehousePartUnitsForDesign(carState,p.id).map((unit)=>({part:p,unit})))
+            .filter(({unit})=>Number(unit?.condition??100)<99.5)
+            .sort((a,b)=>Number(a.unit?.condition??100)-Number(b.unit?.condition??100))[0]||null;
+          const restorableQuote=restorable?partUnitRestoreQuote(carState,restorable.unit.id):null;
           return <div key={row.slot} className="p-3 grid grid-cols-[40px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)_100px_150px] gap-3 items-center">
             <div className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
             <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
             <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">condition</div></div>
             <div className="col-span-2 md:col-span-1 flex md:flex-col gap-1.5">
-              {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
-              {row.installed?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>:row.condition<99.5?<Button size="sm" variant="darkOutline" disabled={standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<buildCost} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Construct & fit"}</Button>:<Button size="sm" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<buildCost} onClick={()=>buildStandardSpare(row.slot)}>Build spare</Button>}
+              {activeCarJob?<div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-[10px] text-cyan-200">Workshop · {activeCarJob.finishes_at}</div>:null}
+              {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)} disabled={Boolean(activeCarJob)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
+              {row.installed?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)} disabled={Boolean(activeCarJob)}>Remove</Button>:row.condition<99.5?<>
+                <Button size="sm" variant="darkOutline" disabled={Boolean(activeCarJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restoreQuote.cost||0)} onClick={()=>restoreStandardComponent(selectedCar,row.slot)}>Restore · {restoreQuote.days}d</Button>
+                <Button size="sm" variant="darkOutline" disabled={Boolean(activeCarJob)||(standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0))} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Build & fit · "+buildQuote.days+"d"}</Button>
+              </>:<Button size="sm" variant="darkOutline" disabled={Boolean(activeSpareJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0)} onClick={()=>buildStandardSpare(row.slot)}>{activeSpareJob?"Spare building":"Build spare · "+buildQuote.days+"d"}</Button>}
+              {restorable&&restorableQuote?<Button size="sm" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restorableQuote.cost||0)} onClick={()=>restoreDevelopedUnit(restorable.part,restorable.unit)}>Restore {restorable.part.version||"part"} · {Number(restorable.unit.condition||0).toFixed(0)}% · {restorableQuote.days}d</Button>:null}
             </div>
           </div>;
         })}</div>
