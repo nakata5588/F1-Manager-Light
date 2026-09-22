@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BarChart3, CarFront, Factory, Package, Settings2, TriangleAlert } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BarChart3, CarFront, CircleDot, Factory, Gauge, Settings2, TriangleAlert, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { DriverPortrait, TeamLogo } from "@/components/entity/EntityVisuals.jsx";
@@ -8,12 +8,15 @@ import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerforman
 import Development from "@/pages/Development.jsx";
 import {
   CAR_COMPONENT_SLOTS,
+  activeDriverContracts,
+  driverIdOf,
   baseComponentConstructionCost,
   componentConditionForCar,
   componentConditionStatus,
   installedPartsForCar,
   syncGarageState,
 } from "@/domain/garage";
+import { isRaceDriverContract } from "@/domain/contractRoles.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const nice=(s)=>String(s||"").replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase());
@@ -53,6 +56,20 @@ const COMPONENT_GROUPS={
   aero:["chassis","aero_front","aero_rear","suspension"],
   mechanical:["gearbox","brakes","cooling","turbocharger"],
 };
+const PART_ICON_BY_SLOT={
+  chassis:CarFront,
+  aero_front:Activity,
+  aero_rear:Activity,
+  suspension:Wrench,
+  gearbox:Settings2,
+  brakes:CircleDot,
+  cooling:Activity,
+  turbocharger:Gauge,
+};
+function PartIcon({slot}){
+  const Icon=PART_ICON_BY_SLOT[slot]||Settings2;
+  return <Icon className="h-5 w-5 text-slate-300"/>;
+}
 function daysBetween(a,b){
   if(!a||!b)return null;
   const x=Date.parse(String(a).slice(0,10)+"T00:00:00Z");
@@ -68,14 +85,23 @@ function projectProgress(project,currentDateISO){
   if(!Number.isFinite(total)||total<=0||!Number.isFinite(remain))return 0;
   return Math.max(0,Math.min(100,((total-remain)/total)*100));
 }
-function metricRank(ranking,teamId,perf,key){
-  const rows=ranking.map((row)=>String(row.team_id)===String(teamId)?{...row,[key]:Number(perf?.[key]??row?.[key]??0)}:row);
-  const sorted=[...rows].sort((a,b)=>Number(b?.[key]||0)-Number(a?.[key]||0));
-  const idx=sorted.findIndex((row)=>String(row.team_id)===String(teamId));
+function isTargetPerformanceRow(row,teamId,driverId=null){
+  if(String(row?.team_id??"")!==String(teamId??""))return false;
+  if(driverId==null||driverId==="")return true;
+  return String(row?.driver_id??"")===String(driverId);
+}
+function metricRank(ranking,teamId,perf,key,driverId=null){
+  const rows=ranking.map((row)=>isTargetPerformanceRow(row,teamId,driverId)?{...row,[key]:Number(perf?.[key]??row?.[key]??0)}:row);
+  const sorted=[...rows].sort((a,b)=>
+    Number(b?.[key]||0)-Number(a?.[key]||0) ||
+    String(a?.team_id??"").localeCompare(String(b?.team_id??"")) ||
+    String(a?.driver_id??"").localeCompare(String(b?.driver_id??""))
+  );
+  const idx=sorted.findIndex((row)=>isTargetPerformanceRow(row,teamId,driverId));
   return idx>=0?idx+1:null;
 }
-function metricAverage(ranking,teamId,perf,key){
-  const vals=ranking.map((row)=>Number(String(row.team_id)===String(teamId)?perf?.[key]??row?.[key]:row?.[key])).filter(Number.isFinite);
+function metricAverage(ranking,teamId,perf,key,driverId=null){
+  const vals=ranking.map((row)=>Number(isTargetPerformanceRow(row,teamId,driverId)?perf?.[key]??row?.[key]:row?.[key])).filter(Number.isFinite);
   return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
 }
 function ProgressLine({value,warn=false}){
@@ -87,13 +113,13 @@ function StatusPill({status,condition}){
   const cls=key==="failing"||key==="critical"?"border-rose-400/30 bg-rose-400/10 text-rose-300":key==="degraded"||key==="worn"?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/20 bg-emerald-300/10 text-emerald-300";
   return <span className={"inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase "+cls}>{condition<60?<TriangleAlert className="h-3 w-3"/>:null}{status?.label||nice(key)}</span>;
 }
-function PerformancePanel({ranking,teamId,perf,title="Car Performance"}){
+function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performance"}){
   return <Panel title={title}><div className="p-4 space-y-3">
     {PERFORMANCE_METRICS.map(([key,label])=>{
       const value=Number(perf?.[key]||0);
-      const avg=metricAverage(ranking,teamId,perf,key);
+      const avg=metricAverage(ranking,teamId,perf,key,driverId);
       const delta=value-avg;
-      const rank=metricRank(ranking,teamId,perf,key);
+      const rank=metricRank(ranking,teamId,perf,key,driverId);
       return <div key={key}>
         <div className="grid grid-cols-[1fr_auto_auto] gap-3 text-sm items-center"><span className="text-slate-400">{label}</span><strong className="tabular-nums">{value.toFixed(1)}</strong><span className={"w-10 text-right text-xs "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span></div>
         <div className="mt-1.5 flex items-center gap-2"><div className="flex-1"><ProgressLine value={value} warn={delta<-5}/></div><span className={"w-14 text-right text-[10px] "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span></div>
@@ -129,6 +155,33 @@ export default function Car(){
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
   const ranking=useMemo(()=>carPerformanceRanking({...gs,garage:syncedGarage}),[gs,syncedGarage]);
   const myRank=ranking.find((r)=>String(r.team_id)===teamId);
+  const carGrid=useMemo(()=>{
+    const state={...gs,garage:syncedGarage};
+    return (gs?.teams||[]).flatMap((team)=>{
+      const tid=String(team?.team_id??team?.id??"");
+      if(!tid)return [];
+      const raceContracts=activeDriverContracts(state,tid).filter(isRaceDriverContract);
+      if(!raceContracts.length){
+        return [{
+          ...teamCarPerformance(state,tid),
+          team_id:tid,
+          team_name:team?.team_name||team?.name||tid,
+          driver_id:null,
+          car_slot:1,
+        }];
+      }
+      return raceContracts.map((contract,index)=>{
+        const did=driverIdOf(contract)||null;
+        return {
+          ...teamCarPerformance(state,tid,did),
+          team_id:tid,
+          team_name:team?.team_name||team?.name||tid,
+          driver_id:did,
+          car_slot:index+1,
+        };
+      });
+    });
+  },[gs,syncedGarage]);
   const cars=syncedGarage?.cars||[];
   const raceCars=cars.filter((c)=>c.kind!=="reserve");
   const viewRaw=searchParams.get("view")||"overview";
@@ -281,7 +334,7 @@ export default function Car(){
           {view==="overview"?<CarFront className="h-5 w-5"/>:<ArrowLeft className="h-4 w-4"/>}
         </button>
         <TeamLogo teamId={teamId} name={teamName} size="h-10 w-10" className="p-0.5"/>
-        <div className="min-w-0"><div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1></div>
+        <div className="min-w-0"><div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>{view==="car"?<div className="text-xs text-slate-400 truncate">Assigned to <span className="text-slate-200 font-medium">{selectedDriver?.display_name||selectedDriver?.name||"No driver assigned"}</span></div>:null}</div>
       </div>
       <div className="flex-1"/>
       <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-white/10 bg-[#0d0f15] p-1">
@@ -348,7 +401,7 @@ export default function Car(){
           const standardStock=Number(baseStock?.[row.slot]||0);
           const buildCost=baseComponentConstructionCost(gs,row.slot);
           return <div key={row.slot} className="p-3 grid grid-cols-[40px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)_100px_150px] gap-3 items-center">
-            <div className="h-9 w-9 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><Settings2 className="h-4 w-4 text-slate-400"/></div>
+            <div className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
             <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{nice(row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
             <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">condition</div></div>
             <div className="col-span-2 md:col-span-1 flex md:flex-col gap-1.5">
@@ -358,7 +411,7 @@ export default function Car(){
           </div>;
         })}</div>
       </Panel>
-      <div className="xl:col-span-4 space-y-4"><PerformancePanel ranking={ranking} teamId={teamId} perf={selectedPerf}/><Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel></div>
+      <div className="xl:col-span-4 space-y-4"><PerformancePanel ranking={carGrid} teamId={teamId} perf={selectedPerf} driverId={selectedCar?.driver_id}/><Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel></div>
     </div>}
 
     {view==="analysis"&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
@@ -368,7 +421,7 @@ export default function Car(){
         return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"w-full rounded-lg border p-3 flex items-center gap-3 text-left "+(active?"border-white/30 bg-[#1b1e28]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-12 w-12"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-xs text-cyan-300">Selected</span>:null}</button>;
       })}<div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">Uses the same performance model as the simulation. No unsupported F1 Manager-only metrics are invented.</div></div></Panel>
       <Panel title="Car vs Grid Average" className="xl:col-span-8"><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
-        const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(ranking,teamId,selectedPerf,key); const delta=value-avg; const rank=metricRank(ranking,teamId,selectedPerf,key);
+        const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id); const delta=value-avg; const rank=metricRank(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id);
         return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
       })}</tbody></table></div></Panel>
     </div>}
