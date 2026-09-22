@@ -158,6 +158,10 @@ test("manufacturing creates distinct physical units and fitting moves one out of
   assert.equal(inventoryCountForDesign(next,"RW1"),2);
   assert.equal(next.development.parts[0].inv,2);
 
+  const sameBatch=createManufacturedPartUnits(next,{designId:"RW1",qty:2,batchId:"B1",manufacturedAt:"1980-02-01"});
+  assert.equal(partUnitsForDesign(sameBatch,"RW1").length,2,"reprocessing the same completed batch must not duplicate physical units");
+  next=sameBatch;
+
   next=fitPhysicalPartUnit(next,{carId:"car_1",slot:"aero_rear",designId:"RW1"});
   assert.equal(inventoryCountForDesign(next,"RW1"),1);
   const fittedId=next.garage.cars.find((car)=>car.id==="car_1").installedParts.aero_rear;
