@@ -4,7 +4,8 @@ import { Link } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { useEventStore } from "../state/EventStore.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
-import { driverContractsOf, driverLineupSlots, driverIdOf } from "../domain/driverContracts.js";
+import { activeDriverContracts, driverContractsOf, driverLineupSlots, driverIdOf } from "../domain/driverContracts.js";
+import { activeStaffContracts } from "../domain/liveContracts.js";
 import { driverRoleLabelForSlot } from "../domain/contractRoles.js";
 import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
@@ -12,6 +13,7 @@ import { upcomingManagementEvents, daysBetweenISO } from "../domain/managementEv
 
 const firstArray=(...candidates)=>candidates.find(Array.isArray)||[];
 const num=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const unwrap=(value)=>value&&typeof value==="object"&&!Array.isArray(value)?(value.result??value.value??value):value;
 
 function fmtMoney(value){
   const amount=Number(value);
@@ -125,6 +127,26 @@ export default function Home(){
     const seasonNet=financeLog
       .filter((row)=>String(row?.dateISO??row?.date??"").slice(0,4)===yearKey)
       .reduce((sum,row)=>sum+financeAmount(row),0);
+
+    const driverWages=activeDriverContracts(gameState,{teamId})
+      .reduce((sum,row)=>sum+num(unwrap(row?.salary??row?.salary_yearly),0),0);
+    const staffWages=activeStaffContracts(gameState,{teamId})
+      .reduce((sum,row)=>sum+num(unwrap(row?.salary??row?.salary_yearly),0),0);
+    const wageBill=driverWages+staffWages;
+
+    const sponsorRows=(Array.isArray(gameState.sponsorsContracts)&&gameState.sponsorsContracts.length
+      ?gameState.sponsorsContracts
+      :(gameState.dbSponsorsContracts||[]))
+      .filter((row)=>String(unwrap(row?.team_id??row?.team??row?.constructor_id??""))===teamId)
+      .filter((row)=>{
+        const start=num(unwrap(row?.start_year??row?.year),Number(yearKey));
+        const end=num(unwrap(row?.end_year??row?.until_year),start);
+        const status=String(unwrap(row?.status??"active")).toLowerCase();
+        return Number(yearKey)>=start&&Number(yearKey)<=end&&!["expired","terminated"].includes(status);
+      });
+    const sponsorIncome=sponsorRows.reduce((sum,row)=>
+      sum+num(unwrap(row?.anual_income??row?.annual_income??row?.value_year),0),0
+    );
     const board=gameState.board||{};
     const objectives=Array.isArray(board.objectives)?board.objectives:[];
     const lowComponents=[];
@@ -134,7 +156,7 @@ export default function Home(){
       }
     }
 
-    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,finance,monthlyNet,seasonNet,board,objectives,lowComponents,inbox};
+    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,finance,monthlyNet,seasonNet,driverWages,staffWages,wageBill,sponsorRows,sponsorIncome,board,objectives,lowComponents,inbox};
   },[gameState,eventNews]);
 
   if(!gameState||!data){
@@ -232,6 +254,9 @@ export default function Home(){
           <OverviewRow label="Current balance" value={fmtMoney(data.finance.balance??data.finance.cash??data.finance.bank)}/>
           <OverviewRow label="This month" value={fmtMoney(data.finance.monthlyBalance??data.finance.monthly_balance??data.finance.monthly??data.monthlyNet)}/>
           <OverviewRow label="Season net" value={fmtMoney(data.finance.season_net??data.seasonNet)}/>
+          <OverviewRow label="Sponsor income / year" value={fmtMoney(data.sponsorIncome)}/>
+          <OverviewRow label="Annual wage bill" value={fmtMoney(data.wageBill)}/>
+          <OverviewRow label="Active sponsors" value={data.sponsorRows.length}/>
         </div>
       </Panel>
 
