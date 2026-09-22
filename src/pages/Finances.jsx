@@ -295,6 +295,9 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
     0
   );
   const salaryYear = salaries.reduce((s, r) => s + (r.yearly || 0), 0);
+  const driverSalaryYear = salaries.filter((r)=>r.kind==="driver").reduce((s,r)=>s+(r.yearly||0),0);
+  const staffSalaryYear = salaries.filter((r)=>r.kind==="staff").reduce((s,r)=>s+(r.yearly||0),0);
+  const activeSponsors = sponsors.filter((s)=>s.status==="active").length;
 
   const monthlyBurn =
     salaries.reduce((s, r) => s + (r.monthly || 0), 0) -
@@ -305,23 +308,25 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
   return (
     <>
       {/* Snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
         <Stat title="Budget / Balance" value={fmtMoney(fin.budget || fin.balance)} />
+        <Stat title="Season Net" value={fmtMoney((fin.season_income - fin.season_spend) || lastNet)} />
+        <Stat title="Sponsor value / year" value={fmtMoney(sponsorEstYear)} />
+        <Stat title="Annual wage bill" value={fmtMoney(salaryYear)} />
         <Stat title="Weekly Burn" value={fmtMoney((monthlyBurn || 0) / 4)} />
         <Stat title="Runway" value={runwayMonths != null ? `${runwayMonths} months` : "—"} />
-        <Stat title="Season Net (CF est.)" value={fmtMoney((fin.season_income - fin.season_spend) || lastNet)} />
       </div>
 
       {/* Mini sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Card>
+        <Card className="bg-[#12141c] border-white/10 text-slate-100">
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground mb-1">Latest Cashflow</div>
+            <div className="text-sm text-slate-400 mb-1">Latest Cashflow</div>
             {last3.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No cashflow data.</div>
+              <div className="text-sm text-slate-400">No cashflow data.</div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-muted/60">
+                <thead className="bg-[#171a23] text-slate-300">
                   <tr className="text-left">
                     <th className="px-3 py-2">Month</th>
                     <th className="px-3 py-2 text-right">Income</th>
@@ -335,7 +340,7 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
                       <td className="px-3 py-2">{m.month}</td>
                       <td className="px-3 py-2 text-right">{fmtMoney(m.income)}</td>
                       <td className="px-3 py-2 text-right">{fmtMoney(m.expense)}</td>
-                      <td className={`px-3 py-2 text-right ${m.net >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      <td className={`px-3 py-2 text-right ${m.net >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                         {fmtMoney(m.net)}
                       </td>
                     </tr>
@@ -346,12 +351,14 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-[#12141c] border-white/10 text-slate-100">
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground mb-1">This Season (est.)</div>
+            <div className="text-sm text-slate-400 mb-1">This Season (est.)</div>
             <div className="grid grid-cols-2 gap-2">
+              <Mini stat="Active sponsors" val={activeSponsors} />
               <Mini stat="Sponsor (est.)" val={fmtMoney(sponsorEstYear)} />
-              <Mini stat="Salaries (est.)" val={fmtMoney(salaryYear)} />
+              <Mini stat="Driver wages" val={fmtMoney(driverSalaryYear)} />
+              <Mini stat="Staff wages" val={fmtMoney(staffSalaryYear)} />
               <Mini stat="Spend (reported)" val={fmtMoney(fin.season_spend)} />
               <Mini stat="Income (reported)" val={fmtMoney(fin.season_income)} />
             </div>
@@ -365,17 +372,17 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
 function CashflowTab({ cashflow }) {
   if (!cashflow.length) {
     return (
-      <Card>
-        <CardContent className="p-4 text-sm text-muted-foreground">No cashflow data.</CardContent>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
+        <CardContent className="p-4 text-sm text-slate-400">No cashflow data.</CardContent>
       </Card>
     );
   }
   const maxAbs = Math.max(1, ...cashflow.map((m) => Math.abs(m.net)));
   return (
-    <Card>
+    <Card className="bg-[#12141c] border-white/10 text-slate-100">
       <CardContent className="p-4">
         <table className="w-full text-sm">
-          <thead className="bg-muted/60">
+          <thead className="bg-[#171a23] text-slate-300">
             <tr className="text-left">
               <th className="px-3 py-2">Month</th>
               <th className="px-3 py-2 text-right">Income</th>
@@ -388,15 +395,15 @@ function CashflowTab({ cashflow }) {
             {cashflow.map((m, i) => {
               const w = Math.round((Math.abs(m.net) / maxAbs) * 100);
               return (
-                <tr key={i} className="border-t">
+                <tr key={i} className="border-t border-white/10">
                   <td className="px-3 py-2">{m.month}</td>
                   <td className="px-3 py-2 text-right">{fmtMoney(m.income)}</td>
                   <td className="px-3 py-2 text-right">{fmtMoney(m.expense)}</td>
-                  <td className={`px-3 py-2 text-right ${m.net >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                  <td className={`px-3 py-2 text-right ${m.net >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                     {fmtMoney(m.net)}
                   </td>
                   <td className="px-3 py-2">
-                    <div className="h-2 w-full bg-muted/40 rounded">
+                    <div className="h-2 w-full bg-white/10 rounded">
                       <div
                         className="h-2 rounded"
                         style={{
@@ -717,10 +724,10 @@ function SponsorsTab({ sponsors }) {
 
   return (
     <>
-      <Card>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
         <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex items-center gap-2">
-            <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="border rounded px-2 py-1">
+            <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1">
               <option value="all">All types</option>
               <option value="main">Main</option>
               <option value="secondary">Secondary</option>
@@ -728,7 +735,7 @@ function SponsorsTab({ sponsors }) {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="border rounded px-2 py-1"
+              className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1"
             >
               <option value="all">All</option>
               <option value="active">Active</option>
@@ -736,7 +743,7 @@ function SponsorsTab({ sponsors }) {
               <option value="pending">Pending</option>
               <option value="terminated">Terminated</option>
             </select>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-slate-400">
               {filtered.length} sponsors • Main {activeMains.length}/1 • Secondary {activeSeconds.length}/3 • Commercial Score <strong>{commercialScore}/100</strong>
             </div>
           </div>
@@ -747,13 +754,13 @@ function SponsorsTab({ sponsors }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">No sponsors.</div>
+            <div className="p-4 text-sm text-slate-400">No sponsors.</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-muted/60">
+              <thead className="bg-[#171a23] text-slate-300">
                 <tr className="text-left">
                   <th className="px-3 py-2">Sponsor</th>
                   <th className="px-3 py-2">Type</th>
@@ -769,7 +776,7 @@ function SponsorsTab({ sponsors }) {
               </thead>
               <tbody>
                 {filtered.map((s) => (
-                  <tr key={`${s.sponsor_id}_${s.startYear}`} className="border-t">
+                  <tr key={`${s.sponsor_id}_${s.startYear}`} className="border-t border-white/10">
                     <td className="px-3 py-2">{s.name}</td>
                     <td className="px-3 py-2">{titleCase(s.type)}</td>
                     <td className="px-3 py-2">{titleCase(s.status)}</td>
@@ -779,8 +786,8 @@ function SponsorsTab({ sponsors }) {
                     <td className="px-3 py-2 text-right">{fmtMoney(s.monthly_fee)}</td>
                     <td className="px-3 py-2 text-right">{fmtMoney(s.annual_income)}</td>
                     <td className="px-3 py-2 text-right">{fmtMoney(s.cash_upfront)}</td>
-                    <td className="px-3 py-2 max-w-[240px]"><div>{s.objective_label}</div>{s.relationship_note&&<div className="text-xs text-muted-foreground mt-1">{s.relationship_note}</div>}</td>
-                    <td className="px-3 py-2 text-right"><span className={s.satisfaction<35?"text-rose-700":s.satisfaction<60?"text-amber-700":"text-emerald-700"}>{Math.round(s.satisfaction)}%</span></td>
+                    <td className="px-3 py-2 max-w-[240px]"><div>{s.objective_label}</div>{s.relationship_note&&<div className="text-xs text-slate-400 mt-1">{s.relationship_note}</div>}</td>
+                    <td className="px-3 py-2 text-right"><span className={s.satisfaction<35?"text-rose-300":s.satisfaction<60?"text-amber-300":"text-emerald-300"}>{Math.round(s.satisfaction)}%</span></td>
                     <td className="px-3 py-2 text-right">
                       {fmtMoney(s.bonus_win)} / {fmtMoney(s.bonus_podium)} / {fmtMoney(s.bonus_championship)}
                     </td>
@@ -793,24 +800,24 @@ function SponsorsTab({ sponsors }) {
       </Card>
 
       {negotiating && (
-        <Card><CardContent className="p-4 space-y-4">
+        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-semibold">Sponsor Negotiation — {String(pick(negotiating,["sponsor_name","name"],"Sponsor"))}</div>
-              <div className="text-xs text-muted-foreground">Round {negotiationRound} · Commercial Score {commercialScore}/100</div>
+              <div className="text-xs text-slate-400">Round {negotiationRound} · Commercial Score {commercialScore}/100</div>
             </div>
             <Button size="sm" variant="outline" onClick={()=>{setNegotiating(null);setNegotiationNote("");}}>Walk Away</Button>
           </div>
-          <p className="text-sm text-muted-foreground">{negotiationNote}</p>
+          <p className="text-sm text-slate-400">{negotiationNote}</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-sm">Annual value
-              <input type="number" min="0" step="50000" value={offerAnnual} onChange={(e)=>setOfferAnnual(Number(e.target.value))} className="mt-1 border rounded px-3 py-2 w-full"/>
+              <input type="number" min="0" step="50000" value={offerAnnual} onChange={(e)=>setOfferAnnual(Number(e.target.value))} className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full"/>
             </label>
             <label className="text-sm">Upfront
-              <input type="number" min="0" step="25000" value={offerUpfront} onChange={(e)=>setOfferUpfront(Number(e.target.value))} className="mt-1 border rounded px-3 py-2 w-full"/>
+              <input type="number" min="0" step="25000" value={offerUpfront} onChange={(e)=>setOfferUpfront(Number(e.target.value))} className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full"/>
             </label>
             <label className="text-sm">Win bonus
-              <input type="number" min="0" step="10000" value={offerWinBonus} onChange={(e)=>setOfferWinBonus(Number(e.target.value))} className="mt-1 border rounded px-3 py-2 w-full"/>
+              <input type="number" min="0" step="10000" value={offerWinBonus} onChange={(e)=>setOfferWinBonus(Number(e.target.value))} className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full"/>
             </label>
           </div>
           <div className="flex gap-2">
@@ -821,15 +828,15 @@ function SponsorsTab({ sponsors }) {
       )}
 
       {catalog && (
-        <Card>
+        <Card className="bg-[#12141c] border-white/10 text-slate-100">
           <CardContent className="p-0">
             {catalog.length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground">
+              <div className="p-4 text-sm text-slate-400">
                 No available sponsors (check slot limits or year activity).
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-muted/60">
+                <thead className="bg-[#171a23] text-slate-300">
                   <tr className="text-left">
                     <th className="px-3 py-2">Sponsor</th>
                     <th className="px-3 py-2">Type</th>
@@ -861,7 +868,7 @@ function SponsorsTab({ sponsors }) {
                     const to = pick(sp, ["end_year", "to_year"], "—");
 
                     return (
-                      <tr key={String(pick(sp, ["sponsor_id", "id", "name"]))} className="border-t">
+                      <tr key={String(pick(sp, ["sponsor_id", "id", "name"]))} className="border-t border-white/10">
                         <td className="px-3 py-2">{String(pick(sp, ["sponsor_name", "name"]))}</td>
                         <td className="px-3 py-2">{titleCase(t)}</td>
                         <td className="px-3 py-2">
@@ -874,7 +881,7 @@ function SponsorsTab({ sponsors }) {
                           {fmtMoney(bw)} / {fmtMoney(bp)} / {fmtMoney(bc)}
                         </td>
                         <td className="px-3 py-2 max-w-[260px]">
-                          <span className={eligibility.eligible ? "text-emerald-700" : "text-amber-700"}>{eligibility.text}</span>
+                          <span className={eligibility.eligible ? "text-emerald-300" : "text-amber-300"}>{eligibility.text}</span>
                         </td>
                         <td className="px-3 py-2 text-right">
                           <Button size="sm" disabled={block} onClick={() => startSponsorNegotiation(sp)}>
@@ -901,7 +908,7 @@ function SalariesTab({ salaries }) {
 
   return (
     <>
-      <Card>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat title="Weekly total" value={fmtMoney(totalWeekly)} />
           <Stat title="Monthly total" value={fmtMoney(totalMonthly)} />
@@ -910,13 +917,13 @@ function SalariesTab({ salaries }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
         <CardContent className="p-0">
           {salaries.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">No salaries configured.</div>
+            <div className="p-4 text-sm text-slate-400">No salaries configured.</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-muted/60">
+              <thead className="bg-[#171a23] text-slate-300">
                 <tr className="text-left">
                   <th className="px-3 py-2">Name</th>
                   <th className="px-3 py-2">Role</th>
@@ -927,7 +934,7 @@ function SalariesTab({ salaries }) {
               </thead>
               <tbody>
                 {salaries.map((r) => (
-                  <tr key={`${r.kind}_${r.id}`} className="border-t">
+                  <tr key={`${r.kind}_${r.id}`} className="border-t border-white/10">
                     <td className="px-3 py-2">{r.name}</td>
                     <td className="px-3 py-2">{titleCase(r.role)}</td>
                     <td className="px-3 py-2 text-right">{fmtMoney(r.weekly)}</td>
@@ -974,16 +981,16 @@ function TransactionsTab({ transactions }) {
 
   return (
     <>
-      <Card>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <select value={type} onChange={(e) => setType(e.target.value)} className="border rounded px-2 py-1">
+            <select value={type} onChange={(e) => setType(e.target.value)} className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1">
               <option value="all">All</option>
               <option value="income">Income</option>
               <option value="expense">Expense</option>
             </select>
 
-            <select value={month} onChange={(e) => setMonth(e.target.value)} className="border rounded px-2 py-1">
+            <select value={month} onChange={(e) => setMonth(e.target.value)} className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1">
               {months.map((m) => (
                 <option key={m} value={m}>
                   {m === "all" ? "All months" : m}
@@ -996,24 +1003,24 @@ function TransactionsTab({ transactions }) {
               placeholder="Search description/category…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="border rounded px-3 py-1.5 w-full md:flex-1"
+              className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-1.5 w-full md:flex-1"
             />
 
             <div className="flex-1" />
-            <div className={`text-sm font-medium ${total >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+            <div className={`text-sm font-medium ${total >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
               Total: {fmtMoney(total)}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-[#12141c] border-white/10 text-slate-100">
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">No transactions.</div>
+            <div className="p-4 text-sm text-slate-400">No transactions.</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-muted/60">
+              <thead className="bg-[#171a23] text-slate-300">
                 <tr className="text-left">
                   <th className="px-3 py-2 w-32">Date</th>
                   <th className="px-3 py-2">Category</th>
@@ -1023,7 +1030,7 @@ function TransactionsTab({ transactions }) {
               </thead>
               <tbody>
                 {filtered.map((t) => (
-                  <tr key={t.id} className="border-t">
+                  <tr key={t.id} className="border-t border-white/10">
                     <td className="px-3 py-2">
                       {t.date
                         ? new Date(t.date).toLocaleDateString("en-GB", {
@@ -1035,7 +1042,7 @@ function TransactionsTab({ transactions }) {
                     </td>
                     <td className="px-3 py-2">{t.category || "—"}</td>
                     <td className="px-3 py-2">{t.desc || "—"}</td>
-                    <td className={`px-3 py-2 text-right ${Number(t.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                    <td className={`px-3 py-2 text-right ${Number(t.amount) >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                       {fmtMoney(t.amount)}
                     </td>
                   </tr>
@@ -1052,9 +1059,9 @@ function TransactionsTab({ transactions }) {
 /* --------------- small UI bits -------------- */
 function Stat({ title, value }) {
   return (
-    <Card>
+    <Card className="bg-[#12141c] border-white/10 text-slate-100">
       <CardContent className="p-4">
-        <div className="text-sm text-muted-foreground mb-1">{title}</div>
+        <div className="text-sm text-slate-400 mb-1">{title}</div>
         <div className="text-xl font-semibold">{value}</div>
       </CardContent>
     </Card>
@@ -1062,8 +1069,8 @@ function Stat({ title, value }) {
 }
 function Mini({ stat, val }) {
   return (
-    <div className="rounded-lg border p-2">
-      <div className="text-[11px] text-muted-foreground">{stat}</div>
+    <div className="rounded-lg border border-white/10 bg-[#171a23] p-2">
+      <div className="text-[11px] text-slate-400">{stat}</div>
       <div className="text-sm font-medium">{val}</div>
     </div>
   );

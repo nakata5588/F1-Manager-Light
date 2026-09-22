@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DriverPortrait, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
+import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
 
 const DAY = 86_400_000;
 const unbox = (v) => v && typeof v === "object" && !Array.isArray(v)
@@ -70,6 +70,9 @@ export default function Scouting() {
   const setGameState = useGame((s) => s.setGameState);
 
   const date = String(gameState?.currentDateISO || "").slice(0,10);
+  const year=Number(gameState?.activeYear)||Number(date.slice(0,4))||1980;
+  const teamId=String(gameState?.team?.team_id??gameState?.team?.id??"");
+  const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
   const scouting = gameState?.scouting || {};
   const assignments = Array.isArray(scouting.assignments) ? scouting.assignments : [];
   const shortlist = Array.isArray(scouting.shortlist) ? scouting.shortlist.map(String) : [];
@@ -175,14 +178,21 @@ export default function Scouting() {
   const scouts = useMemo(() => {
     const myTeam = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
     const coreById = new Map(staffCore.map((s) => [String(s?.staff_id ?? s?.id ?? ""), s]));
-    const ratingByStaff = new Map(staffRatings.map((r) => [String(unbox(r?.staff_id) ?? ""), r]));
+    const ratingForStaff=(id)=>{
+      const rows=staffRatings.filter((r)=>String(unbox(r?.staff_id)??"")===String(id));
+      return rows.find((r)=>Number(unbox(r?.year??r?.season_year))===year)
+        || rows.filter((r)=>Number(unbox(r?.year??r?.season_year))<=year)
+          .sort((a,b)=>Number(unbox(b?.year??b?.season_year)||0)-Number(unbox(a?.year??a?.season_year)||0))[0]
+        || rows[0]
+        || {};
+    };
     return staffContracts
       .filter((c) => String(unbox(c?.team_id) ?? "") === myTeam)
       .filter((c) => /scout|manager|principal|technical/i.test(String(c?.role || "")))
       .map((c) => {
         const id = String(unbox(c?.staff_id) ?? "");
         const core = coreById.get(id) || {};
-        const rt = ratingByStaff.get(id) || {};
+        const rt = ratingForStaff(id);
         const nums = ["data_analysis","communication","negotiation","technical"]
           .map((k) => Number(rt?.[k])).filter(Number.isFinite);
         return {
@@ -192,7 +202,7 @@ export default function Scouting() {
           role:nice(c.role || "Staff"),
         };
       });
-  }, [staffContracts,staffCore,staffRatings,gameState?.team]);
+  }, [staffContracts,staffCore,staffRatings,gameState?.team,year]);
 
   const startAssignment = () => {
     if (!date || !effectiveZone || !duration || budget < cost) return;
@@ -286,21 +296,28 @@ export default function Scouting() {
   );
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-3">
+    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+        <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
         <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Recruitment Network</div>
           <h1 className="text-2xl md:text-3xl font-semibold">Scouting</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-slate-400">
             Scout young drivers aged 16–24 who are active outside F1 in the current season, or explore a region for new talent.
           </p>
         </div>
         <div className="flex-1" />
-        <div className="text-sm">Budget: <strong>{fmtMoney(budget)}</strong></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Mini label="Active" value={assignments.filter((a)=>a.status==="active").length}/>
+          <Mini label="Shortlist" value={shortlist.length}/>
+          <Mini label="Prospects" value={allProspects.length}/>
+          <Mini label="Budget" value={fmtMoney(budget)}/>
+        </div>
         <Button onClick={() => setShowStart((v) => !v)}>{showStart ? "Close" : "Start Assignment"}</Button>
       </div>
 
       {showStart && (
-        <Card><CardContent className="p-4 space-y-4">
+        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 space-y-4">
           <div className="font-semibold">New scouting assignment</div>
 
           <div className="flex flex-wrap gap-2">
@@ -311,7 +328,7 @@ export default function Scouting() {
           {mode === "driver" ? (
             <label className="text-sm block">
               Driver
-              <select className="mt-1 border rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
                 <option value="">Select active lower-series driver…</option>
                 {allProspects.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
               </select>
@@ -319,14 +336,14 @@ export default function Scouting() {
           ) : (
             <label className="text-sm block">
               Region
-              <select className="mt-1 border rounded px-3 py-2 w-full" value={zoneId} onChange={(e)=>setZoneId(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={zoneId} onChange={(e)=>setZoneId(e.target.value)}>
                 {zones.map((z)=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}
               </select>
             </label>
           )}
 
           {effectiveZone && (
-            <div className="rounded-lg border p-3 text-sm grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm grid grid-cols-1 md:grid-cols-4 gap-3">
               <Mini label="Area" value={effectiveZone.name}/>
               <Mini label="Duration" value={`${duration} days`}/>
               <Mini label="Cost" value={fmtMoney(cost)}/>
@@ -335,7 +352,7 @@ export default function Scouting() {
           )}
 
           {mode === "region" && effectiveZone && (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-slate-400">
               Countries covered: {Array.from(zoneCountries(effectiveZone)).join(", ") || "—"}.
               A regional search can discover several active lower-series drivers; their ratings stay hidden until the assignment finishes.
             </div>
@@ -369,21 +386,21 @@ export default function Scouting() {
               ? a.discovered_ids.map((id)=>driverById.get(String(id))).filter(Boolean)
               : [];
             return (
-              <Card key={a.id}><CardContent className="p-4 space-y-3">
+              <Card className="bg-[#12141c] border-white/10 text-slate-100" key={a.id}><CardContent className="p-4 space-y-3">
                 <div className="flex justify-between gap-2">
                   <div>
-                    <div className="text-xs text-muted-foreground">{a.region} · {a.mode === "region" ? "Regional search" : "Driver report"}</div>
+                    <div className="text-xs text-slate-400">{a.region} · {a.mode === "region" ? "Regional search" : "Driver report"}</div>
                     <div className="font-semibold">{a.title}</div>
                   </div>
-                  <span className="text-xs bg-gray-100 px-2 py-1 rounded h-fit">{nice(a.status)}</span>
+                  <span className="text-xs bg-white/10 px-2 py-1 rounded h-fit">{nice(a.status)}</span>
                 </div>
 
                 <div>
                   <div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(pct*100)}%</strong></div>
-                  <div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${pct*100}%`}}/></div>
+                  <div className="h-2 bg-white/10 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${pct*100}%`}}/></div>
                 </div>
 
-                <div className="text-xs text-muted-foreground">{a.started_at} → {a.finishes_at} · {fmtMoney(a.cost)}</div>
+                <div className="text-xs text-slate-400">{a.started_at} → {a.finishes_at} · {fmtMoney(a.cost)}</div>
 
                 {a.status === "completed" && d && (
                   <div className="text-sm">
@@ -393,12 +410,12 @@ export default function Scouting() {
 
                 {a.status === "completed" && a.mode === "region" && (
                   <div>
-                    <div className="text-xs text-muted-foreground mb-2">Drivers discovered</div>
+                    <div className="text-xs text-slate-400 mb-2">Drivers discovered</div>
                     {discovered.length ? (
                       <div className="flex flex-wrap gap-2">
-                        {discovered.map((x)=><button key={idOf(x)} data-entity="driver" data-id={idOf(x)} className="text-xs border rounded px-2 py-1 hover:bg-gray-50">{x.display_name || x.name}</button>)}
+                        {discovered.map((x)=><button key={idOf(x)} data-entity="driver" data-id={idOf(x)} className="text-xs border rounded px-2 py-1 hover:bg-[#171a23] text-slate-300">{x.display_name || x.name}</button>)}
                       </div>
-                    ) : <div className="text-sm text-muted-foreground">No suitable drivers were found in this search.</div>}
+                    ) : <div className="text-sm text-slate-400">No suitable drivers were found in this search.</div>}
                   </div>
                 )}
 
@@ -411,14 +428,14 @@ export default function Scouting() {
               </CardContent></Card>
             );
           })}
-          {!assignments.length && <Card><CardContent className="p-5 text-sm text-muted-foreground">No scouting assignments yet.</CardContent></Card>}
+          {!assignments.length && <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No scouting assignments yet.</CardContent></Card>}
         </div>
       )}
 
       {(tab === "prospects" || tab === "shortlist") && (
         <>
-          <Card><CardContent className="p-4">
-            <input className="border rounded px-3 py-2 w-full" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search active lower-series driver or nationality…"/>
+          <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+            <input className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search active lower-series driver or nationality…"/>
           </CardContent></Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -428,12 +445,12 @@ export default function Scouting() {
               const known = hasReport(id);
               const active = assignments.some((a)=>String(a.prospect_id||"")===id && ["active","paused"].includes(a.status));
               return (
-                <Card key={id}><CardContent className="p-4 space-y-3">
+                <Card className="bg-[#12141c] border-white/10 text-slate-100" key={id}><CardContent className="p-4 space-y-3">
                   <button type="button" data-entity="driver" data-id={id} className="flex items-center gap-3 w-full text-left hover:underline">
                     <DriverPortrait driver={d} size="h-14 w-14"/>
                     <div>
                       <div className="font-semibold">{d.display_name || d.name}</div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-slate-400">
                         {flagFromCountry(driverCountry(d),d.country_code)} {driverCountry(d) || "—"} · Age {Number.isFinite(Number(d.age)) ? d.age : "—"}
                       </div>
                     </div>
@@ -460,7 +477,7 @@ export default function Scouting() {
               );
             })}
             {(tab==="shortlist" ? !prospects.some((d)=>shortlist.includes(idOf(d))) : !prospects.length) && (
-              <Card><CardContent className="p-5 text-sm text-muted-foreground">
+              <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">
                 {tab==="shortlist" ? "Shortlist is empty." : "No active lower-series drivers are available in the current dataset for this season."}
               </CardContent></Card>
             )}
@@ -470,8 +487,8 @@ export default function Scouting() {
 
       {tab === "scouts" && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {scouts.map((s)=><Card key={s.id}><CardContent className="p-4"><div className="font-semibold">{s.name}</div><div className="text-sm text-muted-foreground">{s.role}</div><div className="mt-2 text-sm">Scouting effectiveness: <strong>{s.rating}</strong></div></CardContent></Card>)}
-          {!scouts.length && <Card><CardContent className="p-5"><div className="font-semibold">Team Scouting Network</div><p className="text-sm text-muted-foreground mt-1">No dedicated scout role exists for this team in the current historical staff data, so assignments use the general technical/management network.</p></CardContent></Card>}
+          {scouts.map((s)=><Card className="bg-[#12141c] border-white/10 text-slate-100" key={s.id}><CardContent className="p-4"><div className="font-semibold">{s.name}</div><div className="text-sm text-slate-400">{s.role}</div><div className="mt-2 text-sm">Scouting effectiveness: <strong>{s.rating}</strong></div></CardContent></Card>)}
+          {!scouts.length && <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5"><div className="font-semibold">Team Scouting Network</div><p className="text-sm text-slate-400 mt-1">No dedicated scout role exists for this team in the current historical staff data, so assignments use the general technical/management network.</p></CardContent></Card>}
         </div>
       )}
     </div>
@@ -480,5 +497,5 @@ export default function Scouting() {
 
 function Mini({label,value}) {
   const safe = value && typeof value === "object" ? "—" : (value ?? "—");
-  return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium">{safe}</div></div>;
+  return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{safe}</div></div>;
 }

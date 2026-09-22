@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
+import { teamEngineeringSupport } from "../engine/PracticeSetupEngine.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -80,9 +81,12 @@ export default function MyStaff(){
     };
   }).sort((a,b)=>String(a.role).localeCompare(String(b.role))||String(a.name).localeCompare(String(b.name))),[contracts,year,myTeamId,coreById,ratings]);
 
-  const pit=useMemo(()=>pitcrew.find((row)=>
+  const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,myTeamId),[gs,myTeamId]);
+  const livePit=gs?.raceStrategyWorld?.pitCrews?.[myTeamId]||null;
+
+  const pit=useMemo(()=>livePit||pitcrew.find((row)=>
     teamIdOf(row)===myTeamId&&Number(pick(row,["year","season_year"],year))===year
-  )||pitcrew.find((row)=>teamIdOf(row)===myTeamId)||null,[pitcrew,myTeamId,year]);
+  )||pitcrew.find((row)=>teamIdOf(row)===myTeamId)||null,[livePit,pitcrew,myTeamId,year]);
 
   const avgOverall=rows.filter((r)=>Number.isFinite(r.overall));
   const average=avgOverall.length?Math.round(avgOverall.reduce((s,r)=>s+r.overall,0)/avgOverall.length):null;
@@ -97,9 +101,10 @@ export default function MyStaff(){
         <p className="text-sm text-slate-400">{myTeamName} · Season {year||"—"}</p>
       </div>
       <div className="flex-1"/>
-      <div className="grid grid-cols-3 gap-2 min-w-[360px]">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 min-w-[420px]">
         <Metric label="Staff" value={rows.length}/>
         <Metric label="Average rating" value={average??"—"}/>
+        <Metric label="Engineering support" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
         <Metric label="Annual payroll" value={money(payroll)}/>
       </div>
       <Link to="/Staff" className="rounded-md bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold hover:bg-white">Staff Market</Link>
@@ -125,7 +130,7 @@ export default function MyStaff(){
           </div>
 
           <div className="grid grid-cols-3 gap-px bg-white/10 border-y border-white/10">
-            {staff.attributes.slice(0,3).map((attr)=><div key={attr.key} className="bg-[#171a23] p-3">
+            {staff.attributes.slice(0,6).map((attr)=><div key={attr.key} className="bg-[#171a23] p-3">
               <div className="text-[10px] uppercase tracking-wide text-slate-500 truncate">{attr.label}</div>
               <div className={`text-lg font-semibold ${ratingTone(attr.value)}`}>{attr.value}</div>
             </div>)}
@@ -135,6 +140,8 @@ export default function MyStaff(){
           <div className="p-4 grid grid-cols-2 gap-3 text-sm">
             <Info label="Salary" value={money(staff.salary)}/>
             <Info label="Contract until" value={staff.until}/>
+            <Info label="Gameplay hook" value={/engineer|technical|designer/i.test(staff.role)?"Practice setup / engineering":/principal|owner/i.test(staff.role)?"Management / contracts":"Department support"}/>
+            <Info label="Rating source" value={staff.ratingYear?("Season "+staff.ratingYear):"No seasonal rating"}/>
           </div>
         </article>)}
         {!rows.length?<div className="lg:col-span-2 rounded-xl border border-white/10 bg-[#12141c] p-8 text-center text-slate-500">No staff contracts found for this team.</div>:null}
@@ -147,10 +154,11 @@ export default function MyStaff(){
             <div className="text-xs text-slate-500">Live team operational unit</div>
           </div>
           {pit?<div className="p-4 space-y-4">
-            <PitMetric label="Average stop" value={Number(pick(pit,["avg_time"],0)).toFixed(1)+"s"} progress={Math.max(0,100-(Number(pick(pit,["avg_time"],10))-4)*15)}/>
+            <PitMetric label="Average stop" value={Number(pick(pit,["avg_time_s","avg_time"],0)).toFixed(1)+"s"} progress={Math.max(0,100-(Number(pick(pit,["avg_time_s","avg_time"],10))-4)*15)}/>
             <PitMetric label="Consistency" value={Math.round(Number(pick(pit,["consistency"],0)))+"%"} progress={Number(pick(pit,["consistency"],0))}/>
             <PitMetric label="Error rate" value={(Number(pick(pit,["error_rate"],0))*100).toFixed(1)+"%"} progress={Math.max(0,100-Number(pick(pit,["error_rate"],0))*1000)}/>
             <PitMetric label="Training load" value={pick(pit,["training_load"],"—")} progress={Number(pick(pit,["training_load"],0))*10}/>
+            <div className="pt-2 border-t border-white/10 text-xs text-slate-500">Source: {pick(pit,["source"],"historical/team data")} · used by the race-strategy pit-stop model.</div>
           </div>:<div className="p-5 text-sm text-slate-500">No pit-crew record for this Team/season.</div>}
         </section>
 

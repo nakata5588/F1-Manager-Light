@@ -110,6 +110,13 @@ function fastestLap(row){
   const raw=first(row,["fastest_lap","fastestLap"],false);
   return raw===true || String(raw).toLowerCase()==="true";
 }
+function isDnf(row){
+  if(row?.retired===true)return true;
+  const status=String(first(row,["status","statusText","status_text","positionText","result_status"],"")).toLowerCase();
+  if(!status)return false;
+  if(status==="finished" || /^\+\d+\s+laps?$/.test(status))return false;
+  return /(dnf|retir|accident|collision|engine|gearbox|transmission|electrical|hydraulic|suspension|brakes|puncture|fire|oil|fuel|overheat|spun|damage|mechanical|not classified|did not finish)/.test(status);
+}
 
 const byKey=new Map();
 for(const row of Array.isArray(rows)?rows:[]){
@@ -132,6 +139,10 @@ for(const row of Array.isArray(rows)?rows:[]){
       podiums:0,
       poles:0,
       fastest_laps:0,
+      dnf:0,
+      classified_finishes:0,
+      finish_position_sum:0,
+      best_finish:null,
       points:0,
       champ_pos:null,
       source:"race_results_derived",
@@ -140,16 +151,33 @@ for(const row of Array.isArray(rows)?rows:[]){
   const rec=byKey.get(key);
   const pos=finishPosition(row);
   const grid=gridPosition(row);
+  const retired=isDnf(row);
   rec.starts+=1;
   rec.races+=1;
-  if(pos===1)rec.wins+=1;
-  if(Number.isFinite(pos)&&pos>=1&&pos<=3)rec.podiums+=1;
+  if(pos===1&&!retired)rec.wins+=1;
+  if(Number.isFinite(pos)&&pos>=1&&pos<=3&&!retired)rec.podiums+=1;
   if(grid===1)rec.poles+=1;
   if(fastestLap(row))rec.fastest_laps+=1;
+  if(retired)rec.dnf+=1;
+  if(Number.isFinite(pos)&&pos>0){
+    rec.classified_finishes+=1;
+    rec.finish_position_sum+=pos;
+    rec.best_finish=rec.best_finish==null?pos:Math.min(rec.best_finish,pos);
+  }
   rec.points=Number((rec.points+num(first(row,["points"],0),0)).toFixed(3));
 }
 
 const output=[...byKey.values()]
+  .map((row)=>({
+    ...row,
+    average_finish:row.classified_finishes
+      ? Number((row.finish_position_sum/row.classified_finishes).toFixed(2))
+      : null,
+    points_per_start:row.starts
+      ? Number((row.points/row.starts).toFixed(3))
+      : 0,
+  }))
+  .map(({finish_position_sum,...row})=>row)
   .sort((a,b)=>a.year-b.year||a.driver_name.localeCompare(b.driver_name)||String(a.team_name).localeCompare(String(b.team_name)));
 
 await fs.writeFile(target,JSON.stringify(output,null,2)+"\n","utf8");

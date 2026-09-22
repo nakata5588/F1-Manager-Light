@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 
 const FACILITIES = [
   { key:"wind_tunnel_level", name:"Wind Tunnel", category:"Aerodynamics", desc:"Physical aerodynamic testing. Improves the effectiveness of aero development." },
@@ -31,6 +33,7 @@ export default function HQ(){
   const levels=hq.facilityLevels||{};
   const upgrades=Array.isArray(hq.upgrades)?hq.upgrades:[];
   const budget=Number(gameState?.team?.budget??gameState?.finances?.balance??0);
+  const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
 
   const available=useMemo(()=>FACILITIES.filter((f)=>baseRow && baseRow[f.key]!==null && baseRow[f.key]!==undefined && baseRow[f.key]!==""),[baseRow]);
 
@@ -101,23 +104,37 @@ export default function HQ(){
       const costMult=Math.max(0.72,1.12-level*0.025);
       return `Manufacturing jobs: ~${buildDays} days; cost multiplier ×${costMult.toFixed(2)}. Also improves development efficiency.`;
     }
-    if(facility.key==="pitcrew_training_level") return `Race-operations modifier: ${((level-5)*0.12)>=0?"+":""}${((level-5)*0.12).toFixed(2)} in the current race-order model.`;
+    if(facility.key==="pitcrew_training_level") return `Seeds/improves pit-crew operational quality; the live pit-stop model uses crew pace, consistency and error rate.`;
+    if(facility.key==="youth_program_level") return level>0?"Unlocks the formal Academy model and expands junior-driver support.":"No formal Academy is available at this level.";
+    if(facility.key==="simulator_level") return "Infrastructure is tracked for era-aware driver/technical capability; deeper simulator effects can be layered on without changing the facility ID.";
     return "Improves the related team operation.";
   };
 
-  return <div className="p-4 md:p-6 space-y-4">
-    <div className="flex flex-col md:flex-row md:items-center gap-3">
-      <div><h1 className="text-2xl md:text-3xl font-semibold">HQ</h1><p className="text-sm text-muted-foreground">Facilities available to your team in {year}. Infrastructure that does not exist in this era is hidden.</p></div>
-      <div className="flex-1"/><div className="text-sm">Budget: <strong>{fmtMoney(budget)}</strong></div>
+  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
+    <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+      <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
+      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Infrastructure</div><h1 className="text-2xl md:text-3xl font-semibold">HQ & Facilities</h1><p className="text-sm text-slate-400">Era-aware infrastructure available to {teamName} in {year}.</p></div>
+      <div className="flex-1"/>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <MiniStat label="Budget" value={fmtMoney(budget)}/>
+        <MiniStat label="Facilities" value={available.length}/>
+        <MiniStat label="Avg Level" value={avg.toFixed(1)}/>
+        <MiniStat label="Upgrading" value={upgrades.filter((u)=>u.status==="active").length}/>
+      </div>
     </div>
 
-    {!baseRow&&<Card><CardContent className="p-4 text-sm text-amber-700">No facility record is available for this team in {year}.</CardContent></Card>}
+    {!baseRow&&<Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 text-sm text-amber-300">No facility record is available for this team in {year}.</CardContent></Card>}
 
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <Stat label="Available Facilities" value={available.length}/>
       <Stat label="Average Level" value={avg.toFixed(1)}/>
       <Stat label="Upgrading" value={upgrades.filter((u)=>u.status==="active").length}/>
       <Stat label="Annual Maintenance" value={fmtMoney(baseRow?.maintenance_cost||0)}/>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <Link to="/Development" className="rounded-lg border border-white/10 bg-[#12141c] p-3 hover:bg-[#171a23]"><div className="font-medium">Development →</div><div className="text-xs text-slate-500">Wind tunnel, aero, chassis and manufacturing feed car projects.</div></Link>
+      <Link to="/MyStaff" className="rounded-lg border border-white/10 bg-[#12141c] p-3 hover:bg-[#171a23]"><div className="font-medium">Staff & Pit Crew →</div><div className="text-xs text-slate-500">Pit crew training connects to live race operations.</div></Link>
+      <Link to="/Academy" className="rounded-lg border border-white/10 bg-[#12141c] p-3 hover:bg-[#171a23]"><div className="font-medium">Academy →</div><div className="text-xs text-slate-500">Youth Programme availability controls the formal academy model.</div></Link>
     </div>
 
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -127,29 +144,34 @@ export default function HQ(){
         const maintenance=Number(baseRow?.maintenance_cost||1_000_000);
         const nextCost=Math.round(maintenance*(0.18+level*0.035));
         const pct=u?progress(u.started_at,u.finishes_at,date):0;
-        return <Card key={f.key}><CardContent className="p-4 space-y-3">
-          <div><div className="text-xs text-muted-foreground">{f.category}</div><div className="text-lg font-semibold">{f.name}</div></div>
-          <p className="text-sm text-muted-foreground min-h-[2.5rem]">{f.desc}</p>
-          <div className="text-xs rounded-lg bg-slate-50 border px-3 py-2"><strong>Current effect:</strong> {effectText(f,level)}</div>
-          <div><div className="flex justify-between text-sm"><span>Level</span><strong>{level} / 10</strong></div><div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${level*10}%`}}/></div></div>
+        return <Card className="bg-[#12141c] border-white/10 text-slate-100" key={f.key}><CardContent className="p-4 space-y-3">
+          <div><div className="text-xs text-slate-400">{f.category}</div><div className="text-lg font-semibold">{f.name}</div></div>
+          <p className="text-sm text-slate-400 min-h-[2.5rem]">{f.desc}</p>
+          <div className="text-xs rounded-lg bg-white/5 border px-3 py-2"><strong>Current effect:</strong> {effectText(f,level)}</div>
+          <div><div className="flex justify-between text-sm"><span>Level</span><strong>{level} / 10</strong></div><div className="h-2 bg-white/10 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${level*10}%`}}/></div></div>
           {u?<div className="border rounded-lg p-3 space-y-2">
             <div className="flex justify-between text-sm"><span>Upgrade to level {u.target_level}</span><strong>{Math.round(pct*100)}%</strong></div>
-            <div className="h-2 bg-gray-100 rounded overflow-hidden"><div className="h-full bg-blue-600" style={{width:`${pct*100}%`}}/></div>
-            <div className="text-xs text-muted-foreground">{niceDate(u.started_at)} → {niceDate(u.finishes_at)} · {fmtMoney(u.cost)}</div>
+            <div className="h-2 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-200" style={{width:`${pct*100}%`}}/></div>
+            <div className="text-xs text-slate-400">{niceDate(u.started_at)} → {niceDate(u.finishes_at)} · {fmtMoney(u.cost)}</div>
             <Button size="sm" variant="outline" onClick={()=>cancelUpgrade(u.id)}>Cancel (50% refund)</Button>
           </div>:<div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-muted-foreground">Next level: {fmtMoney(nextCost)}</div>
+            <div className="text-xs text-slate-400">Next level: {fmtMoney(nextCost)}</div>
             <Button size="sm" onClick={()=>startUpgrade(f)} disabled={level>=10||budget<nextCost}>{level>=10?"Max level":"Upgrade"}</Button>
           </div>}
         </CardContent></Card>;
       })}
     </div>
 
-    <Card><CardContent className="p-4">
+    <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
       <div className="font-semibold mb-3">Upgrade History</div>
-      {upgrades.length?<div className="space-y-2">{[...upgrades].reverse().map((u)=><div key={u.id} className="flex flex-col md:flex-row md:items-center gap-2 border rounded-lg p-3 text-sm"><strong>{u.name}</strong><span>Level {u.from_level} → {u.target_level}</span><span className="text-muted-foreground">{u.started_at} → {u.finishes_at}</span><span className="md:ml-auto">{fmtMoney(u.cost)} · {u.status}</span></div>)}</div>:<div className="text-sm text-muted-foreground">No facility upgrades in this career.</div>}
+      {upgrades.length?<div className="space-y-2">{[...upgrades].reverse().map((u)=><div key={u.id} className="flex flex-col md:flex-row md:items-center gap-2 border rounded-lg p-3 text-sm"><strong>{u.name}</strong><span>Level {u.from_level} → {u.target_level}</span><span className="text-slate-400">{u.started_at} → {u.finishes_at}</span><span className="md:ml-auto">{fmtMoney(u.cost)} · {u.status}</span></div>)}</div>:<div className="text-sm text-slate-400">No facility upgrades in this career.</div>}
     </CardContent></Card>
   </div>;
 }
 
-function Stat({label,value}){return <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
+function Stat({label,value}){return <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
+
+
+function MiniStat({label,value}){
+  return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div><div className="font-semibold mt-0.5 truncate">{value}</div></div>;
+}

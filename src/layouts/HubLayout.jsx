@@ -33,11 +33,11 @@ export default function HubLayout() {
   const pageTitle = PAGE_TITLES[pathname] || "F1 Manager Light";
 
   return (
-    <div className="min-h-screen flex bg-slate-100">
+    <div className="min-h-screen flex bg-[#090b10]">
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col">
         <Header pageTitle={pageTitle} />
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 bg-[#090b10]">
           <div className="w-full px-3 md:px-5 py-4 md:py-5">
             <Outlet />
           </div>

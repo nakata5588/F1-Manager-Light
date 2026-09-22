@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
+import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 
 const DAY = 86_400_000;
 const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
@@ -136,6 +137,7 @@ export default function Board() {
   const [goalProposal,setGoalProposal] = useState("");
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
+  const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
   const year = Number(gameState?.activeYear) || 1980;
   const date = String(gameState?.currentDateISO || "").slice(0,10);
   const currentBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
@@ -380,24 +382,28 @@ export default function Board() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-3">
+    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+        <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
         <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Ownership & Expectations</div>
           <h1 className="text-2xl md:text-3xl font-semibold">Board</h1>
-          <p className="text-sm text-muted-foreground">Season {year} · official expectation: <strong>{EXPECTATION_LABEL[expectation]}</strong></p>
+          <p className="text-sm text-slate-400">Season {year} · official expectation: <strong className="text-slate-200">{EXPECTATION_LABEL[expectation]}</strong></p>
         </div>
         <div className="flex-1"/>
-        <span className="text-xs bg-gray-100 px-2 py-1 rounded">Based on team/season database</span>
+        <div className="text-right"><div className="text-xs text-slate-500">Current balance</div><div className="text-lg font-semibold">{fmtMoney(currentBudget)}</div></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Metric title="Overall Confidence" value={pct(overallConfidence)} progress={overallConfidence}/>
         <Metric title="Objective Score" value={pct(objectiveScore)} progress={objectiveScore}/>
         <Metric title="Season Progress" value={pct(seasonProgress)} progress={seasonProgress}/>
         <Metric title="Board Reputation" value={pct(board.reputation)} progress={board.reputation}/>
+        <Metric title="Funding Ceiling" value={fmtMoney(approvalCeiling)} progress={Math.min(1,approvalCeiling/3000000)}/>
+        <Metric title="Constructor Pos." value={metrics.constructorPosition?("P"+metrics.constructorPosition):"—"} progress={metrics.constructorPosition?1-Math.min(1,(metrics.constructorPosition-1)/Math.max(1,metrics.totalTeams-1)):0}/>
       </div>
 
-      <Card><CardContent className="p-4">
+      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
         <div className="font-semibold mb-3">Current Sporting Position</div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <Mini label="Races" value={metrics.races + "/" + metrics.totalRaces}/>
@@ -408,14 +414,14 @@ export default function Board() {
         </div>
       </CardContent></Card>
 
-      <Card><CardContent className="p-4">
+      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
         <div className="font-semibold mb-3">Board Actions</div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <ActionInfo
             title="Propose Goal Change"
             text="Choose one of the predefined sporting expectations. The board accepts or rejects it using current results and confidence."
           >
-            <select className="border rounded px-2 py-1 text-sm w-full mb-2" value={goalProposal} onChange={(e)=>setGoalProposal(e.target.value)}>
+            <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-1 text-sm w-full mb-2" value={goalProposal} onChange={(e)=>setGoalProposal(e.target.value)}>
               <option value="">Choose target…</option>
               {EXPECTATION_ORDER.filter((x)=>x!==expectation).map((x)=><option key={x} value={x}>{EXPECTATION_LABEL[x]}</option>)}
             </select>
@@ -445,7 +451,7 @@ export default function Board() {
       </CardContent></Card>
 
       {showBudget && (
-        <Card><CardContent className="p-4 space-y-3">
+        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 space-y-3">
           <div className="font-semibold">Additional Budget Request</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-sm">
@@ -456,19 +462,19 @@ export default function Board() {
                 step="50000"
                 value={requestedAmount}
                 onChange={(e)=>setRequestedAmount(Number(e.target.value))}
-                className="mt-1 border rounded px-3 py-2 w-full"
+                className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full"
               />
             </label>
             <label className="text-sm">
               Reason
-              <select className="mt-1 border rounded px-3 py-2 w-full" value={requestReason} onChange={(e)=>setRequestReason(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={requestReason} onChange={(e)=>setRequestReason(e.target.value)}>
                 {["Development","Facilities","Driver Contract","Staff Recruitment","Cashflow Support"].map((x)=><option key={x}>{x}</option>)}
               </select>
             </label>
             <div className="border rounded-lg p-3 text-sm">
-              <div className="text-xs text-muted-foreground">Estimated approval probability</div>
+              <div className="text-xs text-slate-400">Estimated approval probability</div>
               <div className="text-xl font-semibold">{Math.round(budgetApprovalChance*100)}%</div>
-              <div className="text-xs text-muted-foreground mt-1">Comfort ceiling {fmtMoney(approvalCeiling)} · Confidence {pct(overallConfidence)}</div>
+              <div className="text-xs text-slate-400 mt-1">Comfort ceiling {fmtMoney(approvalCeiling)} · Confidence {pct(overallConfidence)}</div>
             </div>
           </div>
           <label className="text-sm block">
@@ -477,17 +483,17 @@ export default function Board() {
               value={requestJustification}
               onChange={(e)=>setRequestJustification(e.target.value)}
               placeholder="Explain why the team needs this funding and what it will achieve…"
-              className="mt-1 border rounded px-3 py-2 w-full min-h-[90px]"
+              className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full min-h-[90px]"
             />
           </label>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-slate-400">
             Requests far above the board's comfort ceiling remain possible, but acceptance probability collapses rapidly. A $100m request should effectively be treated as extraordinary.
           </div>
           <Button onClick={submitBudgetRequest} disabled={Number(requestedAmount)<=0||!requestJustification.trim()}>Submit Request</Button>
         </CardContent></Card>
       )}
 
-      <Card><CardContent className="p-4 flex flex-col md:flex-row gap-3">
+      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 flex flex-col md:flex-row gap-3">
         <select className="border rounded px-3 py-2 text-sm" value={status} onChange={(e)=>setStatus(e.target.value)}>
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -500,12 +506,12 @@ export default function Board() {
           {["PERFORMANCE","FINANCIAL","DEV","STAFF","PR","OTHER"].map((x)=><option key={x}>{x}</option>)}
         </select>
         <div className="flex-1"/>
-        <div className="text-sm text-muted-foreground">{rows.length} objectives</div>
+        <div className="text-sm text-slate-400">{rows.length} objectives</div>
       </CardContent></Card>
 
-      <Card><CardContent className="p-0 overflow-x-auto">
+      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-0 overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-50"><tr>
+          <thead className="bg-[#171a23] text-slate-300"><tr>
             <th className="px-3 py-2 text-left">Priority</th>
             <th className="px-3 py-2 text-left">Category</th>
             <th className="px-3 py-2 text-left">Objective</th>
@@ -515,28 +521,28 @@ export default function Board() {
             <th className="px-3 py-2 text-left">Reward / Penalty</th>
           </tr></thead>
           <tbody>
-            {rows.map((o)=><tr key={o.id} className="border-t">
+            {rows.map((o)=><tr key={o.id} className="border-t border-white/10">
               <td className="px-3 py-2">P{o.priority}</td>
               <td className="px-3 py-2">{titleCase(o.category)}</td>
               <td className="px-3 py-2">
                 <div className="font-medium">{o.title}</div>
-                {o.desc && <div className="text-xs text-muted-foreground">{o.desc}</div>}
+                {o.desc && <div className="text-xs text-slate-400">{o.desc}</div>}
               </td>
               <td className="px-3 py-2">{o.deadline || "—"}</td>
               <td className="px-3 py-2 min-w-[150px]"><div className="text-xs">{pct(o.progress)}</div><Bar value={o.progress}/></td>
-              <td className="px-3 py-2"><span className="px-2 py-1 rounded bg-gray-100 text-xs">{titleCase(o.status)}</span></td>
+              <td className="px-3 py-2"><span className="px-2 py-1 rounded bg-white/10 text-xs">{titleCase(o.status)}</span></td>
               <td className="px-3 py-2 text-xs">
-                {o.reward && <div className="text-emerald-700">Reward: {o.reward}</div>}
-                {o.penalty && <div className="text-rose-700">Penalty: {o.penalty}</div>}
+                {o.reward && <div className="text-emerald-300">Reward: {o.reward}</div>}
+                {o.penalty && <div className="text-rose-300">Penalty: {o.penalty}</div>}
                 {!o.reward && !o.penalty && "—"}
               </td>
             </tr>)}
-            {!rows.length && <tr><td colSpan={7} className="px-3 py-5 text-center text-muted-foreground">No objectives for this filter.</td></tr>}
+            {!rows.length && <tr><td colSpan={7} className="px-3 py-5 text-center text-slate-400">No objectives for this filter.</td></tr>}
           </tbody>
         </table>
       </CardContent></Card>
 
-      <Card><CardContent className="p-4">
+      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
         <div className="font-semibold mb-3">Board Interaction History</div>
         {board.actions.length ? (
           <div className="space-y-2">
@@ -547,26 +553,26 @@ export default function Board() {
                 {a.reason && <span>{a.reason}</span>}
                 {a.requested_amount ? <span>Requested {fmtMoney(a.requested_amount)}</span> : null}
                 {a.amount ? <span>Approved {fmtMoney(a.amount)}</span> : null}
-                <span className="md:ml-auto px-2 py-1 bg-gray-100 rounded text-xs">{titleCase(a.status)}</span>
+                <span className="md:ml-auto px-2 py-1 bg-white/10 rounded text-xs">{titleCase(a.status)}</span>
               </div>
-              {a.explanation && <div className="text-xs text-muted-foreground mt-2">{a.explanation}</div>}
+              {a.explanation && <div className="text-xs text-slate-400 mt-2">{a.explanation}</div>}
             </div>)}
           </div>
-        ) : <div className="text-sm text-muted-foreground">No board interactions in this career yet.</div>}
+        ) : <div className="text-sm text-slate-400">No board interactions in this career yet.</div>}
       </CardContent></Card>
     </div>
   );
 }
 
 function ActionInfo({title,text,children}) {
-  return <div className="border rounded-lg p-3"><div className="font-medium">{title}</div><p className="text-xs text-muted-foreground mt-1 min-h-[2.5rem]">{text}</p><div className="mt-3">{children}</div></div>;
+  return <div className="border rounded-lg p-3"><div className="font-medium">{title}</div><p className="text-xs text-slate-400 mt-1 min-h-[2.5rem]">{text}</p><div className="mt-3">{children}</div></div>;
 }
 function Metric({title,value,progress}) {
-  return <Card><CardContent className="p-4"><div className="text-sm text-muted-foreground">{title}</div><div className="text-xl font-semibold my-1">{value}</div><Bar value={progress}/></CardContent></Card>;
+  return <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><div className="text-sm text-slate-400">{title}</div><div className="text-xl font-semibold my-1">{value}</div><Bar value={progress}/></CardContent></Card>;
 }
 function Bar({value}) {
-  return <div className="h-2 bg-gray-100 rounded overflow-hidden mt-1"><div className="h-full bg-slate-800" style={{width:`${clamp01(value)*100}%`}}/></div>;
+  return <div className="h-2 bg-white/10 rounded overflow-hidden mt-1"><div className="h-full bg-slate-200" style={{width:`${clamp01(value)*100}%`}}/></div>;
 }
 function Mini({label,value}) {
-  return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium">{value??"—"}</div></div>;
+  return <div className="border rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value??"—"}</div></div>;
 }
