@@ -403,7 +403,7 @@ export default function Board() {
         <Metric title="Constructor Pos." value={metrics.constructorPosition?("P"+metrics.constructorPosition):"—"} progress={metrics.constructorPosition?1-Math.min(1,(metrics.constructorPosition-1)/Math.max(1,metrics.totalTeams-1)):0}/>
       </div>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
         <div className="font-semibold mb-3">Current Sporting Position</div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <Mini label="Races" value={metrics.races + "/" + metrics.totalRaces}/>
@@ -414,7 +414,7 @@ export default function Board() {
         </div>
       </CardContent></Card>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
         <div className="font-semibold mb-3">Board Actions</div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <ActionInfo
@@ -451,7 +451,7 @@ export default function Board() {
       </CardContent></Card>
 
       {showBudget && (
-        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 space-y-3">
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
           <div className="font-semibold">Additional Budget Request</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-sm">
@@ -493,7 +493,7 @@ export default function Board() {
         </CardContent></Card>
       )}
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 flex flex-col md:flex-row gap-3">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 flex flex-col md:flex-row gap-3">
         <select className="border rounded px-3 py-2 text-sm" value={status} onChange={(e)=>setStatus(e.target.value)}>
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -509,7 +509,7 @@ export default function Board() {
         <div className="text-sm text-slate-400">{rows.length} objectives</div>
       </CardContent></Card>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-0 overflow-x-auto">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-[#171a23] text-slate-300"><tr>
             <th className="px-3 py-2 text-left">Priority</th>
@@ -542,7 +542,7 @@ export default function Board() {
         </table>
       </CardContent></Card>
 
-      <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4">
+      <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
         <div className="font-semibold mb-3">Board Interaction History</div>
         {board.actions.length ? (
           <div className="space-y-2">
@@ -568,7 +568,7 @@ function ActionInfo({title,text,children}) {
   return <div className="border rounded-lg p-3"><div className="font-medium">{title}</div><p className="text-xs text-slate-400 mt-1 min-h-[2.5rem]">{text}</p><div className="mt-3">{children}</div></div>;
 }
 function Metric({title,value,progress}) {
-  return <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><div className="text-sm text-slate-400">{title}</div><div className="text-xl font-semibold my-1">{value}</div><Bar value={progress}/></CardContent></Card>;
+  return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><div className="text-sm text-slate-400">{title}</div><div className="text-xl font-semibold my-1">{value}</div><Bar value={progress}/></CardContent></Card>;
 }
 function Bar({value}) {
   return <div className="h-2 bg-white/10 rounded overflow-hidden mt-1"><div className="h-full bg-slate-200" style={{width:`${clamp01(value)*100}%`}}/></div>;
