@@ -56,8 +56,13 @@ export function partUnitsForDesign(gs,designId){
 
 export function warehousePartUnitsForDesign(gs,designId){
   const installed=installedPartUnitIds(gs);
+  const workshopUnits=new Set(
+    (gs?.garage?.serviceJobs||[])
+      .filter((job)=>job?.status==="active"&&job?.unit_id)
+      .map((job)=>str(job.unit_id))
+  );
   return partUnitsForDesign(gs,designId)
-    .filter((unit)=>!installed.has(str(unit?.id)))
+    .filter((unit)=>!installed.has(str(unit?.id))&&!workshopUnits.has(str(unit?.id)))
     .slice()
     .sort((a,b)=>
       Number(b?.condition??100)-Number(a?.condition??100) ||
