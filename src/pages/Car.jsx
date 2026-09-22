@@ -356,7 +356,7 @@ export default function Car(){
           {raceCars.map((car)=>{
             const driver=driverById.get(String(car.driver_id||""));
             const perf=teamCarPerformance(carState,teamId,car.driver_id);
-            const conditions=CAR_COMPONENT_SLOTS.map((slot)=>componentConditionForCar(carState,car,slot));
+            const conditions=eligibleComponentSlots.map((slot)=>componentConditionForCar(carState,car,slot));
             const health=conditions.reduce((a,b)=>a+b,0)/Math.max(1,conditions.length);
             const alerts=conditions.filter((value)=>value<60).length;
             return <button key={car.id} onClick={()=>openCar(car.id)} className="group rounded-xl border border-white/10 bg-[#12141c] hover:bg-[#171a23] hover:border-white/20 transition text-left overflow-hidden">
