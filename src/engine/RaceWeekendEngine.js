@@ -305,6 +305,7 @@ export function completePracticeSession(gs,{gp}={}){
     ...weatherObserved,
     raceWeekendState:{
       ...interim,
+      weekend_weather:weatherObserved?.raceWeekendState?.weekend_weather||interim.weekend_weather,
       phase:"practice_complete",
       active_session_id:nextCompetitive?.id||"grid",
       practice_selections:weekend.practice_selections||{},
@@ -341,6 +342,12 @@ export function completeQualifyingSession(gs,{gp}={}){
     team_id:teamForDriver(simulated.raceEntryState,driverIdOf(row)),
     performance:Number(row.performance||0),
     lap_time_ms:Number(row.lap_time_ms||0),
+    wet_session:Boolean(row.wet_session),
+    weather_state:row.weather_state??null,
+    track_wetness:Number(row.track_wetness||0),
+    track_grip:Number(row.track_grip||0),
+    air_temp_c:Number(row.air_temp_c||0),
+    track_temp_c:Number(row.track_temp_c||0),
   }));
 
   const rule=weekend.qualifying_rule_snapshot||resolveQualifyingRules(simulated.gameState,targetGp);
@@ -384,6 +391,7 @@ export function completeQualifyingSession(gs,{gp}={}){
       raceEntryState:simulated.raceEntryState,
       raceWeekendState:{
         ...interim,
+        weekend_weather:sessionGameState?.raceWeekendState?.weekend_weather||interim.weekend_weather,
         phase,
         active_session_id:next.id,
         qualifying,
@@ -410,6 +418,7 @@ export function completeQualifyingSession(gs,{gp}={}){
     raceEntryState:simulated.raceEntryState,
     raceWeekendState:{
       ...interim,
+      weekend_weather:sessionGameState?.raceWeekendState?.weekend_weather||interim.weekend_weather,
       sessions,
       phase:"grid_ready",
       active_session_id:"grid",
