@@ -6,6 +6,7 @@ import {
   createWeekendWeatherState,
   forecastAccuracyForTeam,
   observeWeekendWeatherSession,
+  raceForecastForTeam,
   raceWeekendWeatherSession,
   sessionWeatherIsWet,
   sessionWeatherPerformanceMultiplier,
@@ -59,6 +60,34 @@ test("weekend weather world is deterministic and covers every competitive sessio
   assert.equal(a.source,"weekend_weather_world");
   assert.ok(a.forecast.practice);
   assert.ok(a.forecast.race);
+});
+
+test("RW4.8 materialises deterministic team-specific forecasts for player and AI",()=>{
+  const gs=baseGs(1980,"rw4.8-team-forecast");
+  gs.teams=[
+    {team_id:"T1",team_name:"Player"},
+    {team_id:"T2",team_name:"AI Team"},
+  ];
+  gs.staffContracts.push(
+    {team_id:"T2",staff_id:"S3",role:"strategist",contract_start:1970,contract_until:2030,status:"active"}
+  );
+  gs.staffRatings.push({staff_id:"S3",technical:35,data_analysis:30,communication:38});
+  gs.facilities.push({team_id:"T2",year:1980,pitcrew_training_level:3});
+
+  const a=createWeekendWeatherState(gs,{gp,sessions});
+  const b=createWeekendWeatherState(gs,{gp,sessions});
+  assert.deepEqual(a,b,"same Save must materialise the same forecasts for every team");
+  assert.ok(a.forecasts_by_team?.T1?.forecast?.race);
+  assert.ok(a.forecasts_by_team?.T2?.forecast?.race);
+  assert.equal(a.forecast_accuracy,a.forecasts_by_team.T1.forecast_accuracy);
+  assert.deepEqual(a.forecast,a.forecasts_by_team.T1.forecast,"legacy player forecast alias must stay intact");
+  assert.ok(a.forecasts_by_team.T1.forecast_accuracy>a.forecasts_by_team.T2.forecast_accuracy);
+
+  const state={...gs,raceWeekendState:{gp_id:gp.gp_id,track_id:gp.track_id,weekend_weather:a}};
+  const aiForecast=raceForecastForTeam(state,"T2");
+  assert.equal(aiForecast.forecast_accuracy,a.forecasts_by_team.T2.forecast_accuracy);
+  assert.equal(aiForecast.forecast_revision,0);
+  assert.equal(aiForecast.session_id,"race");
 });
 
 test("forecast capability is era-aware and 1980 remains intentionally uncertain",()=>{
