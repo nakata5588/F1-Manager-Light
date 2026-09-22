@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
+import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import {
   changeDriverContractRole,
@@ -19,15 +20,9 @@ import {
 } from "../engine/NegotiationEngine.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
-const pick=(o,keys,fb=undefined)=>{
-  for(const k of keys){
-    const v=unbox(o?.[k]);
-    if(v!==undefined&&v!==null&&v!=="")return v;
-  }
-  return fb;
-};
+const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const idOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
-const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
+const num=(v,fb=0)=>Number.isFinite(Number(unbox(v)))?Number(unbox(v)):fb;
 
 const SLOT_ORDER=[
   {key:"main",label:"Main Driver",description:"Primary race seat"},
@@ -37,9 +32,42 @@ const SLOT_ORDER=[
 ];
 
 function money(value){
-  return Number(value)
-    ? new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value))
-    : "—";
+  return Number(value)?new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)):"—";
+}
+function raceStats(results,year,driverId){
+  const out={races:0,wins:0,podiums:0,dnfs:0,points:0,bestFinish:null,avgFinish:null,finishSum:0,finishCount:0};
+  for(const race of results||[]){
+    if(Number(race?.year)!==Number(year))continue;
+    const row=(race?.classification||[]).find((r)=>String(r?.driver_id??"")===String(driverId));
+    if(!row)continue;
+    const retired=Boolean(row?.retired)||String(row?.status||"").toUpperCase()==="DNF";
+    const pos=Number(row?.position);
+    out.races+=1;
+    out.points+=num(row?.points,0);
+    if(!retired&&pos===1)out.wins+=1;
+    if(!retired&&pos>=1&&pos<=3)out.podiums+=1;
+    if(retired)out.dnfs+=1;
+    if(Number.isFinite(pos)&&pos>0){out.bestFinish=out.bestFinish==null?pos:Math.min(out.bestFinish,pos);out.finishSum+=pos;out.finishCount+=1;}
+  }
+  out.avgFinish=out.finishCount?Number((out.finishSum/out.finishCount).toFixed(1)):null;
+  return out;
+}
+function availabilityFor(gs,id){
+  const source=gs?.driverAvailability;
+  if(Array.isArray(source))return source.find((row)=>idOf(row)===String(id))||null;
+  return source&&typeof source==="object"?source[String(id)]||null:null;
+}
+function latestMedical(gs,id){
+  return (gs?.medicalHistory||[]).filter((row)=>String(row?.driver_id??"")===String(id)).sort((a,b)=>String(b?.date||"").localeCompare(String(a?.date||"")))[0]||null;
+}
+function Metric({label,value,tone=""}){
+  return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div><div className={"font-semibold mt-0.5 "+tone}>{value??"—"}</div></div>;
+}
+function Bar({label,value,inverse=false}){
+  const v=Math.max(0,Math.min(100,Number(value)||0));
+  const good=inverse?100-v:v;
+  const tone=good>=70?"bg-emerald-300":good>=45?"bg-amber-300":"bg-rose-400";
+  return <div><div className="flex justify-between text-xs"><span className="text-slate-400">{label}</span><strong>{Math.round(v)}%</strong></div><div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={"h-full "+tone} style={{width:v+"%"}}/></div></div>;
 }
 
 export default function MyDrivers(){
@@ -50,21 +78,21 @@ export default function MyDrivers(){
   const myTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const myTeamName=gs?.team?.team_name||gs?.team?.name||"My Team";
   const drivers=gs?.drivers?.length?gs.drivers:gs?.dbDrivers||[];
+  const ratings=gs?.driverRatings?.length?gs.driverRatings:gs?.dbDriverRatings||[];
+  const results=Array.isArray(gs?.results)?gs.results:[];
+  const standings=gs?.standings?.drivers||[];
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
+  const ratingById=useMemo(()=>new Map(ratings.map((r)=>[idOf(r),r])),[ratings]);
+
   const [renewingRow,setRenewingRow]=useState(null);
   const [changingRoleRow,setChangingRoleRow]=useState(null);
   const [targetRoleKey,setTargetRoleKey]=useState("");
   const negotiations=driverNegotiations(gs);
+
   const activeRenewalByDriver=useMemo(()=>{
     const map=new Map();
     for(const negotiation of negotiations){
-      if(
-        negotiation?.kind==="renewal" &&
-        negotiation?.origin==="player" &&
-        isNegotiationActive(negotiation)
-      ){
-        map.set(String(negotiation.driver_id),negotiation);
-      }
+      if(negotiation?.kind==="renewal"&&negotiation?.origin==="player"&&isNegotiationActive(negotiation))map.set(String(negotiation.driver_id),negotiation);
     }
     return map;
   },[negotiations]);
@@ -75,247 +103,117 @@ export default function MyDrivers(){
       const contract=lineup[slot.key]||null;
       if(!contract)return {...slot,contract:null};
       const id=idOf(contract);
-      const driver=driverById.get(id)||{
-        driver_id:id,
-        display_name:pick(contract,["driver_name","name"],id),
-      };
+      const driver=driverById.get(id)||{driver_id:id,display_name:pick(contract,["driver_name","name"],id)};
       const overallView=driverOverallPresentation(gs,driver);
+      const condition=driverCondition(gs,id);
+      const fatigue=fatigueStatus(gs,id);
+      const rating=ratingById.get(id)||{};
+      const stats=raceStats(results,year,id);
+      const standing=standings.find((row)=>String(row?.driver_id??row?.id??"")===id)||null;
+      const availability=availabilityFor(gs,id);
+      const medical=latestMedical(gs,id);
       return {
-        ...slot,
-        contract,
-        id,
-        driver,
+        ...slot,contract,id,driver,rating,condition,fatigue,stats,standing,availability,medical,
         name:driver.display_name||driver.name||pick(contract,["driver_name","name"],id),
         overall:overallView.estimated?`~${overallView.value}`:overallView.value,
-        salary:Number(pick(contract,["salary","salary_yearly"],0))||0,
+        salary:num(pick(contract,["salary","salary_yearly"],0),0),
         until:pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"),
       };
     });
-  },[gs,driverById,myTeamId]);
+  },[gs,driverById,ratingById,myTeamId,results,year,standings]);
 
   const main=slotRows.find((row)=>row.key==="main");
   const second=slotRows.find((row)=>row.key==="second");
   const canSwap=Boolean(main?.contract&&second?.contract);
+  const annualPayroll=slotRows.reduce((sum,row)=>sum+Number(row.salary||0),0);
 
   function submitRenewal(offer){
     if(!renewingRow)return;
-    const next=startDriverRenewal(gs,{
-      driverId:renewingRow.id,
-      teamId:myTeamId,
-      teamName:myTeamName,
-      offer:{...offer,role:renewingRow.label},
-      origin:"player",
-    });
-    setGameState(next);
+    setGameState(startDriverRenewal(gs,{driverId:renewingRow.id,teamId:myTeamId,teamName:myTeamName,offer:{...offer,role:renewingRow.label},origin:"player"}));
     setRenewingRow(null);
   }
-
   function releaseDriver(row){
     if(!row?.contract)return;
     const cost=terminationCost(gs,row.contract);
-    const ok=window.confirm(
-      "Release "+row.name+"?\n\nContract termination cost: "+money(cost)+
-      "\n\nThis immediately opens the "+row.label+" seat."
-    );
-    if(!ok)return;
+    if(!window.confirm("Release "+row.name+"?\n\nContract termination cost: "+money(cost)+"\n\nThis immediately opens the "+row.label+" seat."))return;
     setGameState(releaseDriverContract(gs,row.id));
   }
-
-  function swapRaceDrivers(){
-    if(!canSwap)return;
-    setGameState(swapRaceDriverRoles(gs,{teamId:myTeamId}));
-  }
-
-  function openRoleChange(row){
-    const firstTarget=SLOT_ORDER.find((slot)=>slot.key!==row.key)?.key||"";
-    setChangingRoleRow(row);
-    setTargetRoleKey(firstTarget);
-  }
-
+  function swapRaceDrivers(){if(canSwap)setGameState(swapRaceDriverRoles(gs,{teamId:myTeamId}));}
+  function openRoleChange(row){setChangingRoleRow(row);setTargetRoleKey(SLOT_ORDER.find((slot)=>slot.key!==row.key)?.key||"");}
   function applyRoleChange(){
     if(!changingRoleRow||!targetRoleKey)return;
-    const next=changeDriverContractRole(gs,{
-      driverId:changingRoleRow.id,
-      targetRole:targetRoleKey,
-      teamId:myTeamId,
-      swapIfOccupied:true,
-    });
-    setGameState(next);
-    setChangingRoleRow(null);
-    setTargetRoleKey("");
+    setGameState(changeDriverContractRole(gs,{driverId:changingRoleRow.id,targetRole:targetRoleKey,teamId:myTeamId,swapIfOccupied:true}));
+    setChangingRoleRow(null);setTargetRoleKey("");
   }
 
-  return (
-    <div className="grid gap-4">
-      <div className="bg-white rounded-xl shadow p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <TeamLogo teamId={myTeamId} name={myTeamName} size="h-12 w-12" />
-          <div>
-            <h2 className="text-xl font-semibold">My Drivers</h2>
-            <p className="text-sm text-gray-500">{myTeamName} · Season {year||"—"}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="border rounded-md px-3 py-2 text-sm disabled:opacity-40"
-            disabled={!canSwap}
-            onClick={swapRaceDrivers}
-          >
-            Swap race drivers
-          </button>
-          <button
-            type="button"
-            className="rounded-md px-3 py-2 text-sm bg-slate-900 text-white"
-            onClick={()=>navigate("/Drivers")}
-          >
-            Open Driver Market
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {slotRows.map((row)=>row.contract?(
-          <div
-            key={row.key}
-            className="bg-white rounded-xl shadow p-4 border border-transparent"
-          >
-            <button
-              type="button"
-              data-entity="driver"
-              data-id={row.id}
-              className="w-full text-left hover:opacity-90"
-            >
-              <div className="flex items-start gap-4">
-                <DriverPortrait driver={row.driver} size="h-20 w-20" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs uppercase tracking-wide text-gray-500">{row.label}</div>
-                  <div className="text-lg font-semibold truncate">{row.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {flagFromCountry(row.driver?.country_name||row.driver?.nationality,row.driver?.country_code)}{" "}
-                    {row.driver?.country_name||row.driver?.nationality||"—"}
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-                    <Info label="Overall" value={row.overall} />
-                    <Info label="Contract" value={row.until} />
-                    <Info label="Salary" value={money(row.salary)} />
-                  </div>
-                  <div className="mt-3 text-xs text-gray-500">{row.description}</div>
-                </div>
-              </div>
-            </button>
-            <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-2">
-              {activeRenewalByDriver.has(String(row.id))?(
-                <span className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700">
-                  Renewal negotiation pending
-                </span>
-              ):(
-                <button
-                  type="button"
-                  className="border rounded-md px-3 py-1.5 text-xs hover:bg-gray-50"
-                  onClick={()=>setRenewingRow(row)}
-                >
-                  Renew contract
-                </button>
-              )}
-              <button
-                type="button"
-                className="border rounded-md px-3 py-1.5 text-xs hover:bg-gray-50"
-                onClick={()=>openRoleChange(row)}
-              >
-                Change role
-              </button>
-              <button
-                type="button"
-                className="border border-red-200 text-red-700 rounded-md px-3 py-1.5 text-xs hover:bg-red-50"
-                onClick={()=>releaseDriver(row)}
-              >
-                Release · {money(terminationCost(gs,row.contract))}
-              </button>
-            </div>
-          </div>
-        ):(
-          <div key={row.key} className="bg-white rounded-xl shadow p-4 border border-dashed border-gray-300">
-            <div className="text-xs uppercase tracking-wide text-gray-500">{row.label}</div>
-            <div className="mt-1 text-lg font-semibold">Vacant</div>
-            <div className="mt-1 text-sm text-gray-500">{row.description}</div>
-            <button
-              type="button"
-              className="mt-4 border rounded-md px-3 py-2 text-sm hover:bg-gray-50"
-              onClick={()=>navigate("/Drivers")}
-            >
-              Find a driver
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-xl shadow p-4 text-sm text-gray-600">
-        Main and Second Driver are the two race seats. Reserve Driver is the automatic first replacement for an unavailable race driver. Test Driver is reserved for development/testing work and is not used automatically as a race substitute.
-      </div>
-
-      {renewingRow&&(
-        <ContractNegotiationModal
-          driver={renewingRow.driver}
-          roles={[renewingRow.label]}
-          expectedSalary={expectedDriverSalary(gs,renewingRow.id)}
-          onClose={()=>setRenewingRow(null)}
-          onSubmit={submitRenewal}
-        />
-      )}
-
-      {changingRoleRow&&(
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-5">
-            <div className="text-lg font-semibold">Change driver role</div>
-            <div className="mt-1 text-sm text-gray-500">
-              {changingRoleRow.name} is currently {changingRoleRow.label}.
-            </div>
-
-            <label className="block mt-4 text-sm font-medium">New role</label>
-            <select
-              className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
-              value={targetRoleKey}
-              onChange={(e)=>setTargetRoleKey(e.target.value)}
-            >
-              {SLOT_ORDER.filter((slot)=>slot.key!==changingRoleRow.key).map((slot)=>{
-                const occupied=slotRows.find((row)=>row.key===slot.key&&row.contract);
-                return (
-                  <option key={slot.key} value={slot.key}>
-                    {slot.label}{occupied?` — swap with ${occupied.name}`:""}
-                  </option>
-                );
-              })}
-            </select>
-
-            <p className="mt-3 text-xs text-gray-500">
-              If the target slot is occupied, the two drivers swap roles atomically. Promotions and demotions apply modest morale/confidence effects.
-            </p>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                className="border rounded-md px-3 py-2 text-sm"
-                onClick={()=>{setChangingRoleRow(null);setTargetRoleKey("");}}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded-md px-3 py-2 text-sm bg-slate-900 text-white disabled:opacity-40"
-                disabled={!targetRoleKey}
-                onClick={applyRoleChange}
-              >
-                Apply role change
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
+    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+      <TeamLogo teamId={myTeamId} name={myTeamName} size="h-16 w-16"/>
+      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Race Department</div><h1 className="text-3xl font-bold">My Drivers</h1><p className="text-sm text-slate-400">{myTeamName} · Season {year||"—"}</p></div>
+      <div className="flex-1"/>
+      <div className="grid grid-cols-3 gap-2 min-w-[360px]"><Metric label="Filled roles" value={slotRows.filter((r)=>r.contract).length+"/4"}/><Metric label="Annual payroll" value={money(annualPayroll)}/><Metric label="Negotiations" value={activeRenewalByDriver.size}/></div>
+      <button type="button" className="rounded-md px-4 py-2 text-sm bg-slate-100 text-slate-950 font-semibold" onClick={()=>navigate("/Drivers")}>Driver Market</button>
     </div>
-  );
-}
 
-function Info({label,value}){
-  return <div><div className="text-xs text-gray-500">{label}</div><div className="font-medium">{value??"—"}</div></div>;
+    <div className="flex justify-end"><button type="button" className="border border-white/15 rounded-md px-3 py-2 text-sm disabled:opacity-40 hover:bg-white/5" disabled={!canSwap} onClick={swapRaceDrivers}>Swap race drivers</button></div>
+
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {slotRows.map((row)=>row.contract?<article key={row.key} className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden">
+        <button type="button" data-entity="driver" data-id={row.id} className="w-full text-left hover:bg-white/[0.02] p-4">
+          <div className="flex items-start gap-4">
+            <DriverPortrait driver={row.driver} size="h-24 w-24"/>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div>
+              <div className="text-2xl font-semibold truncate">{row.name}</div>
+              <div className="text-sm text-slate-400">{flagFromCountry(row.driver?.country_name||row.driver?.nationality,row.driver?.country_code)} {row.driver?.country_name||row.driver?.nationality||"—"} · Age {row.driver?.age??"—"}</div>
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                <Metric label="Overall" value={row.overall}/>
+                <Metric label="Champ pos" value={row.standing?.position?("P"+row.standing.position):"—"}/>
+                <Metric label="Points" value={row.standing?.points??row.stats.points}/>
+                <Metric label="Contract" value={row.until}/>
+              </div>
+            </div>
+          </div>
+        </button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10 border-y border-white/10">
+          <div className="bg-[#12141c] p-4 space-y-3"><Bar label="Confidence" value={row.condition.confidence}/><Bar label="Morale" value={row.condition.morale}/><Bar label="Preparation" value={row.condition.preparation}/><Bar label="Fatigue" value={row.condition.fatigue} inverse/></div>
+          <div className="bg-[#12141c] p-4 grid grid-cols-3 gap-2">
+            <Metric label="Starts" value={row.stats.races}/><Metric label="Wins" value={row.stats.wins}/><Metric label="Podiums" value={row.stats.podiums}/><Metric label="DNF" value={row.stats.dnfs} tone={row.stats.dnfs?"text-rose-300":""}/><Metric label="Best" value={row.stats.bestFinish?("P"+row.stats.bestFinish):"—"}/><Metric label="Avg finish" value={row.stats.avgFinish??"—"}/>
+          </div>
+        </div>
+
+        <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Metric label="Pace" value={pick(row.rating,["pace"],"—")}/><Metric label="Qualifying" value={pick(row.rating,["qualifying"],"—")}/><Metric label="Racecraft" value={pick(row.rating,["racecraft"],"—")}/><Metric label="Consistency" value={pick(row.rating,["consistency"],"—")}/><Metric label="Wet skill" value={pick(row.rating,["wet_skill"],"—")}/><Metric label="Tyre mgmt" value={pick(row.rating,["tire_management"],"—")}/><Metric label="Feedback" value={pick(row.rating,["technical_feedback"],"—")}/><Metric label="Salary" value={money(row.salary)}/>
+        </div>
+
+        {(row.availability||row.medical)?<div className="mx-4 mb-4 rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
+          <div className="font-medium">Medical / availability</div>
+          <div className="text-xs text-slate-400 mt-1">Status: {row.availability?.status||"available"}{row.availability?.expectedReturnDate?" · expected return "+row.availability.expectedReturnDate:""}{row.medical?.injury_reason?" · "+row.medical.injury_reason:""}</div>
+        </div>:null}
+
+        <div className="px-4 pb-4 flex flex-wrap items-center gap-2">
+          <span className={"text-xs px-2 py-1 rounded "+(row.condition.fatigue>=70?"bg-rose-500/15 text-rose-300":"bg-white/5 text-slate-300")}>{row.fatigue.label}</span>
+          {activeRenewalByDriver.has(String(row.id))?<span className="text-xs px-2 py-1 rounded bg-sky-500/15 text-sky-300">Renewal pending</span>:<button type="button" className="border border-white/15 rounded-md px-3 py-1.5 text-xs hover:bg-white/5" onClick={()=>setRenewingRow(row)}>Renew contract</button>}
+          <button type="button" className="border border-white/15 rounded-md px-3 py-1.5 text-xs hover:bg-white/5" onClick={()=>openRoleChange(row)}>Change role</button>
+          <button type="button" className="border border-rose-500/30 text-rose-300 rounded-md px-3 py-1.5 text-xs hover:bg-rose-500/10" onClick={()=>releaseDriver(row)}>Release · {money(terminationCost(gs,row.contract))}</button>
+        </div>
+      </article>:<div key={row.key} className="rounded-xl border border-dashed border-white/20 bg-[#12141c] p-5">
+        <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div><div className="mt-1 text-xl font-semibold">Vacant</div><div className="mt-1 text-sm text-slate-400">{row.description}</div><button type="button" className="mt-4 rounded-md bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold" onClick={()=>navigate("/Drivers")}>Find a driver</button>
+      </div>)}
+    </div>
+
+    {renewingRow&&<ContractNegotiationModal driver={renewingRow.driver} roles={[renewingRow.label]} expectedSalary={expectedDriverSalary(gs,renewingRow.id)} onClose={()=>setRenewingRow(null)} onSubmit={submitRenewal}/>}
+    {changingRoleRow&&<div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-xl bg-[#12141c] border border-white/10 shadow-xl p-5">
+        <div className="text-lg font-semibold">Change driver role</div><div className="mt-1 text-sm text-slate-400">{changingRoleRow.name} is currently {changingRoleRow.label}.</div>
+        <label className="block mt-4 text-sm font-medium">New role</label>
+        <select className="mt-1 w-full border border-white/10 rounded-md px-3 py-2 text-sm bg-[#191c26] text-slate-100" value={targetRoleKey} onChange={(e)=>setTargetRoleKey(e.target.value)}>
+          {SLOT_ORDER.filter((slot)=>slot.key!==changingRoleRow.key).map((slot)=>{const occupied=slotRows.find((row)=>row.key===slot.key&&row.contract);return <option key={slot.key} value={slot.key}>{slot.label}{occupied?" — swap with "+occupied.name:""}</option>;})}
+        </select>
+        <p className="mt-3 text-xs text-slate-500">If occupied, the two drivers swap roles atomically. Promotions/demotions retain the existing morale and confidence effects.</p>
+        <div className="mt-5 flex justify-end gap-2"><button className="border border-white/15 rounded-md px-3 py-2 text-sm" onClick={()=>{setChangingRoleRow(null);setTargetRoleKey("");}}>Cancel</button><button className="rounded-md px-3 py-2 text-sm bg-slate-100 text-slate-950 font-semibold disabled:opacity-40" disabled={!targetRoleKey} onClick={applyRoleChange}>Apply role change</button></div>
+      </div>
+    </div>}
+  </div>;
 }
