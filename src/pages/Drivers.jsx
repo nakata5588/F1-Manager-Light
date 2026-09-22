@@ -170,7 +170,7 @@ export default function Drivers(){
   }),[drivers,ratingById,contractById,activePlayerByDriver,activeTransferByDriver,teamNames,gs]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
-  const statusOptions=["ALL","Contracted","Negotiating","Free","Other Series","Prospect","Youth","Lower Series","Team Commitment","Status Review","Retired","Unavailable","Available"];
+  const statusOptions=["ALL","Contracted","Negotiating","Free","Academy","Other Series","Prospect","Youth","Lower Series","Team Commitment","Status Review","Retired","Unavailable","Available"];
 
   const filtered=useMemo(()=>{
     const n=q.trim().toLowerCase();
