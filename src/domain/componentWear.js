@@ -64,8 +64,9 @@ function severityOf(row){
 function raceDistanceFactor(row){
   if(!row?.retired)return 1;
   const laps=Number(row?.laps_completed);
+  const raceLaps=Math.max(1,Number(row?.race_laps)||60);
   if(!Number.isFinite(laps))return 0.65;
-  return clamp(laps/60,0.25,1);
+  return clamp(laps/raceLaps,0.25,1);
 }
 
 export function componentWearForRaceRow(row,slot){
