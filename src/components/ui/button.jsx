@@ -5,6 +5,7 @@ function ButtonBase({ variant = "default", className = "", children, ...props })
     default: "bg-black text-white hover:opacity-90",
     secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
     outline: "border border-gray-300 text-gray-900 bg-white hover:bg-gray-50",
+    darkOutline: "border border-white/15 text-slate-100 bg-[#171a23] hover:bg-[#20242f]",
     destructive: "bg-red-600 text-white hover:bg-red-700",
   };
   return (
