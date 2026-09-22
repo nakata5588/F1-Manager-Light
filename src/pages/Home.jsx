@@ -10,6 +10,7 @@ import { driverRoleLabelForSlot } from "../domain/contractRoles.js";
 import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import { upcomingManagementEvents, daysBetweenISO } from "../domain/managementEvents.js";
+import { deriveBoardState } from "../domain/boardState.js";
 
 const firstArray=(...candidates)=>candidates.find(Array.isArray)||[];
 const num=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
@@ -147,8 +148,8 @@ export default function Home(){
     const sponsorIncome=sponsorRows.reduce((sum,row)=>
       sum+num(unwrap(row?.anual_income??row?.annual_income??row?.value_year),0),0
     );
-    const board=gameState.board||{};
-    const objectives=Array.isArray(board.objectives)?board.objectives:[];
+    const board=deriveBoardState(gameState);
+    const objectives=board.objectives||[];
     const lowComponents=[];
     for(const car of gameState.garage?.cars||[]){
       for(const [slot,condition] of Object.entries(car?.componentCondition||{})){
@@ -167,8 +168,8 @@ export default function Home(){
   }
 
   const unread=data.inbox.filter(isUnread).length;
-  const boardStatus=data.board?.confidence??data.board?.rating??data.board?.status??"—";
-  const seasonObjective=data.objectives[0]?.title??data.objectives[0]?.name??data.board?.seasonObjective??"No objective set";
+  const boardStatus=Number.isFinite(Number(data.board?.confidence))?`${Math.round(Number(data.board.confidence)*100)}%`:(data.board?.rating??data.board?.status??"—");
+  const seasonObjective=data.board?.expectationLabel??data.objectives[0]?.title??"No objective set";
   const currentDate=gameState.currentDateISO||"";
   const nextRaceDays=data.nextRace?daysBetweenISO(currentDate,data.nextRace.date):null;
 
