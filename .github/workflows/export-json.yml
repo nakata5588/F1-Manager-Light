@@ -86,6 +86,9 @@ jobs:
       - name: Test race control and weather effects
         run: npm run test:race-control
 
+      - name: Test weekend weather and forecast evolution
+        run: npm run test:weekend-weather
+
       - name: Test injuries and replacement drivers
         run: npm run test:injuries
 
