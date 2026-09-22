@@ -25,36 +25,120 @@ function cumulativeAtLap(row,lap){
     +(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=lap).reduce((sum,stop)=>sum+num(stop?.total_loss_s)*1000,0);
 }
 function tyreStateAtLap(row,lap){
-  const stint=(row?.stints||[]).find((s)=>lap>=Number(s?.start_lap)&&lap<=Number(s?.end_lap))||(row?.stints||[]).at(-1);
-  if(!stint)return {tyre_id:row?.start_tyre_id||null,compound:null,condition:null,temperature_c:null};
+  const stints=row?.stints||[];
+  const stintIndex=stints.findIndex((s)=>lap>=Number(s?.start_lap)&&lap<=Number(s?.end_lap));
+  const index=stintIndex>=0?stintIndex:Math.max(0,stints.length-1);
+  const stint=stints[index];
+  if(!stint)return {tyre_id:row?.start_tyre_id||null,compound:null,condition:null,temperature_c:null,age_laps:0,stint_number:1};
   const stintLaps=Math.max(1,Number(stint?.laps)||1);
-  const progress=Math.max(0,Math.min(1,(lap-Number(stint?.start_lap)+1)/stintLaps));
+  const age=Math.max(1,lap-Number(stint?.start_lap)+1);
+  const progress=Math.max(0,Math.min(1,age/stintLaps));
   const end=num(stint?.condition_end,100);
   return {
     tyre_id:stint?.tyre_id||null,
     compound:stint?.compound||null,
+    category:stint?.category||null,
     condition:Number((100-(100-end)*progress).toFixed(1)),
     temperature_c:Number(num(stint?.avg_temperature_c,0).toFixed(1)),
+    age_laps:age,
+    stint_number:index+1,
+    stint_start_lap:Number(stint?.start_lap)||1,
   };
 }
-function visibleClassification(race,lap,plan){
+function stableHash(value){
+  let hash=2166136261;
+  for(const ch of String(value??"")){
+    hash^=ch.charCodeAt(0);
+    hash=Math.imul(hash,16777619)>>>0;
+  }
+  return hash>>>0;
+}
+function sectorTimesForLap(lapMs,driverId,lap){
+  const total=Number(lapMs);
+  if(!Number.isFinite(total)||total<=0)return {sector_1_ms:null,sector_2_ms:null,sector_3_ms:null};
+  const hash=stableHash(driverId+"-"+lap);
+  const jitter1=((hash&1023)/1023-0.5)*0.026;
+  const jitter2=(((hash>>>10)&1023)/1023-0.5)*0.026;
+  const share1=0.327+jitter1;
+  const share2=0.337+jitter2;
+  const s1=Math.max(1,Math.round(total*share1));
+  const s2=Math.max(1,Math.round(total*share2));
+  const s3=Math.max(1,total-s1-s2);
+  return {sector_1_ms:s1,sector_2_ms:s2,sector_3_ms:s3};
+}
+function bestLapAt(row,lap){
+  const times=(row?.lap_times_ms||[]).slice(0,Math.max(0,lap));
+  let bestMs=Infinity,bestLap=null;
+  times.forEach((value,index)=>{
+    const ms=Number(value);
+    if(Number.isFinite(ms)&&ms>0&&ms<bestMs){bestMs=ms;bestLap=index+1;}
+  });
+  return {best_lap_ms:Number.isFinite(bestMs)?bestMs:null,best_lap_number:bestLap};
+}
+function paceAtLap(strategyState,driverId,lap){
+  let pace=String(strategyState?.selections?.[String(driverId)]?.pace_mode||"balanced");
+  const commands=(strategyState?.live_commands?.[String(driverId)]||[])
+    .filter((row)=>row?.type==="pace"&&Number(row?.effective_lap||0)<=Number(lap))
+    .sort((a,b)=>Number(a?.effective_lap||0)-Number(b?.effective_lap||0));
+  if(commands.length)pace=String(commands.at(-1)?.pace_mode||pace);
+  return pace;
+}
+function pitWindowAt(strategyState,driverId,lap,totalLaps,tyre){
+  const did=String(driverId);
+  const selection=strategyState?.selections?.[did]||{};
+  const commands=(strategyState?.live_commands?.[did]||[])
+    .filter((row)=>row?.type==="pit"&&Number(row?.effective_lap||0)>Number(lap))
+    .sort((a,b)=>Number(a?.effective_lap||0)-Number(b?.effective_lap||0));
+  if(commands.length){
+    const target=Math.min(totalLaps,Number(commands[0].effective_lap));
+    return {from_lap:target,to_lap:target,target_lap:target,source:"player_call"};
+  }
+  if(selection.pit_plan==="no_stop")return null;
+  if(selection.pit_plan==="one_stop"){
+    const target=Math.max(Number(lap)+1,Math.min(totalLaps-1,Math.round(num(selection.planned_stop_lap,totalLaps*0.52))));
+    return {from_lap:Math.max(Number(lap)+1,target-2),to_lap:Math.min(totalLaps-1,target+2),target_lap:target,source:"planned"};
+  }
+  const condition=num(tyre?.condition,100);
+  const lapsUntil=Math.max(2,Math.min(12,Math.round((condition-28)/7)));
+  const target=Math.min(totalLaps-1,Number(lap)+lapsUntil);
+  if(target<=Number(lap))return null;
+  return {from_lap:Math.max(Number(lap)+1,target-2),to_lap:Math.min(totalLaps-1,target+2),target_lap:target,source:"adaptive"};
+}
+function visibleClassification(gs,race,lap,plan,strategyState){
+  const gridRows=gridForWeekend(gs);
+  const gridById=new Map(gridRows.map((row)=>[idOf(row?.driver),Number(row?.pos)]));
+  const totalLaps=Math.max(1,Number(gs?.raceWeekendState?.live_race?.total_laps||strategyState?.track_snapshot?.laps||1));
   const rows=(race||[]).map((row)=>{
     const did=idOf(row?.driver||row);
     const incident=incidentForDriver(plan,did);
     const retired=Boolean(incident&&Number(incident.lap)<=lap);
     const effectiveLap=retired?Math.max(1,Number(incident.lap)):lap;
+    const lastLapMs=num(row?.lap_times_ms?.[Math.max(0,effectiveLap-1)],null);
+    const tyre=tyreStateAtLap(row,effectiveLap);
+    const pits=(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=effectiveLap);
+    const best=bestLapAt(row,effectiveLap);
+    const sectors=sectorTimesForLap(lastLapMs,did,effectiveLap);
     return {
-    driver_id:did,
-    elapsed_ms:cumulativeAtLap(row,effectiveLap),
-    last_lap_ms:num(row?.lap_times_ms?.[Math.max(0,effectiveLap-1)],null),
-    tyre:tyreStateAtLap(row,effectiveLap),
-    pit_stops:(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=effectiveLap),
-    projected_finish_position:Number(row?.pos)||null,
-    retired,
-    status:retired?"DNF":"RUNNING",
-    retirement_reason:retired?incident.reason:null,
-    incident_lap:retired?incident.lap:null,
-  };
+      driver_id:did,
+      team_id:teamForDriver(gs,did),
+      grid_position:gridById.get(did)||null,
+      laps_completed:effectiveLap,
+      elapsed_ms:cumulativeAtLap(row,effectiveLap),
+      last_lap_ms:lastLapMs,
+      ...best,
+      ...sectors,
+      tyre,
+      pit_stops:pits,
+      pit_count:pits.length,
+      last_pit_lap:pits.length?Number(pits.at(-1)?.lap)||null:null,
+      current_pace:paceAtLap(strategyState,did,effectiveLap),
+      pit_window:pitWindowAt(strategyState,did,effectiveLap,totalLaps,tyre),
+      projected_finish_position:Number(row?.pos)||null,
+      retired,
+      status:retired?"DNF":"RUNNING",
+      retirement_reason:retired?incident.reason:null,
+      incident_lap:retired?incident.lap:null,
+    };
   });
   const active=rows.filter((row)=>!row.retired).sort((a,b)=>a.elapsed_ms-b.elapsed_ms||a.driver_id.localeCompare(b.driver_id));
   const retired=rows.filter((row)=>row.retired).sort((a,b)=>Number(b.incident_lap)-Number(a.incident_lap)||a.elapsed_ms-b.elapsed_ms);
@@ -62,8 +146,18 @@ function visibleClassification(race,lap,plan){
   const leader=active[0]?.elapsed_ms||ordered[0]?.elapsed_ms||0;
   let previous=leader;
   return ordered.map((row,index)=>{
+    const position=index+1;
     const gap=row.retired?null:Math.max(0,row.elapsed_ms-leader);
-    const out={...row,position:index+1,gap_to_leader_ms:gap,gap_to_previous_ms:index&&!row.retired?Math.max(0,row.elapsed_ms-previous):0};
+    const interval=index&&!row.retired?Math.max(0,row.elapsed_ms-previous):0;
+    const out={
+      ...row,
+      position,
+      gap_to_leader_ms:gap,
+      gap_to_previous_ms:interval,
+      interval_ms:interval,
+      position_gain:Number.isFinite(Number(row.grid_position))?Number(row.grid_position)-position:0,
+      projected_gain:Number.isFinite(Number(row.projected_finish_position))?position-Number(row.projected_finish_position):0,
+    };
     if(!row.retired)previous=row.elapsed_ms;
     return out;
   });
@@ -143,7 +237,7 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   const target=upcomingRed?Number(upcomingRed.from_lap):requestedTarget;
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
-  const classification=visibleClassification(simulation.race,target,plan);
+  const classification=visibleClassification(working,simulation.race,target,plan,working?.raceWeekendState?.race_strategy);
   const weatherSegment=simulation.weather?.segments?.find((s)=>target>=Number(s?.from_lap)&&target<=Number(s?.to_lap));
   const weather=String(weatherSegment?.state||simulation.weather?.state||"SUNNY");
   const previousWeather=String(live.last_weather||"");
@@ -175,11 +269,27 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
       }
     }
   }
+  const activeRows=classification.filter((row)=>!row.retired);
+  const fastest=classification
+    .filter((row)=>Number.isFinite(Number(row.best_lap_ms))&&Number(row.best_lap_ms)>0)
+    .slice()
+    .sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
+  const timingSummary={
+    leader_driver_id:activeRows[0]?.driver_id||classification[0]?.driver_id||null,
+    fastest_lap_driver_id:fastest?.driver_id||null,
+    fastest_lap_ms:fastest?.best_lap_ms||null,
+    fastest_lap_number:fastest?.best_lap_number||null,
+    field_spread_ms:activeRows.length>1
+      ?Math.max(0,Number(activeRows.at(-1)?.elapsed_ms||0)-Number(activeRows[0]?.elapsed_ms||0))
+      :0,
+    running_count:activeRows.length,
+    retired_count:classification.filter((row)=>row.retired).length,
+  };
   return {
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
-      live_race:{...live,current_lap:target,status:upcomingRed?"red_flag":target>=Number(live.total_laps)?"finished":"running",classification,last_weather:weather,current_control:currentControl.type,track_state:trackState,red_flag_period:upcomingRed||null,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-100)},
+      live_race:{...live,current_lap:target,status:upcomingRed?"red_flag":target>=Number(live.total_laps)?"finished":"running",classification,timing_summary:timingSummary,last_weather:weather,current_control:currentControl.type,track_state:trackState,red_flag_period:upcomingRed||null,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-100)},
     },
   };
 }
