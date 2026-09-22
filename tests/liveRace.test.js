@@ -450,8 +450,8 @@ test("finalized live rows preserve exactly the retirements visible to the player
   assert.equal(retired.incident_lap,1);
   assert.equal(retired.laps_completed,0);
   assert.equal(retired.pit_stops.length,0,"a lap-one DNF cannot retain future simulated pit stops");
-  assert.equal(retired.lap_times_ms.length,1);
-  assert.equal(retired.tyre_state_by_lap.length,1);
+  assert.equal(retired.lap_times_ms.length,0);
+  assert.equal(retired.tyre_state_by_lap.length,0);
   assert.equal(retired.strategy_decisions.length,0);
   assert.equal(retired.strategy_summary.pit_count,0);
   assert.equal(retired.strategy_summary.pit_stops,0);
