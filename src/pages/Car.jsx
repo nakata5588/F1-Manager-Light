@@ -159,8 +159,10 @@ export default function Car(){
 
   useEffect(()=>{
     const garageChanged=currentKey(gs?.garage?.cars)!==currentKey(syncedGarage?.cars);
-    const unitsChanged=currentKey(gs?.development?.partUnits)!==currentKey(partUnits);
-    const partsChanged=currentKey(gs?.development?.parts)!==currentKey(parts);
+    const unitsChanged=Array.isArray(physicalState?.development?.partUnits) &&
+      currentKey(gs?.development?.partUnits)!==currentKey(partUnits);
+    const partsChanged=Array.isArray(physicalState?.development?.parts) &&
+      currentKey(gs?.development?.parts)!==currentKey(parts);
     if(garageChanged||unitsChanged||partsChanged){
       setGameState({
         garage:syncedGarage,
