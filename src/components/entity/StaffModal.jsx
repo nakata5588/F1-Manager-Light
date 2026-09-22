@@ -36,7 +36,7 @@ export default function StaffModal({entity,onClose,pageMode=false}){
   const overall=overallOf(rating);
   const skills=Object.entries(rating||{}).filter(([k,v])=>!["staff_id","staff_name","year"].includes(k)&&Number.isFinite(Number(v))).sort((a,b)=>Number(b[1])-Number(a[1]));
 
-  return <div className={pageMode?"min-h-[calc(100vh-5rem)] rounded-2xl border bg-white shadow-xl":"max-h-[92vh] overflow-y-auto"}>
+  return <div className={pageMode?"min-h-[calc(100vh-5rem)] rounded-2xl border bg-white text-slate-950 shadow-xl":"max-h-[92vh] overflow-y-auto"}>
     <div className="p-5 border-b flex items-start justify-between gap-3">
       <div><h2 className="text-2xl font-bold">{name}</h2><p className="text-sm text-gray-500">{flagFromCountry(country,pick(staff,["country_code"],""))} {country||"—"} · {role}</p></div>
       {!pageMode&&<button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18}/></button>}

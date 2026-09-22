@@ -14,7 +14,10 @@ import {
   driverGroupDevelopmentPlan,
 } from "../domain/driverAttributeGroups.js";
 import { dynamicPotentialAdjustment } from "../domain/driverPotential.js";
-import { retirementResponsibility } from "../domain/driverForm.js";
+import {
+  driverLifecycleSnapshot,
+  driverMonthlyCareerDevelopmentPlan,
+} from "../domain/driverLifecycle.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -111,29 +114,6 @@ function simulatorLevel(gs,teamId){
   const level=Number(pick(row||{},["simulator_level"],5));
   return Number.isFinite(level)?level:5;
 }
-function seasonForm(gs,driverId){
-  const year=Number(gs?.activeYear);
-  let starts=0,wins=0,podiums=0,dnfs=0,driverFaultDnfs=0,points=0,finishSum=0,finishCount=0;
-  for(const event of gs?.results||[]){
-    if(Number(event?.year)!==year)continue;
-    const row=(event?.classification||[]).find((r)=>String(r?.driver_id??"")===String(driverId));
-    if(!row)continue;
-    starts++;
-    points+=Number(row.points||0);
-    const pos=Number(row.position);
-    if(Number.isFinite(pos)){finishSum+=pos;finishCount++;}
-    if(row.retired){
-      dnfs++;
-      const responsibility=retirementResponsibility(row?.retirement_reason);
-      if(["driver_error","racing_incident"].includes(responsibility.key))driverFaultDnfs++;
-    }else if(pos===1)wins++;
-    if(!row.retired&&pos>=1&&pos<=3)podiums++;
-  }
-  return {
-    starts,wins,podiums,dnfs,driverFaultDnfs,points,
-    avgFinish:finishCount?finishSum/finishCount:null,
-  };
-}
 function ageCurve(age){
   if(age<=19)return 0.20;
   if(age<=22)return 0.16;
@@ -190,19 +170,22 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
   const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const changes=[];
   const potentialChanges=[];
+  const lifecycleUpdates=[];
+  const abilityChanges=[];
   const nextRatings=(ratings||[]).map((raw)=>{
     const did=idOf(raw);
     const driver=driversById.get(did);
     if(!driver)return raw;
 
     let rating=ensureAbilityAnchor({...raw});
+    const abilityBefore=Number(rating.current_ability);
+    const driverChangeStart=changes.length;
     const age=ageOf(driver,year);
     const current=Number(rating.current_ability||0);
     const potential=Number(rating.potential_ability);
     const gap=Number.isFinite(potential)?Math.max(0,potential-current):10;
     const teamId=resolveDriverTeamId(gs,did);
     const sim=simulatorLevel(gs,teamId);
-    const form=seasonForm(gs,did);
     const curve=ageCurve(age);
     const facilityFactor=0.80+Math.max(0,Math.min(10,sim))*0.035;
 
@@ -221,22 +204,12 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
       }
     }
 
-    // Experience can still improve judgement after raw pace has plateaued.
-    if(form.starts>0){
-      const experience=Math.min(0.07,0.012+form.starts*0.002);
-      applyDelta(rating,"race_intelligence",experience,changes,did,dateISO,"race_experience");
-      applyDelta(rating,"consistency",experience*0.65,changes,did,dateISO,"race_experience");
-      applyDelta(rating,"technical_feedback",experience*0.45,changes,did,dateISO,"race_experience");
-    }
-    if(form.wins>0||form.podiums>0){
-      const success=Math.min(0.08,form.wins*0.025+form.podiums*0.008);
-      applyDelta(rating,"pressure_handling",success,changes,did,dateISO,"competitive_success");
-      applyDelta(rating,"mentality",success*0.7,changes,did,dateISO,"competitive_success");
-    }
-    if(form.driverFaultDnfs>=2){
-      const setback=Math.min(0.10,form.driverFaultDnfs*0.018);
-      applyDelta(rating,"mentality",-setback,changes,did,dateISO,"incident_setback");
-      applyDelta(rating,"consistency",-setback*0.55,changes,did,dateISO,"reliability_setback");
+    // D5 career effects are event-based. Only the previous month's played
+    // races/injuries are consumed here, so the same result cannot be rewarded
+    // or punished repeatedly for the rest of the season.
+    const careerPlan=driverMonthlyCareerDevelopmentPlan(gs,did,rating,dateISO);
+    for(const item of careerPlan.changes){
+      applyDelta(rating,item.attr,item.delta,changes,did,dateISO,item.source);
     }
 
     // Development focus is a persistent monthly choice. The same potential-
@@ -306,10 +279,59 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
       if(adjusted.change)potentialChanges.push(adjusted.change);
     }
 
+    const driverChanges=changes.slice(driverChangeStart);
+    const logKey=String(did||"").match(/(\d+)/)?.[1]?.padStart(4,"0")||String(did||"");
+    const lifecycle=driverLifecycleSnapshot(
+      {
+        ...gs,
+        currentDateISO:dateISO,
+        driverAttrLog:{
+          ...(gs?.driverAttrLog||{}),
+          [logKey]:[...((gs?.driverAttrLog||{})[logKey]||[]),...driverChanges],
+        },
+      },
+      driver,
+      rating,
+      {dateISO}
+    );
+    const previousStage=gs?.driverLifecycle?.[did]?.stage||null;
+    lifecycleUpdates.push({
+      driverId:did,
+      state:{
+        ...lifecycle,
+        enteredAt:previousStage===lifecycle.stage
+          ?gs?.driverLifecycle?.[did]?.enteredAt||dateISO
+          :dateISO,
+        previousStage,
+      },
+    });
+
+    const abilityAfter=Number(rating.current_ability);
+    abilityChanges.push({
+      dateISO,
+      driverId:did,
+      before:Number.isFinite(abilityBefore)?abilityBefore:null,
+      after:Number.isFinite(abilityAfter)?abilityAfter:null,
+      delta:Number.isFinite(abilityBefore)&&Number.isFinite(abilityAfter)
+        ?Math.round((abilityAfter-abilityBefore)*100)/100
+        :null,
+      stage:lifecycle.stage,
+      trajectory:lifecycle.trajectory,
+      sources:[...new Set(driverChanges.map((row)=>row.source).filter(Boolean))],
+      reasons:[...careerPlan.reasons],
+    });
+
     return rating;
   });
 
-  return {ratings:nextRatings,changes,potentialChanges,monthKey};
+  return {
+    ratings:nextRatings,
+    changes,
+    potentialChanges,
+    lifecycleUpdates,
+    abilityChanges,
+    monthKey,
+  };
 }
 
 function applyPlayerDevelopmentLoad(gs,dateISO){
@@ -392,7 +414,13 @@ export function applyProgressionTick(gs){
 
   const monthKey=dateISO.slice(0,7);
   if(gs?._lastDriverProgressionMonth!==monthKey){
-    const {ratings,changes,potentialChanges}=monthlyProgression(
+    const {
+      ratings,
+      changes,
+      potentialChanges,
+      lifecycleUpdates,
+      abilityChanges,
+    }=monthlyProgression(
       next,
       gs.driverRatings||[],
       dateISO,
@@ -417,6 +445,31 @@ export function applyProgressionTick(gs){
         potentialLog[key]=[...(potentialLog[key]||[]),ch].slice(-120);
       }
       next.driverPotentialLog=potentialLog;
+    }
+
+    if(lifecycleUpdates.length){
+      const lifecycle={...(gs?.driverLifecycle||{})};
+      const lifecycleLog={...(gs?.driverLifecycleLog||{})};
+      for(const update of lifecycleUpdates){
+        lifecycle[update.driverId]=update.state;
+        lifecycleLog[update.driverId]=[
+          ...(lifecycleLog[update.driverId]||[]),
+          update.state,
+        ].slice(-120);
+      }
+      next.driverLifecycle=lifecycle;
+      next.driverLifecycleLog=lifecycleLog;
+    }
+
+    if(abilityChanges.length){
+      const abilityLog={...(gs?.driverAbilityLog||{})};
+      for(const ch of abilityChanges){
+        abilityLog[ch.driverId]=[
+          ...(abilityLog[ch.driverId]||[]),
+          ch,
+        ].slice(-120);
+      }
+      next.driverAbilityLog=abilityLog;
     }
   }
 

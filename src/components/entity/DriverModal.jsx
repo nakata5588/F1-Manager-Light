@@ -644,6 +644,9 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   const potentialLog = (gs?.driverPotentialLog?.[driverId]||[])
     .slice()
     .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
+  const abilityLog = (gs?.driverAbilityLog?.[driverId]||[])
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
 
   function setDriverDevelopmentFocus(groupKey) {
     if (!isOwnDriver || !driverId || !groupKey) return;
@@ -911,6 +914,8 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               focusState={developmentFocusState}
               training={developmentTraining}
               potentialLog={potentialLog}
+              abilityLog={abilityLog}
+              lifecycle={profileSnapshot?.lifecycle}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
@@ -1168,6 +1173,8 @@ function DevelopmentTab({
   focusState,
   training,
   potentialLog,
+  abilityLog,
+  lifecycle,
   onSetFocus,
 }) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
@@ -1175,6 +1182,7 @@ function DevelopmentTab({
   const canSeeHistory=Boolean(knowledge?.canSeeDevelopmentHistory);
   const groups=driverAttributeGroups();
   const latestPotential=(potentialLog||[])[0]||null;
+  const latestAbility=(abilityLog||[])[0]||null;
   const trainingDays=Number(training?.trainingDays||0);
   const fatigueSpent=Number(training?.fatigueSpent||0);
   const focusLocked=Boolean(focusState?.locked);
@@ -1190,6 +1198,12 @@ function DevelopmentTab({
           <div className="mt-3 grid grid-cols-2 gap-2">
             <ProfileMetric label="Current ability" value={overall.label}/>
             <ProfileMetric label="Dynamic potential" value={potential.label}/>
+            <ProfileMetric label="Career stage" value={lifecycle?.label||"—"}/>
+            <ProfileMetric
+              label="Trajectory"
+              value={lifecycle?.trajectory?niceRole(lifecycle.trajectory):"—"}
+              tone={lifecycle?.trajectory==="rising"?"text-emerald-300":lifecycle?.trajectory==="falling"?"text-rose-300":"text-slate-200"}
+            />
           </div>
           <p className="mt-3 text-xs text-slate-400">
             Potential is a live career ceiling, not a guaranteed destination. Results relative to the car, team environment and sustained development can raise or lower it over time.
@@ -1227,6 +1241,37 @@ function DevelopmentTab({
               <div className="mt-2 text-[11px] text-slate-500">
                 Form {latestPotential.form_score??"—"} · {latestPotential.environment_label||"Environment"} · {latestPotential.training_days||0} training days
               </div>
+            </div>
+          )}
+          {canSeeHistory&&latestAbility&&(
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-400">Latest ability movement</span>
+                <strong className={Number(latestAbility.delta)>0?"text-emerald-300":Number(latestAbility.delta)<0?"text-rose-300":"text-slate-300"}>
+                  {Number(latestAbility.delta)>0?"+":""}{Number(latestAbility.delta||0).toFixed(2)}
+                </strong>
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500">
+                {latestAbility.before!=null?Number(latestAbility.before).toFixed(1):"—"} → {latestAbility.after!=null?Number(latestAbility.after).toFixed(1):"—"} · {niceRole(latestAbility.stage||"development")}
+              </div>
+            </div>
+          )}
+
+          {canSeeHistory&&lifecycle&&(
+            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <ProfileMetric label="Positive pressure" value={Math.round(Number(lifecycle.positivePressure||0))}/>
+                <ProfileMetric
+                  label="Regression pressure"
+                  value={Math.round(Number(lifecycle.negativePressure||0))}
+                  tone={Number(lifecycle.negativePressure)>Number(lifecycle.positivePressure)?"text-rose-300":"text-slate-200"}
+                />
+              </div>
+              {!!lifecycle.reasons?.length&&(
+                <div className="mt-2 space-y-1 text-[11px] text-slate-500">
+                  {lifecycle.reasons.slice(0,4).map((reason,index)=><div key={index}>• {reason}</div>)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1313,13 +1358,14 @@ function DevelopmentTab({
               <tbody className="divide-y divide-white/10">
                 {(log||[]).slice(0,12).map((row,index)=>{
                   const delta=Number(row?.delta??(Number(row?.after)-Number(row?.before)));
+                  const effectiveDelta=String(row?.attr||"")==="crash_likelihood"?-delta:delta;
                   return (
                     <tr key={`${row?.dateISO||"date"}-${row?.attr||"attr"}-${index}`}>
                       <td className="py-2 pr-3 text-slate-400">{row?.dateISO||"—"}</td>
                       <td className="py-2 pr-3 font-medium">{niceRole(String(row?.attr||"—").replaceAll("_"," "))}</td>
                       <td className="py-2 pr-3 text-right">{isNumeric(row?.before)?Number(row.before).toFixed(2):"—"}</td>
                       <td className="py-2 pr-3 text-right">{isNumeric(row?.after)?Number(row.after).toFixed(2):"—"}</td>
-                      <td className={`py-2 pr-3 text-right font-medium ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
+                      <td className={`py-2 pr-3 text-right font-medium ${effectiveDelta>0?"text-emerald-300":effectiveDelta<0?"text-rose-300":"text-slate-400"}`}>
                         {Number.isFinite(delta)?`${delta>0?"+":""}${delta.toFixed(2)}`:"—"}
                       </td>
                       <td className="py-2 text-slate-400">{displayValue(row?.source,"—")}</td>
