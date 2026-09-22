@@ -256,7 +256,7 @@ function controlNotice(plan,liveRace,drivers){
     ?(plan?.incidents||[]).find((row)=>String(row?.driver_id)===String(period.driver_id)&&Number(row?.lap)===Number(period?.from_lap))
     :null;
   const label={
-    LOCAL_YELLOW:"LOCAL YELLOW",
+    LOCAL_YELLOW:"YELLOW FLAG",
     SAFETY_CAR:"SAFETY CAR",
     VSC:"VIRTUAL SAFETY CAR",
     RED_FLAG:"RED FLAG",
@@ -305,15 +305,17 @@ function RaceFlagBanner({notice}){
           {Array.from({length:9},(_,index)=><span key={index} className={(Math.floor(index/3)+index%3)%2===0?"bg-white":"bg-slate-950"}/>)}
         </span>
       :<Flag className="h-6 w-6 fill-current"/>;
-  return <div className={"min-w-[230px] overflow-hidden rounded-lg border-2 shadow-lg "+palette}>
-    <div className="flex items-center gap-3 px-3 py-2">
+  return <div className={"w-[280px] min-h-[82px] overflow-hidden rounded-lg border-2 shadow-lg "+palette}>
+    <div className="flex h-[54px] items-center gap-3 px-3 py-2">
       <div className="flex h-9 w-10 shrink-0 items-center justify-center border-r border-current/30 pr-3">{icon}</div>
       <div className="min-w-0">
         <div className="text-sm font-black italic tracking-wide">{notice.label}</div>
         <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-80">{notice.subtitle}</div>
       </div>
     </div>
-    {notice.reason&&type!=="GREEN"&&type!=="CHEQUERED"?<div className="border-t border-current/15 px-3 py-1.5 text-right text-[10px] opacity-75">{notice.reason}</div>:null}
+    <div className="min-h-[26px] border-t border-current/15 px-3 py-1.5 text-right text-[10px] opacity-75">
+      {notice.reason||"Race control"}
+    </div>
   </div>;
 }
 function controlNoticeTone(type){
@@ -1050,7 +1052,7 @@ export default function RaceWeekend(){
               <div className="mt-3 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 text-sm">
                 <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Flag className="h-3.5 w-3.5"/>Race Control</div>
-                  <div className={"mt-1 font-bold "+(String(liveRace.current_control||"GREEN")==="GREEN"?"text-emerald-300":"text-amber-300")}>{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
+                  <div className={"mt-1 font-bold "+(String(liveRace.current_control||"GREEN")==="GREEN"?"text-emerald-300":"text-amber-300")}>{String(liveRace.current_control||"GREEN")==="LOCAL_YELLOW"?"YELLOW FLAG":String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Rain</div>
