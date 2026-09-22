@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -59,6 +59,46 @@ function fixture(){
   gs.raceWeekendState={phase:"race",roundIndex:0,startingGrid:{status:"final",rows},grid:rows,race_strategy:built.state};
   return gs;
 }
+
+test("RW4.6.1 race-control incident messages use natural language instead of internal severity enums",()=>{
+  const samples=[
+    {
+      controlType:"LOCAL_YELLOW",
+      incident:{kind:"collision",reason:"Collision",severity:"low"},
+      expected:"Local yellow — John Watson involved in a minor collision.",
+    },
+    {
+      controlType:"LOCAL_YELLOW",
+      incident:{kind:"collision",reason:"Collision",severity:"medium"},
+      expected:"Local yellow — John Watson involved in a significant collision.",
+    },
+    {
+      controlType:"SAFETY_CAR",
+      incident:{kind:"collision",reason:"Collision",severity:"high"},
+      expected:"Safety Car — John Watson involved in a heavy collision.",
+    },
+    {
+      controlType:"RED_FLAG",
+      incident:{kind:"accident",reason:"Accident",severity:"critical"},
+      expected:"Red flag — Serious accident involving John Watson.",
+    },
+    {
+      controlType:null,
+      incident:{kind:"mechanical",reason:"Engine",severity:"low"},
+      expected:"John Watson stops with an engine problem.",
+    },
+  ];
+
+  for(const sample of samples){
+    const message=formatRaceIncidentMessage({
+      controlType:sample.controlType,
+      driverName:"John Watson",
+      incident:sample.incident,
+    });
+    assert.equal(message,sample.expected);
+    assert.doesNotMatch(message,/\((?:low|medium|high|critical)\)/i);
+  }
+});
 
 test("live race starts at lap zero and advances incrementally",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
