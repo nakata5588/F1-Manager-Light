@@ -219,6 +219,21 @@ export function continueRaceWeekendSession(gs){
         },
       };
     }
+    if(
+      weekend.phase==="qualifying_wait"&&
+      !next&&
+      weekend?.qualifying?.status==="completed"&&
+      (weekend?.startingGrid?.rows||weekend?.grid||[]).length
+    ){
+      return {
+        ...gs,
+        raceWeekendState:{
+          ...weekend,
+          phase:"grid_ready",
+          active_session_id:"grid",
+        },
+      };
+    }
   }
 
   if(weekend.phase==="grid_ready"&&dateReached(date,weekend.raceDate)){
@@ -420,8 +435,11 @@ export function completeQualifyingSession(gs,{gp}={}){
       ...interim,
       weekend_weather:sessionGameState?.raceWeekendState?.weekend_weather||interim.weekend_weather,
       sessions,
-      phase:"grid_ready",
-      active_session_id:"grid",
+      // Keep the final qualifying report visible until the player explicitly
+      // continues to Strategy. The grid and strategy are already materialised,
+      // but the UI remains on the just-completed session as a deliberate gate.
+      phase:"qualifying_wait",
+      active_session_id:current.id,
       qualifying:{
         ...(weekend.qualifying||{}),
         status:"completed",
@@ -463,6 +481,9 @@ export async function completeRaceSession(gs,{gp}={}){
   });
   return {
     ...next,
+    // Player identity is a career invariant. Preserve the exact team object
+    // across race finalisation so shell branding cannot disappear in Results.
+    team:gs?.team??next?.team,
     raceWeekendState:{
       ...weekend,
       sessions,
