@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, BarChart3, CarFront, Factory, Package, Settings2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { DriverPortrait, TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance";
+import Development from "@/pages/Development.jsx";
 import {
   CAR_COMPONENT_SLOTS,
   baseComponentConstructionCost,
@@ -39,13 +41,79 @@ function PerfBar({label,value,rank}){
   </div>;
 }
 
+const PERFORMANCE_METRICS=[
+  ["overall","Overall"],
+  ["qualifying","Qualifying"],
+  ["race","Race Pace"],
+  ["power","Power"],
+  ["chassis","Chassis"],
+  ["reliability","Reliability"],
+];
+const COMPONENT_GROUPS={
+  aero:["chassis","aero_front","aero_rear","suspension"],
+  mechanical:["gearbox","brakes","cooling","turbocharger"],
+};
+function daysBetween(a,b){
+  if(!a||!b)return null;
+  const x=Date.parse(String(a).slice(0,10)+"T00:00:00Z");
+  const y=Date.parse(String(b).slice(0,10)+"T00:00:00Z");
+  if(!Number.isFinite(x)||!Number.isFinite(y))return null;
+  return Math.ceil((y-x)/86400000);
+}
+function projectProgress(project,currentDateISO){
+  if(project?.status==="completed")return 100;
+  if(project?.status==="paused")return Math.max(0,Math.min(100,Number(project?.progress||0)*100));
+  const total=daysBetween(project?.started_at,project?.finishes_at);
+  const remain=daysBetween(currentDateISO,project?.finishes_at);
+  if(!Number.isFinite(total)||total<=0||!Number.isFinite(remain))return 0;
+  return Math.max(0,Math.min(100,((total-remain)/total)*100));
+}
+function metricRank(ranking,teamId,perf,key){
+  const rows=ranking.map((row)=>String(row.team_id)===String(teamId)?{...row,[key]:Number(perf?.[key]??row?.[key]??0)}:row);
+  const sorted=[...rows].sort((a,b)=>Number(b?.[key]||0)-Number(a?.[key]||0));
+  const idx=sorted.findIndex((row)=>String(row.team_id)===String(teamId));
+  return idx>=0?idx+1:null;
+}
+function metricAverage(ranking,teamId,perf,key){
+  const vals=ranking.map((row)=>Number(String(row.team_id)===String(teamId)?perf?.[key]??row?.[key]:row?.[key])).filter(Number.isFinite);
+  return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+}
+function ProgressLine({value,warn=false}){
+  const v=Math.max(0,Math.min(100,Number(value)||0));
+  return <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={warn?"h-full bg-amber-300":"h-full bg-slate-200"} style={{width:v+"%"}}/></div>;
+}
+function StatusPill({status,condition}){
+  const key=status?.key||"healthy";
+  const cls=key==="failing"||key==="critical"?"border-rose-400/30 bg-rose-400/10 text-rose-300":key==="degraded"||key==="worn"?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/20 bg-emerald-300/10 text-emerald-300";
+  return <span className={"inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase "+cls}>{condition<60?<TriangleAlert className="h-3 w-3"/>:null}{status?.label||nice(key)}</span>;
+}
+function PerformancePanel({ranking,teamId,perf,title="Car Performance"}){
+  return <Panel title={title}><div className="p-4 space-y-3">
+    {PERFORMANCE_METRICS.map(([key,label])=>{
+      const value=Number(perf?.[key]||0);
+      const avg=metricAverage(ranking,teamId,perf,key);
+      const delta=value-avg;
+      const rank=metricRank(ranking,teamId,perf,key);
+      return <div key={key}>
+        <div className="grid grid-cols-[1fr_auto_auto] gap-3 text-sm items-center"><span className="text-slate-400">{label}</span><strong className="tabular-nums">{value.toFixed(1)}</strong><span className={"w-10 text-right text-xs "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span></div>
+        <div className="mt-1.5 flex items-center gap-2"><div className="flex-1"><ProgressLine value={value} warn={delta<-5}/></div><span className={"w-14 text-right text-[10px] "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span></div>
+      </div>;
+    })}
+    <div className="pt-2 border-t border-white/10 text-[10px] uppercase tracking-wide text-slate-500">Delta vs current grid average</div>
+  </div></Panel>;
+}
+
 export default function Car(){
   const gs=useGame((s)=>s.gameState);
+  const [searchParams,setSearchParams]=useSearchParams();
   const setGameState=useGame((s)=>s.setGameState);
   const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const teamName=gs?.team?.team_name||gs?.team?.name||teamId||"My Team";
   const drivers=gs?.drivers||[];
   const parts=gs?.development?.parts||[];
+  const projects=Array.isArray(gs?.development?.projects)?gs.development.projects:[];
+  const manufacturing=Array.isArray(gs?.development?.manufacturing)?gs.development.manufacturing:[];
+  const currentDateISO=String(gs?.currentDateISO||"").slice(0,10);
 
   const syncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
     gs?.garage,gs?.contracts,gs?.activeYear,teamId,
@@ -62,13 +130,11 @@ export default function Car(){
   const ranking=useMemo(()=>carPerformanceRanking({...gs,garage:syncedGarage}),[gs,syncedGarage]);
   const myRank=ranking.find((r)=>String(r.team_id)===teamId);
   const cars=syncedGarage?.cars||[];
-  const [selectedId,setSelectedId]=useState(()=>cars.find((c)=>c.kind!=="reserve")?.id||cars[0]?.id||"");
-
-  useEffect(()=>{
-    if(!cars.some((c)=>c.id===selectedId))setSelectedId(cars.find((c)=>c.kind!=="reserve")?.id||cars[0]?.id||"");
-  },[cars,selectedId]);
-
-  const selectedCar=cars.find((c)=>c.id===selectedId)||cars[0]||null;
+  const raceCars=cars.filter((c)=>c.kind!=="reserve");
+  const viewRaw=searchParams.get("view")||"overview";
+  const view=["overview","car","analysis","development"].includes(viewRaw)?viewRaw:"overview";
+  const selectedId=searchParams.get("car")||raceCars[0]?.id||cars[0]?.id||"";
+  const selectedCar=cars.find((c)=>c.id===selectedId)||raceCars[0]||cars[0]||null;
   const selectedDriver=selectedCar?driverById.get(String(selectedCar.driver_id||"")):null;
   const carState={...gs,garage:syncedGarage};
   const selectedPerf=selectedCar?teamCarPerformance(carState,teamId,selectedCar.driver_id):null;
@@ -175,107 +241,138 @@ export default function Car(){
   };
 
   const availableParts=parts.filter((p)=>Number(p.inv||0)>0);
+  const activeProjects=projects.filter((p)=>p.status==="active"||p.status==="paused");
+  const activeManufacturing=manufacturing.filter((m)=>m.status==="active");
+  const setView=(nextView,extra={})=>{
+    const next=new URLSearchParams(searchParams);
+    next.set("view",nextView);
+    ["car","group","tab"].forEach((key)=>next.delete(key));
+    Object.entries(extra).forEach(([key,value])=>{if(value!=null&&value!=="")next.set(key,String(value));});
+    setSearchParams(next);
+  };
+  const openCar=(carId)=>setView("car",{car:carId,group:"aero"});
+  const openDevelopment=(tab="projects")=>setView("development",{tab});
+  const setDevelopmentTab=(tab)=>{
+    const next=new URLSearchParams(searchParams);
+    next.set("view","development");
+    next.set("tab",tab);
+    setSearchParams(next);
+  };
+  const setCarGroup=(group)=>{
+    const next=new URLSearchParams(searchParams);
+    next.set("view","car");
+    next.set("car",selectedCar?.id||"");
+    next.set("group",group);
+    setSearchParams(next);
+  };
 
-  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-      <TeamLogo teamId={teamId} name={teamName} size="h-16 w-16" className="p-1"/>
-      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-3xl font-bold">My Cars</h1><p className="text-sm text-slate-400">{teamName} · Season {gs?.activeYear||"—"}</p></div>
-      <div className="flex-1"/>
-      <div className="grid grid-cols-3 gap-2 min-w-[360px]">
-        <Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/>
-        <Metric label="Overall" value={myRank?Number(myRank.overall).toFixed(1):"—"}/>
-        <Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/>
+  const title=view==="car"?(selectedCar?.label||"Car"):view==="analysis"?"Car Analysis":view==="development"?"Car Parts Development":"Cars";
+  const selectedGroup=searchParams.get("group")==="mechanical"?"mechanical":"aero";
+  const visibleComponents=componentRows.filter((row)=>(COMPONENT_GROUPS[selectedGroup]||COMPONENT_GROUPS.aero).includes(row.slot));
+  const fleetHealth=raceCars.length?raceCars.map((car)=>{
+    const vals=CAR_COMPONENT_SLOTS.map((slot)=>componentConditionForCar(carState,car,slot));
+    return vals.reduce((a,b)=>a+b,0)/Math.max(1,vals.length);
+  }).reduce((a,b)=>a+b,0)/raceCars.length:0;
+
+  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-5 space-y-4">
+    <div className="rounded-xl border border-white/10 bg-[#12141c] px-4 py-3 flex flex-col xl:flex-row xl:items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <button onClick={()=>view==="overview"?null:setView("overview")} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center">
+          {view==="overview"?<CarFront className="h-5 w-5"/>:<ArrowLeft className="h-4 w-4"/>}
+        </button>
+        <TeamLogo teamId={teamId} name={teamName} size="h-10 w-10" className="p-0.5"/>
+        <div className="min-w-0"><div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1></div>
       </div>
-      <Link to="/Development" className="rounded-md bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold hover:bg-white">Development</Link>
+      <div className="flex-1"/>
+      <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-white/10 bg-[#0d0f15] p-1">
+        <button onClick={()=>setView("overview")} className={"px-3 py-2 rounded-md text-xs font-semibold whitespace-nowrap "+(view==="overview"?"bg-slate-100 text-slate-950":"text-slate-400 hover:text-white hover:bg-white/5")}>Overview</button>
+        {raceCars.map((car)=><button key={car.id} onClick={()=>openCar(car.id)} className={"px-3 py-2 rounded-md text-xs font-semibold whitespace-nowrap "+(view==="car"&&selectedCar?.id===car.id?"bg-slate-100 text-slate-950":"text-slate-400 hover:text-white hover:bg-white/5")}>{car.label}</button>)}
+        <button onClick={()=>setView("analysis",{car:selectedCar?.id||raceCars[0]?.id})} className={"px-3 py-2 rounded-md text-xs font-semibold whitespace-nowrap "+(view==="analysis"?"bg-slate-100 text-slate-950":"text-slate-400 hover:text-white hover:bg-white/5")}>Analysis</button>
+        <button onClick={()=>openDevelopment("projects")} className={"px-3 py-2 rounded-md text-xs font-semibold whitespace-nowrap "+(view==="development"?"bg-slate-100 text-slate-950":"text-slate-400 hover:text-white hover:bg-white/5")}>Development</button>
+      </div>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-      {cars.map((car)=>{
-        const driver=driverById.get(String(car.driver_id||""));
-        const perf=teamCarPerformance(carState,teamId,car.driver_id);
-        const comp=CAR_COMPONENT_SLOTS.map((slot)=>componentConditionForCar(carState,car,slot));
-        const health=comp.length?comp.reduce((a,b)=>a+b,0)/comp.length:0;
-        const active=car.id===selectedCar?.id;
-        return <button key={car.id} onClick={()=>setSelectedId(car.id)} className={"rounded-xl border p-4 text-left transition "+(active?"border-white/40 bg-[#1b1e28]":"border-white/10 bg-[#12141c] hover:bg-[#171a23]")}>
-          <div className="flex items-start gap-3">
-            <DriverPortrait driver={driver||{display_name:"Car"}} size="h-16 w-16"/>
-            <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">{car.kind==="reserve"?"Spare chassis":"Race chassis"}</div><div className="text-lg font-semibold">{car.label}</div><div className="text-sm text-slate-400 truncate">{driver?.display_name||driver?.name||"No driver assigned"}</div></div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 mt-3"><Metric label="Overall" value={Number(perf.overall).toFixed(1)}/><Metric label="Reliability" value={Number(perf.reliability).toFixed(1)}/><Metric label="Health" value={health.toFixed(0)+"%"}/></div>
-        </button>;
-      })}
-    </div>
-
-    {selectedCar&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-      <Panel title={(selectedCar.label||"Car")+" · Performance"} className="xl:col-span-4">
-        <div className="p-4 space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-            <DriverPortrait driver={selectedDriver||{display_name:"Unassigned"}} size="h-16 w-16"/>
-            <div><div className="font-semibold">{selectedDriver?.display_name||selectedDriver?.name||"No driver assigned"}</div><div className="text-xs text-slate-500">{selectedCar.kind==="reserve"?"Spare chassis":"Race car"}</div></div>
-          </div>
-          <PerfBar label="Overall" value={selectedPerf?.overall}/>
-          <PerfBar label="Qualifying" value={selectedPerf?.qualifying}/>
-          <PerfBar label="Race" value={selectedPerf?.race}/>
-          <PerfBar label="Reliability" value={selectedPerf?.reliability}/>
-          <PerfBar label="Chassis" value={selectedPerf?.chassis}/>
-          <Metric label="Average component health" value={averageCondition.toFixed(1)+"%"}/>
-          {Number(selectedPerf?.wear_penalty?.reliability||0)<-0.1?<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Wear reliability impact {Number(selectedPerf.wear_penalty.reliability).toFixed(1)}</div>:null}
+    {view==="overview"&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <div className="xl:col-span-8 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {raceCars.map((car)=>{
+            const driver=driverById.get(String(car.driver_id||""));
+            const perf=teamCarPerformance(carState,teamId,car.driver_id);
+            const conditions=CAR_COMPONENT_SLOTS.map((slot)=>componentConditionForCar(carState,car,slot));
+            const health=conditions.reduce((a,b)=>a+b,0)/Math.max(1,conditions.length);
+            const alerts=conditions.filter((value)=>value<60).length;
+            return <button key={car.id} onClick={()=>openCar(car.id)} className="group rounded-xl border border-white/10 bg-[#12141c] hover:bg-[#171a23] hover:border-white/20 transition text-left overflow-hidden">
+              <div className="p-4 flex items-start gap-3">
+                <DriverPortrait driver={driver||{display_name:"Car"}} size="h-16 w-16"/>
+                <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">Race Car</div><div className="text-xl font-semibold">{car.label}</div><div className="text-sm text-slate-400 truncate">{driver?.display_name||driver?.name||"No driver assigned"}</div></div>
+                <ArrowRight className="h-4 w-4 text-slate-600 group-hover:text-slate-300"/>
+              </div>
+              <div className="grid grid-cols-3 gap-px bg-white/10">
+                <div className="bg-[#12141c] p-3"><div className="text-[10px] uppercase text-slate-500">Overall</div><div className="font-semibold">{Number(perf.overall).toFixed(1)}</div></div>
+                <div className="bg-[#12141c] p-3"><div className="text-[10px] uppercase text-slate-500">Race</div><div className="font-semibold">{Number(perf.race).toFixed(1)}</div></div>
+                <div className="bg-[#12141c] p-3"><div className="text-[10px] uppercase text-slate-500">Condition</div><div className={alerts?"font-semibold text-amber-300":"font-semibold"}>{health.toFixed(0)}%</div></div>
+              </div>
+              {alerts?<div className="px-4 py-2 border-t border-white/10 text-xs text-amber-300 flex items-center gap-2"><TriangleAlert className="h-3.5 w-3.5"/>{alerts} component{alerts===1?"":"s"} need attention</div>:null}
+            </button>;
+          })}
         </div>
-      </Panel>
 
-      <Panel title="Installed components" className="xl:col-span-5">
-        <div className="divide-y divide-white/10">
-          {componentRows.map((row)=><div key={row.slot} className="p-3 flex items-center gap-3">
-            <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">{nice(row.slot)}</div><div className="font-medium truncate">{row.installed?.part?.name||"Standard component"}</div><div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={row.condition<35?"h-full bg-rose-400":row.condition<60?"h-full bg-amber-300":"h-full bg-emerald-300"} style={{width:Math.max(0,Math.min(100,row.condition))+"%"}}/></div></div>
-            <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">{row.status.label}</div></div>
-            {row.installed
-              ?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>
-              :<div className="text-right">
-                <Button
-                  size="sm"
-                  variant="darkOutline"
-                  disabled={row.condition>=99.5 || (Number(baseStock?.[row.slot]||0)<=0 && Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,row.slot))}
-                  onClick={()=>replaceBaseComponent(selectedCar,row.slot)}
-                >
-                  {Number(baseStock?.[row.slot]||0)>0?"Replace":`Construct & fit · ${baseComponentConstructionCost(gs,row.slot).toLocaleString("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0})}`}
-                </Button>
-                <div className="text-[10px] text-slate-500 mt-1">Standard spares: {Number(baseStock?.[row.slot]||0)}</div>
-              </div>}
-          </div>)}
-        </div>
-      </Panel>
+        <Panel title="Car Parts Development" action={<button onClick={()=>openDevelopment("projects")} className="text-xs text-slate-300 hover:text-white flex items-center gap-1">Open department <ArrowRight className="h-3.5 w-3.5"/></button>}>
+          {activeProjects.length?<div className="divide-y divide-white/10">{activeProjects.slice(0,3).map((p)=>{
+            const progress=projectProgress(p,currentDateISO);
+            const remaining=daysBetween(currentDateISO,p.finishes_at);
+            return <button key={p.id} onClick={()=>openDevelopment("projects")} className="w-full p-3 grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,1fr)_90px_70px_20px] gap-3 items-center text-left hover:bg-white/[0.03]">
+              <div className="min-w-0"><div className="text-xs text-slate-500 uppercase">{nice(p.type)} · {nice(p.phase)}</div><div className="font-medium truncate">{p.name}</div><div className="mt-2"><ProgressLine value={progress}/></div></div>
+              <div className="hidden md:block text-right"><div className="text-[10px] uppercase text-slate-500">Engineers</div><strong>{p.engineers||0}</strong></div>
+              <div className="text-right"><div className="text-[10px] uppercase text-slate-500">ETA</div><strong>{Number.isFinite(remaining)?Math.max(0,remaining)+"d":"—"}</strong></div>
+              <ArrowRight className="hidden md:block h-4 w-4 text-slate-600"/>
+            </button>;
+          })}</div>:<div className="p-5 flex items-center justify-between gap-4"><div><div className="font-medium">No active car development project</div><div className="text-sm text-slate-500">Start a design project without leaving the Cars hub.</div></div><Button size="sm" onClick={()=>openDevelopment("projects")}>Start project</Button></div>}
+        </Panel>
 
-      <Panel title="Warehouse" className="xl:col-span-3" action={<Link to="/Development" className="text-xs text-slate-300">Manufacture ›</Link>}>
-        <div className="max-h-[560px] overflow-y-auto divide-y divide-white/10">
-          <div className="p-3">
-            <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Standard spares</div>
-            <div className="space-y-2">
-              {CAR_COMPONENT_SLOTS.map((slot)=><div key={slot} className="rounded border border-white/10 p-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1"><div className="text-sm font-medium">{nice(slot)}</div><div className="text-[10px] text-slate-500">Stock {Number(baseStock?.[slot]||0)} · build cost {baseComponentConstructionCost(gs,slot).toLocaleString("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0})}</div></div>
-                  <Button size="sm" variant="darkOutline" onClick={()=>buildStandardSpare(slot)} disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,slot)}>Construct</Button>
-                </div>
-              </div>)}
-            </div>
-          </div>
-          {availableParts.map((part)=><div key={part.id} className="p-3">
-            <div className="font-medium truncate">{part.name}</div>
-            <div className="text-xs text-slate-500">{nice(part.slot)} · +{Number(part.perf||0).toFixed(2)} performance · stock {Number(part.inv||0)}</div>
-            <Button className="mt-2 w-full" size="sm" onClick={()=>fitPart(selectedCar,part)}>Fit to {selectedCar.label}</Button>
-          </div>)}
-          {!availableParts.length?<div className="p-4 text-sm text-slate-500">No developed parts in stock. Complete a development project and manufacture inventory.</div>:null}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button onClick={()=>setView("analysis",{car:raceCars[0]?.id})} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><BarChart3 className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Car Analysis</div><div className="text-sm text-slate-500">Compare your car against the current grid average.</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
+          <button onClick={()=>openDevelopment("manufacturing")} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><Factory className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Manufacturing</div><div className="text-sm text-slate-500">{activeManufacturing.length} active · {availableParts.length} stocked designs</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
         </div>
-      </Panel>
+      </div>
+      <div className="xl:col-span-4 space-y-4">
+        <PerformancePanel ranking={ranking} teamId={teamId} perf={myRank} title="Team Car Performance"/>
+        <Panel title="Technical Summary"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/><Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/><Metric label="Active projects" value={activeProjects.length}/><Metric label="Manufacturing" value={activeManufacturing.length}/><Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/><Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/></div></Panel>
+      </div>
     </div>}
 
-    <Panel title="Grid comparison">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-px bg-white/10">
-        {ranking.map((row,index)=><div key={row.team_id||index} className={"bg-[#12141c] p-3 flex items-center gap-3 "+(String(row.team_id)===teamId?"ring-1 ring-inset ring-white/30":"")}>
-          <div className="w-6 text-right font-semibold">{row.rank||index+1}</div>
-          <TeamLogo teamId={row.team_id} name={row.team_name||row.name} size="h-8 w-8"/>
-          <div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{row.team_name||row.name||row.team_id}</div><div className="text-xs text-slate-500">Overall {Number(row.overall||0).toFixed(1)}</div></div>
-        </div>)}
-      </div>
-    </Panel>
+    {view==="car"&&selectedCar&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <Panel title={(selectedCar.label||"Car")+" · Components"} className="xl:col-span-8" action={<div className="flex gap-1"><button onClick={()=>setCarGroup("aero")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(selectedGroup==="aero"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Aerodynamics</button><button onClick={()=>setCarGroup("mechanical")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(selectedGroup==="mechanical"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Mechanical</button></div>}>
+        <div className="divide-y divide-white/10">{visibleComponents.map((row)=>{
+          const stocked=parts.find((p)=>String(p.slot)===row.slot&&Number(p.inv||0)>0);
+          const standardStock=Number(baseStock?.[row.slot]||0);
+          const buildCost=baseComponentConstructionCost(gs,row.slot);
+          return <div key={row.slot} className="p-3 grid grid-cols-[40px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)_100px_150px] gap-3 items-center">
+            <div className="h-9 w-9 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><Settings2 className="h-4 w-4 text-slate-400"/></div>
+            <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{nice(row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
+            <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">condition</div></div>
+            <div className="col-span-2 md:col-span-1 flex md:flex-col gap-1.5">
+              {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)}>Fit {stocked.version||"developed"}</Button>:null}
+              {row.installed?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>:row.condition<99.5?<Button size="sm" variant="darkOutline" disabled={standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<buildCost} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Construct & fit"}</Button>:<Button size="sm" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<buildCost} onClick={()=>buildStandardSpare(row.slot)}>Build spare</Button>}
+            </div>
+          </div>;
+        })}</div>
+      </Panel>
+      <div className="xl:col-span-4 space-y-4"><PerformancePanel ranking={ranking} teamId={teamId} perf={selectedPerf}/><Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel></div>
+    </div>}
+
+    {view==="analysis"&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <Panel title="Compare Car" className="xl:col-span-4"><div className="p-3 space-y-2">{raceCars.map((car)=>{
+        const d=driverById.get(String(car.driver_id||""));
+        const active=car.id===selectedCar?.id;
+        return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"w-full rounded-lg border p-3 flex items-center gap-3 text-left "+(active?"border-white/30 bg-[#1b1e28]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-12 w-12"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-xs text-cyan-300">Selected</span>:null}</button>;
+      })}<div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">Uses the same performance model as the simulation. No unsupported F1 Manager-only metrics are invented.</div></div></Panel>
+      <Panel title="Car vs Grid Average" className="xl:col-span-8"><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
+        const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(ranking,teamId,selectedPerf,key); const delta=value-avg; const rank=metricRank(ranking,teamId,selectedPerf,key);
+        return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
+      })}</tbody></table></div></Panel>
+    </div>}
+
+    {view==="development"&&<Development embedded initialTab={searchParams.get("tab")||"projects"} onTabChange={setDevelopmentTab}/>}
   </div>;
 }
