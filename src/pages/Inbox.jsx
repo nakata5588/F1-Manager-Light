@@ -103,7 +103,9 @@ function dateLabel(dateObj) {
 
 export default function Inbox() {
   const { gameState, setGameState } = useGame();
-  const eventNews = useEventStore((s) => s.news);\n  const markNewsRead = useEventStore((s) => s.markNewsRead);\n  const markAllNewsRead = useEventStore((s) => s.markAllNewsRead);
+  const eventNews = useEventStore((s) => s.news);
+  const markNewsRead = useEventStore((s) => s.markNewsRead);
+  const markAllNewsRead = useEventStore((s) => s.markAllNewsRead);
   const [fallback, setFallback] = useState(null);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("ALL");
