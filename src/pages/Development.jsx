@@ -8,7 +8,8 @@ import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
-import { activeWorkshopJobs, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
+import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
+import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -184,7 +185,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       changed = true;
       const partId = `part_${p.id}`;
       if (!nextParts.some((x) => x.id === partId)) {
-        nextParts.push({
+        const draftPart={
           id:partId,
           name:p.name,
           slot:p.type,
@@ -194,6 +195,10 @@ export default function Development({ embedded = false, initialTab = "projects",
           in_manufacturing:0,
           prototype:true,
           created_from:p.id,
+        };
+        nextParts.push({
+          ...draftPart,
+          technical_profile:derivePartTechnicalProfile(physicalState,draftPart),
         });
       }
       return {...p, status:"completed", progress:1, completed_at:currentDateISO};
@@ -298,10 +303,9 @@ export default function Development({ embedded = false, initialTab = "projects",
 
   const manufacture = (part) => {
     const qty = 1;
-    const manufacturingLevel = levelOf("manufacturing_leve");
-    const rawUnitCost = Math.max(25_000, Math.round(80_000 + Math.abs(Number(part.perf || 0)) * 40_000));
-    const unitCost = Math.round(rawUnitCost * Math.max(0.72, 1.12 - manufacturingLevel * 0.025));
-    const buildDays = Math.max(3, Math.round(10 - manufacturingLevel * 0.6));
+    const quote=partManufactureQuote(physicalState,part);
+    const unitCost=Number(quote.cost||0);
+    const buildDays=Number(quote.days||0);
     if (budget < unitCost || !currentDateISO) return;
     applyExpense(unitCost, `Manufacturing — ${part.name}`);
     const job = {
@@ -312,6 +316,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       unit_cost:unitCost,
       started_at:currentDateISO,
       finishes_at:addDaysISO(currentDateISO, buildDays),
+      duration_days:buildDays,
       status:"active",
     };
     setGameState({
@@ -480,7 +485,9 @@ export default function Development({ embedded = false, initialTab = "projects",
             const fitted=Math.max(0,allUnits.length-warehouse.length);
             const worn=warehouse.filter((unit)=>Number(unit?.condition??100)<99.5).sort((a,b)=>Number(a.condition||100)-Number(b.condition||100))[0]||null;
             const restoreQuote=worn?partUnitRestoreQuote(physicalState,worn.id):null;
-            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><div className="flex justify-end gap-1"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button>{worn&&restoreQuote?<Button size="sm" variant="darkOutline" onClick={()=>restoreUnit(p,worn)} disabled={budget<Number(restoreQuote.cost||0)}>Restore {Number(worn.condition||0).toFixed(0)}% · {restoreQuote.days}d</Button>:null}</div></td></tr>;
+            const manufactureQuote=partManufactureQuote(physicalState,p);
+            const technical=derivePartTechnicalProfile(physicalState,p);
+            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium"><div>{p.name}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{technical.delta.weight_kg.toFixed(2)} kg · DF +{technical.delta.downforce.toFixed(3)}</div></td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><div className="flex justify-end gap-1"><Button size="sm" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · {fmtMoney(manufactureQuote.cost)}</Button>{worn&&restoreQuote?<Button size="sm" variant="darkOutline" onClick={()=>restoreUnit(p,worn)} disabled={budget<Number(restoreQuote.cost||0)}>Restore {Number(worn.condition||0).toFixed(0)}% · {restoreQuote.days}d · {fmtMoney(restoreQuote.cost)}</Button>:null}</div></td></tr>;
           })}
           {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
         </table></CardContent></Card>

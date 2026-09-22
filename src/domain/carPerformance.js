@@ -89,7 +89,7 @@ export function teamCarPerformance(gs,teamId,driverId=null){
   const race=clamp(
     (chassis??70)*0.52+power*0.28+reliability*0.08+brakes*0.06+suspension*0.06
   );
-  let installed={qualifying:0,race:0,reliability:0};
+  let installed={qualifying:0,race:0,reliability:0,technical:{weight_delta_kg:0,drag_delta:0,downforce_delta:0,design_reliability_delta_pct:0}};
   let condition={qualifying:0,race:0,reliability:0};
   if(String(teamId??"")===String(gs?.team?.team_id??gs?.team?.id??"")){
     if(driverId){
@@ -107,6 +107,12 @@ export function teamCarPerformance(gs,teamId,driverId=null){
           qualifying:installedRows.reduce((a,b)=>a+b.qualifying,0)/installedRows.length,
           race:installedRows.reduce((a,b)=>a+b.race,0)/installedRows.length,
           reliability:installedRows.reduce((a,b)=>a+b.reliability,0)/installedRows.length,
+          technical:{
+            weight_delta_kg:installedRows.reduce((a,b)=>a+Number(b?.technical?.weight_delta_kg||0),0)/installedRows.length,
+            drag_delta:installedRows.reduce((a,b)=>a+Number(b?.technical?.drag_delta||0),0)/installedRows.length,
+            downforce_delta:installedRows.reduce((a,b)=>a+Number(b?.technical?.downforce_delta||0),0)/installedRows.length,
+            design_reliability_delta_pct:installedRows.reduce((a,b)=>a+Number(b?.technical?.design_reliability_delta_pct||0),0)/installedRows.length,
+          },
         };
         condition={
           qualifying:conditionRows.reduce((a,b)=>a+b.qualifying,0)/conditionRows.length,
@@ -134,6 +140,12 @@ export function teamCarPerformance(gs,teamId,driverId=null){
       qualifying:round1(installed.qualifying),
       race:round1(installed.race),
       reliability:round1(installed.reliability),
+    },
+    technical_delta:{
+      weight_kg:Number(Number(installed?.technical?.weight_delta_kg||0).toFixed(2)),
+      drag:Number(Number(installed?.technical?.drag_delta||0).toFixed(4)),
+      downforce:Number(Number(installed?.technical?.downforce_delta||0).toFixed(4)),
+      design_reliability_pct:round1(installed?.technical?.design_reliability_delta_pct||0),
     },
     wear_penalty:{
       qualifying:round1(condition.qualifying),

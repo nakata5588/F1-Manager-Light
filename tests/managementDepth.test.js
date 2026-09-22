@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import { deriveBoardState } from "../src/domain/boardState.js";
 import { academyProgramDefinition } from "../src/domain/academyPrograms.js";
 import { baseComponentConstructionCost, syncGarageState } from "../src/domain/garage.js";
+import { teamCarPerformance } from "../src/domain/carPerformance.js";
+import { derivePartTechnicalProfile, technicalAdjustmentForPart } from "../src/domain/carPartPerformance.js";
 import { createManufacturedPartUnits, fitPhysicalPartUnit, inventoryCountForDesign, partUnitById, partUnitsForDesign, removePhysicalPartUnit, warehousePartUnitsForDesign } from "../src/domain/partUnits.js";
-import { partUnitRestoreQuote, processWorkshopJobs, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "../src/domain/componentService.js";
+import { partManufactureQuote, partUnitRestoreQuote, processWorkshopJobs, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "../src/domain/componentService.js";
 import { availableCarComponentSlots, componentEligibility } from "../src/domain/carComponents.js";
 import { conditionModifierBreakdown } from "../src/domain/driverPerformance.js";
 import { pitCrewEffectiveProfile } from "../src/engine/RaceStrategyEngine.js";
@@ -257,4 +259,110 @@ test("developed physical unit restoration reserves the unit and restores its own
   next=processWorkshopJobs({...next,currentDateISO:next.garage.serviceJobs[0].finishes_at});
   assert.equal(partUnitById(next,"RW1-U1").condition,100);
   assert.equal(warehousePartUnitsForDesign(next,"RW1").length,1);
+});
+
+
+test("workshop lead times and costs reflect component complexity", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    hq:{facilityLevels:{manufacturing_leve:5}},
+  };
+  const front=standardBuildQuote(gs,"aero_front");
+  const gearbox=standardBuildQuote(gs,"gearbox");
+  const chassis=standardBuildQuote(gs,"chassis");
+
+  assert.ok(front.days>=5,"front wing should take several days rather than the old universal 4-day build");
+  assert.ok(gearbox.days>front.days);
+  assert.ok(chassis.days>gearbox.days);
+  assert.ok(chassis.cost>gearbox.cost);
+  assert.ok(gearbox.cost>front.cost);
+
+  const highFacility=standardBuildQuote({
+    ...gs,
+    hq:{facilityLevels:{manufacturing_leve:9}},
+  },"chassis");
+  assert.ok(highFacility.days<chassis.days,"better manufacturing must shorten lead time");
+});
+
+test("restoration duration depends on component and damage severity", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    hq:{facilityLevels:{manufacturing_leve:5}},
+  };
+  const lightFront=standardRestoreQuote(gs,"aero_front",80,{carId:"car_1"});
+  const heavyFront=standardRestoreQuote(gs,"aero_front",40,{carId:"car_1"});
+  const heavyGearbox=standardRestoreQuote(gs,"gearbox",40,{carId:"car_1"});
+
+  assert.ok(heavyFront.days>lightFront.days);
+  assert.ok(heavyGearbox.days>heavyFront.days);
+  assert.ok(heavyFront.cost>lightFront.cost);
+  assert.ok(heavyFront.cost<standardBuildQuote(gs,"aero_front").cost);
+});
+
+test("developed part manufacturing uses the same component-specific workshop model", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    hq:{facilityLevels:{manufacturing_leve:5}},
+  };
+  const front=partManufactureQuote(gs,{id:"FW3",slot:"aero_front",perf:3});
+  const chassis=partManufactureQuote(gs,{id:"CH3",slot:"chassis",perf:3});
+  assert.ok(front.days>=standardBuildQuote(gs,"aero_front").days);
+  assert.ok(chassis.days>front.days);
+  assert.ok(chassis.cost>front.cost);
+});
+
+test("technical part profile consumes weight drag downforce reliability and impact area", () => {
+  const gs={activeYear:1980,team:{team_id:"T1"}};
+  const front=derivePartTechnicalProfile(gs,{id:"FW3",slot:"aero_front",perf:3});
+  const gearbox=derivePartTechnicalProfile(gs,{id:"GB3",slot:"gearbox",perf:3});
+
+  assert.equal(front.baseline.weight_kg,10);
+  assert.equal(front.baseline.drag,0.05);
+  assert.equal(front.baseline.downforce,0.18);
+  assert.equal(front.baseline.reliability,0.85);
+  assert.equal(front.impact_area,"aero");
+  assert.equal(gearbox.impact_area,"powertrain");
+
+  assert.ok(front.design.weight_kg<front.baseline.weight_kg);
+  assert.ok(front.design.drag<front.baseline.drag);
+  assert.ok(front.design.downforce>front.baseline.downforce);
+  assert.ok(front.design.reliability>front.baseline.reliability);
+
+  const frontAdj=technicalAdjustmentForPart(gs,{slot:"aero_front",part:{slot:"aero_front",perf:3},condition:100});
+  const gearboxAdj=technicalAdjustmentForPart(gs,{slot:"gearbox",part:{slot:"gearbox",perf:3},condition:100});
+  assert.notEqual(frontAdj.qualifying,gearboxAdj.qualifying,"same generic perf must not produce identical component behaviour");
+  assert.notEqual(frontAdj.race,gearboxAdj.race);
+});
+
+test("canonical car performance exposes real technical deltas from the fitted physical unit", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"T1"},
+    teams:[{team_id:"T1"}],
+    contracts:[
+      {year:1980,team_id:"T1",driver_id:"D1",role:"Main Driver",status:"active"},
+      {year:1980,team_id:"T1",driver_id:"D2",role:"Second Driver",status:"active"},
+    ],
+    carStats:[{year:1980,team_id:"T1",chassis_spec:70,aero_spec:70,gearbox_spec:70,suspension_spec:70,brakes_spec:70,cooling_spec:70,reliability:80}],
+    teamEngines:[{year:1980,team_id:"T1",power:75,reliability:82}],
+    development:{
+      parts:[{id:"FW3",slot:"aero_front",name:"Front Wing V3",perf:3,inv:0}],
+      partUnits:[{id:"FW3-U1",design_id:"FW3",slot:"aero_front",condition:100}],
+    },
+  };
+  const garage=syncGarageState(gs,{});
+  garage.cars[0].installedParts={aero_front:"FW3-U1"};
+
+  const before=teamCarPerformance({...gs,garage:{...garage,cars:garage.cars.map((car)=>car.id==="car_1"?{...car,installedParts:{}}:car)}},"T1","D1");
+  const after=teamCarPerformance({...gs,garage},"T1","D1");
+
+  assert.ok(after.qualifying>before.qualifying);
+  assert.ok(after.race>before.race);
+  assert.ok(after.technical_delta.weight_kg<0);
+  assert.ok(after.technical_delta.drag<0);
+  assert.ok(after.technical_delta.downforce>0);
+  assert.ok(after.technical_delta.design_reliability_pct>0);
 });
