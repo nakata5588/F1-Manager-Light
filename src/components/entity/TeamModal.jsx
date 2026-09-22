@@ -256,7 +256,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   );
 
   return (
-    <div className={`flex flex-col ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border bg-white shadow-xl" : "h-[92vh]"}`}>
+    <div className={`flex flex-col ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border bg-white text-slate-950 shadow-xl" : "h-[92vh]"}`}>
       {/* HEADER */}
       <div className="px-5 py-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-3">
