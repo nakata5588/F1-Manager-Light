@@ -250,18 +250,49 @@ function forecastOne(gs,gp,actual,tid,index,revision){
     source:"team_forecast",
   };
 }
-export function createWeekendWeatherState(gs,{gp={},sessions=[]}={}){
+function forecastTeamIds(gs,additional=[]){
+  const player=String(gs?.team?.team_id??gs?.team?.id??"");
+  const entryTeams=(gs?.raceEntryState?.entries||[]).map((row)=>String(row?.team_id??""));
+  const activeTeams=(gs?.teams||[]).map((row)=>teamId(row));
+  return [...new Set([player,...additional,...entryTeams,...activeTeams].map(String).filter(Boolean))];
+}
+function forecastSetForTeam(gs,gp,rows,tid,revision,{completedIndex=-1,existing={}}={}){
+  const forecast={...existing};
+  rows.forEach((row,index)=>{
+    if(index<=completedIndex)return;
+    const horizonIndex=Math.max(0,index-completedIndex-1);
+    forecast[row.id]=forecastOne(gs,gp,row,tid,horizonIndex,revision);
+  });
+  return forecast;
+}
+export function createWeekendWeatherState(gs,{gp={},sessions=[],teamIds=[]}={}){
   const player=String(gs?.team?.team_id??gs?.team?.id??"");
   const relevant=(sessions||[]).filter(s=>kindOf(s));
   const actual={};
   let previous=null;
   relevant.forEach((s,index)=>{const row=actualSession(gs,gp,s,index,previous);actual[row.id]=row;previous=row;});
-  const forecast={};
-  Object.values(actual).forEach((row,index)=>{forecast[row.id]=forecastOne(gs,gp,row,player,index,0);});
+
+  const rows=Object.values(actual);
+  const forecastsByTeam={};
+  for(const tid of forecastTeamIds(gs,teamIds)){
+    forecastsByTeam[tid]={
+      team_id:tid,
+      forecast_accuracy:forecastAccuracyForTeam(gs,tid),
+      forecast_revision:0,
+      forecast:forecastSetForTeam(gs,gp,rows,tid,0),
+    };
+  }
+  const playerBundle=forecastsByTeam[player]||null;
   return {
-    version:1,year:Number(gs?.activeYear)||Number(gp?.year)||1980,source:"weekend_weather_world",
-    forecast_team_id:player,forecast_accuracy:forecastAccuracyForTeam(gs,player),
-    forecast_revision:0,observed_sessions:[],sessions:actual,forecast,
+    version:2,year:Number(gs?.activeYear)||Number(gp?.year)||1980,source:"weekend_weather_world",
+    forecast_team_id:player,
+    forecast_accuracy:playerBundle?.forecast_accuracy??forecastAccuracyForTeam(gs,player),
+    forecast_revision:0,
+    observed_sessions:[],
+    sessions:actual,
+    forecasts_by_team:forecastsByTeam,
+    // Backwards-compatible player-facing aliases.
+    forecast:playerBundle?.forecast||{},
   };
 }
 export function weekendWeatherSession(gs,sessionId){
@@ -281,18 +312,82 @@ export function observeWeekendWeatherSession(gs,sessionId){
   const player=String(gs?.team?.team_id??gs?.team?.id??"");
   const rows=Object.values(w.sessions||{});
   const completed=rows.findIndex(r=>String(r.id)===id);
-  const forecast={...w.forecast};
-  rows.forEach((row,index)=>{
-    if(index<=completed)return;
-    forecast[row.id]=forecastOne(gs,{gp_id:weekend.gp_id,track_id:weekend.track_id},row,player,Math.max(0,index-completed-1),revision);
-  });
-  return {...gs,raceWeekendState:{...weekend,weekend_weather:{...w,observed_sessions:observed,forecast_revision:revision,forecast}}};
+  const gp={gp_id:weekend.gp_id,track_id:weekend.track_id};
+  const forecastsByTeam={};
+  for(const tid of forecastTeamIds(gs,Object.keys(w.forecasts_by_team||{}))){
+    const previous=w.forecasts_by_team?.[tid]||{};
+    const existing=previous.forecast||(String(tid)===String(w.forecast_team_id)?w.forecast:{});
+    forecastsByTeam[tid]={
+      ...previous,
+      team_id:tid,
+      forecast_accuracy:forecastAccuracyForTeam(gs,tid),
+      forecast_revision:revision,
+      forecast:forecastSetForTeam(gs,gp,rows,tid,revision,{completedIndex:completed,existing}),
+    };
+  }
+  const playerBundle=forecastsByTeam[player]||null;
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      weekend_weather:{
+        ...w,
+        version:Math.max(2,Number(w.version)||1),
+        observed_sessions:observed,
+        forecast_revision:revision,
+        forecasts_by_team:forecastsByTeam,
+        forecast_accuracy:playerBundle?.forecast_accuracy??w.forecast_accuracy,
+        forecast:playerBundle?.forecast||w.forecast,
+      },
+    },
+  };
+}
+function raceForecastRowFromSet(forecast){
+  const rows=Object.values(forecast||{});
+  return rows.find((row)=>String(row?.session_id||"").toLowerCase()==="race")
+    ||forecast?.race
+    ||null;
 }
 function raceForecastRow(weather){
-  const rows=Object.values(weather?.forecast||{});
-  return rows.find((row)=>String(row?.session_id||"").toLowerCase()==="race")
-    ||weather?.forecast?.race
-    ||null;
+  return raceForecastRowFromSet(weather?.forecast);
+}
+export function raceForecastForTeam(gs,tid){
+  const weather=gs?.raceWeekendState?.weekend_weather;
+  const id=String(tid??gs?.team?.team_id??gs?.team?.id??"");
+  if(!weather||!id)return null;
+
+  const bucket=weather?.forecasts_by_team?.[id]||null;
+  let forecast=raceForecastRowFromSet(bucket?.forecast);
+  if(!forecast&&id===String(weather?.forecast_team_id||"")){
+    forecast=raceForecastRow(weather);
+  }
+
+  // Old saves may pre-date per-team forecasts. Build a deterministic noisy
+  // forecast from the saved hidden weather world rather than giving AI teams
+  // direct access to the true future timeline.
+  if(!forecast){
+    const rows=Object.values(weather?.sessions||{});
+    const raceIndex=rows.findIndex((row)=>row?.kind==="race");
+    const actual=raceIndex>=0?rows[raceIndex]:raceWeekendWeatherSession(gs);
+    if(!actual)return null;
+    const observedIds=new Set((weather?.observed_sessions||[]).map(String));
+    let completedIndex=-1;
+    rows.forEach((row,index)=>{if(observedIds.has(String(row?.id)))completedIndex=Math.max(completedIndex,index);});
+    forecast=forecastOne(
+      gs,
+      {gp_id:gs?.raceWeekendState?.gp_id,track_id:gs?.raceWeekendState?.track_id},
+      actual,
+      id,
+      Math.max(0,(raceIndex>=0?raceIndex:rows.length-1)-completedIndex-1),
+      Number(weather?.forecast_revision||0)
+    );
+  }
+
+  return {
+    ...forecast,
+    forecast_accuracy:Number(bucket?.forecast_accuracy??forecastAccuracyForTeam(gs,id)),
+    forecast_revision:Number(bucket?.forecast_revision??weather?.forecast_revision??forecast?.forecast_revision??0),
+  };
 }
 function fallbackForecastTiming(gs,weather,forecast){
   const confidence=clamp(num(forecast?.confidence_pct,num(weather?.forecast_accuracy,0.55)*100)/100,0.35,0.97);
@@ -320,7 +415,8 @@ function fallbackForecastTiming(gs,weather,forecast){
 }
 export function teamRaceForecast(gs,{currentLap=0,currentWeather=null,totalLaps=null}={}){
   const weather=gs?.raceWeekendState?.weekend_weather;
-  const forecast=raceForecastRow(weather);
+  const player=String(gs?.team?.team_id??gs?.team?.id??weather?.forecast_team_id??"");
+  const forecast=raceForecastForTeam(gs,player);
   if(!weather||!forecast){
     return {
       message:"Team forecast unavailable.",
@@ -338,9 +434,9 @@ export function teamRaceForecast(gs,{currentLap=0,currentWeather=null,totalLaps=
   const observed=String(currentWeather||"").toUpperCase();
   const observedWet=rainObserved(observed);
   const observedEasing=observed==="DRYING";
-  const confidence=Math.round(clamp(num(forecast?.confidence_pct,num(weather?.forecast_accuracy,0.55)*100),0,100));
-  const capability=clamp(num(weather?.forecast_accuracy,confidence/100),0.35,0.97);
-  const revision=Number(weather?.forecast_revision??forecast?.forecast_revision??0)||0;
+  const confidence=Math.round(clamp(num(forecast?.confidence_pct,num(forecast?.forecast_accuracy,weather?.forecast_accuracy??0.55)*100),0,100));
+  const capability=clamp(num(forecast?.forecast_accuracy,weather?.forecast_accuracy??confidence/100),0.35,0.97);
+  const revision=Number(forecast?.forecast_revision??weather?.forecast_revision??0)||0;
   const remaining=Math.max(1,total-lap);
   const adaptiveLookahead=Math.max(
     1,
