@@ -7,6 +7,7 @@ import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { activeDriverContract, driverContractsOf, driverIdOf, teamIdOf } from "../../domain/driverContracts.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
+import { entityProfilePath } from "../../domain/entityRoutes.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v.text??v):v;
@@ -99,7 +100,7 @@ export function DriverQuickView({entity,onClose}){
   const formTone=Number(form?.score)>=76?"text-emerald-300":Number(form?.score)<58&&form?.score!=null?"text-rose-300":"text-slate-200";
 
   return (
-    <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,`/drivers/${encodeURIComponent(id)}`)}>
+    <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("driver",id))}>
       <div className="p-5">
         <div className="flex items-center gap-4">
           <DriverPortrait driver={driver} size="h-20 w-20" className="!rounded-xl"/>
@@ -173,7 +174,7 @@ export function TeamQuickView({entity,onClose}){
     .slice(0,4);
 
   return (
-    <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,`/teams/${encodeURIComponent(id)}`)}>
+    <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("team",id))}>
       <div className="p-5">
         <div className="flex items-center gap-4">
           <TeamLogo teamId={id} name={name} size="h-20 w-20"/>
@@ -240,7 +241,7 @@ export function StaffQuickView({entity,onClose}){
   const initials=String(name||"?").split(/\s+/).filter(Boolean).map((part)=>part[0]).join("").slice(0,2).toUpperCase();
 
   return (
-    <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,`/staff/${encodeURIComponent(id)}`)}>
+    <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("staff",id))}>
       <div className="p-5">
         <div className="flex items-center gap-4">
           <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-white/10 bg-[#151923] text-xl font-semibold">{initials||"?"}</div>
