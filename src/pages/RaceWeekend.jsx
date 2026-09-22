@@ -1,9 +1,10 @@
 // src/pages/RaceWeekend.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
+import { TeamLogo } from "../components/entity/EntityVisuals.jsx";
 
 const STEPS=[
   ["practice","Practice"],
@@ -84,6 +85,23 @@ function pitWindowLabel(window){
 function paceLabel(mode){
   return RACE_PACE_MODES?.[String(mode)]?.label||String(mode||"Balanced").replaceAll("_"," ");
 }
+function liveEventText(event,drivers){
+  const name=event?.driver_id?driverName(drivers,event.driver_id):null;
+  const raw=String(event?.message||event?.type||"");
+  if(!name)return raw;
+  const id=String(event.driver_id);
+  if(raw.startsWith(id+":"))return name+raw.slice(id.length);
+  if(raw.startsWith(id+" "))return name+raw.slice(id.length);
+  return raw.includes(name)?raw:name+" · "+raw;
+}
+function raceWindowForPhase(phase,hasLive=false){
+  if(phase==="practice"||phase==="practice_complete")return "practice";
+  if(phase==="qualifying"||phase==="qualifying_wait")return "qualifying";
+  if(phase==="grid_ready")return "strategy";
+  if(phase==="race")return hasLive?"live":"grid";
+  if(phase==="results"||phase==="completed")return "classification";
+  return "overview";
+}
 function statusClass(status){
   const key=String(status||"").toUpperCase();
   if(["QUALIFIED","ADVANCED","STARTER","CONTINUES","FINISHED"].includes(key))return "bg-emerald-50 text-emerald-800";
@@ -160,6 +178,7 @@ export default function RaceWeekend(){
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const [busy,setBusy]=useState(false);
+  const [activeWindow,setActiveWindow]=useState("overview");
 
   const weekend=gs?.raceWeekendState;
   const drivers=gs?.drivers||[];
@@ -202,11 +221,26 @@ export default function RaceWeekend(){
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
+  useEffect(()=>{
+    setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
+  },[weekend?.phase,Boolean(liveRace)]);
+
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
     if(!key)return null;
     return (gs?.results||[]).find((row)=>row?.key===key)||null;
   },[gs?.results,weekend?.race_result_key]);
+
+  const driverStandings=gs?.standings?.drivers||[];
+  const constructorStandings=gs?.standings?.teams||gs?.standings?.constructors||[];
+  const driverStandingById=new Map(driverStandings.map((row,index)=>[
+    String(row?.driver_id??row?.id??""),
+    {position:Number(row?.position??index+1),points:Number(row?.points??0)},
+  ]));
+  const constructorStandingById=new Map(constructorStandings.map((row,index)=>[
+    String(row?.team_id??row?.constructor_id??row?.id??""),
+    {position:Number(row?.position??index+1),points:Number(row?.points??0)},
+  ]));
 
   if(!weekend){
     return <div className="bg-white rounded-xl shadow p-5">
