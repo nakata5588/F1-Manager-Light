@@ -7,6 +7,12 @@ import {
 } from "../domain/driverRating.js";
 import { currentDriverTeamId } from "../domain/driverContracts.js";
 import { academyProgramDefinition } from "../domain/academyPrograms.js";
+import {
+  driverAttributeGroups,
+  driverAttributeGroupScore,
+  driverDevelopmentFocus,
+  driverGroupDevelopmentPlan,
+} from "../domain/driverAttributeGroups.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -227,16 +233,32 @@ function monthlyProgression(gs,ratings,dateISO){
       applyDelta(rating,"consistency",-setback*0.55,changes,did,dateISO,"reliability_setback");
     }
 
-    // AI-controlled teams perform a modest automatic monthly training session.
-    // Player drivers can exceed this through explicit Actions.
-    if(teamId && teamId!==userTeamId){
-      const candidates=["pace","qualifying","racecraft","consistency","tire_management"];
-      const weakest=candidates
-        .filter((k)=>Number.isFinite(Number(rating[k])))
-        .sort((a,b)=>Number(rating[a])-Number(rating[b])||a.localeCompare(b))[0];
-      if(weakest){
-        const autoGain=(0.055+Math.max(0,Math.min(10,sim))*0.006)*(age<=32?1:0.55);
-        applyDelta(rating,weakest,autoGain,changes,did,dateISO,"ai_training");
+    // Development focus is a persistent monthly choice. The same potential-
+    // bounded group model is used for the player and AI so neither side can
+    // spam individual attributes toward 100.
+    let developmentGroup=null;
+    let developmentSource=null;
+    let developmentGain=0;
+
+    if(teamId && teamId===userTeamId){
+      developmentGroup=driverDevelopmentFocus(gs,did);
+      developmentSource=developmentGroup?`development_focus_${developmentGroup}`:null;
+      developmentGain=0.32*(0.90+Math.max(0,Math.min(10,sim))*0.02)*(age<=32?1:0.60);
+    }else if(teamId){
+      const available=driverAttributeGroups()
+        .map((group)=>({key:group.key,score:driverAttributeGroupScore(rating,group.key)}))
+        .filter((row)=>Number.isFinite(Number(row.score)))
+        .sort((a,b)=>Number(a.score)-Number(b.score)||a.key.localeCompare(b.key));
+      developmentGroup=available[0]?.key||null;
+      developmentSource=developmentGroup?`ai_development_${developmentGroup}`:null;
+      developmentGain=0.24*(0.90+Math.max(0,Math.min(10,sim))*0.02)*(age<=32?1:0.55);
+    }
+
+    if(developmentGroup&&developmentGain>0){
+      const plan=driverGroupDevelopmentPlan(rating,developmentGroup,{baseGain:developmentGain});
+      for(const item of plan){
+        const actualKey=(item.aliases||[item.field]).find((key)=>Number.isFinite(Number(rating?.[key])))||item.field;
+        applyDelta(rating,actualKey,item.delta,changes,did,dateISO,developmentSource);
       }
     }
 

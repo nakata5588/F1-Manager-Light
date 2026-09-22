@@ -18,7 +18,7 @@
     "season:generate": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs",
     "season:generate:test-years": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs --years=1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2014,2020",
     "test:season-packs": "npm run season:generate:test-years && node --test tests/seasonPacks.real.test.js",
-    "test:drivers": "node --test tests/driverProgression.test.js tests/driverProfile.test.js tests/driverKnowledge.test.js tests/driverDerivedRatings.test.js",
+    "test:drivers": "node --test tests/driverProgression.test.js tests/driverProfile.test.js tests/driverKnowledge.test.js tests/driverDerivedRatings.test.js tests/driverAttributeGroups.test.js",
     "test:simulation": "node --test tests/driverSimulation.test.js",
     "test:management": "node --test tests/managementSystems.test.js",
     "test:save-safety": "node --test tests/saveSafety.test.js",
