@@ -870,27 +870,29 @@ export default function RaceWeekend(){
                     <span className="text-sm text-slate-400">{String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}</span>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {liveRace.status==="running"&&<>
-                    <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
-                    <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
-                    <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Math.max(1,Number(liveRace.total_laps)-Number(liveRace.current_lap))))}>Run to Finish</button>
-                  </>}
-                  {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
-                    {busy?"Restarting…":"Restart Race"}
-                  </button>}
-                  {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-400 text-slate-950 px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+                <div className="flex flex-col items-end gap-2">
+                  {activeControlNotice&&<div className={"max-w-xl rounded-lg border px-3 py-2 text-right text-xs "+controlNoticeTone(activeControlNotice.type)}>
+                    <div className="flex items-center justify-end gap-1.5 font-bold"><Flag className="h-3.5 w-3.5"/>{activeControlNotice.label}</div>
+                    <div className="mt-0.5 opacity-80">{activeControlNotice.reason}</div>
+                    {activeControlNotice.type==="RED_FLAG"&&<div className="mt-0.5 opacity-70">Restart: {String(raceControlRules?.restart_style||"era rules").replaceAll("_"," ")}.</div>}
+                  </div>}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {liveRace.status==="running"&&<>
+                      <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
+                      <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
+                      <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Math.max(1,Number(liveRace.total_laps)-Number(liveRace.current_lap))))}>Run to Finish</button>
+                    </>}
+                    {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
+                      {busy?"Restarting…":"Restart Race"}
+                    </button>}
+                    {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-400 text-slate-950 px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+                  </div>
                 </div>
               </div>
 
               <div className="mt-3 h-1 rounded-full bg-white/10 overflow-hidden">
                 <div className="h-full bg-slate-200 transition-all" style={{width:String(Math.max(0,Math.min(100,(Number(liveRace.current_lap||0)/Math.max(1,Number(liveRace.total_laps||1)))*100)))+"%"}}/>
               </div>
-
-              {liveRace.status==="red_flag"&&<div className="mt-3 rounded-lg border border-red-500/40 bg-red-950/60 text-red-100 px-3 py-2 text-sm">
-                <strong>RED FLAG — lap {liveRace.current_lap}</strong>
-                <span className="ml-2 text-red-200/80">Restart: {String(raceControlRules?.restart_style||"era rules").replaceAll("_"," ")}.</span>
-              </div>}
 
               <div className="mt-3 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2 text-sm">
                 <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
@@ -922,6 +924,10 @@ export default function RaceWeekend(){
                   <div className="mt-1 font-bold font-mono text-fuchsia-300">{formatLapTime(timingSummary?.fastest_lap_ms)}</div>
                   <div className="text-[10px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
                 </div>
+              </div>
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.08] px-3 py-2 text-xs text-sky-100">
+                <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300"/>
+                <div><span className="font-semibold">Team Forecast:</span> {liveTeamForecast}</div>
               </div>
             </div>
 
