@@ -326,7 +326,7 @@ export default function Development({ embedded = false, initialTab = "projects",
 
   const updateResearch = (id, focus) => {
     const next = research.map((r)=>r.id===id?{...r,focus:Number(focus)}:r);
-    setGameState({development:{...dev,projects,parts,manufacturing,research:next}});
+    setGameState({development:{...dev,projects,parts,partUnits,manufacturing,research:next}});
   };
 
   const setPitCrewTrainingLoad=(load)=>{
