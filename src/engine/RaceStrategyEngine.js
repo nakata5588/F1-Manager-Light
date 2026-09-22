@@ -421,6 +421,7 @@ export function createRaceStrategyState(gs,{gp={},raceEntryState=gs?.raceEntrySt
 export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||!["grid_ready","race"].includes(String(weekend.phase))||!driverId)return gs;
+  if(Number(weekend?.live_race?.current_lap||0)>0)return gs;
   const existing=weekend?.race_strategy;
   if(!existing)return gs;
   const did=String(driverId);
@@ -551,12 +552,14 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const rating=(ratings||[]).find((r)=>String(r?.driver_id??r?.id??"")===did)||ratingFor(working,driver);
     const options=tyresForTeam(working,tid);
     let strategy={...strategyForGridRow(working,gridRow,strategyState)};
+    const liveCommands=(strategyState?.live_commands?.[did]||[])
+      .slice()
+      .sort((a,b)=>Number(a?.effective_lap||0)-Number(b?.effective_lap||0));
     const rng=rngFor(working,`${working?.activeYear||"season"}-${gpId}-rw4-race-${did}`);
     let tyre=tyreById(options,strategy.start_tyre_id)||bestTyreForCategory(options,weatherCategory(stateAtLap(weather,1)),{durable:true});
     if(!tyre)continue;
 
     const basePerf=combinedRacePerformance({gs:working,driver,rating,teamId:tid,wet:weather.wet_race});
-    const pace=RACE_PACE_MODES[strategy.pace_mode]||RACE_PACE_MODES.balanced;
     const management=clamp(num(rating?.tire_management,60));
     const fatigue=clamp(num(driverCondition(working,did)?.fatigue,0));
     const wearDriverMult=clamp(1+(60-management)*0.004+(Math.max(0,fatigue-50))*0.003,0.74,1.32);
@@ -587,8 +590,22 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const pits=[];
     const lapTimes=[];
     let refuelled=false;
+    let activePaceMode=strategy.pace_mode;
+    let liveCommandIndex=0;
 
     for(let lap=1;lap<=track.laps;lap++){
+      const commandsThisLap=[];
+      while(liveCommandIndex<liveCommands.length&&Number(liveCommands[liveCommandIndex]?.effective_lap||0)<=lap){
+        commandsThisLap.push(liveCommands[liveCommandIndex]);
+        liveCommandIndex+=1;
+      }
+      for(const command of commandsThisLap){
+        if(command?.type==="pace"&&Object.hasOwn(RACE_PACE_MODES,String(command?.pace_mode))){
+          activePaceMode=String(command.pace_mode);
+        }
+      }
+      const pace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
+      const forcedPit=commandsThisLap.find((command)=>command?.type==="pit");
       const state=stateAtLap(weather,lap);
       const category=weatherCategory(state);
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
@@ -597,7 +614,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       let stopReason=null;
 
       if(lap>1){
-        if(mismatch>=3.5&&remaining>3)stopReason="weather";
+        if(forcedPit&&remaining>1)stopReason="player_call";
+        else if(mismatch>=3.5&&remaining>3)stopReason="weather";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
         else if(strategy.pit_plan==="adaptive"&&condition<28&&remaining>7)stopReason="degradation";
         else if(strategy.pit_plan==="no_stop"&&condition<9&&remaining>6)stopReason="safety";
@@ -607,7 +625,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
 
       if(stopReason){
         stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
-        const nextTyre=choosePitTyre(options,tyre,strategy,state,stopReason);
+        const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
+        const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,state,stopReason);
         const refuel=rules.refuelling_allowed&&!refuelled&&(strategy.fuel_plan==="light_start"||stopReason==="fuel");
         const error=rng.chance(clamp(num(crew.error_rate,0.05),0,0.35));
         const errorDelay=error?3+rng.next()*8:0;
@@ -636,7 +655,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
 
       if(String(tyre?.category||"dry")!=="dry")hasUsedWet=true;
       stintLap+=1;
-      const tyreTemp=temperatureForLap(tyre,state,weather.avg_temp_c,strategy.pace_mode,stintLap);
+      const tyreTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,stintLap);
       tempSum+=tyreTemp; tempCount+=1;
       const optimum=optimalTyreTemp(tyre);
       const tempDelta=Math.abs(tyreTemp-optimum);
@@ -666,8 +685,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     stints.push(stintRecord(tyre,stintStart,track.laps,condition,tempSum,tempCount));
     const weatherRisk=raceRiskFromWeather(working,weather,track);
     const wornTyreRisk=lowestCondition<20?1+(20-lowestCondition)*0.015:1;
-    const incidentRisk=clamp(weatherRisk*pace.risk_mult*wornTyreRisk,0.7,4);
-    const mechanicalRisk=clamp(pace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
+    const finalPace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
+    const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*wornTyreRisk,0.7,4);
+    const mechanicalRisk=clamp(finalPace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
 
     raceRows.push({
       pos:0,
@@ -688,9 +708,12 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
       incident_risk_multiplier:Number(incidentRisk.toFixed(3)),
       mechanical_risk_multiplier:Number(mechanicalRisk.toFixed(3)),
+      lap_times_ms:lapTimes.slice(),
       strategy_summary:{
         source:tid===userTeam?"player":"ai",
-        pace_mode:strategy.pace_mode,
+        pace_mode:activePaceMode,
+        starting_pace_mode:strategy.pace_mode,
+        live_command_count:liveCommands.length,
         pit_plan:strategy.pit_plan,
         fuel_plan:strategy.fuel_plan,
         pit_count:pits.length,

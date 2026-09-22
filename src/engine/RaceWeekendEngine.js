@@ -4,6 +4,7 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
+import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import {
   advancingDriverIds,
@@ -255,6 +256,18 @@ export function setRaceStrategy(gs,{driverId,patch}={}){
   return setRaceStrategySelectionState(gs,{driverId,patch});
 }
 
+export function startLiveRace(gs,{gp}={}){
+  return createLiveRaceState(gs,{gp});
+}
+
+export function advanceLiveRaceSession(gs,{gp,laps=1}={}){
+  return advanceLiveRace(gs,{gp,laps});
+}
+
+export function setLiveRaceCommand(gs,command={}){
+  return issueLiveRaceCommand(gs,command);
+}
+
 export function completePracticeSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="practice")return gs;
@@ -401,6 +414,7 @@ export function completeQualifyingSession(gs,{gp}={}){
 export async function completeRaceSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
+  if(weekend.live_race&&!liveRaceReadyToFinalize(gs))return gs;
   const targetGp=targetGpForWeekend(weekend,gp);
   const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
   if(!startingGridRows.length)return gs;

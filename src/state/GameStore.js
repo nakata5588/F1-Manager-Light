@@ -1537,6 +1537,36 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState||null;
   },
 
+  startRaceWeekendLiveRace: async () => {
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
+    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.startLiveRace(gs,{gp});
+    set({gameState:next});
+    return next?.raceWeekendState?.live_race||null;
+  },
+
+  advanceRaceWeekendLiveRace: async (laps=1) => {
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
+    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.advanceLiveRaceSession(gs,{gp,laps});
+    set({gameState:next});
+    return next?.raceWeekendState?.live_race||null;
+  },
+
+  setRaceWeekendLiveCommand: async (command) => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.setLiveRaceCommand(gs,command||{});
+    set({gameState:next});
+    return next?.raceWeekendState?.live_race||null;
+  },
+
   completeRaceWeekendRace: async () => {
     const gs=get().gameState;
     const weekend=gs?.raceWeekendState;

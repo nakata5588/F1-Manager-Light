@@ -133,6 +133,9 @@ export default function RaceWeekend(){
   const setRaceStrategy=useGame((s)=>s.setRaceWeekendStrategy);
   const runQualifying=useGame((s)=>s.completeRaceWeekendQualifying);
   const runRace=useGame((s)=>s.completeRaceWeekendRace);
+  const startLiveRace=useGame((s)=>s.startRaceWeekendLiveRace);
+  const advanceLiveRace=useGame((s)=>s.advanceRaceWeekendLiveRace);
+  const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const [busy,setBusy]=useState(false);
@@ -153,6 +156,8 @@ export default function RaceWeekend(){
     ||null;
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const raceStrategy=weekend?.race_strategy||null;
+  const liveRace=weekend?.live_race||null;
+  const liveRows=liveRace?.classification||[];
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
@@ -485,6 +490,73 @@ export default function RaceWeekend(){
           </div>
         </div>
 
+        {weekend.phase==="race"&&liveRace&&(
+          <div className="bg-white rounded-xl shadow p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold">Live Race Control</h3>
+                <p className="text-sm text-gray-600 mt-1">Lap {liveRace.current_lap} / {liveRace.total_laps} · {String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {liveRace.status==="running"&&<>
+                  <button disabled={busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
+                  <button disabled={busy} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
+                  <button disabled={busy} className="rounded-lg bg-slate-900 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Math.max(1,Number(liveRace.total_laps)-Number(liveRace.current_lap))))}>Run to Finish</button>
+                </>}
+                {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-700 text-white px-3 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-x-auto border rounded-xl">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50"><tr>
+                  <th className="px-3 py-2 text-right">Pos</th><th className="px-3 py-2 text-left">Driver</th>
+                  <th className="px-3 py-2 text-right">Gap</th><th className="px-3 py-2 text-left">Tyre</th>
+                  <th className="px-3 py-2 text-right">Condition</th><th className="px-3 py-2 text-right">Last Lap</th>
+                </tr></thead>
+                <tbody>{liveRows.map((row,index)=><tr className="border-t" key={row.driver_id}>
+                  <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
+                  <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
+                  <td className="px-3 py-2 text-right font-mono">{index===0?"LEADER":"+"+(Number(row.gap_to_leader_ms||0)/1000).toFixed(3)+"s"}</td>
+                  <td className="px-3 py-2">{row.tyre?.compound||tyreName(gs?.tyres,row.tyre?.tyre_id)}</td>
+                  <td className="px-3 py-2 text-right">{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</td>
+                  <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.last_lap_ms)}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {playerEntrants.map((entry)=>{
+                const did=String(entry.driver_id);
+                const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
+                const commands=raceStrategy?.live_commands?.[did]||[];
+                const latestPace=commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
+                return <div className="border rounded-xl p-3" key={did}>
+                  <div className="font-medium">{driverName(drivers,did)}</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <label className="text-xs text-gray-600">Pace next lap
+                      <select disabled={liveRace.status!=="running"} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                        {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-xs text-gray-600">Pit next lap
+                      <select disabled={liveRace.status!=="running"} className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                        <option value="">Stay out</option>
+                        {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </div>;
+              })}
+            </div>
+
+            {(liveRace.events||[]).length>0&&<div className="mt-4 rounded-xl bg-slate-50 border p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Race feed</div>
+              <div className="mt-2 space-y-1 text-sm">{(liveRace.events||[]).slice(-6).reverse().map((event,index)=><div key={index}><span className="font-medium">L{event.lap}</span> · {event.message||event.type}</div>)}</div>
+            </div>}
+          </div>
+        )}
+
         <div className="bg-white rounded-xl shadow p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -531,11 +603,11 @@ export default function RaceWeekend(){
             <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
               {busy?"Advancing…":"Advance to Race Day"}
             </button>
-          ):(
-            <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runRace)}>
-              {busy?"Running…":"Run Race"}
+          ):!liveRace?(
+            <button disabled={busy} className="mt-4 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
+              {busy?"Preparing…":"Start Race"}
             </button>
-          )}
+          ):null}
         </div>
       </div>
     )}
