@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
-import { TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { Activity, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
 
 const STEPS=[
   ["practice","Practice"],
@@ -23,6 +24,9 @@ function phaseIndex(phase){
   return 0;
 }
 function driverId(row){return String(row?.driver_id??row?.id??"");}
+function driverObject(drivers,id){
+  return (drivers||[]).find((row)=>driverId(row)===String(id))||null;
+}
 function driverName(drivers,id){
   const d=(drivers||[]).find((row)=>driverId(row)===String(id));
   return d?.display_name||d?.name||`${d?.first_name??""} ${d?.last_name??""}`.trim()||String(id||"—");
@@ -84,6 +88,66 @@ function pitWindowLabel(window){
 }
 function paceLabel(mode){
   return RACE_PACE_MODES?.[String(mode)]?.label||String(mode||"Balanced").replaceAll("_"," ");
+}
+function signedLapDelta(ms){
+  const n=Number(ms);
+  if(!Number.isFinite(n))return "—";
+  if(Math.abs(n)<1)return "±0.000";
+  return (n>0?"+":"−")+(Math.abs(n)/1000).toFixed(3);
+}
+function lapDeltaTone(ms){
+  const n=Number(ms);
+  if(!Number.isFinite(n)||Math.abs(n)<1)return "text-slate-500";
+  return n<0?"text-emerald-400":"text-rose-400";
+}
+function fatigueTone(value){
+  const n=Number(value)||0;
+  if(n<=25)return "text-emerald-300 bg-emerald-500/10 border-emerald-500/20";
+  if(n<=55)return "text-amber-300 bg-amber-500/10 border-amber-500/20";
+  if(n<=75)return "text-orange-300 bg-orange-500/10 border-orange-500/20";
+  return "text-rose-300 bg-rose-500/10 border-rose-500/20";
+}
+function wearTone(multiplier){
+  const n=Number(multiplier)||1;
+  if(n<=0.85)return "text-emerald-300 bg-emerald-500/10 border-emerald-500/20";
+  if(n<=1.05)return "text-slate-200 bg-white/[0.04] border-white/10";
+  if(n<=1.20)return "text-amber-300 bg-amber-500/10 border-amber-500/20";
+  return "text-rose-300 bg-rose-500/10 border-rose-500/20";
+}
+function conditionTone(value){
+  const n=Number(value);
+  if(!Number.isFinite(n))return "text-slate-400 bg-white/[0.04]";
+  if(n>=70)return "text-emerald-300 bg-emerald-500/10";
+  if(n>=40)return "text-amber-300 bg-amber-500/10";
+  if(n>=20)return "text-orange-300 bg-orange-500/10";
+  return "text-rose-300 bg-rose-500/15";
+}
+function paceTone(mode){
+  const key=String(mode||"balanced");
+  if(key==="attack")return "text-rose-300 bg-rose-500/10";
+  if(key==="conserve")return "text-cyan-300 bg-cyan-500/10";
+  return "text-slate-200 bg-white/[0.04]";
+}
+function tyreTone(compound){
+  const key=String(compound||"").toLowerCase();
+  if(key.includes("soft"))return "bg-rose-500 text-white";
+  if(key.includes("medium"))return "bg-amber-400 text-slate-950";
+  if(key.includes("hard"))return "bg-slate-100 text-slate-950";
+  if(key.includes("inter"))return "bg-emerald-500 text-white";
+  if(key.includes("wet"))return "bg-blue-500 text-white";
+  return "bg-slate-600 text-white";
+}
+function programmeIntensity(programme){
+  const fatigue=Number(programme?.fatigue)||0;
+  if(fatigue<=5)return {label:"Light",tone:"text-emerald-300"};
+  if(fatigue<=8)return {label:"Standard",tone:"text-slate-200"};
+  return {label:"Heavy",tone:"text-amber-300"};
+}
+function indexDescriptor(value,{inverse=false}={}){
+  const n=Math.max(0,Math.min(100,Number(value)||0));
+  const level=n<30?"Low":n<55?"Moderate":n<75?"High":"Very high";
+  const tone=n<30?"text-emerald-300":n<55?"text-slate-200":n<75?"text-amber-300":"text-rose-300";
+  return {level,tone,inverse};
 }
 function liveEventText(event,drivers){
   const name=event?.driver_id?driverName(drivers,event.driver_id):null;
@@ -249,13 +313,13 @@ export default function RaceWeekend(){
 
   const terminalWeekend=["results","completed"].includes(String(weekend?.phase));
   const windowTabs=[
-    {id:"overview",label:"Overview",enabled:true},
+    {id:"overview",label:"Forecast",enabled:true},
     {id:"practice",label:"Practice",enabled:!terminalWeekend&&(Boolean(weekend?.practice)||["practice","practice_complete"].includes(String(weekend?.phase)))},
     {id:"qualifying",label:"Qualifying",enabled:!terminalWeekend&&qualifyingSessions.length>0},
     {id:"strategy",label:"Strategy",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&Boolean(raceStrategy)},
     {id:"grid",label:"Starting Grid",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&startingGridRows.length>0},
     {id:"live",label:"Live Timing",enabled:String(weekend?.phase)==="race"},
-    {id:"classification",label:"Classification",enabled:Boolean(lastResult)||terminalWeekend},
+    {id:"classification",label:"Results",enabled:Boolean(lastResult)||terminalWeekend},
   ];
 
   if(!weekend){
