@@ -1057,9 +1057,9 @@ function OverviewTab({
           <ProfileMetric label="Championship" value={season.championshipPosition?`P${season.championshipPosition}`:"—"}/>
           <ProfileMetric label="Points" value={season.points??0}/>
           <ProfileMetric
-            label="Performance effect"
-            value={Number.isFinite(impactValue)?`${impactValue>=0?"+":""}${impactValue.toFixed(1)}`:"Private"}
-            tone={impactTone}
+            label="Form"
+            value={snapshot?.form?.score!=null?`${Number(snapshot.form.score).toFixed(1)} · ${snapshot.form.label}`:"—"}
+            tone={snapshot?.form?.score!=null?(Number(snapshot.form.score)>=76?"text-emerald-300":Number(snapshot.form.score)<58?"text-rose-300":"text-slate-200"):""}
           />
         </div>
 
@@ -1101,6 +1101,30 @@ function OverviewTab({
           <ProfileMetric label="Best finish" value={season.bestFinish?`P${season.bestFinish}`:"—"}/>
         </div>
       </div>
+
+      {snapshot?.performanceHistory?.[0]&&(
+        <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest Race Evaluation</div>
+              <div className="mt-1 text-sm text-slate-200">{snapshot.performanceHistory[0].gp_name||`Round ${snapshot.performanceHistory[0].round||"—"}`}</div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                Expected ~P{Number(snapshot.performanceHistory[0].expected_finish||0).toFixed(1)} · {snapshot.performanceHistory[0].retired?(snapshot.performanceHistory[0].retirement_reason||"DNF"):`Finished P${snapshot.performanceHistory[0].finish_position||"—"}`}
+              </div>
+            </div>
+            <div className={`rounded-lg border px-3 py-2 text-xl font-semibold ${Number(snapshot.performanceHistory[0].score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(snapshot.performanceHistory[0].score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
+              {Number(snapshot.performanceHistory[0].score||0).toFixed(1)}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {(snapshot.performanceHistory[0].factors||[]).slice(0,4).map((factor,index)=>(
+              <div key={`${factor.key||"factor"}-${index}`} className={`rounded-lg border border-white/5 bg-[#171a23] p-2 text-xs ${factor.tone==="positive"?"text-emerald-300":factor.tone==="negative"?"text-rose-300":"text-slate-400"}`}>
+                {factor.value>0?"+":""}{Number(factor.value||0).toFixed(1)} · {factor.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge & Decision Support</div>
