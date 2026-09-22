@@ -910,6 +910,21 @@ export default function DriverModal({ entity, onClose }) {
                 />
               </div>
               <div className="border-t border-white/10 pt-5">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Played-Race Performance</div>
+                    <div className="mt-1 text-sm text-slate-300">Form evaluates results against the car, qualifying, team-mate comparison and incident responsibility.</div>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-right">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Current Form</div>
+                    <div className={`text-lg font-semibold ${Number(profileSnapshot?.form?.score)>=76?"text-emerald-300":Number(profileSnapshot?.form?.score)<58?"text-rose-300":"text-slate-200"}`}>
+                      {profileSnapshot?.form?.score!=null?`${Number(profileSnapshot.form.score).toFixed(1)} · ${profileSnapshot.form.label}`:"—"}
+                    </div>
+                  </div>
+                </div>
+                <PerformanceHistory items={profileSnapshot?.performanceHistory||[]} />
+              </div>
+              <div className="border-t border-white/10 pt-5">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Season History by Team</div>
                 <CareerTab
                   seriesSel={seriesSel}
