@@ -144,6 +144,99 @@ export function teamCarPerformance(gs,teamId,driverId=null){
   };
 }
 
+function facilityLevelForTeam(gs,teamId,key){
+  const tid=String(teamId??"");
+  const player=String(gs?.team?.team_id??gs?.team?.id??"");
+  const aliases=key==="manufacturing_level"
+    ?["manufacturing_level","manufacturing_leve"]
+    :[key];
+
+  if(tid&&tid===player){
+    for(const alias of aliases){
+      const override=n(gs?.hq?.facilityLevels?.[alias],NaN);
+      if(Number.isFinite(override))return clamp(override,1,10);
+    }
+  }
+
+  const year=Number(gs?.activeYear);
+  const rows=Array.isArray(gs?.facilities)&&gs.facilities.length
+    ?gs.facilities
+    :(gs?.dbFacilities||[]);
+  const row=(rows||[]).find((item)=>{
+    const rowTeam=String(pick(item,["team_id","team","constructor_id","constructor"],""));
+    const rowYear=n(pick(item,["year","season_year"],NaN),NaN);
+    return rowTeam===tid&&(!Number.isFinite(year)||!Number.isFinite(rowYear)||rowYear===year);
+  })||{};
+  for(const alias of aliases){
+    const value=n(row?.[alias],NaN);
+    if(Number.isFinite(value))return clamp(value,1,10);
+  }
+  return 5;
+}
+
+function completedReliabilityProjectBonus(gs,teamId){
+  const tid=String(teamId??"");
+  const player=String(gs?.team?.team_id??gs?.team?.id??"");
+  const rows=[
+    ...(Array.isArray(gs?.development?.projects)?gs.development.projects:[]),
+    ...(Array.isArray(gs?.development?.research)?gs.development.research:[]),
+  ];
+  return rows
+    .filter((project)=>{
+      const status=String(project?.status||"").toLowerCase();
+      if(!["completed","done","finished"].includes(status))return false;
+      const label=String(project?.area??project?.focus??project?.name??project?.title??"").toLowerCase();
+      if(!label.includes("reliab"))return false;
+      const projectTeam=String(project?.team_id??project?.constructor_id??"");
+      return projectTeam?projectTeam===tid:tid===player;
+    })
+    .reduce((sum,project)=>sum+Math.max(0,n(project?.target_gain??project?.gain??project?.reliability_gain,1))*0.4,0);
+}
+
+/**
+ * Canonical race-day reliability profile.
+ *
+ * The base comes from the same live car model used by Garage/Car Performance.
+ * Practice, facilities and completed reliability work are applied as modest
+ * percentage-point modifiers. Both Live Race Control and the direct GP path
+ * consume this profile so they cannot disagree about the same car.
+ */
+export function raceReliabilityProfile(gs,teamId,driverId=null){
+  const tid=String(teamId??"");
+  const did=driverId==null?null:String(driverId);
+  const performance=teamCarPerformance(gs,tid,did);
+  const basePct=clamp(n(performance?.reliability,75));
+
+  const practice=(gs?.raceWeekendState?.practice?.results||[]).find(
+    (row)=>String(row?.driver_id??"")===String(did??"")
+  )||null;
+  const practiceBonusPct=did?Math.max(0,n(practice?.reliability_bonus,0)):0;
+
+  const manufacturing=facilityLevelForTeam(gs,tid,"manufacturing_level");
+  const facilityBonusPct=(manufacturing-5)*0.4;
+  const developmentBonusPct=completedReliabilityProjectBonus(gs,tid);
+
+  const effectivePct=clamp(
+    basePct+practiceBonusPct+facilityBonusPct+developmentBonusPct,
+    55,
+    97
+  );
+
+  return {
+    team_id:tid,
+    driver_id:did,
+    reliability:Number((effectivePct/100).toFixed(4)),
+    reliability_pct:round1(effectivePct),
+    base_car_reliability_pct:round1(basePct),
+    practice_bonus_pct:round1(practiceBonusPct),
+    facility_bonus_pct:round1(facilityBonusPct),
+    development_bonus_pct:round1(developmentBonusPct),
+    manufacturing_level:round1(manufacturing),
+    car_performance:performance,
+    source:"canonical_race_reliability",
+  };
+}
+
 export function carPerformanceRanking(gs){
   return (gs?.teams||[])
     .map((team)=>{
