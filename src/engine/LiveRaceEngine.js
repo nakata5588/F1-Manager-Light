@@ -122,7 +122,10 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   let working=createLiveRaceState(gs,{gp});
   const weekend=working?.raceWeekendState, live=weekend?.live_race;
   if(!live||live.status!=="running")return working;
-  const target=Math.min(Number(live.total_laps),Number(live.current_lap)+Math.max(1,Math.round(Number(laps)||1)));
+  const requestedTarget=Math.min(Number(live.total_laps),Number(live.current_lap)+Math.max(1,Math.round(Number(laps)||1)));
+  const planBefore=working?.raceWeekendState?.race_strategy?.race_control_plan||null;
+  const upcomingRed=(planBefore?.periods||[]).find((period)=>period.type==="RED_FLAG"&&Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=requestedTarget);
+  const target=upcomingRed?Number(upcomingRed.from_lap):requestedTarget;
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
   const plan=simulation?.strategyState?.race_control_plan||working?.raceWeekendState?.race_strategy?.race_control_plan||null;
@@ -162,7 +165,31 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
-      live_race:{...live,current_lap:target,status:target>=Number(live.total_laps)?"finished":"running",classification,last_weather:weather,current_control:currentControl.type,track_state:trackState,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-100)},
+      live_race:{...live,current_lap:target,status:upcomingRed?"red_flag":target>=Number(live.total_laps)?"finished":"running",classification,last_weather:weather,current_control:currentControl.type,track_state:trackState,red_flag_period:upcomingRed||null,projected_race:simulation.race,projected_summary:simulation.summary,events:events.slice(-100)},
+    },
+  };
+}
+
+export function resumeLiveRace(gs){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||live?.status!=="red_flag")return gs;
+  const rules=weekend?.race_strategy?.race_control_plan?.rules||{};
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:{
+        ...live,
+        status:"running",
+        current_control:"GREEN",
+        red_flag_period:null,
+        events:[...(live.events||[]),{
+          lap:Number(live.current_lap),
+          type:"restart",
+          message:`Race restarting under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
+        }].slice(-100),
+      },
     },
   };
 }
