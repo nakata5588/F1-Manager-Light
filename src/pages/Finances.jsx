@@ -295,6 +295,9 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
     0
   );
   const salaryYear = salaries.reduce((s, r) => s + (r.yearly || 0), 0);
+  const driverSalaryYear = salaries.filter((r)=>r.kind==="driver").reduce((s,r)=>s+(r.yearly||0),0);
+  const staffSalaryYear = salaries.filter((r)=>r.kind==="staff").reduce((s,r)=>s+(r.yearly||0),0);
+  const activeSponsors = sponsors.filter((s)=>s.status==="active").length;
 
   const monthlyBurn =
     salaries.reduce((s, r) => s + (r.monthly || 0), 0) -
@@ -305,11 +308,13 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
   return (
     <>
       {/* Snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
         <Stat title="Budget / Balance" value={fmtMoney(fin.budget || fin.balance)} />
+        <Stat title="Season Net" value={fmtMoney((fin.season_income - fin.season_spend) || lastNet)} />
+        <Stat title="Sponsor value / year" value={fmtMoney(sponsorEstYear)} />
+        <Stat title="Annual wage bill" value={fmtMoney(salaryYear)} />
         <Stat title="Weekly Burn" value={fmtMoney((monthlyBurn || 0) / 4)} />
         <Stat title="Runway" value={runwayMonths != null ? `${runwayMonths} months` : "—"} />
-        <Stat title="Season Net (CF est.)" value={fmtMoney((fin.season_income - fin.season_spend) || lastNet)} />
       </div>
 
       {/* Mini sections */}
@@ -350,8 +355,10 @@ function OverviewTab({ fin, cashflow, sponsors, salaries }) {
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground mb-1">This Season (est.)</div>
             <div className="grid grid-cols-2 gap-2">
+              <Mini stat="Active sponsors" val={activeSponsors} />
               <Mini stat="Sponsor (est.)" val={fmtMoney(sponsorEstYear)} />
-              <Mini stat="Salaries (est.)" val={fmtMoney(salaryYear)} />
+              <Mini stat="Driver wages" val={fmtMoney(driverSalaryYear)} />
+              <Mini stat="Staff wages" val={fmtMoney(staffSalaryYear)} />
               <Mini stat="Spend (reported)" val={fmtMoney(fin.season_spend)} />
               <Mini stat="Income (reported)" val={fmtMoney(fin.season_income)} />
             </div>
