@@ -767,6 +767,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const stints=[];
     const pits=[];
     const lapTimes=[];
+    const tyreStates=[];
     let refuelled=false;
     let activePaceMode=strategy.pace_mode;
     let liveCommandIndex=0;
@@ -906,6 +907,17 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       bestLapMs=Math.min(bestLapMs,lapMs);
       condition=clamp(condition-wearPerLap,0,100);
       lowestCondition=Math.min(lowestCondition,condition);
+      tyreStates.push({
+        lap,
+        tyre_id:tyreId(tyre),
+        compound:tyre?.compound_name||tyreId(tyre),
+        category:tyre?.category||"dry",
+        condition:Number(condition.toFixed(1)),
+        temperature_c:Number(tyreTemp.toFixed(1)),
+        age_laps:stintLap,
+        stint_number:stints.length+1,
+        stint_start_lap:stintStart,
+      });
     }
 
     stints.push(stintRecord(tyre,stintStart,track.laps,condition,tempSum,tempCount));
@@ -939,6 +951,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       tyre_risk_multiplier:Number(maxTyreRiskMultiplier.toFixed(3)),
       strategy_decisions:strategyDecisions,
       lap_times_ms:lapTimes.slice(),
+      tyre_state_by_lap:tyreStates.slice(),
       strategy_summary:{
         source:tid===userTeam?"player":"ai",
         pace_mode:activePaceMode,
