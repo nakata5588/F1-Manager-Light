@@ -1198,6 +1198,12 @@ function DevelopmentTab({
           <div className="mt-3 grid grid-cols-2 gap-2">
             <ProfileMetric label="Current ability" value={overall.label}/>
             <ProfileMetric label="Dynamic potential" value={potential.label}/>
+            <ProfileMetric label="Career stage" value={lifecycle?.label||"—"}/>
+            <ProfileMetric
+              label="Trajectory"
+              value={lifecycle?.trajectory?niceRole(lifecycle.trajectory):"—"}
+              tone={lifecycle?.trajectory==="rising"?"text-emerald-300":lifecycle?.trajectory==="falling"?"text-rose-300":"text-slate-200"}
+            />
           </div>
           <p className="mt-3 text-xs text-slate-400">
             Potential is a live career ceiling, not a guaranteed destination. Results relative to the car, team environment and sustained development can raise or lower it over time.
