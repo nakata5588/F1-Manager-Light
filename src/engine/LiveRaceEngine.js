@@ -23,6 +23,48 @@ function controlLabel(type){
     RED_FLAG:"Red flag",
   }[key]||key.replaceAll("_"," ").toLowerCase();
 }
+function articleFor(word){
+  return /^[aeiou]/i.test(String(word||"").trim())?"an":"a";
+}
+function incidentNoun(incident){
+  const kind=String(incident?.kind||"").toLowerCase();
+  const reason=String(incident?.reason||"").toLowerCase();
+  if(kind==="collision"||reason.includes("collision"))return "collision";
+  if(kind==="accident"||reason.includes("accident"))return "accident";
+  return "incident";
+}
+function severityAdjective(severity){
+  return {
+    low:"minor",
+    medium:"significant",
+    high:"heavy",
+    critical:"serious",
+  }[String(severity||"").toLowerCase()]||"significant";
+}
+export function formatRaceIncidentMessage({controlType=null,driverName="Driver",incident={}}={}){
+  const kind=String(incident?.kind||"").toLowerCase();
+  const reason=String(incident?.reason||incident?.kind||"incident").trim();
+  const prefix=controlType?controlLabel(controlType)+" — ":"";
+  if(kind==="mechanical"){
+    const lowerReason=reason.toLowerCase();
+    return `${prefix}${driverName} stops with ${articleFor(lowerReason)} ${lowerReason} problem.`;
+  }
+  const noun=incidentNoun(incident);
+  const severity=String(incident?.severity||"medium").toLowerCase();
+  if(severity==="critical"){
+    return `${prefix}Serious ${noun} involving ${driverName}.`;
+  }
+  return `${prefix}${driverName} involved in a ${severityAdjective(severity)} ${noun}.`;
+}
+function formatWeatherControlMessage(type,state){
+  const weather=String(state||"extreme weather").replaceAll("_"," ").toLowerCase();
+  return `${controlLabel(type)} — ${weather.charAt(0).toUpperCase()+weather.slice(1)} conditions.`;
+}
+function pushUniqueEvent(events,event){
+  const key=String(event?.event_key||"");
+  if(key&&events.some((row)=>String(row?.event_key||"")===key))return;
+  events.push(event);
+}
 function paceInstruction(mode){
   return {
     attack:"push",
@@ -326,32 +368,32 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
         Number(row?.from_lap)===Number(incident.lap)&&String(row?.driver_id??"")===String(incident.driver_id)
       );
       const driver=driverDisplayName(working,incident.driver_id);
+      const eventKey=`incident:${incident.driver_id}:${incident.lap}:${incident.kind||incident.reason||"incident"}`;
       if(period){
         controlPeriodsStarted.add(`${period.type}:${period.from_lap}:${period.driver_id||""}`);
-        events.push({
+        pushUniqueEvent(events,{
+          event_key:eventKey,
           lap:Number(incident.lap),
           type:"race_control",
           driver_id:incident.driver_id,
           driver_name:driver,
           control_type:period.type,
           cause:"incident",
-          severity:String(incident.severity||"unknown").toLowerCase(),
+          incident_kind:String(incident.kind||"incident").toLowerCase(),
           incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
-          message:`${controlLabel(period.type)} due to ${driver}'s ${String(incident.reason||incident.kind||"incident").toLowerCase()}.`,
+          message:formatRaceIncidentMessage({controlType:period.type,driverName:driver,incident}),
         });
       }else{
-        const mechanical=/engine|gearbox|transmission|electrical|cooling|fuel|suspension/i.test(String(incident.reason||""));
-        events.push({
+        pushUniqueEvent(events,{
+          event_key:eventKey,
           lap:Number(incident.lap),
           type:"incident",
           driver_id:incident.driver_id,
           driver_name:driver,
           cause:"incident",
-          severity:String(incident.severity||"unknown").toLowerCase(),
+          incident_kind:String(incident.kind||"incident").toLowerCase(),
           incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
-          message:mechanical
-            ?`${driver} stops with a ${String(incident.reason).toLowerCase()} problem.`
-            :`${driver} involved in ${String(incident.reason||incident.kind||"an incident").toLowerCase()}.`,
+          message:formatRaceIncidentMessage({driverName:driver,incident}),
         });
       }
     }
@@ -363,16 +405,25 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
       const reason=period.cause==="weather"
         ?String(weatherAtStart||"extreme weather").replaceAll("_"," ").toLowerCase()
         :"an incident";
-      events.push({
+      pushUniqueEvent(events,{
+        event_key:`race_control:${period.type}:${period.from_lap}:${period.cause||"control"}`,
         lap:Number(period.from_lap),
         type:"race_control",
         control_type:period.type,
         cause:period.cause,
-        message:`${controlLabel(period.type)} deployed because of ${reason}.`,
+        message:period.cause==="weather"
+          ?formatWeatherControlMessage(period.type,weatherAtStart)
+          :`${controlLabel(period.type)} — Race control intervention.`,
       });
     }
     if(Number(period.to_lap)>=Number(live.current_lap)&&Number(period.to_lap)<target&&period.type!=="LOCAL_YELLOW"){
-      events.push({lap:Number(period.to_lap)+1,type:"race_control",control_type:"GREEN",message:`${controlLabel(period.type)} withdrawn — green flag.`});
+      pushUniqueEvent(events,{
+        event_key:`race_control:GREEN:${Number(period.to_lap)+1}:${period.type}`,
+        lap:Number(period.to_lap)+1,
+        type:"race_control",
+        control_type:"GREEN",
+        message:`${controlLabel(period.type)} withdrawn — green flag.`,
+      });
     }
   }
   for(const row of simulation.race){
