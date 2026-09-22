@@ -443,3 +443,33 @@ test("RW2 Practice state survives save/load with programme selections and setup 
   assert.equal(loaded.driverAttributes.D1.preparation,gs.driverAttributes.D1.preparation);
   assert.deepEqual(loaded.garage,gs.garage,"component condition must survive save/load");
 });
+
+
+test("RW4.3 weekend weather persists across Practice and Qualifying and refreshes the Race forecast",()=>{
+  let gs=createRaceWeekendState(fixture({seed:"rw4.3-integration"}),{roundIndex:0,gp});
+  assert.deepEqual(
+    Object.keys(gs.raceWeekendState.weekend_weather.sessions),
+    ["practice","qualifying_1","qualifying_2","race"]
+  );
+  assert.equal(gs.raceWeekendState.race_strategy.weather_snapshot.source,"weekend_weather_world");
+  assert.equal(gs.raceWeekendState.weekend_weather.forecast_revision,0);
+
+  gs=completePracticeSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.weekend_weather.forecast_revision,1);
+  assert.ok(gs.raceWeekendState.weekend_weather.observed_sessions.includes("practice"));
+
+  gs=continueRaceWeekendSession(gs);
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.weekend_weather.forecast_revision,2);
+  const q1=gs.raceWeekendState.sessions.find((row)=>row.id==="qualifying_1");
+  assert.ok(q1.results.every((row)=>row.weather_state));
+  assert.ok(q1.results.every((row)=>Number.isFinite(row.track_wetness)));
+
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
+  gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.weekend_weather.forecast_revision,3);
+  assert.equal(gs.raceWeekendState.phase,"grid_ready");
+  assert.equal(gs.raceWeekendState.race_strategy.forecast_revision_used,3);
+  assert.ok(gs.raceWeekendState.weekend_weather.forecast.race);
+});
