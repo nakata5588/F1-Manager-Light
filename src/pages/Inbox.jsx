@@ -88,7 +88,7 @@ function routeForType(type) {
     STAFF: "/MyStaff",
     CONTRACT: "/MyDrivers",
     MEDICAL: "/MyDrivers",
-    PR: "/Home",
+    PR: null,
     SCOUTING: "/Scouting",
     HQ: "/HQ",
     ACADEMY: "/Academy",
