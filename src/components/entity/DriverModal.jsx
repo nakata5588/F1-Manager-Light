@@ -735,15 +735,26 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-white/10 bg-[#171a23] p-3">
-          <div className="flex items-center gap-3">
-            <TeamLogo teamId={contractTeamId || profileSnapshot?.teamId} name={contractTeam || profileSnapshot?.teamName || "Team"} size="h-10 w-10"/>
-            <div className="min-w-0">
-              <div className="text-sm font-medium truncate">{contractTeam || profileSnapshot?.teamName || "Free Agent"}</div>
-              <div className="text-xs text-slate-500">{contractRole || "No active role"}</div>
+        {(contractTeamId || profileSnapshot?.teamId) ? (
+          <button
+            type="button"
+            data-entity="team"
+            data-id={contractTeamId || profileSnapshot?.teamId}
+            className="mt-4 w-full rounded-xl border border-white/10 bg-[#171a23] p-3 text-left hover:bg-white/5"
+          >
+            <div className="flex items-center gap-3">
+              <TeamLogo teamId={contractTeamId || profileSnapshot?.teamId} name={contractTeam || profileSnapshot?.teamName || "Team"} size="h-10 w-10"/>
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{contractTeam || profileSnapshot?.teamName || "Team"}</div>
+                <div className="text-xs text-slate-500">{contractRole || "No active role"} · View team</div>
+              </div>
             </div>
+          </button>
+        ) : (
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#171a23] p-3 text-sm text-slate-400">
+            Free Agent
           </div>
-        </div>
+        )}
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           <ProfileMetric label="OVR" value={overallLabel}/>
