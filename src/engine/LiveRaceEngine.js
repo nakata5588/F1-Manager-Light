@@ -1,12 +1,31 @@
 // src/engine/LiveRaceEngine.js
 import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffects } from "./RaceStrategyEngine.js";
-import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap } from "./RaceControlEngine.js";
+import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
+function pointOrdinal(lap,sector=3){
+  const l=Math.max(1,Number(lap)||1);
+  const s=Math.max(1,Math.min(3,Number(sector)||1));
+  return (l-1)*3+s;
+}
+function incidentOrdinal(incident){
+  return pointOrdinal(incident?.lap,incident?.sector??1);
+}
+function livePointOrdinal(live){
+  const lap=Number(live?.current_lap)||0;
+  if(lap<=0)return 0;
+  return pointOrdinal(lap,Number(live?.current_sector)||3);
+}
+function pointFromOrdinal(ordinal,totalLaps){
+  const max=Math.max(1,Number(totalLaps)||1)*3;
+  const value=Math.max(1,Math.min(max,Math.round(Number(ordinal)||1)));
+  return {lap:Math.floor((value-1)/3)+1,sector:((value-1)%3)+1,ordinal:value};
+}
+
 function driverById(gs,id){return (gs?.drivers||[]).find((d)=>String(d?.driver_id??d?.id??"")===String(id))||null;}
 function driverDisplayName(gs,id){
   const driver=driverById(gs,id);
