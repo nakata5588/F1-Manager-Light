@@ -979,6 +979,7 @@ export function resumeLiveRace(gs){
         red_flag_period:null,
         events:[...(live.events||[]),{
           lap:Number(live.current_lap),
+          sector:Number(live.current_sector)||1,
           type:"restart",
           message:`Race restarting under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
         }],
@@ -989,7 +990,12 @@ export function resumeLiveRace(gs){
 
 export function liveRaceReadyToFinalize(gs){
   const live=gs?.raceWeekendState?.live_race;
-  return Boolean(live&&live.status==="finished"&&Number(live.current_lap)>=Number(live.total_laps));
+  return Boolean(
+    live&&
+    live.status==="finished"&&
+    Number(live.current_lap)>=Number(live.total_laps)&&
+    Number(live.current_sector??3)>=3
+  );
 }
 
 export function finalizedLiveRaceRows(gs){
@@ -1008,7 +1014,10 @@ export function finalizedLiveRaceRows(gs){
       if(!visible)return {...row,pos:Number(row?.pos??index+1)};
       const retired=Boolean(visible?.retired);
       const incidentLap=retired?Number(visible?.incident_lap)||null:null;
-      const completedLaps=retired?Math.max(0,Math.min(totalLaps,incidentLap||0)):totalLaps;
+      const incidentSector=retired?Number(visible?.incident_sector)||1:null;
+      const completedLaps=retired
+        ?Math.max(0,Math.min(totalLaps,(incidentLap||1)-(incidentSector>=3?0:1)))
+        :totalLaps;
       const filterToCompletedLap=(items,lapKey="lap")=>
         Array.isArray(items)
           ?items.filter((item)=>Number(item?.[lapKey]??0)<=completedLaps)
@@ -1038,6 +1047,7 @@ export function finalizedLiveRaceRows(gs){
         status:retired?"DNF":"Finished",
         retirement_reason:retired?(visible?.retirement_reason||"Retired"):null,
         incident_lap:incidentLap,
+        incident_sector:incidentSector,
         laps_completed:completedLaps,
         race_laps:totalLaps,
         lap_times_ms:lapTimes,
