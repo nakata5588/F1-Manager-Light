@@ -1567,6 +1567,14 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  resumeRaceWeekendLiveRace: async () => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.resumeLiveRaceSession(gs);
+    set({gameState:next});
+    return next?.raceWeekendState?.live_race||null;
+  },
+
   completeRaceWeekendRace: async () => {
     const gs=get().gameState;
     const weekend=gs?.raceWeekendState;
