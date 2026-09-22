@@ -3,6 +3,7 @@ import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
+import { academyProgramDefinition, academyProgramNames } from "@/domain/academyPrograms.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -131,9 +132,17 @@ export default function Academy(){
         <div className="grid grid-cols-3 gap-2"><Mini label="Overall" value={overall}/><Mini label="Potential" value={potential}/><Mini label="Weekly" value={fmtMoney(entry.stipend_weekly||0)}/></div>
         <label className="text-xs text-slate-400">Development plan
           <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-2 py-2 w-full text-sm" value={entry.program||""} onChange={(e)=>setProgram(id,e.target.value)}>
-            {formalAcademy?<><option>General Development</option><option>Racecraft</option><option>Technical Feedback</option><option>Fitness</option></>:<><option>Private Testing Support</option><option>Race Entry Support</option><option>Technical Mentoring</option></>}
+            {academyProgramNames(formalAcademy?"academy":"supported_prospect").map((name)=><option key={name}>{name}</option>)}
           </select>
         </label>
+        <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs">
+          <div className="font-medium text-slate-200">{entry.program||"Development plan"}</div>
+          <div className="text-slate-400 mt-1">{academyProgramDefinition(entry.program).description}</div>
+          <div className="mt-2 text-slate-500">
+            Monthly focus: {Object.entries(academyProgramDefinition(entry.program).deltas).map(([key,value])=>`${nice(key)} +${Number(value).toFixed(2)}`).join(" · ")}
+          </div>
+          <div className="mt-1 text-slate-500">{formalAcademy?`Youth Programme level ${youthLevel} scales the training effect.`:"Informal junior support runs at reduced effectiveness compared with a formal academy."}</div>
+        </div>
         <Button size="sm" variant="outline" onClick={()=>removeDriver(id)}>End Support</Button>
       </CardContent></Card>)}
       {!supportedRows.length&&<Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No junior drivers are currently supported. Open “Find Talent” to add one.</CardContent></Card>}
