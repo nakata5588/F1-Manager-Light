@@ -97,8 +97,10 @@ test("Pit Now schedules the selected tyre for the next lap",()=>{
   const pitEvent=gs.raceWeekendState.live_race.events.find((event)=>event.type==="pit"&&event.driver_id==="D1");
   assert.ok(pitEvent);
   assert.equal(pitEvent.driver_name,"Player One");
-  assert.match(pitEvent.message,/Player One pitted/);
+  assert.match(pitEvent.message,/Player One pits for Soft tyres/);
   assert.equal(pitEvent.message.includes("D1 pitted"),false);
+  assert.equal(pitEvent.message.includes("gy_s"),false);
+  assert.equal(pitEvent.message.includes("gy_h"),false);
 });
 
 test("AI driver cannot receive player live commands",()=>{
@@ -189,7 +191,10 @@ test("RW4.4 live timing exposes sectors, intervals, tyre age, position change an
   assert.equal(leader.interval_ms,0);
   assert.ok(Number.isFinite(leader.grid_position));
   assert.ok(Number.isFinite(leader.position_gain));
+  assert.ok(Number.isFinite(leader.position_change_last_lap));
   assert.ok(Number.isFinite(leader.projected_finish_position));
+  assert.ok(Number.isFinite(leader.pit_rejoin_position)&&leader.pit_rejoin_position>=1);
+  assert.ok(Number.isFinite(leader.pit_loss_estimate_s)&&leader.pit_loss_estimate_s>0);
   assert.ok(Number.isFinite(leader.best_lap_ms)&&leader.best_lap_ms>0);
   assert.ok(Number.isFinite(leader.best_lap_number)&&leader.best_lap_number>=1);
   assert.ok(Number.isFinite(leader.previous_lap_ms)&&leader.previous_lap_ms>0);
