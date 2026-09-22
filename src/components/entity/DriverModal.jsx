@@ -642,6 +642,21 @@ export default function DriverModal({ entity, onClose }) {
   );
 
   const releaseCost = isOwnDriver && contract ? terminationCost(gs, contract) : 0;
+  const developmentFocusKey = driverDevelopmentFocus(gs, driverId);
+
+  function setDriverDevelopmentFocus(groupKey) {
+    if (!isOwnDriver || !driverId) return;
+    const next={...(gs?.driverDevelopmentFocus||{})};
+    if(groupKey) next[driverId]=groupKey;
+    else delete next[driverId];
+    setGameState({driverDevelopmentFocus:next});
+  }
+
+  function openScoutingForDriver() {
+    if (!driverId) return;
+    onClose?.();
+    navigate(`/Scouting?driver=${encodeURIComponent(driverId)}`);
+  }
 
   function submitContractRenewal(offer) {
     if (!isOwnDriver || !contract || !driverId) return;
@@ -745,6 +760,21 @@ export default function DriverModal({ entity, onClose }) {
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}</strong></div>
         </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Contract</div>
+          <div className="mt-2 space-y-2 text-xs text-slate-400">
+            <div className="flex justify-between gap-3"><span>Team</span><strong className="max-w-[150px] truncate text-right text-slate-200">{contractTeam||"Free Agent"}</strong></div>
+            <div className="flex justify-between gap-3"><span>Role</span><strong className="text-right text-slate-200">{contractRole||"—"}</strong></div>
+            <div className="flex justify-between gap-3"><span>Salary</span><strong className="text-right text-slate-200">{contract?fmtMoney(contractSalary):"—"}</strong></div>
+            <div className="flex justify-between gap-3"><span>Ends</span><strong className="text-right text-slate-200">{contractEnd||"—"}</strong></div>
+          </div>
+          {futureTransfer && (
+            <div className="mt-3 rounded-lg border border-purple-400/20 bg-purple-500/10 p-2 text-[11px] text-purple-200">
+              Joins {futureTransfer.team_name} {futureTransfer.whenLabel}.
+            </div>
+          )}
+        </div>
       </aside>
 
       <main className="min-w-0 flex-1 flex flex-col bg-[#0c0f15]">
@@ -780,6 +810,9 @@ export default function DriverModal({ entity, onClose }) {
                 onContractTalk={() => setContractTalkOpen(true)}
                 onRelease={releaseCurrentDriver}
                 onOpenNegotiation={() => setMarketTalkOpen(true)}
+                onScout={openScoutingForDriver}
+                onDevelopment={() => setTab("development")}
+                knowledge={knowledge}
                 renewalPending={renewalPending}
                 releaseCost={releaseCost}
                 marketEligibility={marketEligibility}
@@ -819,17 +852,6 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "performance" && (
-            <StatisticsTab
-              gameYear={gameYear}
-              seriesSel={seriesSel}
-              setSeriesSel={setSeriesSel}
-              seriesOptions={seriesOptions}
-              rows={filteredCareer}
-              agg={statsAgg}
-            />
-          )}
-
           {activeTab === "attributes" && (
             <AttributesTab
               attrs={meaningfulAttrs}
@@ -846,6 +868,8 @@ export default function DriverModal({ entity, onClose }) {
               })}
               compareDriverId={compareDriverId}
               setCompareDriverId={setCompareDriverId}
+              compareQuery={compareQuery}
+              setCompareQuery={setCompareQuery}
               compareMode={compareMode}
               setCompareMode={setCompareMode}
             />
@@ -856,28 +880,36 @@ export default function DriverModal({ entity, onClose }) {
               attrs={meaningfulAttrs}
               log={developmentLog}
               knowledge={knowledge}
-            />
-          )}
-
-          {activeTab === "contract" && (
-            <ContractTab
-              team={contractTeam}
-              start={contractStart}
-              end={contractEnd}
-              salary={contractSalary}
-              role={contractRole}
+              isOwnDriver={!!isOwnDriver}
+              focusKey={developmentFocusKey}
+              onSetFocus={setDriverDevelopmentFocus}
             />
           )}
 
           {activeTab === "career" && (
-            <div className="space-y-6">
-              <CareerTab
-                seriesSel={seriesSel}
-                setSeriesSel={setSeriesSel}
-                seriesOptions={seriesOptions}
-                timeline={careerTimeline}
-                totals={careerTotals}
-              />
+            <div className="space-y-7">
+              <div>
+                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Career Statistics</div>
+                <StatisticsTab
+                  gameYear={gameYear}
+                  seriesSel={seriesSel}
+                  setSeriesSel={setSeriesSel}
+                  seriesOptions={seriesOptions}
+                  rows={filteredCareer}
+                  agg={statsAgg}
+                />
+              </div>
+              <div className="border-t border-white/10 pt-5">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Season History by Team</div>
+                <CareerTab
+                  seriesSel={seriesSel}
+                  setSeriesSel={setSeriesSel}
+                  seriesOptions={seriesOptions}
+                  timeline={careerTimeline}
+                  totals={careerTotals}
+                  showFilter={false}
+                />
+              </div>
               <div className="border-t border-white/10 pt-5">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Achievements</div>
                 <AchievementsTab items={achievementsList} />
