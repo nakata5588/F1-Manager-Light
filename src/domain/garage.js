@@ -1,22 +1,27 @@
 // src/domain/garage.js
 import { isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
 import { activeDriverContracts as canonicalActiveDriverContracts } from "./driverContracts.js";
+import { COMPONENT_FALLBACK_CATALOG, availableCarComponentSlots } from "./carComponents.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unwrap(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 export const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
 export const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 
-export const CAR_COMPONENT_SLOTS=Object.freeze([
-  "chassis","aero_front","aero_rear","suspension","gearbox","brakes","cooling","turbocharger",
-]);
+export const CAR_COMPONENT_SLOTS=Object.freeze(COMPONENT_FALLBACK_CATALOG.map((row)=>row.part_type));
 
-export function defaultComponentCondition(){
-  return Object.fromEntries(CAR_COMPONENT_SLOTS.map((slot)=>[slot,100]));
+export function componentSlotsForTeam(gs,teamId=null){
+  const tid=String(teamId??gs?.team?.team_id??gs?.team?.id??"");
+  const slots=availableCarComponentSlots(gs,tid);
+  return slots.length?slots:[...CAR_COMPONENT_SLOTS];
 }
 
-export function defaultBaseComponentStock(){
-  return Object.fromEntries(CAR_COMPONENT_SLOTS.map((slot)=>[slot,0]));
+export function defaultComponentCondition(slots=CAR_COMPONENT_SLOTS){
+  return Object.fromEntries((slots||CAR_COMPONENT_SLOTS).map((slot)=>[slot,100]));
+}
+
+export function defaultBaseComponentStock(slots=CAR_COMPONENT_SLOTS){
+  return Object.fromEntries((slots||CAR_COMPONENT_SLOTS).map((slot)=>[slot,0]));
 }
 
 export const BASE_COMPONENT_BUILD_COST=Object.freeze({
@@ -28,6 +33,13 @@ export const BASE_COMPONENT_BUILD_COST=Object.freeze({
   brakes:55000,
   cooling:70000,
   turbocharger:170000,
+  electronics:90000,
+  kers:240000,
+  ers_mgu_k:290000,
+  ers_mgu_h:315000,
+  battery_pack:260000,
+  fuel_system:80000,
+  exhaust_system:75000,
 });
 
 export function baseComponentConstructionCost(gs,slot){
@@ -67,10 +79,12 @@ export function desiredGarageCars(gs){
 export function syncGarageState(gs,garage){
   const wanted=desiredGarageCars(gs);
   const existing=new Map((garage?.cars||[]).map((car)=>[String(car.id),car]));
+  const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const eligibleSlots=componentSlotsForTeam(gs,teamId);
   return {
     ...(garage||{}),
     baseComponentStock:{
-      ...defaultBaseComponentStock(),
+      ...defaultBaseComponentStock(eligibleSlots),
       ...(garage?.baseComponentStock||{}),
     },
     cars:wanted.map((car)=>({
@@ -82,7 +96,7 @@ export function syncGarageState(gs,garage){
       driver_id:car.driver_id,
       installedParts:{...(existing.get(car.id)?.installedParts||{})},
       componentCondition:{
-        ...defaultComponentCondition(),
+        ...defaultComponentCondition(eligibleSlots),
         ...(existing.get(car.id)?.componentCondition||{}),
       },
     })),
@@ -98,6 +112,13 @@ export const PART_SLOT_EFFECTS=Object.freeze({
   brakes:{qualifying:0.20,race:0.48,reliability:0.08},
   cooling:{qualifying:0.08,race:0.22,reliability:0.65},
   turbocharger:{qualifying:0.62,race:0.50,reliability:0.04},
+  electronics:{qualifying:0.10,race:0.16,reliability:0.42},
+  kers:{qualifying:0.34,race:0.40,reliability:0.06},
+  ers_mgu_k:{qualifying:0.42,race:0.48,reliability:0.08},
+  ers_mgu_h:{qualifying:0.35,race:0.42,reliability:0.07},
+  battery_pack:{qualifying:0.18,race:0.34,reliability:0.12},
+  fuel_system:{qualifying:0.12,race:0.28,reliability:0.30},
+  exhaust_system:{qualifying:0.24,race:0.28,reliability:0.10},
 });
 
 export const PART_CONDITION_RELIABILITY_RISK=Object.freeze({
@@ -109,6 +130,13 @@ export const PART_CONDITION_RELIABILITY_RISK=Object.freeze({
   brakes:4.0,
   cooling:8.0,
   turbocharger:6.0,
+  electronics:5.5,
+  kers:6.0,
+  ers_mgu_k:6.5,
+  ers_mgu_h:7.0,
+  battery_pack:7.5,
+  fuel_system:6.5,
+  exhaust_system:3.5,
 });
 
 export function installedPartsForCar(gs,car){
@@ -138,7 +166,7 @@ export function componentConditionStatus(value){
 
 export function baseConditionAdjustmentForCar(gs,car){
   let qualifying=0,race=0,reliability=0;
-  for(const slot of CAR_COMPONENT_SLOTS){
+  for(const slot of componentSlotsForTeam(gs)){
     if(car?.installedParts?.[slot])continue;
     const condition=componentConditionForCar(gs,car,slot);
     const loss=Math.max(0,85-condition);
@@ -160,7 +188,9 @@ export function baseConditionAdjustmentForCar(gs,car){
 
 export function installedAdjustmentForCar(gs,car){
   let qualifying=0,race=0,reliability=0;
+  const eligible=new Set(componentSlotsForTeam(gs));
   for(const {slot,part} of installedPartsForCar(gs,car)){
+    if(!eligible.has(slot))continue;
     const profile=PART_SLOT_EFFECTS[slot]||{qualifying:0.45,race:0.45,reliability:0.04};
     const perf=Math.max(0,Number(part?.perf||0));
     const condition=Math.max(0,Math.min(100,Number(part?.condition??100)))/100;
