@@ -138,6 +138,43 @@ function temperatureTone(value){
   if(n<=120)return "text-amber-300";
   return "text-rose-300";
 }
+function tyreVisual(compound){
+  const key=String(compound||"").toLowerCase();
+  if(key.includes("inter"))return {label:"I",ring:"#39ff14",code:"INTER"};
+  if(key.includes("wet"))return {label:"W",ring:"#18a8ff",code:"WET"};
+  if(key.includes("option")||key.includes("soft"))return {label:"S",ring:"#ff3030",code:"SOFT"};
+  if(key.includes("medium"))return {label:"M",ring:"#ffd800",code:"MEDIUM"};
+  if(key.includes("prime")||key.includes("hard"))return {label:"H",ring:"#f5f7fa",code:"HARD"};
+  const cMatch=key.match(/(?:^|\\b)c([1-5])(?:\\b|$)/);
+  if(cMatch){
+    const number=Number(cMatch[1]);
+    return {
+      label:`C${number}`,
+      ring:number<=2?"#f5f7fa":number===3?"#ffd800":"#ff3030",
+      code:`C${number}`,
+    };
+  }
+  return {label:"T",ring:"#94a3b8",code:String(compound||"TYRE").toUpperCase()};
+}
+function TyreCompoundIcon({compound,size=24,title=null,className=""}){
+  const visual=tyreVisual(compound);
+  return <span
+    title={title||String(compound||"Tyre")}
+    aria-label={String(compound||"Tyre")}
+    className={"relative inline-flex shrink-0 items-center justify-center rounded-full bg-[#07090d] shadow-inner "+className}
+    style={{width:size,height:size,border:`${Math.max(2,Math.round(size*0.105))}px solid ${visual.ring}`,boxShadow:"inset 0 0 0 2px rgba(255,255,255,.07), 0 0 0 1px rgba(0,0,0,.8)"}}
+  >
+    <span className="absolute rounded-full border border-slate-500/70 bg-gradient-to-br from-slate-300 via-slate-500 to-slate-800" style={{width:Math.round(size*.48),height:Math.round(size*.48)}}/>
+    <span className="relative z-10 rounded-full bg-[#11151b] px-0.5 text-center font-black leading-none" style={{fontSize:Math.max(6,Math.round(size*.23)),color:visual.ring}}>{visual.label}</span>
+  </span>;
+}
+function TyreCompoundBadge({compound,age=null,compact=false}){
+  return <span className="inline-flex items-center gap-1.5">
+    <TyreCompoundIcon compound={compound} size={compact?22:26}/>
+    <span className="font-bold">{compound||"—"}{age!=null?` ${age}L`:""}</span>
+  </span>;
+}
+
 function tyreTone(compound){
   const key=String(compound||"").toLowerCase();
   if(key.includes("soft"))return "bg-rose-500 text-white";
@@ -1108,7 +1145,7 @@ export default function RaceWeekend(){
                       <td className={"px-3 py-2 text-right font-mono font-semibold "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
                       <td className="px-3 py-2 text-right font-mono text-emerald-300">{formatLapTime(row.best_lap_ms)}</td>
                       <td className="px-3 py-2 text-center">
-                        <span className={"inline-flex min-w-12 justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}>{compound||"—"}</span>
+                        <span className={"inline-flex min-w-12 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} compact/></span>
                         {row.retired?<div className="mt-1 text-[9px] font-semibold text-red-300">DNF · L{row.incident_lap}</div>:null}
                       </td>
                       <td className="px-3 py-2 text-right">{row.tyre?.age_laps??"—"}L</td>
@@ -1148,7 +1185,7 @@ export default function RaceWeekend(){
                     </div>
 
                     <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
-                      <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><CircleDot className="h-3 w-3"/>{compound} {liveDriver?.tyre?.age_laps??0}L</span>
+                      <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} age={liveDriver?.tyre?.age_laps??0} compact/></span>
                       <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
                       <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
                       <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
@@ -1221,7 +1258,7 @@ export default function RaceWeekend(){
                         <span>{teamName(teams,row.team_id)}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-center"><span className={"inline-flex min-w-14 justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}>{compound}</span></td>
+                    <td className="px-3 py-2 text-center"><span className={"inline-flex min-w-14 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} compact/></span></td>
                     <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.best_time_ms)}</td>
                     <td className="px-3 py-2 text-right">{Number(row.penalty_places||0)>0?"+"+row.penalty_places:"—"}</td>
                   </tr>;
