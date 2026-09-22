@@ -237,7 +237,7 @@ test("RW3 saves and restores between Qualifying sessions without recalculating Q
   );
 });
 
-test("RW4.7 final Qualifying report marks non-starters as CUT before Strategy",()=>{
+test("Qualifying final report uses combined classification order and historical DNQ status",()=>{
   const qualifyingRules={...defaultQualifyingRule,max_starters:2};
   let gs=startAfterPractice({qualifyingRules});
   gs=completeQualifyingSession(gs,{gp});
@@ -248,11 +248,21 @@ test("RW4.7 final Qualifying report marks non-starters as CUT before Strategy",(
   assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
   assert.equal(gs.raceWeekendState.qualifying.status,"completed");
   const finalSession=gs.raceWeekendState.sessions.find((row)=>row.id==="qualifying_2");
-  const cutRows=(finalSession.results||[]).filter((row)=>row.status==="CUT");
+  const dnqRows=(finalSession.results||[]).filter((row)=>row.status==="DNQ");
   const qualifiedRows=(finalSession.results||[]).filter((row)=>row.status==="QUALIFIED");
-  assert.equal(cutRows.length,2);
+  assert.equal(dnqRows.length,2);
   assert.equal(qualifiedRows.length,2);
   assert.equal(gs.raceWeekendState.startingGrid.rows.length,2);
+  assert.deepEqual(
+    finalSession.results.map((row)=>row.driver_id),
+    gs.raceWeekendState.qualifying.classification
+      .filter((row)=>finalSession.results.some((result)=>result.driver_id===row.driver_id))
+      .map((row)=>row.driver_id),
+    "the completed final report must follow the authoritative combined Qualifying classification"
+  );
+  assert.ok(finalSession.results.every((row)=>row.final_classification===true));
+  assert.ok(finalSession.results.every((row)=>Number.isFinite(row.session_position)));
+  assert.ok(finalSession.results.every((row)=>Number.isFinite(row.session_lap_time_ms)));
 
   gs=continueRaceWeekendSession(gs);
   assert.equal(gs.raceWeekendState.phase,"grid_ready");
