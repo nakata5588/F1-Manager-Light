@@ -1474,6 +1474,16 @@ function AttributesTab({
             </select>
           </label>
         </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:max-w-md">
+          <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
+            <div className="mt-1 text-xl">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability"})}</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
+            <div className="mt-1 text-xl">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential"})}</div>
+          </div>
+        </div>
       </div>
 
       {knowledge?.canSeeCondition && (
@@ -1572,7 +1582,15 @@ function AttributesTab({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {groups.map((group)=>(
           <div key={group.key} className="rounded-xl border border-white/10 bg-[#12141c] p-4">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</div>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</div>
+              {comparisonDriver && (
+                <div className="grid grid-cols-2 gap-3 text-[9px] uppercase tracking-wide text-slate-600">
+                  <span className="w-[82px] truncate text-right" title={currentName}>{currentName}</span>
+                  <span className="w-[82px] truncate text-right" title={comparisonName}>{comparisonName}</span>
+                </div>
+              )}
+            </div>
             <div className="space-y-2">
               {group.rows.map(([label,field,value,inverse])=>{
                 const comparisonFieldValue=comparisonAttrs
