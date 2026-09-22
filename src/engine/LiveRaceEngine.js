@@ -212,3 +212,33 @@ export function liveRaceReadyToFinalize(gs){
   const live=gs?.raceWeekendState?.live_race;
   return Boolean(live&&live.status==="finished"&&Number(live.current_lap)>=Number(live.total_laps));
 }
+
+export function finalizedLiveRaceRows(gs){
+  const live=gs?.raceWeekendState?.live_race;
+  if(!liveRaceReadyToFinalize(gs))return null;
+  const projected=Array.isArray(live?.projected_race)?live.projected_race:[];
+  const classification=Array.isArray(live?.classification)?live.classification:[];
+  if(!projected.length||!classification.length)return null;
+  const byId=new Map(classification.map((row)=>[String(row?.driver_id??""),row]));
+  const totalLaps=Math.max(1,Number(live?.total_laps)||1);
+
+  return projected
+    .map((row,index)=>{
+      const did=idOf(row?.driver||row);
+      const visible=byId.get(did);
+      if(!visible)return {...row,pos:Number(row?.pos??index+1)};
+      const retired=Boolean(visible?.retired);
+      const incidentLap=retired?Number(visible?.incident_lap)||null:null;
+      return {
+        ...row,
+        pos:Number(visible?.position??row?.pos??index+1),
+        retired,
+        status:retired?"DNF":"Finished",
+        retirement_reason:retired?(visible?.retirement_reason||"Retired"):null,
+        incident_lap:incidentLap,
+        laps_completed:retired?Math.max(0,Math.min(totalLaps,incidentLap||0)):totalLaps,
+        race_laps:totalLaps,
+      };
+    })
+    .sort((a,b)=>Number(a?.pos??999)-Number(b?.pos??999));
+}
