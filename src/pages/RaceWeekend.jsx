@@ -204,7 +204,7 @@ function incidentNoticeText(incident,drivers){
     high:"heavy",
     critical:"serious",
   }[String(incident.severity||"medium").toLowerCase()]||"significant";
-  return incident.severity==="critical"
+  return String(incident.severity||"").toLowerCase()==="critical"
     ?`Serious ${noun} involving ${who}`
     :`${who} — ${adjective} ${noun}`;
 }
@@ -383,7 +383,6 @@ export default function RaceWeekend(){
   const weatherSessionRows=(weekend?.sessions||[]).filter((session)=>weekendWeather?.sessions?.[String(session?.id||"")]);
   const activeWeather=weekendWeather?.sessions?.[String(weekend?.active_session_id||"")]||null;
   const raceWeatherRow=Object.values(weekendWeather?.sessions||{}).find((row)=>row?.kind==="race")||null;
-  const raceForecast=raceWeatherRow?weekendWeather?.forecast?.[String(raceWeatherRow.id)]:null;
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
