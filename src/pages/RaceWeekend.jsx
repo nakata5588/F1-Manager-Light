@@ -334,8 +334,8 @@ export default function RaceWeekend(){
   ];
 
   if(!weekend){
-    return <div className="min-h-[calc(100vh-3.5rem)] bg-black p-6 text-slate-100">
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5">
+    return <div className="min-h-[calc(100vh-3.5rem)] bg-[#080b11] p-6 text-slate-100">
+      <div className="rounded-xl border border-white/10 bg-[#11161f] p-5">
         <h2 className="text-lg font-semibold">Race Weekend</h2>
         <p className="text-sm text-slate-400 mt-1">No active race weekend. Advance the calendar to the next Grand Prix weekend.</p>
       </div>
@@ -356,8 +356,8 @@ export default function RaceWeekend(){
     await continueWeekend();
   });
 
-  return <div className="min-h-[calc(100vh-3.5rem)] bg-black p-4 md:p-6 text-slate-100 grid gap-4 content-start">
-    <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
+  return <div className="min-h-[calc(100vh-3.5rem)] bg-[#080b11] p-4 md:p-6 text-slate-100 grid gap-4 content-start">
+    <div className="rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wide text-slate-500">Round {weekend.round}</div>
@@ -371,7 +371,7 @@ export default function RaceWeekend(){
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-2 mt-5">
+      {!(activeWindow==="live"&&weekend.phase==="race")&&<div className="grid grid-cols-5 gap-2 mt-5">
         {STEPS.map(([id,label],index)=>{
           const state=index<currentIndex?"complete":index===currentIndex?"active":"upcoming";
           const cls=state==="complete"
@@ -383,10 +383,10 @@ export default function RaceWeekend(){
             {label}
           </div>;
         })}
-      </div>
+      </div>}
     </div>
 
-    <nav className="sticky top-14 z-40 -mx-4 md:-mx-6 px-4 md:px-6 border-y border-white/10 bg-black/95 backdrop-blur">
+    <nav className="sticky top-14 z-40 -mx-4 md:-mx-6 px-4 md:px-6 border-y border-white/10 bg-[#080b11]/95 backdrop-blur">
       <div className="flex gap-1 overflow-x-auto py-2">
         {windowTabs.map((tab)=>(
           <button
@@ -410,7 +410,7 @@ export default function RaceWeekend(){
     </nav>
 
     {activeWindow==="overview"&&weekendWeather&&(
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
+      <div className="rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div>
             <h3 className="font-semibold">Weekend Weather Centre</h3>
@@ -624,7 +624,7 @@ export default function RaceWeekend(){
     )}
 
     {activeWindow==="qualifying"&&weekend.phase==="qualifying"&&(
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
+      <div className="rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Qualifying session</div>
@@ -682,7 +682,7 @@ export default function RaceWeekend(){
 
     {(weekend.phase==="grid_ready"||weekend.phase==="race")&&(
       <div className="grid gap-4">
-        <div className={(activeWindow==="qualifying"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl"}>
+        <div className={(activeWindow==="qualifying"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl"}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold">Overall Qualifying Classification</h3>
@@ -697,7 +697,7 @@ export default function RaceWeekend(){
           </div>
         </div>
 
-        <div className={(activeWindow==="strategy"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl"}>
+        <div className={(activeWindow==="strategy"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl"}>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
             <div>
               <h3 className="font-semibold">Race Strategy</h3>
@@ -736,32 +736,32 @@ export default function RaceWeekend(){
                 </div>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
                   <label className="text-xs text-slate-400">Start tyre
-                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
                       {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Pace
-                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pace_mode||"balanced"} onChange={(e)=>setRaceStrategy(did,{pace_mode:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pace_mode||"balanced"} onChange={(e)=>setRaceStrategy(did,{pace_mode:e.target.value})}>
                       {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Pit plan
-                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pit_plan||"adaptive"} onChange={(e)=>setRaceStrategy(did,{pit_plan:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.pit_plan||"adaptive"} onChange={(e)=>setRaceStrategy(did,{pit_plan:e.target.value})}>
                       {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
                     </select>
                   </label>
                   <label className="text-xs text-slate-400">Next tyre
-                    <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
+                    <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
                       {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                     </select>
                   </label>
                   {selection.pit_plan==="one_stop"?(
                     <label className="text-xs text-slate-400">Target lap
-                      <input className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" type="number" min="2" max={Math.max(2,Number(raceStrategy?.track_snapshot?.laps||3)-2)} value={selection.planned_stop_lap||Math.round(Number(raceStrategy?.track_snapshot?.laps||0)/2)} onChange={(e)=>setRaceStrategy(did,{planned_stop_lap:Number(e.target.value)})}/>
+                      <input className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" type="number" min="2" max={Math.max(2,Number(raceStrategy?.track_snapshot?.laps||3)-2)} value={selection.planned_stop_lap||Math.round(Number(raceStrategy?.track_snapshot?.laps||0)/2)} onChange={(e)=>setRaceStrategy(did,{planned_stop_lap:Number(e.target.value)})}/>
                     </label>
                   ):raceStrategy?.rules_snapshot?.refuelling_allowed?(
                     <label className="text-xs text-slate-400">Fuel plan
-                      <select className="mt-1 w-full border border-white/10 bg-[#090c11] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.fuel_plan||"balanced"} onChange={(e)=>setRaceStrategy(did,{fuel_plan:e.target.value})}>
+                      <select className="mt-1 w-full border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.fuel_plan||"balanced"} onChange={(e)=>setRaceStrategy(did,{fuel_plan:e.target.value})}>
                         <option value="light_start">Light start / refuel</option>
                         <option value="balanced">Balanced</option>
                         <option value="heavy_start">Heavy start</option>
@@ -780,7 +780,7 @@ export default function RaceWeekend(){
         </div>
 
         {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
-          <div className="rounded-xl border border-white/10 bg-[#0b0e14] text-slate-100 shadow-xl overflow-hidden">
+          <div className="rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl overflow-hidden">
             <div className="p-5 border-b border-white/10">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -827,7 +827,7 @@ export default function RaceWeekend(){
 
             <div className="overflow-x-auto">
               <table className="min-w-[1680px] w-full text-xs">
-                <thead className="bg-[#121722] text-slate-400 uppercase tracking-wide">
+                <thead className="bg-[#171d27] text-slate-400 uppercase tracking-wide">
                   <tr>
                     <th className="px-3 py-2 text-right">Pos</th>
                     <th className="px-2 py-2 text-center">±</th>
@@ -896,7 +896,7 @@ export default function RaceWeekend(){
                 const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
                 const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
                 const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
-                return <div className="rounded-xl border border-white/10 bg-[#121722] p-4" key={did}>
+                return <div className="rounded-xl border border-white/10 bg-[#171d27] p-4" key={did}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-xs uppercase tracking-wide text-slate-500">Your car</div>
@@ -917,12 +917,12 @@ export default function RaceWeekend(){
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <label className="text-xs text-slate-400">Pace next lap
-                      <select disabled={unavailable} className="mt-1 w-full border border-white/10 bg-[#0b0e14] text-slate-100 rounded-lg px-2 py-2 text-sm disabled:opacity-50" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                      <select disabled={unavailable} className="mt-1 w-full border border-white/10 bg-[#11161f] text-slate-100 rounded-lg px-2 py-2 text-sm disabled:opacity-50" value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
                         {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
                       </select>
                     </label>
                     <label className="text-xs text-slate-400">Pit next lap
-                      <select disabled={unavailable} className="mt-1 w-full border border-white/10 bg-[#0b0e14] text-slate-100 rounded-lg px-2 py-2 text-sm disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                      <select disabled={unavailable} className="mt-1 w-full border border-white/10 bg-[#11161f] text-slate-100 rounded-lg px-2 py-2 text-sm disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
                         <option value="">Stay out</option>
                         {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                       </select>
@@ -932,14 +932,14 @@ export default function RaceWeekend(){
               })}
             </div>
 
-            {(liveRace.events||[]).length>0&&<div className="border-t border-white/10 bg-[#090c11] p-4">
+            {(liveRace.events||[]).length>0&&<div className="border-t border-white/10 bg-[#0f141d] p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Race feed</div>
               <div className="mt-2 grid gap-1 text-sm">{(liveRace.events||[]).slice(-8).reverse().map((event,index)=><div className="flex gap-2" key={index}><span className="font-mono text-slate-500">L{event.lap}</span><span>{liveEventText(event,drivers)}</span></div>)}</div>
             </div>}
           </div>
         )}
 
-        <div className={(activeWindow==="grid"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl"}>
+        <div className={(activeWindow==="grid"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl"}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold">Starting Grid</h3>
@@ -949,7 +949,7 @@ export default function RaceWeekend(){
           </div>
           <div className="mt-3 overflow-x-auto border rounded-xl">
             <table className="min-w-full text-sm">
-              <thead className="bg-[#121722]">
+              <thead className="bg-[#171d27]">
                 <tr>
                   <th className="px-3 py-2 text-right">Grid</th>
                   <th className="px-3 py-2 text-right">Qual</th>
@@ -1000,7 +1000,7 @@ export default function RaceWeekend(){
     )}
 
     {activeWindow==="classification"&&["results","completed"].includes(String(weekend.phase))&&(
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] shadow-xl overflow-hidden">
+      <div className="rounded-xl border border-white/10 bg-[#11161f] shadow-xl overflow-hidden">
         {(()=>{
           const rows=Array.isArray(lastResult?.classification)?lastResult.classification:[];
           const gridByDriver=new Map((lastResult?.startingGrid||startingGridRows||[]).map((row,index)=>[
@@ -1052,7 +1052,7 @@ export default function RaceWeekend(){
 
             <div className="overflow-x-auto">
               <table className="min-w-[1320px] w-full text-sm">
-                <thead className="bg-[#121722] text-slate-400 uppercase tracking-wide text-[11px]">
+                <thead className="bg-[#171d27] text-slate-400 uppercase tracking-wide text-[11px]">
                   <tr>
                     <th className="px-3 py-2 text-right">Pos</th>
                     <th className="px-2 py-2 text-center">±</th>
