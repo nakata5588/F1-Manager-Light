@@ -109,6 +109,22 @@ export default function Home(){
     ).slice(0,5);
 
     const finance=gameState.finances||gameState.finance||{};
+    const financeLog=Array.isArray(gameState.financeLog)?gameState.financeLog:[];
+    const yearKey=String(gameState.activeYear??"");
+    const monthKey=String(gameState.currentDateISO??"").slice(0,7);
+    const financeAmount=(row)=>{
+      const amount=num(row?.amount,0);
+      const type=String(row?.type??"").toLowerCase();
+      if(type==="expense")return -Math.abs(amount);
+      if(type==="income")return Math.abs(amount);
+      return amount;
+    };
+    const monthlyNet=financeLog
+      .filter((row)=>String(row?.dateISO??row?.date??"").slice(0,7)===monthKey)
+      .reduce((sum,row)=>sum+financeAmount(row),0);
+    const seasonNet=financeLog
+      .filter((row)=>String(row?.dateISO??row?.date??"").slice(0,4)===yearKey)
+      .reduce((sum,row)=>sum+financeAmount(row),0);
     const board=gameState.board||{};
     const objectives=Array.isArray(board.objectives)?board.objectives:[];
     const lowComponents=[];
@@ -118,7 +134,7 @@ export default function Home(){
       }
     }
 
-    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,finance,board,objectives,lowComponents,inbox};
+    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,finance,monthlyNet,seasonNet,board,objectives,lowComponents,inbox};
   },[gameState,eventNews]);
 
   if(!gameState||!data){
@@ -214,8 +230,8 @@ export default function Home(){
       <Panel title="Finances" className="xl:col-span-3" action={<SmallLink to="/Finances">Details ›</SmallLink>}>
         <div className="p-5 space-y-3">
           <OverviewRow label="Current balance" value={fmtMoney(data.finance.balance??data.finance.cash??data.finance.bank)}/>
-          <OverviewRow label="Monthly" value={fmtMoney(data.finance.monthlyBalance??data.finance.monthly_balance??data.finance.monthly)}/>
-          <OverviewRow label="Season projection" value={fmtMoney(data.finance.projectedBalance??data.finance.projected_balance??data.finance.forecast)}/>
+          <OverviewRow label="This month" value={fmtMoney(data.finance.monthlyBalance??data.finance.monthly_balance??data.finance.monthly??data.monthlyNet)}/>
+          <OverviewRow label="Season net" value={fmtMoney(data.finance.season_net??data.seasonNet)}/>
         </div>
       </Panel>
 
