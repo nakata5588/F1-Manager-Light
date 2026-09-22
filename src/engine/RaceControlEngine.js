@@ -57,20 +57,28 @@ function wetnessTarget(state){
 }
 export function buildTrackWeatherTimeline(gs,weather,track){
   const out=[];
-  let wetness=weatherStateAtLap(weather,1)==="SUNNY"?0:wetnessTarget(weatherStateAtLap(weather,1))*0.55;
+  const firstState=weatherStateAtLap(weather,1);
+  let wetness=Number.isFinite(Number(weather?.starting_track_wetness))
+    ?clamp(Number(weather.starting_track_wetness),0,1)
+    :firstState==="SUNNY"?0:wetnessTarget(firstState)*0.55;
+  let rubber=clamp(num(weather?.rubber_level,0),0,100);
   const laps=Math.max(1,Number(track?.laps)||1);
   for(let lap=1;lap<=laps;lap++){
     const state=weatherStateAtLap(weather,lap);
     const target=wetnessTarget(state);
     const rate=target>wetness?0.24:0.14;
     wetness=clamp(wetness+(target-wetness)*rate,0,1);
+    const intensity=rainIntensity(state);
+    if(intensity>=0.28)rubber=clamp(rubber-intensity*0.85,0,100);
+    else if(wetness<0.14)rubber=clamp(rubber+0.10,0,100);
     const row=weatherRow(gs,state);
-    const grip=clamp(1-wetness*0.28-(state==="STORM"?0.10:0),0.48,1);
-    const visibility=clamp(1-rainIntensity(state)*0.46-(state==="STORM"?0.12:0),0.32,1);
+    const grip=clamp(1-wetness*0.28-(state==="STORM"?0.10:0)+rubber*0.0008,0.48,1.02);
+    const visibility=clamp(1-intensity*0.46-(state==="STORM"?0.12:0),0.32,1);
     out.push({
       lap,state,
-      rain_intensity:Number(rainIntensity(state).toFixed(2)),
+      rain_intensity:Number(intensity.toFixed(2)),
       track_wetness:Number(wetness.toFixed(3)),
+      rubber_level:Number(rubber.toFixed(1)),
       grip_index:Number((grip*100).toFixed(1)),
       visibility_index:Number((visibility*100).toFixed(1)),
       crash_risk_multiplier:Number(num(row?.crash_risk_ppm,{SUNNY:1,CLOUDY:1,WINDY:1.2,LIGHT_RAIN:1.6,HEAVY_RAIN:2.4,STORM:3.2}[state]||1).toFixed(2)),
