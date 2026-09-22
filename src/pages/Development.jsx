@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
+import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 
 const DAY = 86_400_000;
@@ -116,6 +117,10 @@ export default function Development() {
     [gameState, teamId]
   );
   const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
+  const rawPitCrew=gameState?.raceStrategyWorld?.pitCrews?.[teamId]||{
+    avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,source:"fallback"
+  };
+  const effectivePitCrew=pitCrewEffectiveProfile(rawPitCrew);
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -296,6 +301,12 @@ export default function Development() {
     setGameState({development:{...dev,projects,parts,manufacturing,research:next}});
   };
 
+  const setPitCrewTrainingLoad=(load)=>{
+    const pitCrews={...(gameState?.raceStrategyWorld?.pitCrews||{})};
+    pitCrews[teamId]={...rawPitCrew,training_load:Math.max(0,Math.min(100,Number(load)||0))};
+    setGameState({raceStrategyWorld:{...(gameState?.raceStrategyWorld||{}),pitCrews}});
+  };
+
   function applyExpense(amount, desc) {
     const value = Math.abs(Number(amount || 0));
     const oldBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
@@ -373,7 +384,7 @@ export default function Development() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {["projects","parts","manufacturing","research"].map((key)=><Button key={key} variant={tab===key?"default":"outline"} onClick={()=>setTab(key)}>{nice(key)}</Button>)}
+        {["projects","parts","manufacturing","research","pit_crew"].map((key)=><Button key={key} variant={tab===key?"default":"outline"} onClick={()=>setTab(key)}>{nice(key)}</Button>)}
       </div>
 
       {tab==="projects" && (
@@ -420,6 +431,38 @@ export default function Development() {
             <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
             <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
           </CardContent></Card>)}
+        </div>
+      )}
+
+      {tab==="pit_crew" && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
+              <div className="text-lg font-semibold">Pit Crew Training Load</div>
+              <p className="text-sm text-slate-400 mt-1">Training improves pit-stop pace, consistency and error rate over time. Heavy training accelerates development but creates a temporary race-day fatigue penalty.</p>
+            </div>
+            <input className="w-full" type="range" min="0" max="100" step="5" value={Number(rawPitCrew.training_load??50)} onChange={(e)=>setPitCrewTrainingLoad(e.target.value)}/>
+            <div className="flex items-center justify-between text-sm"><span className="text-slate-400">Current load</span><strong>{Math.round(Number(rawPitCrew.training_load??50))}%</strong></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[["Recovery",20],["Balanced",50],["Intensive",80],["Maximum",100]].map(([label,value])=><Button key={label} size="sm" variant={Number(rawPitCrew.training_load??50)===value?"default":"outline"} onClick={()=>setPitCrewTrainingLoad(value)}>{label}</Button>)}
+            </div>
+            <div className="text-xs text-slate-500">Suggestion: taper the load before a race weekend if you want to avoid the race-day penalty from very high training intensity.</div>
+          </CardContent></Card>
+
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4">
+            <div className="font-semibold mb-3">Pit Crew Performance</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <Mini label="Base stop" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+              <Mini label="Race-day stop" value={Number(effectivePitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+              <Mini label="Consistency" value={Number(effectivePitCrew.consistency??70).toFixed(1)+"%"}/>
+              <Mini label="Error rate" value={(Number(effectivePitCrew.error_rate??0.05)*100).toFixed(1)+"%"}/>
+            </div>
+            <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
+              <div className="font-medium">How it works</div>
+              <div className="text-slate-400 mt-1">Daily training progression is affected by the Pit Crew Training facility. Loads above 60% improve the crew faster but temporarily add stop-time and error risk on race day. This is now the same crew profile used by the race-strategy pit-stop simulation.</div>
+            </div>
+          </CardContent></Card>
         </div>
       )}
     </div>
