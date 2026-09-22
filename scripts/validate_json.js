@@ -54,6 +54,34 @@ const schemas = {
         places_csv: { type: ["string", "array"] }
       }
     }
+  },
+  driverOpeningState: {
+    type: "array",
+    items: {
+      type: "object",
+      required: [
+        "year",
+        "opening_date",
+        "driver_id",
+        "opening_world_status",
+        "opening_availability",
+        "runtime_visibility",
+        "runtime_market_policy"
+      ],
+      properties: {
+        year: { type: ["integer", "number", "string"] },
+        opening_date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        driver_id: { type: "string", minLength: 1 },
+        opening_world_status: { type: "string", minLength: 1 },
+        opening_availability: { type: "string", minLength: 1 },
+        opening_team_id: { type: ["string", "null"] },
+        opening_role: { type: ["string", "null"] },
+        series_context: { type: ["string", "null"] },
+        runtime_visibility: { type: "string", minLength: 1 },
+        runtime_market_policy: { type: "string", minLength: 1 },
+        confidence: { type: ["string", "null"] }
+      }
+    }
   }
 };
 
@@ -74,11 +102,41 @@ function check(path, key) {
   console.log(`[OK] ${path}: ${Array.isArray(data) ? data.length : "valid"} records`);
 }
 
+function checkOpeningState(path) {
+  if (!fs.existsSync(path)) {
+    console.log(`[SKIP] ${path}: optional until a canonical workbook exposes driver_opening_state`);
+    return;
+  }
+  const data = readJson(path);
+  const validate = ajv.compile(schemas.driverOpeningState);
+  if (!validate(data)) {
+    console.error(`[FAIL] ${path}`);
+    console.error(validate.errors);
+    process.exitCode = 1;
+    return;
+  }
+
+  const seen = new Set();
+  const duplicates = [];
+  for (const row of data) {
+    const key = `${Number(row.year)}|${String(row.driver_id)}`;
+    if (seen.has(key)) duplicates.push(key);
+    seen.add(key);
+  }
+  if (duplicates.length) {
+    console.error(`[FAIL] ${path}: duplicate year/driver rows: ${duplicates.slice(0, 10).join(", ")}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`[OK] ${path}: ${data.length} opening-state records`);
+}
+
 try {
   check("public/data/drivers.json", "drivers");
   check("public/data/teams.json", "teams");
   check("public/data/calendar.json", "calendar");
   check("public/data/points_systems.json", "pointsSystems");
+  checkOpeningState("public/data/driver_opening_state.json");
 } catch (error) {
   console.error("[FAIL] Data validation:", error.message);
   process.exitCode = 1;
