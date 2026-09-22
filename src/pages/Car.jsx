@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
+import { DriverPortrait, TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance";
 import {
   CAR_COMPONENT_SLOTS,
@@ -13,6 +14,29 @@ import {
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const nice=(s)=>String(s||"").replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase());
+const currentKey=(v)=>JSON.stringify(v??null);
+
+function Panel({title,action,children,className=""}){
+  return <section className={"rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden "+className}>
+    <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3">
+      <div className="text-sm font-semibold uppercase tracking-wide">{title}</div>
+      <div className="flex-1"/>{action}
+    </div>{children}
+  </section>;
+}
+function Metric({label,value}){
+  return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+    <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="font-semibold mt-0.5">{value}</div>
+  </div>;
+}
+function PerfBar({label,value,rank}){
+  const v=Math.max(0,Math.min(100,Number(value)||0));
+  return <div>
+    <div className="flex items-center gap-3 text-sm"><span className="flex-1 text-slate-400">{label}</span><strong>{v.toFixed(1)}</strong>{rank?<span className="text-xs text-slate-500">#{rank}</span>:null}</div>
+    <div className="h-2 mt-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-slate-200" style={{width:v+"%"}}/></div>
+  </div>;
+}
 
 export default function Car(){
   const gs=useGame((s)=>s.gameState);
@@ -23,10 +47,7 @@ export default function Car(){
   const parts=gs?.development?.parts||[];
 
   const syncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
-    gs?.garage,
-    gs?.contracts,
-    gs?.activeYear,
-    teamId,
+    gs?.garage,gs?.contracts,gs?.activeYear,teamId,
   ]);
 
   useEffect(()=>{
@@ -36,213 +57,146 @@ export default function Car(){
   },[currentKey(gs?.garage?.cars),currentKey(syncedGarage?.cars)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
-  const partById=useMemo(()=>new Map(parts.map((p)=>[String(p.id),p])),[parts]);
   const ranking=useMemo(()=>carPerformanceRanking({...gs,garage:syncedGarage}),[gs,syncedGarage]);
   const myRank=ranking.find((r)=>String(r.team_id)===teamId);
+  const cars=syncedGarage?.cars||[];
+  const [selectedId,setSelectedId]=useState(()=>cars.find((c)=>c.kind!=="reserve")?.id||cars[0]?.id||"");
 
-  const updateGarageAndParts=(cars,nextParts)=>{
-    setGameState({
-      garage:{...syncedGarage,cars},
-      development:{...(gs.development||{}),parts:nextParts},
-    });
+  useEffect(()=>{
+    if(!cars.some((c)=>c.id===selectedId))setSelectedId(cars.find((c)=>c.kind!=="reserve")?.id||cars[0]?.id||"");
+  },[cars,selectedId]);
+
+  const selectedCar=cars.find((c)=>c.id===selectedId)||cars[0]||null;
+  const selectedDriver=selectedCar?driverById.get(String(selectedCar.driver_id||"")):null;
+  const carState={...gs,garage:syncedGarage};
+  const selectedPerf=selectedCar?teamCarPerformance(carState,teamId,selectedCar.driver_id):null;
+  const selectedFitted=selectedCar?installedPartsForCar(carState,selectedCar):[];
+  const componentRows=selectedCar?CAR_COMPONENT_SLOTS.map((slot)=>{
+    const condition=componentConditionForCar(carState,selectedCar,slot);
+    return {
+      slot,condition,status:componentConditionStatus(condition),
+      installed:selectedFitted.find((row)=>row.slot===slot)||null,
+    };
+  }):[];
+  const averageCondition=componentRows.length?componentRows.reduce((s,row)=>s+row.condition,0)/componentRows.length:0;
+
+  const updateGarageAndParts=(nextCars,nextParts)=>{
+    setGameState({garage:{...syncedGarage,cars:nextCars},development:{...(gs.development||{}),parts:nextParts}});
   };
-
   const fitPart=(car,part)=>{
     const slot=String(part?.slot||"");
     if(!slot||Number(part?.inv||0)<=0)return;
     const oldId=car?.installedParts?.[slot];
     if(String(oldId||"")===String(part.id))return;
-
     const nextParts=parts.map((p)=>{
       if(String(p.id)===String(part.id))return {...p,inv:Math.max(0,Number(p.inv||0)-1)};
       if(oldId&&String(p.id)===String(oldId))return {...p,inv:Number(p.inv||0)+1};
       return p;
     });
-    const cars=syncedGarage.cars.map((c)=>c.id===car.id
-      ? {...c,installedParts:{...(c.installedParts||{}),[slot]:part.id}}
-      : c
-    );
-    updateGarageAndParts(cars,nextParts);
+    const nextCars=cars.map((c)=>c.id===car.id?{...c,installedParts:{...(c.installedParts||{}),[slot]:part.id}}:c);
+    updateGarageAndParts(nextCars,nextParts);
   };
-
   const removePart=(car,slot)=>{
     const oldId=car?.installedParts?.[slot];
     if(!oldId)return;
     const nextParts=parts.map((p)=>String(p.id)===String(oldId)?{...p,inv:Number(p.inv||0)+1}:p);
-    const installed={...(car.installedParts||{})};
-    delete installed[slot];
-    const cars=syncedGarage.cars.map((c)=>c.id===car.id?{...c,installedParts:installed}:c);
-    updateGarageAndParts(cars,nextParts);
+    const installed={...(car.installedParts||{})}; delete installed[slot];
+    const nextCars=cars.map((c)=>c.id===car.id?{...c,installedParts:installed}:c);
+    updateGarageAndParts(nextCars,nextParts);
   };
-
   const replaceBaseComponent=(car,slot)=>{
     if(car?.installedParts?.[slot])return;
-    const before=componentConditionForCar({...gs,garage:syncedGarage},car,slot);
+    const before=componentConditionForCar(carState,car,slot);
     if(before>=99.5)return;
-    const cars=syncedGarage.cars.map((c)=>{
-      if(c.id!==car.id)return c;
-      return {
-        ...c,
-        componentCondition:{
-          ...(c.componentCondition||{}),
-          [slot]:100,
-        },
-      };
-    });
+    const nextCars=cars.map((c)=>c.id!==car.id?c:{...c,componentCondition:{...(c.componentCondition||{}),[slot]:100}});
     setGameState({
-      garage:{...syncedGarage,cars},
-      componentServiceLog:[
-        {
-          date:String(gs?.currentDateISO||"").slice(0,10),
-          car_id:car.id,
-          slot,
-          condition_before:Number(before.toFixed(1)),
-          condition_after:100,
-          action:"replace_base_component",
-        },
-        ...(Array.isArray(gs?.componentServiceLog)?gs.componentServiceLog:[]),
-      ].slice(0,200),
+      garage:{...syncedGarage,cars:nextCars},
+      componentServiceLog:[{
+        date:String(gs?.currentDateISO||"").slice(0,10),car_id:car.id,slot,
+        condition_before:Number(before.toFixed(1)),condition_after:100,action:"replace_base_component",
+      },...(Array.isArray(gs?.componentServiceLog)?gs.componentServiceLog:[])].slice(0,200),
     });
   };
 
-  return <div className="p-4 md:p-6 space-y-5">
-    <div className="flex flex-wrap items-end gap-3">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold">Car & Garage</h1>
-        <p className="text-sm text-muted-foreground">{teamName} · Season {gs?.activeYear||"—"} · fitted parts affect race performance.</p>
-      </div>
+  const availableParts=parts.filter((p)=>Number(p.inv||0)>0);
+
+  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
+    <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+      <TeamLogo teamId={teamId} name={teamName} size="h-16 w-16" className="p-1"/>
+      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-3xl font-bold">Car & Garage</h1><p className="text-sm text-slate-400">{teamName} · Season {gs?.activeYear||"—"}</p></div>
       <div className="flex-1"/>
-      {myRank&&<div className="text-sm border rounded-lg px-3 py-2 bg-white">
-        Grid car rank <strong>#{myRank.rank}</strong> · Overall <strong>{myRank.overall.toFixed(1)}</strong>
-      </div>}
+      <div className="grid grid-cols-3 gap-2 min-w-[360px]">
+        <Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/>
+        <Metric label="Overall" value={myRank?Number(myRank.overall).toFixed(1):"—"}/>
+        <Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/>
+      </div>
+      <Link to="/Development" className="rounded-md bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold hover:bg-white">Development</Link>
     </div>
 
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      {(syncedGarage?.cars||[]).map((car)=>{
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {cars.map((car)=>{
         const driver=driverById.get(String(car.driver_id||""));
-        const perf=teamCarPerformance({...gs,garage:syncedGarage},teamId,car.driver_id);
-        const carState={...gs,garage:syncedGarage};
-        const fitted=installedPartsForCar(carState,car);
-        const componentRows=CAR_COMPONENT_SLOTS.map((slot)=>{
-          const condition=componentConditionForCar(carState,car,slot);
-          const installed=fitted.find((row)=>row.slot===slot)||null;
-          return {slot,condition,status:componentConditionStatus(condition),installed};
-        });
-        const averageCondition=componentRows.reduce((sum,row)=>sum+row.condition,0)/Math.max(1,componentRows.length);
-        return <Card key={car.id}><CardContent className="p-4 space-y-4">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground">{car.kind==="reserve"?"Spare chassis":"Race chassis"}</div>
-            <div className="text-xl font-semibold">{car.label}</div>
-            <div className="text-sm">{driver?.display_name||driver?.name||"No driver assigned"}</div>
+        const perf=teamCarPerformance(carState,teamId,car.driver_id);
+        const comp=CAR_COMPONENT_SLOTS.map((slot)=>componentConditionForCar(carState,car,slot));
+        const health=comp.length?comp.reduce((a,b)=>a+b,0)/comp.length:0;
+        const active=car.id===selectedCar?.id;
+        return <button key={car.id} onClick={()=>setSelectedId(car.id)} className={"rounded-xl border p-4 text-left transition "+(active?"border-white/40 bg-[#1b1e28]":"border-white/10 bg-[#12141c] hover:bg-[#171a23]")}>
+          <div className="flex items-start gap-3">
+            <DriverPortrait driver={driver||{display_name:"Car"}} size="h-16 w-16"/>
+            <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">{car.kind==="reserve"?"Spare chassis":"Race chassis"}</div><div className="text-lg font-semibold">{car.label}</div><div className="text-sm text-slate-400 truncate">{driver?.display_name||driver?.name||"No driver assigned"}</div></div>
           </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Metric label="Overall" value={perf.overall}/>
-            <Metric label="Qualifying" value={perf.qualifying}/>
-            <Metric label="Race" value={perf.race}/>
-            <Metric label="Reliability" value={perf.reliability}/>
-            <Metric label="Chassis" value={perf.chassis}/>
-            <Metric label="Component health" value={averageCondition}/>
-          </div>
-
-          <div>
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div>
-                <div className="text-sm font-semibold">Component condition</div>
-                <div className="text-xs text-muted-foreground">Practice, qualifying incidents and races now degrade the live car. Worn components reduce pace and reliability.</div>
-              </div>
-              {(perf?.wear_penalty?.reliability||0)<-0.1&&(
-                <div className="text-xs text-amber-700 text-right">Reliability impact {Number(perf.wear_penalty.reliability).toFixed(1)}</div>
-              )}
-            </div>
-            <div className="space-y-2">
-              {componentRows.map((row)=>(
-                <div key={row.slot} className="border rounded-lg p-2 flex flex-wrap items-center gap-2">
-                  <div className="min-w-[120px] flex-1">
-                    <div className="text-xs text-muted-foreground">{nice(row.slot)}</div>
-                    <div className="text-sm font-medium">{row.installed?.part?.name||"Standard component"}</div>
-                  </div>
-                  <div className="w-24">
-                    <div className="text-xs text-muted-foreground">Condition</div>
-                    <div className="font-semibold">{row.condition.toFixed(1)}%</div>
-                  </div>
-                  <div className="w-20 text-xs">{row.status.label}</div>
-                  {!row.installed&&(
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={row.condition>=99.5}
-                      onClick={()=>replaceBaseComponent(car,row.slot)}
-                    >
-                      Replace
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-sm font-semibold mb-2">Installed developed parts</div>
-            <div className="space-y-2">
-              {fitted.map(({slot,part})=><div key={slot} className="border rounded-lg p-2 flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-muted-foreground">{nice(slot)}</div>
-                  <div className="text-sm font-medium truncate">{part.name} · +{Number(part.perf||0).toFixed(2)}</div>
-                </div>
-                <Button size="sm" variant="outline" onClick={()=>removePart(car,slot)}>Remove</Button>
-              </div>)}
-              {!fitted.length&&<div className="text-sm text-muted-foreground">No developed parts fitted. Standard components still wear and are tracked above.</div>}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-sm font-semibold mb-2">Available inventory</div>
-            <div className="space-y-2 max-h-52 overflow-y-auto">
-              {parts.filter((p)=>Number(p.inv||0)>0).map((part)=><div key={part.id} className="flex items-center gap-2 border rounded-lg p-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{part.name}</div>
-                  <div className="text-xs text-muted-foreground">{nice(part.slot)} · +{Number(part.perf||0).toFixed(2)} · stock {Number(part.inv||0)}</div>
-                </div>
-                <Button size="sm" onClick={()=>fitPart(car,part)}>Fit</Button>
-              </div>)}
-              {!parts.some((p)=>Number(p.inv||0)>0)&&<div className="text-sm text-muted-foreground">Manufacture a developed part to create inventory.</div>}
-            </div>
-          </div>
-        </CardContent></Card>;
+          <div className="grid grid-cols-3 gap-2 mt-3"><Metric label="Overall" value={Number(perf.overall).toFixed(1)}/><Metric label="Reliability" value={Number(perf.reliability).toFixed(1)}/><Metric label="Health" value={health.toFixed(0)+"%"}/></div>
+        </button>;
       })}
     </div>
 
-    <Card><CardContent className="p-0 overflow-x-auto">
-      <div className="p-4 border-b">
-        <div className="font-semibold">Grid car performance</div>
-        <div className="text-xs text-muted-foreground">Same performance model used by qualifying and race simulation.</div>
+    {selectedCar&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+      <Panel title={(selectedCar.label||"Car")+" · Performance"} className="xl:col-span-4">
+        <div className="p-4 space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-white/10">
+            <DriverPortrait driver={selectedDriver||{display_name:"Unassigned"}} size="h-16 w-16"/>
+            <div><div className="font-semibold">{selectedDriver?.display_name||selectedDriver?.name||"No driver assigned"}</div><div className="text-xs text-slate-500">{selectedCar.kind==="reserve"?"Spare chassis":"Race car"}</div></div>
+          </div>
+          <PerfBar label="Overall" value={selectedPerf?.overall}/>
+          <PerfBar label="Qualifying" value={selectedPerf?.qualifying}/>
+          <PerfBar label="Race" value={selectedPerf?.race}/>
+          <PerfBar label="Reliability" value={selectedPerf?.reliability}/>
+          <PerfBar label="Chassis" value={selectedPerf?.chassis}/>
+          <Metric label="Average component health" value={averageCondition.toFixed(1)+"%"}/>
+          {Number(selectedPerf?.wear_penalty?.reliability||0)<-0.1?<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">Wear reliability impact {Number(selectedPerf.wear_penalty.reliability).toFixed(1)}</div>:null}
+        </div>
+      </Panel>
+
+      <Panel title="Installed components" className="xl:col-span-5">
+        <div className="divide-y divide-white/10">
+          {componentRows.map((row)=><div key={row.slot} className="p-3 flex items-center gap-3">
+            <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">{nice(row.slot)}</div><div className="font-medium truncate">{row.installed?.part?.name||"Standard component"}</div><div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={row.condition<35?"h-full bg-rose-400":row.condition<60?"h-full bg-amber-300":"h-full bg-emerald-300"} style={{width:Math.max(0,Math.min(100,row.condition))+"%"}}/></div></div>
+            <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">{row.status.label}</div></div>
+            {row.installed?<Button size="sm" variant="outline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>:<Button size="sm" variant="outline" disabled={row.condition>=99.5} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>Replace</Button>}
+          </div>)}
+        </div>
+      </Panel>
+
+      <Panel title="Warehouse" className="xl:col-span-3" action={<Link to="/Development" className="text-xs text-slate-300">Manufacture ›</Link>}>
+        <div className="max-h-[560px] overflow-y-auto divide-y divide-white/10">
+          {availableParts.map((part)=><div key={part.id} className="p-3">
+            <div className="font-medium truncate">{part.name}</div>
+            <div className="text-xs text-slate-500">{nice(part.slot)} · +{Number(part.perf||0).toFixed(2)} performance · stock {Number(part.inv||0)}</div>
+            <Button className="mt-2 w-full" size="sm" onClick={()=>fitPart(selectedCar,part)}>Fit to {selectedCar.label}</Button>
+          </div>)}
+          {!availableParts.length?<div className="p-4 text-sm text-slate-500">No developed parts in stock. Complete a development project and manufacture inventory.</div>:null}
+        </div>
+      </Panel>
+    </div>}
+
+    <Panel title="Grid comparison">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-px bg-white/10">
+        {ranking.map((row,index)=><div key={row.team_id||index} className={"bg-[#12141c] p-3 flex items-center gap-3 "+(String(row.team_id)===teamId?"ring-1 ring-inset ring-white/30":"")}>
+          <div className="w-6 text-right font-semibold">{row.rank||index+1}</div>
+          <TeamLogo teamId={row.team_id} name={row.team_name||row.name} size="h-8 w-8"/>
+          <div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{row.team_name||row.name||row.team_id}</div><div className="text-xs text-slate-500">Overall {Number(row.overall||0).toFixed(1)}</div></div>
+        </div>)}
       </div>
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-50"><tr>
-          <th className="px-3 py-2 text-left">#</th>
-          <th className="px-3 py-2 text-left">Team</th>
-          <th className="px-3 py-2 text-right">Overall</th>
-          <th className="px-3 py-2 text-right">Qualifying</th>
-          <th className="px-3 py-2 text-right">Race</th>
-          <th className="px-3 py-2 text-right">Reliability</th>
-          <th className="px-3 py-2 text-right">Chassis</th>
-          <th className="px-3 py-2 text-right">Power</th>
-        </tr></thead>
-        <tbody>{ranking.map((row)=><tr key={row.team_id} className={String(row.team_id)===teamId?"border-t bg-blue-50":"border-t"}>
-          <td className="px-3 py-2">{row.rank}</td>
-          <td className="px-3 py-2 font-medium">{row.team_name}</td>
-          <td className="px-3 py-2 text-right">{row.overall.toFixed(1)}</td>
-          <td className="px-3 py-2 text-right">{row.qualifying.toFixed(1)}</td>
-          <td className="px-3 py-2 text-right">{row.race.toFixed(1)}</td>
-          <td className="px-3 py-2 text-right">{row.reliability.toFixed(1)}</td>
-          <td className="px-3 py-2 text-right">{row.chassis.toFixed(1)}</td>
-          <td className="px-3 py-2 text-right">{row.power.toFixed(1)}</td>
-        </tr>)}</tbody>
-      </table>
-    </CardContent></Card>
+    </Panel>
   </div>;
 }
-
-function Metric({label,value}){return <div className="border rounded p-2"><div className="text-[10px] uppercase text-muted-foreground">{label}</div><div className="text-lg font-semibold">{Number(value||0).toFixed(1)}</div></div>;}
-function currentKey(value){try{return JSON.stringify(value||[]);}catch{return "";}}
