@@ -146,7 +146,7 @@ function responseForIncident(rules,incident,weatherLap,rng){
   return "LOCAL_YELLOW";
 }
 function durationFor(response,rng,laps){
-  if(response==="RED_FLAG")return Math.min(2,Math.max(1,laps-1));
+  if(response==="RED_FLAG")return 1;
   if(response==="SAFETY_CAR")return 2+Math.floor(rng.next()*3);
   if(response==="VSC")return 1+Math.floor(rng.next()*2);
   return 1;
