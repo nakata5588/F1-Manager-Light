@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
 import { academyProgramDefinition, academyProgramNames } from "@/domain/academyPrograms.js";
+import { driverKnowledgeState, presentDriverKnowledgeValue } from "@/domain/driverKnowledge.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -46,13 +47,24 @@ export default function Academy(){
       : age >= 16 && age <= 23;
   }).map((d)=>{
     const r=ratingById.get(idOf(d))||{};
-    return {...d,overall:pick(r,["current_ability","overall","pace"],"—"),potential:pick(r,["potential_ability","potential"],"—")};
-  }).filter((d)=>!q||[d.display_name,d.name,d.country_name,d.nationality,d.lower_series_name].some((v)=>String(v||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>(Number(b.potential)||0)-(Number(a.potential)||0)),[drivers,supportedIds,contractedIds,ratingById,q,formalAcademy]);
+    const knowledge=driverKnowledgeState(gameState,d);
+    const overall=presentDriverKnowledgeValue(knowledge,"current_ability",pick(r,["current_ability","overall","pace"],NaN),{kind:"ability"});
+    const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",pick(r,["potential_ability","potential"],NaN),{kind:"potential"});
+    return {...d,overall:overall.label,overall_sort:overall.sortValue,potential:potential.label,potential_sort:potential.sortValue,knowledge};
+  }).filter((d)=>!q||[d.display_name,d.name,d.country_name,d.nationality,d.lower_series_name].some((v)=>String(v||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>{
+    if(a.potential_sort!=null&&b.potential_sort==null)return -1;
+    if(a.potential_sort==null&&b.potential_sort!=null)return 1;
+    if(a.potential_sort!=null&&b.potential_sort!=null&&a.potential_sort!==b.potential_sort)return b.potential_sort-a.potential_sort;
+    return String(a.display_name||a.name||"").localeCompare(String(b.display_name||b.name||""));
+  }),[drivers,supportedIds,contractedIds,ratingById,q,formalAcademy,gameState]);
 
   const supportedRows=useMemo(()=>supported.map((entry)=>{
     const id=idOf(entry),d=driverById.get(id)||entry,r=ratingById.get(id)||{};
-    return {entry,driver:d,id,overall:pick(r,["current_ability","overall","pace"],"—"),potential:pick(r,["potential_ability","potential"],"—")};
-  }),[supported,driverById,ratingById]);
+    const knowledge=driverKnowledgeState(gameState,d);
+    const overall=presentDriverKnowledgeValue(knowledge,"current_ability",pick(r,["current_ability","overall","pace"],NaN),{kind:"ability"});
+    const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",pick(r,["potential_ability","potential"],NaN),{kind:"potential"});
+    return {entry,driver:d,id,overall:overall.label,potential:potential.label,knowledge};
+  }),[supported,driverById,ratingById,gameState]);
 
   const supportDriver=(driver)=>{
     const id=idOf(driver); if(!id||supportedIds.has(id))return;
@@ -164,6 +176,7 @@ export default function Academy(){
                 <div className="mt-1 flex gap-1 flex-wrap">
                   {d.youth_eligible && <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/15 text-teal-300">Youth</span>}
                   <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-slate-300">{d.lower_series_name || "Lower Series"}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-sky-500/10 text-sky-300">{d.knowledge?.label||"Unscouted"}</span>
                 </div>
               </div>
             </button>
