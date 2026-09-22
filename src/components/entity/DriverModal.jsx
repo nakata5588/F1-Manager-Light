@@ -825,6 +825,7 @@ export default function DriverModal({ entity, onClose }) {
               condition={condition}
               knowledge={knowledge}
               driver={driver}
+              currentSnapshot={profileSnapshot}
               comparisonDriver={comparisonDriver}
               comparisonSnapshot={comparisonSnapshot}
               comparisonCandidates={(driversList||[]).filter((candidate) => {
@@ -1346,6 +1347,7 @@ function AttributesTab({
   condition,
   knowledge,
   driver,
+  currentSnapshot,
   comparisonDriver,
   comparisonSnapshot,
   comparisonCandidates,
@@ -1443,11 +1445,8 @@ function AttributesTab({
     );
   };
 
+  const currentContract=currentSnapshot?.contract||null;
   const comparisonContract=comparisonSnapshot?.contract||null;
-  const currentContractLabel=(field)=>{
-    const contract=comparisonSnapshot?.contract;
-    return contract?displayValue(contract?.[field],"—"):"—";
-  };
 
   return (
     <div className="space-y-5">
@@ -1550,10 +1549,10 @@ function AttributesTab({
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
                 <div className="text-sm font-semibold">{currentName}</div>
                 <div className="mt-2 space-y-2 text-xs">
-                  <KV label="Team" value={displayValue(profileSnapshot?.teamName,"Free Agent")}/>
-                  <KV label="Role" value={displayValue(contractRole,"—")}/>
-                  <KV label="Contract end" value={displayValue(contractEnd,"—")}/>
-                  <KV label="Salary" value={fmtMoney(contractSalary)}/>
+                  <KV label="Team" value={displayValue(currentSnapshot?.teamName,"Free Agent")}/>
+                  <KV label="Role" value={niceRole(currentContract?.role)}/>
+                  <KV label="Contract end" value={displayValue(currentContract?.contract_until_year??currentContract?.contract_until??currentContract?.end_year??currentContract?.end_date,"—")}/>
+                  <KV label="Salary" value={currentContract?fmtMoney(currentContract?.salary??currentContract?.salary_yearly):"—"}/>
                 </div>
               </div>
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
