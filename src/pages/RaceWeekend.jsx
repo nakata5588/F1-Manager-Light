@@ -85,8 +85,21 @@ function positionDelta(value){
 }
 function pitWindowLabel(window){
   if(!window)return "Stay out";
-  if(Number(window.from_lap)===Number(window.to_lap))return "L"+window.from_lap;
+  if(Number(window.from_lap)===Number(window.to_lap))return "L"+window.from_lap+"–"+window.to_lap;
   return "L"+window.from_lap+"–"+window.to_lap;
+}
+function strategyReasonLabel(reason){
+  return {
+    player_call:"Team call",
+    weather:"Weather change",
+    neutralisation_window:"Neutralisation window",
+    planned:"Planned stop",
+    mandatory_compound:"Mandatory compound",
+    degradation_value:"Strategic degradation",
+    degradation:"Tyre degradation",
+    tyre_safety:"Tyre safety",
+    fuel:"Fuel",
+  }[String(reason||"")]||String(reason||"Strategy").replaceAll("_"," ");
 }
 function paceLabel(mode){
   return RACE_PACE_MODES?.[String(mode)]?.label||String(mode||"Balanced").replaceAll("_"," ");
@@ -1201,7 +1214,10 @@ export default function RaceWeekend(){
                     return <tr className={"border-t border-white/5 "+rowTone} key={row.driver_id}>
                       <td className={"sticky left-0 z-20 w-14 min-w-14 px-2 py-2 text-right text-sm font-bold "+stickyTone}>P{row.position??index+1}</td>
                       <td className={"sticky left-14 z-20 min-w-[210px] px-3 py-2 "+stickyTone}>
-                        <div className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</div>
+                        <div className="flex items-center gap-2 font-semibold text-slate-100">
+                          {mine?<span title="Your Team" className="h-2.5 w-1 shrink-0 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.55)]"/>:null}
+                          <span>{driverName(drivers,row.driver_id)}</span>
+                        </div>
                         <div className="text-[10px] text-slate-500">
                           {teamName(teams,row.team_id)} · Grid P{row.grid_position??"—"} · net {positionDelta(gridGain)}
                         </div>
