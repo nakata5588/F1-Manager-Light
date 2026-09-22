@@ -78,7 +78,7 @@ export function driverDerivedRating(attrs,key){
   let weightTotal=0;
   for(const [attribute,weight] of Object.entries(definition.weights)){
     const value=numericAttribute(attrs,attribute);
-    if(value===null)continue;
+    if(value===null)return null;
     weighted+=value*weight;
     weightTotal+=weight;
   }
