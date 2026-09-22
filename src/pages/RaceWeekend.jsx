@@ -242,10 +242,22 @@ export default function RaceWeekend(){
     {position:Number(row?.position??index+1),points:Number(row?.points??0)},
   ]));
 
+  const windowTabs=[
+    {id:"overview",label:"Overview",enabled:true},
+    {id:"practice",label:"Practice",enabled:Boolean(weekend?.practice)||["practice","practice_complete"].includes(String(weekend?.phase))},
+    {id:"qualifying",label:"Qualifying",enabled:qualifyingSessions.length>0},
+    {id:"strategy",label:"Strategy",enabled:Boolean(raceStrategy)},
+    {id:"grid",label:"Starting Grid",enabled:startingGridRows.length>0},
+    {id:"live",label:"Live Timing",enabled:Boolean(liveRace)||String(weekend?.phase)==="race"},
+    {id:"classification",label:"Classification",enabled:Boolean(lastResult)||["results","completed"].includes(String(weekend?.phase))},
+  ];
+
   if(!weekend){
-    return <div className="bg-white rounded-xl shadow p-5">
-      <h2 className="text-lg font-semibold">Race Weekend</h2>
-      <p className="text-sm text-gray-600 mt-1">No active race weekend. Advance the calendar to the next Grand Prix weekend.</p>
+    return <div className="min-h-[calc(100vh-3.5rem)] bg-black p-6 text-slate-100">
+      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5">
+        <h2 className="text-lg font-semibold">Race Weekend</h2>
+        <p className="text-sm text-slate-400 mt-1">No active race weekend. Advance the calendar to the next Grand Prix weekend.</p>
+      </div>
     </div>;
   }
 
@@ -263,17 +275,17 @@ export default function RaceWeekend(){
     await continueWeekend();
   });
 
-  return <div className="grid gap-4">
-    <div className="bg-white rounded-xl shadow p-5">
+  return <div className="min-h-[calc(100vh-3.5rem)] bg-black p-4 md:p-6 text-slate-100 grid gap-4 content-start">
+    <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div>
-          <div className="text-xs uppercase tracking-wide text-gray-500">Round {weekend.round}</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Round {weekend.round}</div>
           <h2 className="text-xl font-semibold">{weekend.gp_name}</h2>
-          <div className="text-sm text-gray-600 mt-1">
+          <div className="text-sm text-slate-400 mt-1">
             {(weekend.sessions||[]).map((session)=>`${session.label} ${session.dateISO}`).join(" · ")}
           </div>
         </div>
-        <div className="text-sm px-3 py-1.5 rounded-full bg-slate-100">
+        <div className="text-sm px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-slate-300">
           {String(weekend.phase||"").replaceAll("_"," ")}
         </div>
       </div>
@@ -282,10 +294,10 @@ export default function RaceWeekend(){
         {STEPS.map(([id,label],index)=>{
           const state=index<currentIndex?"complete":index===currentIndex?"active":"upcoming";
           const cls=state==="complete"
-            ?"bg-emerald-100 border-emerald-300 text-emerald-800"
+            ?"bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
             :state==="active"
-              ?"bg-slate-900 border-slate-900 text-white"
-              :"bg-gray-50 border-gray-200 text-gray-500";
+              ?"bg-slate-100 border-slate-100 text-slate-950"
+              :"bg-white/[0.03] border-white/10 text-slate-500";
           return <div key={id} className={`border rounded-lg px-2 py-3 text-center text-xs md:text-sm font-medium ${cls}`}>
             {label}
           </div>;
@@ -293,7 +305,30 @@ export default function RaceWeekend(){
       </div>
     </div>
 
-    {weekendWeather&&(
+    <nav className="sticky top-14 z-40 -mx-4 md:-mx-6 px-4 md:px-6 border-y border-white/10 bg-black/95 backdrop-blur">
+      <div className="flex gap-1 overflow-x-auto py-2">
+        {windowTabs.map((tab)=>(
+          <button
+            type="button"
+            key={tab.id}
+            disabled={!tab.enabled}
+            onClick={()=>tab.enabled&&setActiveWindow(tab.id)}
+            className={
+              "shrink-0 rounded-md px-3 py-2 text-xs font-semibold transition "+
+              (activeWindow===tab.id
+                ?"bg-slate-100 text-slate-950"
+                :tab.enabled
+                  ?"border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                  :"border border-white/5 bg-white/[0.02] text-slate-700 cursor-not-allowed")
+            }
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+
+    {activeWindow==="overview"&&weekendWeather&&(
       <div className="bg-white rounded-xl shadow p-5">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div>
@@ -342,7 +377,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {weekend.phase==="practice"&&(
+    {activeWindow==="practice"&&weekend.phase==="practice"&&(
       <div className="grid gap-4">
         <div className="bg-white rounded-xl shadow p-5">
           <h3 className="font-semibold">Practice Programmes</h3>
@@ -389,7 +424,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {weekend.phase==="practice_complete"&&(
+    {activeWindow==="practice"&&weekend.phase==="practice_complete"&&(
       <div className="grid gap-4">
         <div className="bg-white rounded-xl shadow p-5">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -459,7 +494,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {weekend.phase==="qualifying"&&(
+    {activeWindow==="qualifying"&&weekend.phase==="qualifying"&&(
       <div className="bg-white rounded-xl shadow p-5">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div>
@@ -495,7 +530,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {weekend.phase==="qualifying_wait"&&(
+    {activeWindow==="qualifying"&&weekend.phase==="qualifying_wait"&&(
       <div className="bg-white rounded-xl shadow p-5">
         <h3 className="font-semibold">{lastCompletedQualifyingSession?.label||"Qualifying"} Complete</h3>
         <p className="text-sm text-gray-600 mt-1">
@@ -616,7 +651,7 @@ export default function RaceWeekend(){
           </div>
         </div>
 
-        {weekend.phase==="race"&&liveRace&&(
+        {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
           <div className="rounded-xl border border-white/10 bg-[#0b0e14] text-slate-100 shadow-xl overflow-hidden">
             <div className="p-5 border-b border-white/10">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -831,7 +866,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {weekend.phase==="results"&&(
+    {activeWindow==="classification"&&weekend.phase==="results"&&(
       <div className="bg-white rounded-xl shadow p-5">
         <h3 className="font-semibold">Race Complete</h3>
         <p className="text-sm text-gray-600 mt-1">
@@ -892,7 +927,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {weekend.phase==="completed"&&(
+    {activeWindow==="classification"&&weekend.phase==="completed"&&(
       <div className="bg-white rounded-xl shadow p-5">
         <h3 className="font-semibold">Weekend Complete</h3>
         <button className="mt-3 rounded-lg bg-slate-900 text-white px-4 py-2 text-sm" onClick={()=>navigate("/Home")}>Return Home</button>
