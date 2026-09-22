@@ -1732,8 +1732,19 @@ export default function RaceWeekend(){
                       <td className="px-3 py-3 text-right font-mono">{gap}</td>
                       <td className="px-3 py-3 text-right font-bold">{row?.points??0}</td>
                       <td className="px-3 py-3 text-right">
-                        <div className="font-bold">{standing?"P"+standing.position:"—"}</div>
-                        <div className="text-[11px] text-slate-500">{standing?standing.points+" pts":"—"}</div>
+                        {(()=>{
+                          const before=preDriverById.get(did);
+                          const move=before&&standing?Number(before.position)-Number(standing.position):0;
+                          return <>
+                            <div className="font-bold">{standing?"P"+standing.position:"—"}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {standing
+                                ?(before?("P"+before.position+" → "):"")+standing.points+" pts"
+                                :"—"}
+                            </div>
+                            {move?<div className={"text-[10px] font-semibold "+(move>0?"text-emerald-300":"text-rose-300")}>{positionDelta(move)}</div>:null}
+                          </>;
+                        })()}
                       </td>
                     </tr>;
                   })}
