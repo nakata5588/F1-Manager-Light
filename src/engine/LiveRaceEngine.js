@@ -13,6 +13,31 @@ function teamForDriver(gs,did){
   const entry=(gs?.raceEntryState?.entries||[]).find((row)=>String(row?.driver_id??"")===String(did));
   return String(entry?.team_id??driverById(gs,did)?.team_id??"");
 }
+function controlLabel(type){
+  const key=String(type||"GREEN").toUpperCase();
+  return {
+    GREEN:"Green flag",
+    LOCAL_YELLOW:"Local yellow",
+    SAFETY_CAR:"Safety Car",
+    VSC:"Virtual Safety Car",
+    RED_FLAG:"Red flag",
+  }[key]||key.replaceAll("_"," ").toLowerCase();
+}
+function tyreDisplayName(gs,driverId,tyreId){
+  const teamId=teamForDriver(gs,driverId);
+  const tyre=tyresForTeam(gs,teamId).find((row)=>String(row?.tyre_id??row?.id??"")===String(tyreId??""));
+  return tyre?.compound_name||tyre?.name||String(tyreId||"tyre");
+}
+function pitLossEstimate(gs,strategyState,driverId,lap,plan){
+  const teamId=teamForDriver(gs,driverId);
+  const track=strategyState?.track_snapshot||{};
+  const crew=gs?.raceStrategyWorld?.pitCrews?.[String(teamId)]||{};
+  const control=raceControlAtLap(plan,lap);
+  const controlMult=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
+  const lane=Math.max(0,num(track?.pit_lane_loss_s,24))*controlMult;
+  const stationary=Math.max(2,num(crew?.avg_time_s,6.8));
+  return Number((lane+stationary).toFixed(2));
+}
 function gridForWeekend(gs){
   const rows=gs?.raceWeekendState?.startingGrid?.rows||gs?.raceWeekendState?.grid||[];
   return rows.map((row,index)=>({
@@ -159,6 +184,11 @@ function visibleClassification(gs,race,lap,plan,strategyState){
     const position=index+1;
     const gap=row.retired?null:Math.max(0,row.elapsed_ms-leader);
     const interval=index&&!row.retired?Math.max(0,row.elapsed_ms-previous):0;
+    const estimatedPitLoss=row.retired?null:pitLossEstimate(gs,strategyState,row.driver_id,lap,plan);
+    const rejoinElapsed=row.retired?null:Number(row.elapsed_ms||0)+Number(estimatedPitLoss||0)*1000;
+    const rejoinPosition=row.retired?null:1+active.filter((other)=>
+      String(other.driver_id)!==String(row.driver_id)&&Number(other.elapsed_ms||0)<Number(rejoinElapsed)
+    ).length;
     const out={
       ...row,
       position,
@@ -167,6 +197,8 @@ function visibleClassification(gs,race,lap,plan,strategyState){
       interval_ms:interval,
       position_gain:Number.isFinite(Number(row.grid_position))?Number(row.grid_position)-position:0,
       projected_gain:Number.isFinite(Number(row.projected_finish_position))?position-Number(row.projected_finish_position):0,
+      pit_loss_estimate_s:estimatedPitLoss,
+      pit_rejoin_position:rejoinPosition,
     };
     if(!row.retired)previous=row.elapsed_ms;
     return out;
@@ -247,35 +279,91 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
   const target=upcomingRed?Number(upcomingRed.from_lap):requestedTarget;
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
-  const classification=visibleClassification(working,simulation.race,target,plan,working?.raceWeekendState?.race_strategy);
+  let classification=visibleClassification(working,simulation.race,target,plan,working?.raceWeekendState?.race_strategy);
+  const previousLapRows=target>1
+    ?visibleClassification(working,simulation.race,target-1,plan,working?.raceWeekendState?.race_strategy)
+    :[];
+  const previousPositionByDriver=new Map(previousLapRows.map((row)=>[String(row.driver_id),Number(row.position)]));
+  classification=classification.map((row)=>{
+    const previousPosition=previousPositionByDriver.get(String(row.driver_id));
+    return {
+      ...row,
+      previous_lap_position:Number.isFinite(previousPosition)?previousPosition:null,
+      position_change_last_lap:Number.isFinite(previousPosition)?previousPosition-Number(row.position):0,
+    };
+  });
   const weatherSegment=simulation.weather?.segments?.find((s)=>target>=Number(s?.from_lap)&&target<=Number(s?.to_lap));
   const weather=String(weatherSegment?.state||simulation.weather?.state||"SUNNY");
   const previousWeather=String(live.last_weather||"");
-  const previousControl=String(live.current_control||"GREEN");
   const currentControl=raceControlAtLap(plan,target);
   const trackState=plan?.weather_timeline?.[Math.max(0,target-1)]||null;
   const events=[...(live.events||[])];
-  if(previousWeather&&weather!==previousWeather)events.push({lap:target,type:"weather",message:`Conditions changed from ${previousWeather.replaceAll("_"," ")} to ${weather.replaceAll("_"," ")}.`});
+  if(previousWeather&&weather!==previousWeather)events.push({lap:target,type:"weather",message:`Conditions changed from ${previousWeather.replaceAll("_"," ").toLowerCase()} to ${weather.replaceAll("_"," ").toLowerCase()}.`});
+
+  const controlPeriodsStarted=new Set();
   for(const incident of plan?.incidents||[]){
     if(Number(incident.lap)>Number(live.current_lap)&&Number(incident.lap)<=target){
-      events.push({lap:Number(incident.lap),type:"incident",driver_id:incident.driver_id,driver_name:driverDisplayName(working,incident.driver_id),message:`${driverDisplayName(working,incident.driver_id)}: ${incident.reason} (${incident.severity}).`});
+      const period=(plan?.periods||[]).find((row)=>
+        Number(row?.from_lap)===Number(incident.lap)&&String(row?.driver_id??"")===String(incident.driver_id)
+      );
+      const driver=driverDisplayName(working,incident.driver_id);
+      if(period){
+        controlPeriodsStarted.add(`${period.type}:${period.from_lap}:${period.driver_id||""}`);
+        events.push({
+          lap:Number(incident.lap),
+          type:"race_control",
+          driver_id:incident.driver_id,
+          driver_name:driver,
+          control_type:period.type,
+          cause:"incident",
+          message:`${controlLabel(period.type)}: ${driver} involved in ${String(incident.reason||incident.kind||"an incident").toLowerCase()} (${incident.severity}).`,
+        });
+      }else{
+        const mechanical=/engine|gearbox|transmission|electrical|cooling|fuel|suspension/i.test(String(incident.reason||""));
+        events.push({
+          lap:Number(incident.lap),
+          type:"incident",
+          driver_id:incident.driver_id,
+          driver_name:driver,
+          cause:"incident",
+          message:mechanical
+            ?`${driver} stops with a ${String(incident.reason).toLowerCase()} problem.`
+            :`${driver} involved in ${String(incident.reason||incident.kind||"an incident").toLowerCase()} (${incident.severity}).`,
+        });
+      }
     }
   }
   for(const period of plan?.periods||[]){
-    if(Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=target){
-      events.push({lap:Number(period.from_lap),type:"race_control",message:`${period.type.replaceAll("_"," ")} deployed due to ${period.cause}.`});
+    const key=`${period.type}:${period.from_lap}:${period.driver_id||""}`;
+    if(Number(period.from_lap)>Number(live.current_lap)&&Number(period.from_lap)<=target&&!controlPeriodsStarted.has(key)){
+      const weatherAtStart=plan?.weather_timeline?.[Math.max(0,Number(period.from_lap)-1)]?.state;
+      const reason=period.cause==="weather"
+        ?String(weatherAtStart||"extreme weather").replaceAll("_"," ").toLowerCase()
+        :"an incident";
+      events.push({
+        lap:Number(period.from_lap),
+        type:"race_control",
+        control_type:period.type,
+        cause:period.cause,
+        message:`${controlLabel(period.type)} deployed because of ${reason}.`,
+      });
     }
     if(Number(period.to_lap)>=Number(live.current_lap)&&Number(period.to_lap)<target&&period.type!=="LOCAL_YELLOW"){
-      events.push({lap:Number(period.to_lap)+1,type:"race_control",message:`${period.type.replaceAll("_"," ")} ending — GREEN FLAG.`});
+      events.push({lap:Number(period.to_lap)+1,type:"race_control",control_type:"GREEN",message:`${controlLabel(period.type)} withdrawn — green flag.`});
     }
-  }
-  if(previousControl!==currentControl.type&&target===Number(live.current_lap)+1&&currentControl.type!=="GREEN"){
-    events.push({lap:target,type:"race_control",message:`Race Control: ${currentControl.type.replaceAll("_"," ")}.`});
   }
   for(const row of simulation.race){
     for(const stop of row?.pit_stops||[]){
       if(Number(stop?.lap)>Number(live.current_lap)&&Number(stop?.lap)<=target){
-        events.push({lap:Number(stop.lap),type:"pit",driver_id:idOf(row.driver),driver_name:driverDisplayName(working,idOf(row.driver)),message:`${driverDisplayName(working,idOf(row.driver))} pitted: ${stop.tyre_from} → ${stop.tyre_to} (${Number(stop.total_loss_s).toFixed(1)}s loss).`});
+        const did=idOf(row.driver);
+        const nextTyre=tyreDisplayName(working,did,stop.tyre_to);
+        events.push({
+          lap:Number(stop.lap),
+          type:"pit",
+          driver_id:did,
+          driver_name:driverDisplayName(working,did),
+          message:`${driverDisplayName(working,did)} pits for ${nextTyre} tyres (${Number(stop.total_loss_s).toFixed(1)}s lost).`,
+        });
       }
     }
   }

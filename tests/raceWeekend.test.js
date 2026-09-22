@@ -13,7 +13,7 @@ import {
   syncRaceWeekendPhaseForDate,
 } from "../src/engine/RaceWeekendEngine.js";
 import { PRACTICE_PROGRAMMES, teamEngineeringSupport, trackSetupProfile } from "../src/engine/PracticeSetupEngine.js";
-import { conditionModifier } from "../src/domain/driverPerformance.js";
+import { conditionModifier, practiceWeekendImpact } from "../src/domain/driverPerformance.js";
 
 const gp={
   gp_id:"monaco",
@@ -409,6 +409,10 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   assert.ok(d1.component_wear.total_wear>0);
   assert.ok(Number.isFinite(d1.component_wear.lowest_condition));
   assert.ok(conditionModifier(gs,"D1")>beforeD1,"Preparation should now improve live driver performance");
+  const reliabilityImpact=practiceWeekendImpact(gs,"D1");
+  const raceImpact=practiceWeekendImpact(gs,"D2");
+  assert.ok(Number.isFinite(reliabilityImpact.qualifying)&&Number.isFinite(reliabilityImpact.race));
+  assert.ok(raceImpact.race>reliabilityImpact.race,"Race Focus should create a larger direct race-session Practice bonus");
 
   const afterP1=gs.development.parts.find((p)=>p.id==="P1").condition;
   const afterP2=gs.development.parts.find((p)=>p.id==="P2").condition;
