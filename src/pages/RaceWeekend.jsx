@@ -148,7 +148,12 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
               <tr className="border-t">
                 <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
                 <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-6 w-6" className="p-0.5"/>
+                    <span>{teamName(teams,row.team_id)}</span>
+                  </div>
+                </td>
                 <td className="px-3 py-2 text-right font-mono">{formatLapTime(time)}</td>
                 <td className="px-3 py-2 text-right font-mono text-slate-500">{formatGap(time,best)}</td>
                 <td className="px-3 py-2">
@@ -838,7 +843,12 @@ export default function RaceWeekend(){
                     <td className="px-3 py-2 text-right font-semibold">P{row.grid}</td>
                     <td className="px-3 py-2 text-right">P{row.qualifying_position??row.grid}</td>
                     <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                    <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-6 w-6" className="p-0.5"/>
+                        <span>{teamName(teams,row.team_id)}</span>
+                      </div>
+                    </td>
                     <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.best_time_ms)}</td>
                     <td className="px-3 py-2 text-right">{Number(row.penalty_places||0)>0?"+"+row.penalty_places:"—"}</td>
                   </tr>
