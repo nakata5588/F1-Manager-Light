@@ -15,6 +15,39 @@ export function defaultComponentCondition(){
   return Object.fromEntries(CAR_COMPONENT_SLOTS.map((slot)=>[slot,100]));
 }
 
+export function defaultBaseComponentStock(){
+  return Object.fromEntries(CAR_COMPONENT_SLOTS.map((slot)=>[slot,0]));
+}
+
+export const BASE_COMPONENT_BUILD_COST=Object.freeze({
+  chassis:250000,
+  aero_front:65000,
+  aero_rear:80000,
+  suspension:95000,
+  gearbox:145000,
+  brakes:55000,
+  cooling:70000,
+  turbocharger:170000,
+});
+
+export function baseComponentConstructionCost(gs,slot){
+  const base=Number(BASE_COMPONENT_BUILD_COST[slot]??80000);
+  const levelRaw=Number(gs?.hq?.facilityLevels?.manufacturing_leve ?? gs?.hq?.facilityLevels?.manufacturing_level);
+  let level=Number.isFinite(levelRaw)?levelRaw:null;
+  if(level==null){
+    const year=Number(gs?.activeYear);
+    const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+    const rows=Array.isArray(gs?.facilities)&&gs.facilities.length?gs.facilities:(gs?.dbFacilities||[]);
+    const row=rows.find((r)=>
+      String(pick(r,["team_id","team"],""))===teamId &&
+      (!Number.isFinite(Number(pick(r,["year","season_year"],year)))||Number(pick(r,["year","season_year"],year))===year)
+    );
+    level=Number(pick(row||{},["manufacturing_leve","manufacturing_level"],5));
+  }
+  const efficiency=Math.max(0.72,Math.min(1.15,1.12-(Number(level)||5)*0.025));
+  return Math.round(base*efficiency/1000)*1000;
+}
+
 export function activeDriverContracts(gs,teamId){
   return canonicalActiveDriverContracts(gs,{teamId});
 }
@@ -36,6 +69,10 @@ export function syncGarageState(gs,garage){
   const existing=new Map((garage?.cars||[]).map((car)=>[String(car.id),car]));
   return {
     ...(garage||{}),
+    baseComponentStock:{
+      ...defaultBaseComponentStock(),
+      ...(garage?.baseComponentStock||{}),
+    },
     cars:wanted.map((car)=>({
       ...car,
       ...(existing.get(car.id)||{}),
