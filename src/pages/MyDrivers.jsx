@@ -2,9 +2,8 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
-import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
-import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
-import { conditionModifierBreakdown } from "../domain/driverPerformance.js";
+import { fatigueStatus } from "../domain/driverRating.js";
+import { driverProfileSnapshot } from "../domain/driverProfile.js";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
 import {
   changeDriverContractRole,
@@ -36,32 +35,6 @@ const SLOT_ORDER=[
 function money(value){
   return Number(value)?new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)):"—";
 }
-function raceStats(results,year,driverId){
-  const out={races:0,wins:0,podiums:0,dnfs:0,points:0,bestFinish:null,avgFinish:null,finishSum:0,finishCount:0};
-  for(const race of results||[]){
-    if(Number(race?.year)!==Number(year))continue;
-    const row=(race?.classification||[]).find((r)=>String(r?.driver_id??"")===String(driverId));
-    if(!row)continue;
-    const retired=Boolean(row?.retired)||String(row?.status||"").toUpperCase()==="DNF";
-    const pos=Number(row?.position);
-    out.races+=1;
-    out.points+=num(row?.points,0);
-    if(!retired&&pos===1)out.wins+=1;
-    if(!retired&&pos>=1&&pos<=3)out.podiums+=1;
-    if(retired)out.dnfs+=1;
-    if(Number.isFinite(pos)&&pos>0){out.bestFinish=out.bestFinish==null?pos:Math.min(out.bestFinish,pos);out.finishSum+=pos;out.finishCount+=1;}
-  }
-  out.avgFinish=out.finishCount?Number((out.finishSum/out.finishCount).toFixed(1)):null;
-  return out;
-}
-function availabilityFor(gs,id){
-  const source=gs?.driverAvailability;
-  if(Array.isArray(source))return source.find((row)=>idOf(row)===String(id))||null;
-  return source&&typeof source==="object"?source[String(id)]||null:null;
-}
-function latestMedical(gs,id){
-  return (gs?.medicalHistory||[]).filter((row)=>String(row?.driver_id??"")===String(id)).sort((a,b)=>String(b?.date||"").localeCompare(String(a?.date||"")))[0]||null;
-}
 function Metric({label,value,tone=""}){
   return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div><div className={"font-semibold mt-0.5 "+tone}>{value??"—"}</div></div>;
 }
@@ -84,8 +57,6 @@ export default function MyDrivers(){
   const results=Array.isArray(gs?.results)?gs.results:[];
   const standings=gs?.standings?.drivers||[];
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
-  const ratingById=useMemo(()=>new Map(ratings.map((r)=>[idOf(r),r])),[ratings]);
-
   const [renewingRow,setRenewingRow]=useState(null);
   const [changingRoleRow,setChangingRoleRow]=useState(null);
   const [targetRoleKey,setTargetRoleKey]=useState("");
@@ -106,15 +77,16 @@ export default function MyDrivers(){
       if(!contract)return {...slot,contract:null};
       const id=idOf(contract);
       const driver=driverById.get(id)||{driver_id:id,display_name:pick(contract,["driver_name","name"],id)};
-      const overallView=driverOverallPresentation(gs,driver);
-      const condition=driverCondition(gs,id);
+      const profile=driverProfileSnapshot(gs,driver);
+      const overallView=profile.overall;
+      const condition=profile.condition;
       const fatigue=fatigueStatus(gs,id);
-      const conditionImpact=conditionModifierBreakdown(gs,id);
-      const rating=ratingById.get(id)||{};
-      const stats=raceStats(results,year,id);
+      const conditionImpact=profile.conditionImpact;
+      const rating=profile.rating||{};
+      const stats=profile.season;
       const standing=standings.find((row)=>String(row?.driver_id??row?.id??"")===id)||null;
-      const availability=availabilityFor(gs,id);
-      const medical=latestMedical(gs,id);
+      const availability=profile.availability?.availability||null;
+      const medical=profile.availability?.medical||null;
       return {
         ...slot,contract,id,driver,rating,condition,fatigue,conditionImpact,stats,standing,availability,medical,
         name:driver.display_name||driver.name||pick(contract,["driver_name","name"],id),
@@ -123,7 +95,7 @@ export default function MyDrivers(){
         until:pick(contract,["contract_until_year","contract_until","end_year","end_date"],"—"),
       };
     });
-  },[gs,driverById,ratingById,myTeamId,results,year,standings]);
+  },[gs,driverById,myTeamId,standings]);
 
   const main=slotRows.find((row)=>row.key==="main");
   const second=slotRows.find((row)=>row.key==="second");
