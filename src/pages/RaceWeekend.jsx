@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
+import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
 
 const STEPS=[
   ["practice","Practice"],
@@ -28,6 +29,10 @@ function driverName(drivers,id){
 function teamName(teams,id){
   const t=(teams||[]).find((row)=>String(row?.team_id??row?.id??"")===String(id));
   return t?.team_name||t?.name||String(id||"—");
+}
+function tyreName(tyres,id){
+  const tyre=(tyres||[]).find((row)=>String(row?.tyre_id??row?.id??"")===String(id??""));
+  return tyre?.compound_name||String(id||"—");
 }
 function currentFatigue(gs,id){
   const direct=gs?.driverAttributes?.[String(id)];
@@ -125,6 +130,7 @@ export default function RaceWeekend(){
   const gs=useGame((s)=>s.gameState);
   const runPractice=useGame((s)=>s.completeRaceWeekendPractice);
   const setPracticeProgramme=useGame((s)=>s.setRaceWeekendPracticeProgramme);
+  const setRaceStrategy=useGame((s)=>s.setRaceWeekendStrategy);
   const runQualifying=useGame((s)=>s.completeRaceWeekendQualifying);
   const runRace=useGame((s)=>s.completeRaceWeekendRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
@@ -146,6 +152,7 @@ export default function RaceWeekend(){
     ||qualifyingSessions.find((row)=>row?.status!=="completed")
     ||null;
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
+  const raceStrategy=weekend?.race_strategy||null;
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
@@ -398,6 +405,87 @@ export default function RaceWeekend(){
         </div>
 
         <div className="bg-white rounded-xl shadow p-5">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Race Strategy</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                The race now resolves tyre life, temperature, weather transitions and pit losses lap by lap. Strategy rules are locked to this era.
+              </p>
+            </div>
+            <div className="text-xs text-gray-500 md:text-right">
+              <div>{raceStrategy?.rules_snapshot?.label||"Era rules"}</div>
+              <div>{raceStrategy?.track_snapshot?.laps||"—"} laps · pit loss {Number(raceStrategy?.track_snapshot?.pit_lane_loss_s||0).toFixed(1)}s</div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg bg-slate-50 border px-3 py-2 text-sm">
+            <span className="font-medium">Forecast:</span>{" "}
+            {String(raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
+            {" · "}{Number(raceStrategy?.weather_snapshot?.avg_temp_c||0).toFixed(0)}°C
+            {" · rain "}{Number(raceStrategy?.weather_snapshot?.rain_chance_pct||0).toFixed(0)}%
+            {" · refuelling "}{raceStrategy?.rules_snapshot?.refuelling_allowed?"available":"not allowed"}
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            {playerEntrants.map((entry)=>{
+              const did=String(entry.driver_id);
+              const selection=raceStrategy?.selections?.[did]||{};
+              const tyres=tyresForTeam(gs,String(entry.team_id??""));
+              const supplier=gs?.raceStrategyWorld?.teamSuppliers?.[String(entry.team_id??"")]||tyres[0]?.supplier||"—";
+              return <div key={did} className="border rounded-xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium">{driverName(drivers,did)}</div>
+                    <div className="text-xs text-gray-500">{supplier} · fatigue {currentFatigue(gs,did).toFixed(0)}/100</div>
+                  </div>
+                  <div className="text-xs text-gray-500">{raceStrategy?.rules_snapshot?.notes}</div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
+                  <label className="text-xs text-gray-600">Start tyre
+                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{start_tyre_id:e.target.value})}>
+                      {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600">Pace
+                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.pace_mode||"balanced"} onChange={(e)=>setRaceStrategy(did,{pace_mode:e.target.value})}>
+                      {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600">Pit plan
+                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.pit_plan||"adaptive"} onChange={(e)=>setRaceStrategy(did,{pit_plan:e.target.value})}>
+                      {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600">Next tyre
+                    <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
+                      {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                    </select>
+                  </label>
+                  {selection.pit_plan==="one_stop"?(
+                    <label className="text-xs text-gray-600">Target lap
+                      <input className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" type="number" min="2" max={Math.max(2,Number(raceStrategy?.track_snapshot?.laps||3)-2)} value={selection.planned_stop_lap||Math.round(Number(raceStrategy?.track_snapshot?.laps||0)/2)} onChange={(e)=>setRaceStrategy(did,{planned_stop_lap:Number(e.target.value)})}/>
+                    </label>
+                  ):raceStrategy?.rules_snapshot?.refuelling_allowed?(
+                    <label className="text-xs text-gray-600">Fuel plan
+                      <select className="mt-1 w-full border rounded-lg px-2 py-2 text-sm" value={selection.fuel_plan||"balanced"} onChange={(e)=>setRaceStrategy(did,{fuel_plan:e.target.value})}>
+                        <option value="light_start">Light start / refuel</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="heavy_start">Heavy start</option>
+                      </select>
+                    </label>
+                  ):(
+                    <div className="text-xs text-gray-500 border rounded-lg px-2 py-2">Fuel strategy disabled for this era.</div>
+                  )}
+                </div>
+              </div>;
+            })}
+          </div>
+          <div className="mt-3 text-xs text-gray-500">
+            AI Teams use the same tyre, weather, pit-loss and era-rule model. In classic eras they prefer non-stop races unless degradation or weather makes a stop worthwhile.
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold">Starting Grid</h3>
@@ -471,6 +559,7 @@ export default function RaceWeekend(){
                   <th className="px-3 py-2 text-left">Driver</th>
                   <th className="px-3 py-2 text-left">Team</th>
                   <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Tyres / Stops</th>
                   <th className="px-3 py-2 text-right">Time / Gap</th>
                   <th className="px-3 py-2 text-right">Pts</th>
                 </tr>
@@ -490,6 +579,10 @@ export default function RaceWeekend(){
                     <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
                     <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
                     <td className="px-3 py-2"><span className={"rounded px-2 py-1 text-xs "+statusClass(status)}>{status}</span></td>
+                    <td className="px-3 py-2 text-xs">
+                      <div>{row.tyre_supplier||"—"} · {tyreName(gs?.tyres,row.start_tyre_id)}</div>
+                      <div className="text-gray-500">{row.strategy_summary?.pit_count??row.pit_stops?.length??0} stop(s){row.strategy_summary?.pit_laps?.length?" · L"+row.strategy_summary.pit_laps.join(", "):""}</div>
+                    </td>
                     <td className="px-3 py-2 text-right">{gap}</td>
                     <td className="px-3 py-2 text-right font-medium">{row.points??0}</td>
                   </tr>;

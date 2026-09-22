@@ -74,6 +74,9 @@ jobs:
       - name: Test race weekend state machine
         run: npm run test:race-weekend
 
+      - name: Test era-aware race strategy
+        run: npm run test:race-strategy
+
       - name: Test injuries and replacement drivers
         run: npm run test:injuries
 
