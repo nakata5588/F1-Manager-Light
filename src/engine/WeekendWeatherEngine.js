@@ -178,7 +178,6 @@ function forecastTimingModel(gs,gp,actual,tid,revision,predicted,accuracy){
   const gpId=String(gp?.gp_id??gp?.track_id??"gp");
   const rng=rngFor(gs,`${gpId}-rw4.6.1-team-forecast-timing-${tid}-${actual?.id||"session"}-r${revision}`);
   const predictedState=String(predicted||"SUNNY").toUpperCase();
-  const startsWet=rainObserved(actual?.segments?.[0]?.state??actual?.state);
   const transition=firstRainTransition(actual);
   const uncertaintyPct=Number(clamp(0.03+(1-accuracy)*0.16,0.025,0.15).toFixed(3));
   const maxTimingErrorPct=Number(clamp(0.015+(1-accuracy)*0.28,0.015,0.22).toFixed(3));
@@ -188,7 +187,7 @@ function forecastTimingModel(gs,gp,actual,tid,revision,predicted,accuracy){
     :predictedState==="WETTING"
       ?"rain_arrival"
       :predictedWet
-        ?(startsWet?"rain_persisting":"rain_arrival")
+        ?"rain_from_start"
         :"dry_stable";
 
   if(["rain_arrival","rain_easing"].includes(mode)){
@@ -313,7 +312,7 @@ function fallbackForecastTiming(gs,weather,forecast){
     };
   }
   return {
-    mode:rainObserved(state)?"rain_persisting":"dry_stable",
+    mode:rainObserved(state)?"rain_from_start":"dry_stable",
     horizon_pct:Number(clamp(0.10+confidence*0.30,0.08,0.46).toFixed(3)),
     uncertainty_pct:uncertaintyPct,
     source:"team_forecast_fallback",
@@ -335,36 +334,51 @@ export function teamRaceForecast(gs,{currentLap=0,currentWeather=null,totalLaps=
   const timing=forecast.timing||fallbackForecastTiming(gs,weather,forecast);
   const total=Math.max(1,Math.round(num(totalLaps,gs?.raceWeekendState?.race_strategy?.track_snapshot?.laps??1)));
   const lap=Math.max(0,Math.min(total,Math.round(num(currentLap,0))));
+  const hasObservation=currentWeather!==null&&currentWeather!==undefined&&String(currentWeather)!=="";
   const observed=String(currentWeather||"").toUpperCase();
   const observedWet=rainObserved(observed);
   const observedEasing=observed==="DRYING";
   const confidence=Math.round(clamp(num(forecast?.confidence_pct,num(weather?.forecast_accuracy,0.55)*100),0,100));
   const capability=clamp(num(weather?.forecast_accuracy,confidence/100),0.35,0.97);
   const revision=Number(weather?.forecast_revision??forecast?.forecast_revision??0)||0;
+  const remaining=Math.max(1,total-lap);
   const adaptiveLookahead=Math.max(
-    3,
-    Math.min(total-lap||1,Math.round(4+capability*8+Math.min(4,revision)))
+    1,
+    Math.min(remaining,Math.round(4+capability*8+Math.min(4,revision)))
   );
+  const relativeWindow=()=>{
+    if(!Number.isFinite(Number(timing?.window_low_pct))||!Number.isFinite(Number(timing?.window_high_pct)))return null;
+    const rawLow=Math.round(Number(timing.window_low_pct)*total)-lap;
+    const rawHigh=Math.round(Number(timing.window_high_pct)*total)-lap;
+    if(rawHigh<=0)return {passed:true,low:0,high:0};
+    return {
+      passed:false,
+      low:Math.max(1,rawLow),
+      high:Math.max(Math.max(1,rawLow),rawHigh),
+    };
+  };
 
   let message;
-  if(observedEasing){
+  if(!hasObservation&&timing.mode==="rain_from_start"){
+    message="Rain possible from the opening laps.";
+  }else if(observedEasing){
     message=`Rain is easing; conditions may continue improving over the next ${adaptiveLookahead} laps.`;
   }else if(observedWet){
-    if(timing.mode==="rain_easing"&&Number.isFinite(Number(timing.window_high_pct))){
-      const low=Math.max(1,Math.round(Number(timing.window_low_pct)*total)-lap);
-      const high=Math.max(low,Math.round(Number(timing.window_high_pct)*total)-lap);
-      message=high>0
-        ?`Rain may ease in approximately ${low}–${high} laps.`
+    if(timing.mode==="rain_easing"){
+      const window=relativeWindow();
+      message=window&&!window.passed
+        ?`Rain may ease in approximately ${window.low}–${window.high} laps.`
         :`Rain may ease soon, but timing remains uncertain.`;
     }else{
       message=`Rain may persist for at least ${adaptiveLookahead} laps.`;
     }
-  }else if(timing.mode==="rain_arrival"&&Number.isFinite(Number(timing.window_high_pct))){
-    const low=Math.max(1,Math.round(Number(timing.window_low_pct)*total)-lap);
-    const high=Math.max(low,Math.round(Number(timing.window_high_pct)*total)-lap);
-    message=high>0
-      ?`Rain possible in approximately ${low}–${high} laps.`
-      :`Rain remains possible at short notice.`;
+  }else if(timing.mode==="rain_arrival"){
+    const window=relativeWindow();
+    message=window&&!window.passed
+      ?`Rain possible in approximately ${window.low}–${window.high} laps.`
+      :`Rain remains possible within the next ${adaptiveLookahead} laps.`;
+  }else if(hasObservation&&timing.mode==="rain_from_start"){
+    message=`Rain remains possible within the next ${adaptiveLookahead} laps.`;
   }else{
     message=`No significant rain expected in the next ${adaptiveLookahead} laps.`;
   }
