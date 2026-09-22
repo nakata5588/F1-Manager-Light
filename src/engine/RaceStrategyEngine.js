@@ -684,8 +684,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     stints.push(stintRecord(tyre,stintStart,track.laps,condition,tempSum,tempCount));
     const weatherRisk=raceRiskFromWeather(working,weather,track);
     const wornTyreRisk=lowestCondition<20?1+(20-lowestCondition)*0.015:1;
-    const incidentRisk=clamp(weatherRisk*pace.risk_mult*wornTyreRisk,0.7,4);
-    const mechanicalRisk=clamp(pace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
+    const finalPace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
+    const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*wornTyreRisk,0.7,4);
+    const mechanicalRisk=clamp(finalPace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
 
     raceRows.push({
       pos:0,
