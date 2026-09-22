@@ -23,6 +23,13 @@ function controlLabel(type){
     RED_FLAG:"Red flag",
   }[key]||key.replaceAll("_"," ").toLowerCase();
 }
+function paceInstruction(mode){
+  return {
+    attack:"push",
+    conserve:"conserve tyres",
+    balanced:"maintain balanced pace",
+  }[String(mode||"balanced")]||String(mode||"balanced").replaceAll("_"," ");
+}
 function tyreDisplayName(gs,driverId,tyreId){
   const teamId=teamForDriver(gs,driverId);
   const tyre=tyresForTeam(gs,teamId).find((row)=>String(row?.tyre_id??row?.id??"")===String(tyreId??""));
@@ -244,12 +251,24 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId}={}){
   const existing=weekend?.race_strategy?.live_commands?.[did]||[];
   const nextCommands=existing.filter((row)=>!(row?.type===type&&Number(row?.effective_lap)===effectiveLap));
   nextCommands.push(command);
+  const driverName=driverDisplayName(gs,did);
+  const commandMessage=command.type==="pace"
+    ?`${driverName} was told to ${paceInstruction(command.pace_mode)} from lap ${effectiveLap}.`
+    :`${driverName} was told to pit next lap for ${tyreDisplayName(gs,did,command.tyre_id)} tyres.`;
   return {
     ...gs,
     raceWeekendState:{
       ...weekend,
       race_strategy:{...weekend.race_strategy,live_commands:{...(weekend.race_strategy?.live_commands||{}),[did]:nextCommands}},
-      live_race:{...live,events:[...(live.events||[]),{lap:Number(live.current_lap),type:"command",driver_id:did,effective_lap:effectiveLap,command}].slice(-80)},
+      live_race:{...live,events:[...(live.events||[]),{
+        lap:Number(live.current_lap),
+        type:"command",
+        driver_id:did,
+        driver_name:driverName,
+        effective_lap:effectiveLap,
+        command,
+        message:commandMessage,
+      }].slice(-80)},
     },
   };
 }
@@ -316,7 +335,9 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
           driver_name:driver,
           control_type:period.type,
           cause:"incident",
-          message:`${controlLabel(period.type)}: ${driver} involved in ${String(incident.reason||incident.kind||"an incident").toLowerCase()} (${incident.severity}).`,
+          severity:String(incident.severity||"unknown").toLowerCase(),
+          incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
+          message:`${controlLabel(period.type)} due to ${driver}'s ${String(incident.reason||incident.kind||"incident").toLowerCase()}.`,
         });
       }else{
         const mechanical=/engine|gearbox|transmission|electrical|cooling|fuel|suspension/i.test(String(incident.reason||""));
@@ -326,9 +347,11 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
           driver_id:incident.driver_id,
           driver_name:driver,
           cause:"incident",
+          severity:String(incident.severity||"unknown").toLowerCase(),
+          incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
           message:mechanical
             ?`${driver} stops with a ${String(incident.reason).toLowerCase()} problem.`
-            :`${driver} involved in ${String(incident.reason||incident.kind||"an incident").toLowerCase()} (${incident.severity}).`,
+            :`${driver} involved in ${String(incident.reason||incident.kind||"an incident").toLowerCase()}.`,
         });
       }
     }
@@ -356,13 +379,31 @@ export function advanceLiveRace(gs,{gp={},laps=1}={}){
     for(const stop of row?.pit_stops||[]){
       if(Number(stop?.lap)>Number(live.current_lap)&&Number(stop?.lap)<=target){
         const did=idOf(row.driver);
+        const driverName=driverDisplayName(working,did);
+        const previousTyre=tyreDisplayName(working,did,stop.tyre_from);
         const nextTyre=tyreDisplayName(working,did,stop.tyre_to);
+        const beforeRows=Number(stop.lap)>1
+          ?visibleClassification(working,simulation.race,Number(stop.lap)-1,plan,working?.raceWeekendState?.race_strategy)
+          :[];
+        const afterRows=visibleClassification(working,simulation.race,Number(stop.lap),plan,working?.raceWeekendState?.race_strategy);
+        const positionBefore=beforeRows.find((item)=>String(item.driver_id)===did)?.position??null;
+        const positionAfter=afterRows.find((item)=>String(item.driver_id)===did)?.position??null;
+        const positionText=Number.isFinite(Number(positionBefore))&&Number.isFinite(Number(positionAfter))
+          ?`, P${positionBefore} → P${positionAfter}`
+          :"";
         events.push({
           lap:Number(stop.lap),
           type:"pit",
           driver_id:did,
-          driver_name:driverDisplayName(working,did),
-          message:`${driverDisplayName(working,did)} pits for ${nextTyre} tyres (${Number(stop.total_loss_s).toFixed(1)}s lost).`,
+          driver_name:driverName,
+          tyre_from_id:stop.tyre_from,
+          tyre_to_id:stop.tyre_to,
+          tyre_from:previousTyre,
+          tyre_to:nextTyre,
+          total_loss_s:Number(stop.total_loss_s),
+          position_before:positionBefore,
+          position_after:positionAfter,
+          message:`${driverName} changed from ${previousTyre} to ${nextTyre} tyres (${Number(stop.total_loss_s).toFixed(1)}s lost${positionText}).`,
         });
       }
     }

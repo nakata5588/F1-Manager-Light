@@ -149,6 +149,10 @@ function finish1980Qualifying(options={}){
   gs=continueRaceWeekendSession(gs);
   assert.equal(gs.raceWeekendState.phase,"qualifying");
   gs=completeQualifyingSession(gs,{gp});
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
+  assert.equal(gs.raceWeekendState.qualifying.status,"completed");
+  assert.ok(gs.raceWeekendState.startingGrid.rows.length>0);
+  gs=continueRaceWeekendSession(gs);
   assert.equal(gs.raceWeekendState.phase,"grid_ready");
   return gs;
 }
@@ -220,12 +224,37 @@ test("RW3 saves and restores between Qualifying sessions without recalculating Q
   loaded={...loaded,currentDateISO:"1980-05-17"};
   loaded=continueRaceWeekendSession(loaded);
   loaded=completeQualifyingSession(loaded,{gp});
+  assert.equal(loaded.raceWeekendState.phase,"qualifying_wait");
+  assert.equal(loaded.raceWeekendState.qualifying.status,"completed");
+  assert.ok(loaded.raceWeekendState.startingGrid.rows.length>0);
+  loaded=continueRaceWeekendSession(loaded);
   assert.equal(loaded.raceWeekendState.phase,"grid_ready");
   assert.deepEqual(
     loaded.raceWeekendState.sessions.find((row)=>row.id==="qualifying_1"),
     q1,
     "completed Q1 must remain byte-for-byte stable after Q2"
   );
+});
+
+test("RW4.7 final Qualifying report marks non-starters as CUT before Strategy",()=>{
+  const qualifyingRules={...defaultQualifyingRule,max_starters:2};
+  let gs=startAfterPractice({qualifyingRules});
+  gs=completeQualifyingSession(gs,{gp});
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
+  gs=completeQualifyingSession(gs,{gp});
+
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
+  assert.equal(gs.raceWeekendState.qualifying.status,"completed");
+  const finalSession=gs.raceWeekendState.sessions.find((row)=>row.id==="qualifying_2");
+  const cutRows=(finalSession.results||[]).filter((row)=>row.status==="CUT");
+  const qualifiedRows=(finalSession.results||[]).filter((row)=>row.status==="QUALIFIED");
+  assert.equal(cutRows.length,2);
+  assert.equal(qualifiedRows.length,2);
+  assert.equal(gs.raceWeekendState.startingGrid.rows.length,2);
+
+  gs=continueRaceWeekendSession(gs);
+  assert.equal(gs.raceWeekendState.phase,"grid_ready");
 });
 
 test("RW3 1980 classification uses each driver's best time across sessions",()=>{
@@ -364,8 +393,10 @@ test("RW3 pre-qualifying is rule-driven and can eliminate DNPQ before main Quali
 test("results remain visible until calendar advances beyond race day",async()=>{
   let gs=finish1980Qualifying();
   gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
+  const playerTeam=structuredClone(gs.team);
   gs=await completeRaceSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"results");
+  assert.deepEqual(gs.team,playerTeam,"race finalisation must preserve the player team identity used by shell branding");
 
   const sameDay=syncRaceWeekendPhaseForDate(gs,"1980-05-18");
   assert.equal(sameDay.raceWeekendState.phase,"results");
@@ -473,7 +504,9 @@ test("RW4.3 weekend weather persists across Practice and Qualifying and refreshe
   gs=continueRaceWeekendSession(gs);
   gs=completeQualifyingSession(gs,{gp});
   assert.equal(gs.raceWeekendState.weekend_weather.forecast_revision,3);
-  assert.equal(gs.raceWeekendState.phase,"grid_ready");
+  assert.equal(gs.raceWeekendState.phase,"qualifying_wait");
   assert.equal(gs.raceWeekendState.race_strategy.forecast_revision_used,3);
+  gs=continueRaceWeekendSession(gs);
+  assert.equal(gs.raceWeekendState.phase,"grid_ready");
   assert.ok(gs.raceWeekendState.weekend_weather.forecast.race);
 });
