@@ -9,6 +9,7 @@ import { rngFor } from "../core/random.js";
 import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
+import { raceControlAtLap } from "./RaceControlEngine.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -606,6 +607,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       }
       const pace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
       const forcedPit=commandsThisLap.find((command)=>command?.type==="pit");
+      const control=raceControlAtLap(strategyState?.race_control_plan,lap);
       const state=stateAtLap(weather,lap);
       const category=weatherCategory(state);
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
@@ -632,7 +634,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         const errorDelay=error?3+rng.next()*8:0;
         const fuelDelay=refuel?(Number(working?.activeYear)<=1983?9:6):0;
         const stationary=Math.max(num(crew.avg_time_s,6.8),fuelDelay)+errorDelay;
-        const loss=track.pit_lane_loss_s+stationary;
+        const pitLaneMultiplier=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
+        const loss=track.pit_lane_loss_s*pitLaneMultiplier+stationary;
         totalMs+=Math.round(loss*1000);
         pits.push({
           lap,
@@ -643,6 +646,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           total_loss_s:Number(loss.toFixed(2)),
           error,
           refuelled:refuel,
+          race_control:control.type,
         });
         if(refuel)refuelled=true;
         tyre=nextTyre||tyre;
@@ -671,9 +675,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         ?strategy.fuel_plan==="light_start"&&!refuelled?-0.28:strategy.fuel_plan==="heavy_start"?0.22:0
         :0;
       const gridTraffic=lap===1?(gridIndex)*0.055*(0.75+track.overtaking_difficulty/100):0;
-      const noise=(rng.next()-0.5)*0.62;
+      const controlDelta=control.type==="SAFETY_CAR"?18:control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
+      const noise=(rng.next()-0.5)*(control.type==="GREEN"?0.62:0.20);
       const lapSeconds=(track.reference_lap_ms/1000)+perfPenalty+gripDelta+wearPenalty+warmupPenalty+
-        tyreWeatherPenalty(tyre,state)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+noise;
+        tyreWeatherPenalty(tyre,state)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+noise;
       const lapMs=Math.max(30000,Math.round(lapSeconds*1000));
       lapTimes.push(lapMs);
       totalMs+=lapMs;
@@ -756,6 +761,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       weather,
       track,
       strategies:Object.fromEntries(raceRows.map((row)=>[idOf(row.driver),row.strategy_summary])),
+      race_control:strategyState?.race_control_plan||null,
     },
   };
 }
