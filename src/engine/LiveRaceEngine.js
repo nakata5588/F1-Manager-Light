@@ -72,7 +72,7 @@ function visibleClassification(race,lap,plan){
 export function createLiveRaceState(gs,{gp={}}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
-  if(["running","finished"].includes(String(weekend.live_race?.status)))return gs;
+  if(["running","red_flag","finished"].includes(String(weekend.live_race?.status)))return gs;
   const track=weekend?.race_strategy?.track_snapshot||{};
   const prepared={...gs,raceWeekendState:{...weekend,race_strategy:{...(weekend.race_strategy||{}),live_commands:{...(weekend.race_strategy?.live_commands||{})}}}};
   const preliminary=simulateManagedRace(prepared,{gp,grid:gridForWeekend(prepared),ratings:prepared?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
