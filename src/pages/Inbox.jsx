@@ -45,6 +45,8 @@ function normalizeInbox(gameStateLike, fallbackList) {
     const date = m.date ?? m.dateISO ?? m.created_at ?? m.createdAt ?? m.when ?? m.ts ?? null;
     return {
       id: String(m.id ?? `MSG_${i}`),
+      origin: m.__origin || "save",
+      sourceId: String(m.__source_id ?? m.id ?? `MSG_${i}`),
       type,
       title: m.title ?? m.subject ?? m.name ?? m.headline ?? "Untitled",
       body: m.body ?? m.description ?? m.summary ?? "",
@@ -55,7 +57,13 @@ function normalizeInbox(gameStateLike, fallbackList) {
       senderRole: m.sender_role ?? m.role ?? m.department ?? "",
       priority: String(m.priority ?? (m.action_required || m.requires_response ? "high" : "normal")).toLowerCase(),
       actionRequired: Boolean(m.action_required ?? m.actionRequired ?? m.requires_response ?? m.requiresReply),
-      actionRoute: m.action_route ?? m.route ?? m.href ?? routeForType(type),
+      actions: Array.isArray(m.actions)
+        ? m.actions.filter((a) => a?.route).map((a, index) => ({
+            label: a.label || a.title || `Open item ${index + 1}`,
+            route: a.route,
+          }))
+        : [],
+      actionRoute: m.actions?.find?.((a) => a?.route)?.route ?? m.action_route ?? m.route ?? m.href ?? routeForType(type),
       deadline: m.deadline ?? m.due_date ?? m.respond_by ?? null,
       meta: { ...m },
     };
@@ -126,8 +134,10 @@ export default function Inbox() {
   }, []);
 
   const combinedInbox = useMemo(() => {
-    const base = Array.isArray(gameState?.inbox) ? gameState.inbox : [];
-    const news = Array.isArray(eventNews) ? eventNews.map((n) => ({
+    const base = Array.isArray(gameState?.inbox) ? gameState.inbox.map((m, i) => ({ ...m, __origin: "save", __source_id: m.id ?? i })) : [];
+    const news = Array.isArray(eventNews) ? eventNews.map((n, i) => ({
+      __origin: "event",
+      __source_id: n.id ?? i,
       ...n,
       id: n.id + "_" + (n.ts || n.dateISO || ""),
       type: String(n.type || "OTHER").toUpperCase(),
