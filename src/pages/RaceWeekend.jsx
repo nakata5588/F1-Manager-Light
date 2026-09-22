@@ -651,6 +651,8 @@ export default function RaceWeekend(){
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {playerPracticeResults.map((row)=>{
             const fatigueAfter=Number(row.fatigue_after??row.fatigue_cost??0);
+            const practiceImpact=practiceWeekendImpact(gs,row.driver_id);
+            const conditionImpact=conditionModifierBreakdown(gs,row.driver_id);
             return <div key={row.driver_id} className="rounded-xl border border-white/10 bg-[#171d27] p-4">
               <div className="flex items-start gap-3">
                 <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size="h-14 w-14" className="ring-white/10"/>
@@ -673,6 +675,18 @@ export default function RaceWeekend(){
                 <span className={"rounded px-2 py-1 "+fatigueTone(fatigueAfter)}>Fatigue {Number(row.fatigue_before??0).toFixed(0)} → {fatigueAfter.toFixed(0)}</span>
                 <span className="rounded bg-white/[0.05] px-2 py-1 text-slate-300">Learning {Number(row.fatigue_efficiency??100).toFixed(0)}%</span>
                 <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Wear +{Number(row.component_wear?.total_wear??0).toFixed(1)}</span>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-white/10 bg-[#0f141d] p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Weekend performance effect</div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  <div><div className="text-slate-500">Qualifying</div><div className="font-bold text-violet-300">{practiceImpact.qualifying>=0?"+":""}{practiceImpact.qualifying.toFixed(2)}</div></div>
+                  <div><div className="text-slate-500">Race</div><div className="font-bold text-emerald-300">{practiceImpact.race>=0?"+":""}{practiceImpact.race.toFixed(2)}</div></div>
+                  <div><div className="text-slate-500">Condition</div><div className={conditionImpact.total>=0?"font-bold text-emerald-300":"font-bold text-rose-300"}>{conditionImpact.total>=0?"+":""}{conditionImpact.total.toFixed(2)}</div></div>
+                </div>
+                <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                  Setup quality and programme focus directly modify qualifying/race performance. Preparation, confidence and fatigue feed the driver condition modifier; component wear feeds car performance and reliability. Setup knowledge is indirect: it helps generate setup quality and preparation rather than adding a second hidden bonus.
+                </p>
               </div>
 
               {row.component_wear?.lowest_slot&&<div className="mt-2 text-xs text-slate-500">
