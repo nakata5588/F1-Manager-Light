@@ -1,6 +1,7 @@
 // src/domain/driverEligibility.js
 // Career-time driver eligibility. Historical debut dates describe what happened
 // in reality; once a career begins they must not hard-lock an alternate future.
+import { openingStateNegotiationBlockReason } from "./driverOpeningState.js";
 
 const num=(value,fallback=NaN)=>{
   const n=Number(value);
@@ -37,6 +38,11 @@ export function f1HireEligibility(gs,driver,year=gs?.activeYear){
   const status=String(driver?.status||"").toLowerCase();
   const age=driverAgeForYear(driver,year);
   const minAge=minimumF1ContractAge(gs,year);
+  const openingBlock=openingStateNegotiationBlockReason(driver,year);
+
+  if(openingBlock){
+    return {eligible:false,reason:openingBlock,age,minAge};
+  }
 
   if(["deceased","retired","hidden"].includes(status)){
     return {eligible:false,reason:status,age,minAge};
