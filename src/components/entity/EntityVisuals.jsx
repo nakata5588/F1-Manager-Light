@@ -48,12 +48,11 @@ export function countryCodeFor(country = "", code = "") {
   return "";
 }
 
-// Retained for older call sites. New UI should prefer <CountryFlag /> so the
-// display does not depend on OS emoji support.
+// Backwards-compatible API used throughout the current UI. It now returns the
+// same inline SVG component so existing pages immediately stop depending on
+// operating-system flag emoji rendering.
 export function flagFromCountry(country = "", code = "") {
-  const cc=countryCodeFor(country,code);
-  if(!cc)return "🏳️";
-  return String.fromCodePoint(...[...cc].map((c)=>0x1f1a5+c.charCodeAt(0)));
+  return <CountryFlag country={country} code={code} />;
 }
 
 function FlagGraphic({code}){
