@@ -37,6 +37,7 @@ function fixture(){
       {driver_id:"D2",display_name:"Opening Two",dob:"1951-01-01",f1_rookie_season:1976},
       {driver_id:"P1",display_name:"Prospect One",dob:"1958-01-01",f1_rookie_season:1983},
       {driver_id:"Q1",display_name:"Review One",dob:"1956-01-01",f1_rookie_season:1982},
+      {driver_id:"A1",display_name:"Kart Prospect",dob:"1960-03-21",f1_rookie_season:1984},
       {driver_id:"DEAD",display_name:"Past Driver",dob:"1948-01-01",death_date:"1978-01-01"},
       {driver_id:"LEAK",display_name:"Season Outcome Leak",dob:"1952-01-01",f1_rookie_season:1979},
     ],
@@ -68,6 +69,10 @@ function fixture(){
       opening("Q1","Review One","NEEDS_RESEARCH","MARKET_STATUS_RESEARCH",{
         runtime_market_policy:"VISIBLE_BLOCK_DIRECT_NEGOTIATION",
       }),
+      opening("A1","Kart Prospect","PROSPECT","ACTIVE_OTHER_SERIES_NO_F1_SEAT",{
+        series_context:"KARTING",
+        runtime_market_policy:"ACADEMY_ONLY",
+      }),
       opening("DEAD","Past Driver","DECEASED","DECEASED_UNAVAILABLE",{
         runtime_visibility:"EXCLUDE_ACTIVE_WORLD",
         runtime_market_policy:"BLOCKED",
@@ -78,6 +83,7 @@ function fixture(){
       rating("D2",69,79),
       rating("P1",61,86),
       rating("Q1",64,75),
+      rating("A1",50,99),
     ],
     driverRatings:[],
     calendar:[{year:1980,round:1,gp_id:"GP1",gp_name:"Opening GP",track_id:"A",race_date:"1980-03-01"}],
@@ -99,7 +105,7 @@ test("opening state is authoritative and blocks season-outcome grid leakage",()=
   assert.equal(pack.validation.ok,true,JSON.stringify(pack.validation));
 
   const ids=new Set(pack.state.drivers.map((d)=>String(d.driver_id)));
-  assert.deepEqual([...ids].sort(),["D1","D2","P1","Q1"].sort());
+  assert.deepEqual([...ids].sort(),["A1","D1","D2","P1","Q1"].sort());
   assert.equal(ids.has("LEAK"),false,"full-season participation must not create a Jan-1 driver");
   assert.equal(ids.has("DEAD"),false,"pre-season deceased driver must not enter the active world");
 
@@ -129,4 +135,24 @@ test("opening market policy is honest and scoped to the New Game season",()=>{
 
   const alternateFuture=f1HireEligibility({...pack.state,activeYear:1981},review,1981);
   assert.equal(alternateFuture.eligible,true,"opening uncertainty must not hard-lock alternate history after rollover");
+});
+
+
+test("Academy-only opening prospects cannot jump directly from karting to an F1 seat",()=>{
+  const pack=materializeSeasonPack(fixture(),1980);
+  const academy=pack.state.drivers.find((d)=>d.driver_id==="A1");
+
+  assert.ok(academy);
+  assert.equal(academy.status,"junior_only");
+  assert.equal(academy.canHireAcademy,true);
+  assert.equal(academy.canHireF1,false);
+  assert.equal(f1HireEligibility(pack.state,academy,1980).eligible,false);
+  assert.equal(f1HireEligibility(pack.state,academy,1980).reason,"academy_only");
+
+  const alternateFuture=f1HireEligibility({...pack.state,activeYear:1981},academy,1981);
+  assert.equal(
+    alternateFuture.eligible,
+    true,
+    "Academy-only opening policy must not become a permanent historical debut lock after rollover"
+  );
 });
