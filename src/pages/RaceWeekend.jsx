@@ -64,6 +64,26 @@ function formatRaceTime(ms){
     ?`${hours}:${String(minutes).padStart(2,"0")}:${seconds.toFixed(3).padStart(6,"0")}`
     :`${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
 }
+function formatInterval(ms,{leader=false}={}){
+  const n=Number(ms);
+  if(leader)return "LEADER";
+  if(!Number.isFinite(n)||n<0)return "—";
+  return "+"+(n/1000).toFixed(3);
+}
+function positionDelta(value){
+  const n=Number(value)||0;
+  if(n>0)return "▲ "+n;
+  if(n<0)return "▼ "+Math.abs(n);
+  return "—";
+}
+function pitWindowLabel(window){
+  if(!window)return "Stay out";
+  if(Number(window.from_lap)===Number(window.to_lap))return "L"+window.from_lap;
+  return "L"+window.from_lap+"–"+window.to_lap;
+}
+function paceLabel(mode){
+  return RACE_PACE_MODES?.[String(mode)]?.label||String(mode||"Balanced").replaceAll("_"," ");
+}
 function statusClass(status){
   const key=String(status||"").toUpperCase();
   if(["QUALIFIED","ADVANCED","STARTER","CONTINUES","FINISHED"].includes(key))return "bg-emerald-50 text-emerald-800";
@@ -160,6 +180,16 @@ export default function RaceWeekend(){
   const liveRace=weekend?.live_race||null;
   const liveRows=liveRace?.classification||[];
   const trackState=liveRace?.track_state||null;
+  const timingSummary=liveRace?.timing_summary||null;
+  const liveBestSectors=useMemo(()=>{
+    const values=(key)=>liveRows.map((row)=>Number(row?.[key])).filter((value)=>Number.isFinite(value)&&value>0);
+    const s1=values("sector_1_ms"),s2=values("sector_2_ms"),s3=values("sector_3_ms");
+    return {
+      sector_1_ms:s1.length?Math.min(...s1):null,
+      sector_2_ms:s2.length?Math.min(...s2):null,
+      sector_3_ms:s3.length?Math.min(...s3):null,
+    };
+  },[liveRows]);
   const raceControlPlan=raceStrategy?.race_control_plan||null;
   const raceControlRules=raceControlPlan?.rules||null;
   const weekendWeather=weekend?.weekend_weather||null;
