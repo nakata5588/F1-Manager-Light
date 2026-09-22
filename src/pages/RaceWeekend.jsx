@@ -867,63 +867,134 @@ export default function RaceWeekend(){
     )}
 
     {activeWindow==="classification"&&weekend.phase==="results"&&(
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
-        <h3 className="font-semibold">Race Complete</h3>
-        <p className="text-sm text-slate-400 mt-1">
-          {lastResult?.classification?.[0]
-            ?`Winner: ${driverName(drivers,lastResult.classification[0].driver_id)}.`
-            :"Classification saved."}
-          {" "}Championship, injuries, component wear and finances have been processed.
-        </p>
+      <div className="rounded-xl border border-white/10 bg-[#0b0e14] shadow-xl overflow-hidden">
+        {(()=>{
+          const rows=Array.isArray(lastResult?.classification)?lastResult.classification:[];
+          const gridByDriver=new Map((lastResult?.startingGrid||startingGridRows||[]).map((row,index)=>[
+            String(row?.driver_id??""),
+            Number(row?.grid??index+1),
+          ]));
+          const winner=rows[0]||null;
+          const fastest=rows.find((row)=>row?.fastest_lap)||rows
+            .filter((row)=>Number.isFinite(Number(row?.best_lap_ms))&&Number(row.best_lap_ms)>0)
+            .slice().sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
+          const retirements=rows.filter((row)=>row?.retired||String(row?.status).toUpperCase()==="DNF").length;
+          const weatherState=String(lastResult?.weather?.state||raceStrategy?.weather_snapshot?.state||"—").replaceAll("_"," ");
+          return <>
+            <div className="p-5 border-b border-white/10">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Official Classification</div>
+                  <h3 className="mt-1 text-2xl font-semibold">{lastResult?.name||weekend.gp_name}</h3>
+                  <div className="mt-1 text-sm text-slate-400">Round {lastResult?.round??weekend.round} · {lastResult?.dateISO||weekend.raceDate}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Winner</div>
+                  <div className="text-lg font-bold">{winner?driverName(drivers,winner.driver_id):"—"}</div>
+                  <div className="text-xs text-slate-400">{winner?teamName(teams,winner.team_id):"—"}</div>
+                </div>
+              </div>
 
-        {Array.isArray(lastResult?.classification)&&lastResult.classification.length>0&&(
-          <div className="mt-4 overflow-x-auto border rounded-xl">
-            <table className="min-w-full text-sm">
-              <thead className="bg-[#121722]">
-                <tr>
-                  <th className="px-3 py-2 text-right">Finish</th>
-                  <th className="px-3 py-2 text-left">Driver</th>
-                  <th className="px-3 py-2 text-left">Team</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-left">Tyres / Stops</th>
-                  <th className="px-3 py-2 text-right">Time / Gap</th>
-                  <th className="px-3 py-2 text-right">Pts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lastResult.classification.map((row,index)=>{
-                  const status=String(row.status||(row.retired?"DNF":"Finished"));
-                  const gap=index===0
-                    ?formatRaceTime(row.total_time_ms)
-                    :row.retired
-                      ?(row.retirement_reason||status)
-                      :Number.isFinite(Number(row.gap_to_winner_ms))
-                        ?"+"+(Number(row.gap_to_winner_ms)/1000).toFixed(3)+"s"
-                        :"—";
-                  return <tr className="border-t" key={row.driver_id||index}>
-                    <td className="px-3 py-2 text-right font-semibold">P{row.position??index+1}</td>
-                    <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
-                    <td className="px-3 py-2">{teamName(teams,row.team_id)}</td>
-                    <td className="px-3 py-2"><span className={"rounded px-2 py-1 text-xs "+statusClass(status)}>{status}</span></td>
-                    <td className="px-3 py-2 text-xs">
-                      <div>{row.tyre_supplier||"—"} · {tyreName(gs?.tyres,row.start_tyre_id)}</div>
-                      <div className="text-slate-500">{row.strategy_summary?.pit_count??row.pit_stops?.length??0} stop(s){row.strategy_summary?.pit_laps?.length?" · L"+row.strategy_summary.pit_laps.join(", "):""}</div>
-                    </td>
-                    <td className="px-3 py-2 text-right">{gap}</td>
-                    <td className="px-3 py-2 text-right font-medium">{row.points??0}</td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Race Time</div>
+                  <div className="mt-1 font-semibold font-mono">{formatRaceTime(winner?.total_time_ms)}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Fastest Lap</div>
+                  <div className="mt-1 font-semibold font-mono">{formatLapTime(fastest?.best_lap_ms)}</div>
+                  <div className="text-[11px] text-slate-500">{fastest?driverName(drivers,fastest.driver_id):"—"}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Retirements</div>
+                  <div className="mt-1 font-semibold">{retirements} / {rows.length}</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Conditions</div>
+                  <div className="mt-1 font-semibold">{weatherState}</div>
+                  <div className="text-[11px] text-slate-500">{Number(lastResult?.weather?.avg_temp_c||0)>0?Number(lastResult.weather.avg_temp_c).toFixed(0)+"°C air":"Race weather"}</div>
+                </div>
+              </div>
+            </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button className="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm" onClick={()=>navigate("/Results")}>Open Full Results</button>
-          <button disabled={busy} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50" onClick={advanceSession}>
-            {busy?"Advancing…":"Continue after Grand Prix"}
-          </button>
-        </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[1320px] w-full text-sm">
+                <thead className="bg-[#121722] text-slate-400 uppercase tracking-wide text-[11px]">
+                  <tr>
+                    <th className="px-3 py-2 text-right">Pos</th>
+                    <th className="px-2 py-2 text-center">±</th>
+                    <th className="px-3 py-2 text-left">Driver</th>
+                    <th className="px-3 py-2 text-left">Team</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-right">Stops</th>
+                    <th className="px-3 py-2 text-right">Best Lap</th>
+                    <th className="px-3 py-2 text-right">Time / Gap</th>
+                    <th className="px-3 py-2 text-right">Race Pts</th>
+                    <th className="px-3 py-2 text-right">Championship</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row,index)=>{
+                    const did=String(row?.driver_id??"");
+                    const tid=String(row?.team_id??"");
+                    const finish=Number(row?.position??index+1);
+                    const grid=Number(gridByDriver.get(did)||finish);
+                    const delta=grid-finish;
+                    const status=String(row?.status||(row?.retired?"DNF":"Finished"));
+                    const gap=index===0
+                      ?formatRaceTime(row?.total_time_ms)
+                      :row?.retired
+                        ?(row?.retirement_reason||status)+(row?.incident_lap?" · L"+row.incident_lap:"")
+                        :Number.isFinite(Number(row?.gap_to_winner_ms))
+                          ?formatInterval(row.gap_to_winner_ms)
+                          :"—";
+                    const standing=driverStandingById.get(did);
+                    const teamStanding=constructorStandingById.get(tid);
+                    return <tr key={did||index} className={"border-t border-white/5 "+(tid===playerTeamId?"bg-white/[0.06]":"hover:bg-white/[0.025]")}>
+                      <td className="px-3 py-3 text-right text-base font-bold">P{finish}</td>
+                      <td className={"px-2 py-3 text-center font-semibold "+(delta>0?"text-emerald-400":delta<0?"text-rose-400":"text-slate-600")}>{positionDelta(delta)}</td>
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-slate-100">{driverName(drivers,did)}</div>
+                        <div className="text-[11px] text-slate-500">Grid P{grid}{row?.fastest_lap?" · Fastest lap":""}</div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-7 w-7" className="p-0.5"/>
+                          <div>
+                            <div className="font-medium">{teamName(teams,tid)}</div>
+                            <div className="text-[11px] text-slate-500">{teamStanding?"Constructors P"+teamStanding.position+" · "+teamStanding.points+" pts":"—"}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={"rounded px-2 py-1 text-xs "+(row?.retired?"bg-amber-500/15 text-amber-300":"bg-emerald-500/15 text-emerald-300")}>{status}</span>
+                        {Number.isFinite(Number(row?.laps_completed))&&<div className="mt-1 text-[11px] text-slate-500">{row.laps_completed}/{row.race_laps??row.laps_completed} laps</div>}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <div className="font-semibold">{row?.strategy_summary?.pit_count??row?.pit_stops?.length??0}</div>
+                        <div className="text-[11px] text-slate-500">{row?.strategy_summary?.pit_laps?.length?"L"+row.strategy_summary.pit_laps.join(", "):"—"}</div>
+                      </td>
+                      <td className={"px-3 py-3 text-right font-mono "+(row?.fastest_lap?"text-fuchsia-300 font-semibold":"")}>{formatLapTime(row?.best_lap_ms)}</td>
+                      <td className="px-3 py-3 text-right font-mono">{gap}</td>
+                      <td className="px-3 py-3 text-right font-bold">{row?.points??0}</td>
+                      <td className="px-3 py-3 text-right">
+                        <div className="font-bold">{standing?"P"+standing.position:"—"}</div>
+                        <div className="text-[11px] text-slate-500">{standing?standing.points+" pts":"—"}</div>
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-4 border-t border-white/10 flex flex-wrap gap-2">
+              <button className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm hover:bg-white/10" onClick={()=>navigate("/Results")}>Open Full Results</button>
+              <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={advanceSession}>
+                {busy?"Advancing…":"Continue after Grand Prix"}
+              </button>
+            </div>
+          </>;
+        })()}
       </div>
     )}
 
