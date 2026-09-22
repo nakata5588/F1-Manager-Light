@@ -1,0 +1,228 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  createRaceStrategyState,
+  ensureRaceStrategyWorld,
+  raceStrategyRulesForYear,
+  raceTrackProfile,
+  setRaceStrategySelection,
+  simulateManagedRace,
+  tyresForTeam,
+} from "../src/engine/RaceStrategyEngine.js";
+
+const tyres=[
+  {tyre_id:"gy_h",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Hard",category:"dry",grip_index:74,wear_rate:0.015,warmup_time_s:2.8},
+  {tyre_id:"gy_s",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Soft",category:"dry",grip_index:80,wear_rate:0.022,warmup_time_s:2.2},
+  {tyre_id:"gy_i",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Intermediate",category:"intermediate",grip_index:65,wear_rate:0.018,warmup_time_s:3.1},
+  {tyre_id:"gy_w",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Wet",category:"wet",grip_index:55,wear_rate:0.020,warmup_time_s:3.5},
+  {tyre_id:"mi_h",year_from:1980,year_to:1980,supplier:"Michelin",compound_name:"Hard",category:"dry",grip_index:76,wear_rate:0.014,warmup_time_s:2.7},
+  {tyre_id:"mi_s",year_from:1980,year_to:1980,supplier:"Michelin",compound_name:"Soft",category:"dry",grip_index:82,wear_rate:0.021,warmup_time_s:2.1},
+  {tyre_id:"mi_i",year_from:1980,year_to:1980,supplier:"Michelin",compound_name:"Intermediate",category:"intermediate",grip_index:66,wear_rate:0.017,warmup_time_s:3.0},
+  {tyre_id:"mi_w",year_from:1980,year_to:1980,supplier:"Michelin",compound_name:"Wet",category:"wet",grip_index:56,wear_rate:0.019,warmup_time_s:3.4},
+];
+
+function driver(id,name,team_id){return {driver_id:id,display_name:name,team_id};}
+
+function fixture(overrides={}){
+  const drivers=[
+    driver("d_w1","Williams High","t_williams"),
+    driver("d_w2","Williams Low","t_williams"),
+    driver("d_f1","Ferrari One","t_ferrari"),
+    driver("d_f2","Ferrari Two","t_ferrari"),
+  ];
+  const ratings=[
+    {driver_id:"d_w1",pace:76,racecraft:76,consistency:74,tire_management:90,race_intelligence:78,start_launch:70,mentality:72,pressure_handling:72,adaptability:72,current_ability:76,crash_likelihood:25},
+    {driver_id:"d_w2",pace:76,racecraft:76,consistency:74,tire_management:40,race_intelligence:70,start_launch:70,mentality:72,pressure_handling:72,adaptability:72,current_ability:76,crash_likelihood:25},
+    {driver_id:"d_f1",pace:78,racecraft:77,consistency:73,tire_management:70,race_intelligence:74,start_launch:72,mentality:74,pressure_handling:74,adaptability:74,current_ability:78,crash_likelihood:25},
+    {driver_id:"d_f2",pace:75,racecraft:75,consistency:72,tire_management:66,race_intelligence:72,start_launch:68,mentality:72,pressure_handling:72,adaptability:70,current_ability:75,crash_likelihood:25},
+  ];
+  const entries=drivers.map((d,index)=>({
+    driver_id:d.driver_id,
+    team_id:d.team_id,
+    status:"confirmed",
+    car_slot:(index%2)+1,
+    entry_type:"race_driver",
+  }));
+  const gs={
+    activeYear:1980,
+    currentDateISO:"1980-05-18",
+    saveMeta:{seed:"rw4-test-seed"},
+    team:{team_id:"t_williams",name:"Williams"},
+    teams:[
+      {team_id:"t_williams",team_name:"Williams"},
+      {team_id:"t_ferrari",team_name:"Ferrari"},
+    ],
+    drivers,
+    driverRatings:ratings,
+    driverAttributes:Object.fromEntries(drivers.map((d)=>[d.driver_id,{fatigue:10,preparation:60,confidence:55,morale:55}])),
+    tyres,
+    dbTyres:tyres,
+    trackLayoutByYear:[{track_id:"monaco",year_from:1973,year_to:1985,lap_length_km:3.34,laps:30,pit_lane_loss_s:24}],
+    coreTracks:[{track_id:"monaco",track_name:"Monaco",tyre_wear:65,overtaking_difficulty:88,lap_length_km:3.34,pit_lane_loss_s:25}],
+    dbWeatherProfiles:[{track_id:"monaco",month:5,avg_temp:22,rain_chance:0,storm_chance:0,wind_profile:"low"}],
+    dbWeatherStates:[
+      {id:"SUNNY",crash_risk_ppm:1},
+      {id:"LIGHT_RAIN",crash_risk_ppm:1.6},
+      {id:"HEAVY_RAIN",crash_risk_ppm:2.4},
+      {id:"STORM",crash_risk_ppm:3.2},
+    ],
+    dbPitcrewRoster:[
+      {team_id:"t_williams",year:1980,avg_time:6.2,consistency:85,error_rate:0.02},
+      {team_id:"t_ferrari",year:1980,avg_time:6.4,consistency:82,error_rate:0.03},
+    ],
+    facilities:[
+      {team_id:"t_williams",year:1980,pitcrew_training_level:7},
+      {team_id:"t_ferrari",year:1980,pitcrew_training_level:6},
+    ],
+    carStats:[
+      {team_id:"t_williams",year:1980,chassis_spec:76,aero_spec:75,gearbox_spec:74,suspension_spec:74,brakes_spec:75,cooling_spec:74,reliability:0.84},
+      {team_id:"t_ferrari",year:1980,chassis_spec:77,aero_spec:76,gearbox_spec:75,suspension_spec:75,brakes_spec:76,cooling_spec:74,reliability:0.83},
+    ],
+    teamEngines:[
+      {team_id:"t_williams",year:1980,power:78,reliability:82,chassis_integration:76},
+      {team_id:"t_ferrari",year:1980,power:80,reliability:80,chassis_integration:77},
+    ],
+    raceEntryState:{entries},
+    ...overrides,
+  };
+  return gs;
+}
+
+const gp={gp_id:"gp_monaco_1980",track_id:"monaco",gp_name:"Monaco Grand Prix",race_date:"1980-05-18"};
+
+function withStrategy(gs,gpInput=gp){
+  const built=createRaceStrategyState(gs,{gp:gpInput,raceEntryState:gs.raceEntryState});
+  return {
+    ...built.gameState,
+    raceWeekendState:{
+      phase:"race",
+      race_strategy:built.state,
+    },
+  };
+}
+
+function grid(gs){
+  return [
+    {pos:1,driver:gs.drivers[2]},
+    {pos:2,driver:gs.drivers[0]},
+    {pos:3,driver:gs.drivers[3]},
+    {pos:4,driver:gs.drivers[1]},
+  ];
+}
+
+test("1980 rules do not import modern refuelling or mandatory compound rules",()=>{
+  const r1980=raceStrategyRulesForYear(1980);
+  assert.equal(r1980.refuelling_allowed,false);
+  assert.equal(r1980.mandatory_dry_compounds,1);
+  assert.equal(r1980.default_pit_plan,"no_stop");
+
+  const r1982=raceStrategyRulesForYear(1982);
+  assert.equal(r1982.refuelling_allowed,true);
+
+  const r2008=raceStrategyRulesForYear(2008);
+  assert.equal(r2008.refuelling_allowed,true);
+  assert.equal(r2008.mandatory_dry_compounds,2);
+
+  const r2010=raceStrategyRulesForYear(2010);
+  assert.equal(r2010.refuelling_allowed,false);
+  assert.equal(r2010.mandatory_dry_compounds,2);
+});
+
+test("1980 supplier calibration seeds the world once and Save World stays authoritative",()=>{
+  const seeded=ensureRaceStrategyWorld(fixture());
+  assert.equal(seeded.raceStrategyWorld.teamSuppliers.t_ferrari,"Michelin");
+  assert.equal(seeded.raceStrategyWorld.teamSuppliers.t_williams,"Goodyear");
+  assert.equal(seeded.raceStrategyWorld.pitCrews.t_williams.source,"career_seed");
+
+  const alternate={
+    ...seeded,
+    raceStrategyWorld:{
+      ...seeded.raceStrategyWorld,
+      teamSuppliers:{...seeded.raceStrategyWorld.teamSuppliers,t_williams:"Michelin"},
+    },
+  };
+  const preserved=ensureRaceStrategyWorld(alternate);
+  assert.equal(preserved.raceStrategyWorld.teamSuppliers.t_williams,"Michelin");
+});
+
+test("track strategy snapshot uses year-specific laps and pit-lane loss",()=>{
+  const track=raceTrackProfile(fixture(),gp);
+  assert.equal(track.laps,30);
+  assert.equal(track.pit_lane_loss_s,24);
+  assert.equal(track.lap_length_km,3.34);
+});
+
+test("player strategy persists and 1980 rejects in-race fuel strategy",()=>{
+  let gs=withStrategy(fixture());
+  gs=setRaceStrategySelection(gs,{
+    driverId:"d_w1",
+    patch:{start_tyre_id:"gy_s",next_tyre_id:"gy_h",pace_mode:"attack",pit_plan:"one_stop",planned_stop_lap:15,fuel_plan:"light_start"},
+  });
+  const s=gs.raceWeekendState.race_strategy.selections.d_w1;
+  assert.equal(s.start_tyre_id,"gy_s");
+  assert.equal(s.next_tyre_id,"gy_h");
+  assert.equal(s.pace_mode,"attack");
+  assert.equal(s.pit_plan,"one_stop");
+  assert.equal(s.planned_stop_lap,15);
+  assert.equal(s.fuel_plan,"not_applicable");
+});
+
+test("planned stop uses circuit pit loss and produces persisted stint history",()=>{
+  let gs=withStrategy(fixture());
+  gs=setRaceStrategySelection(gs,{
+    driverId:"d_w1",
+    patch:{start_tyre_id:"gy_s",next_tyre_id:"gy_h",pace_mode:"balanced",pit_plan:"one_stop",planned_stop_lap:15},
+  });
+  const result=simulateManagedRace(gs,{gp,grid:grid(gs),ratings:gs.driverRatings,roundIndex:0});
+  const row=result.race.find((r)=>r.driver.driver_id==="d_w1");
+  assert.ok(row);
+  assert.ok(row.pit_stops.length>=1);
+  assert.equal(row.pit_stops[0].lap,15);
+  assert.ok(row.pit_stops[0].total_loss_s>24);
+  assert.ok(row.stints.length>=2);
+  assert.equal(row.race_laps,30);
+  assert.equal(row.strategy_summary.refuelled,false);
+});
+
+test("driver tyre-management rating materially changes degradation",()=>{
+  let gs=withStrategy(fixture());
+  for(const did of ["d_w1","d_w2"]){
+    gs=setRaceStrategySelection(gs,{driverId:did,patch:{start_tyre_id:"gy_h",next_tyre_id:"gy_h",pace_mode:"balanced",pit_plan:"no_stop"}});
+  }
+  const result=simulateManagedRace(gs,{gp,grid:grid(gs),ratings:gs.driverRatings,roundIndex:0});
+  const high=result.race.find((r)=>r.driver.driver_id==="d_w1");
+  const low=result.race.find((r)=>r.driver.driver_id==="d_w2");
+  assert.ok(high.lowest_tyre_condition>low.lowest_tyre_condition);
+});
+
+test("heavy rain selects wet-weather tyres and increases race incident exposure",()=>{
+  const wetGp={...gp,weather:"Heavy Rain"};
+  const gs=withStrategy(fixture(),wetGp);
+  const strategy=gs.raceWeekendState.race_strategy;
+  assert.equal(strategy.weather_snapshot.wet_race,true);
+  const userStart=strategy.selections.d_w1.start_tyre_id;
+  const tyre=tyresForTeam(gs,"t_williams").find((row)=>row.tyre_id===userStart);
+  assert.equal(tyre.category,"wet");
+
+  const result=simulateManagedRace(gs,{gp:wetGp,grid:grid(gs),ratings:gs.driverRatings,roundIndex:0});
+  assert.ok(result.race.every((row)=>row.incident_risk_multiplier>1));
+});
+
+test("race simulation is deterministic for the same save seed and strategy",()=>{
+  let gs=withStrategy(fixture());
+  gs=setRaceStrategySelection(gs,{driverId:"d_w1",patch:{pit_plan:"adaptive",pace_mode:"attack"}});
+  const a=simulateManagedRace(gs,{gp,grid:grid(gs),ratings:gs.driverRatings,roundIndex:0});
+  const b=simulateManagedRace(gs,{gp,grid:grid(gs),ratings:gs.driverRatings,roundIndex:0});
+  assert.deepEqual(
+    a.race.map((row)=>({id:row.driver.driver_id,time:row.total_time_ms,pits:row.pit_stops,condition:row.tyre_condition_finish})),
+    b.race.map((row)=>({id:row.driver.driver_id,time:row.total_time_ms,pits:row.pit_stops,condition:row.tyre_condition_finish}))
+  );
+});
+
+test("sparse tyre catalog carries the nearest prior family instead of producing an empty race",()=>{
+  const gs1981=fixture({activeYear:1981,currentDateISO:"1981-05-17",tyres:[]});
+  const built=createRaceStrategyState(gs1981,{gp:{...gp,race_date:"1981-05-17"},raceEntryState:gs1981.raceEntryState});
+  assert.ok(built.state.selections.d_w1.start_tyre_id);
+  assert.ok(tyresForTeam(built.gameState,"t_williams").length>0);
+});
