@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -266,6 +266,9 @@ test("RW4.4 live timing exposes sectors, intervals, tyre age, position change an
   assert.ok(Number.isFinite(leader.position_gain));
   assert.ok(Number.isFinite(leader.position_change_last_lap));
   assert.ok(Number.isFinite(leader.projected_finish_position));
+  assert.ok(Number.isFinite(leader.projected_finish_best));
+  assert.ok(Number.isFinite(leader.projected_finish_worst));
+  assert.equal(leader.projection_source,"observed_live_state");
   assert.ok(Number.isFinite(leader.pit_rejoin_position)&&leader.pit_rejoin_position>=1);
   assert.ok(Number.isFinite(leader.pit_loss_estimate_s)&&leader.pit_loss_estimate_s>0);
   assert.ok(Number.isFinite(leader.best_lap_ms)&&leader.best_lap_ms>0);
@@ -290,6 +293,100 @@ test("RW4.4 live timing exposes sectors, intervals, tyre age, position change an
   assert.equal(timing.leader_driver_id,leader.driver_id);
   assert.ok(Number.isFinite(timing.fastest_lap_ms)&&timing.fastest_lap_ms>0);
   assert.equal(timing.running_count+timing.retired_count,rows.length);
+});
+
+test("RW4.10 finish projection ignores hidden final classification and future-only fields",()=>{
+  const observed=[
+    {
+      driver_id:"D1",position:2,elapsed_ms:360000,recent_pace_ms:90000,current_pace:"balanced",next_pace:"attack",
+      tyre:{condition:72},observed_tyre_wear_per_lap:2.1,observed_sample_count:4,expected_future_pit_loss_s:12,
+      pit_window:{target_lap:8},
+      hidden_final_position:4,
+      future_lap_times_ms:[85000,84000,83000],
+    },
+    {
+      driver_id:"D2",position:1,elapsed_ms:357000,recent_pace_ms:90500,current_pace:"balanced",next_pace:"balanced",
+      tyre:{condition:81},observed_tyre_wear_per_lap:1.4,observed_sample_count:4,expected_future_pit_loss_s:0,
+      pit_window:null,
+      hidden_final_position:1,
+      future_lap_times_ms:[99000,99000,99000],
+    },
+    {
+      driver_id:"D3",position:3,elapsed_ms:365000,recent_pace_ms:89200,current_pace:"attack",next_pace:"attack",
+      tyre:{condition:60},observed_tyre_wear_per_lap:2.8,observed_sample_count:3,expected_future_pit_loss_s:0,
+      pit_window:null,
+      hidden_final_position:2,
+      future_lap_times_ms:[70000,70000,70000],
+    },
+  ];
+  const first=projectObservedRaceState(observed,{lap:4,totalLaps:12,forecastConfidencePct:58});
+
+  const altered=structuredClone(observed);
+  altered[0].hidden_final_position=1;
+  altered[1].hidden_final_position=4;
+  altered[2].hidden_final_position=1;
+  altered[0].future_lap_times_ms=[20000,20000,20000];
+  altered[1].future_lap_times_ms=[200000,200000,200000];
+  altered[2].future_lap_times_ms=[30000,30000,30000];
+
+  const second=projectObservedRaceState(altered,{lap:4,totalLaps:12,forecastConfidencePct:58});
+  assert.deepEqual(
+    second.map((row)=>({
+      id:row.driver_id,
+      projected:row.projected_finish_position,
+      best:row.projected_finish_best,
+      worst:row.projected_finish_worst,
+      elapsed:row.projected_elapsed_ms,
+    })),
+    first.map((row)=>({
+      id:row.driver_id,
+      projected:row.projected_finish_position,
+      best:row.projected_finish_best,
+      worst:row.projected_finish_worst,
+      elapsed:row.projected_elapsed_ms,
+    })),
+    "player-facing projection must not consume hidden final positions or future lap times"
+  );
+});
+
+test("RW4.10 live timing exposes projection range, confidence and traffic-aware pit rejoin",()=>{
+  let gs=createLiveRaceState(fixture("rw4.10-projection"),{gp});
+  gs=advanceTo(gs,4);
+  const rows=gs.raceWeekendState.live_race.classification;
+  const player=rows.find((row)=>row.driver_id==="D1");
+  assert.ok(player);
+  assert.equal(player.projection_source,"observed_live_state");
+  assert.ok(Number.isFinite(player.projected_finish_position));
+  assert.ok(Number.isFinite(player.projected_finish_best));
+  assert.ok(Number.isFinite(player.projected_finish_worst));
+  assert.ok(player.projected_finish_best<=player.projected_finish_position);
+  assert.ok(player.projected_finish_worst>=player.projected_finish_position);
+  assert.ok(Number.isFinite(player.projection_confidence_pct));
+  assert.ok(Number.isFinite(player.recent_pace_ms)&&player.recent_pace_ms>0);
+  assert.ok(Number.isFinite(player.pit_rejoin_position));
+  assert.ok(Number.isFinite(player.pit_rejoin_best));
+  assert.ok(Number.isFinite(player.pit_rejoin_worst));
+  assert.ok(player.pit_rejoin_best<=player.pit_rejoin_position);
+  assert.ok(player.pit_rejoin_worst>=player.pit_rejoin_position);
+  assert.ok(Number.isFinite(player.pit_rejoin_traffic_count));
+});
+
+test("RW4.10 observed tyre snapshots cannot be rewritten by a future pace command",()=>{
+  let base=createLiveRaceState(fixture("rw4.10-tyre-snapshot"),{gp});
+  base=advanceTo(base,4);
+  const beforeRace=base.raceWeekendState.live_race.projected_race.find((row)=>row.driver.driver_id==="D1");
+  const beforeSnapshot=structuredClone(beforeRace.tyre_state_by_lap.find((row)=>row.lap===4));
+  assert.ok(beforeSnapshot);
+  assert.equal(
+    base.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1").tyre.source,
+    "observed_lap_snapshot"
+  );
+
+  let commanded=issueLiveRaceCommand(base,{driverId:"D1",type:"pace",paceMode:"attack"});
+  commanded=advanceTo(commanded,5);
+  const afterRace=commanded.raceWeekendState.live_race.projected_race.find((row)=>row.driver.driver_id==="D1");
+  const afterSnapshot=afterRace.tyre_state_by_lap.find((row)=>row.lap===4);
+  assert.deepEqual(afterSnapshot,beforeSnapshot,"a command effective from lap 5 must not rewrite the observed tyre state from lap 4");
 });
 
 test("RW4.4 advanced timing remains deterministic after save/load",()=>{
