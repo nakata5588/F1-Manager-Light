@@ -4,7 +4,7 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
+import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import {
   advancingDriverIds,
@@ -423,12 +423,14 @@ export async function completeRaceSession(gs,{gp}={}){
   const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
   if(!startingGridRows.length)return gs;
 
+  const liveRaceRows=weekend.live_race?finalizedLiveRaceRows(gs):null;
   const next=await runRaceWeekend(gs,{
     roundIndex:Number(weekend.roundIndex)||0,
     gp:targetGp,
     startingGridOverride:startingGridRows,
     qualifyingClassificationOverride:weekend.qualifying?.classification||[],
     raceEntryOverride:gs?.raceEntryState,
+    raceOverride:liveRaceRows,
   });
   const sessions=sessionWithPatch(weekend.sessions,"race",{
     status:"completed",

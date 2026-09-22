@@ -686,6 +686,7 @@ export async function runRaceWeekend(gs, {
   qualifyingClassificationOverride=null,
   startingGridOverride=null,
   raceEntryOverride=null,
+  raceOverride=null,
 } = {}) {
   const hasPersistentGrid=Array.isArray(startingGridOverride)&&startingGridOverride.length>0;
   let qualifyingSession=null;
@@ -731,7 +732,16 @@ export async function runRaceWeekend(gs, {
   gs=managedRace.gameState;
   Object.assign(next,managedRace.gameState);
   const raceWet=Boolean(managedRace?.weather?.wet_race)||wet;
-  const race = applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng);
+  const race = Array.isArray(raceOverride)&&raceOverride.length
+    ? raceOverride
+        .map((row,index)=>({
+          ...row,
+          pos:Number(row?.pos??row?.position??index+1),
+          retired:Boolean(row?.retired),
+          status:row?.status||(row?.retired?"DNF":"Finished"),
+        }))
+        .sort((a,b)=>Number(a.pos)-Number(b.pos))
+    : applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng);
 
   const previousDriverStandings=gs.standings?.drivers||[];
   const prevDrv = new Map(previousDriverStandings.map(x => [String(x.driver_id), Number(x.points||0)]));

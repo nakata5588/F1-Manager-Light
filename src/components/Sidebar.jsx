@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useGame } from "../state/GameStore";
+import { useEventStore } from "../state/EventStore";
 import {
   Home,
   Calendar,
@@ -73,6 +74,7 @@ const Item = ({ to, label, icon: IconComp, brand, badge = 0 }) => {
 
 export default function Sidebar() {
   const { gameState } = useGame();
+  const eventNews = useEventStore((s) => s.news);
   const team = gameState?.team || null;
   const [brands, setBrands] = useState([]);
 
@@ -92,7 +94,10 @@ export default function Sidebar() {
 
   const attention = useMemo(() => {
     const inbox = Array.isArray(gameState?.inbox) ? gameState.inbox : [];
-    const unreadInbox = inbox.filter((m) => m?.unread === true || m?.read === false || m?.is_unread === true).length;
+    const unreadSaved = inbox.filter((m) => m?.unread === true || m?.read === false || m?.is_unread === true).length;
+    const unreadNews = (Array.isArray(eventNews) ? eventNews : [])
+      .filter((m) => m?.unread === true || m?.read === false || m?.is_unread === true).length;
+    const unreadInbox = unreadSaved + unreadNews;
 
     const conditions = Object.values(gameState?.driverAttributes || {});
     const driverFatigue = conditions.filter((row) => Number(row?.fatigue || 0) >= 70).length;
@@ -108,7 +113,7 @@ export default function Sidebar() {
     ).length;
 
     return { inbox: unreadInbox, drivers: driverFatigue, car: carWear, board };
-  }, [gameState]);
+  }, [gameState, eventNews]);
 
   return (
     <aside
