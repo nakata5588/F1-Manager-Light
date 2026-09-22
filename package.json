@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
     "validate:data": "node scripts/validate_json.js",
-    "check": "npm run test:career && npm run test:drivers && npm run test:driver-profile && npm run test:simulation && npm run test:management && npm run test:management-events && npm run test:management-depth && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:season-packs && npm run validate:data && npm run build",
+    "check": "npm run test:career && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:management-events && npm run test:management-depth && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:season-packs && npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run season:generate\"",
     "predev": "npm run season:generate",
@@ -18,7 +18,7 @@
     "season:generate": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs",
     "season:generate:test-years": "npm run build:data && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-season-packs.mjs --years=1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2014,2020",
     "test:season-packs": "npm run season:generate:test-years && node --test tests/seasonPacks.real.test.js",
-    "test:drivers": "node --test tests/driverProgression.test.js",
+    "test:drivers": "node --test tests/driverProgression.test.js tests/driverProfile.test.js",
     "test:simulation": "node --test tests/driverSimulation.test.js",
     "test:management": "node --test tests/managementSystems.test.js",
     "test:save-safety": "node --test tests/saveSafety.test.js",
@@ -36,8 +36,7 @@
     "test:race-control": "node --test tests/raceControl.test.js",
     "test:weekend-weather": "node --test tests/weekendWeather.test.js",
     "test:management-depth": "node --test tests/managementDepth.test.js",
-    "test:opening-state": "node --test tests/openingState.test.js",
-    "test:driver-profile": "node --test tests/driverProfile.test.js"
+    "test:opening-state": "node --test tests/openingState.test.js"
   },
   "keywords": [
     "f1",
