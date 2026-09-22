@@ -259,6 +259,11 @@ test("RW4.11 Race Feed history is not truncated after 100 observed events",()=>{
   assert.equal(gs.raceWeekendState.live_race.events.length,121);
   assert.equal(gs.raceWeekendState.live_race.events[0].event_key,"history:0");
   assert.equal(gs.raceWeekendState.live_race.events.at(-1).type,"command");
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW4.11 full race history"},gameState:stored});
+  assert.equal(loaded.raceWeekendState.live_race.events.length,121);
+  assert.equal(loaded.raceWeekendState.live_race.events[0].event_key,"history:0");
 });
 
 test("red flag state can be resumed without rebuilding the race",()=>{
