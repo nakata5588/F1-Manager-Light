@@ -1,6 +1,7 @@
 // src/engine/PracticeSetupEngine.js
 import { rngFor } from "../core/random.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
+import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
 import { defaultDriverCondition, driverCondition, fatiguePenalty } from "../domain/driverRating.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
@@ -255,21 +256,30 @@ function aiProgrammeFor(gs,teamId,driverId,engineering){
 
 function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50,weatherRisk=1}){
   const rating=ratingFor(gs,driverId);
-  const car=teamCarPerformance(gs,teamId,driverId);
   const crash=num(rating?.crash_likelihood,25)/100;
-  const reliability=num(car?.reliability,75)/100;
   const fatigue=num(driverCondition(gs,driverId)?.fatigue,0);
+  const reliability=carReliabilityProfile(gs,teamId,driverId);
   const rng=rngFor(gs,`${weekendKey}-practice-issue-${driverId}`);
 
   const trackRiskFactor=0.80+clamp(trackRisk,0,100)/250;
   const fatigueRisk=Math.max(0,fatigue-35)*0.00032;
   const contactChance=clamp(((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor*weatherRisk)+fatigueRisk,0,0.11);
-  const mechanicalChance=clamp(((0.003+(1-reliability)*0.028)*programme.incidentRisk*(0.95+weatherRisk*0.05))+(fatigueRisk*0.35),0,0.08);
+  const mechanicalChance=mechanicalFailureChance(reliability,{
+    session:"practice",
+    programmeRisk:programme.incidentRisk,
+    weatherRisk:0.95+weatherRisk*0.05,
+    fatigue,
+  });
   const roll=rng.next();
   if(roll<contactChance)return {issue_type:"contact",issue_slot:"aero_front",issue_note:"Minor contact interrupted part of the programme."};
   if(roll<contactChance+mechanicalChance){
-    const slots=["gearbox","cooling","brakes","suspension","turbocharger"];
-    return {issue_type:"mechanical",issue_slot:rng.pick(slots),issue_note:"A mechanical issue shortened the running."};
+    const cause=selectMechanicalFailureReason(reliability,rng.next());
+    return {
+      issue_type:"mechanical",
+      issue_slot:cause?.slot==="engine"?null:cause?.slot||null,
+      issue_reason:cause?.reason||"Mechanical",
+      issue_note:`${cause?.reason||"A mechanical issue"} shortened the running.`,
+    };
   }
   return {issue_type:null,issue_slot:null,issue_note:null};
 }
@@ -376,7 +386,10 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       feedback:feedbackFor(final,profile.target),
       qualifying_bonus:round1(programme.qualifyingBonus*(0.62+0.38*qualifyingRelevance)),
       race_bonus:round1(programme.raceBonus*(0.62+0.38*raceRelevance)),
-      reliability_bonus:programme.reliabilityBonus,
+      // Reliability practice improves diagnosis/knowledge; it no longer grants a
+      // hidden permanent mechanical-reliability bonus.
+      reliability_bonus:0,
+      reliability_diagnostic_bonus:programme.reliabilityBonus,
       mileage_factor:programme.mileageFactor,
       wear_factor:round1(programme.wearFactor*(0.85+profile.inputs.tyre_wear/100*0.30)),
       fatigue_cost:programme.fatigue,

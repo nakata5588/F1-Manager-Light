@@ -3,6 +3,7 @@
 // Shared car-performance model. This is intentionally independent from the UI
 // so race simulation, comparisons and the Garage/Car page use the same numbers.
 import { baseConditionAdjustmentForCar, garageCarForDriver, installedAdjustmentForCar } from "./garage.js";
+import { carReliabilityProfile } from "./carReliability.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v))return v.result ?? v.value ?? null;
@@ -67,15 +68,8 @@ export function teamCarPerformance(gs,teamId,driverId=null){
     ? (Number.isFinite(integration)?enginePower*0.82+integration*0.18:enginePower)
     : (Number.isFinite(engineOverall)?engineOverall:(chassis??70));
 
-  let carReliability=n(pick(car,["reliability"],NaN),NaN);
-  if(Number.isFinite(carReliability)&&carReliability<=1)carReliability*=100;
-  let engineReliability=n(pick(engine,["reliability_override"],NaN),NaN);
-  if(Number.isFinite(engineReliability)&&engineReliability<=1)engineReliability*=100;
-  if(!Number.isFinite(engineReliability))engineReliability=n(pick(engine,["reliability"],NaN),NaN);
-
-  const reliability=Number.isFinite(carReliability)&&Number.isFinite(engineReliability)
-    ? carReliability*0.55+engineReliability*0.45
-    : Number.isFinite(carReliability)?carReliability:Number.isFinite(engineReliability)?engineReliability:75;
+  const reliabilityProfile=carReliabilityProfile(gs,teamId,driverId);
+  const reliability=Number(reliabilityProfile?.historical?.combined_pct??75);
 
   const aero=n(car?.aero_spec,chassis??70);
   const chassisSpec=n(car?.chassis_spec,chassis??70);
@@ -125,7 +119,7 @@ export function teamCarPerformance(gs,teamId,driverId=null){
 
   const finalQualifying=clamp(qualifying+installed.qualifying+condition.qualifying);
   const finalRace=clamp(race+installed.race+condition.race);
-  const finalReliability=clamp(reliability+installed.reliability+condition.reliability);
+  const finalReliability=clamp(reliabilityProfile?.reliability_pct??reliability);
   const overall=clamp(finalQualifying*0.42+finalRace*0.48+finalReliability*0.10);
 
   return {
@@ -139,7 +133,7 @@ export function teamCarPerformance(gs,teamId,driverId=null){
     development_bonus:{
       qualifying:round1(installed.qualifying),
       race:round1(installed.race),
-      reliability:round1(installed.reliability),
+      reliability:round1(reliabilityProfile?.design_delta_pct||0),
     },
     technical_delta:{
       weight_kg:Number(Number(installed?.technical?.weight_delta_kg||0).toFixed(2)),
@@ -150,102 +144,22 @@ export function teamCarPerformance(gs,teamId,driverId=null){
     wear_penalty:{
       qualifying:round1(condition.qualifying),
       race:round1(condition.race),
-      reliability:round1(condition.reliability),
+      reliability:-round1(reliabilityProfile?.condition_penalty_pct||0),
     },
+    reliability_profile:reliabilityProfile,
     source:{car,engine},
   };
 }
 
-function facilityLevelForTeam(gs,teamId,key){
-  const tid=String(teamId??"");
-  const player=String(gs?.team?.team_id??gs?.team?.id??"");
-  const aliases=key==="manufacturing_level"
-    ?["manufacturing_level","manufacturing_leve"]
-    :[key];
-
-  if(tid&&tid===player){
-    for(const alias of aliases){
-      const override=n(gs?.hq?.facilityLevels?.[alias],NaN);
-      if(Number.isFinite(override))return clamp(override,1,10);
-    }
-  }
-
-  const year=Number(gs?.activeYear);
-  const rows=Array.isArray(gs?.facilities)&&gs.facilities.length
-    ?gs.facilities
-    :(gs?.dbFacilities||[]);
-  const row=(rows||[]).find((item)=>{
-    const rowTeam=String(pick(item,["team_id","team","constructor_id","constructor"],""));
-    const rowYear=n(pick(item,["year","season_year"],NaN),NaN);
-    return rowTeam===tid&&(!Number.isFinite(year)||!Number.isFinite(rowYear)||rowYear===year);
-  })||{};
-  for(const alias of aliases){
-    const value=n(row?.[alias],NaN);
-    if(Number.isFinite(value))return clamp(value,1,10);
-  }
-  return 5;
-}
-
-function completedReliabilityProjectBonus(gs,teamId){
-  const tid=String(teamId??"");
-  const player=String(gs?.team?.team_id??gs?.team?.id??"");
-  const rows=[
-    ...(Array.isArray(gs?.development?.projects)?gs.development.projects:[]),
-    ...(Array.isArray(gs?.development?.research)?gs.development.research:[]),
-  ];
-  return rows
-    .filter((project)=>{
-      const status=String(project?.status||"").toLowerCase();
-      if(!["completed","done","finished"].includes(status))return false;
-      const label=String(project?.area??project?.focus??project?.name??project?.title??"").toLowerCase();
-      if(!label.includes("reliab"))return false;
-      const projectTeam=String(project?.team_id??project?.constructor_id??"");
-      return projectTeam?projectTeam===tid:tid===player;
-    })
-    .reduce((sum,project)=>sum+Math.max(0,n(project?.target_gain??project?.gain??project?.reliability_gain,1))*0.4,0);
-}
-
-/**
- * Canonical race-day reliability profile.
- *
- * The base comes from the same live car model used by Garage/Car Performance.
- * Practice, facilities and completed reliability work are applied as modest
- * percentage-point modifiers. Both Live Race Control and the direct GP path
- * consume this profile so they cannot disagree about the same car.
- */
 export function raceReliabilityProfile(gs,teamId,driverId=null){
-  const tid=String(teamId??"");
-  const did=driverId==null?null:String(driverId);
-  const performance=teamCarPerformance(gs,tid,did);
-  const basePct=clamp(n(performance?.reliability,75));
-
-  const practice=(gs?.raceWeekendState?.practice?.results||[]).find(
-    (row)=>String(row?.driver_id??"")===String(did??"")
-  )||null;
-  const practiceBonusPct=did?Math.max(0,n(practice?.reliability_bonus,0)):0;
-
-  const manufacturing=facilityLevelForTeam(gs,tid,"manufacturing_level");
-  const facilityBonusPct=(manufacturing-5)*0.4;
-  const developmentBonusPct=completedReliabilityProjectBonus(gs,tid);
-
-  const effectivePct=clamp(
-    basePct+practiceBonusPct+facilityBonusPct+developmentBonusPct,
-    55,
-    97
-  );
-
+  const profile=carReliabilityProfile(gs,teamId,driverId);
   return {
-    team_id:tid,
-    driver_id:did,
-    reliability:Number((effectivePct/100).toFixed(4)),
-    reliability_pct:round1(effectivePct),
-    base_car_reliability_pct:round1(basePct),
-    practice_bonus_pct:round1(practiceBonusPct),
-    facility_bonus_pct:round1(facilityBonusPct),
-    development_bonus_pct:round1(developmentBonusPct),
-    manufacturing_level:round1(manufacturing),
-    car_performance:performance,
-    source:"canonical_race_reliability",
+    ...profile,
+    base_car_reliability_pct:round1(profile?.historical?.combined_pct||75),
+    practice_bonus_pct:0,
+    facility_bonus_pct:0,
+    development_bonus_pct:round1(profile?.design_delta_pct||0),
+    car_performance:teamCarPerformance(gs,teamId,driverId),
   };
 }
 

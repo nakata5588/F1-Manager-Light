@@ -7,7 +7,7 @@ import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { activeDriverContracts, currentDriverTeamId } from "../domain/driverContracts.js";
 import { preferLiveRows } from "../domain/liveContracts.js";
-import { raceReliabilityProfile } from "../domain/carPerformance.js";
+import { carReliabilityProfile, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
 import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
@@ -187,8 +187,8 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
 
     let reason=null;
     if(roll<mechanicalChance) {
-      const mechReasons=["Engine","Gearbox","Transmission","Electrical","Cooling","Fuel system","Suspension"];
-      reason=rng.pick(mechReasons);
+      const profile=carReliabilityProfile(gs,resolveDriverTeamId(gs,driver),driver?.driver_id);
+      reason=selectMechanicalFailureReason(profile,rng.next()).reason;
     } else if(roll<mechanicalChance+accidentChance) {
       reason=rng.next()<0.72?"Accident":"Collision";
     }
@@ -204,7 +204,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     const incident=/accident|collision/i.test(reason)?incidentSeverity(rng,reason):null;
     const reliability=/accident|collision/i.test(reason)
       ?null
-      :raceReliabilityProfile(gs,resolveDriverTeamId(gs,driver),driver?.driver_id);
+      :carReliabilityProfile(gs,resolveDriverTeamId(gs,driver),driver?.driver_id);
     retirees.push({
       ...row,
       status:"DNF",

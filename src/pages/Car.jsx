@@ -488,6 +488,18 @@ export default function Car(){
           })}
         </div></Panel>
         <Panel title="Technical Delta">{selectedFitted.length?<div className="p-3 grid grid-cols-2 gap-2"><Metric label="Weight" value={(Number(selectedPerf?.technical_delta?.weight_kg||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.weight_kg||0).toFixed(2)+" kg"}/><Metric label="Drag" value={(Number(selectedPerf?.technical_delta?.drag||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.drag||0).toFixed(4)}/><Metric label="Downforce" value={"+"+Number(selectedPerf?.technical_delta?.downforce||0).toFixed(4)}/><Metric label="Design reliability" value={"+"+Number(selectedPerf?.technical_delta?.design_reliability_pct||0).toFixed(1)+" pp"}/></div>:<div className="p-4 text-sm text-slate-400">No developed upgrades fitted. The car is currently using its historical baseline technical specification.</div>}</Panel>
+        <Panel title="Reliability Model"><div className="p-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Metric label="Historical base" value={Number(selectedPerf?.reliability_profile?.historical?.combined_pct||selectedPerf?.reliability||0).toFixed(1)+"%"}/>
+            <Metric label="Effective" value={Number(selectedPerf?.reliability_profile?.reliability_pct||selectedPerf?.reliability||0).toFixed(1)+"%"}/>
+            <Metric label="Design delta" value={(Number(selectedPerf?.reliability_profile?.design_delta_pct||0)>=0?"+":"")+Number(selectedPerf?.reliability_profile?.design_delta_pct||0).toFixed(1)+" pp"}/>
+            <Metric label="Condition penalty" value={"-"+Number(selectedPerf?.reliability_profile?.condition_penalty_pct||0).toFixed(1)+" pp"}/>
+          </div>
+          {(selectedPerf?.reliability_profile?.weakest_components||[]).length?<div className="border-t border-white/10 pt-2">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Highest component risk</div>
+            {(selectedPerf.reliability_profile.weakest_components||[]).slice(0,3).map((row)=><div key={row.slot} className="flex items-center gap-2 text-xs py-1"><span className="flex-1 text-slate-300">{row.label||componentLabel(carState,row.slot)}</span><span className="text-slate-500">{Number(row.condition_pct||100).toFixed(0)}%</span><span className={Number(row.condition_penalty_pct||0)>2?"text-rose-300":"text-slate-400"}>-{Number(row.condition_penalty_pct||0).toFixed(1)}pp</span></div>)}
+          </div>:null}
+        </div></Panel>
         <Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel>
       </div>
     </div>}
