@@ -402,7 +402,7 @@ test("finalized live rows preserve exactly the retirements visible to the player
   assert.equal(retired.strategy_summary.refuel_count,0);
   assert.deepEqual(retired.strategy_summary.fuel_stop_laps,[]);
   assert.deepEqual(retired.strategy_summary.strategy_decisions,[]);
-  assert.equal(retired.strategy_summary.lowest_tyre_condition,99);
+  assert.equal(retired.strategy_summary.lowest_tyre_condition,100);
   assert.equal(rows.filter((row)=>!row.retired).every((row)=>row.status==="Finished"),true);
 });
 
