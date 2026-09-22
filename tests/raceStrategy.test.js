@@ -154,6 +154,75 @@ test("track strategy snapshot uses year-specific laps and pit-lane loss",()=>{
   assert.equal(track.lap_length_km,3.34);
 });
 
+test("RW4.8 AI strategy plans from its own forecast instead of hidden actual weather",()=>{
+  const base=fixture();
+  const actualRace={
+    id:"race",
+    kind:"race",
+    state:"HEAVY_RAIN",
+    segments:[{from_pct:0,to_pct:1,state:"HEAVY_RAIN"}],
+    air_temp_c:18,
+    track_temp_c:19,
+    rain_chance_profile_pct:90,
+    storm_chance_profile_pct:10,
+    wind_profile:"medium",
+    track:{start_wetness:0.84,end_wetness:0.90,rubber_level:3,grip_index:62},
+  };
+  const wetForecast={
+    session_id:"race",
+    predicted_state:"HEAVY_RAIN",
+    rain_chance_pct:85,
+    air_temp_c:18,
+    confidence_pct:60,
+    forecast_revision:0,
+    timing:{mode:"rain_from_start",horizon_pct:0.25},
+    source:"team_forecast",
+  };
+  const dryForecast={
+    session_id:"race",
+    predicted_state:"SUNNY",
+    rain_chance_pct:15,
+    air_temp_c:22,
+    confidence_pct:48,
+    forecast_revision:0,
+    timing:{mode:"dry_stable",horizon_pct:0.20},
+    source:"team_forecast",
+  };
+  const gs={
+    ...base,
+    raceWeekendState:{
+      gp_id:gp.gp_id,
+      track_id:gp.track_id,
+      weekend_weather:{
+        version:2,
+        source:"weekend_weather_world",
+        forecast_team_id:"t_williams",
+        forecast_accuracy:0.60,
+        forecast_revision:0,
+        observed_sessions:[],
+        sessions:{race:actualRace},
+        forecast:{race:wetForecast},
+        forecasts_by_team:{
+          t_williams:{team_id:"t_williams",forecast_accuracy:0.60,forecast_revision:0,forecast:{race:wetForecast}},
+          t_ferrari:{team_id:"t_ferrari",forecast_accuracy:0.48,forecast_revision:0,forecast:{race:dryForecast}},
+        },
+      },
+    },
+  };
+
+  const built=createRaceStrategyState(gs,{gp,raceEntryState:gs.raceEntryState});
+  assert.equal(built.state.weather_snapshot.state,"HEAVY_RAIN","hidden actual weather remains the simulation truth");
+
+  const playerTyre=tyresForTeam(built.gameState,"t_williams")
+    .find((row)=>row.tyre_id===built.state.selections.d_w1.start_tyre_id);
+  const aiTyre=tyresForTeam(built.gameState,"t_ferrari")
+    .find((row)=>row.tyre_id===built.state.selections.d_f1.start_tyre_id);
+
+  assert.equal(playerTyre.category,"wet","player planning follows the player's wet forecast");
+  assert.equal(aiTyre.category,"dry","AI planning follows its dry forecast rather than the hidden wet truth");
+  assert.equal(built.state.forecast_revisions_used.t_ferrari,0);
+});
+
 test("player strategy persists and 1980 rejects in-race fuel strategy",()=>{
   let gs=withStrategy(fixture());
   gs=setRaceStrategySelection(gs,{
