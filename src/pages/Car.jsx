@@ -7,7 +7,7 @@ import { DriverPortrait, TeamLogo } from "@/components/entity/EntityVisuals.jsx"
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance";
 import Development from "@/pages/Development.jsx";
 import {
-  CAR_COMPONENT_SLOTS,
+  componentSlotsForTeam,
   activeDriverContracts,
   driverIdOf,
   baseComponentConstructionCost,
@@ -17,6 +17,7 @@ import {
   syncGarageState,
 } from "@/domain/garage";
 import { isRaceDriverContract } from "@/domain/contractRoles.js";
+import { componentGroup, componentLabel } from "@/domain/carComponents.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const nice=(s)=>String(s||"").replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase());
@@ -52,10 +53,6 @@ const PERFORMANCE_METRICS=[
   ["chassis","Chassis"],
   ["reliability","Reliability"],
 ];
-const COMPONENT_GROUPS={
-  aero:["chassis","aero_front","aero_rear","suspension"],
-  mechanical:["gearbox","brakes","cooling","turbocharger"],
-};
 const PART_ICON_BY_SLOT={
   chassis:CarFront,
   aero_front:Activity,
@@ -65,6 +62,13 @@ const PART_ICON_BY_SLOT={
   brakes:CircleDot,
   cooling:Activity,
   turbocharger:Gauge,
+  electronics:Activity,
+  kers:Gauge,
+  ers_mgu_k:Gauge,
+  ers_mgu_h:Gauge,
+  battery_pack:Activity,
+  fuel_system:Gauge,
+  exhaust_system:Activity,
 };
 function PartIcon({slot}){
   const Icon=PART_ICON_BY_SLOT[slot]||Settings2;
@@ -192,7 +196,8 @@ export default function Car(){
   const carState={...gs,garage:syncedGarage};
   const selectedPerf=selectedCar?teamCarPerformance(carState,teamId,selectedCar.driver_id):null;
   const selectedFitted=selectedCar?installedPartsForCar(carState,selectedCar):[];
-  const componentRows=selectedCar?CAR_COMPONENT_SLOTS.map((slot)=>{
+  const eligibleComponentSlots=componentSlotsForTeam(carState,teamId);
+  const componentRows=selectedCar?eligibleComponentSlots.map((slot)=>{
     const condition=componentConditionForCar(carState,selectedCar,slot);
     return {
       slot,condition,status:componentConditionStatus(condition),
@@ -321,9 +326,9 @@ export default function Car(){
 
   const title=view==="car"?(selectedCar?.label||"Car"):view==="analysis"?"Car Analysis":view==="development"?"Car Parts Development":"Cars";
   const selectedGroup=searchParams.get("group")==="mechanical"?"mechanical":"aero";
-  const visibleComponents=componentRows.filter((row)=>(COMPONENT_GROUPS[selectedGroup]||COMPONENT_GROUPS.aero).includes(row.slot));
+  const visibleComponents=componentRows.filter((row)=>componentGroup(row.slot)===selectedGroup);
   const fleetHealth=raceCars.length?raceCars.map((car)=>{
-    const vals=CAR_COMPONENT_SLOTS.map((slot)=>componentConditionForCar(carState,car,slot));
+    const vals=eligibleComponentSlots.map((slot)=>componentConditionForCar(carState,car,slot));
     return vals.reduce((a,b)=>a+b,0)/Math.max(1,vals.length);
   }).reduce((a,b)=>a+b,0)/raceCars.length:0;
 
@@ -402,7 +407,7 @@ export default function Car(){
           const buildCost=baseComponentConstructionCost(gs,row.slot);
           return <div key={row.slot} className="p-3 grid grid-cols-[40px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)_100px_150px] gap-3 items-center">
             <div className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
-            <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{nice(row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
+            <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
             <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">condition</div></div>
             <div className="col-span-2 md:col-span-1 flex md:flex-col gap-1.5">
               {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)}>Fit {stocked.version||"developed"}</Button>:null}

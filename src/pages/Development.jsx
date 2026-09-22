@@ -6,6 +6,7 @@ import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
+import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -39,6 +40,13 @@ const PART_PROFILES = {
   brakes:        { multiplier:0.58, facility:"_chassis_shop_level", label:"Chassis Workshop" },
   cooling:       { multiplier:0.66, facility:"manufacturing_leve", label:"Manufacturing" },
   turbocharger:  { multiplier:1.08, facility:"manufacturing_leve", label:"Manufacturing" },
+  electronics:    { multiplier:0.78, facility:"manufacturing_leve", label:"Manufacturing" },
+  kers:           { multiplier:1.02, facility:"manufacturing_leve", label:"Manufacturing" },
+  ers_mgu_k:      { multiplier:1.06, facility:"manufacturing_leve", label:"Manufacturing" },
+  ers_mgu_h:      { multiplier:1.08, facility:"manufacturing_leve", label:"Manufacturing" },
+  battery_pack:   { multiplier:0.94, facility:"manufacturing_leve", label:"Manufacturing" },
+  fuel_system:    { multiplier:0.70, facility:"manufacturing_leve", label:"Manufacturing" },
+  exhaust_system: { multiplier:0.68, facility:"manufacturing_leve", label:"Manufacturing" },
 };
 
 function projectCost({ engineers, cfd, windTunnel, duration }, manufacturingLevel = 5) {
@@ -130,7 +138,6 @@ export default function Development({ embedded = false, initialTab = "projects",
         { id:"powertrain", area:"Powertrain Integration", focus:25, points:0 },
       ];
 
-  const [catalog, setCatalog] = useState([]);
   const validTabs = ["projects","parts","manufacturing","research","pit_crew"];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
@@ -148,23 +155,10 @@ export default function Development({ embedded = false, initialTab = "projects",
     onTabChange?.(nextTab);
   };
 
-  useEffect(() => {
-    fetch("/data/car_parts.json")
-      .then((r) => r.ok ? r.json() : [])
-      .then((rows) => setCatalog(Array.isArray(rows) ? rows : []))
-      .catch(() => setCatalog([]));
-  }, []);
-
-  const eraTypes = useMemo(() => {
-    const rows = catalog.filter((p) => {
-      const from = Number(p?.era_start_year ?? -Infinity);
-      const toRaw = p?.era_end_year;
-      const to = toRaw == null || toRaw === "" ? Infinity : Number(toRaw);
-      return activeYear >= from && activeYear <= to;
-    });
-    const vals = rows.map((p) => String(p?.part_type || "")).filter(Boolean);
-    return vals.length ? Array.from(new Set(vals)) : ["chassis","aero_front","aero_rear","suspension","gearbox","brakes"];
-  }, [catalog, activeYear]);
+  const eraTypes = useMemo(
+    () => availableCarComponentSlots(gameState, teamId),
+    [gameState, teamId, activeYear]
+  );
 
   useEffect(() => {
     if (!eraTypes.includes(draft.type) && eraTypes.length) {
@@ -366,7 +360,7 @@ export default function Development({ embedded = false, initialTab = "projects",
           <div className="font-semibold">Create development project</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-sm">Project name<input className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. Revised rear wing"/></label>
-            <label className="text-sm">Part type<select className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value})}>{eraTypes.map((t)=><option key={t} value={t}>{nice(t)}</option>)}</select></label>
+            <label className="text-sm">Part type<select className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
             <label className="text-sm">Engineers<input type="number" min="1" max="12" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
             <label className="text-sm">Duration (days)<input type="number" min="7" max="90" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
             <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
