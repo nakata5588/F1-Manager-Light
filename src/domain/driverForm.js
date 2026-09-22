@@ -43,7 +43,8 @@ function carExpectation(gs,resultEntry,teamId){
   const teams=participantTeams(resultEntry);
   const teamCount=Math.max(1,teams.length);
   const ranking=carPerformanceRanking(gs)
-    .filter((row)=>teams.includes(String(row?.team_id??"")));
+    .filter((row)=>teams.includes(String(row?.team_id??"")))
+    .map((row,index)=>({...row,rank:index+1}));
   const rankRow=ranking.find((row)=>String(row?.team_id??"")===String(teamId));
   const rank=rankRow?.rank??Math.ceil(teamCount/2);
   const slotsPerTeam=fieldSize/teamCount;
