@@ -1525,6 +1525,147 @@ export default function RaceWeekend(){
               </div>
             </div>
 
+            {playerResultRows.length>0&&<div className="border-b border-white/10 bg-[#0c1118] p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-amber-300/80">Team Strategy Review</div>
+                  <h4 className="mt-1 text-lg font-semibold">Race debrief</h4>
+                  <p className="mt-1 text-xs text-slate-500">Tyre stints, pit loss, strategic triggers and championship impact for your cars.</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-right text-xs">
+                  <div className="uppercase tracking-wide text-slate-500">Constructors</div>
+                  <div className="mt-1 font-bold text-slate-100">
+                    {prePlayerTeam&&postPlayerTeam
+                      ?<>P{prePlayerTeam.position} <span className="text-slate-600">→</span> P{postPlayerTeam.position}</>
+                      :"—"}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {postPlayerTeam
+                      ?String(prePlayerTeam?.points??Math.max(0,Number(postPlayerTeam.points||0)-Number(racePointsByTeam.get(playerTeamId)||0)))+" → "+String(postPlayerTeam.points)+" pts"
+                      :"No championship data"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                {playerResultRows.map((row)=>{
+                  const did=String(row?.driver_id??"");
+                  const tid=String(row?.team_id??"");
+                  const finish=Number(row?.position)||rows.findIndex((item)=>item===row)+1;
+                  const grid=Number(gridByDriver.get(did)||finish);
+                  const places=grid-finish;
+                  const preStanding=preDriverById.get(did);
+                  const postStanding=driverStandingById.get(did);
+                  const champMove=preStanding&&postStanding?Number(preStanding.position)-Number(postStanding.position):0;
+                  const stints=Array.isArray(row?.stints)?row.stints:[];
+                  const stops=Array.isArray(row?.pit_stops)?row.pit_stops:[];
+                  const decisions=Array.isArray(row?.strategy_summary?.strategy_decisions)
+                    ?row.strategy_summary.strategy_decisions
+                    :[];
+                  const totalPitLoss=stops.reduce((sum,stop)=>sum+Number(stop?.total_loss_s||0),0);
+                  const tyreOptions=tyresForTeam(gs,tid);
+                  const retired=Boolean(row?.retired)||String(row?.status||"").toUpperCase()==="DNF";
+                  return <div key={did} className="rounded-xl border border-white/10 bg-[#141a23] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <DriverPortrait driver={driverObject(drivers,did)||{display_name:driverName(drivers,did)}} size="h-12 w-12" className="ring-amber-300/25"/>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="h-3 w-1 rounded-full bg-amber-300"/>
+                            <div className="truncate font-bold text-slate-100">{driverName(drivers,did)}</div>
+                          </div>
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            Grid P{grid} → {retired?("DNF · L"+String(row?.incident_lap??row?.laps_completed??"—")):("P"+finish)} · {places>0?("+"+places+" places"):places<0?(String(places)+" places"):"no position change"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">Championship</div>
+                        <div className="font-bold">
+                          {preStanding&&postStanding
+                            ?<>P{preStanding.position} <span className="text-slate-600">→</span> P{postStanding.position}</>
+                            :"—"}
+                        </div>
+                        <div className={"text-[10px] font-semibold "+(champMove>0?"text-emerald-300":champMove<0?"text-rose-300":"text-slate-500")}>
+                          {postStanding
+                            ?String(preStanding?.points??Math.max(0,Number(postStanding.points||0)-Number(row?.points||0)))+" → "+String(postStanding.points)+" pts"+(champMove?(" · "+positionDelta(champMove)):"")
+                            :"No standings data"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500">Tyre stints</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {stints.length?stints.map((stint,stintIndex)=>{
+                          const compound=stint?.compound||tyreName(tyreOptions,stint?.tyre_id);
+                          const start=Number(stint?.start_lap)||1;
+                          const end=Number(stint?.end_lap)||start;
+                          return <div key={stintIndex} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2">
+                            <TyreCompoundIcon compound={compound} size={26}/>
+                            <div>
+                              <div className="text-xs font-semibold">{compound}</div>
+                              <div className="text-[10px] text-slate-500">L{start}–{end} · {Math.max(0,end-start+1)} laps</div>
+                            </div>
+                          </div>;
+                        }):<div className="text-xs text-slate-600">No stint data.</div>}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                      <div className="rounded-lg bg-white/[0.04] p-2">
+                        <div className="text-[9px] uppercase text-slate-500">Pit stops</div>
+                        <div className="mt-1 font-bold">{stops.length}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/[0.04] p-2">
+                        <div className="text-[9px] uppercase text-slate-500">Pit loss</div>
+                        <div className="mt-1 font-bold">{stops.length?totalPitLoss.toFixed(1)+"s":"—"}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/[0.04] p-2">
+                        <div className="text-[9px] uppercase text-slate-500">Pace</div>
+                        <div className="mt-1 text-xs font-bold">{paceLabel(row?.strategy_summary?.starting_pace_mode)} → {paceLabel(row?.strategy_summary?.pace_mode)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/[0.04] p-2">
+                        <div className="text-[9px] uppercase text-slate-500">Lowest tyre</div>
+                        <div className="mt-1 font-bold">{Number.isFinite(Number(row?.strategy_summary?.lowest_tyre_condition))?Number(row.strategy_summary.lowest_tyre_condition).toFixed(0)+"%":"—"}</div>
+                      </div>
+                    </div>
+
+                    {stops.length>0&&<div className="mt-4">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500">Pit stop review</div>
+                      <div className="mt-2 grid gap-1.5">
+                        {stops.map((stop,stopIndex)=>{
+                          const nextCompound=tyreName(tyreOptions,stop?.tyre_to);
+                          return <div key={stopIndex} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-white/10 bg-black/15 px-2.5 py-2 text-xs">
+                            <span className="font-mono font-bold text-slate-200">L{stop?.lap??"—"}</span>
+                            <TyreCompoundIcon compound={nextCompound} size={20}/>
+                            <span className="font-semibold">{strategyReasonLabel(stop?.reason)}</span>
+                            <span className="text-slate-500">→ {nextCompound}</span>
+                            <span className="ml-auto font-mono text-amber-200">{Number(stop?.total_loss_s||0).toFixed(1)}s</span>
+                          </div>;
+                        })}
+                      </div>
+                    </div>}
+
+                    <div className="mt-4">
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500">Strategic decisions</div>
+                      {decisions.length?<div className="mt-2 grid gap-1.5">
+                        {decisions.slice(0,5).map((decision,index)=>(
+                          <div key={index} className="flex flex-wrap gap-x-2 rounded-lg bg-white/[0.035] px-2.5 py-2 text-[11px]">
+                            <span className="font-mono text-slate-400">L{decision?.lap??"—"}</span>
+                            <span className="font-semibold text-slate-200">{strategyReasonLabel(decision?.reason)}</span>
+                            {Number.isFinite(Number(decision?.tyre_condition))?<span className="text-slate-500">tyre {Number(decision.tyre_condition).toFixed(0)}%</span>:null}
+                            {Number.isFinite(Number(decision?.estimated_pit_loss_s))?<span className="text-slate-500">est. pit {Number(decision.estimated_pit_loss_s).toFixed(1)}s</span>:null}
+                          </div>
+                        ))}
+                        {decisions.length>5?<div className="text-[10px] text-slate-600">+{decisions.length-5} more decision{decisions.length-5===1?"":"s"} recorded</div>:null}
+                      </div>:<div className="mt-2 text-xs text-slate-600">No strategic pit trigger was recorded.</div>}
+                    </div>
+                  </div>;
+                })}
+              </div>
+            </div>}
+
             <div className="overflow-x-auto">
               <table className="min-w-[1320px] w-full text-sm">
                 <thead className="bg-[#171d27] text-slate-400 uppercase tracking-wide text-[11px]">
