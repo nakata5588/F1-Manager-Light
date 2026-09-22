@@ -625,17 +625,16 @@ export default function RaceWeekend(){
 
     {activeWindow==="qualifying"&&weekend.phase==="qualifying"&&(
       <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="font-semibold">{activeSession?.label||"Qualifying"}</h3>
-            <p className="text-sm text-slate-400 mt-1">
-              Every entrant uses the same era rule, setup/preparation model and deterministic session seed. Completed sessions are locked into the Save.
-            </p>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Qualifying session</div>
+            <h3 className="mt-1 text-lg font-semibold">{activeSession?.label||"Qualifying"}</h3>
+            <p className="text-sm text-slate-400 mt-1">Compact timing view; completed sessions stay locked in the Save.</p>
+            <div className="mt-1 text-xs text-slate-500">{activeSession?.dateISO||weekend.qualifyingDate} · {weekend.qualifying_rule_snapshot?.strategy?.replaceAll("_"," ")||"era rules"}</div>
           </div>
-          <div className="text-xs text-slate-500 text-right">
-            <div>{activeSession?.dateISO||weekend.qualifyingDate}</div>
-            <div>{weekend.qualifying_rule_snapshot?.strategy?.replaceAll("_"," ")||"era rules"}</div>
-          </div>
+          <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runQualifying)}>
+            {busy?"Running…":`Run ${activeSession?.label||"Qualifying"}`}
+          </button>
         </div>
 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
@@ -653,18 +652,21 @@ export default function RaceWeekend(){
           </div>
         )}
 
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(runQualifying)}>
-          {busy?"Running…":`Run ${activeSession?.label||"Qualifying"}`}
-        </button>
       </div>
     )}
 
     {activeWindow==="qualifying"&&weekend.phase==="qualifying_wait"&&(
-      <div className="rounded-xl border border-white/10 bg-[#0b0e14] p-5 shadow-xl">
-        <h3 className="font-semibold">{lastCompletedQualifyingSession?.label||"Qualifying"} Complete</h3>
-        <p className="text-sm text-slate-400 mt-1">
-          This classification is saved and will not be recalculated. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.
-        </p>
+      <div className="rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session complete</div>
+            <h3 className="mt-1 font-semibold">{lastCompletedQualifyingSession?.label||"Qualifying"} Complete</h3>
+            <p className="text-sm text-slate-400 mt-1">Saved classification. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.</p>
+          </div>
+          <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
+            {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to next session":"Advance toward next session"}
+          </button>
+        </div>
         {weekend.qualifying_rule_snapshot?.strategy==="best_time_across_sessions"&&!lastCompletedQualifyingSession?.advance_count&&(
           <div className="mt-3 rounded-lg bg-blue-500/15 text-blue-200 px-3 py-2 text-sm">
             No cars are eliminated after this session. The final order uses each driver's best valid time across all qualifying sessions.
@@ -675,9 +677,6 @@ export default function RaceWeekend(){
             <QualifyingTable title={lastCompletedQualifyingSession.label+" — classification"} rows={lastCompletedQualifyingSession.results||[]} drivers={drivers} teams={teams} session={lastCompletedQualifyingSession}/>
           </div>
         )}
-        <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
-          {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to next session":"Advance toward next session"}
-        </button>
       </div>
     )}
 
