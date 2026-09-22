@@ -8,6 +8,7 @@ import {
   mechanicalRetirementChance,
   mergeRaceControlHistory,
   raceControlAtLap,
+  raceControlAtPoint,
   raceControlRulesForYear,
 } from "../src/engine/RaceControlEngine.js";
 import { createNewSaveMeta } from "../src/core/saveSafety.js";
@@ -107,6 +108,55 @@ test("1980 local yellow periods are single-lap warnings",()=>{
   }
   assert.ok(found?.length,"expected at least one deterministic 1980 local-yellow plan");
   assert.ok(found.every((row)=>Number(row.to_lap)===Number(row.from_lap)));
+  assert.ok(found.every((row)=>Number(row.from_sector)>=1&&Number(row.from_sector)<=3));
+  assert.ok(found.every((row)=>Number(row.to_sector)===3));
+});
+
+test("RW5.2 race control activates at the incident sector, not the whole lap",()=>{
+  let plan=null;
+  let incident=null;
+  for(let index=0;index<120&&!incident;index+=1){
+    const state=gs(1980);
+    state.saveMeta=createNewSaveMeta({year:1980,teamId:"T1",seed:`rw5-sector-control-${index}`});
+    const race=[
+      {driver:{driver_id:"D1"},incident_risk_multiplier:4,mechanical_risk_multiplier:0.2},
+      {driver:{driver_id:"D2"},incident_risk_multiplier:4,mechanical_risk_multiplier:0.2},
+    ];
+    const candidate=createRaceControlPlan(state,{gp:{gp_id:"sector-control",track_id:"t"},race,weather:dryWeather,track});
+    const crash=candidate.incidents.find((row)=>/accident|collision/i.test(String(row.kind||row.reason||"")));
+    if(crash){
+      plan=candidate;
+      incident=crash;
+    }
+  }
+  assert.ok(plan&&incident);
+  assert.ok([1,2,3].includes(Number(incident.sector)));
+
+  const period=plan.periods.find((row)=>String(row.driver_id)===String(incident.driver_id)&&Number(row.from_lap)===Number(incident.lap));
+  assert.ok(period);
+  assert.equal(Number(period.from_sector),Number(incident.sector));
+
+  if(Number(incident.sector)>1){
+    assert.equal(raceControlAtPoint(plan,incident.lap,incident.sector-1).type,"GREEN");
+  }
+  assert.equal(raceControlAtPoint(plan,incident.lap,incident.sector).type,period.type);
+});
+
+test("RW5.2 pre-Safety-Car era allows severe incidents to escalate to red flags",()=>{
+  let red=null;
+  for(let index=0;index<500&&!red;index+=1){
+    const state=gs(1980);
+    state.saveMeta=createNewSaveMeta({year:1980,teamId:"T1",seed:`rw5-red-${index}`});
+    const race=Array.from({length:12},(_,driverIndex)=>({
+      driver:{driver_id:driverIndex%2===0?"D1":"D2"},
+      incident_risk_multiplier:4,
+      mechanical_risk_multiplier:0.05,
+    }));
+    const plan=createRaceControlPlan(state,{gp:{gp_id:"red-calibration",track_id:"t"},race,weather:dryWeather,track});
+    red=plan.periods.find((row)=>row.type==="RED_FLAG")||null;
+  }
+  assert.ok(red,"historic severe crashes should be able to produce a red flag without a Safety Car");
+  assert.ok([1,2,3].includes(Number(red.from_sector)));
 });
 
 test("race-control planning is deterministic for the same Save seed",()=>{
