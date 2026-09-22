@@ -705,7 +705,7 @@ export default function DriverModal({ entity, onClose }) {
           ) : (
             <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Private condition data</div>
-              <div className="mt-1 text-xs text-slate-400">Confidence, morale, preparation and fatigue are only visible for your contracted race team drivers.</div>
+              <div className="mt-1 text-xs text-slate-400">Confidence, morale, preparation and fatigue are only visible for your contracted team drivers.</div>
             </div>
           )}
         </div>
@@ -714,7 +714,7 @@ export default function DriverModal({ entity, onClose }) {
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
-          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{fmtMoney(marketValue)}</strong></div>
+          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}</strong></div>
         </div>
       </aside>
 
