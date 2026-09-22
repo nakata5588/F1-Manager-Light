@@ -110,6 +110,7 @@ export function openingStateNegotiationBlockReason(driver,year){
   if(availability==="RETIRED_UNAVAILABLE")return "retired";
   if(availability==="MARKET_STATUS_RESEARCH")return "market_status_research";
   if(policy==="BLOCKED")return "opening_state_blocked";
+  if(policy==="ACADEMY_ONLY")return "academy_only";
   if(policy.includes("BLOCK_DIRECT_NEGOTIATION"))return "market_status_research";
   return null;
 }
@@ -167,10 +168,12 @@ export function applyOpeningStateToDriver(driver,row,year,{youthMinAge=16,youthM
   if(external)status=youth?"junior_only":"lower_series";
   else if(outOfF1)status="eligible";
 
-  const blocked=Boolean(openingStateNegotiationBlockReason({
+  const blockReason=openingStateNegotiationBlockReason({
     ...base,
     opening_state_year:targetYear,
-  },targetYear));
+  },targetYear);
+  const academyOnly=blockReason==="academy_only";
+  const fullyBlocked=Boolean(blockReason)&&!academyOnly;
   const oldEnough=!Number.isFinite(age)||age>=18;
 
   return {
@@ -179,8 +182,8 @@ export function applyOpeningStateToDriver(driver,row,year,{youthMinAge=16,youthM
     active_lower_series:external,
     active_external_series:external,
     youth_eligible:youth,
-    canHireAcademy:youth&&!blocked,
-    canHireF1:!blocked&&oldEnough,
+    canHireAcademy:youth&&!fullyBlocked,
+    canHireF1:!blockReason&&oldEnough,
   };
 }
 
@@ -188,8 +191,10 @@ export function openingMarketLabel(driver,year){
   if(!openingStateApplies(driver,year))return null;
   const availability=upper(pick(driver,["opening_availability"],""));
   const world=upper(pick(driver,["opening_world_status"],""));
+  const policy=upper(pick(driver,["runtime_market_policy"],""));
   const age=Number(driver?.age);
 
+  if(policy==="ACADEMY_ONLY")return "Academy";
   if(availability==="RETIRED_UNAVAILABLE"||world==="RETIRED")return "Retired";
   if(availability==="DECEASED_UNAVAILABLE"||world==="DECEASED")return "Unavailable";
   if(availability==="MARKET_STATUS_RESEARCH")return "Status Review";
