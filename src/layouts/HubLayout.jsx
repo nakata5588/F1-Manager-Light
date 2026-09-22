@@ -38,7 +38,7 @@ export default function HubLayout() {
       <div className="flex-1 min-w-0 flex flex-col">
         <Header pageTitle={pageTitle} />
         <main className="flex-1 min-w-0">
-          <div className="max-w-[1600px] mx-auto px-3 md:px-5 py-4 md:py-5">
+          <div className="w-full px-3 md:px-5 py-4 md:py-5">
             <Outlet />
           </div>
         </main>
