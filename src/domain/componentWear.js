@@ -5,6 +5,7 @@ import {
   installedPartsForCar,
   syncGarageState,
 } from "./garage.js";
+import { normalizePhysicalPartState, partDesignIdOfUnit, partUnits } from "./partUnits.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const driverIdOf=(row)=>String(row?.driver?.driver_id??row?.driver?.id??row?.driver_id??"");
@@ -97,17 +98,17 @@ export function componentWearForRaceRow(row,slot){
   return base+0.8;
 }
 
-function applyWearDeltas(gs,garage,partDeltas,baseDeltas,wearRows){
-  const beforePartById=new Map((gs?.development?.parts||[]).map((part)=>[
-    String(part?.id??""),
-    clamp(part?.condition??100),
+function applyWearDeltas(gs,garage,unitDeltas,baseDeltas,wearRows){
+  const beforeUnitById=new Map(partUnits(gs).map((unit)=>[
+    String(unit?.id??""),
+    clamp(unit?.condition??100),
   ]));
-  const parts=(gs?.development?.parts||[]).map((part)=>{
-    const wear=partDeltas.get(String(part?.id??""));
-    if(!wear)return part;
-    const before=clamp(part?.condition??100);
+  const nextUnits=partUnits(gs).map((unit)=>{
+    const wear=unitDeltas.get(String(unit?.id??""));
+    if(!wear)return unit;
+    const before=clamp(unit?.condition??100);
     return {
-      ...part,
+      ...unit,
       condition:Number(clamp(before-wear).toFixed(1)),
       last_wear:Number(wear.toFixed(2)),
       last_wear_date:String(gs?.currentDateISO||"").slice(0,10)||null,
@@ -126,14 +127,14 @@ function applyWearDeltas(gs,garage,partDeltas,baseDeltas,wearRows){
   });
   const nextGarage={...garage,cars};
 
-  const partAfterById=new Map(parts.map((part)=>[String(part?.id??""),clamp(part?.condition??100)]));
+  const unitAfterById=new Map(nextUnits.map((unit)=>[String(unit?.id??""),clamp(unit?.condition??100)]));
   const carAfterById=new Map(cars.map((car)=>[String(car.id),car]));
   const enrichedRows=wearRows.map((row)=>{
-    if(row.part_id){
+    if(row.part_unit_id){
       return {
         ...row,
-        condition_before:beforePartById.get(String(row.part_id))??null,
-        condition_after:partAfterById.get(String(row.part_id))??null,
+        condition_before:beforeUnitById.get(String(row.part_unit_id))??null,
+        condition_after:unitAfterById.get(String(row.part_unit_id))??null,
       };
     }
     const car=carAfterById.get(String(row.car_id));
@@ -145,43 +146,46 @@ function applyWearDeltas(gs,garage,partDeltas,baseDeltas,wearRows){
     };
   });
 
-  return {
+  return normalizePhysicalPartState({
     ...gs,
     garage:nextGarage,
-    development:{...(gs?.development||{}),parts},
+    development:{...(gs?.development||{}),partUnits:nextUnits},
     componentWearLog:[...enrichedRows,...(Array.isArray(gs?.componentWearLog)?gs.componentWearLog:[])].slice(0,500),
-  };
+  });
 }
 
 export function applyRaceComponentWear(gs,{race=[],gp=null}={}){
   if(!gs)return gs;
-  const garage=syncGarageState(gs,gs?.garage||{});
-  const partDeltas=new Map();
+  const normalized=normalizePhysicalPartState(gs);
+  const garage=syncGarageState(normalized,normalized?.garage||{});
+  const state={...normalized,garage};
+  const unitDeltas=new Map();
   const baseDeltas=new Map();
   const wearRows=[];
 
-  const eligibleSlots=componentSlotsForTeam({...gs,garage});
+  const eligibleSlots=componentSlotsForTeam(state);
   for(const row of race||[]){
     const driverId=driverIdOf(row);
     if(!driverId)continue;
-    const car=garageCarForDriver({...gs,garage},driverId);
+    const car=garageCarForDriver(state,driverId);
     if(!car)continue;
-    const fittedBySlot=new Map(installedPartsForCar({...gs,garage},car).map((x)=>[x.slot,x.part]));
+    const fittedBySlot=new Map(installedPartsForCar(state,car).map((x)=>[x.slot,x]));
 
     for(const slot of eligibleSlots){
       const wear=componentWearForRaceRow(row,slot);
-      const part=fittedBySlot.get(slot)||null;
-      if(part){
-        const id=String(part?.id??"");
-        if(!id)continue;
-        partDeltas.set(id,(partDeltas.get(id)||0)+wear);
+      const fitted=fittedBySlot.get(slot)||null;
+      if(fitted?.unit){
+        const unitId=String(fitted.unit?.id??"");
+        if(!unitId)continue;
+        unitDeltas.set(unitId,(unitDeltas.get(unitId)||0)+wear);
         wearRows.push({
           gp_id:String(gp?.gp_id??gp?.id??gp?.track_id??""),
-          date:String(gs?.currentDateISO||gp?.race_date||"").slice(0,10),
+          date:String(state?.currentDateISO||gp?.race_date||"").slice(0,10),
           session:"race",
           driver_id:driverId,
           car_id:car.id,
-          part_id:id,
+          part_id:String(fitted.part?.id??partDesignIdOfUnit(fitted.unit)),
+          part_unit_id:unitId,
           component_source:"developed_part",
           slot,
           wear:Number(wear.toFixed(2)),
@@ -193,7 +197,7 @@ export function applyRaceComponentWear(gs,{race=[],gp=null}={}){
         baseDeltas.set(key,(baseDeltas.get(key)||0)+wear);
         wearRows.push({
           gp_id:String(gp?.gp_id??gp?.id??gp?.track_id??""),
-          date:String(gs?.currentDateISO||gp?.race_date||"").slice(0,10),
+          date:String(state?.currentDateISO||gp?.race_date||"").slice(0,10),
           session:"race",
           driver_id:driverId,
           car_id:car.id,
@@ -208,29 +212,31 @@ export function applyRaceComponentWear(gs,{race=[],gp=null}={}){
     }
   }
 
-  if(!partDeltas.size&&!baseDeltas.size)return {...gs,garage};
-  return applyWearDeltas(gs,garage,partDeltas,baseDeltas,wearRows);
+  if(!unitDeltas.size&&!baseDeltas.size)return state;
+  return applyWearDeltas(state,garage,unitDeltas,baseDeltas,wearRows);
 }
 
 export function applyPracticeComponentWear(gs,{practiceResults=[],gp=null}={}){
   if(!gs)return gs;
-  const garage=syncGarageState(gs,gs?.garage||{});
-  const partDeltas=new Map();
+  const normalized=normalizePhysicalPartState(gs);
+  const garage=syncGarageState(normalized,normalized?.garage||{});
+  const state={...normalized,garage};
+  const unitDeltas=new Map();
   const baseDeltas=new Map();
   const wearRows=[];
 
-  const eligibleSlots=componentSlotsForTeam({...gs,garage});
+  const eligibleSlots=componentSlotsForTeam(state);
   for(const result of practiceResults||[]){
     const driverId=String(result?.driver_id??"");
     if(!driverId)continue;
-    const car=garageCarForDriver({...gs,garage},driverId);
+    const car=garageCarForDriver(state,driverId);
     if(!car)continue;
 
     const mileageFactor=clamp(Number(result?.mileage_factor??1),0.4,1.8);
     const programmeWear=clamp(Number(result?.wear_factor??1),0.5,1.8);
     const issue=String(result?.issue_type||"").toLowerCase();
     const issueSlot=String(result?.issue_slot||"");
-    const fittedBySlot=new Map(installedPartsForCar({...gs,garage},car).map((x)=>[x.slot,x.part]));
+    const fittedBySlot=new Map(installedPartsForCar(state,car).map((x)=>[x.slot,x]));
 
     for(const slot of eligibleSlots){
       let wear=Number(BASE_COMPONENT_WEAR[slot]??2.5)*0.34*mileageFactor*programmeWear;
@@ -242,18 +248,19 @@ export function applyPracticeComponentWear(gs,{practiceResults=[],gp=null}={}){
         wear+=0.30;
       }
 
-      const part=fittedBySlot.get(slot)||null;
-      if(part){
-        const id=String(part?.id??"");
-        if(!id)continue;
-        partDeltas.set(id,(partDeltas.get(id)||0)+wear);
+      const fitted=fittedBySlot.get(slot)||null;
+      if(fitted?.unit){
+        const unitId=String(fitted.unit?.id??"");
+        if(!unitId)continue;
+        unitDeltas.set(unitId,(unitDeltas.get(unitId)||0)+wear);
         wearRows.push({
           gp_id:String(gp?.gp_id??gp?.id??gp?.track_id??""),
-          date:String(gs?.currentDateISO||"").slice(0,10),
+          date:String(state?.currentDateISO||"").slice(0,10),
           session:"practice",
           driver_id:driverId,
           car_id:car.id,
-          part_id:id,
+          part_id:String(fitted.part?.id??partDesignIdOfUnit(fitted.unit)),
+          part_unit_id:unitId,
           component_source:"developed_part",
           slot,
           wear:Number(wear.toFixed(2)),
@@ -280,8 +287,8 @@ export function applyPracticeComponentWear(gs,{practiceResults=[],gp=null}={}){
     }
   }
 
-  if(!partDeltas.size&&!baseDeltas.size)return {...gs,garage};
-  return applyWearDeltas(gs,garage,partDeltas,baseDeltas,wearRows);
+  if(!unitDeltas.size&&!baseDeltas.size)return state;
+  return applyWearDeltas(state,garage,unitDeltas,baseDeltas,wearRows);
 }
 
 export function practiceWearSummary(gs,{driverId,gp=null}={}){

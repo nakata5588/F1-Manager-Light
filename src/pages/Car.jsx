@@ -18,6 +18,7 @@ import {
 } from "@/domain/garage";
 import { isRaceDriverContract } from "@/domain/contractRoles.js";
 import { componentGroup, componentLabel } from "@/domain/carComponents.js";
+import { fitPhysicalPartUnit, inventoryCountForDesign, normalizePhysicalPartState, removePhysicalPartUnit, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 
 const idOf=(o)=>String(o?.driver_id??o?.person_id??o?.id??"");
 const nice=(s)=>String(s||"").replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase());
@@ -140,27 +141,48 @@ export default function Car(){
   const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const teamName=gs?.team?.team_name||gs?.team?.name||teamId||"My Team";
   const drivers=gs?.drivers||[];
-  const parts=gs?.development?.parts||[];
-  const projects=Array.isArray(gs?.development?.projects)?gs.development.projects:[];
-  const manufacturing=Array.isArray(gs?.development?.manufacturing)?gs.development.manufacturing:[];
   const currentDateISO=String(gs?.currentDateISO||"").slice(0,10);
 
-  const syncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
+  const rawSyncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
     gs?.garage,gs?.contracts,gs?.activeYear,teamId,
   ]);
+  const physicalState=useMemo(
+    ()=>normalizePhysicalPartState({...gs,garage:rawSyncedGarage}),
+    [gs,rawSyncedGarage]
+  );
+  const syncedGarage=physicalState?.garage||rawSyncedGarage;
+  const parts=physicalState?.development?.parts||[];
+  const partUnits=physicalState?.development?.partUnits||[];
+  const projects=Array.isArray(physicalState?.development?.projects)?physicalState.development.projects:[];
+  const manufacturing=Array.isArray(physicalState?.development?.manufacturing)?physicalState.development.manufacturing:[];
   const baseStock=syncedGarage?.baseComponentStock||{};
 
   useEffect(()=>{
-    const current=JSON.stringify(gs?.garage?.cars||[]);
-    const wanted=JSON.stringify(syncedGarage?.cars||[]);
-    if(current!==wanted)setGameState({garage:syncedGarage});
-  },[currentKey(gs?.garage?.cars),currentKey(syncedGarage?.cars)]); // eslint-disable-line react-hooks/exhaustive-deps
+    const garageChanged=currentKey(gs?.garage?.cars)!==currentKey(syncedGarage?.cars);
+    const unitsChanged=Array.isArray(physicalState?.development?.partUnits) &&
+      currentKey(gs?.development?.partUnits)!==currentKey(partUnits);
+    const partsChanged=Array.isArray(physicalState?.development?.parts) &&
+      currentKey(gs?.development?.parts)!==currentKey(parts);
+    if(garageChanged||unitsChanged||partsChanged){
+      setGameState({
+        garage:syncedGarage,
+        development:{...(gs?.development||{}),...(physicalState?.development||{})},
+      });
+    }
+  },[
+    currentKey(gs?.garage?.cars),
+    currentKey(syncedGarage?.cars),
+    currentKey(gs?.development?.partUnits),
+    currentKey(partUnits),
+    currentKey(gs?.development?.parts),
+    currentKey(parts),
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const driverById=useMemo(()=>new Map(drivers.map((d)=>[idOf(d),d])),[drivers]);
-  const ranking=useMemo(()=>carPerformanceRanking({...gs,garage:syncedGarage}),[gs,syncedGarage]);
+  const ranking=useMemo(()=>carPerformanceRanking(physicalState),[physicalState]);
   const myRank=ranking.find((r)=>String(r.team_id)===teamId);
   const carGrid=useMemo(()=>{
-    const state={...gs,garage:syncedGarage};
+    const state=physicalState;
     return (gs?.teams||[]).flatMap((team)=>{
       const tid=String(team?.team_id??team?.id??"");
       if(!tid)return [];
@@ -185,7 +207,7 @@ export default function Car(){
         };
       });
     });
-  },[gs,syncedGarage]);
+  },[physicalState]);
   const cars=syncedGarage?.cars||[];
   const raceCars=cars.filter((c)=>c.kind!=="reserve");
   const viewRaw=searchParams.get("view")||"overview";
@@ -193,7 +215,7 @@ export default function Car(){
   const selectedId=searchParams.get("car")||raceCars[0]?.id||cars[0]?.id||"";
   const selectedCar=cars.find((c)=>c.id===selectedId)||raceCars[0]||cars[0]||null;
   const selectedDriver=selectedCar?driverById.get(String(selectedCar.driver_id||"")):null;
-  const carState={...gs,garage:syncedGarage};
+  const carState=physicalState;
   const selectedPerf=selectedCar?teamCarPerformance(carState,teamId,selectedCar.driver_id):null;
   const selectedFitted=selectedCar?installedPartsForCar(carState,selectedCar):[];
   const eligibleComponentSlots=componentSlotsForTeam(carState,teamId);
@@ -206,29 +228,23 @@ export default function Car(){
   }):[];
   const averageCondition=componentRows.length?componentRows.reduce((s,row)=>s+row.condition,0)/componentRows.length:0;
 
-  const updateGarageAndParts=(nextCars,nextParts)=>{
-    setGameState({garage:{...syncedGarage,cars:nextCars},development:{...(gs.development||{}),parts:nextParts}});
+  const commitPhysicalState=(nextState)=>{
+    const normalized=normalizePhysicalPartState(nextState);
+    setGameState({
+      garage:normalized?.garage,
+      development:normalized?.development,
+    });
   };
   const fitPart=(car,part)=>{
     const slot=String(part?.slot||"");
-    if(!slot||Number(part?.inv||0)<=0)return;
-    const oldId=car?.installedParts?.[slot];
-    if(String(oldId||"")===String(part.id))return;
-    const nextParts=parts.map((p)=>{
-      if(String(p.id)===String(part.id))return {...p,inv:Math.max(0,Number(p.inv||0)-1)};
-      if(oldId&&String(p.id)===String(oldId))return {...p,inv:Number(p.inv||0)+1};
-      return p;
-    });
-    const nextCars=cars.map((c)=>c.id===car.id?{...c,installedParts:{...(c.installedParts||{}),[slot]:part.id}}:c);
-    updateGarageAndParts(nextCars,nextParts);
+    if(!slot||inventoryCountForDesign(carState,part?.id)<=0)return;
+    const next=fitPhysicalPartUnit(carState,{carId:car.id,slot,designId:part.id});
+    commitPhysicalState(next);
   };
   const removePart=(car,slot)=>{
-    const oldId=car?.installedParts?.[slot];
-    if(!oldId)return;
-    const nextParts=parts.map((p)=>String(p.id)===String(oldId)?{...p,inv:Number(p.inv||0)+1}:p);
-    const installed={...(car.installedParts||{})}; delete installed[slot];
-    const nextCars=cars.map((c)=>c.id===car.id?{...c,installedParts:installed}:c);
-    updateGarageAndParts(nextCars,nextParts);
+    if(!car?.installedParts?.[slot])return;
+    const next=removePhysicalPartUnit(carState,{carId:car.id,slot});
+    commitPhysicalState(next);
   };
   const spend=(amount,desc)=>{
     const value=Math.abs(Number(amount||0));
@@ -298,7 +314,7 @@ export default function Car(){
     setGameState(patch);
   };
 
-  const availableParts=parts.filter((p)=>Number(p.inv||0)>0);
+  const availableParts=parts.filter((p)=>inventoryCountForDesign(carState,p.id)>0);
   const activeProjects=projects.filter((p)=>p.status==="active"||p.status==="paused");
   const activeManufacturing=manufacturing.filter((m)=>m.status==="active");
   const setView=(nextView,extra={})=>{
@@ -407,10 +423,10 @@ export default function Car(){
           const buildCost=baseComponentConstructionCost(gs,row.slot);
           return <div key={row.slot} className="p-3 grid grid-cols-[40px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)_100px_150px] gap-3 items-center">
             <div className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
-            <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
+            <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}</div><div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
             <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">condition</div></div>
             <div className="col-span-2 md:col-span-1 flex md:flex-col gap-1.5">
-              {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)}>Fit {stocked.version||"developed"}</Button>:null}
+              {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
               {row.installed?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>:row.condition<99.5?<Button size="sm" variant="darkOutline" disabled={standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<buildCost} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Construct & fit"}</Button>:<Button size="sm" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<buildCost} onClick={()=>buildStandardSpare(row.slot)}>Build spare</Button>}
             </div>
           </div>;

@@ -14,6 +14,7 @@ import {
 } from "../src/engine/RaceWeekendEngine.js";
 import { PRACTICE_PROGRAMMES, teamEngineeringSupport, trackSetupProfile } from "../src/engine/PracticeSetupEngine.js";
 import { conditionModifier, practiceWeekendImpact } from "../src/domain/driverPerformance.js";
+import { normalizePhysicalPartState, partUnitById } from "../src/domain/partUnits.js";
 
 const gp={
   gp_id:"monaco",
@@ -419,9 +420,12 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   gs=setPracticeProgramme(gs,{driverId:"D1",programmeId:"reliability"});
   gs=setPracticeProgramme(gs,{driverId:"D2",programmeId:"race"});
 
+  gs=normalizePhysicalPartState(gs);
   const beforeD1=conditionModifier(gs,"D1");
-  const beforeP1=gs.development.parts.find((p)=>p.id==="P1").condition;
-  const beforeP2=gs.development.parts.find((p)=>p.id==="P2").condition;
+  const unitP1=gs.garage.cars.find((row)=>row.id==="car_1").installedParts.aero_front;
+  const unitP2=gs.garage.cars.find((row)=>row.id==="car_2").installedParts.aero_front;
+  const beforeP1=partUnitById(gs,unitP1).condition;
+  const beforeP2=partUnitById(gs,unitP2).condition;
 
   gs=completePracticeSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"practice_complete");
@@ -445,8 +449,8 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   assert.ok(Number.isFinite(reliabilityImpact.qualifying)&&Number.isFinite(reliabilityImpact.race));
   assert.ok(raceImpact.race>reliabilityImpact.race,"Race Focus should create a larger direct race-session Practice bonus");
 
-  const afterP1=gs.development.parts.find((p)=>p.id==="P1").condition;
-  const afterP2=gs.development.parts.find((p)=>p.id==="P2").condition;
+  const afterP1=partUnitById(gs,unitP1).condition;
+  const afterP2=partUnitById(gs,unitP2).condition;
   assert.ok(afterP1<beforeP1,"Practice should wear installed components");
   assert.ok(afterP2<beforeP2,"Practice should wear installed components");
   assert.ok((beforeP2-afterP2)>(beforeP1-afterP1),"Race Focus should create more Practice wear than Reliability Focus");
