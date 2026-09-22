@@ -8,21 +8,21 @@ const pick=(o,keys,fb=undefined)=>{for(const key of keys){const v=unwrap(o?.[key
 const num=(v,fb=NaN)=>{const n=Number(unwrap(v));return Number.isFinite(n)?n:fb;};
 
 export const COMPONENT_FALLBACK_CATALOG=Object.freeze([
-  {part_type:"chassis",label:"Chassis",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_reliability:0.80},
-  {part_type:"aero_front",label:"Front Wing",era_start_year:1968,era_end_year:null,impact_area:"aero",base_reliability:0.85},
-  {part_type:"aero_rear",label:"Rear Wing",era_start_year:1968,era_end_year:null,impact_area:"aero",base_reliability:0.83},
-  {part_type:"suspension",label:"Suspension",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_reliability:0.78},
-  {part_type:"gearbox",label:"Gearbox",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_reliability:0.75},
-  {part_type:"brakes",label:"Brakes",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_reliability:0.82},
-  {part_type:"cooling",label:"Cooling",era_start_year:1950,era_end_year:null,impact_area:"cooling",base_reliability:0.80},
-  {part_type:"turbocharger",label:"Turbocharger",era_start_year:1977,era_end_year:1988,impact_area:"powertrain",base_reliability:0.70},
-  {part_type:"electronics",label:"Electronics",era_start_year:1990,era_end_year:null,impact_area:"reliability",base_reliability:0.85},
-  {part_type:"kers",label:"KERS",era_start_year:2009,era_end_year:2013,impact_area:"hybrid",base_reliability:0.75},
-  {part_type:"ers_mgu_k",label:"MGU-K",era_start_year:2014,era_end_year:null,impact_area:"hybrid",base_reliability:0.78},
-  {part_type:"ers_mgu_h",label:"MGU-H",era_start_year:2014,era_end_year:2025,impact_area:"hybrid",base_reliability:0.70},
-  {part_type:"battery_pack",label:"Battery Pack",era_start_year:2009,era_end_year:null,impact_area:"hybrid",base_reliability:0.80},
-  {part_type:"fuel_system",label:"Fuel System",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_reliability:0.82},
-  {part_type:"exhaust_system",label:"Exhaust System",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_reliability:0.80},
+  {part_type:"chassis",label:"Chassis",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:165,base_drag:0.25,base_downforce:0.40,base_reliability:0.80},
+  {part_type:"aero_front",label:"Front Wing",era_start_year:1968,era_end_year:null,impact_area:"aero",base_weight:10,base_drag:0.05,base_downforce:0.18,base_reliability:0.85},
+  {part_type:"aero_rear",label:"Rear Wing",era_start_year:1968,era_end_year:null,impact_area:"aero",base_weight:12,base_drag:0.07,base_downforce:0.22,base_reliability:0.83},
+  {part_type:"suspension",label:"Suspension",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:40,base_drag:0.03,base_downforce:0.10,base_reliability:0.78},
+  {part_type:"gearbox",label:"Gearbox",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:55,base_drag:0.02,base_downforce:0.05,base_reliability:0.75},
+  {part_type:"brakes",label:"Brakes",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:20,base_drag:0.01,base_downforce:0.02,base_reliability:0.82},
+  {part_type:"cooling",label:"Cooling",era_start_year:1950,era_end_year:null,impact_area:"cooling",base_weight:25,base_drag:0.04,base_downforce:0.00,base_reliability:0.80},
+  {part_type:"turbocharger",label:"Turbocharger",era_start_year:1977,era_end_year:1988,impact_area:"powertrain",base_weight:18,base_drag:0.06,base_downforce:0.05,base_reliability:0.70},
+  {part_type:"electronics",label:"Electronics",era_start_year:1990,era_end_year:null,impact_area:"reliability",base_weight:8,base_drag:0.01,base_downforce:0.00,base_reliability:0.85},
+  {part_type:"kers",label:"KERS",era_start_year:2009,era_end_year:2013,impact_area:"hybrid",base_weight:30,base_drag:0.02,base_downforce:0.01,base_reliability:0.75},
+  {part_type:"ers_mgu_k",label:"MGU-K",era_start_year:2014,era_end_year:null,impact_area:"hybrid",base_weight:35,base_drag:0.03,base_downforce:0.02,base_reliability:0.78},
+  {part_type:"ers_mgu_h",label:"MGU-H",era_start_year:2014,era_end_year:2025,impact_area:"hybrid",base_weight:25,base_drag:0.02,base_downforce:0.01,base_reliability:0.70},
+  {part_type:"battery_pack",label:"Battery Pack",era_start_year:2009,era_end_year:null,impact_area:"hybrid",base_weight:40,base_drag:0.02,base_downforce:0.00,base_reliability:0.80},
+  {part_type:"fuel_system",label:"Fuel System",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:22,base_drag:0.01,base_downforce:0.00,base_reliability:0.82},
+  {part_type:"exhaust_system",label:"Exhaust System",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:18,base_drag:0.02,base_downforce:0.01,base_reliability:0.80},
 ]);
 
 export const COMPONENT_STAT_KEY=Object.freeze({
