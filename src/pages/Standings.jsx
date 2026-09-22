@@ -15,6 +15,11 @@ function teamName(team,fallback="—"){
 function resultYear(row){return Number(row?.year??row?.season_year);}
 function finishPosition(row,index){return Number(row?.position??row?.pos??index+1);}
 function isRetired(row){return Boolean(row?.retired)||String(row?.status||"").toUpperCase()==="DNF";}
+function qualifyingPoleIds(race){
+  return new Set((race?.qualifying||[])
+    .filter((row,index)=>Number(row?.position??index+1)===1&&row?.driver_id!=null)
+    .map((row)=>String(row.driver_id)));
+}
 
 function aggregateCareerResults(results,year,driversById,teamsById){
   const driverMap=new Map();
@@ -22,6 +27,7 @@ function aggregateCareerResults(results,year,driversById,teamsById){
 
   for(const race of results.filter((r)=>resultYear(r)===Number(year))){
     const raceKey=String(race?.key??`${year}_${race?.round??race?.gp_id??race?.name??"race"}`);
+    const poleIds=qualifyingPoleIds(race);
     for(const [index,row] of (race?.classification||[]).entries()){
       const did=str(row?.driver_id??row?.id);
       if(!did)continue;
@@ -34,26 +40,36 @@ function aggregateCareerResults(results,year,driversById,teamsById){
 
       const d=driverMap.get(did)||{
         id:did,name:driverName(dbDriver,did),teamId:tid,teamName:teamName(dbTeam,tid||"—"),
-        points:0,races:0,wins:0,podiums:0,fastestLaps:0,driver:dbDriver||{driver_id:did,display_name:did},
-        _teamStarts:new Map(),
+        points:0,races:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,bestFinish:null,finishSum:0,finishCount:0,
+        driver:dbDriver||{driver_id:did,display_name:did},_teamStarts:new Map(),
       };
       d.points+=points;
       d.races+=1;
       if(!retired&&pos===1)d.wins+=1;
       if(!retired&&pos>=1&&pos<=3)d.podiums+=1;
       if(row?.fastest_lap)d.fastestLaps+=1;
+      if(poleIds.has(did))d.poles+=1;
+      if(retired)d.dnfs+=1;
+      if(Number.isFinite(pos)&&pos>0){
+        d.finishSum+=pos;
+        d.finishCount+=1;
+        d.bestFinish=d.bestFinish==null?pos:Math.min(d.bestFinish,pos);
+      }
       if(tid)d._teamStarts.set(tid,(d._teamStarts.get(tid)||0)+1);
       driverMap.set(did,d);
 
       if(tid){
         const t=teamMap.get(tid)||{
-          id:tid,name:teamName(dbTeam,row?.team_name||tid),points:0,wins:0,podiums:0,races:new Set(),
+          id:tid,name:teamName(dbTeam,row?.team_name||tid),points:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,races:new Set(),
           team:dbTeam||{team_id:tid,team_name:row?.team_name||tid},
         };
         t.points+=points;
         t.races.add(raceKey);
         if(!retired&&pos===1)t.wins+=1;
         if(!retired&&pos>=1&&pos<=3)t.podiums+=1;
+        if(row?.fastest_lap)t.fastestLaps+=1;
+        if(poleIds.has(did))t.poles+=1;
+        if(retired)t.dnfs+=1;
         teamMap.set(tid,t);
       }
     }
@@ -61,11 +77,21 @@ function aggregateCareerResults(results,year,driversById,teamsById){
 
   const drivers=[...driverMap.values()].map((row)=>{
     const preferred=[...row._teamStarts.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||row.teamId;
-    return {...row,teamId:preferred,teamName:teamName(teamsById.get(preferred),preferred||row.teamName),_teamStarts:undefined};
+    return {
+      ...row,
+      teamId:preferred,
+      teamName:teamName(teamsById.get(preferred),preferred||row.teamName),
+      averageFinish:row.finishCount?Number((row.finishSum/row.finishCount).toFixed(2)):null,
+      pointsPerRace:row.races?Number((row.points/row.races).toFixed(2)):0,
+      _teamStarts:undefined,finishSum:undefined,finishCount:undefined,
+    };
   }).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
 
-  const teams=[...teamMap.values()].map((row)=>({...row,races:row.races.size}))
-    .sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
+  const teams=[...teamMap.values()].map((row)=>({
+    ...row,
+    races:row.races.size,
+    pointsPerRace:row.races.size?Number((row.points/row.races.size).toFixed(2)):0,
+  })).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
 
   return {drivers,teams};
 }
@@ -86,7 +112,7 @@ function aggregateHistorical(history,year,driversById,teamsById){
     const d=driverMap.get(did)||{
       id:did,name:row?.driver_name||driverName(dbDriver,did),teamId:tid,
       teamName:row?.team_name||teamName(dbTeam,tid||"—"),
-      points:0,races:0,wins:0,podiums:0,fastestLaps:0,
+      points:0,races:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,bestFinish:null,finishWeighted:0,finishWeight:0,
       driver:dbDriver||{driver_id:did,display_name:row?.driver_name||did},_teams:[],
     };
     d.points+=num(row?.points,0);
@@ -94,17 +120,27 @@ function aggregateHistorical(history,year,driversById,teamsById){
     d.wins+=num(row?.wins,0);
     d.podiums+=num(row?.podiums,0);
     d.fastestLaps+=num(row?.fastest_laps,0);
+    d.poles+=num(row?.poles,0);
+    d.dnfs+=num(row?.dnf,0);
+    const best=Number(row?.best_finish);
+    if(Number.isFinite(best)&&best>0)d.bestFinish=d.bestFinish==null?best:Math.min(d.bestFinish,best);
+    const avg=Number(row?.average_finish);
+    const finishWeight=num(row?.classified_finishes,row?.races??row?.starts??0);
+    if(Number.isFinite(avg)&&finishWeight>0){d.finishWeighted+=avg*finishWeight;d.finishWeight+=finishWeight;}
     d._teams.push({id:tid,name:row?.team_name||teamName(dbTeam,tid||"—"),starts,points:num(row?.points,0)});
     driverMap.set(did,d);
 
     if(tid){
       const t=teamMap.get(tid)||{
-        id:tid,name:row?.team_name||teamName(dbTeam,tid),points:0,wins:0,podiums:0,races:0,
+        id:tid,name:row?.team_name||teamName(dbTeam,tid),points:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,races:0,
         team:dbTeam||{team_id:tid,team_name:row?.team_name||tid},
       };
       t.points+=num(row?.points,0);
       t.wins+=num(row?.wins,0);
       t.podiums+=num(row?.podiums,0);
+      t.fastestLaps+=num(row?.fastest_laps,0);
+      t.poles+=num(row?.poles,0);
+      t.dnfs+=num(row?.dnf,0);
       t.races=Math.max(t.races,num(row?.races??row?.starts,0));
       teamMap.set(tid,t);
     }
@@ -112,10 +148,20 @@ function aggregateHistorical(history,year,driversById,teamsById){
 
   const drivers=[...driverMap.values()].map((row)=>{
     const preferred=row._teams.slice().sort((a,b)=>b.starts-a.starts||b.points-a.points)[0];
-    return {...row,teamId:preferred?.id||row.teamId,teamName:preferred?.name||row.teamName,_teams:undefined};
+    return {
+      ...row,
+      teamId:preferred?.id||row.teamId,
+      teamName:preferred?.name||row.teamName,
+      averageFinish:row.finishWeight?Number((row.finishWeighted/row.finishWeight).toFixed(2)):null,
+      pointsPerRace:row.races?Number((row.points/row.races).toFixed(2)):0,
+      _teams:undefined,finishWeighted:undefined,finishWeight:undefined,
+    };
   }).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
 
-  const teams=[...teamMap.values()].sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
+  const teams=[...teamMap.values()].map((row)=>({
+    ...row,
+    pointsPerRace:row.races?Number((row.points/row.races).toFixed(2)):0,
+  })).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
   return {drivers,teams};
 }
 
@@ -176,8 +222,9 @@ export default function Standings(){
       return {
         id,name:row?.name||driverName(db,id),teamId:tid,teamName:teamName(teamsById.get(tid),stats.teamName||tid||"—"),
         points:num(row?.points,0),races:num(stats.races,0),wins:num(stats.wins,0),podiums:num(stats.podiums,0),
-        fastestLaps:num(stats.fastestLaps,0),driver:db||{driver_id:id,display_name:row?.name||id},
-        position:num(row?.position,index+1),
+        fastestLaps:num(stats.fastestLaps,0),poles:num(stats.poles,0),dnfs:num(stats.dnfs,0),
+        bestFinish:stats.bestFinish??null,averageFinish:stats.averageFinish??null,pointsPerRace:num(stats.pointsPerRace,0),
+        driver:db||{driver_id:id,display_name:row?.name||id},position:num(row?.position,index+1),
       };
     }).sort((a,b)=>a.position-b.position||b.points-a.points);
 
@@ -190,6 +237,7 @@ export default function Standings(){
       return {
         id,name:row?.team_name||row?.name||teamName(db,id),points:num(row?.points,0),
         races:num(stats.races,0),wins:num(stats.wins,0),podiums:num(stats.podiums,0),
+        fastestLaps:num(stats.fastestLaps,0),poles:num(stats.poles,0),dnfs:num(stats.dnfs,0),pointsPerRace:num(stats.pointsPerRace,0),
         team:db||{team_id:id,team_name:row?.team_name||row?.name||id},position:num(row?.position,index+1),
       };
     }).sort((a,b)=>a.position-b.position||b.points-a.points);
@@ -238,7 +286,12 @@ export default function Standings(){
             <th className="px-4 py-3 text-right">Races</th>
             <th className="px-4 py-3 text-right">Wins</th>
             <th className="px-4 py-3 text-right">Podiums</th>
-            {tab==="drivers"&&<th className="px-4 py-3 text-right">FL</th>}
+            <th className="px-4 py-3 text-right">Poles</th>
+            <th className="px-4 py-3 text-right">FL</th>
+            <th className="px-4 py-3 text-right">DNF</th>
+            {tab==="drivers"&&<th className="px-4 py-3 text-right">Best</th>}
+            {tab==="drivers"&&<th className="px-4 py-3 text-right">Avg</th>}
+            <th className="px-4 py-3 text-right">Pts/Race</th>
             <th className="px-4 py-3 text-right">Points</th>
           </tr>
         </thead>
@@ -260,10 +313,15 @@ export default function Standings(){
             <td className="px-4 py-2 text-right">{row.races}</td>
             <td className="px-4 py-2 text-right">{row.wins}</td>
             <td className="px-4 py-2 text-right">{row.podiums}</td>
-            {tab==="drivers"&&<td className="px-4 py-2 text-right">{row.fastestLaps}</td>}
+            <td className="px-4 py-2 text-right">{row.poles??0}</td>
+            <td className="px-4 py-2 text-right">{row.fastestLaps??0}</td>
+            <td className={`px-4 py-2 text-right ${Number(row.dnfs)>0?"text-rose-300":""}`}>{row.dnfs??0}</td>
+            {tab==="drivers"&&<td className="px-4 py-2 text-right">{row.bestFinish?("P"+row.bestFinish):"—"}</td>}
+            {tab==="drivers"&&<td className="px-4 py-2 text-right">{row.averageFinish!=null?Number(row.averageFinish).toFixed(1):"—"}</td>}
+            <td className="px-4 py-2 text-right">{Number(row.pointsPerRace||0).toFixed(1)}</td>
             <td className="px-4 py-2 text-right font-semibold">{Number(row.points||0).toLocaleString("en-GB",{maximumFractionDigits:2})}</td>
           </tr>)}
-          {!rows.length?<tr><td colSpan={tab==="drivers"?8:6} className="px-4 py-8 text-center text-slate-500">
+          {!rows.length?<tr><td colSpan={tab==="drivers"?13:10} className="px-4 py-8 text-center text-slate-500">
             {isCurrent?"No standings yet for the current season.":"No standings data available for this season."}
           </td></tr>:null}
         </tbody>
