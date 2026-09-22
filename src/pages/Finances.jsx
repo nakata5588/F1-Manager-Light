@@ -10,7 +10,7 @@ const fmtMoney = (n) => {
   try {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
-      currency: "EUR",
+      currency: "USD",
       maximumFractionDigits: 0,
     }).format(Number(n || 0));
   } catch {
@@ -249,12 +249,12 @@ export default function Finances() {
   const [tab, setTab] = useState("overview");
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold">Finances</h1>
-        <div className="text-sm text-muted-foreground">
-          Balance: <span className="font-medium">{fmtMoney(fin.balance || fin.budget)}</span>
+        <h1 className="text-2xl md:text-3xl font-semibold text-slate-100">Finances</h1>
+        <div className="text-sm text-slate-400">
+          Balance: <span className="font-medium text-slate-100">{fmtMoney(fin.balance || fin.budget)}</span>
         </div>
       </div>
 
