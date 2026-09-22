@@ -172,3 +172,52 @@ test("finalized live rows preserve exactly the retirements visible to the player
   assert.equal(retired.laps_completed,9);
   assert.equal(rows.filter((row)=>!row.retired).every((row)=>row.status==="Finished"),true);
 });
+
+
+test("RW4.4 live timing exposes sectors, intervals, tyre age, position change and strategy projection",()=>{
+  let gs=createLiveRaceState(fixture(),{gp});
+  gs=advanceTo(gs,4);
+  const rows=gs.raceWeekendState.live_race.classification;
+  assert.equal(rows.length,4);
+  const leader=rows[0];
+  assert.equal(leader.gap_to_leader_ms,0);
+  assert.equal(leader.interval_ms,0);
+  assert.ok(Number.isFinite(leader.grid_position));
+  assert.ok(Number.isFinite(leader.position_gain));
+  assert.ok(Number.isFinite(leader.projected_finish_position));
+  assert.ok(Number.isFinite(leader.best_lap_ms)&&leader.best_lap_ms>0);
+  assert.ok(Number.isFinite(leader.best_lap_number)&&leader.best_lap_number>=1);
+  assert.ok(Number.isFinite(leader.tyre.age_laps)&&leader.tyre.age_laps>=1);
+  assert.ok(Number.isFinite(leader.tyre.temperature_c));
+  assert.ok(["conserve","balanced","attack"].includes(leader.current_pace));
+  assert.ok(leader.pit_window===null||Number.isFinite(leader.pit_window.target_lap));
+  assert.equal(
+    leader.sector_1_ms+leader.sector_2_ms+leader.sector_3_ms,
+    leader.last_lap_ms,
+    "display sectors must add back to the exact simulated lap time"
+  );
+
+  const second=rows[1];
+  assert.ok(Number(second.interval_ms)>=0);
+  assert.ok(Number(second.gap_to_leader_ms)>=Number(second.interval_ms));
+
+  const timing=gs.raceWeekendState.live_race.timing_summary;
+  assert.equal(timing.leader_driver_id,leader.driver_id);
+  assert.ok(Number.isFinite(timing.fastest_lap_ms)&&timing.fastest_lap_ms>0);
+  assert.equal(timing.running_count+timing.retired_count,rows.length);
+});
+
+test("RW4.4 advanced timing remains deterministic after save/load",()=>{
+  let gs=createLiveRaceState(fixture(),{gp});
+  gs=advanceTo(gs,5);
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW4.4 timing"},gameState:stored});
+  assert.deepEqual(
+    loaded.raceWeekendState.live_race.classification,
+    gs.raceWeekendState.live_race.classification
+  );
+  assert.deepEqual(
+    loaded.raceWeekendState.live_race.timing_summary,
+    gs.raceWeekendState.live_race.timing_summary
+  );
+});
