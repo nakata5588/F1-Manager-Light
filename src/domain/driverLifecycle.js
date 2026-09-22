@@ -190,7 +190,7 @@ export function driverMonthlyCareerDevelopmentPlan(gs,driverId,rating,dateISO=gs
   // Poor Form must be sustained. A single bad GP should not permanently damage
   // a driver's talent profile.
   if(perf.starts>=2&&Number.isFinite(perf.averageScore)&&perf.averageScore<58){
-    const setback=Math.min(0.11,0.025+(58-perf.averageScore)*0.004);
+    const setback=Math.min(0.22,0.050+(58-perf.averageScore)*0.008);
     plan.push(change("mentality",-setback,"sustained_underperformance","Repeated results below the car baseline hurt competitive resilience."));
     plan.push(change("pressure_handling",-setback*0.72,"sustained_underperformance","Sustained underperformance reduced confidence under pressure."));
     plan.push(change("consistency",-setback*0.52,"sustained_underperformance","Repeated weak weekends reduced repeatability."));
@@ -204,40 +204,40 @@ export function driverMonthlyCareerDevelopmentPlan(gs,driverId,rating,dateISO=gs
   // not enter this plan.
   if(perf.driverErrors>0){
     const count=Math.min(3,perf.driverErrors);
-    plan.push(change("consistency",-0.055*count,"driver_error_regression","Driver-caused accidents reduced consistency."));
-    plan.push(change("mentality",-0.040*count,"driver_error_regression","Driver-caused accidents damaged competitive resilience."));
-    plan.push(change("pressure_handling",-0.025*count,"driver_error_regression","Mistakes under pressure reduced pressure handling."));
-    plan.push(change("crash_likelihood",0.075*count,"driver_error_regression","Repeated driver-caused incidents increased the live accident tendency."));
-    if(count>=2)plan.push(change("racecraft",-0.025,"driver_error_regression","Repeated incidents weakened wheel-to-wheel judgement."));
+    plan.push(change("consistency",-0.140*count,"driver_error_regression","Driver-caused accidents reduced consistency."));
+    plan.push(change("mentality",-0.100*count,"driver_error_regression","Driver-caused accidents damaged competitive resilience."));
+    plan.push(change("pressure_handling",-0.070*count,"driver_error_regression","Mistakes under pressure reduced pressure handling."));
+    plan.push(change("crash_likelihood",0.180*count,"driver_error_regression","Repeated driver-caused incidents increased the live accident tendency."));
+    if(count>=2)plan.push(change("racecraft",-0.080,"driver_error_regression","Repeated incidents weakened wheel-to-wheel judgement."));
     reasons.push(`−${perf.driverErrors} driver-error incident(s)`);
   }
 
   if(perf.racingIncidents>0){
     const count=Math.min(3,perf.racingIncidents);
-    plan.push(change("racecraft",-0.020*count,"racing_incident_regression","Repeated racing incidents reduced wheel-to-wheel execution."));
-    plan.push(change("consistency",-0.014*count,"racing_incident_regression","Racing incidents reduced consistency."));
-    plan.push(change("crash_likelihood",0.025*count,"racing_incident_regression","Repeated contact increased incident tendency."));
+    plan.push(change("racecraft",-0.050*count,"racing_incident_regression","Repeated racing incidents reduced wheel-to-wheel execution."));
+    plan.push(change("consistency",-0.035*count,"racing_incident_regression","Racing incidents reduced consistency."));
+    plan.push(change("crash_likelihood",0.060*count,"racing_incident_regression","Repeated contact increased incident tendency."));
     reasons.push(`−${perf.racingIncidents} racing incident(s)`);
   }
 
   const injury=strongestInjury(medical);
   const severity=String(injury?.injury_severity||"").toLowerCase();
   if(severity==="moderate"){
-    plan.push(change("adaptability",-0.025,"injury_regression","A moderate injury caused a small permanent adaptation setback."));
-    plan.push(change("consistency",-0.015,"injury_regression","Recovery interrupted driving consistency."));
+    plan.push(change("adaptability",-0.080,"injury_regression","A moderate injury caused a small permanent adaptation setback."));
+    plan.push(change("consistency",-0.050,"injury_regression","Recovery interrupted driving consistency."));
     reasons.push("−Moderate injury recovery");
   }else if(severity==="serious"){
-    plan.push(change("pace",-0.080,"injury_regression","A serious injury caused a small permanent physical-performance setback."));
-    plan.push(change("adaptability",-0.080,"injury_regression","A serious injury reduced adaptability after recovery."));
-    plan.push(change("consistency",-0.050,"injury_regression","A serious injury disrupted consistency."));
-    plan.push(change("mentality",-0.040,"injury_regression","A serious injury affected competitive resilience."));
+    plan.push(change("pace",-0.250,"injury_regression","A serious injury caused a small permanent physical-performance setback."));
+    plan.push(change("adaptability",-0.200,"injury_regression","A serious injury reduced adaptability after recovery."));
+    plan.push(change("consistency",-0.150,"injury_regression","A serious injury disrupted consistency."));
+    plan.push(change("mentality",-0.120,"injury_regression","A serious injury affected competitive resilience."));
     reasons.push("−Serious injury");
   }else if(severity==="critical"){
-    plan.push(change("pace",-0.160,"injury_regression","A critical injury caused a meaningful permanent physical-performance setback."));
-    plan.push(change("adaptability",-0.140,"injury_regression","A critical injury reduced adaptability after recovery."));
-    plan.push(change("consistency",-0.100,"injury_regression","A critical injury disrupted consistency."));
-    plan.push(change("mentality",-0.080,"injury_regression","A critical injury affected competitive resilience."));
-    plan.push(change("pressure_handling",-0.050,"injury_regression","The severity of the accident affected pressure handling."));
+    plan.push(change("pace",-0.600,"injury_regression","A critical injury caused a meaningful permanent physical-performance setback."));
+    plan.push(change("adaptability",-0.500,"injury_regression","A critical injury reduced adaptability after recovery."));
+    plan.push(change("consistency",-0.350,"injury_regression","A critical injury disrupted consistency."));
+    plan.push(change("mentality",-0.250,"injury_regression","A critical injury affected competitive resilience."));
+    plan.push(change("pressure_handling",-0.180,"injury_regression","The severity of the accident affected pressure handling."));
     reasons.push("−Critical injury");
   }
 
