@@ -176,8 +176,16 @@ function activeStaffContracts(gs,teamId){
 }
 
 function staffRating(gs,id){
-  const rows=gs?.staffRatings?.length?gs.staffRatings:(gs?.dbStaffRatings||[]);
-  return rows.find((row)=>staffIdOf(row)===String(id))||{};
+  const year=Number(gs?.activeYear);
+  const rows=(gs?.staffRatings?.length?gs.staffRatings:(gs?.dbStaffRatings||[]))
+    .filter((row)=>staffIdOf(row)===String(id));
+  const exact=rows.find((row)=>Number(pick(row,["year","season_year"],NaN))===year);
+  if(exact)return exact;
+  return rows
+    .filter((row)=>Number(pick(row,["year","season_year"],-Infinity))<=year)
+    .sort((a,b)=>Number(pick(b,["year","season_year"],0))-Number(pick(a,["year","season_year"],0)))[0]
+    ||rows[0]
+    ||{};
 }
 
 export function teamEngineeringSupport(gs,teamId){

@@ -135,11 +135,11 @@ export default function CalendarPage() {
   );
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold">Calendar</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-slate-400">
             Race weekends, deadlines, contracts, development and team events from the live Save World.
           </p>
         </div>
@@ -158,7 +158,7 @@ export default function CalendarPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <section className="xl:col-span-9 rounded-xl border bg-slate-950 text-slate-100 shadow-sm overflow-hidden">
+        <section className="xl:col-span-9 rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10 flex flex-wrap items-center gap-3">
             <div className="text-lg font-semibold uppercase tracking-wide">{monthLabel}</div>
             <div className="flex-1" />
@@ -190,13 +190,13 @@ export default function CalendarPage() {
                   onClick={() => setSelectedISO(iso)}
                   className={[
                     "min-h-[118px] p-2 text-left border-t border-r border-white/10 transition-colors",
-                    inCurrentMonth ? "bg-slate-950" : "bg-slate-950/45 text-slate-600",
-                    selected ? "ring-2 ring-inset ring-cyan-400" : "hover:bg-slate-900",
+                    inCurrentMonth ? "bg-[#0d0f15]" : "bg-[#090b10] text-slate-600",
+                    selected ? "ring-2 ring-inset ring-white/60 bg-[#171a23]" : "hover:bg-[#171a23]",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={isToday ? "font-bold text-cyan-300" : "font-medium"}>{dateObj.getDate()}</span>
-                    {isToday ? <span className="text-[9px] uppercase tracking-wider text-cyan-300">Today</span> : null}
+                    <span className={isToday ? "font-bold text-white" : "font-medium"}>{dateObj.getDate()}</span>
+                    {isToday ? <span className="text-[9px] uppercase tracking-wider text-slate-300">Today</span> : null}
                   </div>
                   <div className="mt-2 space-y-1">
                     {events.slice(0, 3).map((event) => (
@@ -213,7 +213,7 @@ export default function CalendarPage() {
         </section>
 
         <aside className="xl:col-span-3 space-y-4">
-          <div className="rounded-xl border bg-slate-950 text-slate-100 shadow-sm overflow-hidden">
+          <div className="rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-white/10">
               <div className="text-xs uppercase tracking-wider text-slate-400">
                 {selectedDate.toLocaleDateString("en-GB", { weekday: "long" })}
@@ -229,12 +229,12 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b">
+          <div className="rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10">
               <div className="text-sm font-semibold">Upcoming events</div>
-              <div className="text-xs text-muted-foreground">Next decisions and race-weekend milestones</div>
+              <div className="text-xs text-slate-400">Next decisions and race-weekend milestones</div>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-white/10">
               {upcoming.map((event) => {
                 const days = daysBetweenISO(todayISO, event.date);
                 return (
@@ -243,7 +243,7 @@ export default function CalendarPage() {
                       <span className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${(TYPE_STYLES[event.type] || TYPE_STYLES.OTHER).split(" ")[0]}`} />
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium truncate">{event.title}</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-slate-400">
                           {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`} · {event.date}
                         </div>
                       </div>
@@ -251,7 +251,7 @@ export default function CalendarPage() {
                   </div>
                 );
               })}
-              {!upcoming.length ? <div className="p-4 text-sm text-muted-foreground">Nothing upcoming.</div> : null}
+              {!upcoming.length ? <div className="p-4 text-sm text-slate-400">Nothing upcoming.</div> : null}
             </div>
           </div>
         </aside>
