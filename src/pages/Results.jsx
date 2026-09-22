@@ -178,6 +178,36 @@ export default function ResultsPage() {
     [filteredResults, selectedKey]
   );
 
+  const selectedGrid = useMemo(() => new Map(
+    (selected?.startingGrid || []).map((row, index) => [
+      String(row?.driver_id ?? ""),
+      Number(row?.grid ?? index + 1),
+    ])
+  ), [selected]);
+
+  const selectedQualifying = useMemo(() => new Map(
+    (selected?.qualifying || []).map((row, index) => [
+      String(row?.driver_id ?? ""),
+      { position:Number(row?.position ?? index + 1), best_time_ms:row?.best_time_ms ?? null },
+    ])
+  ), [selected]);
+
+  const selectedSummary = useMemo(() => {
+    const rows = selected?.classification || [];
+    const winner = rows.find((row) => Number(row?.position) === 1 && !row?.retired) || rows[0] || null;
+    const fastest = rows.find((row) => row?.fastest_lap) || null;
+    const pole = [...selectedQualifying.entries()].find(([, row]) => Number(row.position) === 1)?.[0] || null;
+    return {
+      winner: winner ? resolveDriverName(driversDb, winner.driver_id) : "—",
+      pole: pole ? resolveDriverName(driversDb, pole) : "—",
+      fastest: fastest ? resolveDriverName(driversDb, fastest.driver_id) : "—",
+      dnfs: rows.filter((row) => row?.retired || String(row?.status || "").toUpperCase() === "DNF").length,
+      pitStops: rows.reduce((sum, row) => sum + (Array.isArray(row?.pit_stops) ? row.pit_stops.length : Number(row?.strategy_summary?.pit_count || 0)), 0),
+      weather: selected?.weather?.state || selected?.raceStrategy?.weather?.state || "—",
+      laps: selected?.track?.laps || selected?.raceStrategy?.track?.laps || rows[0]?.race_laps || "—",
+    };
+  }, [selected, selectedQualifying, driversDb]);
+
   return (
     <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 grid gap-4">
       <div className="bg-[#12141c] border border-white/10 rounded-xl shadow-lg p-4">
@@ -205,7 +235,9 @@ export default function ResultsPage() {
                 <th className="px-3 py-2 text-left">Ano</th>
                 <th className="px-3 py-2 text-left">Rnd</th>
                 <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-right">Classificados</th>
+                <th className="px-3 py-2 text-left">Winner</th>
+                <th className="px-3 py-2 text-right">DNF</th>
+                <th className="px-3 py-2 text-right">Starters</th>
               </tr>
             </thead>
             <tbody>
@@ -218,12 +250,14 @@ export default function ResultsPage() {
                   <td className="px-3 py-2">{r.year ?? "—"}</td>
                   <td className="px-3 py-2">{r.round ?? "—"}</td>
                   <td className="px-3 py-2">{r.name ?? r.gp_name ?? "—"}</td>
+                  <td className="px-3 py-2">{resolveDriverName(driversDb,(r.classification||[]).find((row)=>Number(row?.position)===1&&!row?.retired)?.driver_id)}</td>
+                  <td className="px-3 py-2 text-right text-rose-300">{(r.classification||[]).filter((row)=>row?.retired||String(row?.status||"").toUpperCase()==="DNF").length}</td>
                   <td className="px-3 py-2 text-right">{r.classification?.length ?? 0}</td>
                 </tr>
               ))}
               {!filteredResults.length && (
                 <tr>
-                  <td className="px-3 py-3 text-slate-400" colSpan={4}>Sem resultados ainda.</td>
+                  <td className="px-3 py-3 text-slate-400" colSpan={6}>Sem resultados ainda.</td>
                 </tr>
               )}
             </tbody>
@@ -237,14 +271,28 @@ export default function ResultsPage() {
             {selected.name || selected.gp_name || "Grand Prix"}
             {selected.round ? <span className="text-slate-400"> · Round {selected.round}</span> : null}
           </h3>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+            <RaceMetric label="Winner" value={selectedSummary.winner}/>
+            <RaceMetric label="Pole" value={selectedSummary.pole}/>
+            <RaceMetric label="Fastest Lap" value={selectedSummary.fastest}/>
+            <RaceMetric label="DNF" value={selectedSummary.dnfs}/>
+            <RaceMetric label="Pit Stops" value={selectedSummary.pitStops}/>
+            <RaceMetric label="Laps" value={selectedSummary.laps}/>
+            <RaceMetric label="Weather" value={selectedSummary.weather}/>
+          </div>
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-[#171a23] text-slate-300">
                 <tr>
                   <th className="px-3 py-2 text-right w-16">Pos</th>
+                  <th className="px-3 py-2 text-right">Grid</th>
+                  <th className="px-3 py-2 text-right">+/-</th>
                   <th className="px-3 py-2 text-left">Driver</th>
                   <th className="px-3 py-2 text-left">Team</th>
                   <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Laps</th>
+                  <th className="px-3 py-2 text-right">Stops</th>
+                  <th className="px-3 py-2 text-left">Strategy</th>
                   <th className="px-3 py-2 text-right">Time</th>
                   <th className="px-3 py-2 text-right">To Winner</th>
                   <th className="px-3 py-2 text-right">Gap</th>
@@ -263,6 +311,11 @@ export default function ResultsPage() {
                     const team = resolveTeamNameById(teamsDb, tid);
                     const position = Number(row.position);
                     const retired = row?.retired || String(row?.status||"").toUpperCase()==="DNF";
+                    const grid = selectedGrid.get(did) ?? null;
+                    const positionsGained = Number.isFinite(grid) && Number.isFinite(position) ? grid - position : null;
+                    const stops = Array.isArray(row?.pit_stops) ? row.pit_stops.length : Number(row?.strategy_summary?.pit_count || 0);
+                    const strategy = row?.strategy_summary || {};
+                    const tyres = Array.isArray(strategy?.used_tyres) ? strategy.used_tyres.filter(Boolean).join(" → ") : "";
                     const points = retired
                       ? 0
                       : Number.isFinite(Number(row.points))
@@ -271,6 +324,8 @@ export default function ResultsPage() {
                     return (
                       <tr key={`${did}_${idx}`} className="border-t border-white/10">
                         <td className="px-3 py-2 text-right font-medium">{retired ? "DNF" : (row.position ?? "—")}</td>
+                        <td className="px-3 py-2 text-right">{grid ?? "—"}</td>
+                        <td className={`px-3 py-2 text-right ${positionsGained>0?"text-emerald-300":positionsGained<0?"text-rose-300":""}`}>{positionsGained==null?"—":positionsGained>0?("+"+positionsGained):positionsGained}</td>
                         <td className="px-3 py-2">
                           <button type="button" data-entity="driver" data-id={did} className="flex items-center gap-3 font-medium hover:underline text-left">
                             <DriverPortrait driver={(driversDb || []).find((d)=>String(d?.driver_id ?? d?.id)===did) || { display_name:name }} size="h-9 w-9" />
@@ -288,6 +343,12 @@ export default function ResultsPage() {
                             ? <span className="text-rose-300">{row.retirement_reason || "Retired"}{row.laps_completed ? ` · Lap ${row.laps_completed}` : ""}</span>
                             : <span className="text-emerald-300">Finished</span>}
                         </td>
+                        <td className="px-3 py-2 text-right">{row.laps_completed ?? row.race_laps ?? "—"}</td>
+                        <td className="px-3 py-2 text-right">{stops}</td>
+                        <td className="px-3 py-2 min-w-[180px]">
+                          <div className="text-xs">{strategy.pit_plan ? String(strategy.pit_plan).replaceAll("_"," ") : "—"}</div>
+                          <div className="text-[10px] text-slate-500">{tyres || (row.start_tyre_id ? `${row.start_tyre_id} → ${row.finish_tyre_id || "—"}` : "")}</div>
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums">{retired ? "—" : formatRaceTime(row.total_time_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_winner_ms)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_previous_ms)}</td>
@@ -300,7 +361,7 @@ export default function ResultsPage() {
                   })}
                 {!selected.classification?.length && (
                   <tr>
-                    <td className="px-3 py-3 text-slate-400" colSpan={9}>Sem classificação nesta corrida.</td>
+                    <td className="px-3 py-3 text-slate-400" colSpan={14}>Sem classificação nesta corrida.</td>
                   </tr>
                 )}
               </tbody>
@@ -310,4 +371,12 @@ export default function ResultsPage() {
       )}
     </div>
   );
+}
+
+
+function RaceMetric({label,value}) {
+  return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+    <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="mt-0.5 font-semibold truncate">{value ?? "—"}</div>
+  </div>;
 }
