@@ -415,6 +415,21 @@ export function completeQualifyingSession(gs,{gp}={}){
   }
 
   const classification=buildQualifyingClassification(interim,rule);
+  const finalStatusByDriver=new Map(classification.map((row)=>[
+    String(row?.driver_id??""),
+    String(row?.status||"QUALIFIED").toUpperCase(),
+  ]));
+  const finalSessionResults=(completedCurrent.results||[]).map((row)=>{
+    const finalStatus=finalStatusByDriver.get(String(row?.driver_id??""))||"QUALIFIED";
+    return {
+      ...row,
+      status:["DNQ","DNPQ","ELIMINATED"].includes(finalStatus)?"CUT":"QUALIFIED",
+    };
+  });
+  completedCurrent={...completedCurrent,results:finalSessionResults};
+  sessions=sessionWithPatch(sessions,current.id,completedCurrent);
+  interim={...interim,sessions};
+
   const startingGrid=buildStartingGrid(
     {...interim,currentDateISO:gs?.currentDateISO},
     classification,
