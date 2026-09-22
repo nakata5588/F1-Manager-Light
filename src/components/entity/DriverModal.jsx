@@ -1903,44 +1903,73 @@ function AttributesTab({
     </div>
   );
 }
-function AchievementsTab({ items }) {
-  if (!items?.length) return <p className="text-gray-500 text-sm">No achievements yet.</p>;
+function PerformanceHistory({ items }) {
+  const rows=(items||[]).slice(0,8);
+  if(!rows.length){
+    return <p className="text-slate-500 text-sm">No played-race performance evaluations yet.</p>;
+  }
   return (
-    <div className="space-y-2">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-gray-500 text-xs">
-            <tr>
-              <th className="text-left pr-3 py-1">Year</th>
-              <th className="text-left pr-3 py-1">Team</th>
-              <th className="text-left pr-3 py-1">Drivers' Champ</th>
-              <th className="text-left pr-3 py-1">Constructors' Champ</th>
-              <th className="text-right pr-3 py-1">Wins</th>
-              <th className="text-right pr-0 py-1">Podiums</th>
+    <div className="space-y-3">
+      {rows.map((row,index)=>(
+        <div key={`${row?.year||"year"}-${row?.round||index}`} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">{row?.gp_name||`Round ${row?.round||"—"}`}</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">
+                {row?.year||"—"} · expected ~P{Number(row?.expected_finish||0).toFixed(1)} · {row?.retired?(row?.retirement_reason||"DNF"):`finished P${row?.finish_position||"—"}`}
+              </div>
+            </div>
+            <div className={`rounded-lg border px-3 py-1.5 text-lg font-semibold ${Number(row?.score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(row?.score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
+              {Number(row?.score||0).toFixed(1)}
+            </div>
+          </div>
+          {!!row?.factors?.length&&(
+            <div className="mt-3 space-y-1">
+              {row.factors.slice(0,4).map((factor,i)=>(
+                <div key={`${factor.key||"factor"}-${i}`} className={`text-xs ${factor.tone==="positive"?"text-emerald-300":factor.tone==="negative"?"text-rose-300":"text-slate-400"}`}>
+                  {factor.value>0?"+":""}{Number(factor.value||0).toFixed(1)} · {factor.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AchievementsTab({ items }) {
+  if (!items?.length) return <p className="text-gray-500 text-sm">No championship top-three achievements yet.</p>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="text-gray-500 text-xs">
+          <tr>
+            <th className="text-left pr-3 py-1">Year</th>
+            <th className="text-left pr-3 py-1">Achievement</th>
+            <th className="text-left pr-0 py-1">Team</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/10">
+          {items.map((a, i) => (
+            <tr key={`${a.year||"year"}-${i}`} className={Number(a.position)===1?"bg-amber-500/10":""}>
+              <td className="pr-3 py-2">{displayValue(a.year)}</td>
+              <td className={`pr-3 py-2 font-medium ${Number(a.position)===1?"text-amber-200":"text-slate-200"}`}>
+                {displayValue(a.achievement)}
+              </td>
+              <td className="pr-0 py-2">
+                {a.team_id ? (
+                  <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
+                    {displayValue(a.team_name ?? a.team_id)}
+                  </span>
+                ) : (
+                  displayValue(a.team_name)
+                )}
+              </td>
             </tr>
-          </thead>
-          <tbody className="divide-y">
-            {items.map((a, i) => (
-              <tr key={i}>
-                <td className="pr-3 py-1">{displayValue(a.year)}{a.__live ? " (current)" : ""}</td>
-                <td className="pr-3 py-1">
-                  {a.team_id ? (
-                    <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
-                      {displayValue(a.team_name ?? a.team_id)}
-                    </span>
-                  ) : (
-                    displayValue(a.team_name)
-                  )}
-                </td>
-                <td className="pr-3 py-1">{displayValue(a.driver_championship)}</td>
-                <td className="pr-3 py-1">{displayValue(a.team_championship)}</td>
-                <td className="text-right pr-3 py-1">{displayValue(a.wins, 0)}</td>
-                <td className="text-right pr-0 py-1">{displayValue(a.podiums, 0)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
