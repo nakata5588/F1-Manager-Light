@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { deriveBoardState } from "../src/domain/boardState.js";
 import { academyProgramDefinition } from "../src/domain/academyPrograms.js";
 import { baseComponentConstructionCost, syncGarageState } from "../src/domain/garage.js";
+import { createManufacturedPartUnits, fitPhysicalPartUnit, inventoryCountForDesign, partUnitsForDesign, removePhysicalPartUnit } from "../src/domain/partUnits.js";
 import { availableCarComponentSlots, componentEligibility } from "../src/domain/carComponents.js";
 import { conditionModifierBreakdown } from "../src/domain/driverPerformance.js";
 import { pitCrewEffectiveProfile } from "../src/engine/RaceStrategyEngine.js";
@@ -128,4 +129,46 @@ test("garage seeds condition only for components applicable to the player's car 
   assert.equal(car.componentCondition.fuel_system,100);
   assert.equal(car.componentCondition.exhaust_system,100);
   assert.equal(car.componentCondition.turbocharger,undefined);
+});
+
+
+test("manufacturing creates distinct physical units and fitting moves one out of warehouse", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"wil"},
+    contracts:[],
+    development:{
+      parts:[{id:"RW1",name:"Rear Wing V1",slot:"aero_rear",perf:1.2,inv:0}],
+      partUnits:[],
+    },
+    garage:{
+      cars:[
+        {id:"car_1",label:"Car 1",kind:"race",driver_id:null,installedParts:{},componentCondition:{}},
+        {id:"car_2",label:"Car 2",kind:"race",driver_id:null,installedParts:{},componentCondition:{}},
+      ],
+    },
+  };
+
+  let next=createManufacturedPartUnits(gs,{designId:"RW1",qty:2,batchId:"B1",manufacturedAt:"1980-02-01"});
+  const units=partUnitsForDesign(next,"RW1");
+  assert.equal(units.length,2);
+  assert.notEqual(units[0].id,units[1].id);
+  assert.equal(units[0].condition,100);
+  assert.equal(units[1].condition,100);
+  assert.equal(inventoryCountForDesign(next,"RW1"),2);
+  assert.equal(next.development.parts[0].inv,2);
+
+  const sameBatch=createManufacturedPartUnits(next,{designId:"RW1",qty:2,batchId:"B1",manufacturedAt:"1980-02-01"});
+  assert.equal(partUnitsForDesign(sameBatch,"RW1").length,2,"reprocessing the same completed batch must not duplicate physical units");
+  next=sameBatch;
+
+  next=fitPhysicalPartUnit(next,{carId:"car_1",slot:"aero_rear",designId:"RW1"});
+  assert.equal(inventoryCountForDesign(next,"RW1"),1);
+  const fittedId=next.garage.cars.find((car)=>car.id==="car_1").installedParts.aero_rear;
+  assert.ok(fittedId);
+  assert.ok(units.some((unit)=>unit.id===fittedId));
+
+  next=removePhysicalPartUnit(next,{carId:"car_1",slot:"aero_rear"});
+  assert.equal(inventoryCountForDesign(next,"RW1"),2);
+  assert.equal(next.garage.cars.find((car)=>car.id==="car_1").installedParts.aero_rear,undefined);
 });

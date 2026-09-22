@@ -21,6 +21,7 @@ import { buildRaceEntryState } from "../src/domain/raceEntry.js";
 import { activeTestDriverContracts } from "../src/domain/developmentTesting.js";
 import { applyRaceComponentWear } from "../src/domain/componentWear.js";
 import { componentConditionForCar } from "../src/domain/garage.js";
+import { normalizePhysicalPartState, partUnitById, partUnitsForDesign } from "../src/domain/partUnits.js";
 
 function baseState(){
   return {
@@ -391,9 +392,10 @@ test("installed components lose condition after a normal GP",()=>{
       retirement_reason:null,
     }],
   });
-  const part=next.development.parts.find((row)=>row.id==="P1");
-  assert.equal(part.condition,97.2);
-  assert.ok(next.componentWearLog.some((row)=>row.part_id==="P1"&&row.driver_id==="D1"));
+  const installedUnitId=next.garage.cars.find((row)=>row.id==="car_1").installedParts.aero_front;
+  const unit=partUnitById(next,installedUnitId);
+  assert.equal(unit.condition,97.2);
+  assert.ok(next.componentWearLog.some((row)=>row.part_id==="P1"&&row.part_unit_id===installedUnitId&&row.driver_id==="D1"));
 });
 
 test("serious accident creates substantially more component wear than a clean finish",()=>{
@@ -412,8 +414,10 @@ test("serious accident creates substantially more component wear than a clean fi
       incident_severity_score:0.9,
     }],
   });
-  const cleanCondition=clean.development.parts.find((row)=>row.id==="P1").condition;
-  const crashCondition=crash.development.parts.find((row)=>row.id==="P1").condition;
+  const cleanUnitId=clean.garage.cars.find((row)=>row.id==="car_1").installedParts.aero_front;
+  const crashUnitId=crash.garage.cars.find((row)=>row.id==="car_1").installedParts.aero_front;
+  const cleanCondition=partUnitById(clean,cleanUnitId).condition;
+  const crashCondition=partUnitById(crash,crashUnitId).condition;
   assert.ok(crashCondition<cleanCondition-5);
 });
 
@@ -421,18 +425,41 @@ test("low component condition reduces the live car reliability value",()=>{
   const gs=baseState();
   const garage=syncGarageState(gs,{});
   garage.cars[0].installedParts={aero_front:"P1"};
-  const healthy={...gs,garage};
-  const worn={
-    ...gs,
-    garage,
+  const healthy=normalizePhysicalPartState({...gs,garage});
+  const unitId=healthy.garage.cars[0].installedParts.aero_front;
+  const worn=normalizePhysicalPartState({
+    ...healthy,
     development:{
-      ...gs.development,
-      parts:gs.development.parts.map((part)=>part.id==="P1"?{...part,condition:30}:part),
+      ...healthy.development,
+      partUnits:healthy.development.partUnits.map((unit)=>unit.id===unitId?{...unit,condition:30}:unit),
     },
-  };
+  });
   const healthyPerf=teamCarPerformance(healthy,"T1","D1");
   const wornPerf=teamCarPerformance(worn,"T1","D1");
   assert.ok(wornPerf.qualifying<healthyPerf.qualifying);
   assert.ok(wornPerf.race<healthyPerf.race);
   assert.ok(wornPerf.reliability<healthyPerf.reliability);
+});
+
+test("two cars can use the same design while their physical units wear independently",()=>{
+  const base=baseState();
+  base.development.parts=[{id:"P1",name:"Front Wing V1",slot:"aero_front",perf:3,condition:100,inv:0}];
+  const garage=syncGarageState(base,{});
+  garage.cars[0].installedParts={aero_front:"P1"};
+  garage.cars[1].installedParts={aero_front:"P1"};
+  let gs=normalizePhysicalPartState({...base,garage});
+
+  const car1=gs.garage.cars.find((row)=>row.id==="car_1");
+  const car2=gs.garage.cars.find((row)=>row.id==="car_2");
+  assert.notEqual(car1.installedParts.aero_front,car2.installedParts.aero_front);
+  assert.equal(partUnitsForDesign(gs,"P1").length,2);
+
+  const unit1=car1.installedParts.aero_front;
+  const unit2=car2.installedParts.aero_front;
+  gs=applyRaceComponentWear(gs,{
+    race:[{driver:{driver_id:"D1"},retired:false}],
+  });
+
+  assert.ok(partUnitById(gs,unit1).condition<100);
+  assert.equal(partUnitById(gs,unit2).condition,100);
 });

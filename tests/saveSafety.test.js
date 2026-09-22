@@ -48,14 +48,59 @@ test("legacy gameState migrates structurally without changing gameplay fields", 
   assert.equal(saveMeta.schemaVersion, SAVE_SCHEMA_VERSION);
   assert.equal(saveMeta.gameVersion, GAME_VERSION);
   assert.match(saveMeta.seed, /^f1ml-legacy-/);
-  assert.deepEqual(saveMeta.migrations, [{
-    id: "save-schema-v0-to-v1",
-    from: 0,
-    to: 1,
-    policy: "structural_metadata_only_no_gameplay_recalculation",
-  }]);
+  assert.deepEqual(saveMeta.migrations, [
+    {
+      id: "save-schema-v0-to-v1",
+      from: 0,
+      to: 1,
+      policy: "structural_metadata_only_no_gameplay_recalculation",
+    },
+    {
+      id: "save-schema-v1-to-v2-physical-part-units",
+      from: 1,
+      to: 2,
+      policy: "migrate_part_design_inventory_to_independent_physical_units",
+    },
+  ]);
 
   assert.equal(migrateGameState(legacy).saveMeta.seed, saveMeta.seed);
+});
+
+test("v1 saves migrate shared design inventory into deterministic physical units", () => {
+  const legacyV1 = {
+    activeYear:1980,
+    currentDateISO:"1980-05-18",
+    team:{team_id:"T1"},
+    saveMeta:{
+      schemaVersion:1,
+      gameVersion:"1.0.1",
+      seed:"physical-migration",
+      migrations:[{id:"save-schema-v0-to-v1",from:0,to:1,policy:"structural_metadata_only_no_gameplay_recalculation"}],
+    },
+    development:{
+      parts:[{id:"P1",slot:"aero_front",perf:3,condition:72,inv:1}],
+    },
+    garage:{
+      cars:[
+        {id:"car_1",installedParts:{aero_front:"P1"}},
+        {id:"car_2",installedParts:{}},
+      ],
+    },
+  };
+
+  const migrated=migrateGameState(legacyV1);
+  assert.equal(migrated.saveMeta.schemaVersion,2);
+  assert.equal(migrated.development.partUnits.length,2);
+  const installedId=migrated.garage.cars[0].installedParts.aero_front;
+  assert.notEqual(installedId,"P1");
+  const installed=migrated.development.partUnits.find((unit)=>unit.id===installedId);
+  assert.equal(installed.design_id,"P1");
+  assert.equal(installed.condition,72);
+  const warehouse=migrated.development.partUnits.find((unit)=>unit.id!==installedId);
+  assert.equal(warehouse.design_id,"P1");
+  assert.equal(warehouse.condition,72);
+  assert.equal(migrated.development.parts[0].inv,1);
+  assert.deepEqual(migrateGameState(migrated),migrated);
 });
 
 test("manual legacy save envelope and rolling Continue save both migrate", () => {
