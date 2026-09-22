@@ -882,11 +882,29 @@ export function finalizedLiveRaceRows(gs){
         strategy_decisions:strategyDecisions,
         stints,
         strategy_summary:row?.strategy_summary
-          ?{
-            ...row.strategy_summary,
-            pit_stops:Array.isArray(pitStops)?pitStops.length:row.strategy_summary.pit_stops,
-            used_tyres:Array.isArray(stints)?stints.map((stint)=>stint.compound).filter(Boolean):row.strategy_summary.used_tyres,
-          }
+          ?(()=>{
+            const actualPitStops=Array.isArray(pitStops)?pitStops:[];
+            const actualStints=Array.isArray(stints)?stints:[];
+            const actualTyreStates=Array.isArray(tyreStates)?tyreStates:[];
+            const actualRefuelStops=actualPitStops.filter((pit)=>pit?.refuelled===true);
+            const actualLowestTyre=actualTyreStates.length
+              ?Math.min(...actualTyreStates.map((state)=>Number(state?.condition)).filter(Number.isFinite))
+              :null;
+            return {
+              ...row.strategy_summary,
+              pit_count:actualPitStops.length,
+              pit_stops:actualPitStops.length,
+              pit_laps:actualPitStops.map((pit)=>Number(pit?.lap)).filter(Number.isFinite),
+              used_tyres:actualStints.map((stint)=>stint.compound).filter(Boolean),
+              refuelled:actualRefuelStops.length>0,
+              refuel_count:actualRefuelStops.length,
+              fuel_stop_laps:actualRefuelStops.map((pit)=>Number(pit?.lap)).filter(Number.isFinite),
+              strategy_decisions:Array.isArray(strategyDecisions)?strategyDecisions:row.strategy_summary.strategy_decisions,
+              lowest_tyre_condition:Number.isFinite(actualLowestTyre)
+                ?Number(actualLowestTyre.toFixed(1))
+                :row.strategy_summary.lowest_tyre_condition,
+            };
+          })()
           :row?.strategy_summary,
       };
     })

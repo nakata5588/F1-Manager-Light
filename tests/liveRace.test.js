@@ -358,7 +358,17 @@ test("finalized live rows preserve exactly the retirements visible to the player
         {compound:"Hard",start_lap:1,end_lap:1,laps:1},
         {compound:"Soft",start_lap:2,end_lap:7,laps:6},
       ],
-      strategy_summary:{pit_stops:2,used_tyres:["Hard","Soft"]},
+      strategy_summary:{
+        pit_count:2,
+        pit_stops:2,
+        pit_laps:[2,8],
+        used_tyres:["Hard","Soft"],
+        refuelled:true,
+        refuel_count:2,
+        fuel_stop_laps:[2,8],
+        lowest_tyre_condition:12,
+        strategy_decisions:[{lap:2,type:"pit"},{lap:8,type:"pit"}],
+      },
     };
   });
   gs={
@@ -384,8 +394,15 @@ test("finalized live rows preserve exactly the retirements visible to the player
   assert.equal(retired.lap_times_ms.length,1);
   assert.equal(retired.tyre_state_by_lap.length,1);
   assert.equal(retired.strategy_decisions.length,0);
+  assert.equal(retired.strategy_summary.pit_count,0);
   assert.equal(retired.strategy_summary.pit_stops,0);
+  assert.deepEqual(retired.strategy_summary.pit_laps,[]);
   assert.deepEqual(retired.strategy_summary.used_tyres,["Hard"]);
+  assert.equal(retired.strategy_summary.refuelled,false);
+  assert.equal(retired.strategy_summary.refuel_count,0);
+  assert.deepEqual(retired.strategy_summary.fuel_stop_laps,[]);
+  assert.deepEqual(retired.strategy_summary.strategy_decisions,[]);
+  assert.equal(retired.strategy_summary.lowest_tyre_condition,100);
   assert.equal(rows.filter((row)=>!row.retired).every((row)=>row.status==="Finished"),true);
 });
 
