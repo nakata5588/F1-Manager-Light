@@ -235,7 +235,7 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
     }
     if(form.driverFaultDnfs>=2){
       const setback=Math.min(0.10,form.driverFaultDnfs*0.018);
-      applyDelta(rating,"mentality",-setback,changes,did,dateISO,"reliability_setback");
+      applyDelta(rating,"mentality",-setback,changes,did,dateISO,"incident_setback");
       applyDelta(rating,"consistency",-setback*0.55,changes,did,dateISO,"reliability_setback");
     }
 
@@ -320,6 +320,7 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
   const trainingDay=dow>=1&&dow<=5;
   const conditions={...(gs?.driverAttributes||{})};
   const ledger={...(gs?.driverDevelopmentTraining||{})};
+  const focusMeta={...(gs?.driverDevelopmentFocusMeta||{})};
 
   for(const driver of gs?.drivers||[]){
     const did=idOf(driver);
@@ -331,6 +332,13 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
       ?{...ledger[did]}
       :{monthKey,groupKey,trainingDays:0,fatigueSpent:0,lastTrainingDate:null};
     previous.groupKey=groupKey;
+
+    // If the focus was carried over from the previous month, the first
+    // training day automatically commits it for the new month. This prevents
+    // switching groups halfway through a month's accumulated workload.
+    if(trainingDay&&String(focusMeta?.[did]?.monthKey||"")!==monthKey){
+      focusMeta[did]={groupKey,monthKey,selectedAt:dateISO,autoCarried:true};
+    }
     if(!trainingDay||previous.lastTrainingDate===dateISO){
       ledger[did]=previous;
       continue;
@@ -347,7 +355,12 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
     };
   }
 
-  return {...gs,driverAttributes:conditions,driverDevelopmentTraining:ledger};
+  return {
+    ...gs,
+    driverAttributes:conditions,
+    driverDevelopmentTraining:ledger,
+    driverDevelopmentFocusMeta:focusMeta,
+  };
 }
 
 export function applyProgressionTick(gs){
