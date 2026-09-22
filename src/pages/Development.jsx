@@ -399,8 +399,8 @@ export default function Development() {
               {p.test_driver_name && <div className="text-xs text-slate-400">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
-                <Button size="sm" variant="outline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
-                <Button size="sm" variant="outline" onClick={()=>addHours(p,"wt_hours")}>+5 WT</Button>
+                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
+                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"wt_hours")}>+5 WT</Button>
               </div>}
             </CardContent></Card>;
           })}
