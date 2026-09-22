@@ -192,6 +192,8 @@ test("RW4.4 live timing exposes sectors, intervals, tyre age, position change an
   assert.ok(Number.isFinite(leader.projected_finish_position));
   assert.ok(Number.isFinite(leader.best_lap_ms)&&leader.best_lap_ms>0);
   assert.ok(Number.isFinite(leader.best_lap_number)&&leader.best_lap_number>=1);
+  assert.ok(Number.isFinite(leader.previous_lap_ms)&&leader.previous_lap_ms>0);
+  assert.equal(leader.last_lap_delta_ms,leader.last_lap_ms-leader.previous_lap_ms);
   assert.ok(Number.isFinite(leader.tyre.age_laps)&&leader.tyre.age_laps>=1);
   assert.ok(Number.isFinite(leader.tyre.temperature_c));
   assert.ok(["conserve","balanced","attack"].includes(leader.current_pace));
