@@ -9,6 +9,7 @@ import { useGame } from "../../state/GameStore.js";
 import { driverOverallPresentation, hasMeaningfulDriverAttributes } from "../../domain/driverMarketEvaluation.js";
 import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
+import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
@@ -124,6 +125,11 @@ function attrColorClass(n, { inverse = false } = {}) {
   const neg = ["text-emerald-200","text-emerald-300","text-amber-200","text-amber-300","text-rose-300","text-rose-400"];
   return (inverse ? neg : pos)[idx];
 }
+function presentationColorClass(shown, { inverse = false } = {}) {
+  if (!shown || shown.visibility === "hidden" || shown.visibility === "missing") return "text-slate-500";
+  const basis = shown.visibility === "exact" ? shown.value : shown.sortValue;
+  return attrColorClass(basis, { inverse });
+}
 function normDriverId(x) {
   const v = unbox(x);
   if (v == null) return null;
@@ -167,6 +173,8 @@ export default function DriverModal({ entity, onClose }) {
   const queueEvent = useGame((s) => s.queueEvent);
   const [contractTalkOpen, setContractTalkOpen] = useState(false);
   const [marketTalkOpen, setMarketTalkOpen] = useState(false);
+  const [compareDriverId, setCompareDriverId] = useState("");
+  const [compareMode, setCompareMode] = useState("performance");
 
   const driversList = useMemo(() => {
     const merged = new Map();
@@ -263,6 +271,16 @@ export default function DriverModal({ entity, onClose }) {
   const profileSnapshot = useMemo(
     () => driverProfileSnapshot(gs, driver || driverId),
     [gs, driver, driverId]
+  );
+  const comparisonDriver = useMemo(
+    () => compareDriverId
+      ? (driversList || []).find((d) => sameDriver(d?.driver_id ?? d?.driverId ?? d?.id, compareDriverId)) || null
+      : null,
+    [compareDriverId, driversList]
+  );
+  const comparisonSnapshot = useMemo(
+    () => comparisonDriver ? driverProfileSnapshot(gs, comparisonDriver) : null,
+    [gs, comparisonDriver]
   );
   const developmentLog = useMemo(() => {
     const log = isRecord(gs?.driverAttrLog) ? gs.driverAttrLog : {};
@@ -801,7 +819,26 @@ export default function DriverModal({ entity, onClose }) {
             />
           )}
 
-          {activeTab === "attributes" && <AttributesTab attrs={meaningfulAttrs} condition={condition} knowledge={knowledge} />}
+          {activeTab === "attributes" && (
+            <AttributesTab
+              attrs={meaningfulAttrs}
+              condition={condition}
+              knowledge={knowledge}
+              driver={driver}
+              currentSnapshot={profileSnapshot}
+              comparisonDriver={comparisonDriver}
+              comparisonSnapshot={comparisonSnapshot}
+              comparisonCandidates={(driversList||[]).filter((candidate) => {
+                const candidateId=candidate?.driver_id ?? candidate?.driverId ?? candidate?.id;
+                const status=String(candidate?.status||"").toLowerCase();
+                return !sameDriver(candidateId,driverId) && !["hidden","deceased"].includes(status);
+              })}
+              compareDriverId={compareDriverId}
+              setCompareDriverId={setCompareDriverId}
+              compareMode={compareMode}
+              setCompareMode={setCompareMode}
+            />
+          )}
 
           {activeTab === "development" && (
             <DevelopmentTab
@@ -1305,93 +1342,297 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals })
   );
 }
 
-function AttributesTab({ attrs, condition, knowledge }) {
+function AttributesTab({
+  attrs,
+  condition,
+  knowledge,
+  driver,
+  currentSnapshot,
+  comparisonDriver,
+  comparisonSnapshot,
+  comparisonCandidates,
+  compareDriverId,
+  setCompareDriverId,
+  compareMode,
+  setCompareMode,
+}) {
   if (!attrs) return <p className="text-slate-500 text-sm">No attributes.</p>;
-  const rows = [
-    ["Overall",               "current_ability",           attrs.current_ability,               false, "ability"],
-    ["Potential",             "potential_ability",         attrs.potential_ability,             false, "potential"],
-    ["Pace",                  "pace",                      attrs.pace,                           false, "attribute"],
-    ["Qualifying",            "qualifying",                attrs.qualifying,                     false, "attribute"],
-    ["Start/Launch",          "start_launch",              attrs.start_launch,                   false, "attribute"],
-    ["Racecraft",             "racecraft",                 attrs.racecraft,                      false, "attribute"],
-    ["Wet Skill",             "wet_skill",                 attrs.wet_skill,                      false, "attribute"],
-    ["Consistency",           "consistency",               attrs.consistency,                    false, "attribute"],
-    ["Tyre Management",       "tire_management",           attrs.tire_management,                false, "attribute"],
-    ["Race Intelligence",     "race_intelligence",         attrs.race_intelligence,              false, "attribute"],
-    ["Technical Feedback",    "technical_feedback",        attrs.technical_feedback,             false, "attribute"],
-    ["Adaptability",          "adaptability",              attrs.adaptability,                   false, "attribute"],
-    ["ERS/Fuel Management",   "ers_fuel_management",       attrs.ers_fuel_management,            false, "attribute"],
-    ["Mentality",             "mentality",                 attrs.mentality,                       false, "attribute"],
-    ["Aggression",            "aggression",                attrs.agression ?? attrs.aggression,  false, "attribute"],
-    ["Crash Likelihood",      "crash_likelihood",          attrs.crash_likelihood,               true,  "attribute"],
-    ["Pressure Handling",     "pressure_handling",         attrs.pressure_handling,              false, "attribute"],
-    ["Leadership",            "leadership",                attrs.leadership,                     false, "attribute"],
-    ["Team Player",           "team_player",               attrs.team_player,                    false, "attribute"],
-    ["Car Dev. Impact",       "car_development_impact",    attrs.car_development_impact,         false, "attribute"],
-    ["Reputation",            "reputation",                attrs.reputation,                     false, "attribute"],
+
+  const groups = [
+    {
+      key:"pace",
+      label:"Pace",
+      rows:[
+        ["Pace","pace",attrs.pace,false],
+        ["Qualifying","qualifying",attrs.qualifying,false],
+        ["Start & Launch","start_launch",attrs.start_launch,false],
+      ],
+    },
+    {
+      key:"racecraft",
+      label:"Racecraft",
+      rows:[
+        ["Racecraft","racecraft",attrs.racecraft,false],
+        ["Race Intelligence","race_intelligence",attrs.race_intelligence,false],
+        ["Pressure Handling","pressure_handling",attrs.pressure_handling,false],
+      ],
+    },
+    {
+      key:"control",
+      label:"Control",
+      rows:[
+        ["Consistency","consistency",attrs.consistency,false],
+        ["Wet Skill","wet_skill",attrs.wet_skill,false],
+        ["Adaptability","adaptability",attrs.adaptability,false],
+      ],
+    },
+    {
+      key:"management",
+      label:"Management",
+      rows:[
+        ["Tyre Management","tire_management",attrs.tire_management,false],
+        ["ERS / Fuel","ers_fuel_management",attrs.ers_fuel_management,false],
+      ],
+    },
+    {
+      key:"technical",
+      label:"Technical",
+      rows:[
+        ["Technical Feedback","technical_feedback",attrs.technical_feedback,false],
+        ["Car Development Impact","car_development_impact",attrs.car_development_impact,false],
+      ],
+    },
+    {
+      key:"mental",
+      label:"Mental",
+      rows:[
+        ["Mentality","mentality",attrs.mentality,false],
+        ["Leadership","leadership",attrs.leadership,false],
+        ["Team Player","team_player",attrs.team_player,false],
+      ],
+    },
+    {
+      key:"risk",
+      label:"Risk",
+      rows:[
+        ["Aggression","aggression",attrs.agression ?? attrs.aggression,false],
+        ["Crash Likelihood","crash_likelihood",attrs.crash_likelihood,true],
+      ],
+    },
   ];
-  const conditionRows = [
-    ["Fatigue", "fatigue", condition?.fatigue ?? 0, true],
-    ["Confidence", "confidence", condition?.confidence ?? 50, false],
-    ["Morale", "morale", condition?.morale ?? 50, false],
-    ["Preparation", "preparation", condition?.preparation ?? 50, false],
-  ];
+
+  const derived=driverDerivedRatings(attrs);
+  const comparisonAttrs=comparisonSnapshot?.rating||null;
+  const comparisonKnowledge=comparisonSnapshot?.knowledge||null;
+  const comparisonDerived=driverDerivedRatings(comparisonAttrs);
+  const nameOf=(d)=>displayValue(d?.display_name??d?.name,"Unknown Driver");
+  const currentName=nameOf(driver);
+  const comparisonName=comparisonDriver?nameOf(comparisonDriver):"Select driver";
+
+  const renderValue=(knowledgeState,field,value,{kind="attribute",inverse=false}={})=>{
+    const shown=presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
+    return (
+      <span
+        className={`font-semibold ${presentationColorClass(shown,{inverse})}`}
+        title={
+          shown.visibility==="range"?"Scouting/public estimate range":
+          shown.visibility==="hidden"?"Requires scouting":
+          shown.visibility==="exact"?"Exact known value":"No data"
+        }
+      >
+        {shown.label}
+      </span>
+    );
+  };
+
+  const currentContract=currentSnapshot?.contract||null;
+  const comparisonContract=comparisonSnapshot?.contract||null;
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge</div>
-          <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex-1">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
+            <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
+          </div>
+          <label className="min-w-[280px] text-xs text-slate-400">
+            Compare with
+            <select
+              className="mt-1 w-full rounded-lg border border-white/10 bg-[#191c26] px-3 py-2 text-sm text-slate-100"
+              value={compareDriverId}
+              onChange={(e)=>setCompareDriverId(e.target.value)}
+            >
+              <option value="">No comparison</option>
+              {(comparisonCandidates||[])
+                .slice()
+                .sort((a,b)=>nameOf(a).localeCompare(nameOf(b)))
+                .map((candidate)=>{
+                  const id=String(candidate?.driver_id??candidate?.driverId??candidate?.id??"");
+                  return <option key={id} value={id}>{nameOf(candidate)}</option>;
+                })}
+            </select>
+          </label>
         </div>
-        <div className="max-w-md text-right text-xs text-slate-500">
-          Exact ratings are not shown unless the driver is internal to your team/Academy or has a completed full scouting report.
+        <div className="mt-4 grid grid-cols-2 gap-3 md:max-w-md">
+          <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
+            <div className="mt-1 text-xl">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability"})}</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
+            <div className="mt-1 text-xl">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential"})}</div>
+          </div>
         </div>
       </div>
 
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Driver Condition</div>
-        {knowledge?.canSeeCondition ? (
-          <div className="grid grid-cols-2 gap-3">
-            {conditionRows.map(([label, field, value, inverse]) => {
-              const shown=presentDriverKnowledgeValue(knowledge,field,value,{kind:"condition"});
-              return (
-                <div key={label} className="flex justify-between gap-3 text-sm">
-                  <span className="text-slate-500">{label}</span>
-                  <span className={`font-medium ${shown.visibility==="exact"?attrColorClass(shown.value,{inverse}):"text-slate-300"}`}>{shown.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm text-slate-400">
-            Private team data — unavailable for external drivers.
-          </div>
-        )}
-      </div>
-
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Ability</div>
-        <div className="grid grid-cols-2 gap-3">
-          {rows.map(([label, field, value, inverse, kind]) => {
-            const shown=presentDriverKnowledgeValue(knowledge,field,value,{kind});
-            return (
-              <div key={label} className="flex justify-between gap-3 text-sm">
-                <span className="text-slate-500">{label}</span>
-                <span
-                  className={`font-medium ${shown.visibility==="exact"?attrColorClass(shown.value,{inverse}):shown.visibility==="range"?"text-sky-300":"text-slate-500"}`}
-                  title={shown.visibility==="range"?"Scouting/public estimate range":shown.visibility==="hidden"?"Requires scouting":"Exact known value"}
-                >
-                  {shown.label}
-                </span>
+      {knowledge?.canSeeCondition && (
+        <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              ["Confidence","confidence",condition?.confidence??50,false],
+              ["Morale","morale",condition?.morale??50,false],
+              ["Preparation","preparation",condition?.preparation??50,false],
+              ["Fatigue","fatigue",condition?.fatigue??0,true],
+            ].map(([label,field,value,inverse])=>(
+              <div key={field} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+                <div className="mt-1 text-lg">{renderValue(knowledge,field,value,{kind:"condition",inverse})}</div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {comparisonDriver && (
+        <div className="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-sky-300">Compare Drivers</div>
+              <div className="mt-1 text-sm text-slate-300">{currentName} vs {comparisonName}</div>
+            </div>
+            <div className="flex rounded-lg border border-white/10 bg-[#11141c] p-1">
+              {[
+                ["performance","Performance"],
+                ["contract","Contract"],
+              ].map(([key,label])=>(
+                <button
+                  key={key}
+                  onClick={()=>setCompareMode(key)}
+                  className={`rounded-md px-3 py-1.5 text-xs ${compareMode===key?"bg-white/10 text-white":"text-slate-500 hover:text-slate-200"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {compareMode==="performance" ? (
+            <div className="mt-4 grid grid-cols-[minmax(120px,1fr)_100px_100px] gap-x-3 text-sm">
+              <div className="pb-2 text-xs uppercase tracking-wide text-slate-500">Metric</div>
+              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">{currentName}</div>
+              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">{comparisonName}</div>
+
+              {[
+                ["Overall","current_ability",attrs.current_ability,comparisonAttrs?.current_ability,"ability",false],
+                ["Potential","potential_ability",attrs.potential_ability,comparisonAttrs?.potential_ability,"potential",false],
+                ["Pace","pace",attrs.pace,comparisonAttrs?.pace,"attribute",false],
+                ["Qualifying","qualifying",attrs.qualifying,comparisonAttrs?.qualifying,"attribute",false],
+                ["Racecraft","racecraft",attrs.racecraft,comparisonAttrs?.racecraft,"attribute",false],
+                ["Consistency","consistency",attrs.consistency,comparisonAttrs?.consistency,"attribute",false],
+                ["Wet Skill","wet_skill",attrs.wet_skill,comparisonAttrs?.wet_skill,"attribute",false],
+                ["Tyre Management","tire_management",attrs.tire_management,comparisonAttrs?.tire_management,"attribute",false],
+                ["Overtaking","derived_overtaking",derived.overtaking?.value,comparisonDerived.overtaking?.value,"attribute",false],
+                ["Defending","derived_defending",derived.defending?.value,comparisonDerived.defending?.value,"attribute",false],
+                ["Strategy","derived_strategy",derived.strategy_intelligence?.value,comparisonDerived.strategy_intelligence?.value,"attribute",false],
+              ].map(([label,field,left,right,kind,inverse])=>(
+                <div key={field} className="contents">
+                  <div className="border-t border-white/10 py-2 text-slate-400">{label}</div>
+                  <div className="border-t border-white/10 py-2 text-right">{renderValue(knowledge,field,left,{kind,inverse})}</div>
+                  <div className="border-t border-white/10 py-2 text-right">{renderValue(comparisonKnowledge,field,right,{kind,inverse})}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+                <div className="text-sm font-semibold">{currentName}</div>
+                <div className="mt-2 space-y-2 text-xs">
+                  <KV label="Team" value={displayValue(currentSnapshot?.teamName,"Free Agent")}/>
+                  <KV label="Role" value={niceRole(currentContract?.role)}/>
+                  <KV label="Contract end" value={displayValue(currentContract?.contract_until_year??currentContract?.contract_until??currentContract?.end_year??currentContract?.end_date,"—")}/>
+                  <KV label="Salary" value={currentContract?fmtMoney(currentContract?.salary??currentContract?.salary_yearly):"—"}/>
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+                <div className="text-sm font-semibold">{comparisonName}</div>
+                <div className="mt-2 space-y-2 text-xs">
+                  <KV label="Team" value={displayValue(comparisonSnapshot?.teamName,"Free Agent")}/>
+                  <KV label="Role" value={niceRole(comparisonContract?.role)}/>
+                  <KV label="Contract end" value={displayValue(comparisonContract?.contract_until_year??comparisonContract?.contract_until??comparisonContract?.end_year??comparisonContract?.end_date,"—")}/>
+                  <KV label="Salary" value={comparisonContract?fmtMoney(comparisonContract?.salary??comparisonContract?.salary_yearly):"—"}/>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {groups.map((group)=>(
+          <div key={group.key} className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</div>
+              {comparisonDriver && (
+                <div className="grid grid-cols-2 gap-3 text-[9px] uppercase tracking-wide text-slate-600">
+                  <span className="w-[82px] truncate text-right" title={currentName}>{currentName}</span>
+                  <span className="w-[82px] truncate text-right" title={comparisonName}>{comparisonName}</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              {group.rows.map(([label,field,value,inverse])=>{
+                const comparisonFieldValue=comparisonAttrs
+                  ? (field==="aggression" ? comparisonAttrs.agression??comparisonAttrs.aggression : comparisonAttrs?.[field])
+                  : null;
+                return (
+                  <div key={field} className={`grid items-center gap-3 text-sm ${comparisonDriver?"grid-cols-[1fr_82px_82px]":"grid-cols-[1fr_82px]"}`}>
+                    <span className="text-slate-400">{label}</span>
+                    <div className="text-right">{renderValue(knowledge,field,value,{kind:"attribute",inverse})}</div>
+                    {comparisonDriver && <div className="text-right">{renderValue(comparisonKnowledge,field,comparisonFieldValue,{kind:"attribute",inverse})}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Derived Ratings</div>
+        <p className="mb-4 text-xs text-slate-500">Calculated from existing driver attributes. These are presentation ratings, not additional database attributes.</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {[
+            ["overtaking","Overtaking"],
+            ["defending","Defending"],
+            ["strategy_intelligence","Strategy Intelligence"],
+            ["setup_feedback","Setup Feedback"],
+            ["development_impact","Development Impact"],
+          ].map(([key,label])=>(
+            <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+              <div className="mt-1 flex items-baseline justify-between gap-2">
+                <div className="text-lg">{renderValue(knowledge,`derived_${key}`,derived?.[key]?.value,{kind:"attribute"})}</div>
+                {comparisonDriver && <div className="text-sm">{renderValue(comparisonKnowledge,`derived_${key}`,comparisonDerived?.[key]?.value,{kind:"attribute"})}</div>}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
-
 function AchievementsTab({ items }) {
   if (!items?.length) return <p className="text-gray-500 text-sm">No achievements yet.</p>;
   return (
