@@ -470,7 +470,7 @@ export default function Board() {
                 {["Development","Facilities","Driver Contract","Staff Recruitment","Cashflow Support"].map((x)=><option key={x}>{x}</option>)}
               </select>
             </label>
-            <div className="border rounded-lg p-3 text-sm">
+            <div className="border border-white/10 bg-[#171a23] rounded-lg p-3 text-sm">
               <div className="text-xs text-slate-400">Estimated approval probability</div>
               <div className="text-xl font-semibold">{Math.round(budgetApprovalChance*100)}%</div>
               <div className="text-xs text-slate-400 mt-1">Comfort ceiling {fmtMoney(approvalCeiling)} · Confidence {pct(overallConfidence)}</div>
@@ -493,14 +493,14 @@ export default function Board() {
       )}
 
       <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 flex flex-col md:flex-row gap-3">
-        <select className="border rounded px-3 py-2 text-sm" value={status} onChange={(e)=>setStatus(e.target.value)}>
+        <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 text-sm" value={status} onChange={(e)=>setStatus(e.target.value)}>
           <option value="all">All statuses</option>
           <option value="active">Active</option>
           <option value="completed">Completed</option>
           <option value="failed">Failed</option>
           <option value="paused">Paused</option>
         </select>
-        <select className="border rounded px-3 py-2 text-sm" value={category} onChange={(e)=>setCategory(e.target.value)}>
+        <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 text-sm" value={category} onChange={(e)=>setCategory(e.target.value)}>
           <option value="ALL">All categories</option>
           {["PERFORMANCE","FINANCIAL","DEV","STAFF","PR","OTHER"].map((x)=><option key={x}>{x}</option>)}
         </select>
@@ -545,7 +545,7 @@ export default function Board() {
         <div className="font-semibold mb-3">Board Interaction History</div>
         {board.actions.length ? (
           <div className="space-y-2">
-            {[...board.actions].reverse().map((a)=><div key={a.id} className="border rounded-lg p-3 text-sm">
+            {[...board.actions].reverse().map((a)=><div key={a.id} className="border border-white/10 bg-[#171a23] rounded-lg p-3 text-sm">
               <div className="flex flex-col md:flex-row md:items-center gap-2">
                 <strong>{titleCase(a.type)}</strong>
                 <span>{a.date || "—"}</span>
@@ -564,7 +564,7 @@ export default function Board() {
 }
 
 function ActionInfo({title,text,children}) {
-  return <div className="border rounded-lg p-3"><div className="font-medium">{title}</div><p className="text-xs text-slate-400 mt-1 min-h-[2.5rem]">{text}</p><div className="mt-3">{children}</div></div>;
+  return <div className="border border-white/10 bg-[#171a23] rounded-lg p-3"><div className="font-medium">{title}</div><p className="text-xs text-slate-400 mt-1 min-h-[2.5rem]">{text}</p><div className="mt-3">{children}</div></div>;
 }
 function Metric({title,value,progress}) {
   return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><div className="text-sm text-slate-400">{title}</div><div className="text-xl font-semibold my-1">{value}</div><Bar value={progress}/></CardContent></Card>;
@@ -573,5 +573,5 @@ function Bar({value}) {
   return <div className="h-2 bg-white/10 rounded overflow-hidden mt-1"><div className="h-full bg-slate-200" style={{width:`${clamp01(value)*100}%`}}/></div>;
 }
 function Mini({label,value}) {
-  return <div className="border rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value??"—"}</div></div>;
+  return <div className="border border-white/10 bg-[#171a23] rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value??"—"}</div></div>;
 }
