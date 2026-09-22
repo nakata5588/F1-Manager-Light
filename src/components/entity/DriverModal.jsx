@@ -1965,6 +1965,9 @@ function DriverActionsMenu({
   onContractTalk,
   onRelease,
   onOpenNegotiation,
+  onScout,
+  onDevelopment,
+  knowledge = null,
   renewalPending = false,
   releaseCost = 0,
   marketEligibility = null,
@@ -1976,28 +1979,26 @@ function DriverActionsMenu({
 
   const ownGroups = [
     {
-      title: "Training & Development",
+      title: "Development",
       items: [
-        { key: "sim_braking", intensive: true,  icon: <Dumbbell size={14} />, label: "Simulator — Consistency", desc: "+Consistency | +Fatigue", effects: [fx.addAttr("consistency", +1), fx.fatigue(+2)] },
-        { key: "sim_pace", intensive: true,     icon: <Dumbbell size={14} />, label: "Simulator — Pace",         desc: "+Pace | +Fatigue",        effects: [fx.addAttr("pace", +1), fx.fatigue(+2)] },
-        { key: "qual_runs", intensive: true,    icon: <Dumbbell size={14} />, label: "Quali sims",               desc: "+Qualifying | +Fatigue",  effects: [fx.addAttr("qualifying", +1), fx.fatigue(+2)] },
-        { key: "wet_practice", intensive: true, icon: <Dumbbell size={14} />, label: "Wet practice",             desc: "+Wet Skill | +Fatigue",   effects: [fx.addAttr("wet_skill", +1), fx.fatigue(+2)] },
-        { key: "tyre_drills", intensive: true,  icon: <Dumbbell size={14} />, label: "Tyre mgmt drills",         desc: "+Tyre Mgmt | +Fatigue",   effects: [fx.addAttr("tire_management", +1), fx.fatigue(+2)] },
-        { key: "racecraft", intensive: true,    icon: <Dumbbell size={14} />, label: "Racecraft study",          desc: "+Racecraft | +Fatigue",   effects: [fx.addAttr("racecraft", +1), fx.fatigue(+1)] },
+        {
+          key: "open_development",
+          icon: <Dumbbell size={14} />,
+          label: "Development focus",
+          desc: "Choose a group for potential-bound monthly development",
+        },
       ],
     },
     {
       title: "Media & PR",
       items: [
         { key: "sponsor_event", icon: <Megaphone size={14} />, label: "Sponsor activation", desc: "Reputation↑ | +Fatigue", effects: [fx.addAttr("reputation", +1), fx.fatigue(+1)] },
-        { key: "media_training",icon: <MessageSquare size={14} />, label: "Media training", desc: "+Pressure Handling", effects: [fx.addAttr("pressure_handling", +1)] },
       ],
     },
     {
       title: "Wellbeing & Admin",
       items: [
-        { key: "rest_day",      icon: <Coffee size={14} />, label: "Rest day",       desc: "-Fatigue", effects: [fx.fatigue(-3)] },
-        { key: "physical", intensive: true,      icon: <Dumbbell size={14} />, label: "Physical training", desc: "+Mentality | +Fatigue", effects: [fx.addAttr("mentality", +1), fx.fatigue(+3)] },
+        { key: "rest_day", icon: <Coffee size={14} />, label: "Rest day", desc: "-Fatigue", effects: [fx.fatigue(-3)] },
         {
           key: "contract_talk",
           icon: <FileText size={14} />,
@@ -2014,7 +2015,6 @@ function DriverActionsMenu({
       ],
     },
   ];
-
   const marketReason = String(marketEligibility?.reason || "");
   const marketAction = marketEligibility?.canNegotiate
     ? {
@@ -2073,17 +2073,23 @@ function DriverActionsMenu({
                   disabled: true,
                 };
 
+  const scoutAction = {
+    key:"scout_driver",
+    icon:<Search size={14}/>,
+    label:knowledge?.level==="scouted" ? "Refresh scout report" : "Scout driver",
+    desc:knowledge?.level==="scouted"
+      ?"Commission a fresh individual report"
+      :"Open a specific-driver scouting assignment",
+  };
+
   const otherGroups = [
     {
-      title: "Market",
-      items: [marketAction],
+      title: "Recruitment",
+      items: [scoutAction, marketAction],
     },
   ];
 
   const groups = isOwnDriver ? ownGroups : otherGroups;
-  const fatigue=Number(condition?.fatigue??0);
-  const trainingBlocked=fatigue>=70;
-  const trainingLimited=fatigue>=45;
 
   function onPick(it) {
     if (it?.disabled) return;
@@ -2099,8 +2105,15 @@ function DriverActionsMenu({
       if (typeof onOpenNegotiation === "function") onOpenNegotiation();
       return;
     }
+    if (it?.key === "scout_driver") {
+      if (typeof onScout === "function") onScout();
+      return;
+    }
+    if (it?.key === "open_development") {
+      if (typeof onDevelopment === "function") onDevelopment();
+      return;
+    }
     if (typeof queueEvent !== "function") return;
-    if(it?.intensive&&trainingBlocked)return;
     queueEvent({
       type: isOwnDriver ? "driver_action" : "market_action",
       title: it.label,
@@ -2128,21 +2141,15 @@ function DriverActionsMenu({
                 <button
                   type="button"
                   onClick={() => onPick(it)}
-                  disabled={Boolean(it.disabled || (it.intensive&&trainingBlocked))}
+                  disabled={Boolean(it.disabled)}
                   className={"flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"}
-                  title={
-                    it.disabled
-                      ? (it.key === "contract_talk" ? "A renewal negotiation is already active" : undefined)
-                      : (it.intensive&&trainingBlocked ? "Driver is too fatigued for intensive training" : undefined)
-                  }
+                  title={it.disabled && it.key === "contract_talk" ? "A renewal negotiation is already active" : undefined}
                 >
                   <span className="mt-0.5 shrink-0">{it.icon}</span>
                   <span className="flex-1">
                     <span className="block text-[13px] leading-tight font-medium">{it.label}</span>
                     {it.desc && <span className="block text-[11px] leading-tight text-gray-500 dark:text-gray-400">
                       {it.desc}
-                      {it.intensive&&trainingBlocked?" · Unavailable: fatigue too high":""}
-                      {it.intensive&&!trainingBlocked&&trainingLimited?" · Reduced gain due to fatigue":""}
                     </span>}
                   </span>
                 </button>
@@ -2155,7 +2162,7 @@ function DriverActionsMenu({
 
       {!isOwnDriver && (
         <div className="px-2 pb-2 text-[10px] text-gray-400">
-          Scouting, agent, media and relationship interactions are hidden until their gameplay systems are connected.
+          Scouting uses the same knowledge rules as the profile: regional estimates remain ranges and a full report unlocks exact ratings.
         </div>
       )}
       <div className="px-2 pb-2 text-[10px] text-gray-400">Scroll for more • ESC to close</div>
