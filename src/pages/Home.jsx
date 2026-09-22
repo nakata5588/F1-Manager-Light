@@ -1,410 +1,382 @@
+// src/pages/Home.jsx
 import React, { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
-import TeamOverview from "../components/tiles/TeamOverview.jsx";
-import InboxMini from "../components/tiles/InboxMini.jsx";
-import GpMiniLists from "../components/tiles/GpMiniLists.jsx";
 import { driverContractsOf, driverLineupSlots, driverIdOf } from "../domain/driverContracts.js";
 import { driverRoleLabelForSlot } from "../domain/contractRoles.js";
+import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
+import { upcomingManagementEvents, daysBetweenISO } from "../domain/managementEvents.js";
 
-/* ===== Debug card (stub seguro) ===== */
-function DebugCard(props) {
-  const { title = "Debug", ...rest } = props || {};
+const firstArray = (...candidates) => {
+  for (const value of candidates) if (Array.isArray(value)) return value;
+  return [];
+};
+
+function num(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function fmtMoney(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  return amount.toLocaleString("en-GB", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function ordinal(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const mod100 = n % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
+  return `${n}${suffix}`;
+}
+
+function Panel({ title, action, children, className = "" }) {
   return (
-    <div className="bg-white rounded-xl shadow p-4">
-      <div className="text-sm font-semibold mb-2">{title}</div>
-      <pre className="text-[11px] leading-tight whitespace-pre-wrap break-all opacity-80">
-        {JSON.stringify(rest, null, 2)}
-      </pre>
-    </div>
+    <section className={`rounded-xl border bg-slate-950 text-slate-100 shadow-sm overflow-hidden ${className}`}>
+      <div className="px-4 py-3 border-b border-white/10 flex items-center gap-3">
+        <h2 className="font-semibold uppercase tracking-wide text-sm">{title}</h2>
+        <div className="flex-1" />
+        {action}
+      </div>
+      {children}
+    </section>
   );
 }
 
-/** ===== Utils ===== */
-function fromISO(iso) {
-  if (!iso) return new Date(NaN);
-  const [y, m, d] = String(iso).split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
+function SmallLink({ to, children }) {
+  return <Link to={to} className="text-xs text-cyan-300 hover:text-cyan-200">{children}</Link>;
 }
-function toISO(date) {
-  try { return new Date(date).toISOString().slice(0, 10); } catch { return ""; }
-}
-function firstArray(...cands) { for (const c of cands) if (Array.isArray(c)) return c; return []; }
 
 export default function Home() {
   const { gameState } = useGame();
 
-  if (!gameState) {
+  const data = useMemo(() => {
+    if (!gameState) return null;
+
+    const contracts = driverContractsOf(gameState);
+    const drivers = firstArray(gameState.drivers, gameState.dbDrivers);
+    const team = gameState.team || {};
+    const teamName = team.team_name ?? team.name ?? team.short_name ?? "My Team";
+    const explicitTeamId = team.team_id ?? team.id ?? null;
+    const inferredContract = !explicitTeamId
+      ? contracts.find((contract) => String(contract?.team_name ?? contract?.team ?? "") === String(teamName))
+      : null;
+    const teamId = String(explicitTeamId ?? inferredContract?.team_id ?? inferredContract?.constructor_id ?? "");
+    const driverIndex = new Map(drivers.map((driver) => [
+      String(driver.driver_id ?? driver.id ?? driver.driverId ?? ""),
+      driver,
+    ]));
+
+    const lineup = teamId ? driverLineupSlots(gameState, teamId) : {};
+    const raceDrivers = ["main", "second"].map((slot) => {
+      const contract = lineup?.[slot];
+      if (!contract) return null;
+      const id = String(driverIdOf(contract));
+      const driver = driverIndex.get(id);
+      if (!driver) return null;
+      const standing = (gameState.standings?.drivers || []).find((row) =>
+        String(row.driver_id ?? row.id ?? row.driverId ?? "") === id
+      );
+      const condition = driverCondition(gameState, id);
+      return {
+        ...driver,
+        id,
+        role: driverRoleLabelForSlot(slot),
+        standing,
+        condition,
+        fatigue: fatigueStatus(gameState, id),
+      };
+    }).filter(Boolean);
+
+    const teamStandings = firstArray(gameState.standings?.constructors, gameState.standings?.teams);
+    const constructorRow = teamStandings.find((row) =>
+      (teamId && String(row.team_id ?? row.constructor_id ?? row.id ?? "") === teamId) ||
+      String(row.team_name ?? row.name ?? "") === String(teamName)
+    );
+
+    const upcoming = upcomingManagementEvents(gameState, { limit: 10 });
+    const nextRace = upcoming.find((event) => event.type === "GP") || null;
+
+    const inbox = Array.isArray(gameState.inbox) ? gameState.inbox : [];
+    const alerts = inbox.filter((message) =>
+      message?.unread === true ||
+      message?.read === false ||
+      message?.action_required === true ||
+      message?.requires_response === true ||
+      /high|urgent|critical/i.test(String(message?.priority ?? ""))
+    ).slice(0, 5);
+
+    const finance = gameState.finances || gameState.finance || {};
+    const board = gameState.board || {};
+    const objectives = Array.isArray(board.objectives) ? board.objectives : [];
+
+    const garageCars = gameState.garage?.cars || [];
+    const lowComponents = [];
+    for (const car of garageCars) {
+      for (const [slot, condition] of Object.entries(car?.componentCondition || {})) {
+        if (num(condition, 100) < 40) lowComponents.push({
+          car: car.label ?? car.id,
+          slot,
+          condition: num(condition),
+        });
+      }
+    }
+
+    return {
+      team,
+      teamId,
+      teamName,
+      contracts,
+      raceDrivers,
+      teamStandings,
+      constructorRow,
+      upcoming,
+      nextRace,
+      alerts,
+      finance,
+      board,
+      objectives,
+      lowComponents,
+    };
+  }, [gameState]);
+
+  if (!gameState || !data) {
     return (
-      <div className="grid gap-4">
-        <div className="bg-white rounded-xl shadow p-4">
-          <h3 className="text-base font-semibold">No save loaded</h3>
-          <p className="text-sm text-gray-600 mt-1">Load or start a new game to see your Hub.</p>
-        </div>
+      <div className="rounded-xl border bg-white p-6">
+        <h1 className="text-2xl font-semibold">Home</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Load or start a career to open the management hub.</p>
       </div>
     );
   }
 
-  // === Dados base
-  const season     = gameState.activeYear ?? gameState.season ?? null;
-  const contracts  = driverContractsOf(gameState);
-  const driversDb  = firstArray(gameState.drivers,   gameState.dbDrivers);
-  const standings  = gameState.standings && (gameState.standings.drivers || gameState.standings.teams)
-    ? gameState.standings : { drivers: [], teams: [] };
-
-  const {
-    currentDateISO,
-    calendar = [],
-    currentRound = 0,
-    team,
-    inbox = [],
-    board = {},
-  } = gameState;
-
-  const finances   = gameState.finances || gameState.finance || {};
-  const dev        = gameState.development || {};
-
-  // teamId (por id ou por nome a partir dos contracts)
-  const teamKey = useMemo(() => {
-    if (team?.team_id) return String(team.team_id);
-    const tname = team?.team_name || team?.name;
-    if (!tname) return null;
-    const c = (contracts || []).find((c) => c?.team_name === tname);
-    return c?.team_id ? String(c.team_id) : null;
-  }, [team, contracts]);
-
-  // Calendário normalizado
-  const normalizedCalendar = useMemo(() => {
-    return (Array.isArray(calendar) ? calendar : []).map((row) => ({
-      ...row,
-      date: row?.date ?? row?.race_date ?? null,
-      name: row?.name ?? row?.gp_name ?? "Grand Prix",
-      gp_id: row?.gp_id ?? row?.id ?? null,
-      track_id: row?.track_id ?? null,
-    }));
-  }, [calendar]);
-
-  // Next 3 e Last 3
-  const today = fromISO(currentDateISO);
-  const next3 = useMemo(() => {
-    const arr = (normalizedCalendar || [])
-      .filter(g => g?.date)
-      .sort((a, b) => (a.date < b.date ? -1 : 1));
-    const today = fromISO(currentDateISO);
-    return arr.filter(g => fromISO(g.date) >= today);
-  }, [normalizedCalendar, currentDateISO]);
-
-  const last3 = useMemo(() => {
-    const arr = (normalizedCalendar || [])
-      .filter(g => g?.date)
-      .sort((a, b) => (a.date > b.date ? -1 : 1));
-    const today = fromISO(currentDateISO);
-    return arr.filter(g => fromISO(g.date) < today);
-  }, [normalizedCalendar, currentDateISO]);
-
-  // Os dois cards do Home representam explicitamente os dois race seats.
-  // Standings nunca decidem quem ocupa Main/Second; o live contract state decide.
-  const teamDrivers = useMemo(() => {
-    if (!teamKey) return [];
-
-    const driverIndex = new Map();
-    for (const d of driversDb) {
-      const id = d?.driver_id ?? d?.id ?? d?.driverId;
-      if (id != null) driverIndex.set(String(id), d);
-    }
-
-    const lineup = driverLineupSlots(gameState, teamKey);
-    return ["main", "second"].map((slot) => {
-      const contract = lineup[slot];
-      if (!contract) return null;
-      const id = driverIdOf(contract);
-      const driver = driverIndex.get(String(id));
-      if (!driver) return null;
-      return {
-        ...driver,
-        __contract_role: driverRoleLabelForSlot(slot),
-      };
-    }).filter(Boolean);
-  }, [gameState, driversDb, teamKey]);
-
-  // Pts/Pos por driver
-  const driverPointsMap = useMemo(() => {
-    const m = new Map();
-    (standings?.drivers || []).forEach((r) =>
-      m.set(String(r.driver_id ?? r.id ?? r.driverId), { points: r.points ?? 0, position: r.position ?? null })
-    );
-    return m;
-  }, [standings]);
-
-  // Linha da nossa equipa em construtores
-  const constructorRow = useMemo(() => {
-    const cons = (standings?.constructors && standings.constructors.length
-      ? standings.constructors
-      : standings?.teams) || [];
-    return cons.find((r) => String(r?.team_id) === String(teamKey)) || null;
-  }, [standings, teamKey]);
-
-  // Alerts vindos da Inbox
-  const alerts = useMemo(() => {
-    const arr = Array.isArray(inbox) ? inbox : [];
-    return arr.filter((m) => {
-      const t = String(m?.type || m?.category || "").toLowerCase();
-      const requires = m?.requires_response ?? m?.requiresReply ?? m?.action_required ?? m?.actionRequired;
-      const priority = String(m?.priority || "").toLowerCase();
-      const unread = m?.unread === true || m?.read === false;
-      return (
-        t.includes("alert") ||
-        t.includes("warning") ||
-        priority === "high" ||
-        requires === true ||
-        (unread && (m?.due_date || m?.deadline))
-      );
-    }).slice(0, 5);
-  }, [inbox]);
-
-  const SHOW_DEBUG_CARD = !teamDrivers.length;
+  const unread = (gameState.inbox || []).filter((m) => m?.unread === true || m?.read === false).length;
+  const boardStatus = data.board?.confidence ?? data.board?.rating ?? data.board?.status ?? "—";
+  const seasonObjective = data.objectives[0]?.title ?? data.objectives[0]?.name ?? data.board?.seasonObjective ?? "No objective set";
+  const currentDate = gameState.currentDateISO || "";
+  const nextRaceDays = data.nextRace ? daysBetweenISO(currentDate, data.nextRace.date) : null;
 
   return (
-    <div className="grid gap-4">
-      {/* ======= Main grid (12 cols) ======= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* LEFT: Inbox + Team/Drivers (Drivers alargado) */}
-        <div className="lg:col-span-5 grid gap-4">
-          <CardShell title="News">
-            <InboxMini items={inbox} compact />
-          </CardShell>
+    <div className="p-1 md:p-2 space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-semibold">Home</h1>
+          <p className="text-sm text-muted-foreground">
+            {data.teamName} · Season {gameState.activeYear ?? gameState.season ?? "—"} · {currentDate || "Date unavailable"}
+          </p>
+        </div>
+        <div className="flex-1" />
+        {unread > 0 ? (
+          <Link to="/Inbox" className="rounded-full bg-rose-100 text-rose-800 px-3 py-1 text-xs font-semibold">
+            {unread} unread message{unread === 1 ? "" : "s"}
+          </Link>
+        ) : null}
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <TeamOverview team={team} constructorRow={constructorRow} />
-            <div className="md:col-span-2">
-              <OurDriversCard drivers={teamDrivers} driverPointsMap={driverPointsMap} />
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <Panel
+          title="Team overview"
+          className="xl:col-span-4"
+          action={<SmallLink to="/Board">Board ›</SmallLink>}
+        >
+          <div className="p-5">
+            <div className="text-2xl font-bold">{data.teamName}</div>
+            <div className="mt-5 space-y-3">
+              <OverviewRow label="Constructors" value={data.constructorRow?.position ? ordinal(data.constructorRow.position) : "—"} />
+              <OverviewRow label="Points" value={data.constructorRow?.points ?? 0} />
+              <OverviewRow label="Season objective" value={seasonObjective} />
+              <OverviewRow label="Board confidence" value={boardStatus} />
             </div>
           </div>
-        </div>
+        </Panel>
 
-        {/* MID: Next 3 / Last 3 GPs */}
-        <div className="lg:col-span-4 grid gap-4">
-          <GpMiniLists next3={next3} last3={last3} currentDateISO={currentDateISO} />
-        </div>
+        <section className="xl:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.raceDrivers.map((driver, index) => (
+            <DriverCard key={driver.id} driver={driver} index={index + 1} />
+          ))}
+          {!data.raceDrivers.length ? (
+            <Panel title="Drivers" className="md:col-span-2">
+              <div className="p-5 text-sm text-slate-400">No race drivers assigned to the current Team.</div>
+            </Panel>
+          ) : null}
+        </section>
 
-        {/* RIGHT: Alerts + Finances + Development + Objectives */}
-        <div className="lg:col-span-3 grid gap-4">
-          <AlertsMini alerts={alerts} />
-          <FinancesCard finances={finances} />
-          <DevelopmentCard dev={dev} />
-          <ObjectivesCard board={board} />
-        </div>
-      </div>
+        <Panel
+          title="Decision centre"
+          className="xl:col-span-3"
+          action={<SmallLink to="/Inbox">Inbox ›</SmallLink>}
+        >
+          <div className="divide-y divide-white/10">
+            <DecisionRow label="Unread inbox" value={unread} warning={unread > 0} to="/Inbox" />
+            <DecisionRow label="Fatigued drivers" value={data.raceDrivers.filter((d) => d.condition.fatigue >= 70).length} warning={data.raceDrivers.some((d) => d.condition.fatigue >= 70)} to="/MyDrivers" />
+            <DecisionRow label="Worn components" value={data.lowComponents.length} warning={data.lowComponents.length > 0} to="/Car" />
+            <DecisionRow
+              label="Objectives at risk"
+              value={data.objectives.filter((o) => /risk|warning|fail|overdue|blocked/i.test(String(o?.status ?? o?.state ?? ""))).length}
+              warning={data.objectives.some((o) => /risk|warning|fail|overdue|blocked/i.test(String(o?.status ?? o?.state ?? "")))}
+              to="/Board"
+            />
+          </div>
+        </Panel>
 
-      {SHOW_DEBUG_CARD && (
-        <DebugCard
-          title="Debug snapshot"
-          teamKey={teamKey}
-          season={season}
-          contracts={contracts}
-          drivers={driversDb}
-          standings={standings}
-        />
-      )}
-    </div>
-  );
-}
+        <Panel
+          title="Standings"
+          className="xl:col-span-4"
+          action={<SmallLink to="/Standings">Full standings ›</SmallLink>}
+        >
+          <div className="divide-y divide-white/10">
+            {data.teamStandings.slice(0, 7).map((row, index) => {
+              const id = String(row.team_id ?? row.constructor_id ?? row.id ?? "");
+              const isMine = data.teamId && id === data.teamId;
+              return (
+                <div key={id || index} className={`px-4 py-2.5 flex items-center gap-3 ${isMine ? "bg-white/10" : ""}`}>
+                  <div className="w-6 text-right text-sm font-semibold">{row.position ?? index + 1}</div>
+                  <div className="flex-1 truncate text-sm">{row.team_name ?? row.name ?? row.constructor_name ?? id}</div>
+                  <div className="font-semibold">{row.points ?? 0}</div>
+                </div>
+              );
+            })}
+            {!data.teamStandings.length ? <div className="p-4 text-sm text-slate-400">No standings yet.</div> : null}
+          </div>
+        </Panel>
 
-/* ====== Generic shell ====== */
-function CardShell({ title, right, children, className = "" }) {
-  return (
-    <div className={`bg-white rounded-xl shadow p-4 ${className}`}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold">{title}</h3>
-        {right}
-      </div>
-      <div className="mt-2">{children}</div>
-    </div>
-  );
-}
+        <Panel
+          title="Up next"
+          className="xl:col-span-5"
+          action={<SmallLink to="/CalendarPage">Calendar ›</SmallLink>}
+        >
+          {data.nextRace ? (
+            <div className="p-5 bg-gradient-to-br from-slate-900 to-slate-950">
+              <div className="text-xs uppercase tracking-[0.18em] text-cyan-300">Next Grand Prix</div>
+              <div className="mt-2 text-3xl font-bold">{data.nextRace.title}</div>
+              <div className="mt-1 text-sm text-slate-400">{data.nextRace.subtitle || "Race weekend"}</div>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <span className="rounded bg-white/10 px-3 py-1.5 text-sm">{data.nextRace.date}</span>
+                {Number.isFinite(nextRaceDays) ? (
+                  <span className="rounded bg-cyan-500/15 text-cyan-200 px-3 py-1.5 text-sm">
+                    {nextRaceDays === 0 ? "Today" : `In ${nextRaceDays} day${nextRaceDays === 1 ? "" : "s"}`}
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-5">
+                <Link to="/RaceWeekend" className="inline-flex rounded-md bg-cyan-400 text-slate-950 px-4 py-2 text-sm font-semibold hover:bg-cyan-300">
+                  Open race weekend
+                </Link>
+              </div>
+            </div>
+          ) : <div className="p-5 text-sm text-slate-400">No upcoming Grand Prix.</div>}
+        </Panel>
 
-/* ====== Inline tiles ====== */
-function StatPill({ label, value }) {
-  return (
-    <div className="text-xs bg-gray-100 rounded px-2 py-0.5">
-      <span className="text-gray-500 mr-1">{label}</span>
-      <span className="font-medium">{value ?? "—"}</span>
-    </div>
-  );
-}
+        <Panel
+          title="Finances"
+          className="xl:col-span-3"
+          action={<SmallLink to="/Finances">Details ›</SmallLink>}
+        >
+          <div className="p-5 space-y-3">
+            <OverviewRow label="Current balance" value={fmtMoney(data.finance.balance ?? data.finance.cash ?? data.finance.bank)} />
+            <OverviewRow label="Monthly" value={fmtMoney(data.finance.monthlyBalance ?? data.finance.monthly_balance ?? data.finance.monthly)} />
+            <OverviewRow label="Season projection" value={fmtMoney(data.finance.projectedBalance ?? data.finance.projected_balance ?? data.finance.forecast)} />
+          </div>
+        </Panel>
 
-function OurDriversCard({ drivers = [], driverPointsMap }) {
-  return (
-    <CardShell title="Drivers">
-      {drivers.length ? (
-        <ul className="divide-y mt-1">
-          {drivers.map((d) => {
-            const key = String(d?.driver_id ?? d?.id ?? d?.driverId ?? Math.random());
-            const s = driverPointsMap?.get(String(d?.driver_id ?? d?.id ?? d?.driverId)) || {
-              points: 0,
-              position: null,
-            };
-            return (
-              <li key={key} className="py-3 flex items-center gap-3">
-                {d?.portrait_path ? (
-                  <img
-                    src={d.portrait_path}
-                    alt={d?.display_name || d?.name || "Driver"}
-                    className="h-10 w-10 rounded object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="h-10 w-10 rounded bg-gray-100 flex items-center justify-center text-sm font-medium">
-                    {(d?.display_name || d?.name || "?").slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 grow">
-                  <div className="text-sm font-medium truncate">
-                    <span
-                      data-entity="driver"
-                      data-id={d?.driver_id ?? d?.id ?? d?.driverId}
-                      className="entity-link-driver"
-                    >
-                      {d?.display_name ||
-                        d?.name ||
-                        `${d?.first_name ?? ""} ${d?.last_name ?? ""}`.trim() ||
-                        "—"}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    <StatPill label="Pts" value={s.points} />
-                    <StatPill label="Pos" value={s.position ? `P${s.position}` : "—"} />
-                    <StatPill label="Prep" value={d?.preparation ?? d?.prep ?? "—"} />
-                    <StatPill label="Morale" value={d?.morale ?? d?.moral ?? "—"} />
-                    {d?.__contract_role && (
-                      <StatPill
-                        label="Role"
-                        value={String(d.__contract_role).replace(/_/g, " ")}
-                      />
-                    )}
+        <Panel
+          title="Upcoming events"
+          className="xl:col-span-7"
+          action={<SmallLink to="/CalendarPage">View calendar ›</SmallLink>}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:gap-px bg-white/10">
+            {data.upcoming.slice(0, 6).map((event) => (
+              <Link
+                key={event.id}
+                to={event.route || "/CalendarPage"}
+                className="bg-slate-950 p-3 hover:bg-slate-900 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${event.priority === "high" ? "bg-rose-400" : "bg-cyan-400"}`} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{event.title}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{event.date} · {String(event.type).replaceAll("_", " ")}</div>
                   </div>
                 </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="text-sm text-gray-600 mt-2">No drivers linked to your team.</p>
-      )}
-    </CardShell>
-  );
-}
+              </Link>
+            ))}
+            {!data.upcoming.length ? <div className="p-4 text-sm text-slate-400">Nothing scheduled.</div> : null}
+          </div>
+        </Panel>
 
-/* ===== Outros cards ===== */
-function FinancesCard({ finances = {} }) {
-  const balance     = finances.balance ?? finances.cash ?? finances.bank ?? "—";
-  const weekly      = finances.weeklyChange ?? finances.weekly_delta ?? finances.weekly ?? "—";
-  const nextPayAmt  = finances.nextSponsorAmount ?? finances.next_payment_amount ?? finances.nextPayment ?? "—";
-  const nextPayDate = finances.nextSponsorDate ?? finances.next_payment_date ?? finances.nextDate ?? "—";
-
-  return (
-    <CardShell title="Finances">
-      <ul className="text-sm space-y-1">
-        <li className="flex justify-between"><span>Balance</span><span className="font-medium">{fmt(balance)}</span></li>
-        <li className="flex justify-between"><span>Weekly change</span><span className="font-medium">{fmt(weekly)}</span></li>
-        <li className="flex justify-between">
-          <span>Next sponsor payment</span>
-          <span className="font-medium">{fmt(nextPayAmt)}{nextPayDate ? ` • ${nextPayDate}` : ""}</span>
-        </li>
-      </ul>
-    </CardShell>
-  );
-}
-
-function DevelopmentCard({ dev = {} }) {
-  const researchPts = dev.researchPoints ?? dev.rp ?? "—";
-  const facilities  = firstArray(dev.facilities)?.slice(0, 3);
-  const parts       = firstArray(dev.partsInProgress, dev.inProgress)?.slice(0, 3);
-
-  return (
-    <CardShell title="Development">
-      <div className="text-sm">
-        <div className="flex justify-between mb-2">
-          <span className="text-gray-600">Research points</span>
-          <span className="font-medium">{fmt(researchPts)}</span>
-        </div>
-        <div className="text-gray-600">Parts in progress</div>
-        <ul className="list-disc list-inside">
-          {parts.length ? parts.map((p, i) => (
-            <li key={i} className="text-sm">
-              {p?.name || p?.part || "Part"} {p?.level ? `(L${p.level})` : ""} {p?.eta ? `– ETA ${p.eta}` : ""}
-            </li>
-          )) : <li className="text-sm text-gray-500">None</li>}
-        </ul>
-        <div className="text-gray-600 mt-2">Facilities</div>
-        <ul className="list-disc list-inside">
-          {facilities.length ? facilities.map((f, i) => (
-            <li key={i} className="text-sm">
-              {(f?.name || f?.facility || "Facility")} {f?.level ? `(L${f.level})` : ""}
-            </li>
-          )) : <li className="text-sm text-gray-500">—</li>}
-        </ul>
+        <Panel
+          title="Latest alerts"
+          className="xl:col-span-5"
+          action={<SmallLink to="/Inbox">All messages ›</SmallLink>}
+        >
+          <div className="divide-y divide-white/10">
+            {data.alerts.map((message, index) => (
+              <Link key={message.id ?? index} to="/Inbox" className="block px-4 py-3 hover:bg-white/5">
+                <div className="text-sm font-medium truncate">{message.subject ?? message.title ?? message.headline ?? "Team message"}</div>
+                <div className="text-xs text-slate-500 mt-1">{message.category ?? message.type ?? "Inbox"}</div>
+              </Link>
+            ))}
+            {!data.alerts.length ? <div className="p-4 text-sm text-slate-400">No urgent alerts.</div> : null}
+          </div>
+        </Panel>
       </div>
-    </CardShell>
-  );
-}
-
-function ObjectivesCard({ board = {} }) {
-  const objectives = Array.isArray(board?.objectives) ? board.objectives.slice(0, 5) : [];
-
-  return (
-    <CardShell title="Objectives">
-      {objectives.length ? (
-        <ul className="space-y-1">
-          {objectives.map((o, i) => (
-            <li key={i} className="text-sm flex items-start justify-between gap-3">
-              <span className="truncate">
-                {o?.title || o?.name || "Objective"}
-                {o?.deadline ? <span className="text-gray-500"> • {o.deadline}</span> : null}
-              </span>
-              <span className={`text-xs rounded px-2 py-0.5 ${badgeClr(o?.status)}`}>
-                {o?.status || o?.state || "—"}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-gray-600">No objectives found.</p>
-      )}
-    </CardShell>
-  );
-}
-
-function AlertsMini({ alerts = [] }) {
-  return (
-    <div className="bg-white rounded-xl shadow p-3">
-      <div className="text-xs uppercase tracking-wide text-gray-500">Alerts</div>
-      {alerts.length ? (
-        <ul className="mt-1 space-y-1">
-          {alerts.map((m, i) => (
-            <li key={i} className="text-sm">
-              {m?.subject || m?.title || m?.summary || "Message"}{m?.due_date ? ` • due ${m.due_date}` : ""}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="mt-1 text-sm text-gray-600">No alerts.</div>
-      )}
     </div>
   );
 }
 
-/* ===== Helpers visuais ===== */
-function fmt(v) {
-  if (v === null || v === undefined || v === "—") return "—";
-  if (typeof v === "number") return v.toLocaleString();
-  return String(v);
+function DriverCard({ driver, index }) {
+  const name = driver.display_name || driver.name || [driver.first_name, driver.last_name].filter(Boolean).join(" ") || driver.id;
+  const overall = driver.current_ability ?? driver.rating ?? driver.overall ?? driver.ability ?? "—";
+  const standing = driver.standing || {};
+  const fatigue = driver.condition.fatigue;
+  return (
+    <Link to="/MyDrivers" className="rounded-xl border bg-slate-950 text-slate-100 shadow-sm overflow-hidden hover:ring-2 hover:ring-cyan-400/50 transition">
+      <div className="px-4 pt-3 flex items-center gap-3">
+        <div className="text-2xl font-bold">{standing.position ? ordinal(standing.position) : "—"}</div>
+        <div className="flex-1" />
+        <div className="text-xs uppercase tracking-wide text-slate-400">Car {index}</div>
+      </div>
+      <div className="p-4 pt-2">
+        <div className="text-xs text-slate-400">{String(driver.role || "").replaceAll("_", " ")}</div>
+        <div className="text-xl font-bold mt-1">{name}</div>
+        <div className="grid grid-cols-2 gap-2 mt-5">
+          <MiniMetric label="Rating" value={overall} />
+          <MiniMetric label="Points" value={standing.points ?? 0} />
+          <MiniMetric label="Fatigue" value={`${Math.round(fatigue)}%`} alert={fatigue >= 70} />
+          <MiniMetric label="Preparation" value={`${Math.round(driver.condition.preparation)}%`} />
+        </div>
+        <div className={`mt-3 text-xs font-semibold ${fatigue >= 70 ? "text-rose-300" : fatigue >= 40 ? "text-amber-300" : "text-emerald-300"}`}>
+          {driver.fatigue.label}
+        </div>
+      </div>
+    </Link>
+  );
 }
-function badgeClr(statusRaw) {
-  const s = String(statusRaw || "").toLowerCase();
-  if (s.includes("done") || s.includes("complete") || s === "ok") return "bg-emerald-100 text-emerald-700";
-  if (s.includes("at risk") || s.includes("warning")) return "bg-amber-100 text-amber-700";
-  if (s.includes("fail") || s.includes("overdue") || s.includes("blocked")) return "bg-rose-100 text-rose-700";
-  return "bg-gray-100 text-gray-700";
+
+function MiniMetric({ label, value, alert = false }) {
+  return (
+    <div className="rounded-lg bg-white/5 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+      <div className={`mt-0.5 text-lg font-semibold ${alert ? "text-rose-300" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function OverviewRow({ label, value }) {
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      <span className="text-slate-400 flex-1">{label}</span>
+      <span className="font-semibold text-right max-w-[65%]">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+function DecisionRow({ label, value, warning, to }) {
+  return (
+    <Link to={to} className="px-4 py-3 flex items-center gap-3 hover:bg-white/5">
+      <div className={`h-2.5 w-2.5 rounded-full ${warning ? "bg-rose-400" : "bg-emerald-400"}`} />
+      <div className="flex-1 text-sm">{label}</div>
+      <div className={`font-bold ${warning ? "text-rose-300" : "text-slate-200"}`}>{value}</div>
+    </Link>
+  );
 }

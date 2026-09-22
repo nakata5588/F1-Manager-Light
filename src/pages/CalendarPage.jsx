@@ -1,14 +1,34 @@
 // src/pages/CalendarPage.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
+import { buildManagementEvents, daysBetweenISO } from "@/domain/managementEvents";
 
-// ==== Date utils ====
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const TYPE_STYLES = {
+  GP: "bg-rose-700 text-white",
+  PRACTICE: "bg-cyan-700 text-white",
+  QUALIFYING: "bg-violet-700 text-white",
+  BOARD: "bg-rose-600 text-white",
+  FINANCE: "bg-purple-700 text-white",
+  FINANCES: "bg-purple-700 text-white",
+  DEV: "bg-indigo-700 text-white",
+  STAFF: "bg-amber-600 text-white",
+  CONTRACT: "bg-amber-700 text-white",
+  MEDICAL: "bg-orange-700 text-white",
+  DEADLINE: "bg-red-700 text-white",
+  PR: "bg-fuchsia-700 text-white",
+  SCOUTING: "bg-lime-700 text-white",
+  HQ: "bg-slate-700 text-white",
+  ACADEMY: "bg-teal-700 text-white",
+  OTHER: "bg-zinc-700 text-white",
+};
+
 const fromISO = (iso) => {
   if (!iso) return new Date(NaN);
-  const [y, m, d] = iso.split("-").map(Number);
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d);
 };
 const toISO = (d) => {
@@ -20,369 +40,222 @@ const toISO = (d) => {
 const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
 const endOfMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 const addMonths = (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1);
-const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const TYPE_STYLES = {
-  GP: "bg-cyan-600 text-white",
-  TRAINING: "bg-emerald-600 text-white",
-  PR: "bg-fuchsia-600 text-white",
-  BOARD: "bg-rose-600 text-white",
-  STAFF: "bg-amber-600 text-white",
-  DEV: "bg-indigo-600 text-white",
-  HQ: "bg-slate-600 text-white",
-  ACADEMY: "bg-teal-700 text-white",
-  SCOUTING: "bg-lime-700 text-white",
-  FINANCES: "bg-purple-700 text-white",
-  OTHER: "bg-zinc-700 text-white",
-};
-
-// ==== Density presets ====
-const DENSITY_PRESETS = {
-  compact: {
-    limit: 2,
-    cellMin: "min-h-[88px] md:min-h-[96px]",
-    gap: "gap-0.5",
-    badge: "px-1.5 py-0.5 text-[10px] md:text-xs",
-    dateSize: "text-[11px] md:text-sm",
-  },
-  comfort: {
-    limit: 3,
-    cellMin: "min-h-[110px] md:min-h-[120px]",
-    gap: "gap-1",
-    badge: "px-2 py-1 text-xs md:text-sm",
-    dateSize: "text-xs md:text-sm",
-  },
-  roomy: {
-    limit: 5,
-    cellMin: "min-h-[140px] md:min-h-[160px]",
-    gap: "gap-1.5",
-    badge: "px-2.5 py-1.5 text-sm",
-    dateSize: "text-sm md:text-base",
-  },
-};
-
-function normalizeOtherEvents(gameState) {
-  const raw = gameState?.events || gameState?.agenda || [];
-  return raw
-    .filter(Boolean)
-    .map((e, idx) => ({
-      id: e.id ?? `EV_${idx}`,
-      date: e.date ?? e.dateISO,
-      type: (e.type ?? e.category ?? "OTHER").toUpperCase(),
-      title: e.title ?? e.name ?? "Event",
-      meta: e,
-    }))
-    .filter((e) => e.date);
-}
-function mapGPsToEvents(calendar = []) {
-  return calendar
-    .filter((r) => r?.race_date)
-    .map((r) => ({
-      id: `GP_${r.year}_${r.round || r.gp_id || r.gp_name}`,
-      date: r.race_date,
-      type: "GP",
-      title: r.gp_name || "Grand Prix",
-      subtitle: r.Country || r.country || "",
-      round: r.round,
-      gp: r,
-    }));
-}
 function buildMonthGrid(viewDate) {
   const start = startOfMonth(viewDate);
   const end = endOfMonth(viewDate);
-  const startWeekday = (start.getDay() + 6) % 7; // Monday=0
+  const leading = (start.getDay() + 6) % 7;
   const daysInMonth = end.getDate();
-  const cells = [];
-  const leading = startWeekday;
-  const totalCells = 42;
-  for (let i = 0; i < totalCells; i++) {
+  return Array.from({ length: 42 }, (_, i) => {
     const dayNum = i - leading + 1;
-    const dateObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), dayNum);
-    const inCurrentMonth = dayNum >= 1 && dayNum <= daysInMonth;
-    cells.push({ dateObj, inCurrentMonth });
-  }
-  return cells;
+    return {
+      dateObj: new Date(viewDate.getFullYear(), viewDate.getMonth(), dayNum),
+      inCurrentMonth: dayNum >= 1 && dayNum <= daysInMonth,
+    };
+  });
+}
+
+function eventLabel(type) {
+  if (type === "GP") return "Race";
+  if (type === "DEV") return "Development";
+  if (type === "HQ") return "Facilities";
+  return String(type || "Other").replaceAll("_", " ");
+}
+
+function EventPill({ event, compact = false }) {
+  const style = TYPE_STYLES[event.type] || TYPE_STYLES.OTHER;
+  const body = (
+    <div
+      className={[
+        "w-full rounded-md text-left transition-opacity hover:opacity-90",
+        compact ? "px-1.5 py-1 text-[10px] leading-tight" : "px-2.5 py-2 text-xs",
+        style,
+      ].join(" ")}
+      title={event.title}
+    >
+      <div className="font-semibold truncate">{event.title}</div>
+      {!compact && event.subtitle ? <div className="opacity-80 truncate mt-0.5">{event.subtitle}</div> : null}
+    </div>
+  );
+  return event.route ? <Link to={event.route} className="block no-underline">{body}</Link> : body;
 }
 
 export default function CalendarPage() {
-  const { gameState } = useGame();
+  const gameState = useGame((s) => s.gameState);
+  const todayISO = gameState?.currentDateISO || new Date().toISOString().slice(0, 10);
+  const today = useMemo(() => fromISO(todayISO), [todayISO]);
 
-  const today = useMemo(() => {
-    const iso = gameState?.currentDateISO;
-    return iso ? fromISO(iso) : new Date();
-  }, [gameState?.currentDateISO]);
-
-  const [viewDate, setViewDate] = useState(() => {
-    const base = gameState?.currentDateISO ? fromISO(gameState.currentDateISO) : new Date();
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  });
+  const [viewDate, setViewDate] = useState(() => startOfMonth(today));
+  const [selectedISO, setSelectedISO] = useState(todayISO);
   const [typeFilter, setTypeFilter] = useState("ALL");
-  const [density, setDensity] = useState("comfort");
-  const currentDensity = DENSITY_PRESETS[density];
 
-  const allEvents = useMemo(() => {
-    const gpEvents = mapGPsToEvents(gameState?.calendar || []);
-    const misc = normalizeOtherEvents(gameState);
-    return [...gpEvents, ...misc].map((ev) => ({
-      ...ev,
-      type: ev.type?.toUpperCase?.() || "OTHER",
-      dateObj: fromISO(ev.date),
-      dateISO: ev.date,
-    }));
-  }, [gameState]);
+  useEffect(() => {
+    setSelectedISO(todayISO);
+    setViewDate(startOfMonth(fromISO(todayISO)));
+  }, [todayISO]);
 
-  const monthEvents = useMemo(() => {
-    const y = viewDate.getFullYear();
-    const m = viewDate.getMonth();
-    return allEvents.filter((ev) => {
-      const inMonth = ev.dateObj.getFullYear() === y && ev.dateObj.getMonth() === m;
-      const passType = typeFilter === "ALL" ? true : ev.type === typeFilter;
-      return inMonth && passType;
-    });
-  }, [allEvents, viewDate, typeFilter]);
+  const allEvents = useMemo(
+    () => buildManagementEvents(gameState).map((event) => ({ ...event, dateObj: fromISO(event.date) })),
+    [gameState]
+  );
+
+  const visibleEvents = useMemo(
+    () => allEvents.filter((event) => typeFilter === "ALL" || event.type === typeFilter),
+    [allEvents, typeFilter]
+  );
 
   const eventsByDay = useMemo(() => {
     const map = new Map();
-    for (const ev of monthEvents) {
-      const key = toISO(ev.dateObj);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(ev);
-    }
-    for (const [k, list] of map) {
-      list.sort((a, b) => {
-        if (a.type === "GP" && b.type !== "GP") return -1;
-        if (a.type !== "GP" && b.type === "GP") return 1;
-        if (a.round && b.round && a.round !== b.round) return a.round - b.round;
-        return (a.title || "").localeCompare(b.title || "");
-      });
-      map.set(k, list);
+    for (const event of visibleEvents) {
+      if (!map.has(event.date)) map.set(event.date, []);
+      map.get(event.date).push(event);
     }
     return map;
-  }, [monthEvents]);
+  }, [visibleEvents]);
 
-  const grid = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
-  const monthLabel = useMemo(
-    () => viewDate.toLocaleString("en-GB", { month: "long", year: "numeric" }),
-    [viewDate]
+  const selectedEvents = useMemo(
+    () => (eventsByDay.get(selectedISO) || []).slice().sort((a, b) => String(a.title).localeCompare(String(b.title))),
+    [eventsByDay, selectedISO]
   );
 
-  const yearOptions = useMemo(() => {
-    const yearsInCal = Array.from(
-      new Set((gameState?.calendar || []).map((r) => Number(r.year)).filter(Boolean))
-    ).sort((a, b) => a - b);
-    if (yearsInCal.length) return yearsInCal;
-    const y = today.getFullYear();
-    return [y - 1, y, y + 1];
-  }, [gameState?.calendar, today]);
+  const grid = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
+  const monthLabel = viewDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const selectedDate = fromISO(selectedISO);
 
-  const onChangeYear = (e) => {
-    const y = Number(e.target.value);
-    setViewDate(new Date(y, viewDate.getMonth(), 1));
-  };
-  const onChangeFilter = (e) => setTypeFilter(e.target.value);
+  const typeOptions = useMemo(() => {
+    const discovered = [...new Set(allEvents.map((event) => event.type))].sort();
+    return ["ALL", ...discovered];
+  }, [allEvents]);
+
+  const upcoming = useMemo(
+    () => allEvents
+      .filter((event) => event.date >= todayISO)
+      .slice(0, 8),
+    [allEvents, todayISO]
+  );
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold">Calendar</h1>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setViewDate(addMonths(viewDate, -1))}>◀ Prev</Button>
-          <Button variant="secondary" onClick={() => setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))}>
-            Today
-          </Button>
-          <Button variant="outline" onClick={() => setViewDate(addMonths(viewDate, 1))}>Next ▶</Button>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-semibold">Calendar</h1>
+          <p className="text-sm text-muted-foreground">
+            Race weekends, deadlines, contracts, development and team events from the live Save World.
+          </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <select value={typeFilter} onChange={onChangeFilter} className="border rounded px-2 py-1">
-            <option value="ALL">All types</option>
-            <option value="GP">Grand Prix</option>
-            <option value="TRAINING">Training</option>
-            <option value="PR">PR/Media</option>
-            <option value="BOARD">Board</option>
-            <option value="STAFF">Staff</option>
-            <option value="DEV">Development</option>
-            <option value="HQ">HQ</option>
-            <option value="ACADEMY">Academy</option>
-            <option value="SCOUTING">Scouting</option>
-            <option value="FINANCES">Finances</option>
-            <option value="OTHER">Other</option>
-          </select>
-
-          <select value={String(viewDate.getFullYear())} onChange={onChangeYear} className="border rounded px-2 py-1">
-            {yearOptions.map((y) => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-
-          {/* Density selector */}
-          <select
-            value={density}
-            onChange={(e) => setDensity(e.target.value)}
-            className="border rounded px-2 py-1"
-            title="Change density"
-          >
-            <option value="compact">Compact</option>
-            <option value="comfort">Comfort</option>
-            <option value="roomy">Roomy</option>
-          </select>
-        </div>
+        <div className="flex-1" />
+        <Button variant="outline" onClick={() => setViewDate(addMonths(viewDate, -1))}>‹</Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setViewDate(startOfMonth(today));
+            setSelectedISO(todayISO);
+          }}
+        >
+          Today
+        </Button>
+        <Button variant="outline" onClick={() => setViewDate(addMonths(viewDate, 1))}>›</Button>
       </div>
 
-      {/* Subheader */}
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-xl font-medium">{monthLabel}</h2>
-        <Legend />
-      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <section className="xl:col-span-9 rounded-xl border bg-slate-950 text-slate-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10 flex flex-wrap items-center gap-3">
+            <div className="text-lg font-semibold uppercase tracking-wide">{monthLabel}</div>
+            <div className="flex-1" />
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="bg-slate-800 border border-white/10 rounded-md px-3 py-1.5 text-sm"
+            >
+              {typeOptions.map((type) => (
+                <option key={type} value={type}>{type === "ALL" ? "All events" : eventLabel(type)}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* Grid */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          {/* Week header */}
-          <div className="grid grid-cols-7 text-xs md:text-sm bg-muted/60 border-b">
-            {WEEKDAY_LABELS.map((d) => (
-              <div key={d} className="p-2 text-center font-medium">{d}</div>
-            ))}
+          <div className="grid grid-cols-7 bg-slate-900/70 text-[11px] uppercase tracking-wider text-slate-400">
+            {WEEKDAY_LABELS.map((day) => <div key={day} className="px-3 py-2">{day}</div>)}
           </div>
 
           <div className="grid grid-cols-7">
-            {grid.map(({ dateObj, inCurrentMonth }, idx) => {
-              const keyISO = toISO(dateObj);
-              const events = eventsByDay.get(keyISO) || [];
-              const isToday = isSameDay(dateObj, today);
+            {grid.map(({ dateObj, inCurrentMonth }) => {
+              const iso = toISO(dateObj);
+              const events = eventsByDay.get(iso) || [];
+              const isToday = iso === todayISO;
+              const selected = iso === selectedISO;
               return (
-                <div
-                  key={`${keyISO}_${idx}`}
+                <button
+                  type="button"
+                  key={iso}
+                  onClick={() => setSelectedISO(iso)}
                   className={[
-                    `${currentDensity.cellMin} border border-muted/60 p-2 flex flex-col ${currentDensity.gap}`,
-                    inCurrentMonth ? "bg-background" : "bg-muted/30 text-muted-foreground",
+                    "min-h-[118px] p-2 text-left border-t border-r border-white/10 transition-colors",
+                    inCurrentMonth ? "bg-slate-950" : "bg-slate-950/45 text-slate-600",
+                    selected ? "ring-2 ring-inset ring-cyan-400" : "hover:bg-slate-900",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between">
-                    <div className={`${currentDensity.dateSize} font-medium`}>{dateObj.getDate()}</div>
-                    {isToday && (
-                      <span className="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-yellow-400 text-black font-semibold">
-                        Today
-                      </span>
-                    )}
+                    <span className={isToday ? "font-bold text-cyan-300" : "font-medium"}>{dateObj.getDate()}</span>
+                    {isToday ? <span className="text-[9px] uppercase tracking-wider text-cyan-300">Today</span> : null}
                   </div>
-
-                  <div className={`flex flex-col ${currentDensity.gap} mt-1`}>
-                    {events.slice(0, currentDensity.limit).map((ev) => {
-                      const style = TYPE_STYLES[ev.type] || TYPE_STYLES.OTHER;
-                      const isGP = ev.type === "GP";
-                      const label = isGP
-                        ? `${ev.round ? `R${ev.round} — ` : ""}${ev.title}${ev.subtitle ? ` (${ev.subtitle})` : ""}`
-                        : ev.title;
-
-                      const BadgeLike = (
-                        <span className={`w-full inline-flex items-center justify-start rounded ${currentDensity.badge} ${style}`}>
-                          {label}
-                        </span>
-                      );
-
-                      return isGP && ev.round ? (
-                        <Link key={ev.id} to={`/gp/${ev.round}`} className="no-underline">
-                          {BadgeLike}
-                        </Link>
-                      ) : (
-                        <div key={ev.id}>{BadgeLike}</div>
-                      );
-                    })}
-                    {events.length > currentDensity.limit && (
-                      <span className="text-[10px] text-muted-foreground">+{events.length - currentDensity.limit} more…</span>
-                    )}
+                  <div className="mt-2 space-y-1">
+                    {events.slice(0, 3).map((event) => (
+                      <div key={event.id} className={`rounded px-1.5 py-1 text-[9px] truncate ${TYPE_STYLES[event.type] || TYPE_STYLES.OTHER}`}>
+                        {eventLabel(event.type)} · {event.title.replace(/^.*? — /, "")}
+                      </div>
+                    ))}
+                    {events.length > 3 ? <div className="text-[10px] text-slate-400">+{events.length - 3} more</div> : null}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+        </section>
 
-      <UpcomingList allEvents={allEvents} baseDate={today} />
-    </div>
-  );
-}
-
-function Legend() {
-  const items = [
-    ["GP", "Grand Prix"],
-    ["TRAINING", "Training"],
-    ["PR", "PR/Media"],
-    ["BOARD", "Board"],
-    ["STAFF", "Staff"],
-    ["DEV", "Development"],
-    ["HQ", "HQ"],
-    ["ACADEMY", "Academy"],
-    ["SCOUTING", "Scouting"],
-    ["FINANCES", "Finances"],
-    ["OTHER", "Other"],
-  ];
-  return (
-    <div className="hidden md:flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-      {items.map(([k, label]) => (
-        <span key={k} className="flex items-center gap-2">
-          <span className={`h-3 w-3 rounded ${TYPE_STYLES[k] || TYPE_STYLES.OTHER}`} />
-          <span>{label}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function UpcomingList({ allEvents, baseDate }) {
-  const upcoming = useMemo(() => {
-    return allEvents
-      .filter((ev) => ev.dateObj >= new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()))
-      .sort((a, b) => a.dateObj - b.dateObj)
-      .slice(0, 10);
-  }, [allEvents, baseDate]);
-
-  if (!upcoming.length) return null;
-
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <h3 className="text-lg font-medium mb-3">Upcoming</h3>
-        <div className="flex flex-col divide-y">
-          {upcoming.map((ev) => {
-            const style = TYPE_STYLES[ev.type] || TYPE_STYLES.OTHER;
-            const dateLabel = ev.dateObj.toLocaleDateString("en-GB", {
-              weekday: "short",
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            });
-            const isGP = ev.type === "GP";
-            const label = isGP
-              ? `${ev.round ? `R${ev.round} — ` : ""}${ev.title}${ev.subtitle ? ` (${ev.subtitle})` : ""}`
-              : ev.title;
-
-            const Row = (
-              <div className="py-2 flex items-center gap-3">
-                <span className={`inline-flex rounded px-2 py-1 text-xs ${style}`}>{ev.type}</span>
-                <div className="flex-1">
-                  <div className="font-medium leading-tight">{label}</div>
-                  <div className="text-xs text-muted-foreground">{dateLabel}</div>
-                </div>
+        <aside className="xl:col-span-3 space-y-4">
+          <div className="rounded-xl border bg-slate-950 text-slate-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/10">
+              <div className="text-xs uppercase tracking-wider text-slate-400">
+                {selectedDate.toLocaleDateString("en-GB", { weekday: "long" })}
               </div>
-            );
+              <div className="text-xl font-semibold">
+                {selectedDate.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+              </div>
+            </div>
+            <div className="p-3 space-y-2 min-h-40">
+              {selectedEvents.length
+                ? selectedEvents.map((event) => <EventPill key={event.id} event={event} />)
+                : <div className="text-sm text-slate-400 p-2">No scheduled events.</div>}
+            </div>
+          </div>
 
-            return isGP && ev.round ? (
-              <Link key={ev.id} to={`/gp/${ev.round}`} className="no-underline">
-                {Row}
-              </Link>
-            ) : (
-              <div key={ev.id}>{Row}</div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+          <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b">
+              <div className="text-sm font-semibold">Upcoming events</div>
+              <div className="text-xs text-muted-foreground">Next decisions and race-weekend milestones</div>
+            </div>
+            <div className="divide-y">
+              {upcoming.map((event) => {
+                const days = daysBetweenISO(todayISO, event.date);
+                return (
+                  <div key={event.id} className="p-3">
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${(TYPE_STYLES[event.type] || TYPE_STYLES.OTHER).split(" ")[0]}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">{event.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`} · {event.date}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {!upcoming.length ? <div className="p-4 text-sm text-muted-foreground">Nothing upcoming.</div> : null}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
