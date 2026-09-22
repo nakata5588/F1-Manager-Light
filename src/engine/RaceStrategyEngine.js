@@ -421,6 +421,7 @@ export function createRaceStrategyState(gs,{gp={},raceEntryState=gs?.raceEntrySt
 export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||!["grid_ready","race"].includes(String(weekend.phase))||!driverId)return gs;
+  if(Number(weekend?.live_race?.current_lap||0)>0)return gs;
   const existing=weekend?.race_strategy;
   if(!existing)return gs;
   const did=String(driverId);
