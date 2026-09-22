@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, advanceLiveRaceSector, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -141,6 +141,65 @@ test("high-risk crash events carry medical concern into the observed Race Feed",
   assert.equal(event.medical_concern,true);
   assert.ok(Number(event.injury_probability)>0);
   assert.match(event.message,/might be injured/i);
+});
+
+test("RW5.1 live race advances through S1, S2 and S3 before completing a lap",()=>{
+  let gs=createLiveRaceState(fixture("rw5-sector-step"),{gp});
+  assert.equal(gs.raceWeekendState.live_race.current_lap,0);
+  assert.equal(gs.raceWeekendState.live_race.current_sector,0);
+
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  let live=gs.raceWeekendState.live_race;
+  assert.equal(live.current_lap,1);
+  assert.equal(live.current_sector,1);
+  assert.equal(live.completed_laps,0);
+  assert.ok(live.classification.length===4);
+  assert.ok(live.classification.every((row)=>Number.isFinite(Number(row.sector_1_ms))));
+  assert.ok(live.classification.every((row)=>row.sector_2_ms==null&&row.sector_3_ms==null));
+
+  const s1Elapsed=new Map(live.classification.map((row)=>[row.driver_id,row.elapsed_ms]));
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  live=gs.raceWeekendState.live_race;
+  assert.equal(live.current_lap,1);
+  assert.equal(live.current_sector,2);
+  assert.ok(live.classification.every((row)=>Number.isFinite(Number(row.sector_2_ms))));
+  assert.ok(live.classification.every((row)=>row.sector_3_ms==null));
+  assert.ok(live.classification.every((row)=>row.elapsed_ms>s1Elapsed.get(row.driver_id)));
+
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  live=gs.raceWeekendState.live_race;
+  assert.equal(live.current_lap,1);
+  assert.equal(live.current_sector,3);
+  assert.equal(live.completed_laps,1);
+  assert.ok(live.classification.every((row)=>Number.isFinite(Number(row.sector_3_ms))));
+  assert.ok(live.classification.every((row)=>row.laps_completed===1||row.retired));
+});
+
+test("RW5.1 +1 Lap remains compatible and lands on S3",()=>{
+  let gs=createLiveRaceState(fixture("rw5-lap-compat"),{gp});
+  gs=advanceLiveRace(gs,{gp,laps:1});
+  const live=gs.raceWeekendState.live_race;
+  assert.equal(live.current_lap,1);
+  assert.equal(live.current_sector,3);
+  assert.equal(live.completed_laps,1);
+});
+
+test("RW5.1 sector state survives save/load exactly",()=>{
+  let gs=createLiveRaceState(fixture("rw5-sector-save"),{gp});
+  gs=advanceLiveRaceSector(gs,{gp,sectors:2});
+  const before=gs.raceWeekendState.live_race;
+  assert.equal(before.current_lap,1);
+  assert.equal(before.current_sector,2);
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW5 sector save"},gameState:stored});
+  assert.equal(loaded.raceWeekendState.live_race.current_lap,1);
+  assert.equal(loaded.raceWeekendState.live_race.current_sector,2);
+  assert.deepEqual(loaded.raceWeekendState.live_race.classification,before.classification);
+
+  const a=advanceLiveRaceSector(gs,{gp,sectors:1});
+  const b=advanceLiveRaceSector(loaded,{gp,sectors:1});
+  assert.deepEqual(a.raceWeekendState.live_race.classification,b.raceWeekendState.live_race.classification);
 });
 
 test("live race starts at lap zero and advances incrementally",()=>{
@@ -389,7 +448,7 @@ test("finalized live rows preserve exactly the retirements visible to the player
   const retired=rows.find((row)=>row.retired);
   assert.equal(retired.retirement_reason,"Engine");
   assert.equal(retired.incident_lap,1);
-  assert.equal(retired.laps_completed,1);
+  assert.equal(retired.laps_completed,0);
   assert.equal(retired.pit_stops.length,0,"a lap-one DNF cannot retain future simulated pit stops");
   assert.equal(retired.lap_times_ms.length,1);
   assert.equal(retired.tyre_state_by_lap.length,1);
