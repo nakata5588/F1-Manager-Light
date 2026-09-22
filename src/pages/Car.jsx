@@ -6,6 +6,7 @@ import { DriverPortrait, TeamLogo } from "@/components/entity/EntityVisuals.jsx"
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance";
 import {
   CAR_COMPONENT_SLOTS,
+  baseComponentConstructionCost,
   componentConditionForCar,
   componentConditionStatus,
   installedPartsForCar,
@@ -49,6 +50,7 @@ export default function Car(){
   const syncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
     gs?.garage,gs?.contracts,gs?.activeYear,teamId,
   ]);
+  const baseStock=syncedGarage?.baseComponentStock||{};
 
   useEffect(()=>{
     const current=JSON.stringify(gs?.garage?.cars||[]);
@@ -104,18 +106,72 @@ export default function Car(){
     const nextCars=cars.map((c)=>c.id===car.id?{...c,installedParts:installed}:c);
     updateGarageAndParts(nextCars,nextParts);
   };
+  const spend=(amount,desc)=>{
+    const value=Math.abs(Number(amount||0));
+    const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
+    const oldBalance=Number(gs?.finances?.balance??oldBudget);
+    if(value<=0||oldBudget<value)return false;
+    setGameState({
+      team:{...(gs?.team||{}),budget:oldBudget-value},
+      finances:{...(gs?.finances||{}),budget:oldBudget-value,balance:oldBalance-value,season_spend:Number(gs?.finances?.season_spend||0)+value},
+      financeLog:[...(gs?.financeLog||[]),{
+        id:`tx_component_${Date.now()}`,
+        dateISO:String(gs?.currentDateISO||"").slice(0,10),
+        type:"expense",category:"Car Components",desc,amount:-value,
+      }],
+    });
+    return true;
+  };
+
+  const buildStandardSpare=(slot)=>{
+    const cost=baseComponentConstructionCost(gs,slot);
+    const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
+    if(oldBudget<cost)return;
+    const stock={...baseStock,[slot]:Number(baseStock?.[slot]||0)+1};
+    const oldBalance=Number(gs?.finances?.balance??oldBudget);
+    setGameState({
+      team:{...(gs?.team||{}),budget:oldBudget-cost},
+      finances:{...(gs?.finances||{}),budget:oldBudget-cost,balance:oldBalance-cost,season_spend:Number(gs?.finances?.season_spend||0)+cost},
+      garage:{...syncedGarage,baseComponentStock:stock},
+      financeLog:[...(gs?.financeLog||[]),{
+        id:`tx_component_stock_${Date.now()}`,
+        dateISO:String(gs?.currentDateISO||"").slice(0,10),
+        type:"expense",category:"Car Components",desc:`Construct standard spare — ${nice(slot)}`,amount:-cost,
+      }],
+    });
+  };
+
   const replaceBaseComponent=(car,slot)=>{
     if(car?.installedParts?.[slot])return;
     const before=componentConditionForCar(carState,car,slot);
     if(before>=99.5)return;
+    const stockCount=Number(baseStock?.[slot]||0);
+    const cost=baseComponentConstructionCost(gs,slot);
+    const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
+    if(stockCount<=0&&oldBudget<cost)return;
+
+    const nextStock={...baseStock,[slot]:Math.max(0,stockCount-1)};
     const nextCars=cars.map((c)=>c.id!==car.id?c:{...c,componentCondition:{...(c.componentCondition||{}),[slot]:100}});
-    setGameState({
-      garage:{...syncedGarage,cars:nextCars},
+    const patch={
+      garage:{...syncedGarage,baseComponentStock:nextStock,cars:nextCars},
       componentServiceLog:[{
         date:String(gs?.currentDateISO||"").slice(0,10),car_id:car.id,slot,
-        condition_before:Number(before.toFixed(1)),condition_after:100,action:"replace_base_component",
+        condition_before:Number(before.toFixed(1)),condition_after:100,
+        action:stockCount>0?"replace_from_stock":"construct_and_replace",
+        cost:stockCount>0?0:cost,
       },...(Array.isArray(gs?.componentServiceLog)?gs.componentServiceLog:[])].slice(0,200),
-    });
+    };
+    if(stockCount<=0){
+      const oldBalance=Number(gs?.finances?.balance??oldBudget);
+      patch.team={...(gs?.team||{}),budget:oldBudget-cost};
+      patch.finances={...(gs?.finances||{}),budget:oldBudget-cost,balance:oldBalance-cost,season_spend:Number(gs?.finances?.season_spend||0)+cost};
+      patch.financeLog=[...(gs?.financeLog||[]),{
+        id:`tx_component_fit_${Date.now()}`,
+        dateISO:String(gs?.currentDateISO||"").slice(0,10),
+        type:"expense",category:"Car Components",desc:`Construct & fit — ${nice(slot)} · ${car.label}`,amount:-cost,
+      }];
+    }
+    setGameState(patch);
   };
 
   const availableParts=parts.filter((p)=>Number(p.inv||0)>0);
@@ -123,7 +179,7 @@ export default function Car(){
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
     <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
       <TeamLogo teamId={teamId} name={teamName} size="h-16 w-16" className="p-1"/>
-      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-3xl font-bold">Car & Garage</h1><p className="text-sm text-slate-400">{teamName} · Season {gs?.activeYear||"—"}</p></div>
+      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-3xl font-bold">My Cars</h1><p className="text-sm text-slate-400">{teamName} · Season {gs?.activeYear||"—"}</p></div>
       <div className="flex-1"/>
       <div className="grid grid-cols-3 gap-2 min-w-[360px]">
         <Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/>
@@ -172,13 +228,36 @@ export default function Car(){
           {componentRows.map((row)=><div key={row.slot} className="p-3 flex items-center gap-3">
             <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">{nice(row.slot)}</div><div className="font-medium truncate">{row.installed?.part?.name||"Standard component"}</div><div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={row.condition<35?"h-full bg-rose-400":row.condition<60?"h-full bg-amber-300":"h-full bg-emerald-300"} style={{width:Math.max(0,Math.min(100,row.condition))+"%"}}/></div></div>
             <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">{row.status.label}</div></div>
-            {row.installed?<Button size="sm" variant="outline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>:<Button size="sm" variant="outline" disabled={row.condition>=99.5} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>Replace</Button>}
+            {row.installed
+              ?<Button size="sm" variant="outline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>
+              :<div className="text-right">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={row.condition>=99.5 || (Number(baseStock?.[row.slot]||0)<=0 && Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,row.slot))}
+                  onClick={()=>replaceBaseComponent(selectedCar,row.slot)}
+                >
+                  {Number(baseStock?.[row.slot]||0)>0?"Replace":`Construct & fit · ${baseComponentConstructionCost(gs,row.slot).toLocaleString("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0})}`}
+                </Button>
+                <div className="text-[10px] text-slate-500 mt-1">Standard spares: {Number(baseStock?.[row.slot]||0)}</div>
+              </div>}
           </div>)}
         </div>
       </Panel>
 
       <Panel title="Warehouse" className="xl:col-span-3" action={<Link to="/Development" className="text-xs text-slate-300">Manufacture ›</Link>}>
         <div className="max-h-[560px] overflow-y-auto divide-y divide-white/10">
+          <div className="p-3">
+            <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Standard spares</div>
+            <div className="space-y-2">
+              {CAR_COMPONENT_SLOTS.map((slot)=><div key={slot} className="rounded border border-white/10 p-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1"><div className="text-sm font-medium">{nice(slot)}</div><div className="text-[10px] text-slate-500">Stock {Number(baseStock?.[slot]||0)} · build cost {baseComponentConstructionCost(gs,slot).toLocaleString("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0})}</div></div>
+                  <Button size="sm" variant="outline" onClick={()=>buildStandardSpare(slot)} disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,slot)}>Construct</Button>
+                </div>
+              </div>)}
+            </div>
+          </div>
           {availableParts.map((part)=><div key={part.id} className="p-3">
             <div className="font-medium truncate">{part.name}</div>
             <div className="text-xs text-slate-500">{nice(part.slot)} · +{Number(part.perf||0).toFixed(2)} performance · stock {Number(part.inv||0)}</div>
