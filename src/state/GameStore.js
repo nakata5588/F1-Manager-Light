@@ -8,6 +8,7 @@ import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
+import { processWorkshopJobs } from "@/domain/componentService";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -1254,7 +1255,7 @@ export const useGame = create((set, get) => ({
       commercialScore: null,
       academy: { drivers: [] },
       scouting: { assignments: [], shortlist: [] },
-      development: { projects: [], parts: [], manufacturing: [], research: [] },
+      development: { projects: [], parts: [], partUnits: [], manufacturing: [], research: [] },
       hq: { facilityLevels: {}, upgrades: [] },
     };
 
@@ -1766,6 +1767,7 @@ export const useGame = create((set, get) => ({
       updated=next1||patched||res||updated;
       updated=processScoutingTick(updated);
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
+      updated=processWorkshopJobs(updated);
       const ch=changes||attrChanges||[];
       if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
         updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};

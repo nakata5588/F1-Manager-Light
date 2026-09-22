@@ -8,6 +8,7 @@ import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
+import { activeWorkshopJobs, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -112,6 +113,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const parts = Array.isArray(dev.parts) ? dev.parts : [];
   const partUnits = Array.isArray(dev.partUnits) ? dev.partUnits : [];
   const manufacturing = Array.isArray(dev.manufacturing) ? dev.manufacturing : [];
+  const workshop = activeWorkshopJobs(physicalState);
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
   const baseFacility = (gameState?.facilities || []).find(
@@ -324,6 +326,23 @@ export default function Development({ embedded = false, initialTab = "projects",
     });
   };
 
+  const restoreUnit = (part, unit) => {
+    const quote=partUnitRestoreQuote(physicalState,unit?.id);
+    if(!quote||!currentDateISO||budget<Number(quote.cost||0))return;
+    const beforeJobs=(physicalState?.garage?.serviceJobs||[]).length;
+    const next=queueWorkshopJob(physicalState,quote,{
+      id:`workshop_${Date.now()}`,
+      title:`Restore ${part?.name||part?.version||unit?.id} · ${unit?.id}`,
+      startedAt:currentDateISO,
+    });
+    if((next?.garage?.serviceJobs||[]).length<=beforeJobs)return;
+    applyExpense(quote.cost,`Restoration — ${part?.name||unit?.id}`);
+    setGameState({
+      garage:next?.garage,
+      development:next?.development,
+    });
+  };
+
   const updateResearch = (id, focus) => {
     const next = research.map((r)=>r.id===id?{...r,focus:Number(focus)}:r);
     setGameState({development:{...dev,projects,parts,partUnits,manufacturing,research:next}});
@@ -408,7 +427,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         <Stat label="Active Projects" value={projects.filter((p)=>p.status==="active").length}/>
         <Stat label="Completed Projects" value={projects.filter((p)=>p.status==="completed").length}/>
         <Stat label="Designed Parts" value={parts.length}/>
-        <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length}/>
+        <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length + workshop.length}/>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
@@ -459,18 +478,29 @@ export default function Development({ embedded = false, initialTab = "projects",
             const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
             const allUnits=partUnitsForDesign(physicalState,p.id);
             const fitted=Math.max(0,allUnits.length-warehouse.length);
-            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button></td></tr>;
+            const worn=warehouse.filter((unit)=>Number(unit?.condition??100)<99.5).sort((a,b)=>Number(a.condition||100)-Number(b.condition||100))[0]||null;
+            const restoreQuote=worn?partUnitRestoreQuote(physicalState,worn.id):null;
+            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><div className="flex justify-end gap-1"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button>{worn&&restoreQuote?<Button size="sm" variant="darkOutline" onClick={()=>restoreUnit(p,worn)} disabled={budget<Number(restoreQuote.cost||0)}>Restore {Number(worn.condition||0).toFixed(0)}% · {restoreQuote.days}d</Button>:null}</div></td></tr>;
           })}
           {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
         </table></CardContent></Card>
       )}
 
       {tab==="manufacturing" && (
-        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-          <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
-          <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
-          {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">No manufacturing batches.</td></tr>}</tbody>
-        </table></CardContent></Card>
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
+            <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
+            {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">No manufacturing batches.</td></tr>}</tbody>
+          </table></CardContent></Card>
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto">
+            <div className="px-3 py-3 border-b border-white/10"><div className="font-semibold">Workshop</div><div className="text-xs text-slate-500">Standard component builds and part restoration take real in-game time.</div></div>
+            <table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Job</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
+              <tbody>{(physicalState?.garage?.serviceJobs||[]).map((job)=><tr key={job.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{job.title||nice(job.kind)}</td><td className="px-3 py-2">{job.started_at}</td><td className="px-3 py-2">{job.finishes_at}</td><td className="px-3 py-2 text-right">{fmtMoney(job.cost)}</td><td className="px-3 py-2">{nice(job.status)}</td></tr>)}
+              {!(physicalState?.garage?.serviceJobs||[]).length&&<tr><td colSpan={5} className="px-3 py-5 text-center text-slate-400">No workshop jobs.</td></tr>}</tbody>
+            </table>
+          </CardContent></Card>
+        </div>
       )}
 
       {tab==="research" && (

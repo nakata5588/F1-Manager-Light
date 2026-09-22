@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { deriveBoardState } from "../src/domain/boardState.js";
 import { academyProgramDefinition } from "../src/domain/academyPrograms.js";
 import { baseComponentConstructionCost, syncGarageState } from "../src/domain/garage.js";
-import { createManufacturedPartUnits, fitPhysicalPartUnit, inventoryCountForDesign, partUnitsForDesign, removePhysicalPartUnit } from "../src/domain/partUnits.js";
+import { createManufacturedPartUnits, fitPhysicalPartUnit, inventoryCountForDesign, partUnitById, partUnitsForDesign, removePhysicalPartUnit, warehousePartUnitsForDesign } from "../src/domain/partUnits.js";
+import { partUnitRestoreQuote, processWorkshopJobs, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "../src/domain/componentService.js";
 import { availableCarComponentSlots, componentEligibility } from "../src/domain/carComponents.js";
 import { conditionModifierBreakdown } from "../src/domain/driverPerformance.js";
 import { pitCrewEffectiveProfile } from "../src/engine/RaceStrategyEngine.js";
@@ -171,4 +172,89 @@ test("manufacturing creates distinct physical units and fitting moves one out of
   next=removePhysicalPartUnit(next,{carId:"car_1",slot:"aero_rear"});
   assert.equal(inventoryCountForDesign(next,"RW1"),2);
   assert.equal(next.garage.cars.find((car)=>car.id==="car_1").installedParts.aero_rear,undefined);
+});
+
+
+test("standard component builds complete after workshop time instead of appearing instantly", () => {
+  const gs={
+    activeYear:1980,
+    currentDateISO:"1980-02-01",
+    team:{team_id:"T1"},
+    hq:{facilityLevels:{manufacturing_leve:5}},
+    garage:{
+      baseComponentStock:{gearbox:0},
+      cars:[{id:"car_1",componentCondition:{gearbox:52},installedParts:{}}],
+      serviceJobs:[],
+    },
+    development:{parts:[],partUnits:[]},
+  };
+
+  const quote=standardBuildQuote(gs,"gearbox");
+  assert.ok(quote.cost>0);
+  assert.ok(quote.days>=2);
+  let next=queueWorkshopJob(gs,quote,{id:"job_build",title:"Build gearbox",startedAt:"1980-02-01"});
+  assert.equal(next.garage.baseComponentStock.gearbox,0,"stock must not be granted when the job starts");
+
+  next=processWorkshopJobs({...next,currentDateISO:"1980-02-02"});
+  assert.equal(next.garage.baseComponentStock.gearbox,0);
+
+  next=processWorkshopJobs({...next,currentDateISO:next.garage.serviceJobs[0].finishes_at});
+  assert.equal(next.garage.baseComponentStock.gearbox,1);
+  assert.equal(next.garage.serviceJobs[0].status,"completed");
+
+  const again=processWorkshopJobs(next);
+  assert.equal(again.garage.baseComponentStock.gearbox,1,"completed workshop jobs must be idempotent");
+});
+
+test("standard component restoration costs money, takes time and only restores on completion", () => {
+  const gs={
+    activeYear:1980,
+    currentDateISO:"1980-02-01",
+    team:{team_id:"T1"},
+    hq:{facilityLevels:{manufacturing_leve:5}},
+    garage:{
+      baseComponentStock:{gearbox:0},
+      cars:[{id:"car_1",label:"Car 1",componentCondition:{gearbox:48},installedParts:{}}],
+      serviceJobs:[],
+    },
+    development:{parts:[],partUnits:[]},
+  };
+
+  const build=standardBuildQuote(gs,"gearbox");
+  const restore=standardRestoreQuote(gs,"gearbox",48,{carId:"car_1"});
+  assert.ok(restore.cost>0);
+  assert.ok(restore.cost<build.cost);
+  assert.ok(restore.days>=1);
+
+  let next=queueWorkshopJob(gs,restore,{id:"job_restore",title:"Restore gearbox",startedAt:"1980-02-01"});
+  assert.equal(next.garage.cars[0].componentCondition.gearbox,48);
+  next=processWorkshopJobs({...next,currentDateISO:next.garage.serviceJobs[0].finishes_at});
+  assert.equal(next.garage.cars[0].componentCondition.gearbox,100);
+});
+
+test("developed physical unit restoration reserves the unit and restores its own condition", () => {
+  const gs={
+    activeYear:1980,
+    currentDateISO:"1980-02-01",
+    team:{team_id:"T1"},
+    hq:{facilityLevels:{manufacturing_leve:5}},
+    garage:{
+      cars:[{id:"car_1",installedParts:{}}],
+      serviceJobs:[],
+    },
+    development:{
+      parts:[{id:"RW1",name:"Rear Wing V1",slot:"aero_rear",perf:1.4,inv:1}],
+      partUnits:[{id:"RW1-U1",design_id:"RW1",slot:"aero_rear",condition:61}],
+    },
+  };
+
+  const quote=partUnitRestoreQuote(gs,"RW1-U1");
+  assert.ok(quote.cost>0);
+  let next=queueWorkshopJob(gs,quote,{id:"job_unit_restore",title:"Restore RW1-U1",startedAt:"1980-02-01"});
+  assert.equal(warehousePartUnitsForDesign(next,"RW1").length,0,"unit in restoration must not be fit-ready stock");
+  assert.equal(partUnitById(next,"RW1-U1").condition,61);
+
+  next=processWorkshopJobs({...next,currentDateISO:next.garage.serviceJobs[0].finishes_at});
+  assert.equal(partUnitById(next,"RW1-U1").condition,100);
+  assert.equal(warehousePartUnitsForDesign(next,"RW1").length,1);
 });
