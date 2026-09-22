@@ -229,11 +229,11 @@ export default function Car(){
             <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-wide text-slate-500">{nice(row.slot)}</div><div className="font-medium truncate">{row.installed?.part?.name||"Standard component"}</div><div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className={row.condition<35?"h-full bg-rose-400":row.condition<60?"h-full bg-amber-300":"h-full bg-emerald-300"} style={{width:Math.max(0,Math.min(100,row.condition))+"%"}}/></div></div>
             <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">{row.status.label}</div></div>
             {row.installed
-              ?<Button size="sm" variant="outline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>
+              ?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)}>Remove</Button>
               :<div className="text-right">
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="darkOutline"
                   disabled={row.condition>=99.5 || (Number(baseStock?.[row.slot]||0)<=0 && Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,row.slot))}
                   onClick={()=>replaceBaseComponent(selectedCar,row.slot)}
                 >
@@ -253,7 +253,7 @@ export default function Car(){
               {CAR_COMPONENT_SLOTS.map((slot)=><div key={slot} className="rounded border border-white/10 p-2">
                 <div className="flex items-center gap-2">
                   <div className="flex-1"><div className="text-sm font-medium">{nice(slot)}</div><div className="text-[10px] text-slate-500">Stock {Number(baseStock?.[slot]||0)} · build cost {baseComponentConstructionCost(gs,slot).toLocaleString("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0})}</div></div>
-                  <Button size="sm" variant="outline" onClick={()=>buildStandardSpare(slot)} disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,slot)}>Construct</Button>
+                  <Button size="sm" variant="darkOutline" onClick={()=>buildStandardSpare(slot)} disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<baseComponentConstructionCost(gs,slot)}>Construct</Button>
                 </div>
               </div>)}
             </div>
