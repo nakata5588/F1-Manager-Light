@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
+import { deriveBoardState } from "@/domain/boardState.js";
 
 const DAY = 86_400_000;
 const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
@@ -142,31 +143,29 @@ export default function Board() {
   const date = String(gameState?.currentDateISO || "").slice(0,10);
   const currentBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
 
-  const brand = (gameState?.teamBrands || []).find(
-    (b)=>String(b?.team_id ?? "") === teamId
-  );
   const storedBoard = useMemo(()=>normalizeBoard(gameState?.board || {}),[gameState?.board]);
-  const expectation = storedBoard?.profile_version===2
-    ? normalizeExpectation(storedBoard.expectation)
-    : normalizeExpectation(brand?.board_expectation || "midfield");
-  const metrics = useMemo(()=>boardMetrics(gameState,teamId),[gameState,teamId]);
+  const derivedBoard = useMemo(()=>deriveBoardState(gameState),[gameState]);
+  const expectation = derivedBoard.expectation;
+  const metrics = derivedBoard.metrics;
   const rewardProfile = useMemo(() => {
     const tier=expectationTier(expectation);
     return (gameState?.dbBoardGoals||[]).find((row)=>String(row?.team_tier||"").toLowerCase()===tier)||null;
   },[gameState?.dbBoardGoals,expectation]);
-  const liveObjectives = useMemo(()=>makeObjectives(expectation,metrics).map((o)=>({
+  const liveObjectives = useMemo(()=>derivedBoard.objectives.map((o)=>({
     ...o,
     reward:rewardProfile?.bonuses?.hit || null,
     penalty:o.priority===1 ? (rewardProfile?.penalties?.fail_major||null) : (rewardProfile?.penalties?.fail_minor||null),
-  })),[expectation,metrics,rewardProfile]);
+  })),[derivedBoard.objectives,rewardProfile]);
   const board = useMemo(()=>({
+    ...derivedBoard,
     ...storedBoard,
     profile_version:2,
     expectation,
-    reputation:clamp01(storedBoard.reputation ?? 0.55),
+    reputation:derivedBoard.reputation,
+    confidence:derivedBoard.confidence,
     objectives:liveObjectives,
     actions:Array.isArray(storedBoard.actions)?storedBoard.actions:[],
-  }),[storedBoard,expectation,liveObjectives]);
+  }),[derivedBoard,storedBoard,expectation,liveObjectives]);
 
   const objectiveScore = useMemo(() => {
     if (!board.objectives.length || metrics.races === 0) return 0.5;
