@@ -7,6 +7,7 @@ import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
+import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -105,9 +106,11 @@ export default function Development({ embedded = false, initialTab = "projects",
   const setGameState = useGame((s) => s.setGameState);
   const currentDateISO = String(gameState?.currentDateISO || "").slice(0,10);
   const activeYear = Number(gameState?.activeYear) || Number(currentDateISO.slice(0,4)) || 1980;
-  const dev = gameState?.development || {};
+  const physicalState = useMemo(() => normalizePhysicalPartState(gameState), [gameState]);
+  const dev = physicalState?.development || {};
   const projects = Array.isArray(dev.projects) ? dev.projects : [];
   const parts = Array.isArray(dev.parts) ? dev.parts : [];
+  const partUnits = Array.isArray(dev.partUnits) ? dev.partUnits : [];
   const manufacturing = Array.isArray(dev.manufacturing) ? dev.manufacturing : [];
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
@@ -171,6 +174,8 @@ export default function Development({ embedded = false, initialTab = "projects",
     if (!currentDateISO) return;
     let changed = false;
     let nextParts = [...parts];
+    let nextUnits = [...partUnits];
+    let nextGarage = physicalState?.garage || gameState?.garage;
 
     const nextProjects = projects.map((p) => {
       if (p.status !== "active" || !p.finishes_at || p.finishes_at > currentDateISO) return p;
@@ -183,7 +188,6 @@ export default function Development({ embedded = false, initialTab = "projects",
           slot:p.type,
           version:`P${nextParts.filter((x)=>x.slot===p.type).length + 1}`,
           perf:Number(p.perf_delta || 0),
-          condition:100,
           inv:0,
           in_manufacturing:0,
           prototype:true,
@@ -196,20 +200,38 @@ export default function Development({ embedded = false, initialTab = "projects",
     const nextManufacturing = manufacturing.map((job) => {
       if (job.status !== "active" || !job.finishes_at || job.finishes_at > currentDateISO) return job;
       changed = true;
-      nextParts = nextParts.map((part) =>
+      const produced = createManufacturedPartUnits({
+        ...physicalState,
+        garage:nextGarage,
+        development:{...dev,parts:nextParts,partUnits:nextUnits,manufacturing},
+      },{
+        designId:job.part_id,
+        qty:Number(job.qty||1),
+        batchId:job.id,
+        manufacturedAt:currentDateISO,
+      });
+      nextParts=(produced?.development?.parts||nextParts).map((part) =>
         part.id === job.part_id
-          ? {...part, inv:Number(part.inv || 0) + Number(job.qty || 1), in_manufacturing:Math.max(0, Number(part.in_manufacturing || 0) - Number(job.qty || 1))}
+          ? {...part, in_manufacturing:Math.max(0, Number(part.in_manufacturing || 0) - Number(job.qty || 1))}
           : part
       );
+      nextUnits=produced?.development?.partUnits||nextUnits;
+      nextGarage=produced?.garage||nextGarage;
       return {...job, status:"completed", completed_at:currentDateISO};
     });
 
     if (changed) {
+      const finalState=normalizePhysicalPartState({
+        ...physicalState,
+        garage:nextGarage,
+        development:{...dev, projects:nextProjects, parts:nextParts, partUnits:nextUnits, manufacturing:nextManufacturing, research},
+      });
       setGameState({
-        development:{...dev, projects:nextProjects, parts:nextParts, manufacturing:nextManufacturing, research},
+        garage:finalState?.garage,
+        development:finalState?.development,
       });
     }
-  }, [currentDateISO, projects, parts, manufacturing, research, dev, setGameState]);
+  }, [currentDateISO, projects, parts, partUnits, manufacturing, research, dev, setGameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
   const effectiveDays = effectiveProjectDays(draft, levelOf);
@@ -249,7 +271,7 @@ export default function Development({ embedded = false, initialTab = "projects",
 
     applyExpense(cost, `Development — ${project.name}`);
     setGameState({
-      development:{...dev, projects:[...projects, project], parts, manufacturing, research},
+      development:{...dev, projects:[...projects, project], parts, partUnits, manufacturing, research},
     });
     setShowCreate(false);
     setDraft((d)=>({...d,name:""}));
@@ -260,7 +282,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       development:{
         ...dev,
         projects:projects.map((p)=>p.id===id?{...p,...patch}:p),
-        parts, manufacturing, research,
+        parts, partUnits, manufacturing, research,
       },
     });
   };
@@ -295,6 +317,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         ...dev,
         projects,
         parts:parts.map((p)=>p.id===part.id?{...p,in_manufacturing:Number(p.in_manufacturing||0)+qty}:p),
+        partUnits,
         manufacturing:[...manufacturing,job],
         research,
       },
@@ -432,7 +455,12 @@ export default function Development({ embedded = false, initialTab = "projects",
       {tab==="parts" && (
         <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
           <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
-          <tbody>{parts.map((p)=><tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{nice(p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right">{Number(p.inv||0)}{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</td><td className="px-3 py-2 text-right"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button></td></tr>)}
+          <tbody>{parts.map((p)=>{
+            const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
+            const allUnits=partUnitsForDesign(physicalState,p.id);
+            const fitted=Math.max(0,allUnits.length-warehouse.length);
+            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button></td></tr>;
+          })}
           {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
         </table></CardContent></Card>
       )}
