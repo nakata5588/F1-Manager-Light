@@ -155,6 +155,75 @@ function family(state){
   if(["WETTING","LIGHT_RAIN","DRYING"].includes(String(state)))return "mixed";
   return "dry";
 }
+function rainObserved(state){
+  return ["WETTING","LIGHT_RAIN","HEAVY_RAIN","STORM"].includes(String(state||"").toUpperCase());
+}
+function firstRainTransition(actual){
+  const rows=(actual?.segments||[]).slice().sort((a,b)=>num(a?.from_pct)-num(b?.from_pct));
+  if(rows.length<2)return null;
+  let previous=rainObserved(rows[0]?.state);
+  for(let index=1;index<rows.length;index+=1){
+    const current=rainObserved(rows[index]?.state);
+    if(current!==previous){
+      return {
+        direction:current?"arrival":"easing",
+        pct:clamp(num(rows[index]?.from_pct,0),0,1),
+      };
+    }
+    previous=current;
+  }
+  return null;
+}
+function forecastTimingModel(gs,gp,actual,tid,revision,predicted,accuracy){
+  const gpId=String(gp?.gp_id??gp?.track_id??"gp");
+  const rng=rngFor(gs,`${gpId}-rw4.6.1-team-forecast-timing-${tid}-${actual?.id||"session"}-r${revision}`);
+  const predictedState=String(predicted||"SUNNY").toUpperCase();
+  const transition=firstRainTransition(actual);
+  const uncertaintyPct=Number(clamp(0.03+(1-accuracy)*0.16,0.025,0.15).toFixed(3));
+  const maxTimingErrorPct=Number(clamp(0.015+(1-accuracy)*0.28,0.015,0.22).toFixed(3));
+  const predictedWet=rainObserved(predictedState);
+  const mode=predictedState==="DRYING"
+    ?"rain_easing"
+    :predictedState==="WETTING"
+      ?"rain_arrival"
+      :predictedWet
+        ?"rain_from_start"
+        :"dry_stable";
+
+  if(["rain_arrival","rain_easing"].includes(mode)){
+    const wantedDirection=mode==="rain_arrival"?"arrival":"easing";
+    const canTrackActual=transition?.direction===wantedDirection;
+    const centreBase=canTrackActual
+      ?transition.pct
+      :mode==="rain_arrival"
+        ?0.18+rng.next()*0.48
+        :0.22+rng.next()*0.44;
+    const error=canTrackActual?(rng.next()-0.5)*2*maxTimingErrorPct:0;
+    const centre=clamp(centreBase+error,0.03,0.96);
+    return {
+      mode,
+      estimated_transition_pct:Number(centre.toFixed(3)),
+      window_low_pct:Number(clamp(centre-uncertaintyPct,0.01,0.98).toFixed(3)),
+      window_high_pct:Number(clamp(centre+uncertaintyPct,0.02,0.99).toFixed(3)),
+      uncertainty_pct:uncertaintyPct,
+      max_timing_error_pct:maxTimingErrorPct,
+      source:"team_forecast_model",
+    };
+  }
+
+  const horizonPct=clamp(
+    0.10+accuracy*0.30+(rng.next()-0.5)*(1-accuracy)*0.08,
+    0.08,
+    0.46
+  );
+  return {
+    mode,
+    horizon_pct:Number(horizonPct.toFixed(3)),
+    uncertainty_pct:uncertaintyPct,
+    max_timing_error_pct:maxTimingErrorPct,
+    source:"team_forecast_model",
+  };
+}
 function noisyState(rng,actual,accuracy){
   if(rng.next()<accuracy)return actual;
   const f=family(actual);
@@ -175,7 +244,10 @@ function forecastOne(gs,gp,actual,tid,index,revision){
     rain_chance_pct:Math.round(clamp(actualRain+(rng.next()-0.5)*uncertainty*2,0,100)),
     air_temp_c:Number((actual.air_temp_c+(rng.next()-0.5)*(1-accuracy)*12).toFixed(1)),
     temperature_range_c:Number(Math.max(1.5,(1-accuracy)*9).toFixed(1)),
-    confidence_pct:Math.round(accuracy*100),source:"team_forecast",
+    confidence_pct:Math.round(accuracy*100),
+    forecast_revision:Number(revision)||0,
+    timing:forecastTimingModel(gs,gp,actual,tid,revision,predicted,accuracy),
+    source:"team_forecast",
   };
 }
 export function createWeekendWeatherState(gs,{gp={},sessions=[]}={}){
@@ -216,6 +288,113 @@ export function observeWeekendWeatherSession(gs,sessionId){
   });
   return {...gs,raceWeekendState:{...weekend,weekend_weather:{...w,observed_sessions:observed,forecast_revision:revision,forecast}}};
 }
+function raceForecastRow(weather){
+  const rows=Object.values(weather?.forecast||{});
+  return rows.find((row)=>String(row?.session_id||"").toLowerCase()==="race")
+    ||weather?.forecast?.race
+    ||null;
+}
+function fallbackForecastTiming(gs,weather,forecast){
+  const confidence=clamp(num(forecast?.confidence_pct,num(weather?.forecast_accuracy,0.55)*100)/100,0.35,0.97);
+  const revision=Number(weather?.forecast_revision??forecast?.forecast_revision??0)||0;
+  const rng=rngFor(gs,`rw4.6.1-team-forecast-fallback-r${revision}-${forecast?.session_id||"race"}`);
+  const state=String(forecast?.predicted_state||"SUNNY").toUpperCase();
+  const uncertaintyPct=Number(clamp(0.03+(1-confidence)*0.16,0.025,0.15).toFixed(3));
+  if(state==="WETTING"||state==="DRYING"){
+    const centre=state==="WETTING"?0.20+rng.next()*0.42:0.24+rng.next()*0.40;
+    return {
+      mode:state==="WETTING"?"rain_arrival":"rain_easing",
+      estimated_transition_pct:Number(centre.toFixed(3)),
+      window_low_pct:Number(clamp(centre-uncertaintyPct,0.01,0.98).toFixed(3)),
+      window_high_pct:Number(clamp(centre+uncertaintyPct,0.02,0.99).toFixed(3)),
+      uncertainty_pct:uncertaintyPct,
+      source:"team_forecast_fallback",
+    };
+  }
+  return {
+    mode:rainObserved(state)?"rain_from_start":"dry_stable",
+    horizon_pct:Number(clamp(0.10+confidence*0.30,0.08,0.46).toFixed(3)),
+    uncertainty_pct:uncertaintyPct,
+    source:"team_forecast_fallback",
+  };
+}
+export function teamRaceForecast(gs,{currentLap=0,currentWeather=null,totalLaps=null}={}){
+  const weather=gs?.raceWeekendState?.weekend_weather;
+  const forecast=raceForecastRow(weather);
+  if(!weather||!forecast){
+    return {
+      message:"Team forecast unavailable.",
+      confidence_pct:null,
+      predicted_state:null,
+      timing:null,
+      source:"unavailable",
+    };
+  }
+
+  const timing=forecast.timing||fallbackForecastTiming(gs,weather,forecast);
+  const total=Math.max(1,Math.round(num(totalLaps,gs?.raceWeekendState?.race_strategy?.track_snapshot?.laps??1)));
+  const lap=Math.max(0,Math.min(total,Math.round(num(currentLap,0))));
+  const hasObservation=currentWeather!==null&&currentWeather!==undefined&&String(currentWeather)!=="";
+  const observed=String(currentWeather||"").toUpperCase();
+  const observedWet=rainObserved(observed);
+  const observedEasing=observed==="DRYING";
+  const confidence=Math.round(clamp(num(forecast?.confidence_pct,num(weather?.forecast_accuracy,0.55)*100),0,100));
+  const capability=clamp(num(weather?.forecast_accuracy,confidence/100),0.35,0.97);
+  const revision=Number(weather?.forecast_revision??forecast?.forecast_revision??0)||0;
+  const remaining=Math.max(1,total-lap);
+  const adaptiveLookahead=Math.max(
+    1,
+    Math.min(remaining,Math.round(4+capability*8+Math.min(4,revision)))
+  );
+  const relativeWindow=()=>{
+    if(!Number.isFinite(Number(timing?.window_low_pct))||!Number.isFinite(Number(timing?.window_high_pct)))return null;
+    const rawLow=Math.round(Number(timing.window_low_pct)*total)-lap;
+    const rawHigh=Math.round(Number(timing.window_high_pct)*total)-lap;
+    if(rawHigh<=0)return {passed:true,low:0,high:0};
+    return {
+      passed:false,
+      low:Math.max(1,rawLow),
+      high:Math.max(Math.max(1,rawLow),rawHigh),
+    };
+  };
+
+  let message;
+  if(!hasObservation&&timing.mode==="rain_from_start"){
+    message="Rain possible from the opening laps.";
+  }else if(observedEasing){
+    message=`Rain is easing; conditions may continue improving over the next ${adaptiveLookahead} laps.`;
+  }else if(observedWet){
+    if(timing.mode==="rain_easing"){
+      const window=relativeWindow();
+      message=window&&!window.passed
+        ?`Rain may ease in approximately ${window.low}–${window.high} laps.`
+        :`Rain may ease soon, but timing remains uncertain.`;
+    }else{
+      message=`Rain may persist for at least ${adaptiveLookahead} laps.`;
+    }
+  }else if(timing.mode==="rain_arrival"){
+    const window=relativeWindow();
+    message=window&&!window.passed
+      ?`Rain possible in approximately ${window.low}–${window.high} laps.`
+      :`Rain remains possible within the next ${adaptiveLookahead} laps.`;
+  }else if(hasObservation&&timing.mode==="rain_from_start"){
+    message=`Rain remains possible within the next ${adaptiveLookahead} laps.`;
+  }else{
+    message=`No significant rain expected in the next ${adaptiveLookahead} laps.`;
+  }
+
+  return {
+    message,
+    confidence_pct:confidence,
+    predicted_state:forecast.predicted_state||null,
+    rain_chance_pct:num(forecast.rain_chance_pct,0),
+    forecast_revision:revision,
+    forecast_accuracy:Number(capability.toFixed(3)),
+    timing:{...timing},
+    source:"weekend_weather.forecast",
+  };
+}
+
 export function sessionWeatherIsWet(s){return family(s?.state)!=="dry"||num(s?.track?.start_wetness,0)>=0.18;}
 export function sessionWeatherPerformanceMultiplier(s){
   if(!s)return 1;
