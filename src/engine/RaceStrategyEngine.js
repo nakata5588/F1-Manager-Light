@@ -609,15 +609,21 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const forcedPit=commandsThisLap.find((command)=>command?.type==="pit");
       const control=raceControlAtLap(strategyState?.race_control_plan,lap);
       const state=stateAtLap(weather,lap);
-      const category=weatherCategory(state);
+      const trackWeather=strategyState?.race_control_plan?.weather_timeline?.[Math.max(0,lap-1)]||null;
+      const wetness=Number(trackWeather?.track_wetness);
+      const tyreState=Number.isFinite(wetness)
+        ?wetness>=0.70?"HEAVY_RAIN":wetness>=0.22?"LIGHT_RAIN":"SUNNY"
+        :state;
+      const category=weatherCategory(tyreState);
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
       const remaining=track.laps-lap+1;
-      const mismatch=tyreWeatherPenalty(tyre,state);
+      const mismatch=tyreWeatherPenalty(tyre,tyreState);
       let stopReason=null;
 
       if(lap>1){
         if(forcedPit&&remaining>1)stopReason="player_call";
         else if(mismatch>=3.5&&remaining>3)stopReason="weather";
+        else if(["SAFETY_CAR","VSC"].includes(control.type)&&!hasStopped&&remaining>8&&strategy.pit_plan!=="no_stop"&&condition<72&&rng.chance(0.42+clamp(num(rating?.race_intelligence,60),0,100)*0.003))stopReason="neutralisation_window";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
         else if(strategy.pit_plan==="adaptive"&&condition<28&&remaining>7)stopReason="degradation";
         else if(strategy.pit_plan==="no_stop"&&condition<9&&remaining>6)stopReason="safety";
@@ -628,7 +634,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       if(stopReason){
         stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
-        const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,state,stopReason);
+        const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,tyreState,stopReason);
         const refuel=rules.refuelling_allowed&&!refuelled&&(strategy.fuel_plan==="light_start"||stopReason==="fuel");
         const error=rng.chance(clamp(num(crew.error_rate,0.05),0,0.35));
         const errorDelay=error?3+rng.next()*8:0;
@@ -675,10 +681,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         ?strategy.fuel_plan==="light_start"&&!refuelled?-0.28:strategy.fuel_plan==="heavy_start"?0.22:0
         :0;
       const gridTraffic=lap===1?(gridIndex)*0.055*(0.75+track.overtaking_difficulty/100):0;
-      const controlDelta=control.type==="SAFETY_CAR"?18:control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
+      const controlDelta=control.type==="SAFETY_CAR"?Math.max(12,18-gridIndex*0.30):control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
       const noise=(rng.next()-0.5)*(control.type==="GREEN"?0.62:0.20);
       const lapSeconds=(track.reference_lap_ms/1000)+perfPenalty+gripDelta+wearPenalty+warmupPenalty+
-        tyreWeatherPenalty(tyre,state)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+noise;
+        tyreWeatherPenalty(tyre,tyreState)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+noise;
       const lapMs=Math.max(30000,Math.round(lapSeconds*1000));
       lapTimes.push(lapMs);
       totalMs+=lapMs;
