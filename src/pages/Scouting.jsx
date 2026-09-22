@@ -307,7 +307,12 @@ export default function Scouting() {
           </p>
         </div>
         <div className="flex-1" />
-        <div className="text-sm">Budget: <strong>{fmtMoney(budget)}</strong></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Mini label="Active" value={assignments.filter((a)=>a.status==="active").length}/>
+          <Mini label="Shortlist" value={shortlist.length}/>
+          <Mini label="Prospects" value={allProspects.length}/>
+          <Mini label="Budget" value={fmtMoney(budget)}/>
+        </div>
         <Button onClick={() => setShowStart((v) => !v)}>{showStart ? "Close" : "Start Assignment"}</Button>
       </div>
 
@@ -323,7 +328,7 @@ export default function Scouting() {
           {mode === "driver" ? (
             <label className="text-sm block">
               Driver
-              <select className="mt-1 border rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
                 <option value="">Select active lower-series driver…</option>
                 {allProspects.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
               </select>
@@ -331,14 +336,14 @@ export default function Scouting() {
           ) : (
             <label className="text-sm block">
               Region
-              <select className="mt-1 border rounded px-3 py-2 w-full" value={zoneId} onChange={(e)=>setZoneId(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={zoneId} onChange={(e)=>setZoneId(e.target.value)}>
                 {zones.map((z)=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}
               </select>
             </label>
           )}
 
           {effectiveZone && (
-            <div className="rounded-lg border p-3 text-sm grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm grid grid-cols-1 md:grid-cols-4 gap-3">
               <Mini label="Area" value={effectiveZone.name}/>
               <Mini label="Duration" value={`${duration} days`}/>
               <Mini label="Cost" value={fmtMoney(cost)}/>
@@ -492,5 +497,5 @@ export default function Scouting() {
 
 function Mini({label,value}) {
   const safe = value && typeof value === "object" ? "—" : (value ?? "—");
-  return <div className="border rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{safe}</div></div>;
+  return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{safe}</div></div>;
 }
