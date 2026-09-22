@@ -7,10 +7,10 @@ import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { activeDriverContracts, currentDriverTeamId } from "../domain/driverContracts.js";
 import { preferLiveRows } from "../domain/liveContracts.js";
-import { teamCarPerformance } from "../domain/carPerformance.js";
+import { raceReliabilityProfile } from "../domain/carPerformance.js";
 import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
-import { incidentForDriver } from "./RaceControlEngine.js";
+import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
@@ -117,36 +117,6 @@ function accidentModelForYear(gs) {
   return historical[0]||{};
 }
 
-function teamReliability(gs, driver) {
-  const teamId=resolveDriverTeamId(gs,driver);
-  const driverId=pick(driver||{},["driver_id","id"],null);
-  const performance=teamCarPerformance(gs,teamId,driverId);
-  let rel=Number(performance?.reliability);
-  rel=Number.isFinite(rel)?rel/100:0.82;
-
-  // User development/facilities can improve reliability, but only modestly.
-  // The base value above is the same live car model used by Garage/Car Performance,
-  // including installed-part condition and degradation penalties.
-  const userTeamId=getTeamId(gs?.team||{});
-  const practiceRow=(gs?.raceWeekendState?.practice?.results||[]).find(
-    (row)=>String(row?.driver_id??"")===String(driverId??"")
-  );
-  if(practiceRow){
-    rel += Number(practiceRow?.reliability_bonus||0)/100;
-  }
-
-  if(String(teamId)===String(userTeamId)){
-    const manufacturing=facilityLevel(gs,teamId,"manufacturing_level");
-    rel += (manufacturing-5)*0.004;
-    const projects=[
-      ...(gs?.development?.projects||[]),
-      ...(gs?.development?.research||[]),
-    ].filter((p)=>String(p?.area||p?.focus||"").toLowerCase().includes("reliab") && ["completed","done"].includes(String(p?.status||"").toLowerCase()));
-    rel += projects.reduce((sum,p)=>sum+Math.max(0,Number(p?.target_gain||p?.gain||1))*0.004,0);
-  }
-  return clamp(rel,0.55,0.97);
-}
-
 function incidentSeverity(rng, reason) {
   const collisionBias=String(reason||"").toLowerCase()==="collision"?0.06:0;
   const score=clamp(0.05+rng.next()*0.90+collisionBias,0.05,1);
@@ -193,6 +163,8 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
         retirement_reason:plannedIncident.reason||"Incident",
         incident_severity:plannedIncident.severity??null,
         incident_severity_score:plannedIncident.severity_score??null,
+        reliability_pct:plannedIncident.reliability_pct??null,
+        reliability_source:plannedIncident.reliability_source??null,
         laps_completed:incidentLap,
         incident_lap:incidentLap,
         total_time_ms:null,
@@ -206,16 +178,10 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
       continue;
     }
     const driver=row.driver||{};
-    const rating=(ratings||[]).find((r)=>String(r?.driver_id)===String(driver?.driver_id))||{};
-    const rel=teamReliability(gs,driver);
-
-    // Older/less reliable cars fail more often. Accident risk is calibrated separately.
-    const mechanicalChance=clamp((1-rel)*0.68*Number(row?.mechanical_risk_multiplier||1),0.015,0.36);
-    const accidentChance=clamp(
-      raceAccidentChance(gs,rating,driver?.driver_id)*Number(row?.incident_risk_multiplier||1),
-      0.005,
-      0.55
-    );
+    // Direct/non-live resolution consumes the exact same retirement
+    // probabilities as Live Race Control.
+    const mechanicalChance=mechanicalRetirementChance(gs,row);
+    const accidentChance=accidentRetirementChance(gs,row);
     const roll=rng.next();
 
     let reason=null;
@@ -235,6 +201,9 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     const raceLaps=Math.max(1,Number(row?.race_laps)||60);
     const lapsCompleted=Math.max(1,Math.min(raceLaps-1,Math.floor(raceLaps*progress)));
     const incident=/accident|collision/i.test(reason)?incidentSeverity(rng,reason):null;
+    const reliability=/accident|collision/i.test(reason)
+      ?null
+      :raceReliabilityProfile(gs,resolveDriverTeamId(gs,driver),driver?.driver_id);
     retirees.push({
       ...row,
       status:"DNF",
@@ -242,6 +211,8 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
       retirement_reason:reason,
       incident_severity:incident?.label??null,
       incident_severity_score:incident?.score??null,
+      reliability_pct:reliability?.reliability_pct??null,
+      reliability_source:reliability?.source??null,
       laps_completed:lapsCompleted,
       incident_lap:lapsCompleted,
       total_time_ms:null,
