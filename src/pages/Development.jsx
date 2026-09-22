@@ -3,6 +3,8 @@ import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
+import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
+import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -109,6 +111,11 @@ export default function Development() {
     () => testDriverDevelopmentProfile(gameState, teamId),
     [gameState, teamId]
   );
+  const engineeringSupport = useMemo(
+    () => teamEngineeringSupport(gameState, teamId),
+    [gameState, teamId]
+  );
+  const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -314,27 +321,34 @@ export default function Development() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-3">
+    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+        <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
         <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div>
           <h1 className="text-2xl md:text-3xl font-semibold">Development</h1>
-          <p className="text-sm text-muted-foreground">Design, test and manufacture era-appropriate car parts.</p>
+          <p className="text-sm text-slate-400">Design, test and manufacture era-appropriate car parts.</p>
         </div>
         <div className="flex-1" />
-        <div className="text-sm">Available budget: <strong>{fmtMoney(budget)}</strong></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Mini label="Budget" value={fmtMoney(budget)}/>
+          <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
+          <Mini label="Test Driver" value={testDriverProfile?.name||"None"}/>
+          <Mini label="Facilities" value={"WT "+levelOf("wind_tunnel_level")+" · MFG "+levelOf("manufacturing_leve")}/>
+        </div>
         <Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>
       </div>
 
       {showCreate && (
-        <Card><CardContent className="p-4 grid gap-3">
+        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4 grid gap-3">
           <div className="font-semibold">Create development project</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="text-sm">Project name<input className="mt-1 border rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. Revised rear wing"/></label>
-            <label className="text-sm">Part type<select className="mt-1 border rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value})}>{eraTypes.map((t)=><option key={t} value={t}>{nice(t)}</option>)}</select></label>
-            <label className="text-sm">Engineers<input type="number" min="1" max="12" className="mt-1 border rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
-            <label className="text-sm">Duration (days)<input type="number" min="7" max="90" className="mt-1 border rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
-            <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
-            <label className="text-sm">Wind tunnel hours<input type="number" min="0" max="100" className="mt-1 border rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
+            <label className="text-sm">Project name<input className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. Revised rear wing"/></label>
+            <label className="text-sm">Part type<select className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value})}>{eraTypes.map((t)=><option key={t} value={t}>{nice(t)}</option>)}</select></label>
+            <label className="text-sm">Engineers<input type="number" min="1" max="12" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
+            <label className="text-sm">Duration (days)<input type="number" min="7" max="90" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
+            <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
+            <label className="text-sm">Wind tunnel hours<input type="number" min="0" max="100" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <span>Cost: <strong>{fmtMoney(cost)}</strong></span>
@@ -346,8 +360,8 @@ export default function Development() {
             <span>ETA: <strong>{currentDateISO ? addDaysISO(currentDateISO,effectiveDays) : "—"}</strong></span>
             <Button onClick={createProject} disabled={!draft.name.trim() || budget < cost}>Start Project</Button>
           </div>
-          {!testDriverProfile && <div className="text-sm text-amber-700">No dedicated Test Driver is contracted. The project will rely on engineer-only validation.</div>}
-          {budget < cost && <div className="text-sm text-red-600">Insufficient budget for this project.</div>}
+          {!testDriverProfile && <div className="text-sm text-amber-300">No dedicated Test Driver is contracted. The project will rely on engineer-only validation.</div>}
+          {budget < cost && <div className="text-sm text-rose-300">Insufficient budget for this project.</div>}
         </CardContent></Card>
       )}
 
@@ -366,12 +380,12 @@ export default function Development() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {projects.map((p)=>{
             const progress = p.status==="completed" ? 1 : p.status==="paused" ? Number(p.progress||0) : progressBetween(p.started_at,p.finishes_at,currentDateISO);
-            return <Card key={p.id}><CardContent className="p-4 space-y-3">
-              <div className="flex justify-between gap-2"><div><div className="text-xs text-muted-foreground">{nice(p.type)} · {nice(p.phase)}</div><div className="font-semibold">{p.name}</div></div><span className="text-xs rounded bg-gray-100 px-2 py-1 h-fit">{nice(p.status)}</span></div>
-              <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-gray-100 rounded overflow-hidden"><div className="h-full bg-slate-800" style={{width:`${progress*100}%`}}/></div></div>
+            return <Card className="bg-[#12141c] border-white/10 text-slate-100" key={p.id}><CardContent className="p-4 space-y-3">
+              <div className="flex justify-between gap-2"><div><div className="text-xs text-slate-400">{nice(p.type)} · {nice(p.phase)}</div><div className="font-semibold">{p.name}</div></div><span className="text-xs rounded bg-white/10 px-2 py-1 h-fit">{nice(p.status)}</span></div>
+              <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-800" style={{width:`${progress*100}%`}}/></div></div>
               <div className="grid grid-cols-3 gap-2 text-sm"><Mini label="Engineers" value={p.engineers}/><Mini label="CFD" value={`${p.cfd_hours||0}h`}/><Mini label="WT" value={`${p.wt_hours||0}h`}/></div>
-              <div className="text-xs text-muted-foreground">{p.started_at} → {p.finishes_at} · {fmtMoney(p.cost)} · Δ +{p.perf_delta}</div>
-              {p.test_driver_name && <div className="text-xs text-muted-foreground">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
+              <div className="text-xs text-slate-400">{p.started_at} → {p.finishes_at} · {fmtMoney(p.cost)} · Δ +{p.perf_delta}</div>
+              {p.test_driver_name && <div className="text-xs text-slate-400">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
                 <Button size="sm" variant="outline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
@@ -379,32 +393,32 @@ export default function Development() {
               </div>}
             </CardContent></Card>;
           })}
-          {!projects.length && <Card><CardContent className="p-5 text-sm text-muted-foreground">No development projects yet. Start one with “New Project”.</CardContent></Card>}
+          {!projects.length && <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-5 text-sm text-slate-400">No development projects yet. Start one with “New Project”.</CardContent></Card>}
         </div>
       )}
 
       {tab==="parts" && (
-        <Card><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-          <thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
-          <tbody>{parts.map((p)=><tr key={p.id} className="border-t"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{nice(p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right">{Number(p.inv||0)}{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</td><td className="px-3 py-2 text-right"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button></td></tr>)}
-          {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-muted-foreground">Complete a development project to create your first part.</td></tr>}</tbody>
+        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+          <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
+          <tbody>{parts.map((p)=><tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2">{nice(p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right">+{Number(p.perf||0).toFixed(2)}</td><td className="px-3 py-2 text-right">{Number(p.inv||0)}{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</td><td className="px-3 py-2 text-right"><Button size="sm" onClick={()=>manufacture(p)}>Manufacture +1</Button></td></tr>)}
+          {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
         </table></CardContent></Card>
       )}
 
       {tab==="manufacturing" && (
-        <Card><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-          <thead className="bg-gray-50"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
-          <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
-          {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-muted-foreground">No manufacturing batches.</td></tr>}</tbody>
+        <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+          <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
+          <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
+          {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">No manufacturing batches.</td></tr>}</tbody>
         </table></CardContent></Card>
       )}
 
       {tab==="research" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {research.map((r)=><Card key={r.id}><CardContent className="p-4">
+          {research.map((r)=><Card className="bg-[#12141c] border-white/10 text-slate-100" key={r.id}><CardContent className="p-4">
             <div className="flex justify-between"><div className="font-semibold">{r.area}</div><div className="text-sm">{r.focus||0}% focus</div></div>
             <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
-            <div className="text-xs text-muted-foreground mt-2">Research points: {r.points||0}</div>
+            <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
           </CardContent></Card>)}
         </div>
       )}
@@ -412,5 +426,5 @@ export default function Development() {
   );
 }
 
-function Stat({label,value}){return <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
-function Mini({label,value}){return <div className="border rounded p-2"><div className="text-[10px] text-muted-foreground">{label}</div><div className="font-medium">{value}</div></div>;}
+function Stat({label,value}){return <Card className="bg-[#12141c] border-white/10 text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
+function Mini({label,value}){return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value}</div></div>;}
