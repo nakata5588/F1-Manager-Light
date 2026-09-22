@@ -644,6 +644,9 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   const potentialLog = (gs?.driverPotentialLog?.[driverId]||[])
     .slice()
     .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
+  const abilityLog = (gs?.driverAbilityLog?.[driverId]||[])
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
 
   function setDriverDevelopmentFocus(groupKey) {
     if (!isOwnDriver || !driverId || !groupKey) return;
@@ -911,6 +914,8 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               focusState={developmentFocusState}
               training={developmentTraining}
               potentialLog={potentialLog}
+              abilityLog={abilityLog}
+              lifecycle={profileSnapshot?.lifecycle}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
@@ -1168,6 +1173,8 @@ function DevelopmentTab({
   focusState,
   training,
   potentialLog,
+  abilityLog,
+  lifecycle,
   onSetFocus,
 }) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
@@ -1175,6 +1182,7 @@ function DevelopmentTab({
   const canSeeHistory=Boolean(knowledge?.canSeeDevelopmentHistory);
   const groups=driverAttributeGroups();
   const latestPotential=(potentialLog||[])[0]||null;
+  const latestAbility=(abilityLog||[])[0]||null;
   const trainingDays=Number(training?.trainingDays||0);
   const fatigueSpent=Number(training?.fatigueSpent||0);
   const focusLocked=Boolean(focusState?.locked);
