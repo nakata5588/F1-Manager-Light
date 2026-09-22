@@ -466,7 +466,7 @@ export default function Scouting() {
                 {["active","paused"].includes(a.status) && (
                   <div className="flex gap-2">
                     <Button size="sm" onClick={()=>pauseResume(a)}>{a.status==="paused"?"Resume":"Pause"}</Button>
-                    <Button size="sm" variant="outline" onClick={()=>cancel(a)}>Cancel</Button>
+                    <Button size="sm" variant="darkOutline" onClick={()=>cancel(a)}>Cancel</Button>
                   </div>
                 )}
               </CardContent></Card>
@@ -513,7 +513,7 @@ export default function Scouting() {
                     >
                       {active ? "Scouting…" : known ? "Refresh Report" : "Request Report"}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={()=>toggleShortlist(id)}>
+                    <Button size="sm" variant="darkOutline" onClick={()=>toggleShortlist(id)}>
                       {shortlist.includes(id) ? "Remove Shortlist" : "Add Shortlist"}
                     </Button>
                   </div>
