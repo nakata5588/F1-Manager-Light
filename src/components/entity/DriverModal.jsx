@@ -17,6 +17,7 @@ import {
   driverAttributeGroupBehaviourForScore,
   driverAttributeValue,
   driverDevelopmentFocus,
+  driverDevelopmentFocusState,
   driverWheelToWheelBehaviour,
 } from "../../domain/driverAttributeGroups.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
@@ -643,13 +644,30 @@ export default function DriverModal({ entity, onClose }) {
 
   const releaseCost = isOwnDriver && contract ? terminationCost(gs, contract) : 0;
   const developmentFocusKey = driverDevelopmentFocus(gs, driverId);
+  const developmentFocusState = driverDevelopmentFocusState(gs, driverId);
+  const developmentTraining = gs?.driverDevelopmentTraining?.[driverId]||null;
+  const potentialLog = (gs?.driverPotentialLog?.[driverId]||[])
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
 
   function setDriverDevelopmentFocus(groupKey) {
-    if (!isOwnDriver || !driverId) return;
-    const next={...(gs?.driverDevelopmentFocus||{})};
-    if(groupKey) next[driverId]=groupKey;
-    else delete next[driverId];
-    setGameState({driverDevelopmentFocus:next});
+    if (!isOwnDriver || !driverId || !groupKey) return;
+    if(developmentFocusState?.locked && developmentFocusState?.groupKey!==groupKey)return;
+    const monthKey=String(gameDateISO||"").slice(0,7);
+    setGameState({
+      driverDevelopmentFocus:{
+        ...(gs?.driverDevelopmentFocus||{}),
+        [driverId]:groupKey,
+      },
+      driverDevelopmentFocusMeta:{
+        ...(gs?.driverDevelopmentFocusMeta||{}),
+        [driverId]:{
+          groupKey,
+          monthKey,
+          selectedAt:gameDateISO,
+        },
+      },
+    });
   }
 
   function openScoutingForDriver() {
@@ -882,6 +900,9 @@ export default function DriverModal({ entity, onClose }) {
               knowledge={knowledge}
               isOwnDriver={!!isOwnDriver}
               focusKey={developmentFocusKey}
+              focusState={developmentFocusState}
+              training={developmentTraining}
+              potentialLog={potentialLog}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
