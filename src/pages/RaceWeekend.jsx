@@ -158,14 +158,59 @@ function indexDescriptor(value,{inverse=false}={}){
   const tone=n<30?"text-emerald-300":n<55?"text-slate-200":n<75?"text-amber-300":"text-rose-300";
   return {level,tone,inverse};
 }
-function liveEventText(event,drivers){
+function liveEventText(event,drivers,tyres=[]){
   const name=event?.driver_id?driverName(drivers,event.driver_id):null;
+  if(event?.type==="command"&&name){
+    if(event?.command?.type==="pace"){
+      const instruction={
+        attack:"push",
+        conserve:"conserve tyres",
+        balanced:"maintain balanced pace",
+      }[String(event.command.pace_mode||"balanced")]||String(event.command.pace_mode||"balanced").replaceAll("_"," ");
+      return `${name} was told to ${instruction}.`;
+    }
+    if(event?.command?.type==="pit"){
+      return `${name} was told to pit next lap for ${tyreName(tyres,event.command.tyre_id)} tyres.`;
+    }
+  }
+  if(event?.type==="pit"&&name&&event?.tyre_to){
+    const from=event.tyre_from||tyreName(tyres,event.tyre_from_id);
+    const to=event.tyre_to||tyreName(tyres,event.tyre_to_id);
+    const loss=Number.isFinite(Number(event.total_loss_s))?`${Number(event.total_loss_s).toFixed(1)}s lost`:"pit stop";
+    const positions=Number.isFinite(Number(event.position_before))&&Number.isFinite(Number(event.position_after))
+      ?`, P${event.position_before} → P${event.position_after}`
+      :"";
+    return `${name} changed from ${from} to ${to} tyres (${loss}${positions}).`;
+  }
   const raw=String(event?.message||event?.type||"");
   if(!name)return raw;
   const id=String(event.driver_id);
   if(raw.startsWith(id+":"))return name+raw.slice(id.length);
   if(raw.startsWith(id+" "))return name+raw.slice(id.length);
   return raw.includes(name)?raw:name+" · "+raw;
+}
+function raceControlFeedLabel(type){
+  return {
+    LOCAL_YELLOW:"Yellow flag",
+    SAFETY_CAR:"Safety Car",
+    VSC:"Virtual Safety Car",
+    RED_FLAG:"Red flag",
+  }[String(type||"").toUpperCase()]||String(type||"Race control").replaceAll("_"," ");
+}
+function severityTone(value){
+  const key=String(value||"").toLowerCase();
+  if(key==="critical"||key==="severe")return "bg-red-500/20 text-red-200";
+  if(key==="high")return "bg-orange-500/20 text-orange-200";
+  if(key==="medium"||key==="moderate")return "bg-amber-500/20 text-amber-200";
+  return "bg-slate-500/20 text-slate-300";
+}
+function strategyForecastText(forecast,totalLaps){
+  const laps=Math.max(1,Number(totalLaps)||1);
+  const state=String(forecast?.predicted_state||"SUNNY").toUpperCase();
+  if(["HEAVY_RAIN","STORM","LIGHT_RAIN"].includes(state))return "Rain expected from the opening laps.";
+  if(state==="WETTING")return `Rain may start in ~${Math.max(2,Math.round(laps*0.34))} laps.`;
+  if(state==="DRYING")return `Rain may ease after ~${Math.max(2,Math.round(laps*0.52))} laps.`;
+  return `No rain expected in the next ~${Math.min(15,laps)} laps.`;
 }
 function isWetState(state){
   return /RAIN|STORM|WETTING|DRIZZLE/i.test(String(state||""));
@@ -261,17 +306,26 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
           const globalIndex=offset+localIndex;
           const time=Number(row?.best_time_ms??row?.lap_time_ms);
           const status=overall?String(row?.status||"").toUpperCase():sessionStatus(row,session);
+          const eliminated=["ELIMINATED","DNQ","DNPQ","CUT"].includes(status);
           const atCutoff=Number.isFinite(Number(cutoff))&&globalIndex===Number(cutoff);
+          const driver=driverObject(drivers,row.driver_id);
           return <React.Fragment key={row.driver_id||globalIndex}>
             {atCutoff&&<tr className="border-y border-amber-400/30 bg-amber-500/10">
               <td colSpan={4} className="px-2 py-1 text-[9px] font-medium text-amber-300">Cut — first {cutoff} qualify</td>
             </tr>}
-            <tr className="border-t border-white/5 hover:bg-white/[0.025]">
+            <tr className={"border-t border-white/5 "+(eliminated?"bg-red-950/55 text-red-100":"hover:bg-white/[0.025]")}>
               <td className="px-2 py-1.5 text-right font-bold">P{row.position??globalIndex+1}</td>
-              <td className="px-2 py-1.5 min-w-0">
-                <span className="font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</span>
-                <span className="text-slate-600"> · </span>
-                <span className="text-[10px] text-slate-500">{teamName(teams,row.team_id)}</span>
+              <td className="px-2 py-1 min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <DriverPortrait driver={driver||{display_name:driverName(drivers,row.driver_id)}} size="h-6 w-6" className="shrink-0 ring-white/10"/>
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-slate-100">{driverName(drivers,row.driver_id)}</div>
+                    <div className="flex min-w-0 items-center gap-1 text-[9px] text-slate-500">
+                      <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-3.5 w-3.5" className="shrink-0 p-0"/>
+                      <span className="truncate">{teamName(teams,row.team_id)}</span>
+                    </div>
+                  </div>
+                </div>
               </td>
               <td className="px-2 py-1.5 text-right font-mono whitespace-nowrap">
                 <span>{formatLapTime(time)}</span>
@@ -366,6 +420,10 @@ export default function RaceWeekend(){
     liveRace?.last_weather||raceStrategy?.weather_snapshot?.state,
     raceForecast?.confidence_pct
   );
+  const lastObservedWeather=lastCompletedQualifyingSession
+    ?weekendWeather?.sessions?.[String(lastCompletedQualifyingSession.id)]
+    :null;
+  const strategyTeamForecast=strategyForecastText(raceForecast,raceStrategy?.track_snapshot?.laps);
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
@@ -740,10 +798,20 @@ export default function RaceWeekend(){
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session complete</div>
             <h3 className="mt-1 font-semibold">{lastCompletedQualifyingSession?.label||"Qualifying"} Complete</h3>
-            <p className="text-sm text-slate-400 mt-1">Saved classification. Next: {activeSession?.label||"Qualifying"} on {activeSession?.dateISO||"the next session date"}.</p>
+            <p className="text-sm text-slate-400 mt-1">
+              {weekend.qualifying?.status==="completed"
+                ?"Final qualifying results are saved. Review them before proceeding to Race Strategy."
+                :`Saved classification. Next: ${activeSession?.label||"Qualifying"} on ${activeSession?.dateISO||"the next session date"}.`}
+            </p>
           </div>
           <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
-            {busy?"Continuing…":activeSession?.dateISO===gs?.currentDateISO?"Continue to next session":"Advance toward next session"}
+            {busy
+              ?"Continuing…"
+              :weekend.qualifying?.status==="completed"
+                ?"Continue to Strategy"
+                :activeSession?.dateISO===gs?.currentDateISO
+                  ?"Continue to next session"
+                  :"Advance toward next session"}
           </button>
         </div>
         {weekend.qualifying_rule_snapshot?.strategy==="best_time_across_sessions"&&!lastCompletedQualifyingSession?.advance_count&&(
@@ -790,13 +858,24 @@ export default function RaceWeekend(){
             </div>
           </div>
 
-          <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300">
-            <span className="font-medium">Race forecast:</span>{" "}
-            {String(raceForecast?.predicted_state||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}
-            {" · "}{Number(raceForecast?.air_temp_c??raceStrategy?.weather_snapshot?.avg_temp_c??0).toFixed(0)}°C
-            {" · rain "}{Number(raceForecast?.rain_chance_pct??raceStrategy?.weather_snapshot?.rain_chance_pct??0).toFixed(0)}%
-            {raceForecast?<>{" · confidence "}{Number(raceForecast.confidence_pct||0).toFixed(0)}%</>:null}
-            {" · refuelling "}{raceStrategy?.rules_snapshot?.refuelling_allowed?"available":"not allowed"}
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Current Weather</div>
+              <div className="mt-1 font-semibold">{String(lastObservedWeather?.state||"UNKNOWN").replaceAll("_"," ")}</div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {lastObservedWeather
+                  ?`Air ${Number(lastObservedWeather.air_temp_c||0).toFixed(0)}°C · Track ${Number(lastObservedWeather.track_temp_c||0).toFixed(0)}°C · wetness ${Math.round(Number(lastObservedWeather.track?.end_wetness||0)*100)}%`
+                  :"Awaiting observed qualifying conditions."}
+              </div>
+            </div>
+            <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.08] px-3 py-2 text-sm text-sky-100">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-sky-300"><Droplets className="h-3.5 w-3.5"/>Team Forecast</div>
+              <div className="mt-1 font-semibold">{strategyTeamForecast}</div>
+              <div className="mt-0.5 text-xs text-sky-200/70">
+                {String(raceForecast?.predicted_state||"UNKNOWN").replaceAll("_"," ")} · rain {Number(raceForecast?.rain_chance_pct||0).toFixed(0)}%
+                {raceForecast?<>{" · confidence "}{Number(raceForecast.confidence_pct||0).toFixed(0)}%</>:null}
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 grid gap-3">
@@ -868,6 +947,8 @@ export default function RaceWeekend(){
                   <div className="mt-1 flex flex-wrap items-baseline gap-3">
                     <h3 className="text-xl font-semibold">Lap {liveRace.current_lap} / {liveRace.total_laps}</h3>
                     <span className="text-sm text-slate-400">{String(liveRace.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY").replaceAll("_"," ")}</span>
+                    <span className="hidden h-4 w-px bg-white/10 sm:block"/>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-sky-200"><Droplets className="h-3.5 w-3.5 text-sky-300"/><span className="font-semibold">Team Forecast:</span> {liveTeamForecast}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
@@ -925,10 +1006,6 @@ export default function RaceWeekend(){
                   <div className="text-[10px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
                 </div>
               </div>
-              <div className="mt-3 flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.08] px-3 py-2 text-xs text-sky-100">
-                <Droplets className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300"/>
-                <div><span className="font-semibold">Team Forecast:</span> {liveTeamForecast}</div>
-              </div>
             </div>
 
             <div className="border-b border-white/10 bg-[#0f141d] px-4 py-3">
@@ -937,10 +1014,23 @@ export default function RaceWeekend(){
                 <div className="text-[10px] text-slate-600">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} running · {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length} DNF</div>
               </div>
               <div className="mt-2 grid gap-x-5 gap-y-1 text-xs md:grid-cols-2">
-                {(liveRace.events||[]).slice(-6).reverse().map((event,index)=><div className="flex min-w-0 gap-2" key={index}>
-                  <span className="shrink-0 font-mono text-slate-600">L{event.lap}</span>
-                  <span className="truncate text-slate-300">{liveEventText(event,drivers)}</span>
-                </div>)}
+                {(liveRace.events||[]).slice(-6).reverse().map((event,index)=>{
+                  const severity=event?.severity?String(event.severity).toUpperCase():null;
+                  const incidentReason=String(event?.incident_reason||"incident").replaceAll("_"," ");
+                  const structuredControl=event?.type==="race_control"&&event?.driver_id&&severity;
+                  return <div className="flex min-w-0 items-center gap-2" key={index}>
+                    <span className="shrink-0 font-mono text-slate-600">L{event.lap}</span>
+                    {structuredControl?(
+                      <span className="min-w-0 truncate text-slate-300">
+                        {raceControlFeedLabel(event.control_type)} due to {driverName(drivers,event.driver_id)}'s{" "}
+                        <span className={"mx-0.5 inline-flex rounded px-1 py-0.5 text-[9px] font-bold "+severityTone(event.severity)}>{severity}</span>{" "}
+                        {incidentReason}.
+                      </span>
+                    ):(
+                      <span className="truncate text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
+                    )}
+                  </div>;
+                })}
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
               </div>
             </div>
@@ -1020,7 +1110,7 @@ export default function RaceWeekend(){
               </table>
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl md:left-56">
               <div className="grid gap-2 xl:grid-cols-2">
                 {playerEntrants.map((entry)=>{
                   const did=String(entry.driver_id);
@@ -1031,15 +1121,15 @@ export default function RaceWeekend(){
                   const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
                   const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
-                  return <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-[#171d27] p-2" key={did}>
-                    <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="ring-white/10"/>
-                    <div className="min-w-[130px]">
+                  return <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border border-white/10 bg-[#171d27] p-2 lg:grid-cols-[auto_150px_minmax(0,1fr)_auto]" key={did}>
+                    <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
+                    <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
                     </div>
 
-                    <div className="flex flex-1 flex-wrap items-center gap-1.5 text-[10px]">
+                    <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
                       <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><CircleDot className="h-3 w-3"/>{compound} {liveDriver?.tyre?.age_laps??0}L</span>
                       <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
                       <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
@@ -1047,7 +1137,7 @@ export default function RaceWeekend(){
                       <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="col-span-2 flex items-center justify-end gap-1.5 lg:col-span-1">
                       <Gauge className="h-4 w-4 text-slate-500"/>
                       <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
                         {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
@@ -1066,12 +1156,23 @@ export default function RaceWeekend(){
         )}
 
         <div className={(activeWindow==="grid"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl"}>
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold">Starting Grid</h3>
               <p className="text-sm text-slate-400 mt-1">{startingGridRows.length} starters · {dnqRows.length} DNQ/DNPQ.</p>
+              {weekend.phase==="grid_ready"&&<div className="mt-1 text-xs text-slate-500">Race day: {weekend.raceDate}</div>}
             </div>
-            {weekend.phase==="grid_ready"&&<span className="text-xs text-slate-500">Race day: {weekend.raceDate}</span>}
+            <div>
+              {weekend.phase==="grid_ready"?(
+                <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
+                  {busy?"Advancing…":"Advance to Race Day"}
+                </button>
+              ):!liveRace?(
+                <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
+                  {busy?"Preparing…":"Start Race"}
+                </button>
+              ):null}
+            </div>
           </div>
           <div className="mt-3 overflow-x-auto border rounded-xl">
             <table className="min-w-full text-sm">
@@ -1081,13 +1182,18 @@ export default function RaceWeekend(){
                   <th className="px-3 py-2 text-right">Qual</th>
                   <th className="px-3 py-2 text-left">Driver</th>
                   <th className="px-3 py-2 text-left">Team</th>
+                  <th className="px-3 py-2 text-center">Start tyre</th>
                   <th className="px-3 py-2 text-right">Best time</th>
                   <th className="px-3 py-2 text-right">Penalty</th>
                 </tr>
               </thead>
               <tbody>
-                {startingGridRows.map((row)=>(
-                  <tr className="border-t" key={row.driver_id}>
+                {startingGridRows.map((row)=>{
+                  const selection=raceStrategy?.selections?.[String(row.driver_id)]||null;
+                  const compound=selection?.start_tyre_id
+                    ?tyreName(tyresForTeam(gs,String(row.team_id||"")),selection.start_tyre_id)
+                    :"—";
+                  return <tr className="border-t" key={row.driver_id}>
                     <td className="px-3 py-2 text-right font-semibold">P{row.grid}</td>
                     <td className="px-3 py-2 text-right">P{row.qualifying_position??row.grid}</td>
                     <td className="px-3 py-2">{driverName(drivers,row.driver_id)}</td>
@@ -1097,10 +1203,11 @@ export default function RaceWeekend(){
                         <span>{teamName(teams,row.team_id)}</span>
                       </div>
                     </td>
+                    <td className="px-3 py-2 text-center"><span className={"inline-flex min-w-14 justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}>{compound}</span></td>
                     <td className="px-3 py-2 text-right font-mono">{formatLapTime(row.best_time_ms)}</td>
                     <td className="px-3 py-2 text-right">{Number(row.penalty_places||0)>0?"+"+row.penalty_places:"—"}</td>
-                  </tr>
-                ))}
+                  </tr>;
+                })}
               </tbody>
             </table>
           </div>
@@ -1112,15 +1219,6 @@ export default function RaceWeekend(){
             </div>
           )}
 
-          {weekend.phase==="grid_ready"?(
-            <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={continueRaceWeekend}>
-              {busy?"Advancing…":"Advance to Race Day"}
-            </button>
-          ):!liveRace?(
-            <button disabled={busy} className="mt-4 rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
-              {busy?"Preparing…":"Start Race"}
-            </button>
-          ):null}
         </div>
       </div>
     )}
