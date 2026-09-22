@@ -209,6 +209,51 @@ function sectorTimesForLap(lapMs,driverId,lap){
   const s3=Math.max(1,total-s1-s2);
   return {sector_1_ms:s1,sector_2_ms:s2,sector_3_ms:s3};
 }
+function cumulativeAtPoint(row,lap,sector=3){
+  const l=Math.max(1,Number(lap)||1);
+  const s=Math.max(1,Math.min(3,Number(sector)||1));
+  if(s===3)return cumulativeAtLap(row,l);
+  const completed=Math.max(0,l-1);
+  const base=(row?.lap_times_ms||[]).slice(0,completed).reduce((sum,v)=>sum+num(v),0);
+  const pitLoss=(row?.pit_stops||[])
+    .filter((stop)=>Number(stop?.lap)<=l)
+    .reduce((sum,stop)=>sum+num(stop?.total_loss_s)*1000,0);
+  const lapMs=num(row?.lap_times_ms?.[l-1],0);
+  const sectors=sectorTimesForLap(lapMs,idOf(row?.driver||row),l);
+  const partial=s>=1?num(sectors.sector_1_ms,0):0;
+  const partial2=s>=2?num(sectors.sector_2_ms,0):0;
+  return base+pitLoss+partial+partial2;
+}
+function tyreStateAtPoint(row,lap,sector=3){
+  const current=tyreStateAtLap(row,lap);
+  if(sector>=3||lap<=1)return current;
+  const previous=tyreStateAtLap(row,Math.max(1,lap-1));
+  if(
+    String(previous?.tyre_id||"")!==String(current?.tyre_id||"")||
+    Number(current?.stint_number||1)!==Number(previous?.stint_number||1)
+  )return current;
+  const fraction=Math.max(0,Math.min(1,Number(sector)/3));
+  const prevCondition=num(previous?.condition,100);
+  const endCondition=num(current?.condition,prevCondition);
+  const prevTemp=num(previous?.temperature_c,current?.temperature_c??0);
+  const endTemp=num(current?.temperature_c,prevTemp);
+  return {
+    ...current,
+    condition:Number((prevCondition+(endCondition-prevCondition)*fraction).toFixed(1)),
+    temperature_c:Number((prevTemp+(endTemp-prevTemp)*fraction).toFixed(1)),
+    age_laps:Number(Math.max(0,(Number(current?.age_laps)||1)-1+fraction).toFixed(2)),
+    source:"observed_sector_snapshot",
+  };
+}
+function sectorDisplayForPoint(row,lap,sector=3){
+  const lapMs=num(row?.lap_times_ms?.[Math.max(0,Number(lap)-1)],null);
+  const sectors=sectorTimesForLap(lapMs,idOf(row?.driver||row),lap);
+  return {
+    sector_1_ms:Number(sector)>=1?sectors.sector_1_ms:null,
+    sector_2_ms:Number(sector)>=2?sectors.sector_2_ms:null,
+    sector_3_ms:Number(sector)>=3?sectors.sector_3_ms:null,
+  };
+}
 function bestLapAt(row,lap){
   const times=(row?.lap_times_ms||[]).slice(0,Math.max(0,lap));
   let bestMs=Infinity,bestLap=null;
