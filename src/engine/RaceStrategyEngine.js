@@ -428,11 +428,25 @@ export function createRaceStrategyState(gs,{gp={},raceEntryState=gs?.raceEntrySt
   const rules=raceStrategyRulesForYear(worldGs?.activeYear??gp?.year);
   const track=raceTrackProfile(worldGs,gp);
   const weather=buildRaceWeatherSnapshot(worldGs,gp,track);
+  const raceSession=raceWeekendWeatherSession(worldGs);
+  const playerForecast=raceSession
+    ?worldGs?.raceWeekendState?.weekend_weather?.forecast?.[String(raceSession.id)]
+    :null;
+  const forecastWeather=playerForecast?{
+    source:"team_forecast",
+    state:playerForecast.predicted_state||"SUNNY",
+    avg_temp_c:num(playerForecast.air_temp_c,weather.avg_temp_c),
+    rain_chance_pct:num(playerForecast.rain_chance_pct,0),
+    wet_race:/RAIN|STORM|WETTING|DRYING/.test(String(playerForecast.predicted_state||"")),
+    segments:[{from_lap:1,to_lap:track.laps,state:playerForecast.predicted_state||"SUNNY"}],
+  }:weather;
+  const playerTeam=teamId(worldGs?.team||{});
   const selections={};
   for(const entry of raceEntryState?.entries||[]){
     if(entry?.status&&entry.status!=="confirmed")continue;
     if(!entry?.driver_id)continue;
-    selections[String(entry.driver_id)]=defaultStrategy(worldGs,entry,weather,track,rules);
+    const planningWeather=String(entry?.team_id??"")===playerTeam?forecastWeather:weather;
+    selections[String(entry.driver_id)]=defaultStrategy(worldGs,entry,planningWeather,track,rules);
   }
   return {
     gameState:worldGs,
