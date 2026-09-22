@@ -4,6 +4,15 @@
 // Global data is editorial/reference data; the returned pack is only the
 // playable state at the chosen starting year.
 import { isDriverContract, isRaceDriverContract } from "../domain/contractRoles.js";
+import {
+  applyOpeningStateToDriver,
+  openingDriverId,
+  openingStateExcluded,
+  openingStateIsRaceSeat,
+  openingStateIsTeamCommitment,
+  openingStateRowsForYear,
+  openingTeamId,
+} from "../domain/driverOpeningState.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -141,6 +150,9 @@ function teamIdsForSeason(g,year){
   for(const row of rowsAtYear(g.carStats,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of rowsAtYear(g.teamBrands,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of activeContractRows(g.contracts,year)){const id=teamId(row);if(id)ids.add(id);}
+  for(const row of openingStateRowsForYear(g.driverOpeningState||[],year)){
+    const id=openingTeamId(row);if(id)ids.add(id);
+  }
   for(const row of rowsAtYear(g.driverCareer,year)){
     if(String(pick(row,["series_division","division","series"],"")).toUpperCase()==="F1"){
       const id=teamId(row);if(id)ids.add(id);
@@ -299,6 +311,16 @@ export function materializeSeasonPack(globalData,yearInput){
     return id;
   };
 
+  const openingStateRows=openingStateRowsForYear(g.driverOpeningState||[],year)
+    .map((row)=>({
+      ...clean(row),
+      opening_team_id:managerialTeamId(openingTeamId(row))||null,
+    }));
+  const hasOpeningState=openingStateRows.length>0;
+  const openingByDriver=new Map(
+    openingStateRows.map((row)=>[openingDriverId(row),row]).filter(([id])=>id)
+  );
+
   const teamIds=new Set([...rawTeamIds].map(managerialTeamId).filter(Boolean));
   const normalizeTeamRow=(row)=>{
     const id=managerialTeamId(teamId(row));
@@ -336,13 +358,53 @@ export function materializeSeasonPack(globalData,yearInput){
 
   const seedTeamHistory=rowsAtYear(g.driverTeamHistory||[],year)
     .map(normalizeTeamRow).filter(Boolean);
-  let contracts=reconcileSeedDriverContracts(
-    activeContractRows(g.contracts,year)
-      .map(normalizeTeamRow).filter(Boolean)
-      .filter((r)=>teamIds.has(teamId(r)) && driverId(r)),
-    year,
-    seedTeamHistory
-  );
+  const historicalContractRows=activeContractRows(g.contracts,year)
+    .map(normalizeTeamRow).filter(Boolean)
+    .filter((r)=>teamIds.has(teamId(r)) && driverId(r));
+  const teamNameById=new Map(teams.map((t)=>[teamId(t),pick(t,["team_name","name","short_name"],teamId(t))]));
+
+  let contracts;
+  if(hasOpeningState){
+    const historicalByDriverTeam=new Map(
+      historicalContractRows.map((row)=>[[driverId(row),teamId(row)].join("|"),row])
+    );
+    contracts=openingStateRows
+      .filter(openingStateIsTeamCommitment)
+      .map((opening)=>{
+        const did=openingDriverId(opening);
+        const tid=managerialTeamId(openingTeamId(opening));
+        if(!did||!tid)return null;
+        const base=historicalByDriverTeam.get([did,tid].join("|"))||{};
+        const rawRole=String(pick(opening,["opening_role"],pick(base,["role","position","contract_role"],""))||"");
+        const role=openingStateIsRaceSeat(opening)
+          ? (/second/i.test(rawRole)?"Second Driver":(/main|first|lead/i.test(rawRole)?"Main Driver":"Race Driver"))
+          : (rawRole||"Driver");
+        return {
+          ...clean(base),
+          year,
+          team_id:tid,
+          team_name:pick(opening,["opening_team_name"],teamNameById.get(tid)||tid),
+          driver_id:did,
+          driver_name:driverNameForBootstrap(did),
+          role,
+          status:"active",
+          contract_start_year:asNum(pick(base,["contract_start_year","contract_start","start_year"],year),year),
+          contract_until_year:asNum(pick(base,["contract_until_year","contract_until","end_year"],year),year),
+          opening_state_seed:true,
+          synthetic:false,
+          source:"driver_opening_state",
+          opening_world_status:pick(opening,["opening_world_status"],null),
+          opening_availability:pick(opening,["opening_availability"],null),
+        };
+      })
+      .filter(Boolean);
+  }else{
+    contracts=reconcileSeedDriverContracts(
+      historicalContractRows,
+      year,
+      seedTeamHistory
+    );
+  }
 
   const assignedDrivers=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const historicalPoolForTeam=(tid)=>{
@@ -373,7 +435,6 @@ export function materializeSeasonPack(globalData,yearInput){
       .map((x)=>x.driver_id);
   };
 
-  const teamNameById=new Map(teams.map((t)=>[teamId(t),pick(t,["team_name","name","short_name"],teamId(t))]));
   const addBootstrapContract=(tid,did,source)=>{
     const teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
     const role=teamContracts.length===0?"Main Driver":"Second Driver";
@@ -393,18 +454,19 @@ export function materializeSeasonPack(globalData,yearInput){
     assignedDrivers.add(did);
   };
 
-  for(const tid of teamIds){
-    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
-    const historicalCandidates=historicalPoolForTeam(tid);
+  if(!hasOpeningState){
+    for(const tid of teamIds){
+      let teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
+      const historicalCandidates=historicalPoolForTeam(tid);
     for(const did of historicalCandidates){
       if(teamContracts.length>=2)break;
       if(assignedDrivers.has(did))continue;
-      addBootstrapContract(tid,did,"season_results_bootstrap");
-      teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
+        addBootstrapContract(tid,did,"season_results_bootstrap");
+        teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
+      }
     }
-  }
 
-  // Last-resort playable-grid bootstrap. This should only be used when the
+    // Last-resort playable-grid bootstrap. This should only be used when the
   // historical source lacks a resolvable second seat.
   const bootstrapRatings=new Map(
     driverRatingsForSeason(g,year,null).map((r)=>[driverId(r),r])
@@ -428,34 +490,48 @@ export function materializeSeasonPack(globalData,yearInput){
     while(teamContracts.length<2){
       const next=fallbackDrivers.find((d)=>!assignedDrivers.has(driverId(d)));
       if(!next)break;
-      addBootstrapContract(tid,driverId(next),"ai_grid_bootstrap");
-      teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
+        addBootstrapContract(tid,driverId(next),"ai_grid_bootstrap");
+        teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
+      }
     }
   }
 
   const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const gridDriverIds=new Set(contractedDriverIds);
-  for(const row of seasonRows)for(const id of Array.isArray(row.driver_ids)?row.driver_ids:[])if(id)gridDriverIds.add(String(id));
-  for(const row of f1Career){const id=driverId(row);if(id)gridDriverIds.add(id);}
+  if(!hasOpeningState){
+    for(const row of seasonRows)for(const id of Array.isArray(row.driver_ids)?row.driver_ids:[])if(id)gridDriverIds.add(String(id));
+    for(const row of f1Career){const id=driverId(row);if(id)gridDriverIds.add(id);}
+  }
 
   const drivers=[];
   const driverMaster=new Map((g.drivers||[]).map((d)=>[driverId(d),d]).filter(([id])=>id));
   const careerByDriver=new Map(f1Career.map((d)=>[driverId(d),d]).filter(([id])=>id));
   const contractByDriver=new Map(contracts.map((d)=>[driverId(d),d]).filter(([id])=>id));
-  const candidateIds=new Set(driverMaster.keys());
+  const candidateIds=hasOpeningState
+    ?new Set(openingStateRows.filter((row)=>!openingStateExcluded(row)).map(openingDriverId).filter(Boolean))
+    :new Set(driverMaster.keys());
   for(const id of gridDriverIds)candidateIds.add(id);
 
   for(const id of candidateIds){
     const d=driverMaster.get(id)||careerByDriver.get(id)||contractByDriver.get(id)||{driver_id:id};
-    const status=driverStatus(d,year,gridDriverIds.has(id));
-    if(!status)continue;
-    drivers.push({
+    const base={
       ...clean(d),
       driver_id:id,
       display_name:pick(d,["display_name","driver_name","name"],pick(careerByDriver.get(id)||{},["driver_name"],pick(contractByDriver.get(id)||{},["driver_name","name"],id))),
-      ...status,
       age:ageAt(d,year),
-    });
+    };
+
+    if(hasOpeningState){
+      const opening=openingByDriver.get(id);
+      if(!opening)continue;
+      const materialized=applyOpeningStateToDriver(base,opening,year);
+      if(materialized)drivers.push(materialized);
+      continue;
+    }
+
+    const status=driverStatus(d,year,gridDriverIds.has(id));
+    if(!status)continue;
+    drivers.push({...base,...status});
   }
   const driverIds=new Set(drivers.map(driverId));
   const driverRatings=driverRatingsForSeason(g,year,driverIds);
@@ -509,6 +585,7 @@ export function materializeSeasonPack(globalData,yearInput){
       driverRatings,
       driverCareer,
       driverHistory,
+      driverOpeningState:openingStateRows,
       contracts,
       staffCore,
       staffRatings,
@@ -566,7 +643,31 @@ export function validateSeasonPack(pack){
   }
   if(duplicateRaceAssignments)issues.push(`duplicate_race_driver_contracts:${duplicateRaceAssignments}`);
   const warnings=[];
-  if(gridContracts.length<Math.min(2,teamIds.size*2))warnings.push(`sparse_driver_contracts:${gridContracts.length}`);
+  const openingRows=Array.isArray(s.driverOpeningState)?s.driverOpeningState:[];
+  if(openingRows.length){
+    const openingActiveRows=openingRows.filter((row)=>!openingStateExcluded(row));
+    const openingIds=new Set(openingActiveRows.map(openingDriverId).filter(Boolean));
+    const openingRaceRows=openingActiveRows.filter(openingStateIsRaceSeat);
+    const missingOpeningDrivers=[...openingIds].filter((id)=>!driverIds.has(id));
+    if(missingOpeningDrivers.length)issues.push(`missing_opening_drivers:${missingOpeningDrivers.length}`);
+    if(gridContracts.length!==openingRaceRows.length){
+      issues.push(`opening_grid_contract_mismatch:${gridContracts.length}/${openingRaceRows.length}`);
+    }
+    const leakedBootstrap=(s.contracts||[]).filter((row)=>
+      ["season_results_bootstrap","ai_grid_bootstrap"].includes(String(row?.source||""))
+    ).length;
+    if(leakedBootstrap)issues.push(`opening_state_bootstrap_leak:${leakedBootstrap}`);
+
+    const ratingIds=new Set((s.driverRatings||[]).map(driverId).filter(Boolean));
+    const raceRatingMissing=openingRaceRows
+      .map(openingDriverId)
+      .filter((id)=>id&&!ratingIds.has(id));
+    if(raceRatingMissing.length)issues.push(`opening_race_drivers_without_rating:${raceRatingMissing.length}`);
+    const allRatingMissing=[...openingIds].filter((id)=>!ratingIds.has(id));
+    if(allRatingMissing.length)warnings.push(`opening_drivers_without_rating:${allRatingMissing.length}`);
+  }else if(gridContracts.length<Math.min(2,teamIds.size*2)){
+    warnings.push(`sparse_driver_contracts:${gridContracts.length}`);
+  }
   if((s.staffCore||[]).length<teamIds.size)warnings.push(`sparse_staff:${(s.staffCore||[]).length}`);
 
   return {
@@ -578,6 +679,7 @@ export function validateSeasonPack(pack){
       teams:(s.teams||[]).length,
       drivers:(s.drivers||[]).length,
       driverRatings:(s.driverRatings||[]).length,
+      openingState:(s.driverOpeningState||[]).length,
       contractedDrivers:gridContracts.length,
       staff:(s.staffCore||[]).length,
       staffContracts:(s.staffContracts||[]).length,
