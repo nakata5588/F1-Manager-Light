@@ -3,6 +3,7 @@ import { rngFor } from "../core/random.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
 import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
 import { defaultDriverCondition, driverCondition, fatiguePenalty } from "../domain/driverRating.js";
+import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const round1=(n)=>Math.round(Number(n||0)*10)/10;
@@ -113,7 +114,7 @@ function normalizedDemand(value,fb=50){
   return clamp(n<=1?n*100:n);
 }
 
-export function trackSetupProfile(gs,gp={}){
+export function trackSetupProfile(gs,gp={},sessionWeather=null){
   const track=currentTrack(gs,gp);
   const layout=currentLayout(gs,gp);
   const crash=normalizedDemand(pick(track,["crash_risk"],50),50);
@@ -126,19 +127,21 @@ export function trackSetupProfile(gs,gp={}){
   const directPower=pick(track,["power_dependency","engine_dependency","power_sensitivity"],null);
   const directCooling=pick(track,["cooling_demand"],null);
 
+  const wetness=clamp(num(sessionWeather?.track?.start_wetness,0)*100,0,100);
+  const wetFactor=wetness/100;
   const target={
-    aeroBalance:round1(directAero!=null
+    aeroBalance:round1(clamp((directAero!=null
       ?normalizedDemand(directAero)
-      :clamp(50+(overtaking-50)*0.30+(crash-50)*0.10,30,75)),
-    mechanicalGrip:round1(directTechnical!=null
+      :clamp(50+(overtaking-50)*0.30+(crash-50)*0.10,30,75))+wetFactor*8,25,85)),
+    mechanicalGrip:round1(clamp((directTechnical!=null
       ?normalizedDemand(directTechnical)
-      :clamp(50+(tyreWear-50)*0.22+(crash-50)*0.12,30,75)),
-    gearing:round1(directPower!=null
+      :clamp(50+(tyreWear-50)*0.22+(crash-50)*0.12,30,75))+wetFactor*13,25,90)),
+    gearing:round1(clamp((directPower!=null
       ?normalizedDemand(directPower)
-      :clamp(50+(lapLength-4.5)*5-(overtaking-50)*0.08,30,75)),
-    cooling:round1(directCooling!=null
+      :clamp(50+(lapLength-4.5)*5-(overtaking-50)*0.08,30,75))-wetFactor*7,25,80)),
+    cooling:round1(clamp((directCooling!=null
       ?normalizedDemand(directCooling)
-      :clamp(50+(tyreWear-50)*0.16+(crash-50)*0.06,35,70)),
+      :clamp(50+(tyreWear-50)*0.16+(crash-50)*0.06,35,70))-wetFactor*5,25,80)),
   };
 
   return {
@@ -150,6 +153,10 @@ export function trackSetupProfile(gs,gp={}){
       overtaking_difficulty:overtaking,
       tyre_wear:tyreWear,
       lap_length_km:lapLength,
+      weather_state:sessionWeather?.state||"UNKNOWN",
+      track_wetness:round1(wetness),
+      track_grip:round1(num(sessionWeather?.track?.grip_index,88)),
+      track_temp_c:round1(num(sessionWeather?.track_temp_c,0)),
     },
     target,
   };
@@ -238,7 +245,7 @@ function aiProgrammeFor(gs,teamId,driverId,engineering){
   return PRACTICE_PROGRAMMES.balanced;
 }
 
-function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50}){
+function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50,weatherRisk=1}){
   const rating=ratingFor(gs,driverId);
   const car=teamCarPerformance(gs,teamId,driverId);
   const crash=num(rating?.crash_likelihood,25)/100;
@@ -248,8 +255,8 @@ function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50}){
 
   const trackRiskFactor=0.80+clamp(trackRisk,0,100)/250;
   const fatigueRisk=Math.max(0,fatigue-35)*0.00032;
-  const contactChance=clamp(((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor)+fatigueRisk,0,0.075);
-  const mechanicalChance=clamp(((0.003+(1-reliability)*0.028)*programme.incidentRisk)+(fatigueRisk*0.35),0,0.075);
+  const contactChance=clamp(((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor*weatherRisk)+fatigueRisk,0,0.11);
+  const mechanicalChance=clamp(((0.003+(1-reliability)*0.028)*programme.incidentRisk*(0.95+weatherRisk*0.05))+(fatigueRisk*0.35),0,0.08);
   const roll=rng.next();
   if(roll<contactChance)return {issue_type:"contact",issue_slot:"aero_front",issue_note:"Minor contact interrupted part of the programme."};
   if(roll<contactChance+mechanicalChance){
@@ -263,7 +270,14 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="practice")return {gameState:gs,practice:null};
 
-  const profile=trackSetupProfile(gs,gp);
+  const sessionWeather=weekendWeatherSession(gs,"practice")||weekendWeatherSession(gs);
+  const profile=trackSetupProfile(gs,gp,sessionWeather);
+  const raceWeather=raceWeekendWeatherSession(gs);
+  const qualifyingWeather=Object.values(gs?.raceWeekendState?.weekend_weather?.sessions||{}).find((row)=>row?.kind==="qualifying")||null;
+  const raceRelevance=weatherSimilarity(sessionWeather,raceWeather);
+  const qualifyingRelevance=weatherSimilarity(sessionWeather,qualifyingWeather);
+  const weatherRisk=1+num(sessionWeather?.rain_intensity,0)*0.85+Math.max(0,88-num(sessionWeather?.track?.grip_index,88))*0.018;
+  const weatherLearning=clamp(1-num(sessionWeather?.rain_intensity,0)*0.16,0.78,1);
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const results=[];
   const conditionDict={...(gs?.driverAttributes||{})};
@@ -290,7 +304,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       adaptability*0.20+
       consistency*0.12+
       engineering*0.30
-    )*fatigueEfficiency);
+    )*fatigueEfficiency*weatherLearning);
 
     const rng=rngFor(gs,`${weekend.key}-practice-setup-${driverId}`);
     const initial={};
@@ -315,6 +329,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       programme,
       weekendKey:weekend.key,
       trackRisk:profile.inputs.crash_risk,
+      weatherRisk,
     });
     const issuePenalty=issue.issue_type?2:0;
     const prepGain=clamp((
@@ -351,12 +366,18 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       setup:final,
       target_setup:profile.target,
       feedback:feedbackFor(final,profile.target),
-      qualifying_bonus:programme.qualifyingBonus,
-      race_bonus:programme.raceBonus,
+      qualifying_bonus:round1(programme.qualifyingBonus*(0.62+0.38*qualifyingRelevance)),
+      race_bonus:round1(programme.raceBonus*(0.62+0.38*raceRelevance)),
       reliability_bonus:programme.reliabilityBonus,
       mileage_factor:programme.mileageFactor,
       wear_factor:round1(programme.wearFactor*(0.85+profile.inputs.tyre_wear/100*0.30)),
       fatigue_cost:programme.fatigue,
+      weather_state:sessionWeather?.state||null,
+      track_wetness:round1(num(sessionWeather?.track?.start_wetness,0)*100),
+      track_grip:round1(num(sessionWeather?.track?.grip_index,88)),
+      track_temp_c:round1(num(sessionWeather?.track_temp_c,0)),
+      qualifying_weather_relevance:round1(qualifyingRelevance*100),
+      race_weather_relevance:round1(raceRelevance*100),
       ...issue,
     });
   }
@@ -373,6 +394,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
     status:"completed",
     source:"rw2_practice_setup",
     track_profile:profile,
+    weather:sessionWeather?{...sessionWeather}:null,
     results:enrichedResults,
   };
   return {gameState:next,practice};
