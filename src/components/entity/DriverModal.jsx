@@ -853,15 +853,6 @@ export default function DriverModal({ entity, onClose }) {
 
 /* ======================== Small UI ======================== */
 
-function Row({ label, value }) {
-  const v = displayValue(value);
-  return (
-    <div className="flex justify-between gap-3">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-medium">{v}</span>
-    </div>
-  );
-}
 function KV({ label, value, className = "" }) {
   const v = displayValue(value);
   return (
