@@ -405,7 +405,20 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                     )
                     .map((sc, i) => (
                       <tr key={i}>
-                        <td className="pr-3 py-1">{sc.staff_name || sc.name || sc.person_name || "—"}</td>
+                        <td className="pr-3 py-1">
+                          {(sc.staff_id ?? sc.person_id ?? sc.id) ? (
+                            <button
+                              type="button"
+                              data-entity="staff"
+                              data-id={sc.staff_id ?? sc.person_id ?? sc.id}
+                              className="font-medium hover:text-sky-600 hover:underline"
+                            >
+                              {sc.staff_name || sc.name || sc.person_name || "—"}
+                            </button>
+                          ) : (
+                            sc.staff_name || sc.name || sc.person_name || "—"
+                          )}
+                        </td>
                         <td className="pr-3 py-1">{sc.role || "—"}</td>
                         <td className="text-right pr-3 py-1">{fmtMoney(sc.salary)}</td>
                         <td className="pr-3 py-1">{sc.start_date || sc.start_year || "—"}</td>
