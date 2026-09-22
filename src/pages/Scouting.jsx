@@ -77,11 +77,21 @@ export default function Scouting() {
   const assignments = Array.isArray(scouting.assignments) ? scouting.assignments : [];
   const shortlist = Array.isArray(scouting.shortlist) ? scouting.shortlist.map(String) : [];
   const zones = Array.isArray(gameState?.dbScoutingZones) ? gameState.dbScoutingZones : [];
-  const drivers = Array.isArray(gameState?.drivers) ? gameState.drivers : [];
-  const ratings = Array.isArray(gameState?.driverRatings) ? gameState.driverRatings : [];
-  const staffContracts = Array.isArray(gameState?.staffContracts) ? gameState.staffContracts : [];
-  const staffCore = Array.isArray(gameState?.staffCore) ? gameState.staffCore : [];
-  const staffRatings = Array.isArray(gameState?.staffRatings) ? gameState.staffRatings : [];
+  const drivers = useMemo(()=>{
+    const map=new Map();
+    for(const row of gameState?.dbDrivers||[]) if(idOf(row)) map.set(idOf(row),row);
+    for(const row of gameState?.drivers||[]) if(idOf(row)) map.set(idOf(row),{...(map.get(idOf(row))||{}),...row});
+    return [...map.values()];
+  },[gameState?.drivers,gameState?.dbDrivers]);
+  const ratings = useMemo(()=>{
+    const map=new Map();
+    for(const row of gameState?.dbDriverRatings||[]) if(idOf(row)) map.set(idOf(row),row);
+    for(const row of gameState?.driverRatings||[]) if(idOf(row)) map.set(idOf(row),{...(map.get(idOf(row))||{}),...row});
+    return [...map.values()];
+  },[gameState?.driverRatings,gameState?.dbDriverRatings]);
+  const staffContracts = Array.isArray(gameState?.staffContracts)&&gameState.staffContracts.length ? gameState.staffContracts : (gameState?.dbStaffContracts||[]);
+  const staffCore = Array.isArray(gameState?.staffCore)&&gameState.staffCore.length ? gameState.staffCore : (gameState?.dbStaffCore||[]);
+  const staffRatings = Array.isArray(gameState?.staffRatings)&&gameState.staffRatings.length ? gameState.staffRatings : (gameState?.dbStaffRatings||[]);
 
   const [tab,setTab] = useState("assignments");
   const [showStart,setShowStart] = useState(false);
@@ -130,9 +140,39 @@ export default function Scouting() {
     ? (selectedDriver ? zoneForDriver(selectedDriver) : null)
     : zones.find((z) => String(z.zone_id) === String(zoneId)) || null;
 
-  const duration = effectiveZone
+  const scoutingNetworkQuality=useMemo(()=>{
+    const coreById=new Map(staffCore.map((s)=>[String(s?.staff_id??s?.id??""),s]));
+    const rows=staffContracts
+      .filter((row)=>String(unbox(row?.team_id)??"")===teamId)
+      .filter((row)=>/scout|manager|principal|technical/i.test(String(row?.role||"")))
+      .map((row)=>{
+        const sid=String(unbox(row?.staff_id)??"");
+        const candidates=staffRatings.filter((r)=>String(unbox(r?.staff_id)??"")===sid);
+        const rating=candidates.find((r)=>Number(unbox(r?.year??r?.season_year))===year)
+          ||candidates.filter((r)=>Number(unbox(r?.year??r?.season_year))<=year)
+            .sort((a,b)=>Number(unbox(b?.year??b?.season_year)||0)-Number(unbox(a?.year??a?.season_year)||0))[0]
+          ||candidates[0]||{};
+        const nums=["data_analysis","communication","negotiation","technical"]
+          .map((key)=>Number(rating?.[key])).filter(Number.isFinite);
+        return {
+          id:sid,
+          name:coreById.get(sid)?.staff_name||row?.staff_name||sid,
+          role:nice(row?.role||"Staff"),
+          rating:nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:null,
+        };
+      });
+    const known=rows.map((row)=>row.rating).filter(Number.isFinite);
+    return {
+      members:rows,
+      quality:known.length?Math.round(known.reduce((a,b)=>a+b,0)/known.length):55,
+    };
+  },[staffContracts,staffCore,staffRatings,teamId,year]);
+
+  const baseDuration = effectiveZone
     ? Number(effectiveZone.travel_time_days || 0) + (mode === "region" ? 21 : 10)
     : 0;
+  const networkDurationFactor=Math.max(0.72,Math.min(1.18,1.15-(scoutingNetworkQuality.quality-50)*0.006));
+  const duration=baseDuration?Math.max(3,Math.round(baseDuration*networkDurationFactor)):0;
   const weeklyCost = Number(effectiveZone?.cost_per_week || 0);
   const cost = effectiveZone
     ? Math.round(Math.ceil(duration / 7) * weeklyCost * (mode === "region" ? 1.25 : 1))
@@ -143,7 +183,8 @@ export default function Scouting() {
     if (!zone) return [];
     const countries = zoneCountries(zone);
     const eligible = allProspects.filter((d) => countries.has(countryKey(driverCountry(d))));
-    const amount = Math.max(2, Math.min(5, Math.round(3 * Number(zone?.talent_boost || 1))));
+    const qualityFactor=0.75+scoutingNetworkQuality.quality/100*0.55;
+    const amount = Math.max(2, Math.min(7, Math.round(3 * Number(zone?.talent_boost || 1) * qualityFactor)));
     return eligible
       .map((d) => {
         const r = ratingById.get(idOf(d)) || {};
@@ -224,6 +265,7 @@ export default function Scouting() {
       finishes_at:addDaysISO(date,duration),
       duration_days:duration,
       cost,
+      network_quality:scoutingNetworkQuality.quality,
     };
 
     applyExpense(cost, `Scouting — ${title}`);
@@ -368,8 +410,10 @@ export default function Scouting() {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {["assignments","prospects","shortlist","scouts"].map((k)=>
-          <Button key={k} variant={tab===k?"default":"outline"} onClick={()=>setTab(k)}>{nice(k)}</Button>
+        {[
+          ["assignments","Assignments"],["prospects","Prospects"],["shortlist","Shortlist"],["scouts","Network"]
+        ].map(([k,label])=>
+          <Button key={k} variant={tab===k?"default":"outline"} onClick={()=>setTab(k)}>{label}</Button>
         )}
       </div>
 
@@ -457,8 +501,8 @@ export default function Scouting() {
                   </button>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <Mini label="Ability" value={known ? pick(rt,["current_ability","overall","pace"],"—") : "?"}/>
-                    <Mini label="Potential" value={known ? pick(rt,["potential_ability","potential"],"—") : "?"}/>
+                    <Mini label="Ability" value={known ? pick(rt,["current_ability","overall","pace"],pick(d,["overall","current_ability"],"No data")) : "?"}/>
+                    <Mini label="Potential" value={known ? pick(rt,["potential_ability","potential"],pick(d,["potential","potential_ability"],"No data")) : "?"}/>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -486,9 +530,17 @@ export default function Scouting() {
       )}
 
       {tab === "scouts" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {scouts.map((s)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={s.id}><CardContent className="p-4"><div className="font-semibold">{s.name}</div><div className="text-sm text-slate-400">{s.role}</div><div className="mt-2 text-sm">Scouting effectiveness: <strong>{s.rating}</strong></div></CardContent></Card>)}
-          {!scouts.length && <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5"><div className="font-semibold">Team Scouting Network</div><p className="text-sm text-slate-400 mt-1">No dedicated scout role exists for this team in the current historical staff data, so assignments use the general technical/management network.</p></CardContent></Card>}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-4"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Scouting Network</div>
+            <div className="text-3xl font-bold mt-1">{scoutingNetworkQuality.quality}/100</div>
+            <p className="text-sm text-slate-400 mt-2">Network quality now changes assignment duration and how many prospects a regional search can uncover.</p>
+            <div className="mt-3 text-xs text-slate-500">Current assignment duration multiplier: ×{networkDurationFactor.toFixed(2)}</div>
+          </CardContent></Card>
+          <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {scoutingNetworkQuality.members.map((s)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={s.id}><CardContent className="p-4"><div className="font-semibold">{s.name}</div><div className="text-sm text-slate-400">{s.role}</div><div className="mt-2 text-sm">Network contribution: <strong>{Number.isFinite(s.rating)?Math.round(s.rating):"No rating data"}</strong></div></CardContent></Card>)}
+            {!scoutingNetworkQuality.members.length && <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-5"><div className="font-semibold">General Team Network</div><p className="text-sm text-slate-400 mt-1">No dedicated scout role exists in the historical staff data. The team therefore operates with a neutral network rating of 55/100.</p></CardContent></Card>}
+          </div>
         </div>
       )}
     </div>
