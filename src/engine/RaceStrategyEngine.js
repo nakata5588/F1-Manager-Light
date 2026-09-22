@@ -845,10 +845,13 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const tempDelta=Math.abs(tyreTemp-optimum);
       const tempLapPenalty=Math.max(0,tempDelta-6)*0.035;
       const hotWearMult=tyreTemp>optimum+8?1+Math.min(0.25,(tyreTemp-optimum-8)*0.018):1;
-      const wearPerLap=num(tyre?.wear_rate,0.018)*100*0.72*trackWearMult*pace.wear_mult*wearDriverMult*hotWearMult;
-      const grip=num(tyre?.grip_index,75);
-      const gripDelta=(78-grip)*0.035;
-      const wearPenalty=condition>=55?0:(55-condition)*0.052+(condition<20?(20-condition)*0.11:0);
+      const wearPerLap=projectedWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult});
+      const tyreEffects=tyreConditionEffects(condition);
+      maxTyreRiskMultiplier=Math.max(maxTyreRiskMultiplier,tyreEffects.risk_multiplier);
+      accumulatedFatigueLoad+=num(pace.fatigue_mult,1);
+      const grip=num(tyre?.grip_index,75)*tyreEffects.grip_multiplier;
+      const gripDelta=(78-grip)*0.040;
+      const wearPenalty=tyreEffects.pace_penalty_s;
       const warmupPenalty=stintLap<=2?num(tyre?.warmup_time_s,2.5)*(stintLap===1?0.65:0.24):0;
       const perfPenalty=Math.max(-1.4,(100-basePerf)*0.105);
       const fuelDelta=rules.refuelling_allowed
@@ -869,10 +872,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
 
     stints.push(stintRecord(tyre,stintStart,track.laps,condition,tempSum,tempCount));
     const weatherRisk=raceRiskFromWeather(working,weather,track);
-    const wornTyreRisk=lowestCondition<20?1+(20-lowestCondition)*0.015:1;
     const finalPace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
-    const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*wornTyreRisk,0.7,4);
+    const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*maxTyreRiskMultiplier,0.7,4);
     const mechanicalRisk=clamp(finalPace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
+    const averageFatigueMult=track.laps?accumulatedFatigueLoad/track.laps:1;
+    const raceFatigueGain=Number((16*averageFatigueMult+(weather.wet_race?3:0)).toFixed(2));
 
     raceRows.push({
       pos:0,
@@ -893,6 +897,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
       incident_risk_multiplier:Number(incidentRisk.toFixed(3)),
       mechanical_risk_multiplier:Number(mechanicalRisk.toFixed(3)),
+      race_fatigue_gain:raceFatigueGain,
+      tyre_risk_multiplier:Number(maxTyreRiskMultiplier.toFixed(3)),
+      strategy_decisions:strategyDecisions,
       lap_times_ms:lapTimes.slice(),
       strategy_summary:{
         source:tid===userTeam?"player":"ai",
@@ -906,6 +913,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         used_tyres:stints.map((s)=>s.compound),
         used_dry_compounds:[...usedDry],
         refuelled,
+        race_fatigue_gain:raceFatigueGain,
+        lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
+        strategy_decisions:strategyDecisions,
       },
     });
   }
