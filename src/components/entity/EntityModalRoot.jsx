@@ -46,6 +46,7 @@ export default function EntityModalRoot() {
 
   const Cmp = MODALS[entity.type];
   if (!Cmp) return null;
+  const isDriverProfile = entity.type === "driver";
 
   return createPortal(
     <div className="fixed inset-0 z-[100]">
@@ -61,14 +62,14 @@ export default function EntityModalRoot() {
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className="
+        className={`
           absolute left-1/2 top-1/2
-          w-[1200px] max-w-[96vw]
+          ${isDriverProfile ? "w-[1380px] max-w-[98vw] bg-[#090b10] text-slate-100" : "w-[1200px] max-w-[96vw] bg-white text-slate-950"}
           max-h-[92vh] overflow-hidden
           -translate-x-1/2 -translate-y-1/2
-          rounded-2xl bg-white text-slate-950 shadow-2xl
+          rounded-2xl shadow-2xl
           outline-none
-        "
+        `}
         onWheel={(e) => e.stopPropagation()}
       >
         <EntityErrorBoundary entity={entity} onClose={close}>
