@@ -3,6 +3,7 @@ import { buildRaceEntryState } from "../domain/raceEntry.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
+import { createRaceStrategyState, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import {
   advancingDriverIds,
@@ -115,6 +116,8 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     teamEntryLimits:qualifyingRule.team_entry_limits,
   });
   const schedule=raceWeekendSchedule(gp,qualifyingRule);
+  const strategyBuilt=createRaceStrategyState(next,{gp,raceEntryState});
+  next=strategyBuilt.gameState;
   const state={
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
     year:Number(next?.activeYear)||Number(gp?.year)||null,
@@ -146,6 +149,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
     startingGrid:null,
     // Backwards-compatible read alias. The authoritative entity is startingGrid.
     grid:null,
+    race_strategy:strategyBuilt.state,
     completed_at:null,
   };
   return {...next,raceEntryState,raceWeekendState:state};
@@ -245,6 +249,10 @@ export function setPracticeProgramme(gs,{driverId,programmeId}={}){
       },
     },
   };
+}
+
+export function setRaceStrategy(gs,{driverId,patch}={}){
+  return setRaceStrategySelectionState(gs,{driverId,patch});
 }
 
 export function completePracticeSession(gs,{gp}={}){
@@ -419,6 +427,11 @@ export async function completeRaceSession(gs,{gp}={}){
       qualifying:weekend.qualifying,
       startingGrid:weekend.startingGrid,
       grid:startingGridRows,
+      race_strategy:{
+        ...(weekend.race_strategy||{}),
+        status:"completed",
+        race_summary:next?.lastRace?.strategySummary||null,
+      },
       race_result_key:next?.lastRace?.resultKey||null,
       race_completed_at:clampISO(next?.currentDateISO),
     },
