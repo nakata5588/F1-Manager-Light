@@ -1076,7 +1076,9 @@ export function finalizedLiveRaceRows(gs){
               strategy_decisions:Array.isArray(strategyDecisions)?strategyDecisions:row.strategy_summary.strategy_decisions,
               lowest_tyre_condition:Number.isFinite(actualLowestTyre)
                 ?Number(actualLowestTyre.toFixed(1))
-                :row.strategy_summary.lowest_tyre_condition,
+                :retired&&completedLaps===0
+                  ?100
+                  :row.strategy_summary.lowest_tyre_condition,
             };
           })()
           :row?.strategy_summary,
