@@ -92,7 +92,7 @@ function effectiveProjectDays(draft, levelOf) {
   return Math.max(7, Math.round(Number(draft.duration || 21) * Math.max(0.82, 1.12 - relevant * 0.025)));
 }
 
-export default function Development() {
+export default function Development({ embedded = false, initialTab = "projects", onTabChange = null }) {
   const gameState = useGame((s) => s.gameState);
   const setGameState = useGame((s) => s.setGameState);
   const currentDateISO = String(gameState?.currentDateISO || "").slice(0,10);
@@ -131,11 +131,22 @@ export default function Development() {
       ];
 
   const [catalog, setCatalog] = useState([]);
-  const [tab, setTab] = useState("projects");
+  const validTabs = ["projects","parts","manufacturing","research","pit_crew"];
+  const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
     name:"", type:"chassis", engineers:3, duration:21, cfd:20, windTunnel:10,
   });
+
+  useEffect(() => {
+    if (validTabs.includes(initialTab) && initialTab !== tab) setTab(initialTab);
+  }, [initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changeTab = (nextTab) => {
+    if (!validTabs.includes(nextTab)) return;
+    setTab(nextTab);
+    onTabChange?.(nextTab);
+  };
 
   useEffect(() => {
     fetch("/data/car_parts.json")
@@ -332,12 +343,12 @@ export default function Development() {
   }
 
   return (
-    <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+    <div className={embedded ? "space-y-4" : "-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4"}>
+      {!embedded && <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
         <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
         <div>
           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div>
-          <h1 className="text-2xl md:text-3xl font-semibold">Development</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold">Car Parts Development</h1>
           <p className="text-sm text-slate-400">Design, test and manufacture era-appropriate car parts.</p>
         </div>
         <div className="flex-1" />
@@ -348,7 +359,7 @@ export default function Development() {
           <Mini label="Facilities" value={"WT "+levelOf("wind_tunnel_level")+" · MFG "+levelOf("manufacturing_leve")}/>
         </div>
         <Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>
-      </div>
+      </div>}
 
       {showCreate && (
         <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 grid gap-3">
@@ -383,12 +394,28 @@ export default function Development() {
         <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length}/>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {["projects","parts","manufacturing","research","pit_crew"].map((key)=><Button key={key} variant={tab===key?"default":"outline"} onClick={()=>setTab(key)}>{nice(key)}</Button>)}
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="flex flex-wrap gap-2">
+          {[
+            ["projects","Design & Research"],
+            ["manufacturing","Manufacture"],
+            ["parts","Parts"],
+            ["research","Research"],
+            ["pit_crew","Race Ops"],
+          ].map(([key,label])=><Button key={key} size="sm" variant={tab===key?"default":"outline"} onClick={()=>changeTab(key)}>{label}</Button>)}
+        </div>
+        <div className="flex-1"/>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Mini label="Budget" value={fmtMoney(budget)}/>
+          <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
+          <Mini label="Wind Tunnel" value={"Lv "+levelOf("wind_tunnel_level")}/>
+          <Mini label="Manufacturing" value={"Lv "+levelOf("manufacturing_leve")}/>
+        </div>
+        {embedded && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
       </div>
 
       {tab==="projects" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-2">
           {projects.map((p)=>{
             const progress = p.status==="completed" ? 1 : p.status==="paused" ? Number(p.progress||0) : progressBetween(p.started_at,p.finishes_at,currentDateISO);
             return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={p.id}><CardContent className="p-4 space-y-3">
