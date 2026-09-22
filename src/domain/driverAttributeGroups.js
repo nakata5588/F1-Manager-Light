@@ -245,6 +245,11 @@ export function driverGroupDevelopmentPlan(rating,groupKey,{baseGain=0.32,effici
   const group=driverAttributeGroup(groupKey);
   if(!group||!rating)return [];
   const safeEfficiency=clamp(efficiency,0,1);
+  const currentAbility=Number(unbox(rating?.current_ability));
+  const potential=potentialOf(rating);
+  const potentialGap=Number.isFinite(currentAbility)?Math.max(0,potential-currentAbility):Math.max(0,potential-50);
+  if(potentialGap<=0.05)return [];
+  const potentialFactor=clamp(potentialGap/12,0.15,1);
   const changes=[];
 
   for(const attribute of group.attributes){
@@ -259,7 +264,7 @@ export function driverGroupDevelopmentPlan(rating,groupKey,{baseGain=0.32,effici
 
     const headroomFactor=clamp(distance/14,0.12,1);
     const multiplier=Number(attribute.trainingMultiplier??1);
-    const magnitude=Number(baseGain)*safeEfficiency*headroomFactor*multiplier;
+    const magnitude=Number(baseGain)*safeEfficiency*potentialFactor*headroomFactor*multiplier;
     const after=limitInfo.direction>0
       ?Math.min(limitInfo.limit,before+magnitude)
       :Math.max(limitInfo.limit,before-magnitude);
