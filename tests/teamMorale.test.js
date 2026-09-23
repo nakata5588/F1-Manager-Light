@@ -57,3 +57,33 @@ test("team morale changes technical lead-time multiplier",()=>{
   assert.ok(lowQuote.days>=neutralQuote.days);
   assert.ok(highQuote.days<=neutralQuote.days);
 });
+
+
+test("race morale updates every team in the classification, not only the player team",()=>{
+  const base=baseState();
+  const gs={
+    ...base,
+    contracts:[
+      ...base.contracts,
+      {year:1980,driver_id:"D3",team_id:"T2",role:"Main Driver",status:"active",contract_until_year:1981},
+      {year:1980,driver_id:"D4",team_id:"T2",role:"Second Driver",status:"active",contract_until_year:1981},
+    ],
+  };
+
+  const next=applyRaceTeamMorale(gs,{
+    gp:{gp_name:"Multi Team GP"},
+    race:[
+      {driver:{driver_id:"D1"},pos:1,retired:false},
+      {driver:{driver_id:"D2"},pos:4,retired:false},
+      {driver:{driver_id:"D3"},pos:12,retired:true,retirement_reason:"Engine"},
+      {driver:{driver_id:"D4"},pos:8,retired:false},
+    ],
+  });
+
+  assert.ok(next.teamOperationalState.T1);
+  assert.ok(next.teamOperationalState.T2);
+  assert.ok(teamOperationalMorale(next,"T1")>50);
+  assert.ok(teamOperationalMorale(next,"T2")<50);
+  assert.ok(next.teamMoraleLog.T1?.length);
+  assert.ok(next.teamMoraleLog.T2?.length);
+});

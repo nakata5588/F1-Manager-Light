@@ -6,6 +6,7 @@ import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
+import { freshCareerRuntimeState } from "@/state/newGameRuntime";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
@@ -1229,15 +1230,7 @@ export const useGame = create((set, get) => ({
           body: `Difficulty set to ${difficulty}. Good luck!`,
         },
       ],
-      eventsQueue: [],
-      driverAttrLog: {},
-      driverAttributes: initialDriverConditions,
-      driverAvailability: {},
-      medicalHistory: [],
-      temporaryDriverAssignments: [],
-      driverNegotiations: [],
-      raceEntryState: null,
-      raceWeekendState: null,
+      ...freshCareerRuntimeState({ initialDriverConditions }),
       settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
       careerMeta: createCareerMeta(db, y),
@@ -1319,18 +1312,10 @@ export const useGame = create((set, get) => ({
           careerMeta: createCareerMeta(db, y),
           saveMeta: createNewSaveMeta({ year: y, teamId }),
           team: userTeam,
-          selectedDrivers: Array.isArray(drivers) ? drivers : [],
           standings: { drivers: [], teams: [] },
           inbox,
-          eventsQueue: [],
-          driverAttrLog: {},
-          driverAttributes: initialDriverConditions,
-          driverAvailability: {},
-          medicalHistory: [],
-          temporaryDriverAssignments: [],
-          driverNegotiations: [],
-          raceEntryState: null,
-          raceWeekendState: null,
+          ...freshCareerRuntimeState({ initialDriverConditions }),
+          selectedDrivers: Array.isArray(drivers) ? drivers : [],
           settings: s.gameState?.settings ?? defaultSettings,
 
           financeLog: [],

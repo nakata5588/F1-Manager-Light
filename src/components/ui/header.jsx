@@ -379,8 +379,8 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
         borderColor,                     // borda subtil derivada do secondary
       }}
     >
-      <div className="max-w-[1200px] mx-auto px-4 h-16 flex items-stretch">
-        <div className="w-full flex items-start gap-4">
+      <div className="w-full px-4 h-16 flex items-stretch">
+        <div className="w-full flex items-start justify-between gap-6">
           {/* LOGO */}
           <div
             className="h-full w-16 rounded-lg overflow-hidden ring-1 flex items-center justify-center shrink-0"
@@ -439,7 +439,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
           </div>
 
           {/* TÍTULO */}
-          <div className="flex-1 flex items-center pt-2">
+          <div className="flex-1 min-w-[140px] flex items-center justify-center pt-2">
             <div className="text-lg font-semibold drop-shadow-sm">{pageTitle}</div>
           </div>
 
