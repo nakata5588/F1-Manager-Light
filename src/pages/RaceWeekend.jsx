@@ -1063,9 +1063,9 @@ export default function RaceWeekend(){
                 <div className="mt-1 text-xs text-slate-400">{strategyTeamForecast.message}</div>
               </div>
               <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-right text-xs sm:grid-cols-4">
-                <div><div className="text-slate-500">Rain chance</div><div>{Number(strategyRaceForecast?.rain_chance_pct??strategyTeamForecast.rain_chance_pct||0).toFixed(0)}%</div></div>
+                <div><div className="text-slate-500">Rain chance</div><div>{Number((strategyRaceForecast?.rain_chance_pct??strategyTeamForecast.rain_chance_pct)||0).toFixed(0)}%</div></div>
                 <div><div className="text-slate-500">Air temp</div><div>{Number.isFinite(Number(strategyRaceForecast?.air_temp_c))?Number(strategyRaceForecast.air_temp_c).toFixed(0)+"°C":"—"}</div></div>
-                <div><div className="text-slate-500">Confidence</div><div>{Number(strategyRaceForecast?.confidence_pct??strategyTeamForecast.confidence_pct||0).toFixed(0)}%</div></div>
+                <div><div className="text-slate-500">Confidence</div><div>{Number((strategyRaceForecast?.confidence_pct??strategyTeamForecast.confidence_pct)||0).toFixed(0)}%</div></div>
                 <div><div className="text-slate-500">Timing</div><div>{forecastTimingLabel(strategyRaceForecast,raceStrategy?.track_snapshot?.laps)}</div></div>
               </div>
             </div>
