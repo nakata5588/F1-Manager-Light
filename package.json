@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
     "validate:data": "node scripts/validate_json.js",
-    "check": "npm run test:career && npm run test:entities && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:management-events && npm run test:management-depth && npm run test:ai-technical && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:season-packs && npm run validate:data && npm run build",
+    "check": "npm run test:career && npm run test:entities && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:management-events && npm run test:management-depth && npm run test:ai-technical && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:new-game-isolation && npm run test:season-packs && npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run season:generate\"",
     "predev": "npm run season:generate",
@@ -38,7 +38,8 @@
     "test:management-depth": "node --test tests/managementDepth.test.js",
     "test:opening-state": "node --test tests/openingState.test.js",
     "test:entities": "node --test tests/entityRoutes.test.js",
-    "test:ai-technical": "node --test tests/aiTechnical.test.js"
+    "test:ai-technical": "node --test tests/aiTechnical.test.js",
+    "test:new-game-isolation": "node --test tests/newGameIsolation.test.js"
   },
   "keywords": [
     "f1",
