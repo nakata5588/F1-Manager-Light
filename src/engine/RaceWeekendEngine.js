@@ -5,7 +5,8 @@ import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
-import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
+import { driverCondition } from "../domain/driverRating.js";
+import { applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import {
   advancingDriverIds,
@@ -71,11 +72,7 @@ function applyQualifyingFatigue(gs,rows,sessionType){
     const did=driverIdOf(row);
     if(!did)continue;
     const current=driverCondition(gs,did);
-    dict[did]={
-      ...defaultDriverCondition(),
-      ...current,
-      fatigue:Math.max(0,Math.min(100,Number(current?.fatigue||0)+cost)),
-    };
+    dict[did]=applyMentalStateDeltaToCondition(current,{fatigue:cost});
   }
   return {...gs,driverAttributes:dict};
 }

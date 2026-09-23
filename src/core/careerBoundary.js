@@ -5,6 +5,8 @@
 // source. A career owns the mutable active world and only consults the global
 // source for structural future information and newly eligible entity identity.
 
+import { seasonStartMentalState } from "../domain/driverMentalState.js";
+
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=o?.[k];if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -362,19 +364,12 @@ export function materializeNextCareerSeason(state,targetYearInput){
   const agendaBlocks=rangeRow(state.dbAgendaBlocks,targetYear);
 
   const nextDriverAttributes=Object.fromEntries(
-    (state.drivers||[]).map((driver)=>{
-      const id=idOfDriver(driver);
-      const curr=state?.driverAttributes?.[id]||{};
-      const confidence=num(curr.confidence,50);
-      const morale=num(curr.morale,50);
-      return [id,{
-        ...curr,
-        fatigue:0,
-        preparation:50,
-        confidence:50+(confidence-50)*0.35,
-        morale:50+(morale-50)*0.35,
-      }];
-    }).filter(([id])=>id)
+    (state.drivers||[])
+      .map((driver)=>{
+        const id=idOfDriver(driver);
+        return [id,seasonStartMentalState(state?.driverAttributes?.[id])];
+      })
+      .filter(([id])=>id)
   );
 
   const finances={

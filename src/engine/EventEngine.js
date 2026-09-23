@@ -1,5 +1,6 @@
 // src/engine/EventEngine.js
-import { defaultDriverCondition, ensureAbilityAnchor, intensiveTrainingStatus, recalculateCurrentAbility } from "../domain/driverRating.js";
+import { ensureAbilityAnchor, intensiveTrainingStatus, recalculateCurrentAbility } from "../domain/driverRating.js";
+import { applyMentalStateDeltaToCondition, mentalStateCondition } from "../domain/driverMentalState.js";
 
 /** Pequenas utils */
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -210,16 +211,16 @@ function applyEffects(gs, ev, ctx) {
         const drv = findDriver(drivers, driverIdRaw);
         const driverKey = String(drv?.driver_id ?? driverIdRaw ?? idn ?? "");
         const compat = idn ? driverAttributes[idn] : null;
-        const curr = {
-          ...defaultDriverCondition(),
+        const curr = mentalStateCondition({
           ...(compat || {}),
           ...(driverAttributes[driverKey] || {}),
-        };
+        });
         const attr = String(fx.attr || "");
         if (!["confidence","morale","preparation"].includes(attr)) break;
         const before = Number(curr[attr] ?? 50);
-        const after = Math.max(0, Math.min(100, before + Number(fx.delta || 0)));
-        driverAttributes[driverKey] = { ...curr, [attr]: after };
+        const nextCondition = applyMentalStateDeltaToCondition(curr,{[attr]:Number(fx.delta||0)});
+        const after = Number(nextCondition[attr]);
+        driverAttributes[driverKey] = nextCondition;
         if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];
 
         const entry = {
@@ -248,14 +249,14 @@ function applyEffects(gs, ev, ctx) {
         const drv = findDriver(drivers, driverIdRaw);
         const driverKey = String(drv?.driver_id ?? driverIdRaw ?? idn ?? "");
         const compat = idn ? driverAttributes[idn] : null;
-        const curr = {
-          ...defaultDriverCondition(),
+        const curr = mentalStateCondition({
           ...(compat || {}),
           ...(driverAttributes[driverKey] || {}),
-        };
+        });
         const before = Number(curr.fatigue ?? 0);
-        const after = Math.max(0, Math.min(100, before + Number(fx.delta || 0)));
-        driverAttributes[driverKey] = { ...curr, fatigue: after };
+        const nextCondition = applyMentalStateDeltaToCondition(curr,{fatigue:Number(fx.delta||0)});
+        const after = Number(nextCondition.fatigue);
+        driverAttributes[driverKey] = nextCondition;
         if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];
 
         const entry = {

@@ -1,5 +1,6 @@
 // src/engine/GPEngine.js
-import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
+import { driverCondition } from "../domain/driverRating.js";
+import { applyDriverMentalState, raceMentalStateChange } from "../domain/driverMentalState.js";
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
 import { rngFor } from "../core/random.js";
 import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
@@ -916,50 +917,30 @@ export async function runRaceWeekend(gs, {
     };
   }
 
-  // Race weekends change physical and psychological condition. Conditions are
-  // 0-100 scales: fatigue 0=fresh/100=exhausted; the others use 50 as neutral.
-  const conditionDict={...(afterWear.driverAttributes||{})};
+  // D6.1: race outcomes feed the central temporary Mental State engine.
   const qualifyingPos=new Map(qualy.map((row)=>[String(row?.driver?.driver_id??""),Number(row.pos)]));
   for(const row of race){
     const did=String(row?.driver?.driver_id??"");
     if(!did)continue;
-    const curr={...defaultDriverCondition(),...(conditionDict[did]||{})};
-    const finish=Number(row.pos);
-    const start=Number(qualifyingPos.get(did)??finish);
-    const positionDelta=Number.isFinite(start)&&Number.isFinite(finish)?start-finish:0;
-
-    let confidenceDelta=Math.max(-2,Math.min(2,positionDelta*0.35));
-    let moraleDelta=Math.max(-1.5,Math.min(1.5,positionDelta*0.25));
-    if(row.retired){
-      confidenceDelta-=4;
-      moraleDelta-=2;
-    }else if(finish===1){
-      confidenceDelta+=5;
-      moraleDelta+=4;
-    }else if(finish<=3){
-      confidenceDelta+=3;
-      moraleDelta+=2;
-    }else if(finish<=Math.max(5,Math.ceil(race.length/2))){
-      confidenceDelta+=1;
-      moraleDelta+=0.5;
-    }
-
-    const distanceLoad=row.retired
-      ?6+Math.max(0,Math.min(1,Number(row?.laps_completed||0)/Math.max(1,Number(row?.race_laps)||60)))*8
-      :16;
-    const modeledFatigue=Number(row?.race_fatigue_gain);
-    const raceFatigue=Number.isFinite(modeledFatigue)
-      ?modeledFatigue*(row.retired?Math.max(0.38,Math.min(1,Number(row?.laps_completed||0)/Math.max(1,Number(row?.race_laps)||60))):1)
-      :distanceLoad+(raceWet?3:0);
-    conditionDict[did]={
-      ...curr,
-      fatigue:clamp(Number(curr.fatigue||0)+raceFatigue,0,100),
-      preparation:clamp(Number(curr.preparation||50)-10,0,100),
-      confidence:clamp(Number(curr.confidence||50)+confidenceDelta,0,100),
-      morale:clamp(Number(curr.morale||50)+moraleDelta,0,100),
-    };
+    const change=raceMentalStateChange(row,{
+      startPosition:qualifyingPos.get(did),
+      fieldSize:race.length,
+      wet:raceWet,
+    });
+    afterWear=applyDriverMentalState(afterWear,did,{
+      deltas:change.deltas,
+      source:"race",
+      reason:change.reasons.join(" · ")||"Race weekend",
+      meta:{
+        gp_id:gpId,
+        gp_name:gpName,
+        finish:Number(row?.pos),
+        start:Number(qualifyingPos.get(did)??row?.pos),
+        retired:Boolean(row?.retired),
+        retirement_reason:row?.retirement_reason||null,
+      },
+    });
   }
-  afterWear.driverAttributes=conditionDict;
 
   const reserveReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="reserve_replacement");
   const emergencyReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="emergency_substitute");

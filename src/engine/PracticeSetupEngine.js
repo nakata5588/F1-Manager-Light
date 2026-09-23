@@ -3,7 +3,8 @@ import { rngFor } from "../core/random.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
 import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
-import { defaultDriverCondition, driverCondition, fatiguePenalty } from "../domain/driverRating.js";
+import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
+import { applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
@@ -357,14 +358,13 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       issuePenalty
     )*(0.70+fatigueEfficiency*0.30),2,14);
 
-    const fatigueAfter=round1(clamp(fatigueBefore+programme.fatigue));
-    conditionDict[driverId]={
-      ...defaultDriverCondition(),
-      ...previous,
-      preparation:round1(clamp(num(previous.preparation,50)+prepGain)),
-      fatigue:fatigueAfter,
-      confidence:round1(clamp(num(previous.confidence,50)+(quality>=82?1:quality<55?-0.5:0))),
-    };
+    const nextCondition=applyMentalStateDeltaToCondition(previous,{
+      preparation:prepGain,
+      fatigue:programme.fatigue,
+      confidence:quality>=82?1:quality<55?-0.5:0,
+    });
+    const fatigueAfter=round1(nextCondition.fatigue);
+    conditionDict[driverId]=nextCondition;
 
     results.push({
       driver_id:driverId,
