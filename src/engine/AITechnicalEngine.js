@@ -14,6 +14,7 @@ import {
   warehousePartUnitsForDesign,
 } from "../domain/partUnits.js";
 import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
+import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -45,12 +46,36 @@ function stableHash(text){
 function teamRows(gs){
   const rows=Array.isArray(gs?.teams)&&gs.teams.length?gs.teams:(gs?.dbTeams||[]);
   const year=yearOf(gs);
+  const activeIds=new Set();
+
+  for(const row of gs?.carStats||gs?.dbCarStats||[]){
+    const rowYear=Number(row?.year??row?.season_year);
+    if(Number.isFinite(rowYear)&&rowYear!==year)continue;
+    const id=teamIdOf(row);
+    if(id)activeIds.add(id);
+  }
+  for(const row of gs?.teamEngines||gs?.dbTeamEngines||[]){
+    const rowYear=Number(row?.year??row?.season_year);
+    if(Number.isFinite(rowYear)&&rowYear!==year)continue;
+    const id=teamIdOf(row);
+    if(id)activeIds.add(id);
+  }
+  for(const contract of activeDriverContracts(gs)){
+    const id=teamIdOf(contract);
+    if(id)activeIds.add(id);
+  }
+
+  if(activeIds.size){
+    const byId=new Map(rows.map((row)=>[teamIdOf(row),row]).filter(([id])=>id));
+    return [...activeIds].sort().map((id)=>byId.get(id)||{team_id:id});
+  }
+
   const seen=new Map();
   for(const row of rows){
     const id=teamIdOf(row);
     if(!id)continue;
-    const from=num(row?.year_from??row?.start_year??row?.year,year);
-    const toRaw=row?.year_to??row?.end_year;
+    const from=num(row?.year_from??row?.start_year??row?.founded_year,year);
+    const toRaw=row?.year_to??row?.end_year??row?.last_year;
     const to=toRaw==null||toRaw===""?Infinity:num(toRaw,Infinity);
     if(year<from||year>to)continue;
     if(!seen.has(id))seen.set(id,row);
@@ -177,6 +202,29 @@ export function aiTechnicalScopedState(gs,teamId){
   const normalized=normalizeAITechnicalWorld(gs);
   const state=aiTechnicalTeamState(normalized,teamId);
   return state?normalizePhysicalPartState(scopedState(normalized,teamId,state)):null;
+}
+
+export function aiTechnicalRaceCars(gs,teamId){
+  const state=aiTechnicalTeamState(gs,teamId);
+  return (state?.garage?.cars||[]).filter((car)=>car?.kind==="race");
+}
+
+export function aiTechnicalCarForDriver(gs,teamId,driverId=null){
+  const cars=aiTechnicalRaceCars(gs,teamId);
+  if(!cars.length)return null;
+  if(driverId==null||driverId==="")return null;
+  const did=str(driverId);
+  const liveEntry=(gs?.raceEntryState?.entries||[]).find((entry)=>
+    str(entry?.team_id)===str(teamId) &&
+    str(entry?.driver_id)===did &&
+    Number(entry?.car_slot)>=1 &&
+    Number(entry?.car_slot)<=2
+  );
+  if(liveEntry)return cars[Number(liveEntry.car_slot)-1]||null;
+
+  const raceContracts=activeDriverContracts(gs,{teamId,raceOnly:true});
+  const index=raceContracts.findIndex((contract)=>driverIdOf(contract)===did);
+  return index>=0?(cars[index]||null):null;
 }
 
 function replaceTeamState(gs,teamId,nextState){
@@ -347,7 +395,11 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
 
 export function tickAITechnicalWorld(gs,{allowPlanning=true}={}){
   let next=normalizeAITechnicalWorld(gs);
-  const ids=Object.keys(next?.aiTechnicalWorld?.teams||{}).sort();
+  const player=str(next?.team?.team_id??next?.team?.id);
+  const ids=teamRows(next)
+    .map(teamIdOf)
+    .filter((teamId)=>teamId&&teamId!==player&&aiTechnicalTeamState(next,teamId))
+    .sort();
   for(const teamId of ids)next=tickAITechnicalTeam(next,teamId,{allowPlanning});
   return next;
 }
