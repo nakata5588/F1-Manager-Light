@@ -413,6 +413,22 @@ export function applyProgressionTick(gs){
   }
   next.driverAttributes=dict;
 
+  // Team operational morale is persistent but not permanent. Away from race
+  // shocks it slowly returns toward neutral so one bad weekend cannot damage
+  // technical throughput for the rest of the season.
+  if(next?.teamOperationalState&&typeof next.teamOperationalState==="object"){
+    const operational={...next.teamOperationalState};
+    for(const [teamId,row] of Object.entries(operational)){
+      const morale=Number(row?.morale);
+      if(!Number.isFinite(morale))continue;
+      operational[teamId]={
+        ...row,
+        morale:Math.round(meanRevert(morale,50,0.010)*10)/10,
+      };
+    }
+    next.teamOperationalState=operational;
+  }
+
   const afterPitCrew=applyPitCrewTraining(next,dateISO);
   next.raceStrategyWorld=afterPitCrew.raceStrategyWorld;
 
