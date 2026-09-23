@@ -32,6 +32,7 @@ import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
+const neverNaN=(v,fb=0)=>Number.isFinite(Number(v))?Number(v):fb;
 
 function parseISO(value){
   const [y,m,d]=String(value||"").slice(0,10).split("-").map(Number);
@@ -170,8 +171,18 @@ function componentBaseline(gs,teamId,slot){
   }[slot];
   return fallback?clamp(num(car?.[fallback],70)):70;
 }
+const MAX_SLOT_DEVELOPMENT_STRENGTH=6.0;
+
 function completedDesignCount(state,slot){
   return (state?.development?.parts||[]).filter((part)=>str(part?.slot)===str(slot)).length;
+}
+function bestDesignStrength(state,slot){
+  return (state?.development?.parts||[])
+    .filter((part)=>str(part?.slot)===str(slot))
+    .reduce((best,part)=>Math.max(best,num(part?.perf,0)),0);
+}
+function developmentHeadroom(state,slot){
+  return Math.max(0,MAX_SLOT_DEVELOPMENT_STRENGTH-bestDesignStrength(state,slot));
 }
 
 function technicalStateForTeam(gs,teamId){
@@ -231,26 +242,44 @@ function chooseNeed(gs,teamId,state){
     const benchmark=fieldBenchmarkForSlot(gs,slot)??current;
     const gap=Math.max(0,benchmark-current);
     const prior=completedDesignCount(state,slot);
-    const repeatPenalty=prior*0.45;
+    const incumbent=bestDesignStrength(state,slot);
+    const headroom=developmentHeadroom(state,slot);
+    const repeatPenalty=prior*0.18;
+    const cappedPenalty=headroom<0.12?100:0;
     const tie=(stableHash(`${teamId}|${yearOf(gs)}|${slot}`)%1000)/1_000_000;
     return {
       slot,baseline,current,benchmark,
       gap:Number(gap.toFixed(3)),
       prior,
-      score:Number((gap-repeatPenalty+tie).toFixed(6)),
+      incumbent:Number(incumbent.toFixed(3)),
+      headroom:Number(headroom.toFixed(3)),
+      score:Number((gap-repeatPenalty-cappedPenalty+tie).toFixed(6)),
     };
-  }).sort((a,b)=>b.score-a.score||a.baseline-b.baseline||a.slot.localeCompare(b.slot));
+  }).filter((row)=>row.headroom>=0.12)
+    .sort((a,b)=>b.score-a.score||a.baseline-b.baseline||a.slot.localeCompare(b.slot));
   return scored[0]||null;
 }
 function projectQuote(gs,teamId,state,need){
   const strength=engineeringStrength(gs,teamId);
   const moraleTime=teamWorkRateMultiplier(gs,teamId);
   const prior=completedDesignCount(state,need.slot);
-  const baseDays=34-prior*2;
+  const incumbent=bestDesignStrength(state,need.slot);
+  const headroom=Math.max(0,MAX_SLOT_DEVELOPMENT_STRENGTH-incumbent);
+  const baseDays=Math.max(18,34-prior*2);
   const days=Math.max(10,Math.round(baseDays*Math.max(0.72,1.16-strength*0.045)*moraleTime));
   const cost=Math.round((145_000+strength*42_000+prior*55_000)/10_000)*10_000;
-  const perf=Number((0.45+strength*0.085+Math.max(0,78-need.baseline)*0.018).toFixed(2));
-  return {days,cost,perf,strength};
+  const rawIncrement=0.38+strength*0.072+Math.max(0,78-need.baseline)*0.014+Math.min(8,need.gap||0)*0.025;
+  const diminishing=Math.max(0.34,1-(incumbent/MAX_SLOT_DEVELOPMENT_STRENGTH)*0.62);
+  const increment=Math.min(headroom,Math.max(0.12,rawIncrement*diminishing));
+  const targetPerf=Math.min(MAX_SLOT_DEVELOPMENT_STRENGTH,incumbent+increment);
+  return {
+    days,cost,
+    perf:Number(targetPerf.toFixed(3)),
+    increment:Number(increment.toFixed(3)),
+    incumbent:Number(incumbent.toFixed(3)),
+    headroom:Number(headroom.toFixed(3)),
+    strength,
+  };
 }
 function activeProjects(state){return (state?.development?.projects||[]).filter((p)=>p?.status==="active");}
 function activeManufacturing(state){return (state?.development?.manufacturing||[]).filter((p)=>p?.status==="active");}
@@ -279,6 +308,131 @@ function planningReserveFloor(gs,teamId,state){
   const strength=engineeringStrength(gs,teamId);
   const ratio=0.22+Math.max(0,6-strength)*0.015;
   return Math.round(Math.max(200_000,initial*ratio)/10_000)*10_000;
+}
+
+function archivedStandingContext(gs,teamId,seasonYear){
+  const archive=(gs?.historySeasons||[]).find((row)=>Number(row?.year)===Number(seasonYear));
+  const rows=archive?.standings?.teams||[];
+  if(!Array.isArray(rows)||!rows.length)return {position:null,field_size:0,multiplier:1};
+  const normalized=rows.map((row,index)=>({
+    team_id:teamIdOf(row),
+    position:num(row?.position??row?.pos,index+1),
+    points:num(row?.points,0),
+  })).sort((a,b)=>a.position-b.position||b.points-a.points);
+  const found=normalized.find((row)=>row.team_id===str(teamId));
+  if(!found)return {position:null,field_size:normalized.length,multiplier:1};
+  const third=Math.max(1,Math.ceil(normalized.length/3));
+  let multiplier=1;
+  if(found.position===1)multiplier=1.08;
+  else if(found.position<=third)multiplier=1.04;
+  else if(found.position>normalized.length-third)multiplier=0.96;
+  return {position:found.position,field_size:normalized.length,multiplier};
+}
+
+function seasonTechnicalAllocation(gs,teamId,state,previousYear){
+  const initial=Math.max(1,num(state?.initial_budget,inferredInitialBudget(gs,state)));
+  const strength=engineeringStrength(gs,teamId);
+  const standing=archivedStandingContext(gs,teamId,previousYear);
+  const resourceFactor=0.72+Math.max(1,Math.min(10,strength))*0.025;
+  const allocation=initial*resourceFactor*standing.multiplier;
+  return {
+    amount:Math.round(allocation/10_000)*10_000,
+    resource_factor:Number(resourceFactor.toFixed(3)),
+    championship_multiplier:standing.multiplier,
+    previous_position:standing.position,
+    previous_field_size:standing.field_size,
+  };
+}
+
+function seasonTechnicalSnapshot(state,seasonYear){
+  const projects=(state?.development?.projects||[]).filter((project)=>
+    Number(str(project?.started_at).slice(0,4))===Number(seasonYear)
+  );
+  const completed=projects.filter((project)=>project?.status==="completed").length;
+  const maintenance=(state?.componentServiceLog||[]).filter((row)=>
+    Number(str(row?.date).slice(0,4))===Number(seasonYear)
+  ).length;
+  return {
+    year:Number(seasonYear),
+    closing_budget:Math.round(num(state?.budget,0)),
+    projects_started:projects.length,
+    projects_completed:completed,
+    designs_total:(state?.development?.parts||[]).length,
+    physical_units_total:(state?.development?.partUnits||[]).length,
+    maintenance_actions:maintenance,
+  };
+}
+
+function rollAITechnicalSeasonEconomy(gs,teamId,state){
+  const currentYear=yearOf(gs);
+  const economy=state?.economy||{};
+  const knownYear=Number.isFinite(Number(economy?.season_year))
+    ?Number(economy.season_year)
+    :Number.isFinite(Number(state?.planning?.season_year))
+      ?Number(state.planning.season_year)
+      :currentYear;
+
+  if(knownYear>=currentYear){
+    return {
+      ...state,
+      economy:{
+        ...economy,
+        season_year:currentYear,
+        last_allocation:neverNaN(economy?.last_allocation,0),
+      },
+      season_history:Array.isArray(state?.season_history)?state.season_history:[],
+    };
+  }
+
+  const initial=Math.max(1,num(state?.initial_budget,inferredInitialBudget(gs,state)));
+  const snapshot=seasonTechnicalSnapshot(state,knownYear);
+  const allocation=seasonTechnicalAllocation(gs,teamId,state,knownYear);
+  const carryoverCap=Math.round(initial*0.30/10_000)*10_000;
+  const carryover=Math.min(Math.max(0,num(state?.budget,0)),carryoverCap);
+  const envelopeCap=Math.round(initial*1.20/10_000)*10_000;
+  const openingBudget=Math.min(envelopeCap,carryover+allocation.amount);
+  const credited=Math.max(0,openingBudget-carryover);
+  const existingHistory=Array.isArray(state?.season_history)?state.season_history:[];
+  const seasonHistory=[
+    ...existingHistory.filter((row)=>Number(row?.year)!==knownYear),
+    {
+      ...snapshot,
+      carryover_to_next:carryover,
+      next_allocation:credited,
+      next_opening_budget:openingBudget,
+    },
+  ].sort((a,b)=>Number(a.year)-Number(b.year)).slice(-20);
+
+  const financeLog=[
+    ...(state?.finance_log||[]),
+    {
+      id:`ai_tx_season_budget_${safeId(teamId)}_${currentYear}`,
+      dateISO:`${currentYear}-01-01`,
+      type:"income",
+      category:"Technical Budget",
+      amount:credited,
+      desc:`Season ${currentYear} technical allocation`,
+      source:"seasonal_technical_envelope",
+    },
+  ].slice(-500);
+
+  return {
+    ...state,
+    budget:openingBudget,
+    economy:{
+      ...economy,
+      season_year:currentYear,
+      previous_season:knownYear,
+      carryover,
+      last_allocation:credited,
+      opening_budget:openingBudget,
+      resource_factor:allocation.resource_factor,
+      championship_multiplier:allocation.championship_multiplier,
+      previous_position:allocation.previous_position,
+    },
+    season_history:seasonHistory,
+    finance_log:financeLog,
+  };
 }
 function calendarDateISO(row){
   return str(row?.date??row?.race_date??row?.dateISO??row?.race_date_iso).slice(0,10);
@@ -351,15 +505,20 @@ function normalizeAITeamState(gs,teamId,state){
   const initial=num(state?.initial_budget,0)>0
     ?num(state.initial_budget,0)
     :inferredInitialBudget(gs,state);
-  return {
+  const seeded={
     ...state,
     initial_budget:initial,
-    planning:normalizedPlanningState(gs,teamId,state),
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
     finance_log:Array.isArray(state?.finance_log)?state.finance_log:[],
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
+    season_history:Array.isArray(state?.season_history)?state.season_history:[],
+  };
+  const rolled=rollAITechnicalSeasonEconomy(gs,teamId,seeded);
+  return {
+    ...rolled,
+    planning:normalizedPlanningState(gs,teamId,rolled),
   };
 }
 
@@ -380,6 +539,8 @@ export function normalizeAITechnicalWorld(gs){
         garage:{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
         development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
         planning:{},
+        economy:{season_year:yearOf(gs),last_allocation:0,opening_budget:budget},
+        season_history:[],
         finance_log:[],
         componentServiceLog:[],
         componentWearLog:[],
@@ -898,7 +1059,10 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
     finishes_at:addDaysISO(today,quote.days),
     duration_days:quote.days,
     cost:quote.cost,
-    perf_delta:quote.perf,
+    perf_delta:quote.increment,
+    base_design_perf:quote.incumbent,
+    target_design_perf:quote.perf,
+    development_headroom:quote.headroom,
     engineering_strength:quote.strength,
     need_baseline:need.baseline,
     planning_trigger:assessment.reason,
@@ -946,7 +1110,7 @@ function completeDesigns(gs,teamId,state,today){
       const draft={
         id:designId,name:project.name,slot:project.type,
         version:`AI-${completedDesignCount(state,project.type)+1}`,
-        perf:num(project.perf_delta,0),inv:0,in_manufacturing:0,
+        perf:num(project.target_design_perf,project.perf_delta),inv:0,in_manufacturing:0,
         prototype:true,created_from:project.id,ai_team_id:str(teamId),
       };
       parts.push({...draft,technical_profile:derivePartTechnicalProfile(scoped,draft)});
