@@ -191,42 +191,71 @@ export function seasonStartMentalState(condition){
 
 export function raceMentalStateChange(row,{
   startPosition=null,
+  expectedPosition=null,
+  points=null,
   fieldSize=20,
   wet=false,
 }={}){
   const finish=Number(row?.pos??row?.position);
   const start=Number(startPosition??finish);
   const positionDelta=Number.isFinite(start)&&Number.isFinite(finish)?start-finish:0;
+  const responsibility=row?.retired?retirementMentalContext(row?.retirement_reason):null;
 
-  let confidence=Math.max(-2,Math.min(2,positionDelta*0.35));
-  let morale=Math.max(-1.5,Math.min(1.5,positionDelta*0.25));
+  // A retirement itself is a TEAM operational setback, not automatic blame on
+  // the driver. Only incidents attributable to an accident/error affect Driver
+  // Morale/Confidence. Mechanical/unknown DNFs therefore start neutral.
+  let confidence=(row?.retired&&["mechanical","unknown"].includes(responsibility?.key))
+    ?0
+    :Math.max(-2,Math.min(2,positionDelta*0.35));
+  let morale=(row?.retired&&["mechanical","unknown"].includes(responsibility?.key))
+    ?0
+    :Math.max(-1.5,Math.min(1.5,positionDelta*0.25));
   const reasons=[];
 
   if(row?.retired){
-    const responsibility=retirementMentalContext(row?.retirement_reason);
-    // D6.1 keeps retirement effects temporary. Permanent ability is untouched.
-    const impact=responsibility.key==="mechanical"
-      ?{confidence:-2.0,morale:-1.5}
-      :responsibility.key==="driver_error"
-        ?{confidence:-4.5,morale:-2.5}
-        :responsibility.key==="racing_incident"
-          ?{confidence:-3.0,morale:-2.0}
-          :{confidence:-3.0,morale:-2.0};
+    const impact=responsibility.key==="driver_error"
+      ?{confidence:-4.5,morale:-3.0}
+      :responsibility.key==="racing_incident"
+        ?{confidence:-3.0,morale:-2.0}
+        :{confidence:0,morale:0};
     confidence+=impact.confidence;
     morale+=impact.morale;
     reasons.push(responsibility.label);
-  }else if(finish===1){
-    confidence+=5;
-    morale+=4;
-    reasons.push("Race win");
-  }else if(finish<=3){
-    confidence+=3;
-    morale+=2;
-    reasons.push(`Podium P${finish}`);
-  }else if(finish<=Math.max(5,Math.ceil(Number(fieldSize||20)/2))){
-    confidence+=1;
-    morale+=0.5;
-    reasons.push(`Strong finish P${finish}`);
+  }else{
+    if(finish===1){
+      confidence+=5;
+      morale+=4;
+      reasons.push("Race win");
+    }else if(finish<=3){
+      confidence+=3;
+      morale+=2;
+      reasons.push(`Podium P${finish}`);
+    }else if(finish<=Math.max(5,Math.ceil(Number(fieldSize||20)/2))){
+      confidence+=1;
+      morale+=0.5;
+      reasons.push(`Strong finish P${finish}`);
+    }
+
+    const scored=Number(points??row?.points);
+    if(Number.isFinite(scored)&&scored>0&&finish>3){
+      confidence+=0.5;
+      morale+=1.0;
+      reasons.push(`Points finish (+${scored})`);
+    }
+
+    const expected=Number(expectedPosition??row?.driver_performance?.expected_finish);
+    if(Number.isFinite(expected)&&Number.isFinite(finish)){
+      const beatBy=expected-finish;
+      if(beatBy>=4){
+        confidence+=2.5;
+        morale+=1.5;
+        reasons.push(`Result well above expectation (~P${expected.toFixed(1)})`);
+      }else if(beatBy>=2){
+        confidence+=1.5;
+        morale+=1.0;
+        reasons.push(`Result above expectation (~P${expected.toFixed(1)})`);
+      }
+    }
   }
 
   const distanceRatio=Math.max(
