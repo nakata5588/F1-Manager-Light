@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { freshCareerRuntimeState } from "../src/state/newGameRuntime.js";
+import { buildFreshCareerState, freshCareerRuntimeState } from "../src/state/newGameRuntime.js";
 
 test("fresh career runtime clears driver form, development and team morale state", () => {
   const conditions = { D1: { confidence: 50, morale: 50, preparation: 50, fatigue: 0 } };
@@ -37,4 +37,87 @@ test("fresh career runtime clears driver form, development and team morale state
   assert.deepEqual(next.teamMoraleLog, {});
   assert.deepEqual(next.driverAttributes, conditions);
   assert.equal(next._lastDriverProgressionMonth, null);
+});
+
+
+test("fresh career copies historical seed only and drops Cars plus unknown runtime state", () => {
+  const source = {
+    dbDrivers: [{ driver_id: "D1" }],
+    dbTeams: [{ team_id: "T1" }],
+    yearsAvailable: [1980],
+    seasonPackMeta: { format: "f1ml-season-pack", year: 1980 },
+    calendar: [{ gp_id: "ARG" }],
+    teams: [{ team_id: "T1" }],
+    drivers: [{ driver_id: "D1" }],
+    contracts: [{ team_id: "T1", driver_id: "D1", role: "Main Driver" }],
+    carStats: [{ year: 1980, team_id: "T1", chassis_spec: 80 }],
+
+    results: [{ key: "old-race" }],
+    lastRace: { gpName: "Old GP" },
+    driverPerformanceLog: { D1: [{ score: 95 }] },
+    driverForm: { D1: { score: 91, label: "Excellent" } },
+    driverDevelopmentFocus: { D1: "pace" },
+    driverAttributes: { D1: { fatigue: 88, confidence: 12 } },
+    development: {
+      projects: [{ id: "OLD_PROJECT" }],
+      parts: [{ id: "OLD_PART" }],
+      partUnits: [{ id: "OLD_UNIT", design_id: "OLD_PART", condition: 12 }],
+      manufacturing: [{ id: "OLD_JOB" }],
+      research: [],
+    },
+    garage: {
+      cars: [{ id: "car_1", componentCondition: { gearbox: 23 } }],
+      serviceJobs: [{ id: "OLD_SERVICE" }],
+    },
+    componentWearLog: [{ slot: "gearbox", wear: 20 }],
+    componentServiceLog: [{ action: "restore" }],
+    aiTechnicalWorld: {
+      version: 1,
+      teams: { RENAULT: { development: { projects: [{ id: "AI_OLD" }] } } },
+    },
+    teamOperationalState: { T1: { morale: 12 } },
+    teamMoraleLog: { T1: [{ delta: -10 }] },
+    financeLog: [{ id: "OLD_TX" }],
+    medicalHistory: [{ driver_id: "D1" }],
+    raceWeekendState: { phase: "race" },
+    raceEntryState: { entries: [{ driver_id: "D1" }] },
+    futureRuntimeLeak: { should_not_survive: true },
+    careerMeta: { started: true, sourceSeason: 1979 },
+    saveMeta: { seed: "old-save" },
+  };
+
+  const fresh = buildFreshCareerState(source, {
+    activeYear: 1980,
+    currentDateISO: "1980-01-01",
+    team: { team_id: "T1" },
+    driverAttributes: { D1: { fatigue: 0, confidence: 50 } },
+    careerMeta: { started: true, sourceSeason: 1980 },
+    saveMeta: { seed: "new-save" },
+  });
+
+  assert.deepEqual(fresh.dbDrivers, source.dbDrivers);
+  assert.deepEqual(fresh.calendar, source.calendar);
+  assert.deepEqual(fresh.contracts, source.contracts);
+  assert.equal(fresh.seasonPackMeta.year, 1980);
+
+  assert.deepEqual(fresh.results, []);
+  assert.equal(fresh.lastRace, null);
+  assert.deepEqual(fresh.driverPerformanceLog, {});
+  assert.deepEqual(fresh.driverForm, {});
+  assert.deepEqual(fresh.driverDevelopmentFocus, {});
+  assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [] });
+  assert.deepEqual(fresh.garage, { cars: [], serviceJobs: [], baseComponentStock: {} });
+  assert.deepEqual(fresh.componentWearLog, []);
+  assert.deepEqual(fresh.componentServiceLog, []);
+  assert.deepEqual(fresh.aiTechnicalWorld, { version: 1, teams: {} });
+  assert.deepEqual(fresh.teamOperationalState, {});
+  assert.deepEqual(fresh.teamMoraleLog, {});
+  assert.deepEqual(fresh.financeLog, []);
+  assert.deepEqual(fresh.medicalHistory, []);
+  assert.equal(fresh.raceWeekendState, null);
+  assert.equal(fresh.raceEntryState, null);
+  assert.equal("futureRuntimeLeak" in fresh, false);
+  assert.equal(fresh.saveMeta.seed, "new-save");
+  assert.equal(fresh.careerMeta.sourceSeason, 1980);
+  assert.equal(fresh.driverAttributes.D1.fatigue, 0);
 });
