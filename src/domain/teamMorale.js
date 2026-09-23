@@ -70,25 +70,43 @@ export function applyRaceTeamMorale(gs,{race=[],gp=null}={}){
 
     for(const row of rows){
       const finish=Number(row?.pos??row?.position);
+      const points=Number(row?.points);
+      const expected=Number(row?.driver_performance?.expected_finish??row?.expected_finish);
       if(row?.retired){
         dnfs++;
         const responsibility=retirementResponsibility(row?.retirement_reason);
-        const hit=responsibility.key==="driver_error"||responsibility.key==="racing_incident"?-4:-3;
+        // A DNF hurts the TEAM operationally. Driver-error/racing incidents
+        // still hurt the TEAM, but the larger personal morale penalty belongs
+        // to the driver mental-state system rather than being duplicated here.
+        const hit=responsibility.key==="driver_error"||responsibility.key==="racing_incident"?-2:-3;
         delta+=hit;
         reasons.push({
           key:"dnf",
           delta:hit,
           label:`DNF · ${responsibility.label||row?.retirement_reason||"Retirement"}`,
         });
-      }else if(finish===1){
-        delta+=4;
-        reasons.push({key:"win",delta:4,label:"Race win"});
-      }else if(Number.isFinite(finish)&&finish<=3){
-        delta+=2;
-        reasons.push({key:"podium",delta:2,label:`Podium P${finish}`});
-      }else if(Number.isFinite(finish)&&finish<=6){
-        delta+=0.5;
-        reasons.push({key:"strong_finish",delta:0.5,label:`Strong finish P${finish}`});
+      }else{
+        if(finish===1){
+          delta+=4;
+          reasons.push({key:"win",delta:4,label:"Race win"});
+        }else if(Number.isFinite(finish)&&finish<=3){
+          delta+=2;
+          reasons.push({key:"podium",delta:2,label:`Podium P${finish}`});
+        }else if(Number.isFinite(points)&&points>0){
+          delta+=1;
+          reasons.push({key:"points",delta:1,label:`Points finish P${finish}`});
+        }
+
+        if(Number.isFinite(expected)&&Number.isFinite(finish)){
+          const beatBy=expected-finish;
+          if(beatBy>=4){
+            delta+=1.5;
+            reasons.push({key:"above_expectation",delta:1.5,label:`Result well above expectation (~P${expected.toFixed(1)})`});
+          }else if(beatBy>=2){
+            delta+=0.75;
+            reasons.push({key:"above_expectation",delta:0.75,label:`Result above expectation (~P${expected.toFixed(1)})`});
+          }
+        }
       }
     }
 
