@@ -116,6 +116,9 @@ jobs:
       - name: Test historical New Game opening state
         run: npm run test:opening-state
 
+      - name: Test New Game runtime isolation
+        run: npm run test:new-game-isolation
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
