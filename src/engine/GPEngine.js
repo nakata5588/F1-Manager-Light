@@ -14,6 +14,7 @@ import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { applyRacePerformanceEvaluation } from "../domain/driverForm.js";
 import { applyRaceTeamMorale } from "../domain/teamMorale.js";
+import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -878,7 +879,8 @@ export async function runRaceWeekend(gs, {
   const afterRelations = updateSponsorRelationships(afterBonuses);
   const afterTeamMorale = applyRaceTeamMorale(afterRelations, { gp, race });
   const afterInjuries = applyRaceHealthOutcomes(afterTeamMorale, { gp, race });
-  let afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
+  const afterPlayerWear = applyRaceComponentWear(afterInjuries, { gp, race });
+  let afterWear = applyAIRaceComponentWear(afterPlayerWear, { gp, race });
 
   const wornComponents=(afterWear?.garage?.cars||[])
     .filter((car)=>car?.kind==="race")
