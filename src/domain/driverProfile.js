@@ -10,6 +10,7 @@ import { activeDriverContract, driverIdOf, teamIdOf } from "./driverContracts.js
 import { driverKnowledgeState } from "./driverKnowledge.js";
 import { driverFormSnapshot, driverPerformanceEntries } from "./driverForm.js";
 import { driverLifecycleState } from "./driverLifecycle.js";
+import { driverMentalStateHistory } from "./driverMentalState.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -170,6 +171,11 @@ export function driverProfileSnapshot(gs,driverOrId){
   const knowledge=driverKnowledgeState(gs,driver||driverId);
   const form=driverFormSnapshot(gs,driverId);
   const lifecycle=driverLifecycleState(gs,driver||driverId,rating);
+  const mentalStateHistory=driverMentalStateHistory(gs,driverId,{limit:12});
+  const reputation=finite(
+    pick(rating,["reputation"],pick(driver?.attributes||{},["reputation"],pick(driver||{},["reputation"],null))),
+    null
+  );
   const performanceHistory=driverPerformanceEntries(gs,driverId)
     .slice()
     .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||""))||Number(b?.round||0)-Number(a?.round||0));
@@ -190,6 +196,8 @@ export function driverProfileSnapshot(gs,driverOrId){
     knowledge,
     form,
     lifecycle,
+    reputation,
+    mentalStateHistory,
     performanceHistory,
   };
 }

@@ -6,7 +6,7 @@ import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngin
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { driverCondition } from "../domain/driverRating.js";
-import { applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
+import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import {
   advancingDriverIds,
@@ -68,13 +68,23 @@ function phaseAfterCompetitiveSession(weekend,currentDate){
 function applyQualifyingFatigue(gs,rows,sessionType){
   const cost=sessionType==="prequalifying"?2:3;
   const dict={...(gs?.driverAttributes||{})};
+  let mentalStateLog={...(gs?.driverMentalStateLog||{})};
   for(const row of rows||[]){
     const did=driverIdOf(row);
     if(!did)continue;
     const current=driverCondition(gs,did);
-    dict[did]=applyMentalStateDeltaToCondition(current,{fatigue:cost});
+    const nextCondition=applyMentalStateDeltaToCondition(current,{fatigue:cost});
+    dict[did]=nextCondition;
+    mentalStateLog=appendDriverMentalStateLog(mentalStateLog,did,{
+      before:current,
+      after:nextCondition,
+      source:sessionType,
+      reason:sessionType==="prequalifying"?"Pre-qualifying session":"Qualifying session",
+      dateISO:gs?.currentDateISO,
+      meta:{fatigue_cost:cost},
+    });
   }
-  return {...gs,driverAttributes:dict};
+  return {...gs,driverAttributes:dict,driverMentalStateLog:mentalStateLog};
 }
 
 export const RACE_WEEKEND_PHASES=Object.freeze([

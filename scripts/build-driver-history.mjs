@@ -145,13 +145,20 @@ for(const row of Array.isArray(rows)?rows:[]){
       best_finish:null,
       points:0,
       champ_pos:null,
+      first_round:null,
+      last_round:null,
       source:"race_results_derived",
     });
   }
   const rec=byKey.get(key);
   const pos=finishPosition(row);
   const grid=gridPosition(row);
+  const round=num(first(row,["round","race_round","round_number"],NaN),NaN);
   const retired=isDnf(row);
+  if(Number.isFinite(round)){
+    rec.first_round=rec.first_round==null?round:Math.min(rec.first_round,round);
+    rec.last_round=rec.last_round==null?round:Math.max(rec.last_round,round);
+  }
   rec.starts+=1;
   rec.races+=1;
   if(pos===1&&!retired)rec.wins+=1;

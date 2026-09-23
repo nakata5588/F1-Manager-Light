@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  appendDriverMentalStateLog,
   applyDriverMentalState,
   applyMentalStateDeltaToCondition,
+  driverMentalStateHistory,
   passiveMentalStateRecovery,
   raceMentalStateChange,
   seasonStartMentalState,
@@ -85,4 +87,19 @@ test("mental state changes Current Performance while permanent Overall stays fix
 
   assert.ok(after<before);
   assert.equal(next.driverRatings[0].current_ability,90);
+});
+
+
+test("mental-state history resolves compatible driver ID keys and keeps human-readable causes",()=>{
+  const logs=appendDriverMentalStateLog({},"0001",{
+    before:{confidence:50,morale:50,preparation:50,fatigue:0},
+    after:{confidence:51,morale:50,preparation:58,fatigue:7},
+    source:"practice",
+    reason:"Balanced practice",
+    dateISO:"1980-01-10",
+  });
+  const history=driverMentalStateHistory({driverMentalStateLog:logs},"D1",{limit:5});
+  assert.equal(history.length,1);
+  assert.equal(history[0].reason,"Balanced practice");
+  assert.equal(history[0].changes.find((row)=>row.field==="preparation").delta,8);
 });
