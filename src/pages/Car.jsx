@@ -473,30 +473,23 @@ export default function Car(){
             .filter(({unit})=>Number(unit?.condition??100)<99.5)
             .sort((a,b)=>Number(a.unit?.condition??100)-Number(b.unit?.condition??100))[0]||null;
           const restorableQuote=restorable?partUnitRestoreQuote(carState,restorable.unit.id):null;
-          return <div key={row.slot} className="p-3 grid grid-cols-[40px_minmax(0,1fr)] md:grid-cols-[40px_minmax(0,1fr)_100px_150px] gap-3 items-center">
-            <div className="h-10 w-10 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
-            <div className="min-w-0"><div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div><div className="text-xs text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}</div>{row.installed?.part?(()=>{const tech=derivePartTechnicalProfile(carState,row.installed.part);return <div className="mt-1 text-[10px] text-slate-500">Wt {tech.design.weight_kg.toFixed(1)}kg · DF {tech.design.downforce.toFixed(3)} · Drag {tech.design.drag.toFixed(3)} · Rel {(tech.design.reliability*100).toFixed(1)}%</div>;})():null}<div className="mt-2"><ProgressLine value={row.condition} warn={row.condition<60}/></div></div>
-            <div className="text-right"><div className="font-semibold">{row.condition.toFixed(1)}%</div><div className="text-[10px] text-slate-500">condition</div></div>
-            <div className="col-span-2 md:col-span-1 flex md:flex-col gap-1.5">
-              {activeCarJob?<div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-[10px] text-cyan-200">Workshop · {activeCarJob.finishes_at}</div>:null}
-              {stocked?<Button size="sm" onClick={()=>fitPart(selectedCar,stocked)} disabled={Boolean(activeCarJob)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
-              {row.installed?<Button size="sm" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)} disabled={Boolean(activeCarJob)}>Remove</Button>:row.condition<99.5?<>
-                <div>
-                  <Button size="sm" className="w-full" variant="darkOutline" disabled={Boolean(activeCarJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restoreQuote.cost||0)} onClick={()=>restoreStandardComponent(selectedCar,row.slot)}>Restore · {restoreQuote.days}d</Button>
-                  <div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {moneyCompact(restoreQuote.cost)}</div>
-                </div>
-                <div>
-                  <Button size="sm" className="w-full" variant="darkOutline" disabled={Boolean(activeCarJob)||(standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0))} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Build & fit · "+buildQuote.days+"d"}</Button>
-                  <div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {standardStock>0?"US$0":moneyCompact(buildQuote.cost)}</div>
-                </div>
-              </>:<div>
-                <Button size="sm" className="w-full" variant="darkOutline" disabled={Boolean(activeSpareJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0)} onClick={()=>buildStandardSpare(row.slot)}>{activeSpareJob?"Spare building":"Build spare · "+buildQuote.days+"d"}</Button>
-                {!activeSpareJob?<div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {moneyCompact(buildQuote.cost)}</div>:null}
-              </div>}
-              {restorable&&restorableQuote?<div>
-                <Button size="sm" className="w-full" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restorableQuote.cost||0)} onClick={()=>restoreDevelopedUnit(restorable.part,restorable.unit)}>Restore {restorable.part.version||"part"} · {Number(restorable.unit.condition||0).toFixed(0)}% · {restorableQuote.days}d</Button>
-                <div className="mt-1 text-right text-[10px] font-semibold text-rose-400">Cost: {moneyCompact(restorableQuote.cost)}</div>
-              </div>:null}
+          return <div key={row.slot} className="px-3 py-2.5 grid grid-cols-[36px_minmax(0,1fr)] md:grid-cols-[36px_minmax(0,1fr)_78px_minmax(230px,auto)] gap-3 items-center">
+            <div className="h-9 w-9 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div>
+              <div className="text-[11px] text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}</div>
+              {row.installed?.part?(()=>{const tech=derivePartTechnicalProfile(carState,row.installed.part);return <div className="text-[10px] text-slate-500 truncate">Wt {tech.design.weight_kg.toFixed(1)}kg · DF {tech.design.downforce.toFixed(3)} · Drag {tech.design.drag.toFixed(3)} · Rel {(tech.design.reliability*100).toFixed(1)}%</div>;})():null}
+              <div className="mt-1.5"><ProgressLine value={row.condition} warn={row.condition<60}/></div>
+            </div>
+            <div className="text-right"><div className="font-semibold tabular-nums">{row.condition.toFixed(1)}%</div><div className="text-[9px] uppercase tracking-wide text-slate-500">condition</div></div>
+            <div className="col-span-2 md:col-span-1 flex flex-wrap md:justify-end gap-1.5">
+              {activeCarJob?<div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-[10px] text-cyan-200 whitespace-nowrap">Workshop · {activeCarJob.finishes_at}</div>:null}
+              {stocked?<Button size="sm" className="whitespace-nowrap" onClick={()=>fitPart(selectedCar,stocked)} disabled={Boolean(activeCarJob)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
+              {row.installed?<Button size="sm" className="whitespace-nowrap" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)} disabled={Boolean(activeCarJob)}>Remove</Button>:row.condition<99.5?<>
+                <Button size="sm" className="whitespace-nowrap" variant="darkOutline" disabled={Boolean(activeCarJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restoreQuote.cost||0)} onClick={()=>restoreStandardComponent(selectedCar,row.slot)}>Restore · {restoreQuote.days}d · {moneyCompact(restoreQuote.cost)}</Button>
+                <Button size="sm" className="whitespace-nowrap" variant="darkOutline" disabled={Boolean(activeCarJob)||(standardStock<=0&&Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0))} onClick={()=>replaceBaseComponent(selectedCar,row.slot)}>{standardStock>0?"Replace · "+standardStock+" stock":"Build & fit · "+buildQuote.days+"d · "+moneyCompact(buildQuote.cost)}</Button>
+              </>:<Button size="sm" className="whitespace-nowrap" variant="darkOutline" disabled={Boolean(activeSpareJob)||Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(buildQuote.cost||0)} onClick={()=>buildStandardSpare(row.slot)}>{activeSpareJob?"Spare building":"Build spare · "+buildQuote.days+"d · "+moneyCompact(buildQuote.cost)}</Button>}
+              {restorable&&restorableQuote?<Button size="sm" className="whitespace-nowrap" variant="darkOutline" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(restorableQuote.cost||0)} onClick={()=>restoreDevelopedUnit(restorable.part,restorable.unit)}>Restore {restorable.part.version||"part"} · {Number(restorable.unit.condition||0).toFixed(0)}% · {restorableQuote.days}d · {moneyCompact(restorableQuote.cost)}</Button>:null}
             </div>
           </div>;
         })}</div>
@@ -549,19 +542,20 @@ export default function Car(){
       </div>
     </div>}
 
-    {view==="analysis"&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-      <Panel title="Compare Car" className="xl:col-span-3"><div className="p-3 space-y-2">{raceCars.map((car)=>{
-        const d=driverById.get(String(car.driver_id||""));
-        const active=car.id===selectedCar?.id;
-        return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"w-full rounded-lg border p-3 flex items-center gap-3 text-left "+(active?"border-white/30 bg-[#1b1e28]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-12 w-12"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-xs text-cyan-300">Selected</span>:null}</button>;
-      })}
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">Characteristics are derived for every team from the historical car/engine database. Player fitted upgrades already alter the selected car; AI live upgrades will join the same comparison in Stage 5.</div>
+    {view==="analysis"&&<div className="space-y-3">
+      <Panel title="Compare Car"><div className="p-2.5 flex flex-col lg:flex-row lg:items-center gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1">{raceCars.map((car)=>{
+          const d=driverById.get(String(car.driver_id||""));
+          const active=car.id===selectedCar?.id;
+          return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"rounded-lg border px-3 py-2 flex items-center gap-3 text-left "+(active?"border-cyan-300/30 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-10 w-10"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-[10px] uppercase tracking-wide text-cyan-300">Selected</span>:null}</button>;
+        })}</div>
+        <div className="lg:max-w-[430px] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-500">Historical starting specification is TEAM + YEAR, so Car 1 and Car 2 can begin identical. Physical units, wear, accidents, upgrades and setup make them diverge during the save.</div>
       </div></Panel>
-      <Panel title="Grid Analysis" className="xl:col-span-9" action={<div className="flex gap-1"><button onClick={()=>setAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>setAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
-        {analysisMode==="performance"?<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
+      <Panel title="Grid Analysis" action={<div className="flex gap-1"><button onClick={()=>setAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>setAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
+        {analysisMode==="performance"?<div className="max-h-[68vh] overflow-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
           const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id); const delta=value-avg; const rank=metricRank(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id);
           return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
-        })}</tbody></table></div>:<div className="max-h-[62vh] overflow-auto">
+        })}</tbody></table></div>:<div className="max-h-[68vh] overflow-auto">
           <table className="min-w-[1080px] w-full text-xs">
             <thead className="sticky top-0 z-10 bg-[#171a23] text-slate-400"><tr><th className="px-3 py-2 text-left">Team / Car</th>{CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key,label])=><th key={key} className="px-3 py-2 text-right whitespace-nowrap">{label}</th>)}</tr></thead>
             <tbody>{characteristicGrid.map((row,index)=>{
