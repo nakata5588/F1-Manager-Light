@@ -426,16 +426,17 @@ test("front-running AI can deliberately do nothing when no meaningful technical 
 });
 
 test("AI protects a technical cash reserve even when it can technically afford the next project",()=>{
-  const seeded=normalizeAITechnicalWorld(baseState());
+  const seeded={...normalizeAITechnicalWorld(baseState()),currentDateISO:"1980-02-01"};
   const original=aiTechnicalTeamState(seeded,"RENAULT");
+  const probe=aiTechnicalPlanningAssessment(seeded,"RENAULT");
+  const constrainedBudget=probe.total_commitment+Math.max(10_000,probe.reserve_floor-50_000);
   const gs={
     ...seeded,
-    currentDateISO:"1980-02-01",
     aiTechnicalWorld:{
       ...seeded.aiTechnicalWorld,
       teams:{
         ...seeded.aiTechnicalWorld.teams,
-        RENAULT:{...original,budget:1_000_000},
+        RENAULT:{...original,budget:constrainedBudget},
       },
     },
   };
