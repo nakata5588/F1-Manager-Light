@@ -9,6 +9,8 @@ import {
 } from "../src/domain/raceEntry.js";
 import { runRaceWeekend } from "../src/engine/GPEngine.js";
 import { createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "../src/core/saveSafety.js";
+import { syncGarageState } from "../src/domain/garage.js";
+import { queueWorkshopJob, standardRestoreQuote } from "../src/domain/componentService.js";
 
 function fixture(){
   const teams=[
@@ -172,4 +174,108 @@ test("race-entry and availability state survive save/load round-trip",()=>{
 
   assert.deepEqual(loaded.driverAvailability,gs.driverAvailability);
   assert.deepEqual(loaded.raceEntryState,gs.raceEntryState);
+});
+
+
+function withMaterializedPlayerGarage(gs){
+  const garage=syncGarageState(gs,{});
+  return {...gs,garage};
+}
+
+test("a non-raceworthy car is withdrawn from the GP when no Reserve Car exists",()=>{
+  let gs=withMaterializedPlayerGarage(fixture());
+  gs={
+    ...gs,
+    garage:{
+      ...gs.garage,
+      cars:gs.garage.cars.map((car)=>car.id==="car_1"?{
+        ...car,
+        componentCondition:{...(car.componentCondition||{}),chassis:18,suspension:22},
+      }:car),
+    },
+  };
+
+  const state=buildRaceEntryState(gs,{gp,roundIndex:4});
+  const slot1=state.entries.find((entry)=>entry.team_id==="T1"&&entry.car_slot===1);
+  const slot2=state.entries.find((entry)=>entry.team_id==="T1"&&entry.car_slot===2);
+
+  assert.equal(slot1.status,"car_unavailable");
+  assert.equal(slot1.driver_id,null);
+  assert.match(slot1.car_availability_reason,/not raceworthy/i);
+  assert.equal(slot2.status,"confirmed");
+  assert.equal(slot2.driver_id,"D2");
+});
+
+test("a built Reserve Car substitutes one damaged primary chassis and keeps the contracted driver",()=>{
+  let gs=withMaterializedPlayerGarage(fixture());
+  gs={
+    ...gs,
+    garage:syncGarageState(gs,{
+      ...gs.garage,
+      reserveCarBuilt:true,
+      cars:gs.garage.cars.map((car)=>car.id==="car_1"?{
+        ...car,
+        componentCondition:{...(car.componentCondition||{}),chassis:18,suspension:22},
+      }:car),
+    }),
+  };
+  // sync after reserveCarBuilt creates the physical reserve chassis.
+  gs={...gs,garage:syncGarageState(gs,gs.garage)};
+
+  const state=buildRaceEntryState(gs,{gp,roundIndex:4});
+  const slot1=state.entries.find((entry)=>entry.team_id==="T1"&&entry.car_slot===1);
+
+  assert.equal(slot1.status,"confirmed");
+  assert.equal(slot1.driver_id,"D1");
+  assert.equal(slot1.car_source,"reserve_car");
+  assert.equal(slot1.car_id,"car_spare");
+  assert.equal(slot1.original_car_id,"car_1");
+});
+
+test("one Reserve Car cannot replace two unavailable race cars",()=>{
+  let gs=withMaterializedPlayerGarage(fixture());
+  const damaged=gs.garage.cars.map((car)=>({
+    ...car,
+    componentCondition:{...(car.componentCondition||{}),chassis:15,suspension:20},
+  }));
+  gs={
+    ...gs,
+    garage:syncGarageState(gs,{...gs.garage,reserveCarBuilt:true,cars:damaged}),
+  };
+  gs={...gs,garage:syncGarageState(gs,gs.garage)};
+
+  const state=buildRaceEntryState(gs,{gp,roundIndex:4});
+  const playerEntries=state.entries.filter((entry)=>entry.team_id==="T1");
+  assert.equal(playerEntries.filter((entry)=>entry.car_source==="reserve_car").length,1);
+  assert.equal(playerEntries.filter((entry)=>entry.status==="car_unavailable").length,1);
+});
+
+test("a repair scheduled to finish before the GP makes the primary car raceworthy in time",()=>{
+  let gs=withMaterializedPlayerGarage(fixture());
+  gs.currentDateISO="1980-04-01";
+  gs={
+    ...gs,
+    garage:{
+      ...gs.garage,
+      cars:gs.garage.cars.map((car)=>car.id==="car_1"?{
+        ...car,
+        componentCondition:{...(car.componentCondition||{}),chassis:40},
+      }:car),
+    },
+  };
+  const car=gs.garage.cars.find((row)=>row.id==="car_1");
+  const quote=standardRestoreQuote(gs,"chassis",40,{carId:car.id});
+  gs=queueWorkshopJob(gs,quote,{
+    id:"repair_before_monaco",
+    title:"Restore chassis",
+    startedAt:gs.currentDateISO,
+  });
+  const job=gs.garage.serviceJobs.find((row)=>row.id==="repair_before_monaco");
+  assert.ok(job.finishes_at<gp.race_date);
+
+  const state=buildRaceEntryState(gs,{gp,roundIndex:4});
+  const slot1=state.entries.find((entry)=>entry.team_id==="T1"&&entry.car_slot===1);
+  assert.equal(slot1.status,"confirmed");
+  assert.equal(slot1.car_source,"primary");
+  assert.equal(slot1.driver_id,"D1");
 });
