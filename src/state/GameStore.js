@@ -1669,6 +1669,14 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  cancelRaceWeekendLiveCommand: async (command={}) => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.cancelLiveRaceOrder(gs,command);
+    set({gameState:next});
+    return next?.raceWeekendState?.live_race||null;
+  },
+
   resumeRaceWeekendLiveRace: async () => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
