@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   historicalCareerDriverMatches,
   historicalCareerRowKey,
+  mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../src/domain/driverCareerIdentity.js";
 
@@ -30,4 +31,23 @@ test("historical team identity resolves founder-prefixed names to canonical team
 
   assert.equal(resolveHistoricalTeamId(manual,teams),"t_0059");
   assert.equal(historicalCareerRowKey(manual,teams),historicalCareerRowKey(derived,teams));
+});
+
+
+test("canonical career row overrides incomplete runtime row for the same season and team",()=>{
+  const teams=[{team_id:"t_0010",team_name:"Ferrari"}];
+  const live=[{
+    driver_id:"d_0004",driver_name:"Jody Scheckter",year:1979,series_division:"F1",
+    team_id:"t_0010",team_name:"Ferrari",starts:15,wins:3,podiums:6,poles:1,
+    fastest_laps:0,points:60,champ_pos:null,
+  }];
+  const canonical=[{
+    driver_id:{result:"d_0222"},driver_name:"Jody Scheckter",year:1979,series_division:"F1",
+    team_id:{result:"t_0010"},team_name:"Ferrari",starts:15,wins:3,podiums:6,poles:1,
+    fastest_laps:0,points:60,champ_pos:1,
+  }];
+
+  const rows=mergeHistoricalCareerSources(live,canonical,teams);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].champ_pos,1);
 });

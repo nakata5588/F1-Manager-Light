@@ -412,7 +412,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
                 className="font-medium hover:underline"
                 style={{ color: brandSecondary }}
               >
-                Team
+                {team?.team_name || team?.name || team?.short_name || "Team"}
               </button>{" "}
               <span className="font-semibold">{teamStanding.points} pts</span>{" "}
               <span style={{ opacity: 0.9 }}>
