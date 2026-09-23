@@ -1584,7 +1584,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
       {showFilter && <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-xs">
           <thead className="text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
               <th className="text-left pr-2 py-1">Year</th>
