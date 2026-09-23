@@ -55,6 +55,14 @@ function findByTeamAndYear(list, idStr, year) {
 }
 
 /* ===================== COMPONENT ===================== */
+const DRIVER_ROLE_DESCRIPTIONS = {
+  "Main Driver": "Primary race seat and lead competitive reference.",
+  "Second Driver": "Second race seat; scores points and supports the team campaign.",
+  "Reserve Driver": "Race-ready cover for unavailable main drivers.",
+  "Test Driver": "Supports testing, setup feedback and development work.",
+  "Race Driver": "Active race seat.",
+};
+
 export default function TeamModal({ entity, onClose, pageMode = false }) {
   const modalSetTab = useModalStore((s) => s.setTab);
   const rawTab = entity.tab || "overview";
@@ -205,7 +213,6 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   const country      = countryNameFor(team?.country_name || team?.country || brand?.country_name || brand?.country || "", countryCode);
   const flag         = flagFromCountry(country, countryCode);
   const founded      = team?.founded_year || brand?.founded_year || "—";
-  const colorHex     = brand?.color_primary || brand?.primary_color || team?.color_primary || team?.primary_color || null;
   const teamBase     = team?.team_base || team?.base || brand?.base || "";
   const showTeamBase = teamBase && String(teamBase).trim().toLowerCase() !== String(country).trim().toLowerCase();
   const budget = (() => {
@@ -215,6 +222,8 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   })();
   const operationalMorale = teamOperationalMorale(gs,idStr);
   const operationalWorkRate = teamWorkRateLabel(gs,idStr);
+  const operationalState = gs?.teamOperationalState?.[idStr] || null;
+  const operationalReasons = Array.isArray(operationalState?.reasons) ? operationalState.reasons : [];
 
   /* ---------- UI ---------- */
   const DriverCard = ({ d }) => (
@@ -239,7 +248,8 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
       <div className="min-w-0">
         {d.prefered_number != null && <div className="text-xs text-slate-500 leading-tight">#{d.prefered_number}</div>}
         <div className="text-sm font-semibold leading-tight truncate">{d.display_name || d.name}</div>
-        <div className="text-xs text-slate-500 mt-1">{d.__role || "Driver"}</div>
+        <div className="text-xs font-medium text-sky-300 mt-1">{d.__role || "Driver"}</div>
+        <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{DRIVER_ROLE_DESCRIPTIONS[d.__role] || "Team driver."}</div>
       </div>
     </button>
   );
@@ -281,20 +291,6 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 <>
                   <span>•</span>
                   <span>{teamBase}</span>
-                </>
-              )}
-              {colorHex && (
-                <>
-                  <span>•</span>
-                  <span className="inline-flex items-center gap-2">
-                    color
-                    <span className="inline-flex items-center gap-1">
-                      <span className="inline-block h-3 w-3 rounded border" style={{ background: colorHex }} />
-                      <code className="text-xs text-slate-400">
-                        {(String(colorHex).startsWith("#") ? colorHex : `#${colorHex}`).toUpperCase()}
-                      </code>
-                    </span>
-                  </span>
                 </>
               )}
             </div>
@@ -340,12 +336,25 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 <Info label="Operational Morale" value={Math.round(operationalMorale)+"/100"} />
                 <Info label="Technical Work Rate" value={operationalWorkRate.label} />
               </div>
+              <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 text-xs text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>Operational morale changes technical project lead times for this team.</span>
+                  <span className={Number(operationalState?.lastChange||0)>0?"text-emerald-300":Number(operationalState?.lastChange||0)<0?"text-rose-300":"text-slate-400"}>
+                    Last change {Number(operationalState?.lastChange||0)>0?"+":""}{Number(operationalState?.lastChange||0).toFixed(1)}
+                  </span>
+                </div>
+                {operationalReasons.length>0 && (
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    {operationalReasons.slice(0,3).map((reason)=>reason?.label).filter(Boolean).join(" · ")}
+                  </div>
+                )}
+              </div>
 
               {/* Drivers */}
               <div>
                 <div className="text-base font-semibold mb-2">Drivers</div>
                 {drivers.length ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {drivers.map((d) => <DriverCard key={d.driver_id ?? d.id} d={d} />)}
                   </div>
                 ) : (
@@ -429,10 +438,6 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
           <div className="grid gap-3">
             <div className="text-sm"><span className="text-slate-500">Power Unit:</span> <span className="font-medium">{engineSupplierName}</span></div>
             <div className="text-sm"><span className="text-slate-500">Engine Power:</span> <span className="font-medium">{enginePowerValue}</span></div>
-            <div className="text-sm"><span className="text-slate-500">Primary Color:</span>{" "}
-              <span className="inline-block h-3 w-3 rounded border align-middle mr-1" style={{ background: colorHex || "#999" }} />
-              <code className="text-xs">{colorHex || "—"}</code>
-            </div>
           </div>
         )}
 
