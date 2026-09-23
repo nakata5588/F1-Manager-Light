@@ -110,6 +110,36 @@ test("lifecycle supports youth, rookie, developing, prime, veteran, decline and 
   assert.equal(retirement.stage,"retirement_window");
 });
 
+test("age does not create negative development pressure for young drivers",()=>{
+  const young=driverLifecycleSnapshot(
+    state({
+      drivers:[{driver_id:"D1",age:23,f1_rookie_season:1980}],
+      driverRatings:[{...rating,current_ability:72,potential_ability:86}],
+      driverForm:{D1:{score:70,label:"Good",sample:3}},
+    }),
+    "D1"
+  );
+  assert.equal(young.negativeFactors.some((row)=>row.key==="age"),false);
+
+  const plateau=driverLifecycleSnapshot(
+    state({
+      drivers:[{driver_id:"D1",age:34,f1_rookie_season:1978}],
+      driverForm:{D1:{score:70,label:"Good",sample:5}},
+    }),
+    "D1"
+  );
+  assert.equal(plateau.negativeFactors.some((row)=>row.key==="age"),false);
+
+  const older=driverLifecycleSnapshot(
+    state({
+      drivers:[{driver_id:"D1",age:35,f1_rookie_season:1975}],
+      driverForm:{D1:{score:70,label:"Good",sample:5}},
+    }),
+    "D1"
+  );
+  assert.ok(older.negativeFactors.some((row)=>row.key==="age"));
+});
+
 test("previous-month development plan can regress attributes after sustained poor form and driver errors",()=>{
   const gs=state({
     driverPerformanceLog:{D1:[
