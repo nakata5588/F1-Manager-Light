@@ -1704,15 +1704,15 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
     <div className="space-y-3">
       <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
       <div className="grid grid-cols-3 gap-2 md:grid-cols-5 lg:grid-cols-9">
-        <ProfileMetric label="Starts" value={agg?.starts ?? 0} />
-        <ProfileMetric label="Wins" value={agg?.wins ?? 0} />
-        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} />
-        <ProfileMetric label="Poles" value={agg?.poles ?? 0} />
-        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} />
-        <ProfileMetric label="Points" value={agg?.points ?? 0} />
-        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} />
-        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} />
-        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} />
+        <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" />
+        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-rose-300" cardTone="border-rose-400/20 bg-rose-500/[0.06]" />
+        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
+        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" />
+        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" />
+        <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" />
+        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" />
+        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
+        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} tone="text-blue-300" cardTone="border-blue-400/20 bg-blue-500/[0.06]" />
       </div>
     </div>
   );
@@ -1753,24 +1753,33 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
               const isTransfer = String(unbox(r.champ_pos) ?? "").toLowerCase() === "transfer";
               const showChampionship=r.__showChampionshipPosition!==false;
               const isLive=Boolean(r.__live);
-              const isChampion = !isLive && showChampionship && isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
+              const finalPosition=showChampionship&&isNumeric(r.champ_pos)?Number(unbox(r.champ_pos)):null;
+              const isChampion = !isLive && finalPosition === 1;
               const historicalTeamId = resolveHistoricalTeamId(r,teams);
               const teamName = displayValue(r.team_name ?? r.team_id);
+              const transfer=r.__transfer||null;
               return (
                 <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-500/10" : ""}>
                   <td className="pr-2 py-1">{displayValue(r.year)}</td>
                   <td className="pr-2 py-1">{series}</td>
                   <td className="pr-2 py-1">
-                    <span className="inline-flex items-center gap-2">
-                      <TeamLogo teamId={historicalTeamId} name={teamName} size="h-5 w-5" className="shrink-0"/>
-                      {historicalTeamId ? (
-                        <span data-entity="team" data-id={historicalTeamId} className="entity-link-team">
-                          {teamName}
-                        </span>
-                      ) : (
-                        <span>{teamName}</span>
+                    <div>
+                      <span className="inline-flex items-center gap-2">
+                        <TeamLogo teamId={historicalTeamId} name={teamName} size="h-5 w-5" className="shrink-0"/>
+                        {historicalTeamId ? (
+                          <span data-entity="team" data-id={historicalTeamId} className="entity-link-team">
+                            {teamName}
+                          </span>
+                        ) : (
+                          <span>{teamName}</span>
+                        )}
+                      </span>
+                      {transfer&&(
+                        <div className="mt-0.5 text-[9px] text-purple-300">
+                          Transfer from {transfer.from}{Number.isFinite(Number(transfer.round))?` · joined R${transfer.round}`:""}
+                        </div>
                       )}
-                    </span>
+                    </div>
                   </td>
                   <td className="text-right pr-2 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
                   <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
@@ -1781,9 +1790,12 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                   <td className="text-right pr-0 py-1">
                     {!showChampionship ? (
                       <span className="text-slate-600">—</span>
-                    ) : isNumeric(r.champ_pos) ? (
-                      <span className={isLive?"font-semibold text-sky-300":""}>
-                        P{unbox(r.champ_pos)}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}
+                    ) : finalPosition != null ? (
+                      <span className={`inline-flex items-center justify-end gap-1 font-semibold ${isLive?"text-sky-300":finalPosition===1?"text-amber-300":finalPosition===2?"text-slate-300":finalPosition===3?"text-orange-400":""}`}>
+                        {!isLive&&finalPosition===1&&<Trophy size={12} aria-label="World Champion"/>}
+                        {!isLive&&finalPosition===2&&<Medal size={12} aria-label="Championship runner-up"/>}
+                        {!isLive&&finalPosition===3&&<Medal size={12} aria-label="Championship third place"/>}
+                        <span>P{finalPosition}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}</span>
                       </span>
                     ) : (
                       isTransfer ? <span className="italic text-purple-300">Transfer</span> : displayValue(r.champ_pos)
