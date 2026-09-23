@@ -23,6 +23,7 @@ import { applyRaceComponentWear, componentWearForRaceRow } from "../src/domain/c
 import { applyRaceTeamMorale, teamOperationalMorale } from "../src/domain/teamMorale.js";
 import { componentConditionForCar } from "../src/domain/garage.js";
 import { normalizePhysicalPartState, partUnitById, partUnitsForDesign } from "../src/domain/partUnits.js";
+import { processWorkshopJobs, queueWorkshopJob, reserveCarBuildQuote } from "../src/domain/componentService.js";
 
 function baseState(){
   return {
@@ -67,13 +68,14 @@ function baseState(){
   };
 }
 
-test("garage creates two race cars plus reserve/spare from contracts",()=>{
+test("garage creates two race cars and does not grant a free Reserve Car",()=>{
   const gs=baseState();
   const garage=syncGarageState(gs,{});
-  assert.equal(garage.cars.length,3);
+  assert.equal(garage.cars.length,2);
   assert.equal(garage.cars[0].driver_id,"D1");
   assert.equal(garage.cars[1].driver_id,"D2");
-  assert.equal(garage.cars[2].kind,"reserve");
+  assert.equal(garage.reserveCarBuilt,false);
+  assert.equal(garage.cars.some((car)=>car.kind==="reserve"),false);
 });
 
 test("installed developed part improves the specific fitted car",()=>{
@@ -179,8 +181,8 @@ test("AI negotiates a second race seat even when a test driver is contracted",()
 });
 
 
-test("garage assigns the spare car to reserve driver, never test driver",()=>{
-  const gs=baseState();
+test("Reserve Car only appears after paid timed construction and is assigned to the reserve driver",()=>{
+  let gs=baseState();
   gs.drivers.push(
     {driver_id:"D5",display_name:"Reserve Driver",status:"eligible"},
     {driver_id:"D6",display_name:"Test Driver",status:"eligible"}
@@ -189,8 +191,24 @@ test("garage assigns the spare car to reserve driver, never test driver",()=>{
     {year:1980,team_id:"T1",driver_id:"D5",role:"reserve_driver"},
     {year:1980,team_id:"T1",driver_id:"D6",role:"test_driver"}
   );
-  const garage=syncGarageState(gs,{});
-  assert.equal(garage.cars[2].driver_id,"D5");
+  gs={...gs,garage:syncGarageState(gs,{})};
+  const quote=reserveCarBuildQuote(gs);
+  const queued=queueWorkshopJob(gs,quote,{
+    id:"reserve_car_test",
+    title:"Build Reserve Car",
+    startedAt:gs.currentDateISO,
+  });
+  const job=queued.garage.serviceJobs.find((row)=>row.id==="reserve_car_test");
+  assert.ok(job);
+  assert.equal(queued.garage.cars.some((car)=>car.kind==="reserve"),false);
+
+  gs=processWorkshopJobs({...queued,currentDateISO:job.finishes_at});
+  gs={...gs,garage:syncGarageState(gs,gs.garage)};
+  const reserve=gs.garage.cars.find((car)=>car.kind==="reserve");
+  assert.ok(reserve);
+  assert.equal(gs.garage.reserveCarBuilt,true);
+  assert.equal(reserve.driver_id,"D5");
+  assert.notEqual(reserve.driver_id,"D6");
 });
 
 
