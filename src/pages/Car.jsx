@@ -19,7 +19,7 @@ import {
 import { isRaceDriverContract } from "@/domain/contractRoles.js";
 import { componentGroup, componentLabel } from "@/domain/carComponents.js";
 import { fitPhysicalPartUnit, inventoryCountForDesign, normalizePhysicalPartState, removePhysicalPartUnit, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
-import { activeWorkshopJobFor, activeWorkshopJobs, partUnitRestoreQuote, queueWorkshopJob, standardBuildQuote, standardRestoreQuote } from "@/domain/componentService.js";
+import { activeWorkshopJobFor, activeWorkshopJobs, partUnitRestoreQuote, queueWorkshopJob, reserveCarBuildQuote, standardBuildQuote, standardRestoreQuote } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 import { teamCarCharacteristics } from "@/domain/carCharacteristics.js";
 
@@ -469,6 +469,19 @@ export default function Car(){
   const activeProjects=projects.filter((p)=>p.status==="active"||p.status==="paused");
   const activeManufacturing=manufacturing.filter((m)=>m.status==="active");
   const workshop=activeWorkshopJobs(carState);
+  const reserveCar=cars.find((car)=>car?.kind==="reserve")||null;
+  const reserveBuildJob=activeWorkshopJobFor(carState,{kind:"build_reserve_car"});
+  const reserveBuildQuote=reserveCarBuildQuote(carState);
+  const reserveConditions=reserveCar
+    ?eligibleComponentSlots.map((slot)=>componentConditionForCar(carState,reserveCar,slot))
+    :[];
+  const reserveHealth=reserveConditions.length
+    ?reserveConditions.reduce((sum,value)=>sum+value,0)/reserveConditions.length
+    :null;
+  const buildReserveCar=()=>{
+    if(reserveCar||reserveBuildJob)return;
+    startWorkshopJob(reserveBuildQuote,"Build Reserve Car");
+  };
   const setView=(nextView,extra={})=>{
     const next=new URLSearchParams(searchParams);
     next.set("view",nextView);
@@ -564,6 +577,13 @@ export default function Car(){
       <div className="xl:col-span-4 space-y-4">
         <PerformancePanel ranking={ranking} teamId={teamId} perf={myRank} title="Team Car Performance"/>
         <Panel title="Technical Summary"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/><Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/><Metric label="Active projects" value={activeProjects.length}/><Metric label="Manufacturing" value={activeManufacturing.length}/><Metric label="Workshop" value={workshop.length}/><Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/><Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/></div></Panel>
+        <Panel title="Reserve Car">
+          <div className="p-4 space-y-3">
+            {reserveCar?<><div className="flex items-center justify-between gap-3"><div><div className="font-semibold text-emerald-200">Reserve Car available</div><div className="text-xs text-slate-500">A race car can be substituted if its primary chassis is not raceworthy.</div></div><div className="text-right"><div className="text-[10px] uppercase text-slate-500">Condition</div><strong>{Number(reserveHealth??100).toFixed(0)}%</strong></div></div></>
+            :reserveBuildJob?<div><div className="font-semibold text-amber-200">Reserve Car under construction</div><div className="text-sm text-slate-400 mt-1">Workshop ETA: <strong className="text-slate-200">{reserveBuildJob.finishes_at||"—"}</strong>. It cannot substitute a damaged race car before completion.</div></div>
+            :<><div><div className="font-medium">No Reserve Car built</div><div className="text-sm text-slate-500 mt-1">A reserve driver does not include a third chassis. If a race car cannot be repaired before a GP, that entry will be withdrawn unless a Reserve Car is ready.</div></div><Button size="sm" className="w-full border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" disabled={Number(gs?.team?.budget??gs?.finances?.balance??0)<Number(reserveBuildQuote.cost||0)} onClick={buildReserveCar}>Build Reserve Car · {reserveBuildQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{moneyCompact(reserveBuildQuote.cost)}</span></Button></>}
+          </div>
+        </Panel>
       </div>
     </div>}
 
