@@ -12,6 +12,7 @@ import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
+import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -557,6 +558,10 @@ export const useGame = create((set, get) => ({
       updated = res?.state || res?.patched || res || updated;
       updated = processScoutingTick(updated);
       updated = refreshDriverAvailability(updated, updated.currentDateISO);
+      updated = processWorkshopJobs(updated);
+      updated = processTechnologyAdoption(updated);
+      updated = tickAITechnicalWorld(updated);
+      updated = processTechnologyDiscoveryNews(updated);
       const changes = res?.changes || res?.attrChanges || [];
       if (Array.isArray(changes) && changes.length) {
         // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
@@ -1763,7 +1768,9 @@ export const useGame = create((set, get) => ({
       updated=processScoutingTick(updated);
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
       updated=processWorkshopJobs(updated);
+      updated=processTechnologyAdoption(updated);
       updated=tickAITechnicalWorld(updated);
+      updated=processTechnologyDiscoveryNews(updated);
       const ch=changes||attrChanges||[];
       if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
         updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};

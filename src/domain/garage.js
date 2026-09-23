@@ -70,25 +70,37 @@ export function activeDriverContracts(gs,teamId){
   return canonicalActiveDriverContracts(gs,{teamId});
 }
 
-export function desiredGarageCars(gs){
+export function desiredGarageCars(gs,garage=null){
   const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const contracts=activeDriverContracts(gs,teamId);
   const race=contracts.filter(isRaceDriverContract);
   const reserve=contracts.find(isReserveDriverContract);
-  return [
+  const cars=[
     {id:"car_1",label:"Car 1",kind:"race",driver_id:driverIdOf(race[0]||{})||null},
     {id:"car_2",label:"Car 2",kind:"race",driver_id:driverIdOf(race[1]||{})||null},
-    {id:"car_spare",label:"Reserve / Spare",kind:"reserve",driver_id:driverIdOf(reserve||{})||null},
   ];
+
+  // A reserve driver contract does not magically create a third chassis.
+  // Reserve Car is a physical TEAM asset and only exists after it has been built.
+  if(garage?.reserveCarBuilt===true){
+    cars.push({
+      id:"car_spare",
+      label:"Reserve Car",
+      kind:"reserve",
+      driver_id:driverIdOf(reserve||{})||null,
+    });
+  }
+  return cars;
 }
 
 export function syncGarageState(gs,garage){
-  const wanted=desiredGarageCars(gs);
+  const wanted=desiredGarageCars(gs,garage);
   const existing=new Map((garage?.cars||[]).map((car)=>[String(car.id),car]));
   const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const eligibleSlots=componentSlotsForTeam(gs,teamId);
   return {
     ...(garage||{}),
+    reserveCarBuilt:garage?.reserveCarBuilt===true,
     baseComponentStock:{
       ...defaultBaseComponentStock(eligibleSlots),
       ...(garage?.baseComponentStock||{}),
@@ -240,6 +252,11 @@ export function garageCarForDriver(gs,driverId){
     Number(entry?.car_slot)<=2
   );
   if(liveEntry){
+    const explicitCarId=String(liveEntry?.car_id??"");
+    if(explicitCarId){
+      const explicit=(gs?.garage?.cars||[]).find((car)=>String(car?.id)===explicitCarId);
+      if(explicit)return explicit;
+    }
     const raceCar=(gs?.garage?.cars||[]).find((car)=>String(car?.id)===`car_${Number(liveEntry.car_slot)}`);
     if(raceCar)return raceCar;
   }

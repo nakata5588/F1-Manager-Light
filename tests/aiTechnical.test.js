@@ -12,6 +12,7 @@ import {
   tickAITechnicalWorld,
 } from "../src/engine/AITechnicalEngine.js";
 import { availableCarComponentSlots } from "../src/domain/carComponents.js";
+import { processTechnologyAdoption } from "../src/domain/technologyAdoption.js";
 import { teamCarCharacteristics } from "../src/domain/carCharacteristics.js";
 import { teamCarPerformance } from "../src/domain/carPerformance.js";
 import { carReliabilityProfile } from "../src/domain/carReliability.js";
@@ -95,6 +96,44 @@ test("AI project selection obeys era and fitted technology eligibility",()=>{
   const project=aiTechnicalTeamState(planned,"WILLIAMS").development.projects[0];
   assert.ok(project);
   assert.notEqual(project.type,"turbocharger");
+});
+
+test("AI prioritizes a meaningful current-car weakness over speculative rival technology",()=>{
+  const seeded=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
+  const weak={
+    ...seeded,
+    carStats:(seeded.carStats||[]).map((row)=>
+      row.team_id==="WILLIAMS"?{...row,chassis_spec:55,aero_spec:56,gearbox_spec:58}:row
+    ),
+  };
+  const assessment=aiTechnicalPlanningAssessment(weak,"WILLIAMS");
+  assert.equal(assessment.action,"develop");
+  assert.equal(assessment.prefer_technology,false);
+  assert.ok(Number(assessment.need.gap)>=Number(assessment.gap_threshold));
+  assert.ok(assessment.technology,"rival Turbo should remain visible as a future opportunity");
+});
+
+test("AI can fund a discovered rival technology before developing its own component",()=>{
+  const gs=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
+  const assessment=aiTechnicalPlanningAssessment(gs,"WILLIAMS");
+  assert.equal(assessment.action,"adopt_technology");
+  assert.equal(assessment.technology.slot,"turbocharger");
+
+  const before=aiTechnicalTeamState(gs,"WILLIAMS").budget;
+  let planned=planAITechnicalProject(gs,"WILLIAMS");
+  let state=aiTechnicalTeamState(planned,"WILLIAMS");
+  const project=state.technology_projects[0];
+  assert.ok(project);
+  assert.equal(project.status,"active");
+  assert.ok(state.budget<before);
+  assert.equal(availableCarComponentSlots(planned,"WILLIAMS").includes("turbocharger"),false);
+  assert.ok(planned.inbox.some((row)=>/Williams begins Turbocharger/i.test(row.subject)));
+
+  planned=processTechnologyAdoption({...planned,currentDateISO:project.finishes_at});
+  state=aiTechnicalTeamState(planned,"WILLIAMS");
+  assert.equal(state.technology_projects[0].status,"completed");
+  assert.ok(state.technology_unlocks.turbocharger);
+  assert.equal(availableCarComponentSlots(planned,"WILLIAMS").includes("turbocharger"),true);
 });
 
 test("AI planning spends real team technical budget and project takes time",()=>{
@@ -425,8 +464,19 @@ test("newsworthy live AI development is visible in the player Inbox",()=>{
   assert.ok(news.actions.some((action)=>String(action.route).startsWith("/Car")));
 });
 
-test("front-running AI can deliberately do nothing when no meaningful technical weakness exists",()=>{
-  const gs=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
+test("front-running AI can deliberately do nothing when no technical opportunity or meaningful weakness exists",()=>{
+  let gs=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
+  gs={
+    ...gs,
+    carStats:gs.carStats.map((row)=>row.team_id==="RENAULT"?{
+      ...row,
+      chassis_spec:80,aero_spec:80,gearbox_spec:80,suspension_spec:80,
+      brakes_spec:80,cooling_spec:80,turbo_spec:0,
+    }:row),
+    teamEngines:gs.teamEngines.map((row)=>row.team_id==="RENAULT"?{
+      ...row,engine_name:"Renault EF1",power:80,reliability:80,
+    }:row),
+  };
   const assessment=aiTechnicalPlanningAssessment(gs,"WILLIAMS");
   const planned=planAITechnicalProject(gs,"WILLIAMS");
 
@@ -434,6 +484,7 @@ test("front-running AI can deliberately do nothing when no meaningful technical 
   assert.equal(assessment.reason,"no_meaningful_competitive_gap");
   assert.ok(Number(assessment.need.gap)<Number(assessment.gap_threshold));
   assert.equal(aiTechnicalTeamState(planned,"WILLIAMS").development.projects.length,0);
+  assert.equal(aiTechnicalTeamState(planned,"WILLIAMS").technology_projects.length,0);
   assert.equal(aiTechnicalTeamState(planned,"WILLIAMS").planning.last_decision.action,"hold");
 });
 

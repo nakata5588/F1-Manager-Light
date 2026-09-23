@@ -12,6 +12,7 @@ import {
   partUnitRestoreQuote,
   processWorkshopJobs,
   queueWorkshopJob,
+  reserveCarBuildQuote,
   standardRestoreQuote,
 } from "../domain/componentService.js";
 import {
@@ -28,6 +29,13 @@ import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
 import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
 import { componentWearForRaceRow } from "../domain/componentWear.js";
 import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
+import {
+  discoverableCarTechnologies,
+  startTechnologyAdoption,
+  technologyAdoptionQuote,
+  technologyProjectsForTeam,
+} from "../domain/technologyAdoption.js";
+import { carReadinessForDate, raceCarsForTeam } from "../domain/carAvailability.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -488,9 +496,16 @@ function racesRemaining(gs,today){
 }
 function seasonProjectsStarted(gs,state){
   const year=yearOf(gs);
-  return (state?.development?.projects||[]).filter((project)=>
+  const partProjects=(state?.development?.projects||[]).filter((project)=>
     Number(str(project?.started_at).slice(0,4))===year
   ).length;
+  const technologyProjects=(state?.technology_projects||[]).filter((project)=>
+    Number(str(project?.started_at).slice(0,4))===year
+  ).length;
+  return partProjects+technologyProjects;
+}
+function activeTechnologyProjects(state){
+  return (state?.technology_projects||[]).filter((project)=>project?.status==="active");
 }
 function teamStandingContext(gs,teamId){
   const rows=Array.isArray(gs?.standings?.teams)&&gs.standings.teams.length
@@ -548,6 +563,10 @@ function normalizeAITeamState(gs,teamId,state){
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
     season_history:Array.isArray(state?.season_history)?state.season_history:[],
+    technology_projects:Array.isArray(state?.technology_projects)?state.technology_projects:[],
+    technology_unlocks:state?.technology_unlocks&&typeof state.technology_unlocks==="object"
+      ?state.technology_unlocks
+      :{},
   };
   const rolled=rollAITechnicalSeasonEconomy(gs,teamId,seeded);
   return {
@@ -575,6 +594,8 @@ export function normalizeAITechnicalWorld(gs){
         planning:{},
         economy:{season_year:yearOf(gs),last_allocation:0,opening_budget:budget},
         season_history:[],
+        technology_projects:[],
+        technology_unlocks:{},
         finance_log:[],
         componentServiceLog:[],
         componentWearLog:[],
@@ -607,11 +628,20 @@ export function aiTechnicalCarForDriver(gs,teamId,driverId=null){
   const did=str(driverId);
   const liveEntry=(gs?.raceEntryState?.entries||[]).find((entry)=>
     str(entry?.team_id)===str(teamId) &&
-    str(entry?.driver_id)===did &&
-    Number(entry?.car_slot)>=1 &&
-    Number(entry?.car_slot)<=2
+    str(entry?.driver_id)===did
   );
-  if(liveEntry)return cars[Number(liveEntry.car_slot)-1]||null;
+  if(liveEntry){
+    const explicitId=str(liveEntry?.car_id);
+    if(explicitId){
+      const allCars=aiTechnicalRaceCars(gs,teamId)
+        .concat((aiTechnicalTeamState(gs,teamId)?.garage?.cars||[]).filter((car)=>car?.kind==="reserve"));
+      const explicit=allCars.find((car)=>str(car?.id)===explicitId);
+      if(explicit)return explicit;
+    }
+    if(Number(liveEntry?.car_slot)>=1&&Number(liveEntry?.car_slot)<=2){
+      return cars[Number(liveEntry.car_slot)-1]||null;
+    }
+  }
 
   const raceContracts=activeDriverContracts(gs,{teamId,raceOnly:true});
   const index=raceContracts.findIndex((contract)=>driverIdOf(contract)===did);
@@ -934,6 +964,66 @@ export function processAITechnicalMaintenance(gs,teamId,stateInput=null){
   return persistScopedState(state,scoped,{budget,financeLog});
 }
 
+function technologyPlanningCandidate(gs,teamId,state){
+  if(activeTechnologyProjects(state).length)return null;
+  const opportunities=discoverableCarTechnologies(gs,teamId);
+  if(!opportunities.length)return null;
+  return opportunities
+    .map((opportunity)=>({
+      ...opportunity,
+      quote:technologyAdoptionQuote(gs,teamId,opportunity.slot),
+    }))
+    .sort((a,b)=>{
+      // Deterministic: cheaper/faster adoption first, stable slot as tie-break.
+      const aCommit=num(a?.quote?.cost,0)+num(a?.quote?.days,0)*5_000;
+      const bCommit=num(b?.quote?.cost,0)+num(b?.quote?.days,0)*5_000;
+      return aCommit-bCommit||str(a.slot).localeCompare(str(b.slot));
+    })[0]||null;
+}
+
+
+export function processAIReserveCar(gs,teamId,stateInput=null){
+  const state=stateInput||aiTechnicalTeamState(gs,teamId);
+  if(!state)return state;
+  if(state?.garage?.reserveCarBuilt===true)return state;
+
+  const today=str(gs?.currentDateISO).slice(0,10);
+  if(!today)return state;
+  const scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
+  if(activeWorkshopJobFor(scoped,{kind:"build_reserve_car"}))return state;
+
+  const snapshot=replaceTeamState(gs,teamId,state);
+  const raceCars=raceCarsForTeam(snapshot,teamId);
+  const needsBackup=raceCars.some((car)=>!carReadinessForDate(snapshot,teamId,car,today).available);
+  if(!needsBackup)return state;
+
+  const quote=reserveCarBuildQuote(scoped);
+  const reserveFloor=planningReserveFloor(gs,teamId,state);
+  const budget=num(state?.budget,0);
+  if(budget<num(quote?.cost,0)+reserveFloor)return state;
+
+  const beforeJobs=(scoped?.garage?.serviceJobs||[]).length;
+  const queued=queueWorkshopJob(scoped,quote,{
+    id:`ai_reserve_car_${safeId(teamId)}_${yearOf(gs)}`,
+    title:"Build Reserve Car",
+    startedAt:today,
+  });
+  if((queued?.garage?.serviceJobs||[]).length<=beforeJobs)return state;
+
+  const cost=num(quote?.cost,0);
+  return persistScopedState(state,queued,{
+    budget:budget-cost,
+    financeLog:appendAIFinance(state,{
+      id:`ai_tx_reserve_car_${safeId(teamId)}_${yearOf(gs)}`,
+      dateISO:today,
+      type:"expense",
+      category:"Car Construction",
+      amount:-cost,
+      desc:"Build Reserve Car",
+    }),
+  });
+}
+
 function estimatedManufacturingCommitment(gs,teamId,state,need,quote){
   const scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
   const draft={
@@ -976,6 +1066,7 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   }
 
   const planning=state?.planning||{};
+  const technology=!force?technologyPlanningCandidate(normalized,teamId,state):null;
   const need=chooseNeed(normalized,teamId,state);
   const quote=need?projectQuote(normalized,teamId,state,need):null;
   const manufacturing=need&&quote
@@ -983,21 +1074,35 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     :{qty:2,unit_cost:0,cost:0,days:0};
   const budget=num(state?.budget,0);
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
-  const totalCommitment=num(quote?.cost,0)+num(manufacturing?.cost,0);
   const projects=seasonProjectsStarted(normalized,state);
   const limit=seasonProjectLimit(normalized,teamId);
   const reviewInterval=planningReviewIntervalDays(normalized,teamId);
   const nextReview=str(planning?.next_review_date).slice(0,10)||today;
   const gapThreshold=planningGapThreshold(normalized,teamId);
+  // Rival technology is an opportunity, not an automatic priority. If the
+  // current car has a meaningful weakness, improve the existing package first.
+  // This prevents poorer teams from abandoning core development to chase every
+  // novel technology that appears elsewhere on the grid.
+  const preferTechnology=Boolean(
+    technology && (!need || num(need?.gap,0)<gapThreshold)
+  );
+  const technologyCommitment=preferTechnology?num(technology?.quote?.cost,0):0;
+  const totalCommitment=preferTechnology
+    ?technologyCommitment
+    :num(quote?.cost,0)+num(manufacturing?.cost,0);
   const standing=teamStandingContext(normalized,teamId);
   const end=seasonEndISO(normalized);
   const daysToEnd=daysBetweenISO(today,end);
   const remaining=racesRemaining(normalized,today);
-  const deliveryDays=num(quote?.days,0)+num(manufacturing?.days,0)+3;
+  const deliveryDays=preferTechnology
+    ?num(technology?.quote?.days,0)+21
+    :num(quote?.days,0)+num(manufacturing?.days,0)+3;
 
   const base={
     team_id:str(teamId),
     today,
+    technology,
+    prefer_technology:preferTechnology,
     need,
     quote,
     manufacturing,
@@ -1017,17 +1122,39 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     delivery_days:deliveryDays,
   };
 
-  if(activeProjects(state).length||activeManufacturing(state).length){
+  if(activeProjects(state).length||activeManufacturing(state).length||activeTechnologyProjects(state).length){
     return {...base,action:"hold",reason:"technical_capacity_busy"};
   }
   if(!force&&today<nextReview){
     return {...base,action:"hold",reason:"review_not_due"};
   }
-  if(!need){
-    return {...base,action:"hold",reason:"no_legal_component"};
-  }
   if(!force&&projects>=limit){
     return {...base,action:"hold",reason:"season_capacity_reached"};
+  }
+  if(!force&&remaining===0){
+    return {...base,action:"hold",reason:"season_complete"};
+  }
+  if(!force&&preferTechnology){
+    if(budget<totalCommitment){
+      return {...base,action:"hold",reason:"insufficient_budget"};
+    }
+    if(budget-totalCommitment<reserveFloor){
+      return {...base,action:"hold",reason:"budget_reserve"};
+    }
+    if(daysToEnd<deliveryDays){
+      return {...base,action:"hold",reason:"too_late_to_deliver"};
+    }
+    return {
+      ...base,
+      action:"adopt_technology",
+      reason:"technology_opportunity",
+      need:{slot:technology.slot,gap:0,benchmark:0,current:0},
+      quote:technology.quote,
+      manufacturing:{qty:0,unit_cost:0,cost:0,days:0},
+    };
+  }
+  if(!need){
+    return {...base,action:"hold",reason:"no_legal_component"};
   }
   if(!force&&num(need?.gap,0)<gapThreshold){
     return {...base,action:"hold",reason:"no_meaningful_competitive_gap"};
@@ -1037,9 +1164,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   }
   if(!force&&budget-totalCommitment<reserveFloor){
     return {...base,action:"hold",reason:"budget_reserve"};
-  }
-  if(!force&&remaining===0){
-    return {...base,action:"hold",reason:"season_complete"};
   }
   if(!force&&daysToEnd<deliveryDays){
     return {...base,action:"hold",reason:"too_late_to_deliver"};
@@ -1071,6 +1195,31 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
   if(!state)return next;
 
   const assessment=aiTechnicalPlanningAssessment(next,teamId,{force});
+  if(assessment.action==="adopt_technology"){
+    const today=assessment.today;
+    next=startTechnologyAdoption(next,teamId,assessment.technology.slot,{origin:"ai"});
+    state=aiTechnicalTeamState(next,teamId);
+    if(!state)return next;
+    const record=planningDecisionRecord(today,"adopt_technology","technology_opportunity",assessment);
+    const history=[...(state?.planning?.decision_history||[]),record].slice(-40);
+    const nextState={
+      ...state,
+      planning:{
+        ...(state?.planning||{}),
+        last_date:today,
+        last_need:assessment.technology.slot,
+        cycle:num(state?.planning?.cycle,0)+1,
+        last_review_date:today,
+        next_review_date:addDaysISO(
+          today,
+          num(assessment?.technology?.quote?.days,0)+assessment.review_interval_days
+        ),
+        last_decision:record,
+        decision_history:history,
+      },
+    };
+    return replaceTeamState(next,teamId,nextState);
+  }
   if(assessment.action!=="develop"){
     const held=recordPlanningHold(state,assessment);
     return held===state?next:replaceTeamState(next,teamId,held);
@@ -1245,6 +1394,7 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
   if(!today)return next;
 
   state=processAITechnicalMaintenance(next,teamId,state);
+  state=processAIReserveCar(next,teamId,state);
   const completed=completeDesigns(next,teamId,state,today);
   state=completed.state;
   state=completeManufacturing(next,teamId,state,today);

@@ -147,10 +147,13 @@ function seasonSummary(gs,year){
   return Object.fromEntries(AI_TEAMS.map(team=>{
     const state=aiTechnicalTeamState(gs,team);
     const projects=(state?.development?.projects||[]).filter(row=>Number(String(row?.started_at||"").slice(0,4))===year);
+    const technologyProjects=(state?.technology_projects||[]).filter(row=>Number(String(row?.started_at||"").slice(0,4))===year);
     const strengths=(state?.development?.parts||[]).map(part=>Number(part?.perf||0));
     return [team,{
       budget:Number(state?.budget||0),
       projects:projects.length,
+      technology_projects:technologyProjects.length,
+      technical_activities:projects.length+technologyProjects.length,
       designs:(state?.development?.parts||[]).length,
       units:(state?.development?.partUnits||[]).length,
       max_design_strength:strengths.length?Math.max(...strengths):0,
@@ -225,7 +228,7 @@ test("multi-season AI development stays capacity-limited and design strength is 
   const {gs,seasons}=SOAK_A;
   for(const season of seasons){
     for(const team of AI_TEAMS){
-      assert.ok(season.summary[team].projects<=5,`${team} exceeded seasonal project ceiling in ${season.year}`);
+      assert.ok(season.summary[team].technical_activities<=5,`${team} exceeded combined seasonal technical capacity in ${season.year}`);
       assert.ok(season.summary[team].budget>=0,`${team} went negative in ${season.year}`);
       assert.ok(season.summary[team].overall>=0&&season.summary[team].overall<=100);
       assert.ok(season.summary[team].max_design_strength<=6.001);
@@ -265,16 +268,16 @@ test("five-season technical soak is deterministic and does not freeze the whole 
   const b=SOAK_B;
   assert.deepEqual(a.seasons,b.seasons);
 
-  const totalProjects=a.seasons.reduce((sum,season)=>
-    sum+AI_TEAMS.reduce((inner,team)=>inner+season.summary[team].projects,0),0
+  const totalTechnicalActivities=a.seasons.reduce((sum,season)=>
+    sum+AI_TEAMS.reduce((inner,team)=>inner+season.summary[team].technical_activities,0),0
   );
-  assert.ok(totalProjects>4,"the grid should continue making selective technical progress over multiple seasons");
+  assert.ok(totalTechnicalActivities>4,"the grid should continue making selective technical progress over multiple seasons");
 
   const teamsWithDevelopment=new Set();
   for(const season of a.seasons){
     for(const team of AI_TEAMS){
-      if(season.summary[team].projects>0)teamsWithDevelopment.add(team);
+      if(season.summary[team].technical_activities>0)teamsWithDevelopment.add(team);
     }
   }
-  assert.ok(teamsWithDevelopment.size>=2,"development should not collapse to a single AI team");
+  assert.ok(teamsWithDevelopment.size>=2,"technical development should not collapse to a single AI team");
 });

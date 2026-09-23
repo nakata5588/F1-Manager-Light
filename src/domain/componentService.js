@@ -1,7 +1,11 @@
 // src/domain/componentService.js
 // Time-based workshop jobs for standard components and developed physical units.
 
-import { baseComponentConstructionCost } from "./garage.js";
+import {
+  baseComponentConstructionCost,
+  componentSlotsForTeam,
+  defaultComponentCondition,
+} from "./garage.js";
 import { teamWorkRateMultiplier } from "./teamMorale.js";
 import {
   normalizePhysicalPartState,
@@ -119,6 +123,23 @@ export function partManufactureQuote(gs,part){
   };
 }
 
+export function reserveCarBuildQuote(gs){
+  const slots=componentSlotsForTeam(gs);
+  const coreSlots=["chassis","suspension","gearbox","brakes","cooling","fuel_system"]
+    .filter((slot)=>slots.includes(slot));
+  const supporting=slots.filter((slot)=>!coreSlots.includes(slot));
+  const coreCost=coreSlots.reduce((sum,slot)=>sum+baseComponentConstructionCost(gs,slot),0);
+  const supportCost=supporting.reduce((sum,slot)=>sum+baseComponentConstructionCost(gs,slot)*0.45,0);
+  const chassis=standardBuildQuote(gs,"chassis");
+  return {
+    kind:"build_reserve_car",
+    slot:null,
+    car_id:"car_spare",
+    cost:Math.round((coreCost+supportCost)/10_000)*10_000,
+    days:Math.max(21,Number(chassis?.days||45)),
+  };
+}
+
 export function standardRestoreQuote(gs,slot,condition,{carId=null}={}){
   const current=clamp(condition);
   const missing=Math.max(0,100-current);
@@ -200,6 +221,11 @@ export function queueWorkshopJob(gs,quote,{
   const start=String(startedAt||gs?.currentDateISO||"").slice(0,10);
   if(!start)return gs;
 
+  if(quote.kind==="build_reserve_car"){
+    if(gs?.garage?.reserveCarBuilt===true)return gs;
+    if(activeWorkshopJobFor(gs,{kind:"build_reserve_car"}))return gs;
+  }
+
   if(quote.unit_id){
     const location=physicalUnitLocation(gs,quote.unit_id);
     if(location.kind!=="warehouse")return gs;
@@ -251,6 +277,18 @@ export function processWorkshopJobs(gs){
 
     if(job.kind==="build_standard_spare"){
       stock[job.slot]=Number(stock?.[job.slot]||0)+1;
+    }else if(job.kind==="build_reserve_car"){
+      const slots=componentSlotsForTeam(next);
+      const reserve={
+        id:"car_spare",
+        label:"Reserve Car",
+        kind:"reserve",
+        driver_id:null,
+        installedParts:{},
+        componentCondition:defaultComponentCondition(slots),
+      };
+      const withoutLegacy=cars.filter((car)=>str(car?.id)!=="car_spare");
+      cars=[...withoutLegacy,reserve];
     }else if(job.kind==="build_and_fit_standard"){
       cars=cars.map((car)=>str(car?.id)===str(job.car_id)
         ?{
@@ -303,6 +341,9 @@ export function processWorkshopJobs(gs){
     ...next,
     garage:{
       ...(next?.garage||{}),
+      reserveCarBuilt:nextJobs.some((job)=>job?.kind==="build_reserve_car"&&job?.status==="completed")
+        ?true
+        :next?.garage?.reserveCarBuilt===true,
       cars,
       baseComponentStock:stock,
       serviceJobs:nextJobs,
