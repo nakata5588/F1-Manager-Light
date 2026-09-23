@@ -9,6 +9,7 @@ import { defaultDriverCondition } from "@/domain/driverRating";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
+import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -1787,6 +1788,7 @@ export const useGame = create((set, get) => ({
       updated=processScoutingTick(updated);
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
       updated=processWorkshopJobs(updated);
+      updated=tickAITechnicalWorld(updated);
       const ch=changes||attrChanges||[];
       if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
         updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};
