@@ -121,6 +121,24 @@ function tyreDisplayName(gs,driverId,tyreId){
   const tyre=tyresForTeam(gs,teamId).find((row)=>String(row?.tyre_id??row?.id??"")===String(tyreId??""));
   return tyre?.compound_name||tyre?.name||String(tyreId||"tyre");
 }
+function desiredTyreCategoryForState(weatherState){
+  const state=String(weatherState||"SUNNY").toUpperCase();
+  if(["HEAVY_RAIN","STORM"].includes(state))return "wet";
+  if(["LIGHT_RAIN","WETTING"].includes(state))return "intermediate";
+  return "dry";
+}
+function tyreWeatherFeedback(driverName,tyreState){
+  const have=String(tyreState?.category||"dry");
+  const want=desiredTyreCategoryForState(tyreState?.weather_state);
+  if(have===want)return null;
+  if(have==="dry"&&want==="intermediate")return `${driverName}: "It's still too slippery for slicks."`;
+  if(have==="dry"&&want==="wet")return `${driverName}: "I'm really struggling for grip — it's too wet for slicks."`;
+  if(have==="intermediate"&&want==="wet")return `${driverName}: "There's too much standing water for the intermediates."`;
+  if(have==="intermediate"&&want==="dry")return `${driverName}: "The track is drying — the intermediates are overheating."`;
+  if(have==="wet"&&want==="dry")return `${driverName}: "The track is too dry for the wets; they're overheating."`;
+  if(have==="wet"&&want==="intermediate")return `${driverName}: "The wets are starting to overheat on this track."`;
+  return `${driverName}: "These tyres don't feel right for the conditions."`;
+}
 function pitLossEstimate(gs,strategyState,driverId,lap,plan,{observedLap=null}={}){
   const teamId=teamForDriver(gs,driverId);
   const track=strategyState?.track_snapshot||{};
@@ -949,6 +967,33 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
         });
       }
     }
+  }
+
+  const playerTeam=String(working?.team?.team_id??working?.team?.id??"");
+  for(const row of simulation.race||[]){
+    const did=idOf(row.driver);
+    if(!did||teamForDriver(working,did)!==playerTeam)continue;
+    const observedTyre=(row?.tyre_state_by_lap||[]).find((state)=>Number(state?.lap)===Number(target));
+    if(!observedTyre||Number(observedTyre?.weather_penalty_s||0)<=0)continue;
+    const driverName=driverDisplayName(working,did);
+    const message=tyreWeatherFeedback(driverName,observedTyre);
+    if(!message)continue;
+    const feedbackSector=Math.max(1,Number(targetSector)||1);
+    pushUniqueEvent(events,{
+      event_key:`driver_feedback:tyre_weather:${did}:${observedTyre.stint_start_lap||target}:${observedTyre.weather_state||"unknown"}`,
+      lap:Number(target),
+      sector:feedbackSector,
+      type:"driver_feedback",
+      feedback_kind:"tyre_weather_mismatch",
+      driver_id:did,
+      driver_name:driverName,
+      tyre_id:observedTyre.tyre_id,
+      tyre_category:observedTyre.category,
+      weather_state:observedTyre.weather_state,
+      track_wetness:observedTyre.track_wetness,
+      weather_penalty_s:observedTyre.weather_penalty_s,
+      message,
+    });
   }
 
   const activeRows=classification.filter((row)=>!row.retired);

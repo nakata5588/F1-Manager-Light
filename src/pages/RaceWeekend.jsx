@@ -1121,7 +1121,9 @@ export default function RaceWeekend(){
                           ?"border-emerald-500/25 bg-emerald-500/[0.08]"
                           :String(event?.type||"")==="pit"
                             ?"border-sky-500/20 bg-sky-500/[0.07]"
-                            :"border-white/5 bg-white/[0.025]"
+                            :String(event?.type||"")==="driver_feedback"
+                              ?"border-cyan-400/25 bg-cyan-400/[0.08]"
+                              :"border-white/5 bg-white/[0.025]"
                   )} key={event?.event_key||index}>
                     <span className="shrink-0 font-mono text-slate-600">L{event.lap}{Number(event?.sector)>0?<>·S{event.sector}</>:null}</span>
                     {(()=>{

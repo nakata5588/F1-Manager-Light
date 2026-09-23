@@ -853,16 +853,18 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         (condition<38&&projectedCritical)||
         (condition<30&&currentEffects.pace_penalty_s>0.9)
       );
-      // A manual player tyre call is authoritative. After executing it, give the
-      // driver a short evaluation window instead of immediately undoing the order
-      // on the next lap because the automatic weather threshold still disagrees.
-      const lastPlayerPit=pits.slice().reverse().find((stop)=>stop?.reason==="player_call");
-      const manualTyreWindow=!isAi&&lastPlayerPit&&lap-Number(lastPlayerPit.lap)<=2;
+      // Once the player has issued a manual tyre call for this driver, that
+      // tyre choice remains authoritative. Before any manual call, the normal
+      // automatic strategy still operates (important for non-live/autosim races).
+      // Weather mismatch always affects lap time and can generate driver feedback.
+      const playerTyreAuthority=!isAi&&liveCommands.some((command)=>
+        command?.type==="pit"&&Number(command?.effective_lap||0)<=lap
+      );
       let stopReason=null;
 
       if(lap>1){
         if(forcedPit&&remaining>1)stopReason="player_call";
-        else if(mismatch>=3.5&&remaining>3&&!manualTyreWindow)stopReason="weather";
+        else if((isAi||!playerTyreAuthority)&&mismatch>=3.5&&remaining>3)stopReason="weather";
         else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
         else if(isAi&&strategicStopValue&&rng.chance(0.44+intelligence*0.0045))stopReason="degradation_value";
@@ -961,6 +963,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         age_laps:stintLap,
         stint_number:stints.length+1,
         stint_start_lap:stintStart,
+        weather_state:tyreState,
+        track_wetness:Number.isFinite(wetness)?Number(wetness.toFixed(3)):null,
+        weather_penalty_s:Number(tyreWeatherPenalty(tyre,tyreState).toFixed(2)),
       });
     }
 
