@@ -7,6 +7,7 @@ import {
   raceMentalStateChange,
   seasonStartMentalState,
 } from "../src/domain/driverMentalState.js";
+import { conditionModifierBreakdown } from "../src/domain/driverPerformance.js";
 
 test("mental state deltas are temporary and clamped without touching ratings",()=>{
   const gs={
@@ -67,4 +68,21 @@ test("condition delta helper keeps all four values in range",()=>{
     {confidence:100,morale:-100,preparation:60,fatigue:-20}
   );
   assert.deepEqual(next,{confidence:100,fatigue:0,morale:0,preparation:100});
+});
+
+
+test("mental state changes Current Performance while permanent Overall stays fixed",()=>{
+  const gs={
+    driverRatings:[{driver_id:"D1",current_ability:90,pace:92}],
+    driverAttributes:{D1:{confidence:50,morale:50,preparation:50,fatigue:0}},
+  };
+  const before=conditionModifierBreakdown(gs,"D1").total;
+  const next=applyDriverMentalState(gs,"D1",{
+    deltas:{confidence:-15,morale:-10,preparation:-20,fatigue:65},
+    source:"stress-test",
+  });
+  const after=conditionModifierBreakdown(next,"D1").total;
+
+  assert.ok(after<before);
+  assert.equal(next.driverRatings[0].current_ability,90);
 });
