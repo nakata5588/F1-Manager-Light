@@ -1059,7 +1059,10 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
     finishes_at:addDaysISO(today,quote.days),
     duration_days:quote.days,
     cost:quote.cost,
-    perf_delta:quote.perf,
+    perf_delta:quote.increment,
+    base_design_perf:quote.incumbent,
+    target_design_perf:quote.perf,
+    development_headroom:quote.headroom,
     engineering_strength:quote.strength,
     need_baseline:need.baseline,
     planning_trigger:assessment.reason,
@@ -1107,7 +1110,7 @@ function completeDesigns(gs,teamId,state,today){
       const draft={
         id:designId,name:project.name,slot:project.type,
         version:`AI-${completedDesignCount(state,project.type)+1}`,
-        perf:num(project.perf_delta,0),inv:0,in_manufacturing:0,
+        perf:num(project.target_design_perf,project.perf_delta),inv:0,in_manufacturing:0,
         prototype:true,created_from:project.id,ai_team_id:str(teamId),
       };
       parts.push({...draft,technical_profile:derivePartTechnicalProfile(scoped,draft)});
