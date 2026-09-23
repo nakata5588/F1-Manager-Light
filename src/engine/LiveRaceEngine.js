@@ -697,6 +697,42 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId}={}){
   };
 }
 
+export function cancelLiveRaceCommand(gs,{driverId,type=null}={}){
+  const weekend=gs?.raceWeekendState, live=weekend?.live_race;
+  if(!weekend||weekend.phase!=="race"||live?.status!=="running"||!driverId)return gs;
+  const did=String(driverId), teamId=teamForDriver(gs,did), playerTeam=String(gs?.team?.team_id??gs?.team?.id??"");
+  if(!teamId||teamId!==playerTeam)return gs;
+  const currentLap=Number(live.current_lap)||0;
+  const existing=weekend?.race_strategy?.live_commands?.[did]||[];
+  const cancellable=existing.filter((row)=>
+    Number(row?.effective_lap)>currentLap&&
+    (!type||String(row?.type)===String(type))
+  );
+  if(!cancellable.length)return gs;
+  const target=cancellable.slice().sort((a,b)=>Number(a.effective_lap)-Number(b.effective_lap)).at(-1);
+  const nextCommands=existing.filter((row)=>row!==target);
+  const driverName=driverDisplayName(gs,did);
+  const orderLabel=target.type==="pit"
+    ?`pit order for ${tyreDisplayName(gs,did,target.tyre_id)} tyres`
+    :`${paceInstruction(target.pace_mode)} pace order`;
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      race_strategy:{...weekend.race_strategy,live_commands:{...(weekend.race_strategy?.live_commands||{}),[did]:nextCommands}},
+      live_race:{...live,events:[...(live.events||[]),{
+        lap:Number(live.current_lap),
+        sector:Number(live.current_sector)||0,
+        type:"command_cancelled",
+        driver_id:did,
+        driver_name:driverName,
+        command:target,
+        message:`${driverName}'s ${orderLabel} was cancelled.`,
+      }]},
+    },
+  };
+}
+
 export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   let working=createLiveRaceState(gs,{gp});
   const weekend=working?.raceWeekendState, live=weekend?.live_race;
