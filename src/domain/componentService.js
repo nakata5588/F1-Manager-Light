@@ -221,6 +221,11 @@ export function queueWorkshopJob(gs,quote,{
   const start=String(startedAt||gs?.currentDateISO||"").slice(0,10);
   if(!start)return gs;
 
+  if(quote.kind==="build_reserve_car"){
+    if(gs?.garage?.reserveCarBuilt===true)return gs;
+    if(activeWorkshopJobFor(gs,{kind:"build_reserve_car"}))return gs;
+  }
+
   if(quote.unit_id){
     const location=physicalUnitLocation(gs,quote.unit_id);
     if(location.kind!=="warehouse")return gs;
