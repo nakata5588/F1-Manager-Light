@@ -273,6 +273,27 @@ function raceTeamId(gs,row){
   return teamIdOf(row?.driver);
 }
 
+function resolveAIRaceCar(gs,row){
+  const driverId=raceDriverId(row);
+  if(!driverId)return null;
+  const player=str(gs?.team?.team_id??gs?.team?.id);
+  const preferred=raceTeamId(gs,row);
+  const candidates=[
+    preferred,
+    ...Object.keys(gs?.aiTechnicalWorld?.teams||{}).sort(),
+  ].filter(Boolean);
+  const seen=new Set();
+  for(const teamId of candidates){
+    if(seen.has(teamId)||teamId===player)continue;
+    seen.add(teamId);
+    const state=aiTechnicalTeamState(gs,teamId);
+    if(!state)continue;
+    const car=aiTechnicalCarForDriver(gs,teamId,driverId);
+    if(car)return {driverId,teamId,state,car};
+  }
+  return null;
+}
+
 function maintenanceThreshold(slot){
   const risk=Number(PART_CONDITION_RELIABILITY_RISK?.[slot]??3);
   return Math.round(clamp(40+risk*2.2,42,58));
@@ -318,14 +339,12 @@ export function applyAIRaceComponentWear(gs,{race=[],gp=null}={}){
   const date=str(next?.currentDateISO??gp?.race_date).slice(0,10)||null;
 
   for(const row of Array.isArray(race)?race:[]){
-    const driverId=raceDriverId(row);
-    const teamId=raceTeamId(next,row);
-    if(!driverId||!teamId||teamId===player)continue;
+    const context=resolveAIRaceCar(next,row);
+    if(!context)continue;
+    const {driverId,teamId,state,car:mapped}=context;
+    if(teamId===player)continue;
 
-    const state=aiTechnicalTeamState(next,teamId);
-    if(!state)continue;
     let scoped=normalizePhysicalPartState(scopedState(next,teamId,state));
-    const mapped=aiTechnicalCarForDriver(next,teamId,driverId);
     const carId=str(mapped?.id);
     if(!carId)continue;
 
