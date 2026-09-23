@@ -1,10 +1,13 @@
 // src/engine/ProgressionEngine.js
 import {
-  defaultDriverCondition,
-  normalizeDriverCondition,
   ensureAbilityAnchor,
   recalculateCurrentAbility,
 } from "../domain/driverRating.js";
+import {
+  applyMentalStateDeltaToCondition,
+  mentalStateCondition,
+  passiveMentalStateRecovery,
+} from "../domain/driverMentalState.js";
 import { currentDriverTeamId } from "../domain/driverContracts.js";
 import { academyProgramDefinition } from "../domain/academyPrograms.js";
 import {
@@ -370,9 +373,9 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
       continue;
     }
 
-    const current=normalizeDriverCondition(conditions[did]||defaultDriverCondition());
+    const current=mentalStateCondition(conditions[did]);
     const load=2.0;
-    conditions[did]={...current,fatigue:clamp(current.fatigue+load)};
+    conditions[did]=applyMentalStateDeltaToCondition(current,{fatigue:load});
     ledger[did]={
       ...previous,
       trainingDays:Number(previous.trainingDays||0)+1,
@@ -398,18 +401,8 @@ export function applyProgressionTick(gs){
   for(const d of gs.drivers||[]){
     const id=idOf(d);
     if(!id)continue;
-    const curr=normalizeDriverCondition(dict[id]||defaultDriverCondition());
-    const dow=new Date(`${dateISO}T00:00:00Z`).getUTCDay();
-    const baseRecovery=(dow===0||dow===6)?1.7:1.1;
-    const highLoadRecovery=curr.fatigue>=60?0.3:curr.fatigue>=40?0.15:0;
-    const recovery=baseRecovery+highLoadRecovery;
-    dict[id]={
-      ...curr,
-      fatigue:clamp(curr.fatigue-recovery),
-      preparation:clamp(curr.preparation+(curr.preparation<60?0.20:0)),
-      confidence:meanRevert(curr.confidence,50,0.018),
-      morale:meanRevert(curr.morale,50,0.010),
-    };
+    const curr=mentalStateCondition(dict[id]);
+    dict[id]=passiveMentalStateRecovery(curr,{dateISO});
   }
   next.driverAttributes=dict;
 
