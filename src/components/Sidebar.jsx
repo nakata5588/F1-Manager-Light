@@ -133,7 +133,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="w-44 shrink-0 border-r border-white/10 bg-[#07090d] px-2 py-2 flex flex-col gap-0.5 text-slate-200"
+      className="w-40 shrink-0 border-r border-white/10 bg-[#07090d] px-2 py-2 flex flex-col gap-0.5 text-slate-200"
     >
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Main</div>
       <Item to="/Home" label="Home" icon={Home} brand={brand} />
