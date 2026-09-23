@@ -1,12 +1,59 @@
 // src/state/newGameRuntime.js
-// Runtime-only Save World state that must never leak from one career into a New Game.
-// Historical/database seed data lives outside this patch and is preserved by the caller.
+// New Game isolation boundary.
+// Historical/database seed data may cross into a fresh career. Simulated Save
+// World state must be recreated explicitly and never inherited from the
+// previously loaded career.
+
+export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
+  // Global database / catalogues.
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory",
+  "dbDriverOpeningState","dbStaffRatings","dbStaffCore","dbDriverCareer",
+  "dbAchievements","dbTeamBrands","dbTeamEngines","dbContracts",
+  "dbSponsorsContracts","dbRules","dbEraSafety","dbAccidentModel",
+  "dbFacilities","dbCarStats","dbCarParts","dbStaffContracts","dbTyres",
+  "dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides",
+  "dbPenaltiesRules","dbFinancialRules","dbBoardGoals","dbAgendaBlocks",
+  "dbLogosIndex","dbAIDifficulty","dbContractRules","dbYouthIntakeRules",
+  "dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbCoreTracks",
+  "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
+
+  // Dataset discovery / selected Season Pack metadata.
+  "yearsAvailable","seasonPackIndex","seasonPackMeta",
+
+  // Historical starting conditions materialized for the selected season.
+  "calendar","teams","drivers","driverRatings","driverCareer","driverHistory",
+  "driverOpeningState","staffRatings","staffCore","staffContracts","teamBrands",
+  "teamEngines","contracts","sponsorsContracts","rules","qualifyingRules",
+  "eraSafety","accidentModel","facilities","carStats","tyres","pointsSystem",
+  "penaltiesRules","financialRules","agendaBlocks","coreTracks",
+  "trackLayoutByYear",
+]);
+
+function copyStaticWorld(source){
+  const out={};
+  for(const key of FRESH_CAREER_STATIC_KEYS){
+    if(Object.prototype.hasOwnProperty.call(source||{},key))out[key]=source[key];
+  }
+  return out;
+}
 
 export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
   return {
     results: [],
     lastRace: null,
+    resultsHistory: [],
+    historySeasons: [],
+
+    standings: { drivers: [], teams: [] },
+    inbox: [],
+    eventsQueue: [],
+
     financeFlags: {},
+    financeLog: [],
+    finances: null,
+    board: null,
+    commercialScore: null,
+
     rdProjectsActive: [],
     meta: {},
     ops: {},
@@ -14,7 +61,6 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     _seasonFinishedAt: null,
     showSeasonSummary: false,
 
-    eventsQueue: [],
     driverAttrLog: {},
     driverAttributes: initialDriverConditions,
     driverAvailability: {},
@@ -34,11 +80,32 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     driverAbilityLog: {},
     _lastDriverProgressionMonth: null,
 
-    // Team operational state is also simulated runtime state.
+    // Technical Save World state.
+    development: { projects: [], parts: [], partUnits: [], manufacturing: [], research: [] },
+    garage: { cars: [], serviceJobs: [], baseComponentStock: {} },
+    componentServiceLog: [],
+    componentWearLog: [],
+    aiTechnicalWorld: { version: 1, teams: {} },
+    hq: { facilityLevels: {}, upgrades: [] },
+
+    academy: { drivers: [] },
+    scouting: { assignments: [], shortlist: [] },
+
+    // Team operational state is simulated runtime state.
     teamOperationalState: {},
     teamMoraleLog: {},
 
     raceEntryState: null,
     raceWeekendState: null,
+  };
+}
+
+export function buildFreshCareerState(source,runtimePatch={}){
+  return {
+    ...copyStaticWorld(source||{}),
+    ...freshCareerRuntimeState({
+      initialDriverConditions:runtimePatch?.driverAttributes||{},
+    }),
+    ...runtimePatch,
   };
 }

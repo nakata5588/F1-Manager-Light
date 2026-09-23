@@ -6,11 +6,12 @@ import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
-import { freshCareerRuntimeState } from "@/state/newGameRuntime";
+import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
+import { syncGarageState } from "@/domain/garage";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -1215,29 +1216,23 @@ export const useGame = create((set, get) => ({
       (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
     );
 
-    const initial = {
+    let fresh = buildFreshCareerState(db, {
       currentDateISO: firstDayISO(y),
       currentRound: 0,
-      team: team ? { ...team, budget: startingBudget } : null,
-      standings: { drivers: [], teams: [] },
-      inbox: [
-        {
-          id: Date.now(),
-          subject: "Welcome to the paddock",
-          from: "FIA",
-          tag: "FIA",
-          date: `${y}-01-02`,
-          body: `Difficulty set to ${difficulty}. Good luck!`,
-        },
-      ],
-      ...freshCareerRuntimeState({ initialDriverConditions }),
-      settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
+      team: team ? { ...team, budget: startingBudget } : null,
       careerMeta: createCareerMeta(db, y),
       saveMeta: createNewSaveMeta({ year: y, teamId }),
-
-      // 💰 snapshot inicial (sem lançar no ledger)
-      financeLog: [],
+      settings: db?.settings ?? defaultSettings,
+      inbox: [{
+        id: `welcome_${y}_${teamId || "team"}`,
+        subject: "Welcome to the paddock",
+        from: "FIA",
+        tag: "FIA",
+        date: `${y}-01-02`,
+        body: `Difficulty set to ${difficulty}. Good luck!`,
+      }],
+      driverAttributes: initialDriverConditions,
       finances: {
         budget: startingBudget,
         balance: startingBudget,
@@ -1245,16 +1240,13 @@ export const useGame = create((set, get) => ({
         season_spend: 0,
         season_income: 0,
       },
-      board: null,
-      commercialScore: null,
-      academy: { drivers: [] },
-      scouting: { assignments: [], shortlist: [] },
-      development: { projects: [], parts: [], partUnits: [], manufacturing: [], research: [] },
-      hq: { facilityLevels: {}, upgrades: [] },
-    };
+    });
 
-    set((s) => ({ gameState: { ...s.gameState, ...initial } }));
-    set({ currentSaveKey: null });
+    // A fresh career starts with newly-created physical cars and pristine
+    // standard components. No garage/wear state may come from the old career.
+    fresh = { ...fresh, garage: syncGarageState(fresh, fresh.garage) };
+
+    set({ gameState: fresh, currentSaveKey: null });
   },
 
   startNewGameFromCreateTeam: (payload) => {
@@ -1284,51 +1276,48 @@ export const useGame = create((set, get) => ({
         is_user_controlled: true,
       };
 
-      const inbox = [
-        {
-          id: Date.now(),
-          subject: "Welcome to the paddock",
-          from: "FIA",
-          tag: "FIA",
-          date: `${y}-01-02`,
-          body: `Your entry has been accepted for the ${y} World Championship.`,
-        },
-        {
-          id: Date.now() + 1,
-          subject: "Supplier contract signed",
-          from: "Commercial",
-          tag: "Suppliers",
-          date: `${y}-01-03`,
-          body: `Engine supply confirmed for ${team.short_name}.`,
-        },
-      ];
-
-      set((s) => ({
-        gameState: {
-          ...s.gameState,
-          currentDateISO: firstDayISO(y),
-          currentRound: 0,
-          activeYear: y,
-          careerMeta: createCareerMeta(db, y),
-          saveMeta: createNewSaveMeta({ year: y, teamId }),
-          team: userTeam,
-          standings: { drivers: [], teams: [] },
-          inbox,
-          ...freshCareerRuntimeState({ initialDriverConditions }),
-          selectedDrivers: Array.isArray(drivers) ? drivers : [],
-          settings: s.gameState?.settings ?? defaultSettings,
-
-          financeLog: [],
-          finances: {
-            budget: startingBudget,
-            balance: startingBudget,
-            weekly_burn: 0,
-            season_spend: 0,
-            season_income: 0,
+      let fresh = buildFreshCareerState(db, {
+        currentDateISO: firstDayISO(y),
+        currentRound: 0,
+        activeYear: y,
+        careerMeta: createCareerMeta(db, y),
+        saveMeta: createNewSaveMeta({ year: y, teamId }),
+        team: userTeam,
+        selectedDrivers: Array.isArray(drivers) ? drivers : [],
+        settings: db?.settings ?? defaultSettings,
+        inbox: [
+          {
+            id: `welcome_${y}_${teamId || "team"}`,
+            subject: "Welcome to the paddock",
+            from: "FIA",
+            tag: "FIA",
+            date: `${y}-01-02`,
+            body: `Your entry has been accepted for the ${y} World Championship.`,
           },
+          {
+            id: `supplier_${y}_${teamId || "team"}`,
+            subject: "Supplier contract signed",
+            from: "Commercial",
+            tag: "Suppliers",
+            date: `${y}-01-03`,
+            body: `Engine supply confirmed for ${team.short_name}.`,
+          },
+        ],
+        driverAttributes: initialDriverConditions,
+        finances: {
+          budget: startingBudget,
+          balance: startingBudget,
+          weekly_burn: 0,
+          season_spend: 0,
+          season_income: 0,
         },
-      }));
-      set({ currentSaveKey: null });
+      });
+
+      // Create Team may not yet have canonical driver contracts, so keep the
+      // garage fresh and let the normal roster sync assign seats once available.
+      fresh = { ...fresh, garage: syncGarageState(fresh, fresh.garage) };
+
+      set({ gameState: fresh, currentSaveKey: null });
       get().saveLocal?.();
       return true;
     } catch (e) {
