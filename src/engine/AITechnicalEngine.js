@@ -139,7 +139,10 @@ function scopedState(gs,teamId,state){
   return {
     ...gs,
     team:{team_id:str(teamId),budget:num(state?.budget,0)},
-    finances:{...(gs?.finances||{}),balance:num(state?.budget,0)},
+    finances:{balance:num(state?.budget,0),budget:num(state?.budget,0)},
+    // Never inherit the player's HQ overrides. Shared component-service helpers
+    // will then resolve facilities using this AI TEAM's own historical rows.
+    hq:{facilityLevels:{},upgrades:[]},
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
@@ -259,14 +262,15 @@ function raceDriverId(row){
 }
 
 function raceTeamId(gs,row){
-  const direct=teamIdOf(row)||teamIdOf(row?.driver);
+  const direct=teamIdOf(row);
   if(direct)return direct;
   const driverId=raceDriverId(row);
   if(!driverId)return "";
   const entry=(gs?.raceEntryState?.entries||[]).find((item)=>str(item?.driver_id)===driverId);
   if(entry?.team_id)return str(entry.team_id);
   const contract=activeDriverContracts(gs).find((item)=>driverIdOf(item)===driverId);
-  return contract?teamIdOf(contract):"";
+  if(contract)return teamIdOf(contract);
+  return teamIdOf(row?.driver);
 }
 
 function maintenanceThreshold(slot){
