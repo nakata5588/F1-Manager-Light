@@ -8,6 +8,7 @@ import {
   isRaceDriverSlot,
 } from "./contractRoles.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
+import { applyMentalStateDeltaToCondition, mentalStateCondition } from "./driverMentalState.js";
 import {
   collectionRows,
   contractActiveForYear,
@@ -296,12 +297,11 @@ function applyRoleEffects(gs,effectsByDriver){
   const driverAttributes={...(gs?.driverAttributes||{})};
 
   for(const [driverId,effects] of effectsByDriver.entries()){
-    const current={...(driverAttributes[driverId]||{})};
-    driverAttributes[driverId]={
-      ...current,
-      morale:clamp100(Number(current.morale??50)+Number(effects.morale||0)),
-      confidence:clamp100(Number(current.confidence??50)+Number(effects.confidence||0)),
-    };
+    const current=mentalStateCondition(driverAttributes[driverId]);
+    driverAttributes[driverId]=applyMentalStateDeltaToCondition(current,{
+      morale:Number(effects.morale||0),
+      confidence:Number(effects.confidence||0),
+    });
   }
 
   const driverRatings=Array.isArray(gs?.driverRatings)
