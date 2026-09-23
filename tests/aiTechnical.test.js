@@ -98,6 +98,21 @@ test("AI project selection obeys era and fitted technology eligibility",()=>{
   assert.notEqual(project.type,"turbocharger");
 });
 
+test("AI prioritizes a meaningful current-car weakness over speculative rival technology",()=>{
+  const seeded=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
+  const weak={
+    ...seeded,
+    carStats:(seeded.carStats||[]).map((row)=>
+      row.team_id==="WILLIAMS"?{...row,chassis_spec:55,aero_spec:56,gearbox_spec:58}:row
+    ),
+  };
+  const assessment=aiTechnicalPlanningAssessment(weak,"WILLIAMS");
+  assert.equal(assessment.action,"develop");
+  assert.equal(assessment.prefer_technology,false);
+  assert.ok(Number(assessment.need.gap)>=Number(assessment.gap_threshold));
+  assert.ok(assessment.technology,"rival Turbo should remain visible as a future opportunity");
+});
+
 test("AI can fund a discovered rival technology before developing its own component",()=>{
   const gs=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
   const assessment=aiTechnicalPlanningAssessment(gs,"WILLIAMS");
