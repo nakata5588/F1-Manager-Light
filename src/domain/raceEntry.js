@@ -1,6 +1,11 @@
 // src/domain/raceEntry.js
 import { isRaceDriverContract, isReserveDriverContract, normalizedContractRole } from "./contractRoles.js";
 import { contractActiveForYear, preferLiveRows } from "./liveContracts.js";
+import {
+  carForRaceSlot,
+  carReadinessForDate,
+  reserveCarReadinessForDate,
+} from "./carAvailability.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -157,11 +162,49 @@ export function buildRaceEntryState(gs,{gp,roundIndex,teamEntryLimits=null}={}){
     const reserveContracts=activeReserveContracts(gs,teamId);
     const usedReserveIds=new Set();
     const slotLimit=entryLimits.has(String(teamId))?entryLimits.get(String(teamId)):2;
+    const targetDate=gpDateISO(gp)||null;
+    const reserveCar=reserveCarReadinessForDate(gs,teamId,targetDate);
+    let reserveCarUsed=false;
 
     for(let slot=1;slot<=slotLimit;slot+=1){
       const contract=contracts[slot-1]||null;
       const contractedDriverId=contract?driverIdOf(contract):null;
       const availability=driverAvailabilityForRace(gs,contractedDriverId,gp);
+
+      const primaryCar=carForRaceSlot(gs,teamId,slot);
+      const primaryReadiness=carReadinessForDate(gs,teamId,primaryCar,targetDate);
+      let assignedCar=primaryCar;
+      let carSource="primary";
+      let carReadiness=primaryReadiness;
+
+      if(!primaryReadiness.available&&reserveCar.available&&!reserveCarUsed){
+        assignedCar=reserveCar.car;
+        carSource="reserve_car";
+        carReadiness=reserveCar;
+        reserveCarUsed=true;
+      }
+
+      if(!carReadiness.available){
+        entries.push({
+          team_id:String(teamId),
+          car_slot:slot,
+          car_id:primaryCar?.id||null,
+          original_car_id:primaryCar?.id||null,
+          car_source:"unavailable",
+          car_status:carReadiness.status,
+          car_availability_reason:carReadiness.reason,
+          driver_id:null,
+          contracted_driver_id:contractedDriverId?String(contractedDriverId):null,
+          entry_type:"car_unavailable",
+          replacement_for_driver_id:null,
+          replacement_contract_id:null,
+          temporary_assignment_id:null,
+          status:"car_unavailable",
+          availability_status:"car_unavailable",
+          availability_reason:carReadiness.reason,
+        });
+        continue;
+      }
 
       let driverId=contractedDriverId&&availability.available?String(contractedDriverId):null;
       let entryType=driverId?"contracted":null;
@@ -202,6 +245,11 @@ export function buildRaceEntryState(gs,{gp,roundIndex,teamEntryLimits=null}={}){
       entries.push({
         team_id:String(teamId),
         car_slot:slot,
+        car_id:assignedCar?.id||null,
+        original_car_id:primaryCar?.id||assignedCar?.id||null,
+        car_source:carSource,
+        car_status:carReadiness.status,
+        car_availability_reason:carReadiness.reason,
         driver_id:confirmed?String(driverId):null,
         contracted_driver_id:contractedDriverId?String(contractedDriverId):null,
         entry_type:entryType,
