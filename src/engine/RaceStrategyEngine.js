@@ -853,14 +853,18 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         (condition<38&&projectedCritical)||
         (condition<30&&currentEffects.pace_penalty_s>0.9)
       );
-      // Player tyre calls remain authoritative. Weather mismatch still affects
-      // lap time and driver feedback, but only AI teams may automatically react
-      // to it. The player decides whether to answer a driver's complaint by pitting.
+      // Once the player has issued a manual tyre call for this driver, that
+      // tyre choice remains authoritative. Before any manual call, the normal
+      // automatic strategy still operates (important for non-live/autosim races).
+      // Weather mismatch always affects lap time and can generate driver feedback.
+      const playerTyreAuthority=!isAi&&liveCommands.some((command)=>
+        command?.type==="pit"&&Number(command?.effective_lap||0)<=lap
+      );
       let stopReason=null;
 
       if(lap>1){
         if(forcedPit&&remaining>1)stopReason="player_call";
-        else if(isAi&&mismatch>=3.5&&remaining>3)stopReason="weather";
+        else if((isAi||!playerTyreAuthority)&&mismatch>=3.5&&remaining>3)stopReason="weather";
         else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
         else if(isAi&&strategicStopValue&&rng.chance(0.44+intelligence*0.0045))stopReason="degradation_value";
