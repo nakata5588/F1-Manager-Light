@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  aiTechnicalPlanningAssessment,
   aiTechnicalTeamState,
   applyAIRaceComponentWear,
   normalizeAITechnicalWorld,
@@ -21,6 +22,14 @@ function baseState(){
   return {
     activeYear:1980,
     currentDateISO:"1980-01-01",
+    calendar:[
+      {gp_id:"ARG",date:"1980-01-13"},
+      {gp_id:"BRA",date:"1980-01-27"},
+      {gp_id:"RSA",date:"1980-03-01"},
+      {gp_id:"BEL",date:"1980-05-04"},
+      {gp_id:"GBR",date:"1980-07-13"},
+      {gp_id:"USA",date:"1980-10-05"},
+    ],
     team:{team_id:"PLAYER",budget:5_000_000},
     contracts:[
       {year:1980,team_id:"RENAULT",driver_id:"REN_1",role:"Main Driver",status:"active"},
@@ -82,7 +91,7 @@ test("AI project selection obeys era and fitted technology eligibility",()=>{
   assert.ok(availableCarComponentSlots(gs,"RENAULT").includes("turbocharger"));
   assert.equal(availableCarComponentSlots(gs,"WILLIAMS").includes("turbocharger"),false);
 
-  const planned=planAITechnicalProject(withTeamBudget(gs,"WILLIAMS",5_000_000),"WILLIAMS");
+  const planned=planAITechnicalProject(withTeamBudget(gs,"WILLIAMS",5_000_000),"WILLIAMS",{force:true});
   const project=aiTechnicalTeamState(planned,"WILLIAMS").development.projects[0];
   assert.ok(project);
   assert.notEqual(project.type,"turbocharger");
@@ -91,7 +100,7 @@ test("AI project selection obeys era and fitted technology eligibility",()=>{
 test("AI planning spends real team technical budget and project takes time",()=>{
   const gs=withTeamBudget(baseState(),"RENAULT",5_000_000);
   const before=aiTechnicalTeamState(gs,"RENAULT").budget;
-  const planned=planAITechnicalProject(gs,"RENAULT");
+  const planned=planAITechnicalProject(gs,"RENAULT",{force:true});
   const state=aiTechnicalTeamState(planned,"RENAULT");
   const project=state.development.projects[0];
 
@@ -105,13 +114,13 @@ test("AI planning spends real team technical budget and project takes time",()=>
 
 test("poor AI team does not receive a hidden free upgrade",()=>{
   const gs=withTeamBudget(baseState(),"RENAULT",10_000);
-  const planned=planAITechnicalProject(gs,"RENAULT");
+  const planned=planAITechnicalProject(gs,"RENAULT",{force:true});
   assert.equal(aiTechnicalTeamState(planned,"RENAULT").development.projects.length,0);
   assert.equal(aiTechnicalTeamState(planned,"RENAULT").budget,10_000);
 });
 
 test("completed design queues timed manufacture, creates physical units and fits both cars",()=>{
-  let gs=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT");
+  let gs=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT",{force:true});
   let state=aiTechnicalTeamState(gs,"RENAULT");
   const project=state.development.projects[0];
 
@@ -147,20 +156,20 @@ test("team morale reuses the shared work-rate model for AI project duration",()=
     ...base,
     teamOperationalState:{...base.teamOperationalState,RENAULT:{team_id:"RENAULT",morale:90}},
   };
-  const lowProject=aiTechnicalTeamState(planAITechnicalProject(low,"RENAULT"),"RENAULT").development.projects[0];
-  const highProject=aiTechnicalTeamState(planAITechnicalProject(high,"RENAULT"),"RENAULT").development.projects[0];
+  const lowProject=aiTechnicalTeamState(planAITechnicalProject(low,"RENAULT",{force:true}),"RENAULT").development.projects[0];
+  const highProject=aiTechnicalTeamState(planAITechnicalProject(high,"RENAULT",{force:true}),"RENAULT").development.projects[0];
   assert.ok(lowProject.duration_days>highProject.duration_days);
 });
 
 test("AI technical planning is deterministic for the same save-world state",()=>{
-  const a=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",5_000_000),"RENAULT");
-  const b=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",5_000_000),"RENAULT");
+  const a=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",5_000_000),"RENAULT",{force:true});
+  const b=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",5_000_000),"RENAULT",{force:true});
   assert.deepEqual(aiTechnicalTeamState(a,"RENAULT"),aiTechnicalTeamState(b,"RENAULT"));
 });
 
 
 function completeOneAICycle(gs,teamId){
-  let next=planAITechnicalProject(gs,teamId);
+  let next=planAITechnicalProject(gs,teamId,{force:true});
   let state=aiTechnicalTeamState(next,teamId);
   const project=state.development.projects.find((row)=>row.status==="active");
   next={...next,currentDateISO:project.finishes_at};
@@ -199,12 +208,13 @@ test("AI fitted upgrades feed the shared Characteristics, Performance and Reliab
   assert.notEqual(afterQualifying,beforeQualifying,"Race Weekend qualifying path should consume the AI car upgrade");
 });
 
-test("AI technical world ticks deterministically across all AI teams",()=>{
+test("AI technical world ticks deterministically and does not auto-develop on day one",()=>{
   const a=tickAITechnicalWorld(baseState());
   const b=tickAITechnicalWorld(baseState());
   assert.deepEqual(a.aiTechnicalWorld,b.aiTechnicalWorld);
-  assert.ok(aiTechnicalTeamState(a,"RENAULT").development.projects.length>=1);
-  assert.ok(aiTechnicalTeamState(a,"WILLIAMS").development.projects.length>=1);
+  assert.equal(aiTechnicalTeamState(a,"RENAULT").development.projects.length,0);
+  assert.equal(aiTechnicalTeamState(a,"WILLIAMS").development.projects.length,0);
+  assert.ok(aiTechnicalTeamState(a,"RENAULT").planning.next_review_date>"1980-01-01");
 });
 
 test("AI technical save-world survives save preparation and migration",()=>{
@@ -370,4 +380,158 @@ test("AI race wear is deterministic for the same race state",()=>{
     applyAIRaceComponentWear(fixture,input).aiTechnicalWorld,
     applyAIRaceComponentWear(fixture,input).aiTechnicalWorld
   );
+});
+
+
+function stateAtPlanningReview(teamId="RENAULT",date="1980-02-01",budget=5_000_000){
+  const seeded=withTeamBudget(baseState(),teamId,budget);
+  return {...seeded,currentDateISO:date};
+}
+
+test("normal AI planning waits for a scheduled technical review instead of developing because idle",()=>{
+  const seeded=normalizeAITechnicalWorld(baseState());
+  const assessment=aiTechnicalPlanningAssessment(seeded,"RENAULT");
+  const planned=planAITechnicalProject(seeded,"RENAULT");
+
+  assert.equal(assessment.action,"hold");
+  assert.equal(assessment.reason,"review_not_due");
+  assert.equal(aiTechnicalTeamState(planned,"RENAULT").development.projects.length,0);
+});
+
+test("AI starts a project at review only when a meaningful competitive component gap exists",()=>{
+  const gs=stateAtPlanningReview("RENAULT","1980-02-01",5_000_000);
+  const assessment=aiTechnicalPlanningAssessment(gs,"RENAULT");
+  assert.equal(assessment.action,"develop");
+  assert.equal(assessment.reason,"competitive_technical_gap");
+  assert.ok(assessment.need.gap>=assessment.gap_threshold);
+  assert.ok(assessment.need.benchmark>assessment.need.current);
+
+  const planned=planAITechnicalProject(gs,"RENAULT");
+  const state=aiTechnicalTeamState(planned,"RENAULT");
+  assert.equal(state.development.projects.length,1);
+  assert.equal(state.planning.last_decision.action,"develop");
+  assert.equal(state.development.projects[0].planning_trigger,"competitive_technical_gap");
+});
+
+test("front-running AI can deliberately do nothing when no meaningful technical weakness exists",()=>{
+  const gs=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
+  const assessment=aiTechnicalPlanningAssessment(gs,"WILLIAMS");
+  const planned=planAITechnicalProject(gs,"WILLIAMS");
+
+  assert.equal(assessment.action,"hold");
+  assert.equal(assessment.reason,"no_meaningful_competitive_gap");
+  assert.ok(Number(assessment.need.gap)<Number(assessment.gap_threshold));
+  assert.equal(aiTechnicalTeamState(planned,"WILLIAMS").development.projects.length,0);
+  assert.equal(aiTechnicalTeamState(planned,"WILLIAMS").planning.last_decision.action,"hold");
+});
+
+test("AI protects a technical cash reserve even when it can technically afford the next project",()=>{
+  const seeded={...normalizeAITechnicalWorld(baseState()),currentDateISO:"1980-02-01"};
+  const original=aiTechnicalTeamState(seeded,"RENAULT");
+  const probe=aiTechnicalPlanningAssessment(seeded,"RENAULT");
+  const constrainedBudget=probe.total_commitment+Math.max(10_000,probe.reserve_floor-50_000);
+  const gs={
+    ...seeded,
+    aiTechnicalWorld:{
+      ...seeded.aiTechnicalWorld,
+      teams:{
+        ...seeded.aiTechnicalWorld.teams,
+        RENAULT:{...original,budget:constrainedBudget},
+      },
+    },
+  };
+  const assessment=aiTechnicalPlanningAssessment(gs,"RENAULT");
+  assert.equal(assessment.action,"hold");
+  assert.equal(assessment.reason,"budget_reserve");
+  assert.ok(assessment.budget>=assessment.total_commitment);
+  assert.ok(assessment.budget_after_commitment<assessment.reserve_floor);
+});
+
+test("AI respects season development capacity derived from its engineering facilities",()=>{
+  let gs=stateAtPlanningReview("RENAULT","1980-06-01",5_000_000);
+  const seeded=aiTechnicalTeamState(gs,"RENAULT");
+  const limit=aiTechnicalPlanningAssessment(gs,"RENAULT").season_limit;
+  const projects=Array.from({length:limit},(_,index)=>({
+    id:`completed_${index+1}`,
+    type:index%2?"aero_front":"gearbox",
+    status:"completed",
+    started_at:`1980-0${Math.min(5,index+1)}-01`,
+    completed_at:`1980-0${Math.min(5,index+1)}-20`,
+  }));
+  gs={
+    ...gs,
+    aiTechnicalWorld:{
+      ...gs.aiTechnicalWorld,
+      teams:{
+        ...gs.aiTechnicalWorld.teams,
+        RENAULT:{
+          ...seeded,
+          development:{...seeded.development,projects},
+          planning:{...seeded.planning,next_review_date:"1980-06-01"},
+        },
+      },
+    },
+  };
+
+  const assessment=aiTechnicalPlanningAssessment(gs,"RENAULT");
+  assert.equal(assessment.action,"hold");
+  assert.equal(assessment.reason,"season_capacity_reached");
+  assert.equal(assessment.season_projects,assessment.season_limit);
+});
+
+test("AI will not start an upgrade too late to design manufacture and fit before season end",()=>{
+  let gs=stateAtPlanningReview("RENAULT","1980-10-04",5_000_000);
+  const state=aiTechnicalTeamState(gs,"RENAULT");
+  gs={
+    ...gs,
+    aiTechnicalWorld:{
+      ...gs.aiTechnicalWorld,
+      teams:{
+        ...gs.aiTechnicalWorld.teams,
+        RENAULT:{...state,planning:{...state.planning,next_review_date:"1980-10-04"}},
+      },
+    },
+  };
+  const assessment=aiTechnicalPlanningAssessment(gs,"RENAULT");
+  assert.equal(assessment.action,"hold");
+  assert.equal(assessment.reason,"too_late_to_deliver");
+  assert.ok(assessment.days_to_season_end<assessment.delivery_days);
+});
+
+test("after committing a package AI schedules a future review beyond design and manufacture",()=>{
+  const gs=stateAtPlanningReview("RENAULT","1980-02-01",5_000_000);
+  const planned=planAITechnicalProject(gs,"RENAULT");
+  const state=aiTechnicalTeamState(planned,"RENAULT");
+  const project=state.development.projects[0];
+
+  assert.ok(project);
+  assert.ok(state.planning.next_review_date>project.finishes_at);
+  assert.equal(state.planning.last_need,project.type);
+});
+
+test("old AI technical saves gain planning guardrails without losing their live technical world",()=>{
+  const old=normalizeAITechnicalWorld(baseState());
+  const state=aiTechnicalTeamState(old,"RENAULT");
+  const legacy={
+    ...old,
+    currentDateISO:"1980-04-01",
+    aiTechnicalWorld:{
+      version:1,
+      teams:{
+        ...old.aiTechnicalWorld.teams,
+        RENAULT:{
+          ...state,
+          initial_budget:undefined,
+          planning:{last_date:"1980-02-01",last_need:"gearbox",cycle:2},
+        },
+      },
+    },
+  };
+  const migrated=normalizeAITechnicalWorld(legacy);
+  const next=aiTechnicalTeamState(migrated,"RENAULT");
+
+  assert.ok(next.initial_budget>=next.budget);
+  assert.equal(next.planning.season_year,1980);
+  assert.ok(next.planning.next_review_date>"1980-04-01");
+  assert.equal(next.garage.cars.length,state.garage.cars.length);
 });
