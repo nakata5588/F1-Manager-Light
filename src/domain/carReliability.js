@@ -6,6 +6,7 @@
 import { availableCarComponentSlots, carComponentDefinition } from "./carComponents.js";
 import { derivePartTechnicalProfile } from "./carPartPerformance.js";
 import { partDesignById, partUnitById } from "./partUnits.js";
+import { aiTechnicalCarForDriver, aiTechnicalScopedState } from "../engine/AITechnicalEngine.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -126,11 +127,14 @@ function componentRow(gs,car,slot){
 
 function physicalComponentProfile(gs,teamId,driverId){
   const player=str(gs?.team?.team_id??gs?.team?.id);
-  if(str(teamId)!==player)return null;
+  const isPlayer=str(teamId)===player;
+  const sourceState=isPlayer?gs:aiTechnicalScopedState(gs,teamId);
+  if(!sourceState)return null;
+
   if(driverId==null||driverId===""){
-    const raceCars=(gs?.garage?.cars||[]).filter((car)=>car?.kind==="race");
+    const raceCars=(sourceState?.garage?.cars||[]).filter((car)=>car?.kind==="race");
     if(!raceCars.length)return null;
-    const rows=raceCars.map((car)=>componentProfileForCar(gs,teamId,car)).filter(Boolean);
+    const rows=raceCars.map((car)=>componentProfileForCar(sourceState,teamId,car)).filter(Boolean);
     if(!rows.length)return null;
     return {
       design_delta_pct:rows.reduce((s,row)=>s+row.design_delta_pct,0)/rows.length,
@@ -140,8 +144,11 @@ function physicalComponentProfile(gs,teamId,driverId){
       weakest:rows.flatMap((row)=>row.weakest).sort((a,b)=>b.risk_weight-a.risk_weight).slice(0,5),
     };
   }
-  const car=playerCarForDriver(gs,driverId);
-  return car?componentProfileForCar(gs,teamId,car):null;
+
+  const car=isPlayer
+    ?playerCarForDriver(gs,driverId)
+    :aiTechnicalCarForDriver(gs,teamId,driverId);
+  return car?componentProfileForCar(sourceState,teamId,car):null;
 }
 
 function componentProfileForCar(gs,teamId,car){
