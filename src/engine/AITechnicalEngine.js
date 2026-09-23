@@ -170,8 +170,18 @@ function componentBaseline(gs,teamId,slot){
   }[slot];
   return fallback?clamp(num(car?.[fallback],70)):70;
 }
+const MAX_SLOT_DEVELOPMENT_STRENGTH=6.0;
+
 function completedDesignCount(state,slot){
   return (state?.development?.parts||[]).filter((part)=>str(part?.slot)===str(slot)).length;
+}
+function bestDesignStrength(state,slot){
+  return (state?.development?.parts||[])
+    .filter((part)=>str(part?.slot)===str(slot))
+    .reduce((best,part)=>Math.max(best,num(part?.perf,0)),0);
+}
+function developmentHeadroom(state,slot){
+  return Math.max(0,MAX_SLOT_DEVELOPMENT_STRENGTH-bestDesignStrength(state,slot));
 }
 
 function technicalStateForTeam(gs,teamId){
@@ -231,26 +241,44 @@ function chooseNeed(gs,teamId,state){
     const benchmark=fieldBenchmarkForSlot(gs,slot)??current;
     const gap=Math.max(0,benchmark-current);
     const prior=completedDesignCount(state,slot);
-    const repeatPenalty=prior*0.45;
+    const incumbent=bestDesignStrength(state,slot);
+    const headroom=developmentHeadroom(state,slot);
+    const repeatPenalty=prior*0.18;
+    const cappedPenalty=headroom<0.12?100:0;
     const tie=(stableHash(`${teamId}|${yearOf(gs)}|${slot}`)%1000)/1_000_000;
     return {
       slot,baseline,current,benchmark,
       gap:Number(gap.toFixed(3)),
       prior,
-      score:Number((gap-repeatPenalty+tie).toFixed(6)),
+      incumbent:Number(incumbent.toFixed(3)),
+      headroom:Number(headroom.toFixed(3)),
+      score:Number((gap-repeatPenalty-cappedPenalty+tie).toFixed(6)),
     };
-  }).sort((a,b)=>b.score-a.score||a.baseline-b.baseline||a.slot.localeCompare(b.slot));
+  }).filter((row)=>row.headroom>=0.12)
+    .sort((a,b)=>b.score-a.score||a.baseline-b.baseline||a.slot.localeCompare(b.slot));
   return scored[0]||null;
 }
 function projectQuote(gs,teamId,state,need){
   const strength=engineeringStrength(gs,teamId);
   const moraleTime=teamWorkRateMultiplier(gs,teamId);
   const prior=completedDesignCount(state,need.slot);
-  const baseDays=34-prior*2;
+  const incumbent=bestDesignStrength(state,need.slot);
+  const headroom=Math.max(0,MAX_SLOT_DEVELOPMENT_STRENGTH-incumbent);
+  const baseDays=Math.max(18,34-prior*2);
   const days=Math.max(10,Math.round(baseDays*Math.max(0.72,1.16-strength*0.045)*moraleTime));
   const cost=Math.round((145_000+strength*42_000+prior*55_000)/10_000)*10_000;
-  const perf=Number((0.45+strength*0.085+Math.max(0,78-need.baseline)*0.018).toFixed(2));
-  return {days,cost,perf,strength};
+  const rawIncrement=0.38+strength*0.072+Math.max(0,78-need.baseline)*0.014+Math.min(8,need.gap||0)*0.025;
+  const diminishing=Math.max(0.34,1-(incumbent/MAX_SLOT_DEVELOPMENT_STRENGTH)*0.62);
+  const increment=Math.min(headroom,Math.max(0.12,rawIncrement*diminishing));
+  const targetPerf=Math.min(MAX_SLOT_DEVELOPMENT_STRENGTH,incumbent+increment);
+  return {
+    days,cost,
+    perf:Number(targetPerf.toFixed(3)),
+    increment:Number(increment.toFixed(3)),
+    incumbent:Number(incumbent.toFixed(3)),
+    headroom:Number(headroom.toFixed(3)),
+    strength,
+  };
 }
 function activeProjects(state){return (state?.development?.projects||[]).filter((p)=>p?.status==="active");}
 function activeManufacturing(state){return (state?.development?.manufacturing||[]).filter((p)=>p?.status==="active");}
