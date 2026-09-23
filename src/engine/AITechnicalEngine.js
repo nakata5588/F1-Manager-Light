@@ -46,12 +46,36 @@ function stableHash(text){
 function teamRows(gs){
   const rows=Array.isArray(gs?.teams)&&gs.teams.length?gs.teams:(gs?.dbTeams||[]);
   const year=yearOf(gs);
+  const activeIds=new Set();
+
+  for(const row of gs?.carStats||gs?.dbCarStats||[]){
+    const rowYear=Number(row?.year??row?.season_year);
+    if(Number.isFinite(rowYear)&&rowYear!==year)continue;
+    const id=teamIdOf(row);
+    if(id)activeIds.add(id);
+  }
+  for(const row of gs?.teamEngines||gs?.dbTeamEngines||[]){
+    const rowYear=Number(row?.year??row?.season_year);
+    if(Number.isFinite(rowYear)&&rowYear!==year)continue;
+    const id=teamIdOf(row);
+    if(id)activeIds.add(id);
+  }
+  for(const contract of activeDriverContracts(gs)){
+    const id=teamIdOf(contract);
+    if(id)activeIds.add(id);
+  }
+
+  if(activeIds.size){
+    const byId=new Map(rows.map((row)=>[teamIdOf(row),row]).filter(([id])=>id));
+    return [...activeIds].sort().map((id)=>byId.get(id)||{team_id:id});
+  }
+
   const seen=new Map();
   for(const row of rows){
     const id=teamIdOf(row);
     if(!id)continue;
-    const from=num(row?.year_from??row?.start_year??row?.year,year);
-    const toRaw=row?.year_to??row?.end_year;
+    const from=num(row?.year_from??row?.start_year??row?.founded_year,year);
+    const toRaw=row?.year_to??row?.end_year??row?.last_year;
     const to=toRaw==null||toRaw===""?Infinity:num(toRaw,Infinity);
     if(year<from||year>to)continue;
     if(!seen.has(id))seen.set(id,row);
