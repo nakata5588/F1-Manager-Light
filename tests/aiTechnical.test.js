@@ -29,6 +29,7 @@ function baseState(){
       {team_id:"PLAYER",year_from:1980,year_to:1980},
       {team_id:"RENAULT",year_from:1980,year_to:1980},
       {team_id:"WILLIAMS",year_from:1980,year_to:1980},
+      {team_id:"HISTORIC_ONLY",team_name:"Historic only"},
     ],
     carStats:[
       {year:1980,team_id:"PLAYER",chassis_spec:82,aero_spec:82,gearbox_spec:80,suspension_spec:80,brakes_spec:80,cooling_spec:80,weight:595},
@@ -70,6 +71,7 @@ test("AI technical world seeds non-player teams with persistent physical-car sta
   assert.equal(Boolean(aiTechnicalTeamState(gs,"PLAYER")),false);
   assert.equal(aiTechnicalTeamState(gs,"RENAULT").garage.cars.length,2);
   assert.equal(aiTechnicalTeamState(gs,"WILLIAMS").development.partUnits.length,0);
+  assert.equal(aiTechnicalTeamState(gs,"HISTORIC_ONLY"),null);
 });
 
 test("AI project selection obeys era and fitted technology eligibility",()=>{
