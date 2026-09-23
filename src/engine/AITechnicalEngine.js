@@ -32,6 +32,7 @@ import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
+const neverNaN=(v,fb=0)=>Number.isFinite(Number(v))?Number(v):fb;
 
 function parseISO(value){
   const [y,m,d]=String(value||"").slice(0,10).split("-").map(Number);
@@ -308,6 +309,131 @@ function planningReserveFloor(gs,teamId,state){
   const ratio=0.22+Math.max(0,6-strength)*0.015;
   return Math.round(Math.max(200_000,initial*ratio)/10_000)*10_000;
 }
+
+function archivedStandingContext(gs,teamId,seasonYear){
+  const archive=(gs?.historySeasons||[]).find((row)=>Number(row?.year)===Number(seasonYear));
+  const rows=archive?.standings?.teams||[];
+  if(!Array.isArray(rows)||!rows.length)return {position:null,field_size:0,multiplier:1};
+  const normalized=rows.map((row,index)=>({
+    team_id:teamIdOf(row),
+    position:num(row?.position??row?.pos,index+1),
+    points:num(row?.points,0),
+  })).sort((a,b)=>a.position-b.position||b.points-a.points);
+  const found=normalized.find((row)=>row.team_id===str(teamId));
+  if(!found)return {position:null,field_size:normalized.length,multiplier:1};
+  const third=Math.max(1,Math.ceil(normalized.length/3));
+  let multiplier=1;
+  if(found.position===1)multiplier=1.08;
+  else if(found.position<=third)multiplier=1.04;
+  else if(found.position>normalized.length-third)multiplier=0.96;
+  return {position:found.position,field_size:normalized.length,multiplier};
+}
+
+function seasonTechnicalAllocation(gs,teamId,state,previousYear){
+  const initial=Math.max(1,num(state?.initial_budget,inferredInitialBudget(gs,state)));
+  const strength=engineeringStrength(gs,teamId);
+  const standing=archivedStandingContext(gs,teamId,previousYear);
+  const resourceFactor=0.72+Math.max(1,Math.min(10,strength))*0.025;
+  const allocation=initial*resourceFactor*standing.multiplier;
+  return {
+    amount:Math.round(allocation/10_000)*10_000,
+    resource_factor:Number(resourceFactor.toFixed(3)),
+    championship_multiplier:standing.multiplier,
+    previous_position:standing.position,
+    previous_field_size:standing.field_size,
+  };
+}
+
+function seasonTechnicalSnapshot(state,seasonYear){
+  const projects=(state?.development?.projects||[]).filter((project)=>
+    Number(str(project?.started_at).slice(0,4))===Number(seasonYear)
+  );
+  const completed=projects.filter((project)=>project?.status==="completed").length;
+  const maintenance=(state?.componentServiceLog||[]).filter((row)=>
+    Number(str(row?.date).slice(0,4))===Number(seasonYear)
+  ).length;
+  return {
+    year:Number(seasonYear),
+    closing_budget:Math.round(num(state?.budget,0)),
+    projects_started:projects.length,
+    projects_completed:completed,
+    designs_total:(state?.development?.parts||[]).length,
+    physical_units_total:(state?.development?.partUnits||[]).length,
+    maintenance_actions:maintenance,
+  };
+}
+
+function rollAITechnicalSeasonEconomy(gs,teamId,state){
+  const currentYear=yearOf(gs);
+  const economy=state?.economy||{};
+  const knownYear=Number.isFinite(Number(economy?.season_year))
+    ?Number(economy.season_year)
+    :Number.isFinite(Number(state?.planning?.season_year))
+      ?Number(state.planning.season_year)
+      :currentYear;
+
+  if(knownYear>=currentYear){
+    return {
+      ...state,
+      economy:{
+        ...economy,
+        season_year:currentYear,
+        last_allocation:neverNaN(economy?.last_allocation,0),
+      },
+      season_history:Array.isArray(state?.season_history)?state.season_history:[],
+    };
+  }
+
+  const initial=Math.max(1,num(state?.initial_budget,inferredInitialBudget(gs,state)));
+  const snapshot=seasonTechnicalSnapshot(state,knownYear);
+  const allocation=seasonTechnicalAllocation(gs,teamId,state,knownYear);
+  const carryoverCap=Math.round(initial*0.30/10_000)*10_000;
+  const carryover=Math.min(Math.max(0,num(state?.budget,0)),carryoverCap);
+  const envelopeCap=Math.round(initial*1.20/10_000)*10_000;
+  const openingBudget=Math.min(envelopeCap,carryover+allocation.amount);
+  const credited=Math.max(0,openingBudget-carryover);
+  const existingHistory=Array.isArray(state?.season_history)?state.season_history:[];
+  const seasonHistory=[
+    ...existingHistory.filter((row)=>Number(row?.year)!==knownYear),
+    {
+      ...snapshot,
+      carryover_to_next:carryover,
+      next_allocation:credited,
+      next_opening_budget:openingBudget,
+    },
+  ].sort((a,b)=>Number(a.year)-Number(b.year)).slice(-20);
+
+  const financeLog=[
+    ...(state?.finance_log||[]),
+    {
+      id:`ai_tx_season_budget_${safeId(teamId)}_${currentYear}`,
+      dateISO:`${currentYear}-01-01`,
+      type:"income",
+      category:"Technical Budget",
+      amount:credited,
+      desc:`Season ${currentYear} technical allocation`,
+      source:"seasonal_technical_envelope",
+    },
+  ].slice(-500);
+
+  return {
+    ...state,
+    budget:openingBudget,
+    economy:{
+      ...economy,
+      season_year:currentYear,
+      previous_season:knownYear,
+      carryover,
+      last_allocation:credited,
+      opening_budget:openingBudget,
+      resource_factor:allocation.resource_factor,
+      championship_multiplier:allocation.championship_multiplier,
+      previous_position:allocation.previous_position,
+    },
+    season_history:seasonHistory,
+    finance_log:financeLog,
+  };
+}
 function calendarDateISO(row){
   return str(row?.date??row?.race_date??row?.dateISO??row?.race_date_iso).slice(0,10);
 }
@@ -379,15 +505,20 @@ function normalizeAITeamState(gs,teamId,state){
   const initial=num(state?.initial_budget,0)>0
     ?num(state.initial_budget,0)
     :inferredInitialBudget(gs,state);
-  return {
+  const seeded={
     ...state,
     initial_budget:initial,
-    planning:normalizedPlanningState(gs,teamId,state),
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
     finance_log:Array.isArray(state?.finance_log)?state.finance_log:[],
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
+    season_history:Array.isArray(state?.season_history)?state.season_history:[],
+  };
+  const rolled=rollAITechnicalSeasonEconomy(gs,teamId,seeded);
+  return {
+    ...rolled,
+    planning:normalizedPlanningState(gs,teamId,rolled),
   };
 }
 
@@ -408,6 +539,8 @@ export function normalizeAITechnicalWorld(gs){
         garage:{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
         development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
         planning:{},
+        economy:{season_year:yearOf(gs),last_allocation:0,opening_budget:budget},
+        season_history:[],
         finance_log:[],
         componentServiceLog:[],
         componentWearLog:[],
