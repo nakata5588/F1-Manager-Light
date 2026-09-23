@@ -339,15 +339,15 @@ function RaceFlagBanner({notice}){
           {Array.from({length:9},(_,index)=><span key={index} className={(Math.floor(index/3)+index%3)%2===0?"bg-white":"bg-slate-950"}/>)}
         </span>
       :<Flag className="h-6 w-6 fill-current"/>;
-  return <div className={"w-[280px] min-h-[82px] overflow-hidden rounded-lg border-2 shadow-lg "+palette}>
-    <div className="flex h-[54px] items-center gap-3 px-3 py-2">
-      <div className="flex h-9 w-10 shrink-0 items-center justify-center border-r border-current/30 pr-3">{icon}</div>
+  return <div className={"w-[205px] min-h-[52px] overflow-hidden rounded-lg border shadow-lg "+palette}>
+    <div className="flex h-[34px] items-center gap-2 px-2 py-1">
+      <div className="flex h-6 w-7 shrink-0 items-center justify-center border-r border-current/30 pr-2">{icon}</div>
       <div className="min-w-0">
         <div className="text-sm font-black italic tracking-wide">{notice.label}</div>
         <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-80">{notice.subtitle}</div>
       </div>
     </div>
-    <div className="min-h-[26px] border-t border-current/15 px-3 py-1.5 text-right text-[10px] opacity-75">
+    <div className="min-h-[18px] border-t border-current/15 px-2 py-1 text-right text-[9px] opacity-75">
       {notice.reason||"Race control"}
     </div>
   </div>;
@@ -1157,12 +1157,13 @@ export default function RaceWeekend(){
 
         {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
           <div className="rounded-xl border border-white/10 bg-[#11161f] pb-44 text-slate-100 shadow-xl overflow-hidden xl:pb-24">
-            <div className="px-3 py-2 border-b border-white/10">
+            <div className="grid border-b border-white/10 xl:grid-cols-[minmax(0,1fr)_420px]">
+              <div className="px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Live Race Control</div>
                   <div className="mt-1 flex flex-wrap items-baseline gap-3">
-                    <h3 className="text-xl font-semibold">
+                    <h3 className="text-lg font-semibold">
                       Lap {liveRace.current_lap||1} / {liveRace.total_laps}
                       {Number(liveRace.current_sector)>0?<span className="ml-2 text-base text-amber-300">S{liveRace.current_sector}</span>:null}
                     </h3>
@@ -1171,9 +1172,9 @@ export default function RaceWeekend(){
                     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-sky-200"><Droplets className="h-3.5 w-3.5 text-sky-300"/><span className="font-semibold">Team Forecast:</span> {liveTeamForecast.message}<span className="text-sky-300/70">· {String(liveTeamForecast.predicted_state||"unknown").replaceAll("_"," ")} · rain {Number(liveTeamForecast.rain_chance_pct||0).toFixed(0)}%{Number.isFinite(Number(liveTeamForecast.confidence_pct))?<>{" · forecast confidence "}{Number(liveTeamForecast.confidence_pct).toFixed(0)}%</>:null}</span></span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   <RaceFlagBanner notice={raceFlagNotice(raceControlPlan,liveRace,drivers)}/>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-1.5">
                     {liveRace.status==="running"&&<>
                       <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
                       <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
@@ -1191,7 +1192,7 @@ export default function RaceWeekend(){
                 <div className="h-full bg-slate-200 transition-all" style={{width:String(Math.max(0,Math.min(100,(((Math.max(0,Number(liveRace.current_lap||0)-1))+(Number(liveRace.current_sector||0)/3))/Math.max(1,Number(liveRace.total_laps||1)))*100)))+"%"}}/>
               </div>
 
-              <div className="mt-2 grid grid-cols-4 xl:grid-cols-7 gap-1 text-xs">
+              <div className="mt-2 grid grid-cols-3 gap-1 text-xs 2xl:grid-cols-7">
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Flag className="h-3.5 w-3.5"/>Race Control</div>
                   <div className={"mt-1 font-bold "+(String(liveRace.current_control||"GREEN")==="GREEN"?"text-emerald-300":"text-amber-300")}>{String(liveRace.current_control||"GREEN")==="LOCAL_YELLOW"?"YELLOW FLAG":String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
@@ -1222,15 +1223,15 @@ export default function RaceWeekend(){
                   <div className="text-[10px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
                 </div>
               </div>
-            </div>
+              </div>
 
-            <div className="border-b border-white/10 bg-[#0f141d] px-4 py-3">
+              <div className="border-t border-white/10 bg-[#0f141d] px-3 py-2 xl:border-l xl:border-t-0">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race Feed</div>
                 <div className="text-[10px] text-slate-600">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} running · {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length} DNF</div>
               </div>
-              <div className="mt-2 grid gap-1 text-xs md:grid-cols-2">
-                {(liveRace.events||[]).slice(-10).reverse().map((event,index)=>(
+              <div className="mt-2 max-h-[176px] overflow-y-auto pr-1 grid gap-1 text-xs">
+                {(liveRace.events||[]).slice(-40).reverse().map((event,index)=>(
                   <div className={"flex min-w-0 items-center gap-2 rounded border px-2 py-1 "+(
                     String(event?.control_type||"")==="RED_FLAG"||String(event?.type||"")==="incident"||/dnf|retir|collision|crash/i.test(String(event?.message||""))
                       ?"border-red-900/50 bg-red-950/45 text-red-100"
@@ -1254,6 +1255,7 @@ export default function RaceWeekend(){
                   </div>
                 ))}
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
+              </div>
               </div>
             </div>
 
@@ -1483,12 +1485,14 @@ export default function RaceWeekend(){
                   const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
                   const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
+                  const lastFeedback=(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null;
                   return <div className={"grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_150px_minmax(0,1fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
+                      <div title={lastFeedback?.message||"No driver feedback yet"} className="mt-0.5 truncate text-[10px] text-cyan-300/90"><span className="text-slate-500">Last feedback:</span> {lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
                     </div>
 
                     <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
