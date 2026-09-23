@@ -12,6 +12,7 @@ import {
   partUnitRestoreQuote,
   processWorkshopJobs,
   queueWorkshopJob,
+  reserveCarBuildQuote,
   standardRestoreQuote,
 } from "../domain/componentService.js";
 import {
@@ -28,6 +29,13 @@ import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
 import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
 import { componentWearForRaceRow } from "../domain/componentWear.js";
 import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
+import {
+  discoverableCarTechnologies,
+  startTechnologyAdoption,
+  technologyAdoptionQuote,
+  technologyProjectsForTeam,
+} from "../domain/technologyAdoption.js";
+import { carReadinessForDate, raceCarsForTeam } from "../domain/carAvailability.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -488,9 +496,16 @@ function racesRemaining(gs,today){
 }
 function seasonProjectsStarted(gs,state){
   const year=yearOf(gs);
-  return (state?.development?.projects||[]).filter((project)=>
+  const partProjects=(state?.development?.projects||[]).filter((project)=>
     Number(str(project?.started_at).slice(0,4))===year
   ).length;
+  const technologyProjects=(state?.technology_projects||[]).filter((project)=>
+    Number(str(project?.started_at).slice(0,4))===year
+  ).length;
+  return partProjects+technologyProjects;
+}
+function activeTechnologyProjects(state){
+  return (state?.technology_projects||[]).filter((project)=>project?.status==="active");
 }
 function teamStandingContext(gs,teamId){
   const rows=Array.isArray(gs?.standings?.teams)&&gs.standings.teams.length
@@ -548,6 +563,10 @@ function normalizeAITeamState(gs,teamId,state){
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
     season_history:Array.isArray(state?.season_history)?state.season_history:[],
+    technology_projects:Array.isArray(state?.technology_projects)?state.technology_projects:[],
+    technology_unlocks:state?.technology_unlocks&&typeof state.technology_unlocks==="object"
+      ?state.technology_unlocks
+      :{},
   };
   const rolled=rollAITechnicalSeasonEconomy(gs,teamId,seeded);
   return {
@@ -575,6 +594,8 @@ export function normalizeAITechnicalWorld(gs){
         planning:{},
         economy:{season_year:yearOf(gs),last_allocation:0,opening_budget:budget},
         season_history:[],
+        technology_projects:[],
+        technology_unlocks:{},
         finance_log:[],
         componentServiceLog:[],
         componentWearLog:[],
@@ -943,6 +964,23 @@ export function processAITechnicalMaintenance(gs,teamId,stateInput=null){
   return persistScopedState(state,scoped,{budget,financeLog});
 }
 
+function technologyPlanningCandidate(gs,teamId,state){
+  if(activeTechnologyProjects(state).length)return null;
+  const opportunities=discoverableCarTechnologies(gs,teamId);
+  if(!opportunities.length)return null;
+  return opportunities
+    .map((opportunity)=>({
+      ...opportunity,
+      quote:technologyAdoptionQuote(gs,teamId,opportunity.slot),
+    }))
+    .sort((a,b)=>{
+      // Deterministic: cheaper/faster adoption first, stable slot as tie-break.
+      const aCommit=num(a?.quote?.cost,0)+num(a?.quote?.days,0)*5_000;
+      const bCommit=num(b?.quote?.cost,0)+num(b?.quote?.days,0)*5_000;
+      return aCommit-bCommit||str(a.slot).localeCompare(str(b.slot));
+    })[0]||null;
+}
+
 function estimatedManufacturingCommitment(gs,teamId,state,need,quote){
   const scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
   const draft={
@@ -985,6 +1023,7 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   }
 
   const planning=state?.planning||{};
+  const technology=!force?technologyPlanningCandidate(normalized,teamId,state):null;
   const need=chooseNeed(normalized,teamId,state);
   const quote=need?projectQuote(normalized,teamId,state,need):null;
   const manufacturing=need&&quote
@@ -992,7 +1031,10 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     :{qty:2,unit_cost:0,cost:0,days:0};
   const budget=num(state?.budget,0);
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
-  const totalCommitment=num(quote?.cost,0)+num(manufacturing?.cost,0);
+  const technologyCommitment=num(technology?.quote?.cost,0);
+  const totalCommitment=technology
+    ?technologyCommitment
+    :num(quote?.cost,0)+num(manufacturing?.cost,0);
   const projects=seasonProjectsStarted(normalized,state);
   const limit=seasonProjectLimit(normalized,teamId);
   const reviewInterval=planningReviewIntervalDays(normalized,teamId);
@@ -1002,11 +1044,14 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   const end=seasonEndISO(normalized);
   const daysToEnd=daysBetweenISO(today,end);
   const remaining=racesRemaining(normalized,today);
-  const deliveryDays=num(quote?.days,0)+num(manufacturing?.days,0)+3;
+  const deliveryDays=technology
+    ?num(technology?.quote?.days,0)+21
+    :num(quote?.days,0)+num(manufacturing?.days,0)+3;
 
   const base={
     team_id:str(teamId),
     today,
+    technology,
     need,
     quote,
     manufacturing,
@@ -1026,17 +1071,39 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     delivery_days:deliveryDays,
   };
 
-  if(activeProjects(state).length||activeManufacturing(state).length){
+  if(activeProjects(state).length||activeManufacturing(state).length||activeTechnologyProjects(state).length){
     return {...base,action:"hold",reason:"technical_capacity_busy"};
   }
   if(!force&&today<nextReview){
     return {...base,action:"hold",reason:"review_not_due"};
   }
-  if(!need){
-    return {...base,action:"hold",reason:"no_legal_component"};
-  }
   if(!force&&projects>=limit){
     return {...base,action:"hold",reason:"season_capacity_reached"};
+  }
+  if(!force&&remaining===0){
+    return {...base,action:"hold",reason:"season_complete"};
+  }
+  if(!force&&technology){
+    if(budget<totalCommitment){
+      return {...base,action:"hold",reason:"insufficient_budget"};
+    }
+    if(budget-totalCommitment<reserveFloor){
+      return {...base,action:"hold",reason:"budget_reserve"};
+    }
+    if(daysToEnd<deliveryDays){
+      return {...base,action:"hold",reason:"too_late_to_deliver"};
+    }
+    return {
+      ...base,
+      action:"adopt_technology",
+      reason:"technology_opportunity",
+      need:{slot:technology.slot,gap:0,benchmark:0,current:0},
+      quote:technology.quote,
+      manufacturing:{qty:0,unit_cost:0,cost:0,days:0},
+    };
+  }
+  if(!need){
+    return {...base,action:"hold",reason:"no_legal_component"};
   }
   if(!force&&num(need?.gap,0)<gapThreshold){
     return {...base,action:"hold",reason:"no_meaningful_competitive_gap"};
@@ -1046,9 +1113,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   }
   if(!force&&budget-totalCommitment<reserveFloor){
     return {...base,action:"hold",reason:"budget_reserve"};
-  }
-  if(!force&&remaining===0){
-    return {...base,action:"hold",reason:"season_complete"};
   }
   if(!force&&daysToEnd<deliveryDays){
     return {...base,action:"hold",reason:"too_late_to_deliver"};
@@ -1080,6 +1144,31 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
   if(!state)return next;
 
   const assessment=aiTechnicalPlanningAssessment(next,teamId,{force});
+  if(assessment.action==="adopt_technology"){
+    const today=assessment.today;
+    next=startTechnologyAdoption(next,teamId,assessment.technology.slot,{origin:"ai"});
+    state=aiTechnicalTeamState(next,teamId);
+    if(!state)return next;
+    const record=planningDecisionRecord(today,"adopt_technology","technology_opportunity",assessment);
+    const history=[...(state?.planning?.decision_history||[]),record].slice(-40);
+    const nextState={
+      ...state,
+      planning:{
+        ...(state?.planning||{}),
+        last_date:today,
+        last_need:assessment.technology.slot,
+        cycle:num(state?.planning?.cycle,0)+1,
+        last_review_date:today,
+        next_review_date:addDaysISO(
+          today,
+          num(assessment?.technology?.quote?.days,0)+assessment.review_interval_days
+        ),
+        last_decision:record,
+        decision_history:history,
+      },
+    };
+    return replaceTeamState(next,teamId,nextState);
+  }
   if(assessment.action!=="develop"){
     const held=recordPlanningHold(state,assessment);
     return held===state?next:replaceTeamState(next,teamId,held);
