@@ -1203,13 +1203,14 @@ function OverviewTab({
   futureTransfer,
 }) {
   const season=snapshot?.season||{};
-  const impact=snapshot?.conditionImpact||{};
   const availability=snapshot?.availability||{};
   const canSeeCondition=Boolean(knowledge?.canSeeCondition);
-  const impactValue=canSeeCondition?Number(impact?.total):NaN;
-  const impactTone=Number.isFinite(impactValue)
-    ?(impactValue>=0?"text-emerald-300":"text-rose-300")
-    :"text-slate-200";
+  const reputationView=presentDriverKnowledgeValue(
+    knowledge,
+    "reputation",
+    snapshot?.reputation,
+    {kind:"attribute"}
+  );
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -1237,8 +1238,14 @@ function OverviewTab({
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current State</div>
           <span className="rounded bg-sky-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-sky-300">{knowledge?.label||"Unscouted"}</span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           <ProfileMetric label="Overall" value={overallLabel}/>
+          <ProfileMetric
+            label="Reputation"
+            value={reputationView?.label??"—"}
+            tone={presentationColorClass(reputationView)}
+            title="Paddock, media and fan standing. Reputation affects market evaluation, salary expectations and negotiations; it does not add race pace or Overall."
+          />
           <ProfileMetric label="Championship" value={season.championshipPosition?`P${season.championshipPosition}`:"—"}/>
           <ProfileMetric label="Points" value={season.points??0}/>
           <ProfileMetric
@@ -1261,13 +1268,7 @@ function OverviewTab({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-5">
-              <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
-              <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
-              <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
-              <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
-              <ProfileMetric label="Medical effect" value={Number.isFinite(Number(impact?.medicalEffect))?Number(impact.medicalEffect).toFixed(1):"—"} tone={Number(impact?.medicalEffect)<0?"text-amber-300":""}/>
-            </div>
+            <ConditionExplanationPanel snapshot={snapshot} condition={condition}/>
           </>
         ) : (
           <div className="mt-5 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
