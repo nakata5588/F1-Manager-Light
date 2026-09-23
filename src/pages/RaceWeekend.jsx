@@ -1021,6 +1021,56 @@ export default function RaceWeekend(){
             </div>
           </div>
 
+          <div className="mt-3 grid gap-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Circuit / race</div>
+              <div className="mt-1 font-semibold">{Number(raceStrategy?.track_snapshot?.laps||0)} laps · {Number(raceStrategy?.track_snapshot?.lap_length_km||practiceTrackInputs.lap_length_km||0).toFixed(2)} km</div>
+              <div className="mt-1 text-xs text-slate-400">Pit loss {Number(raceStrategy?.track_snapshot?.pit_lane_loss_s||0).toFixed(1)}s · tyre wear {Math.round(Number(raceStrategy?.track_snapshot?.tyre_wear||practiceTrackInputs.tyre_wear||0))}/100</div>
+            </div>
+            <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.05] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-violet-300">Qualifying favourites</div>
+              <div className="mt-1 grid gap-1 text-xs">
+                {classification.slice().sort((a,b)=>Number(a.position??999)-Number(b.position??999)).slice(0,3).map((row)=><div key={row.driver_id} className="flex justify-between gap-2"><span>{"P"+row.position+" "+driverName(drivers,row.driver_id)}</span><span className="font-mono text-slate-500">{formatLapTime(row.best_time_ms)}</span></div>)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-emerald-300">Team weekend summary</div>
+              <div className="mt-1 grid gap-1 text-xs">
+                {playerEntrants.map((entry)=>{
+                  const q=classification.find((row)=>String(row.driver_id)===String(entry.driver_id));
+                  const impact=practiceWeekendImpact(gs,entry.driver_id);
+                  return <div key={entry.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,entry.driver_id)}</span><span className="text-slate-400">{(q?"Grid P"+q.position:"No Q time")+" · Race prep "+signedValue(impact.race)}</span></div>;
+                })}
+              </div>
+            </div>
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3">
+              <div className="text-[10px] uppercase tracking-wide text-amber-300">Championship</div>
+              <div className="mt-1 grid gap-1 text-xs">
+                <div className="flex justify-between gap-2 font-semibold"><span>{teamName(teams,playerTeamId)}</span><span>{constructorStandingById.get(playerTeamId)?"P"+constructorStandingById.get(playerTeamId).position+" · "+constructorStandingById.get(playerTeamId).points+" pts":"—"}</span></div>
+                {playerEntrants.map((entry)=>{
+                  const standing=driverStandingById.get(String(entry.driver_id));
+                  return <div key={entry.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,entry.driver_id)}</span><span className="text-slate-400">{standing?"P"+standing.position+" · "+standing.points+" pts":"—"}</span></div>;
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 rounded-lg border border-sky-500/20 bg-[#0d1720] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-sky-300">Full team race forecast</div>
+                <div className="mt-1 text-sm font-semibold">{String(strategyRaceForecast?.predicted_state||strategyTeamForecast.predicted_state||"UNKNOWN").replaceAll("_"," ")}</div>
+                <div className="mt-1 text-xs text-slate-400">{strategyTeamForecast.message}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-right text-xs sm:grid-cols-4">
+                <div><div className="text-slate-500">Rain chance</div><div>{Number(strategyRaceForecast?.rain_chance_pct??strategyTeamForecast.rain_chance_pct||0).toFixed(0)}%</div></div>
+                <div><div className="text-slate-500">Air temp</div><div>{Number.isFinite(Number(strategyRaceForecast?.air_temp_c))?Number(strategyRaceForecast.air_temp_c).toFixed(0)+"°C":"—"}</div></div>
+                <div><div className="text-slate-500">Confidence</div><div>{Number(strategyRaceForecast?.confidence_pct??strategyTeamForecast.confidence_pct||0).toFixed(0)}%</div></div>
+                <div><div className="text-slate-500">Timing</div><div>{forecastTimingLabel(strategyRaceForecast,raceStrategy?.track_snapshot?.laps)}</div></div>
+              </div>
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-3">
             {playerEntrants.map((entry)=>{
               const did=String(entry.driver_id);
@@ -1472,7 +1522,7 @@ export default function RaceWeekend(){
           </div>
         )}
 
-        <div className={(activeWindow==="grid"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl"}>
+        <div className={(activeWindow==="grid"?"":"hidden ")+"rounded-xl border border-white/10 bg-[#11161f] p-3 shadow-xl"}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="font-semibold">Starting Grid</h3>
@@ -1491,17 +1541,18 @@ export default function RaceWeekend(){
               ):null}
             </div>
           </div>
-          <div className="mt-3 overflow-x-auto border rounded-xl">
-            <table className="min-w-full text-sm">
-              <thead className="bg-[#171d27]">
+          <div className="mt-2 max-h-[58vh] overflow-auto border rounded-xl">
+            <table className="min-w-full text-xs">
+              <thead className="sticky top-0 z-10 bg-[#171d27]">
                 <tr>
                   <th className="px-2 py-1.5 text-right">Grid</th>
                   <th className="px-2 py-1.5 text-right">Qual</th>
                   <th className="px-3 py-2 text-left">Driver</th>
                   <th className="px-3 py-2 text-left">Team</th>
-                  <th className="px-2 py-1.5 text-center">Start tyre</th>
-                  <th className="px-2 py-1.5 text-right">Best time</th>
-                  <th className="px-2 py-1.5 text-right">Penalty</th>
+                  <th className="px-2 py-1 text-center">Start tyre</th>
+                  <th className="px-2 py-1 text-right">Best time</th>
+                  <th className="px-2 py-1 text-right">Champ.</th>
+                  <th className="px-2 py-1 text-right">Penalty</th>
                 </tr>
               </thead>
               <tbody>
@@ -1512,18 +1563,19 @@ export default function RaceWeekend(){
                     :"—";
                   const mine=String(row.team_id||"")===playerTeamId;
                   return <tr className={"border-t border-white/5 "+(mine?"bg-amber-500/[0.10]":"")} key={row.driver_id}>
-                    <td className="px-2 py-1.5 text-right font-semibold">P{row.grid}</td>
-                    <td className="px-2 py-1.5 text-right">P{row.qualifying_position??row.grid}</td>
-                    <td className="px-2 py-1.5 font-medium">{mine?<span className="mr-1 text-amber-300">●</span>:null}{driverName(drivers,row.driver_id)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-6 w-6" className="p-0.5"/>
+                    <td className="px-2 py-1 text-right font-semibold">P{row.grid}</td>
+                    <td className="px-2 py-1 text-right">P{row.qualifying_position??row.grid}</td>
+                    <td className="px-2 py-1 font-medium">{mine?<span className="mr-1 text-amber-300">●</span>:null}{driverName(drivers,row.driver_id)}</td>
+                    <td className="px-2 py-1">
+                      <div className="flex items-center gap-1.5">
+                        <TeamLogo teamId={String(row.team_id||"")} name={teamName(teams,row.team_id)} size="h-5 w-5" className="p-0.5"/>
                         <span>{teamName(teams,row.team_id)}</span>
                       </div>
                     </td>
-                    <td className="px-2 py-1.5 text-center"><span className={"inline-flex min-w-14 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} compact/></span></td>
-                    <td className="px-2 py-1.5 text-right font-mono">{formatLapTime(row.best_time_ms)}</td>
-                    <td className="px-2 py-1.5 text-right">{Number(row.penalty_places||0)>0?"+"+row.penalty_places:"—"}</td>
+                    <td className="px-2 py-1 text-center"><span className={"inline-flex min-w-12 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} compact/></span></td>
+                    <td className="px-2 py-1 text-right font-mono">{formatLapTime(row.best_time_ms)}</td>
+                    <td className="px-2 py-1 text-right">{(()=>{const standing=driverStandingById.get(String(row.driver_id));return standing?<><span>P{standing.position}</span><span className="ml-1 text-[9px] text-slate-500">{standing.points}p</span></>:"—";})()}</td>
+                    <td className="px-2 py-1 text-right">{Number(row.penalty_places||0)>0?"+"+row.penalty_places:"—"}</td>
                   </tr>;
                 })}
               </tbody>
