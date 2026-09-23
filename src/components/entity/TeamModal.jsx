@@ -5,6 +5,7 @@ import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 import { countryNameFor, flagFromCountry } from "./EntityVisuals.jsx";
+import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -212,6 +213,8 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
     const sb = brand?.starting_budget ?? brand?.startingBudget;
     return sb != null ? sb : null;
   })();
+  const operationalMorale = teamOperationalMorale(gs,idStr);
+  const operationalWorkRate = teamWorkRateLabel(gs,idStr);
 
   /* ---------- UI ---------- */
   const DriverCard = ({ d }) => (
@@ -334,6 +337,8 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 <Info label="Facilities Level"    value={facilitiesLevelAvg ?? "—"} />
                 <Info label="Academy Level"       value={academyLevel ?? "—"} />
                 <Info label="Team Principal"      value={principal ?? "—"} />
+                <Info label="Operational Morale" value={Math.round(operationalMorale)+"/100"} />
+                <Info label="Technical Work Rate" value={operationalWorkRate.label} />
               </div>
 
               {/* Drivers */}
