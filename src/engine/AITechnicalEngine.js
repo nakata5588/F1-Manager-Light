@@ -6,15 +6,27 @@
 
 import { availableCarComponentSlots, COMPONENT_STAT_KEY } from "../domain/carComponents.js";
 import { derivePartTechnicalProfile } from "../domain/carPartPerformance.js";
-import { partManufactureQuote } from "../domain/componentService.js";
+import {
+  activeWorkshopJobFor,
+  partManufactureQuote,
+  partUnitRestoreQuote,
+  processWorkshopJobs,
+  queueWorkshopJob,
+  standardRestoreQuote,
+} from "../domain/componentService.js";
 import {
   createManufacturedPartUnits,
   fitPhysicalPartUnit,
   normalizePhysicalPartState,
+  partUnitById,
+  removePhysicalPartUnit,
+  updatePhysicalPartUnitCondition,
   warehousePartUnitsForDesign,
 } from "../domain/partUnits.js";
 import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
 import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
+import { componentWearForRaceRow } from "../domain/componentWear.js";
+import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -130,6 +142,8 @@ function scopedState(gs,teamId,state){
     finances:{...(gs?.finances||{}),balance:num(state?.budget,0)},
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
+    componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
+    componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
   };
 }
 function componentBaseline(gs,teamId,slot){
@@ -189,6 +203,8 @@ export function normalizeAITechnicalWorld(gs){
       development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
       planning:{last_date:null,last_need:null,cycle:0},
       finance_log:[],
+      componentServiceLog:[],
+      componentWearLog:[],
     };
   }
   return {...gs,aiTechnicalWorld:{...(gs?.aiTechnicalWorld||{}),version:1,teams}};
