@@ -14,6 +14,7 @@ import {
   warehousePartUnitsForDesign,
 } from "../domain/partUnits.js";
 import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
+import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -177,6 +178,29 @@ export function aiTechnicalScopedState(gs,teamId){
   const normalized=normalizeAITechnicalWorld(gs);
   const state=aiTechnicalTeamState(normalized,teamId);
   return state?normalizePhysicalPartState(scopedState(normalized,teamId,state)):null;
+}
+
+export function aiTechnicalRaceCars(gs,teamId){
+  const state=aiTechnicalTeamState(gs,teamId);
+  return (state?.garage?.cars||[]).filter((car)=>car?.kind==="race");
+}
+
+export function aiTechnicalCarForDriver(gs,teamId,driverId=null){
+  const cars=aiTechnicalRaceCars(gs,teamId);
+  if(!cars.length)return null;
+  if(driverId==null||driverId==="")return null;
+  const did=str(driverId);
+  const liveEntry=(gs?.raceEntryState?.entries||[]).find((entry)=>
+    str(entry?.team_id)===str(teamId) &&
+    str(entry?.driver_id)===did &&
+    Number(entry?.car_slot)>=1 &&
+    Number(entry?.car_slot)<=2
+  );
+  if(liveEntry)return cars[Number(liveEntry.car_slot)-1]||null;
+
+  const raceContracts=activeDriverContracts(gs,{teamId,raceOnly:true});
+  const index=raceContracts.findIndex((contract)=>driverIdOf(contract)===did);
+  return index>=0?(cars[index]||null):null;
 }
 
 function replaceTeamState(gs,teamId,nextState){
