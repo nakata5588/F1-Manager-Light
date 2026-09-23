@@ -14,6 +14,7 @@ import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
 import {
   historicalCareerDriverMatches,
   historicalCareerRowKey,
+  mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../../domain/driverCareerIdentity.js";
 import {
@@ -228,10 +229,14 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     () => driverContractsOf(gs),
     [gs?.contracts, gs?.dbContracts]
   );
-  const careerRaw = useMemo(() => {
-    const live = toArraySafe(gs?.driverCareer);
-    return live.length ? live : toArraySafe(gs?.dbDriverCareer);
-  }, [gs?.driverCareer, gs?.dbDriverCareer]);
+  const careerRaw = useMemo(
+    () => mergeHistoricalCareerSources(
+      toArraySafe(gs?.driverCareer),
+      toArraySafe(gs?.dbDriverCareer),
+      teamsList
+    ),
+    [gs?.driverCareer, gs?.dbDriverCareer, teamsList]
+  );
   const generatedHistoryRaw = useMemo(
     () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
     [gs?.driverHistory, gs?.dbDriverHistory]
