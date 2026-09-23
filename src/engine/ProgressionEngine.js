@@ -120,8 +120,12 @@ function ageCurve(age){
   if(age<=25)return 0.10;
   if(age<=29)return 0.045;
   if(age<=32)return 0.015;
-  if(age<=35)return -0.025;
-  if(age<=38)return -0.060;
+  // 33–34 is deliberately a plateau. Age only becomes a negative permanent
+  // development force from 35 onwards; young drivers never regress just by
+  // moving from one birthday to the next.
+  if(age<=34)return 0;
+  if(age<=36)return -0.025;
+  if(age<=39)return -0.060;
   return -0.10;
 }
 const GROWTH_ATTRS=[
