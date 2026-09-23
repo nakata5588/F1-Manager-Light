@@ -71,6 +71,65 @@ export function setMentalStateValues(condition,values={}){
   return next;
 }
 
+
+export function mentalStateChanges(beforeInput,afterInput){
+  const before=mentalStateCondition(beforeInput);
+  const after=mentalStateCondition(afterInput);
+  return DRIVER_MENTAL_STATE_FIELDS
+    .filter((field)=>Number(before[field])!==Number(after[field]))
+    .map((field)=>({
+      field,
+      before:round1(before[field]),
+      after:round1(after[field]),
+      delta:round1(after[field]-before[field]),
+    }));
+}
+
+export function appendDriverMentalStateLog(logsInput,driverId,{
+  before,
+  after,
+  source="mental_state",
+  reason=null,
+  dateISO=null,
+  meta=null,
+}={}){
+  const changes=mentalStateChanges(before,after);
+  if(!changes.length)return {...(logsInput||{})};
+  const logs={...(logsInput||{})};
+  const key=String(driverId??"");
+  if(!key)return logs;
+  logs[key]=[
+    ...(logs[key]||[]),
+    {
+      dateISO:String(dateISO||"").slice(0,10)||null,
+      source,
+      reason,
+      changes,
+      meta:meta&&typeof meta==="object"?{...meta}:null,
+    },
+  ].slice(-120);
+  return logs;
+}
+
+function comparableDriverKey(value){
+  const raw=String(value??"");
+  const digits=raw.match(/(\d+)/)?.[1];
+  return digits?digits.padStart(4,"0"):raw.toLowerCase();
+}
+
+export function driverMentalStateHistory(gs,driverId,{limit=12}={}){
+  const wanted=comparableDriverKey(driverId);
+  const entries=[];
+  for(const [key,rows] of Object.entries(gs?.driverMentalStateLog||{})){
+    if(comparableDriverKey(key)!==wanted)continue;
+    for(const row of Array.isArray(rows)?rows:[])entries.push(row);
+  }
+  return entries
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")))
+    .slice(0,Math.max(1,Number(limit)||12));
+}
+
 export function applyDriverMentalState(gs,driverId,{
   deltas={},
   values={},
@@ -94,28 +153,14 @@ export function applyDriverMentalState(gs,driverId,{
 
   if(!log)return {...gs,driverAttributes:dict};
 
-  const changed=DRIVER_MENTAL_STATE_FIELDS
-    .filter((field)=>Number(before[field])!==Number(after[field]))
-    .map((field)=>({
-      field,
-      before:round1(before[field]),
-      after:round1(after[field]),
-      delta:round1(after[field]-before[field]),
-    }));
-  if(!changed.length)return {...gs,driverAttributes:dict};
-
-  const logs={...(gs?.driverMentalStateLog||{})};
-  logs[key]=[
-    ...(logs[key]||[]),
-    {
-      dateISO:String(dateISO??gs?.currentDateISO??"").slice(0,10)||null,
-      source,
-      reason,
-      changes:changed,
-      meta:meta&&typeof meta==="object"?{...meta}:null,
-    },
-  ].slice(-120);
-
+  const logs=appendDriverMentalStateLog(gs?.driverMentalStateLog,key,{
+    before,
+    after,
+    source,
+    reason,
+    dateISO:dateISO??gs?.currentDateISO,
+    meta,
+  });
   return {...gs,driverAttributes:dict,driverMentalStateLog:logs};
 }
 
