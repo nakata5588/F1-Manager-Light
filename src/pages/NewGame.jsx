@@ -56,18 +56,6 @@ function TeamLogo({ candidates, title }) {
   );
 }
 
-const FRESH_CAREER_PATCH = {
-  results: [],
-  lastRace: null,
-  financeFlags: {},
-  rdProjectsActive: [],
-  meta: {},
-  ops: {},
-  selectedDrivers: [],
-  _seasonFinishedAt: null,
-  showSeasonSummary: false,
-};
-
 export default function NewGame() {
   const navigate = useNavigate();
   const {
@@ -75,7 +63,6 @@ export default function NewGame() {
     applyYearFilter,
     loadSeasonPack,
     startNewGame,
-    setGameState,
     saveLocal,
     getTeamDisplayName,
     getTeamLogoCandidates,
@@ -164,7 +151,6 @@ export default function NewGame() {
     const freshTeams=useGame.getState().gameState?.teams||teamsForYear;
     const team = freshTeams.find((t) => getTeamId(t) === teamId) ?? null;
     startNewGame({ era, year: +year, team, difficulty });
-    setGameState(FRESH_CAREER_PATCH);
     saveLocal();
     navigate("/Home");
   };
