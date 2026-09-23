@@ -919,7 +919,6 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           {activeTab === "attributes" && (
             <AttributesTab
               attrs={meaningfulAttrs}
-              condition={condition}
               knowledge={knowledge}
               driver={driver}
               currentSnapshot={profileSnapshot}
@@ -1814,7 +1813,6 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
 
 function AttributesTab({
   attrs,
-  condition,
   knowledge,
   driver,
   currentSnapshot,
@@ -1828,7 +1826,6 @@ function AttributesTab({
   compareMode,
   setCompareMode,
 }) {
-  const [showConditionInfo,setShowConditionInfo]=useState(false);
   if (!attrs) return <p className="text-slate-500 text-sm">No attributes.</p>;
 
   const groups=driverAttributeGroups();
@@ -1841,9 +1838,6 @@ function AttributesTab({
   const comparisonName=comparisonDriver?nameOf(comparisonDriver):"";
   const currentContract=currentSnapshot?.contract||null;
   const comparisonContract=comparisonSnapshot?.contract||null;
-  const conditionImpact=currentSnapshot?.conditionImpact||{};
-  const mentalStateHistory=currentSnapshot?.mentalStateHistory||[];
-  const reputation=currentSnapshot?.reputation;
 
   const shownValue=(knowledgeState,field,value,{kind="attribute"}={})=>
     presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
@@ -1959,7 +1953,7 @@ function AttributesTab({
           <div className="flex-1">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
             <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
-            <div className="mt-2 grid max-w-lg grid-cols-3 gap-2">
+            <div className="mt-2 grid max-w-sm grid-cols-2 gap-2">
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
                 <div className="mt-1">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-xl"})}</div>
@@ -1967,12 +1961,6 @@ function AttributesTab({
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
                 <div className="mt-1">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-xl"})}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5" title="Paddock, media and fan standing. Reputation affects market evaluation, salary expectations and negotiations; it does not increase race pace or Overall.">
-                <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-500">
-                  Reputation <Info size={11}/>
-                </div>
-                <div className="mt-1">{renderValue(knowledge,"reputation",reputation,{kind:"attribute",size:"text-xl"})}</div>
               </div>
             </div>
           </div>
@@ -2037,98 +2025,7 @@ function AttributesTab({
         </div>
       </div>
 
-      {knowledge?.canSeeCondition && (
-        <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
-            <button
-              type="button"
-              onClick={()=>setShowConditionInfo((value)=>!value)}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${showConditionInfo?"border-sky-400/30 bg-sky-500/10 text-sky-300":"border-white/10 text-slate-400 hover:text-white"}`}
-              title="Explain how current condition affects performance"
-              aria-expanded={showConditionInfo}
-            >
-              <Info size={12}/> Why these values?
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              ["Confidence","confidence",condition?.confidence??50,false],
-              ["Morale","morale",condition?.morale??50,false],
-              ["Preparation","preparation",condition?.preparation??50,false],
-              ["Fatigue","fatigue",condition?.fatigue??0,true],
-            ].map(([label,field,value,inverse])=>(
-              <div key={field} className="rounded-lg border border-white/10 bg-[#171a23] px-2.5 py-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-                <div className="mt-1">{renderValue(knowledge,field,value,{kind:"condition",inverse,size:"text-lg"})}</div>
-              </div>
-            ))}
-          </div>
 
-          {showConditionInfo&&(
-            <div className="mt-3 rounded-lg border border-sky-400/15 bg-sky-500/[0.04] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-300">Current Performance Impact</div>
-                  <div className="mt-0.5 text-[11px] text-slate-400">Temporary condition modifies qualifying/race performance without changing Overall.</div>
-                </div>
-                <div className={`text-xl font-semibold ${Number(conditionImpact.total||0)>=0?"text-emerald-300":"text-rose-300"}`}>
-                  {Number(conditionImpact.total||0)>=0?"+":""}{Number(conditionImpact.total||0).toFixed(2)}
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-                {[
-                  ["Confidence",conditionImpact.confidenceEffect],
-                  ["Morale",conditionImpact.moraleEffect],
-                  ["Preparation",conditionImpact.preparationEffect],
-                  ["Fatigue",conditionImpact.fatigueEffect],
-                  ["Medical",conditionImpact.medicalEffect],
-                ].map(([label,value])=>{
-                  const numeric=Number(value||0);
-                  return (
-                    <div key={label} className="rounded-md border border-white/10 bg-[#171a23] px-2 py-1.5">
-                      <div className="text-[9px] uppercase tracking-wide text-slate-500">{label}</div>
-                      <div className={`mt-0.5 text-sm font-semibold ${numeric>0?"text-emerald-300":numeric<0?"text-rose-300":"text-slate-400"}`}>
-                        {numeric>0?"+":""}{numeric.toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 border-t border-white/10 pt-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recent causes</div>
-                {mentalStateHistory.length ? (
-                  <div className="mt-2 space-y-2">
-                    {mentalStateHistory.slice(0,6).map((entry,index)=>(
-                      <div key={`${entry?.dateISO||"event"}-${entry?.source||"state"}-${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-                        <span className="min-w-[72px] text-slate-500">{entry?.dateISO||"—"}</span>
-                        <span className="font-medium text-slate-300">{entry?.reason||String(entry?.source||"Mental state").replaceAll("_"," ")}</span>
-                        <span className="flex flex-wrap gap-1">
-                          {(entry?.changes||[]).map((change)=>{
-                            const delta=Number(change?.delta||0);
-                            return (
-                              <span key={change.field} className={`rounded border border-white/10 px-1.5 py-0.5 ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
-                                {String(change.field||"").replaceAll("_"," ")} {delta>0?"+":""}{delta.toFixed(1)}
-                              </span>
-                            );
-                          })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-[11px] text-slate-500">No recorded mental-state events yet. A fresh career starts from the neutral baseline.</div>
-                )}
-                <div className="mt-2 text-[10px] leading-4 text-slate-500">
-                  Fatigue recovers naturally as days pass. Confidence and morale also drift slowly back toward 50; these passive daily adjustments are not listed as separate events.
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {comparisonDriver && (
         <div className="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4">
