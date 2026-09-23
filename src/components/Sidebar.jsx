@@ -61,12 +61,21 @@ const Item = ({ to, label, icon: IconComp, brand, badge = 0 }) => {
   return (
     <NavLink
       to={to}
-      className="relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+      className="relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-black"
       style={({ isActive }) => isActive
-        ? { background: secondary, color: primary, border: "1px solid currentColor" }
-        : { background: "transparent", color: secondary, border: "1px solid currentColor" }}
+        ? {
+            background: primary,
+            color: secondary,
+            border: `1px solid ${primary}`,
+            boxShadow: `inset 3px 0 0 ${secondary}55`,
+          }
+        : {
+            background: `${primary}16`,
+            color: "#d7dce5",
+            border: `1px solid ${primary}66`,
+          }}
     >
-      <span className="w-5 h-5" aria-hidden><IconComp className="w-5 h-5" /></span>
+      <span className="w-4 h-4 shrink-0" aria-hidden><IconComp className="w-4 h-4" /></span>
       <span className="truncate flex-1">{label}</span>
       {Number(badge) > 0 ? (
         <span
@@ -96,9 +105,8 @@ export default function Sidebar() {
   }, []);
 
   const brand = useMemo(() => resolveTeamBrand(brands, team), [brands, team]);
-  const primary = brand?.primary_color || "#111827";
+  const primary = brand?.primary_color || "#334155";
   const secondary = brand?.secondary_color || "#ffffff";
-  const borderColorAside = `${secondary}2E`;
 
   const attention = useMemo(() => {
     const inbox = Array.isArray(gameState?.inbox) ? gameState.inbox : [];
@@ -125,15 +133,14 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="w-56 shrink-0 border-r p-3 flex flex-col gap-1"
-      style={{ background: primary, color: secondary, borderColor: borderColorAside }}
+      className="w-44 shrink-0 border-r border-white/10 bg-[#07090d] px-2 py-2 flex flex-col gap-0.5 text-slate-200"
     >
-      <div className="px-2 py-1 text-xs font-semibold opacity-80">Main</div>
+      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Main</div>
       <Item to="/Home" label="Home" icon={Home} brand={brand} />
       <Item to="/CalendarPage" label="Calendar" icon={Calendar} brand={brand} />
       <Item to="/Inbox" label="Inbox" icon={Inbox} brand={brand} badge={attention.inbox} />
 
-      <div className="px-2 py-1 mt-2 text-xs font-semibold opacity-80">Team</div>
+      <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Team</div>
       <Item to="/Team" label="My Team" icon={Car} brand={brand} />
       <Item to="/Car" label="Cars" icon={Car} brand={brand} badge={attention.car} />
       <Item to="/MyDrivers" label="My Drivers" icon={HelmetIcon} brand={brand} badge={attention.drivers} />
@@ -142,13 +149,13 @@ export default function Sidebar() {
       <Item to="/Academy" label="Academy" icon={GraduationCap} brand={brand} />
       <Item to="/Scouting" label="Scouting" icon={Search} brand={brand} />
 
-      <div className="px-2 py-1 mt-2 text-xs font-semibold opacity-80">Season</div>
+      <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Season</div>
       <Item to="/Standings" label="Standings" icon={Trophy} brand={brand} />
       <Item to="/Results" label="Results" icon={Flag} brand={brand} />
       <Item to="/Finances" label="Finances" icon={PiggyBank} brand={brand} />
       <Item to="/Board" label="Board" icon={ClipboardList} brand={brand} badge={attention.board} />
 
-      <div className="px-2 py-1 mt-2 text-xs font-semibold opacity-80">League</div>
+      <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">League</div>
       <Item to="/Teams" label="All Teams" icon={Car} brand={brand} />
       <Item to="/Drivers" label="Driver Market" icon={UsersRound} brand={brand} />
       <Item to="/Staff" label="All Staff" icon={Users} brand={brand} />

@@ -306,20 +306,78 @@ export function driverLifecycleSnapshot(gs,driverOrId,ratingInput=null,{dateISO=
   const injuryPressure=latestInjuryPressure(gs,driverId,dateISO);
   const status=String(driver?.status||"").toLowerCase();
 
+  const positiveFactors=[
+    {
+      key:"form",
+      label:"Strong Form",
+      value:Number.isFinite(formScore)?Math.max(0,formScore-60)*1.25:0,
+      explanation:"Recent results above the car/team expectation create development momentum.",
+    },
+    {
+      key:"headroom",
+      label:"Potential Headroom",
+      value:Math.min(24,headroom*2.5),
+      explanation:"The gap between Current Ability and Dynamic Potential leaves room for permanent growth.",
+    },
+    {
+      key:"trajectory",
+      label:"Rising Attributes",
+      value:trajectory.impact>0?Math.min(24,trajectory.impact*18):0,
+      explanation:"Recent permanent attribute gains reinforce a positive development trajectory.",
+    },
+    {
+      key:"experience",
+      label:"Race Experience",
+      value:previous.starts>0?Math.min(12,previous.starts*3):0,
+      explanation:"Actual race mileage improves judgement, consistency and technical learning.",
+    },
+  ].filter((item)=>item.value>0).map((item)=>({...item,value:round2(item.value)}));
+
+  const negativeFactors=[
+    {
+      key:"age",
+      label:"Age Regression",
+      value:Math.max(0,age-34)*5,
+      explanation:"Age only becomes a permanent regression pressure from 35 onwards; 33–34 is a plateau.",
+    },
+    {
+      key:"form",
+      label:"Poor Form",
+      value:Number.isFinite(formScore)?Math.max(0,60-formScore)*1.3:0,
+      explanation:"Sustained results below the car/team expectation can erode mental and consistency attributes.",
+    },
+    {
+      key:"trajectory",
+      label:"Falling Attributes",
+      value:trajectory.impact<0?Math.min(28,Math.abs(trajectory.impact)*20):0,
+      explanation:"Recent permanent attribute losses reinforce a negative trajectory.",
+    },
+    {
+      key:"driver_errors",
+      label:"Driver Errors",
+      value:previous.driverErrors*9,
+      explanation:"Driver-caused mistakes and accidents can reduce consistency, pressure handling and racecraft.",
+    },
+    {
+      key:"racing_incidents",
+      label:"Racing Incidents",
+      value:previous.racingIncidents*4,
+      explanation:"Repeated contact and avoidable incidents add smaller regression pressure.",
+    },
+    {
+      key:"injury",
+      label:"Injury Recovery",
+      value:injuryPressure*7,
+      explanation:"Recent significant injuries can interrupt development and, in severe cases, leave a permanent setback.",
+    },
+  ].filter((item)=>item.value>0).map((item)=>({...item,value:round2(item.value)}));
+
   const positivePressure=clamp(
-    (Number.isFinite(formScore)?Math.max(0,formScore-60)*1.25:0) +
-    Math.min(24,headroom*2.5) +
-    (trajectory.impact>0?Math.min(24,trajectory.impact*18):0) +
-    (previous.starts>0?Math.min(12,previous.starts*3):0),
+    positiveFactors.reduce((sum,item)=>sum+Number(item.value||0),0),
     0,100
   );
   const negativePressure=clamp(
-    Math.max(0,age-31)*5 +
-    (Number.isFinite(formScore)?Math.max(0,60-formScore)*1.3:0) +
-    (trajectory.impact<0?Math.min(28,Math.abs(trajectory.impact)*20):0) +
-    previous.driverErrors*9 +
-    previous.racingIncidents*4 +
-    injuryPressure*7,
+    negativeFactors.reduce((sum,item)=>sum+Number(item.value||0),0),
     0,100
   );
 
@@ -340,7 +398,7 @@ export function driverLifecycleSnapshot(gs,driverOrId,ratingInput=null,{dateISO=
   ){
     stage="retirement_window";
   }else if(
-    age>=34 &&
+    age>=35 &&
     ((Number.isFinite(formScore)&&formScore<55)||trajectoryKey==="falling") &&
     negativePressure>positivePressure+8
   ){
@@ -381,7 +439,7 @@ export function driverLifecycleSnapshot(gs,driverOrId,ratingInput=null,{dateISO=
   if(trajectoryKey!=="stable")reasons.push(`Permanent attributes are ${trajectoryKey}`);
   if(previous.driverErrors)reasons.push(`${previous.driverErrors} recent driver-error incident(s)`);
   if(injuryPressure>=3)reasons.push("Recent serious/critical injury");
-  if(age>=34)reasons.push(`Age ${age} adds physical decline pressure`);
+  if(age>=35)reasons.push(`Age ${age} adds physical decline pressure`);
   if(experience.yearsRaced)reasons.push(`${experience.yearsRaced} F1 season(s) of experience`);
 
   return {
@@ -399,9 +457,12 @@ export function driverLifecycleSnapshot(gs,driverOrId,ratingInput=null,{dateISO=
     playedStarts:experience.playedStarts,
     rookieYear:experience.rookieYear,
     trajectory:trajectoryKey,
+    trajectoryLabel:trajectoryKey.charAt(0).toUpperCase()+trajectoryKey.slice(1),
     trajectoryImpact:trajectory.impact,
     positivePressure:round2(positivePressure),
     negativePressure:round2(negativePressure),
+    positiveFactors,
+    negativeFactors,
     reasons,
     asOf:dateOnly(dateISO)||null,
   };

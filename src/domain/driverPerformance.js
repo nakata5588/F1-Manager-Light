@@ -6,6 +6,23 @@ import { trackSensitiveUpgradeModifier } from "./carCharacteristics.js";
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const n=(v,fb=50)=>{const x=Number(v);return Number.isFinite(x)?x:fb;};
 
+function availabilityRecord(gs,driverId){
+  const source=gs?.driverAvailability;
+  if(Array.isArray(source))return source.find((row)=>String(row?.driver_id??row?.id??"")===String(driverId??""))||null;
+  return source&&typeof source==="object"?source[String(driverId??"")]||null:null;
+}
+
+export function medicalPerformancePenalty(gs,driverId){
+  const row=availabilityRecord(gs,driverId);
+  if(!row)return 0;
+  const status=String(row?.status||"").toLowerCase();
+  if(!["limited","fit_with_injury","restricted"].includes(status))return 0;
+  const configured=Number(row?.performancePenalty??row?.performance_penalty);
+  if(Number.isFinite(configured))return Math.max(0,Math.min(5,configured));
+  const severity=String(row?.severity||"minor").toLowerCase();
+  return severity==="minor"?1.5:severity==="moderate"?3:0;
+}
+
 export function conditionModifierBreakdown(gs,driverId){
   const c=driverCondition(gs,driverId)||{};
   const confidence=n(c.confidence,50);
@@ -16,7 +33,8 @@ export function conditionModifierBreakdown(gs,driverId){
   const moraleEffect=(morale-50)*0.030;
   const preparationEffect=(preparation-50)*0.040;
   const fatigueCost=fatiguePenalty(gs,driverId);
-  const raw=confidenceEffect+moraleEffect+preparationEffect-fatigueCost;
+  const medicalCost=medicalPerformancePenalty(gs,driverId);
+  const raw=confidenceEffect+moraleEffect+preparationEffect-fatigueCost-medicalCost;
   return {
     confidence,
     morale,
@@ -26,6 +44,7 @@ export function conditionModifierBreakdown(gs,driverId){
     moraleEffect,
     preparationEffect,
     fatigueEffect:-fatigueCost,
+    medicalEffect:-medicalCost,
     total:Math.max(-12,Math.min(6,raw)),
   };
 }

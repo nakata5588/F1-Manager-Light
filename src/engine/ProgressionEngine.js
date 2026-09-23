@@ -120,8 +120,12 @@ function ageCurve(age){
   if(age<=25)return 0.10;
   if(age<=29)return 0.045;
   if(age<=32)return 0.015;
-  if(age<=35)return -0.025;
-  if(age<=38)return -0.060;
+  // 33–34 is deliberately a plateau. Age only becomes a negative permanent
+  // development force from 35 onwards; young drivers never regress just by
+  // moving from one birthday to the next.
+  if(age<=34)return 0;
+  if(age<=36)return -0.025;
+  if(age<=39)return -0.060;
   return -0.10;
 }
 const GROWTH_ATTRS=[
@@ -408,6 +412,22 @@ export function applyProgressionTick(gs){
     };
   }
   next.driverAttributes=dict;
+
+  // Team operational morale is persistent but not permanent. Away from race
+  // shocks it slowly returns toward neutral so one bad weekend cannot damage
+  // technical throughput for the rest of the season.
+  if(next?.teamOperationalState&&typeof next.teamOperationalState==="object"){
+    const operational={...next.teamOperationalState};
+    for(const [teamId,row] of Object.entries(operational)){
+      const morale=Number(row?.morale);
+      if(!Number.isFinite(morale))continue;
+      operational[teamId]={
+        ...row,
+        morale:Math.round(meanRevert(morale,50,0.010)*10)/10,
+      };
+    }
+    next.teamOperationalState=operational;
+  }
 
   const afterPitCrew=applyPitCrewTraining(next,dateISO);
   next.raceStrategyWorld=afterPitCrew.raceStrategyWorld;

@@ -647,6 +647,9 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   const abilityLog = (gs?.driverAbilityLog?.[driverId]||[])
     .slice()
     .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
+  const lifecycleLog = (gs?.driverLifecycleLog?.[driverId]||[])
+    .slice()
+    .sort((a,b)=>String(a?.asOf||a?.dateISO||"").localeCompare(String(b?.asOf||b?.dateISO||"")));
 
   function setDriverDevelopmentFocus(groupKey) {
     if (!isOwnDriver || !driverId || !groupKey) return;
@@ -916,6 +919,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               potentialLog={potentialLog}
               abilityLog={abilityLog}
               lifecycle={profileSnapshot?.lifecycle}
+              lifecycleLog={lifecycleLog}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
@@ -1070,6 +1074,15 @@ function OverviewTab({
           </div>
         </div>
       )}
+      {availability.available && availability.status==="limited" && (
+        <div className="xl:col-span-12 rounded-xl border border-amber-400/25 bg-amber-500/10 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-300">Fit with minor injury</div>
+          <div className="mt-1 text-sm text-slate-200">
+            {availability.reason||"Minor injury"} · Driver remains selectable, but current performance is temporarily reduced
+            {availability.expectedReturnDate?` until approximately ${availability.expectedReturnDate}`:""}.
+          </div>
+        </div>
+      )}
 
       <div className="xl:col-span-7 rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
@@ -1100,11 +1113,12 @@ function OverviewTab({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-5">
               <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
               <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
               <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
               <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
+              <ProfileMetric label="Medical effect" value={Number.isFinite(Number(impact?.medicalEffect))?Number(impact.medicalEffect).toFixed(1):"—"} tone={Number(impact?.medicalEffect)<0?"text-amber-300":""}/>
             </div>
           </>
         ) : (
@@ -1164,6 +1178,98 @@ function OverviewTab({
   );
 }
 
+const DRIVER_LIFECYCLE_STAGES=[
+  {key:"youth",label:"Youth",y:82},
+  {key:"rookie",label:"Rookie",y:68},
+  {key:"developing",label:"Developing",y:46},
+  {key:"prime",label:"Prime",y:24},
+  {key:"veteran",label:"Veteran",y:34},
+  {key:"decline",label:"Decline",y:58},
+  {key:"retirement_window",label:"Retirement",y:82},
+];
+
+function StageTimeline({lifecycle,history=[]}){
+  const current=String(lifecycle?.stage||"");
+  const points=DRIVER_LIFECYCLE_STAGES.map((stage,index)=>{
+    const x=45+index*100;
+    return {...stage,x};
+  });
+  const transitions=(history||[])
+    .filter((row)=>row?.stage)
+    .reduce((out,row)=>{
+      const last=out[out.length-1];
+      if(!last||last.stage!==row.stage)out.push(row);
+      return out;
+    },[])
+    .slice(-8);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Career Stage Timeline</div>
+          <div className="mt-1 text-sm text-slate-300">Lifecycle rises through development and peak before veteran/decline phases.</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] uppercase tracking-wide text-slate-500">Current stage</div>
+          <div className="font-semibold text-sky-300">{lifecycle?.label||"—"}</div>
+        </div>
+      </div>
+      <div className="mt-3 overflow-x-auto">
+        <svg viewBox="0 0 690 112" className="h-28 min-w-[620px] w-full" role="img" aria-label="Driver career stage curve">
+          <polyline
+            points={points.map((p)=>`${p.x},${p.y}`).join(" ")}
+            fill="none"
+            stroke="rgba(148,163,184,.45)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {points.map((point)=>{
+            const active=point.key===current;
+            return <g key={point.key}>
+              <circle cx={point.x} cy={point.y} r={active?8:4.5} fill={active?"#7dd3fc":"#64748b"} stroke={active?"#e0f2fe":"#0f172a"} strokeWidth={active?2:1}/>
+              <line x1={point.x} y1={point.y+8} x2={point.x} y2="96" stroke="rgba(148,163,184,.14)" strokeWidth="1"/>
+              <text x={point.x} y="108" textAnchor="middle" fontSize="9" fill={active?"#bae6fd":"#64748b"}>{point.label}</text>
+            </g>;
+          })}
+        </svg>
+      </div>
+      {transitions.length>0&&(
+        <div className="mt-2 flex flex-wrap gap-2 border-t border-white/10 pt-3 text-[11px]">
+          {transitions.map((row,index)=>(
+            <span key={`${row.asOf||row.dateISO||"stage"}-${index}`} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-400">
+              {row.asOf||row.dateISO||"—"} · {row.label||niceRole(row.stage)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PressureCard({title,value,factors=[],positive=false}){
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#171a23] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+        <div className={`text-xl font-semibold ${positive?"text-emerald-300":"text-rose-300"}`}>{Math.round(Number(value||0))}</div>
+      </div>
+      <div className="mt-2 space-y-2">
+        {factors.length?factors.map((factor)=>(
+          <div key={factor.key} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-slate-300">{factor.label}</span>
+              <span className={positive?"text-emerald-300":"text-rose-300"}>{Number(factor.value||0).toFixed(1)}</span>
+            </div>
+            <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{factor.explanation}</div>
+          </div>
+        )):<div className="text-[11px] text-slate-500">No active factors at the moment.</div>}
+      </div>
+    </div>
+  );
+}
+
 function DevelopmentTab({
   attrs,
   log,
@@ -1175,6 +1281,7 @@ function DevelopmentTab({
   potentialLog,
   abilityLog,
   lifecycle,
+  lifecycleLog,
   onSetFocus,
 }) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
@@ -1201,7 +1308,7 @@ function DevelopmentTab({
             <ProfileMetric label="Career stage" value={lifecycle?.label||"—"}/>
             <ProfileMetric
               label="Trajectory"
-              value={lifecycle?.trajectory?niceRole(lifecycle.trajectory):"—"}
+              value={lifecycle?.trajectoryLabel||(lifecycle?.trajectory?niceRole(lifecycle.trajectory):"—")}
               tone={lifecycle?.trajectory==="rising"?"text-emerald-300":lifecycle?.trajectory==="falling"?"text-rose-300":"text-slate-200"}
             />
           </div>
@@ -1258,20 +1365,9 @@ function DevelopmentTab({
           )}
 
           {canSeeHistory&&lifecycle&&(
-            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
-              <div className="grid grid-cols-2 gap-2">
-                <ProfileMetric label="Positive pressure" value={Math.round(Number(lifecycle.positivePressure||0))}/>
-                <ProfileMetric
-                  label="Regression pressure"
-                  value={Math.round(Number(lifecycle.negativePressure||0))}
-                  tone={Number(lifecycle.negativePressure)>Number(lifecycle.positivePressure)?"text-rose-300":"text-slate-200"}
-                />
-              </div>
-              {!!lifecycle.reasons?.length&&(
-                <div className="mt-2 space-y-1 text-[11px] text-slate-500">
-                  {lifecycle.reasons.slice(0,4).map((reason,index)=><div key={index}>• {reason}</div>)}
-                </div>
-              )}
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <PressureCard title="Positive Pressure" value={lifecycle.positivePressure} factors={lifecycle.positiveFactors||[]} positive/>
+              <PressureCard title="Regression Pressure" value={lifecycle.negativePressure} factors={lifecycle.negativeFactors||[]}/>
             </div>
           )}
         </div>
@@ -1328,6 +1424,8 @@ function DevelopmentTab({
           </div>
         </div>
       </div>
+
+      {canSeeHistory&&lifecycle&&<StageTimeline lifecycle={lifecycle} history={lifecycleLog||[]}/>}
 
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
@@ -1723,25 +1821,25 @@ function AttributesTab({
   };
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+    <div className="space-y-3">
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="flex-1">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
             <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
-            <div className="mt-4 grid max-w-md grid-cols-2 gap-3">
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+            <div className="mt-2 grid max-w-sm grid-cols-2 gap-2">
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
                 <div className="mt-1">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-xl"})}</div>
               </div>
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
                 <div className="mt-1">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-xl"})}</div>
               </div>
             </div>
           </div>
 
-          <div className="relative w-full lg:w-[340px]">
+          <div className="relative w-full lg:w-[280px]">
             <div className="text-xs text-slate-400">Compare with</div>
             <div className="relative mt-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-2.5 text-slate-500"/>
@@ -1802,16 +1900,16 @@ function AttributesTab({
       </div>
 
       {knowledge?.canSeeCondition && (
-        <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {[
               ["Confidence","confidence",condition?.confidence??50,false],
               ["Morale","morale",condition?.morale??50,false],
               ["Preparation","preparation",condition?.preparation??50,false],
               ["Fatigue","fatigue",condition?.fatigue??0,true],
             ].map(([label,field,value,inverse])=>(
-              <div key={field} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div key={field} className="rounded-lg border border-white/10 bg-[#171a23] px-2.5 py-2">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
                 <div className="mt-1">{renderValue(knowledge,field,value,{kind:"condition",inverse,size:"text-lg"})}</div>
               </div>
@@ -1903,7 +2001,7 @@ function AttributesTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
         {groups.map((group)=>{
           const rawGroupScore=driverAttributeGroupScore(attrs,group.key);
           const shownGroup=shownValue(knowledge,`group_${group.key}`,rawGroupScore,{kind:"attribute"});
@@ -1913,11 +2011,11 @@ function AttributesTab({
             ?driverAttributeGroupBehaviourForScore(group.key,shownGroup.sortValue)
             :null;
           return (
-            <div key={group.key} className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+            <div key={group.key} className="rounded-xl border border-white/10 bg-[#12141c] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{group.label}</div>
-                  <div className="mt-1 text-xs text-slate-500">{group.description}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400" title={group.description}>{group.label}</div>
+                  <div className="mt-0.5 truncate text-[9px] text-slate-600">{group.attributes.map((attribute)=>attribute.label).join(" · ")}</div>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[9px] uppercase tracking-wide text-slate-600">Average</div>
@@ -1930,11 +2028,14 @@ function AttributesTab({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-lg border border-white/5 bg-[#171a23] p-3 text-xs text-slate-400">
-                {behaviour?.text||"Scout the driver to understand how this group affects race behaviour."}
-              </div>
+              <details className="mt-2 text-[10px] text-slate-500">
+                <summary className="cursor-pointer select-none hover:text-slate-300">Behaviour note</summary>
+                <div className="mt-1 rounded border border-white/5 bg-[#171a23] p-2 leading-4">
+                  {behaviour?.text||"Scout the driver to understand how this group affects race behaviour."}
+                </div>
+              </details>
 
-              <div className="mt-3 space-y-2">
+              <div className="mt-2 space-y-1">
                 {comparisonDriver&&(
                   <div className="grid grid-cols-[1fr_72px_72px_58px] gap-2 text-[9px] uppercase tracking-wide text-slate-600">
                     <span>Attribute</span><span className="text-right">Driver</span><span className="text-right">Compare</span><span className="text-right">Δ</span>
@@ -1945,7 +2046,7 @@ function AttributesTab({
                   const left=driverAttributeValue(attrs,attribute);
                   const right=driverAttributeValue(comparisonAttrs,attribute);
                   return (
-                    <div key={field} className={`grid items-center gap-2 text-sm ${comparisonDriver?"grid-cols-[1fr_72px_72px_58px]":"grid-cols-[1fr_82px]"}`}>
+                    <div key={field} className={`grid items-center gap-1.5 text-xs ${comparisonDriver?"grid-cols-[1fr_58px_58px_48px]":"grid-cols-[1fr_58px]"}`}>
                       <span className="text-slate-400">{attribute.label}</span>
                       <div className="text-right">{renderValue(knowledge,field,left,{kind:"attribute",inverse:attribute.inverse})}</div>
                       {comparisonDriver&&(
@@ -1963,18 +2064,18 @@ function AttributesTab({
         })}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Race Behaviour & Derived Ratings</div>
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Race Behaviour & Derived Ratings</div>
         <p className="text-xs text-slate-500">These ratings combine existing attributes; they are not separate database attributes.</p>
 
-        <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-3">
-          <div className="text-[10px] uppercase tracking-wide text-slate-500">Wheel-to-wheel profile</div>
-          <div className="mt-1 text-sm text-slate-300">
+        <details className="mt-2 rounded-lg border border-white/10 bg-[#171a23] p-2.5">
+          <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-slate-500">Wheel-to-wheel profile</summary>
+          <div className="mt-1 text-xs text-slate-300">
             {wheelBehaviour?.text||"Scout the driver to assess attacking and defensive behaviour."}
           </div>
-        </div>
+        </details>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-5">
           {[
             ["overtaking","Overtaking"],
             ["defending","Defending"],
@@ -1987,7 +2088,7 @@ function AttributesTab({
             const right=comparisonDerived?.[key]?.value;
             const shown=shownValue(knowledge,field,left,{kind:"attribute"});
             return (
-              <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
                 <div className="mt-1 flex items-baseline justify-between gap-2">
                   <div>{renderShown(shown,{size:"text-lg"})}</div>
@@ -1998,7 +2099,7 @@ function AttributesTab({
                     </div>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] leading-snug text-slate-500">{derivedText(key,shown)}</p>
+                <div className="mt-1 truncate text-[9px] text-slate-600" title={derivedText(key,shown)}>{derivedText(key,shown)}</div>
               </div>
             );
           })}

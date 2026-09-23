@@ -2,6 +2,7 @@
 // Time-based workshop jobs for standard components and developed physical units.
 
 import { baseComponentConstructionCost } from "./garage.js";
+import { teamWorkRateMultiplier } from "./teamMorale.js";
 import {
   normalizePhysicalPartState,
   partDesignById,
@@ -61,6 +62,9 @@ function facilityTimeFactor(gs){
   const level=manufacturingLevel(gs);
   return Math.max(0.72,Math.min(1.22,1.25-level*0.05));
 }
+function operationalTimeFactor(gs){
+  return teamWorkRateMultiplier(gs,gs?.team?.team_id??gs?.team?.id??null);
+}
 
 export function componentWorkshopProfile(slot){
   return COMPONENT_WORKSHOP_PROFILE[String(slot||"")]||{build_days:9,restore_days_at_50:4};
@@ -92,7 +96,7 @@ export function standardBuildQuote(gs,slot,{fitCarId=null}={}){
   const profile=componentWorkshopProfile(slot);
   const days=Math.max(
     2,
-    Math.round(Number(profile.build_days||9)*eraComplexityFactor(gs)*facilityTimeFactor(gs))
+    Math.round(Number(profile.build_days||9)*eraComplexityFactor(gs)*facilityTimeFactor(gs)*operationalTimeFactor(gs))
   );
   return {
     kind:fitCarId?"build_and_fit_standard":"build_standard_spare",
@@ -126,7 +130,7 @@ export function standardRestoreQuote(gs,slot,condition,{carId=null}={}){
     Math.round(newCost*(0.08+0.52*severity)/1000)*1000
   );
   const rawDays=Math.max(1,Number(profile.restore_days_at_50||4)*(missing/50));
-  const days=Math.max(1,Math.round(rawDays*eraComplexityFactor(gs)*facilityTimeFactor(gs)));
+  const days=Math.max(1,Math.round(rawDays*eraComplexityFactor(gs)*facilityTimeFactor(gs)*operationalTimeFactor(gs)));
   return {
     kind:"restore_standard",
     slot:str(slot),
@@ -153,7 +157,7 @@ export function partUnitRestoreQuote(gs,unitId){
     Math.round(newCost*(0.08+0.48*(missing/100))*performanceFactor/1000)*1000
   );
   const rawDays=Math.max(1,Number(profile.restore_days_at_50||4)*(missing/50));
-  const days=Math.max(1,Math.round(rawDays*eraComplexityFactor(normalized)*facilityTimeFactor(normalized)));
+  const days=Math.max(1,Math.round(rawDays*eraComplexityFactor(normalized)*facilityTimeFactor(normalized)*operationalTimeFactor(normalized)));
   return {
     kind:"restore_part_unit",
     slot,

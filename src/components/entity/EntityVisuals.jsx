@@ -33,6 +33,24 @@ const NAME_TO_2 = Object.freeze({
   "uruguay":"UY","uruguayan":"UY","venezuela":"VE","venezuelan":"VE","hong kong":"HK",
 });
 
+const COUNTRY_NAME_BY_2 = Object.freeze({
+  AR:"Argentina", AU:"Australia", AT:"Austria", BE:"Belgium", BR:"Brazil", CA:"Canada",
+  CL:"Chile", CN:"China", CO:"Colombia", CZ:"Czech Republic", DK:"Denmark", ES:"Spain",
+  FI:"Finland", FR:"France", GB:"United Kingdom", DE:"Germany", HU:"Hungary", ID:"Indonesia",
+  IN:"India", IE:"Ireland", IT:"Italy", JP:"Japan", LI:"Liechtenstein", MY:"Malaysia",
+  MX:"Mexico", MC:"Monaco", NL:"Netherlands", NZ:"New Zealand", PL:"Poland", PT:"Portugal",
+  RH:"Rhodesia (historic)", RU:"Russia", ZA:"South Africa", SE:"Sweden", CH:"Switzerland",
+  TH:"Thailand", UY:"Uruguay", US:"United States", VE:"Venezuela", HK:"Hong Kong",
+});
+
+export function countryNameFor(country = "", code = "") {
+  const raw=String(country||"").trim();
+  if(raw&&raw!=="—"&&raw!=="#N/A")return raw;
+  const cc=countryCodeFor(raw,code);
+  return COUNTRY_NAME_BY_2[cc]||"";
+}
+
+
 export function countryCodeFor(country = "", code = "") {
   let cc=String(code||"").trim().toUpperCase().replace(/[^A-Z]/g,"");
   if(cc.length===3)cc=ISO3_TO_2[cc]||"";

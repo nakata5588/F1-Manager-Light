@@ -306,14 +306,18 @@ export function applyRaceHealthOutcomes(gs,{
     });
     const injuryReason=rng.pick(profile.reasons);
     const expectedReturnDate=today?addDaysISO(today,profile.days):null;
+    const limited=profile.severity==="minor";
     const record={
       driver_id:driverId,
-      status:"injured",
+      status:limited?"limited":"injured",
       reason:injuryReason,
       severity:profile.severity,
       unavailableFrom:today||null,
       expectedReturnDate,
       expectedDaysOut:profile.days,
+      performancePenalty:limited
+        ?Number(Math.min(3.5,1.2+profile.days*0.18).toFixed(2))
+        :0,
       source:"race_incident",
       sourceEventId:gpId,
       incidentSeverity:probabilities.incidentSeverity,
@@ -332,8 +336,12 @@ export function applyRaceHealthOutcomes(gs,{
       type:"MEDICAL",
       from:"Team Medical",
       tag:"Driver Availability",
-      subject:driverName(next,driverId)+" ruled out",
-      body:driverName(next,driverId)+" sustained "+injuryReason+" ("+profile.severity+") and is expected to be unavailable for about "+profile.days+" day(s).",
+      subject:limited
+        ?driverName(next,driverId)+" carrying a minor injury"
+        :driverName(next,driverId)+" ruled out",
+      body:limited
+        ?driverName(next,driverId)+" sustained "+injuryReason+" (minor). The driver remains eligible to race, but current performance is reduced until approximately "+expectedReturnDate+"."
+        :driverName(next,driverId)+" sustained "+injuryReason+" ("+profile.severity+") and is expected to be unavailable for about "+profile.days+" day(s). A reserve/replacement driver will be required while unavailable.",
       driver_id:driverId,
       availability:record,
     });
@@ -374,7 +382,7 @@ export function refreshDriverAvailability(gs,dateISO=gs?.currentDateISO){
       recoveredAt:today,
     };
     changed=true;
-    if(status==="injured"||status==="injury"||status==="medical"){
+    if(status==="injured"||status==="injury"||status==="medical"||status==="limited"){
       messages.push({
         id:"return_"+driverId+"_"+today,
         date:today,
@@ -382,8 +390,12 @@ export function refreshDriverAvailability(gs,dateISO=gs?.currentDateISO){
         type:"MEDICAL",
         from:"Team Medical",
         tag:"Driver Availability",
-        subject:driverName(gs,driverId)+" cleared to race",
-        body:driverName(gs,driverId)+" has completed recovery and is available for selection again.",
+        subject:status==="limited"
+          ?driverName(gs,driverId)+" fully recovered"
+          :driverName(gs,driverId)+" cleared to race",
+        body:status==="limited"
+          ?driverName(gs,driverId)+" has fully recovered from the minor injury; the temporary performance penalty has ended."
+          :driverName(gs,driverId)+" has completed recovery and is available for selection again.",
         driver_id:driverId,
       });
     }

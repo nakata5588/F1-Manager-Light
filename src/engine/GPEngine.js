@@ -13,6 +13,7 @@ import { simulateManagedRace } from "./RaceStrategyEngine.js";
 import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { applyRacePerformanceEvaluation } from "../domain/driverForm.js";
+import { applyRaceTeamMorale } from "../domain/teamMorale.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -875,7 +876,8 @@ export async function runRaceWeekend(gs, {
 
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
-  const afterInjuries = applyRaceHealthOutcomes(afterRelations, { gp, race });
+  const afterTeamMorale = applyRaceTeamMorale(afterRelations, { gp, race });
+  const afterInjuries = applyRaceHealthOutcomes(afterTeamMorale, { gp, race });
   let afterWear = applyRaceComponentWear(afterInjuries, { gp, race });
 
   const wornComponents=(afterWear?.garage?.cars||[])

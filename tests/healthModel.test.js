@@ -129,7 +129,7 @@ test("forced injury stores incident severity and medical history",()=>{
   });
 
   const injury=next.driverAvailability.D2;
-  assert.equal(injury.status,"injured");
+  assert.equal(injury.status,injury.severity==="minor"?"limited":"injured");
   assert.equal(injury.incidentSeverity,"high");
   assert.ok(["minor","moderate","serious"].includes(injury.severity));
   assert.ok(injury.expectedReturnDate>"1980-05-18");

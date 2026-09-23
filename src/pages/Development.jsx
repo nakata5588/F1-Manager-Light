@@ -10,6 +10,7 @@ import { availableCarComponentSlots, componentLabel } from "@/domain/carComponen
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
+import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -97,12 +98,12 @@ function perfDelta(draft, levelOf, existingParts = []) {
   const diminishingReturns = 1 / (1 + bestExisting * 0.18);
   return Number((resourceScore * profile.multiplier * facilityFactor(draft.type, levelOf) * diminishingReturns).toFixed(2));
 }
-function effectiveProjectDays(draft, levelOf) {
+function effectiveProjectDays(draft, levelOf, moraleFactor=1) {
   const profile = PART_PROFILES[draft.type] || PART_PROFILES.chassis;
   const relevant = profile.facility === "aero"
     ? (Number(levelOf("aero_dept_level") || 0) + Number(levelOf("wind_tunnel_level") || 0)) / 2
     : Number(levelOf(profile.facility) || 0);
-  return Math.max(7, Math.round(Number(draft.duration || 21) * Math.max(0.82, 1.12 - relevant * 0.025)));
+  return Math.max(7, Math.round(Number(draft.duration || 21) * Math.max(0.82, 1.12 - relevant * 0.025) * Number(moraleFactor||1)));
 }
 
 export default function Development({ embedded = false, initialTab = "projects", onTabChange = null }) {
@@ -137,6 +138,9 @@ export default function Development({ embedded = false, initialTab = "projects",
     avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,source:"fallback"
   };
   const effectivePitCrew=pitCrewEffectiveProfile(rawPitCrew);
+  const teamMorale=teamOperationalMorale(gameState,teamId);
+  const moraleWorkRate=teamWorkRateLabel(gameState,teamId);
+  const moraleTimeFactor=teamWorkRateMultiplier(gameState,teamId);
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -243,7 +247,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   }, [currentDateISO, projects, parts, partUnits, manufacturing, research, dev, setGameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
-  const effectiveDays = effectiveProjectDays(draft, levelOf);
+  const effectiveDays = effectiveProjectDays(draft, levelOf, moraleTimeFactor);
   const cost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
   const baseExpectedPerf = perfDelta(draft, levelOf, parts);
   const expectedPerf = Number((
@@ -395,11 +399,12 @@ export default function Development({ embedded = false, initialTab = "projects",
           <p className="text-sm text-slate-400">Design, test and manufacture era-appropriate car parts.</p>
         </div>
         <div className="flex-1" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <Mini label="Budget" value={fmtMoney(budget)}/>
           <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
+          <Mini label="Team Morale" value={Math.round(teamMorale)+"/100"}/>
+          <Mini label="Work Rate" value={moraleWorkRate.label}/>
           <Mini label="Test Driver" value={testDriverProfile?.name||"None"}/>
-          <Mini label="Facilities" value={"WT "+levelOf("wind_tunnel_level")+" · MFG "+levelOf("manufacturing_leve")}/>
         </div>
         <Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>
       </div>}
@@ -448,9 +453,10 @@ export default function Development({ embedded = false, initialTab = "projects",
           ].map(([key,label])=><Button key={key} size="sm" variant={tab===key?"default":"outline"} onClick={()=>changeTab(key)}>{label}</Button>)}
         </div>
         <div className="flex-1"/>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <Mini label="Budget" value={fmtMoney(budget)}/>
           <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
+          <Mini label="Morale" value={Math.round(teamMorale)+"/100"}/>
           <Mini label="Wind Tunnel" value={"Lv "+levelOf("wind_tunnel_level")}/>
           <Mini label="Manufacturing" value={"Lv "+levelOf("manufacturing_leve")}/>
         </div>
