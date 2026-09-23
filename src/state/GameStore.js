@@ -404,6 +404,7 @@ export const useGame = create((set, get) => ({
     driverStats: {},
     driverCareer: {},
     driverAttributes: {},
+    driverMentalStateLog: {},
     driverAvailability: {},
     medicalHistory: [],
     temporaryDriverAssignments: [],
