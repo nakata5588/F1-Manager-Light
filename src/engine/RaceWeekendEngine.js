@@ -4,7 +4,7 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
-import { advanceLiveRace, advanceLiveRaceSector, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
+import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { defaultDriverCondition, driverCondition } from "../domain/driverRating.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import {
@@ -296,6 +296,10 @@ export function advanceLiveRaceSectorSession(gs,{gp,sectors=1}={}){
 
 export function setLiveRaceCommand(gs,command={}){
   return issueLiveRaceCommand(gs,command);
+}
+
+export function cancelLiveRaceOrder(gs,command={}){
+  return cancelLiveRaceCommand(gs,command);
 }
 
 export function resumeLiveRaceSession(gs){
