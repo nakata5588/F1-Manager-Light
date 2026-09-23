@@ -13,6 +13,7 @@ const round1=(v)=>Math.round(Number(v||0)*10)/10;
 
 function teamIdOf(row){return String(pick(row,["team_id","team","constructor_id","constructor"],""));}
 function yearOf(gs){return Number(gs?.activeYear)||Number(String(gs?.currentDateISO||"").slice(0,4))||1980;}
+function groundEffectEra(year){return (year>=1977&&year<=1982)||year>=2022;}
 function rowForTeam(rows,teamId,year){
   const list=Array.isArray(rows)?rows:[];
   return list.find((row)=>teamIdOf(row)===String(teamId)&&Number(row?.year??row?.season_year)===Number(year))
@@ -68,7 +69,7 @@ function baselineCharacteristics(gs,teamId){
   const power=num(pick(engine,["power","engine_power","Ovrl","overall"],70),70);
   const weight=num(car?.weight,600);
   const weightScore=clamp(80-(weight-580)*0.35,50,95);
-  const groundEffectYear=year>=1977;
+  const groundEffectYear=groundEffectEra(year);
 
   return {
     top_speed:clamp(power*0.55+gearbox*0.20+aero*0.10+weightScore*0.15),
@@ -161,12 +162,12 @@ export function trackCharacteristicPriorities(gs,{gp=null,track=null}={}){
     aero_stability:0.72+crash*0.0015,
     tyre_preservation:0.55+tyreWear*0.006,
     cooling:0.50+tyreWear*0.002,
-    ground_effect:year>=1977?0.74:0,
+    ground_effect:groundEffectEra(year)?0.74:0,
   };
   const total=Object.values(weights).reduce((a,b)=>a+b,0)||1;
   const normalized=Object.fromEntries(Object.entries(weights).map(([key,value])=>[key,value/total]));
   const important=Object.entries(normalized)
-    .filter(([key])=>key!=="ground_effect"||year>=1977)
+    .filter(([key])=>key!=="ground_effect"||groundEffectEra(year))
     .sort((a,b)=>b[1]-a[1])
     .slice(0,4)
     .map(([key,weight])=>({key,label:CHARACTERISTIC_LABELS[key],weight}));

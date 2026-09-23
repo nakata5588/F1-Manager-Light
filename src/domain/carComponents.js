@@ -17,12 +17,12 @@ export const COMPONENT_FALLBACK_CATALOG=Object.freeze([
   {part_type:"gearbox",label:"Gearbox",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:55,base_drag:0.02,base_downforce:0.05,base_reliability:0.75},
   {part_type:"brakes",label:"Brakes",era_start_year:1950,era_end_year:null,impact_area:"chassis",base_weight:20,base_drag:0.01,base_downforce:0.02,base_reliability:0.82},
   {part_type:"cooling",label:"Cooling",era_start_year:1950,era_end_year:null,impact_area:"cooling",base_weight:25,base_drag:0.04,base_downforce:0.00,base_reliability:0.80},
-  {part_type:"turbocharger",label:"Turbocharger",era_start_year:1977,era_end_year:1988,impact_area:"powertrain",base_weight:18,base_drag:0.06,base_downforce:0.05,base_reliability:0.70},
+  {part_type:"turbocharger",label:"Turbocharger",era_start_year:1977,era_end_year:null,era_windows:[[1977,1988],[2014,null]],impact_area:"powertrain",base_weight:18,base_drag:0.06,base_downforce:0.05,base_reliability:0.70},
   {part_type:"electronics",label:"Electronics",era_start_year:1990,era_end_year:null,impact_area:"reliability",base_weight:8,base_drag:0.01,base_downforce:0.00,base_reliability:0.85},
-  {part_type:"kers",label:"KERS",era_start_year:2009,era_end_year:2013,impact_area:"hybrid",base_weight:30,base_drag:0.02,base_downforce:0.01,base_reliability:0.75},
+  {part_type:"kers",label:"KERS",era_start_year:2009,era_end_year:2013,era_windows:[[2009,2009],[2011,2013]],impact_area:"hybrid",base_weight:30,base_drag:0.02,base_downforce:0.01,base_reliability:0.75},
   {part_type:"ers_mgu_k",label:"MGU-K",era_start_year:2014,era_end_year:null,impact_area:"hybrid",base_weight:35,base_drag:0.03,base_downforce:0.02,base_reliability:0.78},
   {part_type:"ers_mgu_h",label:"MGU-H",era_start_year:2014,era_end_year:2025,impact_area:"hybrid",base_weight:25,base_drag:0.02,base_downforce:0.01,base_reliability:0.70},
-  {part_type:"battery_pack",label:"Battery Pack",era_start_year:2009,era_end_year:null,impact_area:"hybrid",base_weight:40,base_drag:0.02,base_downforce:0.00,base_reliability:0.80},
+  {part_type:"battery_pack",label:"Battery Pack",era_start_year:2009,era_end_year:null,era_windows:[[2009,2009],[2011,null]],impact_area:"hybrid",base_weight:40,base_drag:0.02,base_downforce:0.00,base_reliability:0.80},
   {part_type:"fuel_system",label:"Fuel System",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:22,base_drag:0.01,base_downforce:0.00,base_reliability:0.82},
   {part_type:"exhaust_system",label:"Exhaust System",era_start_year:1950,era_end_year:null,impact_area:"powertrain",base_weight:18,base_drag:0.02,base_downforce:0.01,base_reliability:0.80},
 ]);
@@ -85,6 +85,7 @@ function normalizedCatalog(gs){
       label:pick(row,["label","name"],fallback.label||type),
       era_start_year:num(pick(row,["era_start_year","year_from"],fallback.era_start_year??1950),1950),
       era_end_year:pick(row,["era_end_year","year_to"],fallback.era_end_year??null),
+      era_windows:Array.isArray(row?.era_windows)?row.era_windows:(fallback.era_windows||null),
       base_weight:num(pick(row,["base_weight"],fallback.base_weight??0),fallback.base_weight??0),
       base_drag:num(pick(row,["base_drag"],fallback.base_drag??0),fallback.base_drag??0),
       base_downforce:num(pick(row,["base_downforce"],fallback.base_downforce??0),fallback.base_downforce??0),
@@ -140,10 +141,15 @@ export function componentEligibility(gs,teamId,slot){
   const definition=carComponentDefinition(gs,slot);
   if(!definition)return {available:false,reason:"not_in_catalog",definition:null};
   const year=yearOf(gs);
-  const from=num(definition.era_start_year,1950);
-  const toRaw=unwrap(definition.era_end_year);
-  const to=toRaw==null||toRaw===""?Infinity:num(toRaw,Infinity);
-  if(year<from||year>to)return {available:false,reason:"outside_era",definition};
+  const windows=Array.isArray(definition?.era_windows)&&definition.era_windows.length
+    ?definition.era_windows
+    :[[definition.era_start_year,definition.era_end_year]];
+  const insideEra=windows.some(([fromRaw,toRaw])=>{
+    const from=num(fromRaw,1950);
+    const to=toRaw==null||toRaw===""?Infinity:num(toRaw,Infinity);
+    return year>=from&&year<=to;
+  });
+  if(!insideEra)return {available:false,reason:"outside_era",definition};
   if(!explicitTechnologySupport(gs,teamId,slot))return {available:false,reason:"technology_not_fitted",definition};
   return {available:true,reason:"available",definition};
 }

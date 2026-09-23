@@ -58,6 +58,20 @@ const PERFORMANCE_METRICS=[
   ["chassis","Chassis"],
   ["reliability","Reliability"],
 ];
+const CHARACTERISTIC_METRICS=[
+  ["top_speed","Top Speed"],
+  ["acceleration","Acceleration"],
+  ["low_speed","Low-speed"],
+  ["medium_speed","Medium-speed"],
+  ["high_speed","High-speed"],
+  ["mechanical_grip","Mechanical Grip"],
+  ["braking","Braking"],
+  ["aero_efficiency","Aero Efficiency"],
+  ["aero_stability","Aero Stability"],
+  ["tyre_preservation","Tyre Preservation"],
+  ["cooling","Cooling"],
+  ["ground_effect","Ground Effect"],
+];
 const PART_ICON_BY_SLOT={
   chassis:CarFront,
   aero_front:Activity,
@@ -124,8 +138,8 @@ function StatusPill({status,condition}){
   const cls=key==="failing"||key==="critical"?"border-rose-400/30 bg-rose-400/10 text-rose-300":key==="degraded"||key==="worn"?"border-amber-300/30 bg-amber-300/10 text-amber-200":"border-emerald-300/20 bg-emerald-300/10 text-emerald-300";
   return <span className={"inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase "+cls}>{condition<60?<TriangleAlert className="h-3 w-3"/>:null}{status?.label||nice(key)}</span>;
 }
-function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performance"}){
-  return <Panel title={title}><div className="p-4 space-y-3">
+function PerformanceRows({ranking,teamId,perf,driverId=null}){
+  return <div className="space-y-3">
     {PERFORMANCE_METRICS.map(([key,label])=>{
       const value=Number(perf?.[key]||0);
       const avg=metricAverage(ranking,teamId,perf,key,driverId);
@@ -137,7 +151,10 @@ function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performa
       </div>;
     })}
     <div className="pt-2 border-t border-white/10 text-[10px] uppercase tracking-wide text-slate-500">Delta vs current grid average</div>
-  </div></Panel>;
+  </div>;
+}
+function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performance"}){
+  return <Panel title={title}><div className="p-4"><PerformanceRows ranking={ranking} teamId={teamId} perf={perf} driverId={driverId}/></div></Panel>;
 }
 
 export default function Car(){
@@ -148,6 +165,8 @@ export default function Car(){
   const teamName=gs?.team?.team_name||gs?.team?.name||teamId||"My Team";
   const drivers=gs?.drivers||[];
   const currentDateISO=String(gs?.currentDateISO||"").slice(0,10);
+  const [carInfoTab,setCarInfoTab]=useState("performance");
+  const [analysisMode,setAnalysisMode]=useState("characteristics");
 
   const rawSyncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
     gs?.garage,gs?.contracts,gs?.activeYear,teamId,
@@ -214,6 +233,10 @@ export default function Car(){
       });
     });
   },[physicalState]);
+  const characteristicGrid=useMemo(()=>carGrid.map((row)=>({
+    ...row,
+    ...teamCarCharacteristics(physicalState,row.team_id,row.driver_id).values,
+  })),[physicalState,carGrid]);
   const cars=syncedGarage?.cars||[];
   const raceCars=cars.filter((c)=>c.kind!=="reserve");
   const viewRaw=searchParams.get("view")||"overview";
@@ -478,42 +501,80 @@ export default function Car(){
           </div>;
         })}</div>
       </Panel>
-      <div className="xl:col-span-4 space-y-4"><PerformancePanel ranking={carGrid} teamId={teamId} perf={selectedPerf} driverId={selectedCar?.driver_id}/>
-        <Panel title="Car Characteristics"><div className="p-3 grid grid-cols-2 gap-2">
-          {["top_speed","acceleration","low_speed","medium_speed","high_speed","mechanical_grip","braking","tyre_preservation","cooling","ground_effect"].map((key)=>{
-            const value=selectedCharacteristics?.values?.[key];
-            if(value==null)return null;
-            const delta=Number(selectedCharacteristics?.upgrade_delta?.[key]||0);
-            return <Metric key={key} label={selectedCharacteristics?.labels?.[key]||nice(key)} value={<span>{Number(value).toFixed(1)}{Math.abs(delta)>=0.05?<span className={delta>=0?"ml-1 text-emerald-300 text-xs":"ml-1 text-amber-300 text-xs"}>{delta>=0?"+":""}{delta.toFixed(1)}</span>:null}</span>}/>;
-          })}
-        </div></Panel>
-        <Panel title="Technical Delta">{selectedFitted.length?<div className="p-3 grid grid-cols-2 gap-2"><Metric label="Weight" value={(Number(selectedPerf?.technical_delta?.weight_kg||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.weight_kg||0).toFixed(2)+" kg"}/><Metric label="Drag" value={(Number(selectedPerf?.technical_delta?.drag||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.drag||0).toFixed(4)}/><Metric label="Downforce" value={"+"+Number(selectedPerf?.technical_delta?.downforce||0).toFixed(4)}/><Metric label="Design reliability" value={"+"+Number(selectedPerf?.technical_delta?.design_reliability_pct||0).toFixed(1)+" pp"}/></div>:<div className="p-4 text-sm text-slate-400">No developed upgrades fitted. The car is currently using its historical baseline technical specification.</div>}</Panel>
-        <Panel title="Reliability Model"><div className="p-3 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Metric label="Historical base" value={Number(selectedPerf?.reliability_profile?.historical?.combined_pct||selectedPerf?.reliability||0).toFixed(1)+"%"}/>
-            <Metric label="Effective" value={Number(selectedPerf?.reliability_profile?.reliability_pct||selectedPerf?.reliability||0).toFixed(1)+"%"}/>
-            <Metric label="Design delta" value={(Number(selectedPerf?.reliability_profile?.design_delta_pct||0)>=0?"+":"")+Number(selectedPerf?.reliability_profile?.design_delta_pct||0).toFixed(1)+" pp"}/>
-            <Metric label="Condition penalty" value={"-"+Number(selectedPerf?.reliability_profile?.condition_penalty_pct||0).toFixed(1)+" pp"}/>
+      <div className="xl:col-span-4">
+        <Panel title="Car Overview" action={<div className="flex gap-1">
+          {[["performance","Performance"],["characteristics","Characteristics"],["reliability","Reliability"]].map(([key,label])=><button key={key} onClick={()=>setCarInfoTab(key)} className={"px-2 py-1 rounded text-[10px] font-semibold "+(carInfoTab===key?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400 hover:text-white")}>{label}</button>)}
+        </div>}>
+          <div className="p-3">
+            {carInfoTab==="performance"?<PerformanceRows ranking={carGrid} teamId={teamId} perf={selectedPerf} driverId={selectedCar?.driver_id}/>:null}
+            {carInfoTab==="characteristics"?<div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {CHARACTERISTIC_METRICS.map(([key,label])=>{
+                  const value=selectedCharacteristics?.values?.[key];
+                  if(value==null)return null;
+                  const delta=Number(selectedCharacteristics?.upgrade_delta?.[key]||0);
+                  return <Metric key={key} label={label} value={<span>{Number(value).toFixed(1)}{Math.abs(delta)>=0.05?<span className={delta>=0?"ml-1 text-emerald-300 text-xs":"ml-1 text-amber-300 text-xs"}>{delta>=0?"+":""}{delta.toFixed(1)}</span>:null}</span>}/>;
+                })}
+              </div>
+              <div className="border-t border-white/10 pt-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">Technical delta</div>
+                {selectedFitted.length?<div className="grid grid-cols-4 gap-2 text-xs">
+                  <div><span className="text-slate-500">Weight</span><div className="font-semibold">{(Number(selectedPerf?.technical_delta?.weight_kg||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.weight_kg||0).toFixed(2)+"kg"}</div></div>
+                  <div><span className="text-slate-500">Drag</span><div className="font-semibold">{(Number(selectedPerf?.technical_delta?.drag||0)<=0?"":"+")+Number(selectedPerf?.technical_delta?.drag||0).toFixed(4)}</div></div>
+                  <div><span className="text-slate-500">Downforce</span><div className="font-semibold">+{Number(selectedPerf?.technical_delta?.downforce||0).toFixed(4)}</div></div>
+                  <div><span className="text-slate-500">Design Rel.</span><div className="font-semibold">+{Number(selectedPerf?.technical_delta?.design_reliability_pct||0).toFixed(1)}pp</div></div>
+                </div>:<div className="text-xs text-slate-400">Historical baseline specification; no developed upgrade is fitted.</div>}
+              </div>
+            </div>:null}
+            {carInfoTab==="reliability"?<div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Metric label="Historical base" value={Number(selectedPerf?.reliability_profile?.historical?.combined_pct||selectedPerf?.reliability||0).toFixed(1)+"%"}/>
+                <Metric label="Effective" value={Number(selectedPerf?.reliability_profile?.reliability_pct||selectedPerf?.reliability||0).toFixed(1)+"%"}/>
+                <Metric label="Design delta" value={(Number(selectedPerf?.reliability_profile?.design_delta_pct||0)>=0?"+":"")+Number(selectedPerf?.reliability_profile?.design_delta_pct||0).toFixed(1)+" pp"}/>
+                <Metric label="Condition penalty" value={"-"+Number(selectedPerf?.reliability_profile?.condition_penalty_pct||0).toFixed(1)+" pp"}/>
+              </div>
+              {(selectedPerf?.reliability_profile?.weakest_components||[]).length?<div className="border-t border-white/10 pt-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Highest component risk</div>
+                {(selectedPerf.reliability_profile.weakest_components||[]).slice(0,4).map((row)=><div key={row.slot} className="flex items-center gap-2 text-xs py-1"><span className="flex-1 text-slate-300">{row.label||componentLabel(carState,row.slot)}</span><span className="text-slate-500">{Number(row.condition_pct||100).toFixed(0)}%</span><span className={Number(row.condition_penalty_pct||0)>2?"text-rose-300":"text-slate-400"}>-{Number(row.condition_penalty_pct||0).toFixed(1)}pp</span></div>)}
+              </div>:null}
+            </div>:null}
           </div>
-          {(selectedPerf?.reliability_profile?.weakest_components||[]).length?<div className="border-t border-white/10 pt-2">
-            <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Highest component risk</div>
-            {(selectedPerf.reliability_profile.weakest_components||[]).slice(0,3).map((row)=><div key={row.slot} className="flex items-center gap-2 text-xs py-1"><span className="flex-1 text-slate-300">{row.label||componentLabel(carState,row.slot)}</span><span className="text-slate-500">{Number(row.condition_pct||100).toFixed(0)}%</span><span className={Number(row.condition_penalty_pct||0)>2?"text-rose-300":"text-slate-400"}>-{Number(row.condition_penalty_pct||0).toFixed(1)}pp</span></div>)}
-          </div>:null}
-        </div></Panel>
-        <Panel title="Car Status"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Driver" value={selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}/><Metric label="Avg condition" value={averageCondition.toFixed(1)+"%"}/><Metric label="Developed parts" value={selectedFitted.length}/><Metric label="Wear impact" value={Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}/></div></Panel>
+          <div className="border-t border-white/10 bg-[#0d0f15] p-3 grid grid-cols-4 gap-2 text-xs">
+            <div><div className="text-[9px] uppercase text-slate-500">Driver</div><div className="font-medium truncate">{selectedDriver?.display_name||selectedDriver?.name||"Unassigned"}</div></div>
+            <div><div className="text-[9px] uppercase text-slate-500">Condition</div><div className="font-medium">{averageCondition.toFixed(1)}%</div></div>
+            <div><div className="text-[9px] uppercase text-slate-500">Upgrades</div><div className="font-medium">{selectedFitted.length}</div></div>
+            <div><div className="text-[9px] uppercase text-slate-500">Rel. penalty</div><div className="font-medium">{Number(selectedPerf?.wear_penalty?.reliability||0).toFixed(1)}</div></div>
+          </div>
+        </Panel>
       </div>
     </div>}
 
     {view==="analysis"&&<div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-      <Panel title="Compare Car" className="xl:col-span-4"><div className="p-3 space-y-2">{raceCars.map((car)=>{
+      <Panel title="Compare Car" className="xl:col-span-3"><div className="p-3 space-y-2">{raceCars.map((car)=>{
         const d=driverById.get(String(car.driver_id||""));
         const active=car.id===selectedCar?.id;
         return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"w-full rounded-lg border p-3 flex items-center gap-3 text-left "+(active?"border-white/30 bg-[#1b1e28]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-12 w-12"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-xs text-cyan-300">Selected</span>:null}</button>;
-      })}<div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">Uses the same performance model as the simulation. No unsupported F1 Manager-only metrics are invented.</div></div></Panel>
-      <Panel title="Car vs Grid Average" className="xl:col-span-8"><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
-        const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id); const delta=value-avg; const rank=metricRank(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id);
-        return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
-      })}</tbody></table></div></Panel>
+      })}
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-500">Characteristics are derived for every team from the historical car/engine database. Player fitted upgrades already alter the selected car; AI live upgrades will join the same comparison in Stage 5.</div>
+      </div></Panel>
+      <Panel title="Grid Analysis" className="xl:col-span-9" action={<div className="flex gap-1"><button onClick={()=>setAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>setAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
+        {analysisMode==="performance"?<div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
+          const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id); const delta=value-avg; const rank=metricRank(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id);
+          return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
+        })}</tbody></table></div>:<div className="max-h-[62vh] overflow-auto">
+          <table className="min-w-[1080px] w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-[#171a23] text-slate-400"><tr><th className="px-3 py-2 text-left">Team / Car</th>{CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key,label])=><th key={key} className="px-3 py-2 text-right whitespace-nowrap">{label}</th>)}</tr></thead>
+            <tbody>{characteristicGrid.map((row,index)=>{
+              const isSelected=String(row.team_id)===teamId&&String(row.driver_id||"")===String(selectedCar?.driver_id||"");
+              const driver=driverById.get(String(row.driver_id||""));
+              return <tr key={String(row.team_id)+"-"+String(row.driver_id||index)} className={"border-t border-white/10 "+(isSelected?"bg-cyan-300/[0.08]":"")}>
+                <td className="px-3 py-2"><div className="font-medium">{row.team_name||row.team_id} · Car {row.car_slot||1}</div><div className="text-[10px] text-slate-500">{driver?.display_name||driver?.name||row.driver_id||"Team baseline"}</div></td>
+                {CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key])=>{const value=row?.[key]; const selectedValue=Number(selectedCharacteristics?.values?.[key]||0); const cls=isSelected?"font-semibold text-cyan-200":Number(value)>selectedValue?"text-emerald-300":"text-slate-300"; return <td key={key} className={"px-3 py-2 text-right tabular-nums "+cls}>{value==null?"—":Number(value).toFixed(1)}</td>;})}
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>}
+      </Panel>
     </div>}
 
     {view==="development"&&<Development embedded initialTab={searchParams.get("tab")||"projects"} onTabChange={setDevelopmentTab}/>}

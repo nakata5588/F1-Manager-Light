@@ -470,3 +470,70 @@ test("track sensitivity changes the value of a developed package without inventi
   assert.ok(Number.isFinite(twisty.modifier));
   assert.notDeepEqual(trackCharacteristicPriorities(state,{track:fastTrack}).important,trackCharacteristicPriorities(state,{track:twistyTrack}).important);
 });
+
+
+test("historical component windows handle turbo return and the 2010 KERS gap", () => {
+  const turbo1989={
+    activeYear:1989,
+    carStats:[{year:1989,team_id:"T1",turbo_spec:80}],
+    teamEngines:[{year:1989,team_id:"T1",engine_name:"Turbo V6"}],
+  };
+  assert.equal(componentEligibility(turbo1989,"T1","turbocharger").available,false);
+
+  const turbo2014={
+    activeYear:2014,
+    carStats:[{year:2014,team_id:"T1",turbo_spec:82}],
+    teamEngines:[{year:2014,team_id:"T1",engine_name:"1.6 V6 Turbo Hybrid"}],
+  };
+  assert.equal(componentEligibility(turbo2014,"T1","turbocharger").available,true);
+
+  const kers2010={
+    activeYear:2010,
+    carStats:[{year:2010,team_id:"T1",kers_spec:80,battery_pack:80}],
+    teamEngines:[{year:2010,team_id:"T1",engine_name:"V8 KERS"}],
+  };
+  assert.equal(componentEligibility(kers2010,"T1","kers").available,false);
+  assert.equal(componentEligibility(kers2010,"T1","battery_pack").available,false);
+
+  const kers2011={...kers2010,activeYear:2011,carStats:[{year:2011,team_id:"T1",kers_spec:80,battery_pack:80}]};
+  assert.equal(componentEligibility(kers2011,"T1","kers").available,true);
+  assert.equal(componentEligibility(kers2011,"T1","battery_pack").available,true);
+});
+
+test("ground-effect characteristic follows the 1977-82 era and modern 2022 return", () => {
+  const base={
+    team:{team_id:"T1"},
+    carStats:[{team_id:"T1",chassis_spec:80,aero_spec:82,gearbox_spec:80,suspension_spec:80,brakes_spec:80,cooling_spec:80,weight:595}],
+    teamEngines:[{team_id:"T1",power:80,reliability:80}],
+    garage:{cars:[{id:"car_1",kind:"race",driver_id:"D1",installedParts:{},componentCondition:{}}]},
+    development:{parts:[],partUnits:[]},
+  };
+  const y1982=teamCarCharacteristics({...base,activeYear:1982,carStats:[{...base.carStats[0],year:1982}]},"T1","D1");
+  const y1983=teamCarCharacteristics({...base,activeYear:1983,carStats:[{...base.carStats[0],year:1983}]},"T1","D1");
+  const y2022=teamCarCharacteristics({...base,activeYear:2022,carStats:[{...base.carStats[0],year:2022}]},"T1","D1");
+  assert.ok(y1982.values.ground_effect>0);
+  assert.equal(y1983.values.ground_effect,null);
+  assert.ok(y2022.values.ground_effect>0);
+});
+
+test("car characteristics are available for AI teams from the shared historical database", () => {
+  const gs={
+    activeYear:1980,
+    team:{team_id:"PLAYER"},
+    carStats:[
+      {year:1980,team_id:"PLAYER",chassis_spec:82,aero_spec:84,gearbox_spec:80,suspension_spec:81,brakes_spec:80,cooling_spec:79,weight:595},
+      {year:1980,team_id:"AI",chassis_spec:76,aero_spec:78,gearbox_spec:75,suspension_spec:77,brakes_spec:76,cooling_spec:75,weight:600},
+    ],
+    teamEngines:[
+      {year:1980,team_id:"PLAYER",power:82,reliability:82},
+      {year:1980,team_id:"AI",power:75,reliability:78},
+    ],
+    garage:{cars:[]},
+    development:{parts:[],partUnits:[]},
+  };
+  const player=teamCarCharacteristics(gs,"PLAYER");
+  const ai=teamCarCharacteristics(gs,"AI");
+  assert.ok(ai.values.top_speed>0);
+  assert.ok(ai.values.acceleration>0);
+  assert.notEqual(ai.values.top_speed,player.values.top_speed);
+});
