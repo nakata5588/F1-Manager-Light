@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   aiTechnicalTeamState,
+  applyAIRaceComponentWear,
   normalizeAITechnicalWorld,
   planAITechnicalProject,
+  processAITechnicalMaintenance,
   tickAITechnicalTeam,
   tickAITechnicalWorld,
 } from "../src/engine/AITechnicalEngine.js";
@@ -210,4 +212,162 @@ test("AI technical save-world survives save preparation and migration",()=>{
   const prepared=prepareGameStateForSave(upgraded);
   const loaded=migrateGameState(JSON.parse(JSON.stringify(prepared)));
   assert.deepEqual(loaded.aiTechnicalWorld,prepared.aiTechnicalWorld);
+});
+
+
+function setAIUnitCondition(gs,teamId,unitId,condition){
+  const state=aiTechnicalTeamState(gs,teamId);
+  return {
+    ...gs,
+    aiTechnicalWorld:{
+      ...gs.aiTechnicalWorld,
+      teams:{
+        ...gs.aiTechnicalWorld.teams,
+        [teamId]:{
+          ...state,
+          development:{
+            ...state.development,
+            partUnits:state.development.partUnits.map((unit)=>
+              String(unit.id)===String(unitId)?{...unit,condition}:unit
+            ),
+          },
+        },
+      },
+    },
+  };
+}
+
+test("AI race cars accumulate shared component wear independently",()=>{
+  const seeded=normalizeAITechnicalWorld(baseState());
+  const worn=applyAIRaceComponentWear(seeded,{
+    gp:{gp_id:"ARG"},
+    race:[
+      {
+        driver:{driver_id:"REN_1"},
+        retired:true,
+        retirement_reason:"Accident",
+        incident_severity:"high",
+        laps_completed:18,
+        race_laps:54,
+      },
+      {
+        driver:{driver_id:"REN_2"},
+        retired:false,
+        laps_completed:54,
+        race_laps:54,
+      },
+    ],
+  });
+
+  const state=aiTechnicalTeamState(worn,"RENAULT");
+  const car1=state.garage.cars[0];
+  const car2=state.garage.cars[1];
+  assert.ok(Number(car1.componentCondition.aero_front)<Number(car2.componentCondition.aero_front));
+  assert.ok(Number(car1.componentCondition.gearbox)<100);
+  assert.ok(Number(car2.componentCondition.gearbox)<100);
+  assert.ok(state.componentWearLog.length>0);
+  assert.equal((worn.garage?.cars||[]).length,0,"AI wear must not mutate the player's garage");
+});
+
+test("AI developed physical units wear and immediately feed performance and reliability",()=>{
+  let gs=completeOneAICycle(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT");
+  const beforeState=aiTechnicalTeamState(gs,"RENAULT");
+  const slot=beforeState.development.parts[0].slot;
+  const unitId=beforeState.garage.cars[0].installedParts[slot];
+  const beforePerformance=teamCarPerformance(gs,"RENAULT","REN_1");
+  const beforeReliability=carReliabilityProfile(gs,"RENAULT","REN_1");
+
+  gs=applyAIRaceComponentWear(gs,{
+    gp:{gp_id:"BRA"},
+    race:[{
+      driver:{driver_id:"REN_1"},
+      retired:true,
+      retirement_reason:"Collision",
+      incident_severity:"critical",
+      laps_completed:42,
+      race_laps:55,
+    }],
+  });
+
+  const afterState=aiTechnicalTeamState(gs,"RENAULT");
+  const unit=afterState.development.partUnits.find((row)=>row.id===unitId);
+  const afterPerformance=teamCarPerformance(gs,"RENAULT","REN_1");
+  const afterReliability=carReliabilityProfile(gs,"RENAULT","REN_1");
+
+  assert.ok(Number(unit.condition)<100);
+  assert.ok(
+    Number(afterPerformance.qualifying)<Number(beforePerformance.qualifying) ||
+    Number(afterPerformance.race)<Number(beforePerformance.race) ||
+    Number(afterReliability.reliability_pct)<Number(beforeReliability.reliability_pct),
+    "physical wear must affect the same live car model used by racing"
+  );
+});
+
+test("AI maintenance pays for a timed developed-unit restore and refits it after completion",()=>{
+  let gs=completeOneAICycle(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT");
+  let state=aiTechnicalTeamState(gs,"RENAULT");
+  const slot=state.development.parts[0].slot;
+  const unitId=state.garage.cars[0].installedParts[slot];
+  gs=setAIUnitCondition(gs,"RENAULT",unitId,20);
+
+  state=aiTechnicalTeamState(gs,"RENAULT");
+  const beforeBudget=state.budget;
+  const maintained=processAITechnicalMaintenance(gs,"RENAULT",state);
+  const activeJob=maintained.garage.serviceJobs.find((job)=>job.status==="active");
+
+  assert.ok(activeJob,"worn developed unit should enter the workshop when affordable");
+  assert.equal(activeJob.kind,"restore_part_unit");
+  assert.equal(activeJob.unit_id,unitId);
+  assert.ok(maintained.budget<beforeBudget);
+  assert.equal(maintained.garage.cars[0].installedParts[slot],undefined);
+  assert.equal(maintained.finance_log.at(-1).category,"Maintenance");
+
+  gs={
+    ...gs,
+    currentDateISO:activeJob.finishes_at,
+    aiTechnicalWorld:{
+      ...gs.aiTechnicalWorld,
+      teams:{...gs.aiTechnicalWorld.teams,RENAULT:maintained},
+    },
+  };
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+  state=aiTechnicalTeamState(gs,"RENAULT");
+  const restored=state.development.partUnits.find((unit)=>unit.id===unitId);
+
+  assert.equal(state.garage.serviceJobs.find((job)=>job.id===activeJob.id).status,"completed");
+  assert.equal(restored.condition,100);
+  assert.equal(state.garage.cars[0].installedParts[slot],unitId);
+});
+
+test("AI maintenance cannot repair a worn developed unit without money or a spare",()=>{
+  let gs=completeOneAICycle(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT");
+  let state=aiTechnicalTeamState(gs,"RENAULT");
+  const slot=state.development.parts[0].slot;
+  const unitId=state.garage.cars[0].installedParts[slot];
+  gs=setAIUnitCondition(gs,"RENAULT",unitId,20);
+  state={...aiTechnicalTeamState(gs,"RENAULT"),budget:0};
+
+  const maintained=processAITechnicalMaintenance(gs,"RENAULT",state);
+  const installedId=maintained.garage.cars[0].installedParts[slot];
+  const unit=maintained.development.partUnits.find((row)=>row.id===unitId);
+
+  assert.equal(installedId,unitId);
+  assert.equal(unit.condition,20);
+  assert.equal(maintained.garage.serviceJobs.filter((job)=>job.status==="active").length,0);
+  assert.equal(maintained.budget,0);
+});
+
+test("AI race wear is deterministic for the same race state",()=>{
+  const fixture=normalizeAITechnicalWorld(baseState());
+  const input={
+    gp:{gp_id:"MON"},
+    race:[
+      {driver:{driver_id:"REN_1"},retired:false,laps_completed:76,race_laps:76},
+      {driver:{driver_id:"REN_2"},retired:true,retirement_reason:"Gearbox",laps_completed:31,race_laps:76},
+    ],
+  };
+  assert.deepEqual(
+    applyAIRaceComponentWear(fixture,input).aiTechnicalWorld,
+    applyAIRaceComponentWear(fixture,input).aiTechnicalWorld
+  );
 });
