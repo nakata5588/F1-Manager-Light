@@ -56,5 +56,5 @@ test("serious injury makes the race driver unavailable and promotes the Reserve 
   const car1=entry.entries.find((row)=>row.team_id==="T1"&&row.car_slot===1);
   assert.equal(car1.driver_id,"R1");
   assert.equal(car1.entry_type,"reserve_replacement");
-  assert.equal(car1.replacement_for,"D1");
+  assert.equal(car1.replacement_for_driver_id,"D1");
 });
