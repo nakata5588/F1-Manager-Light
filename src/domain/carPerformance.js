@@ -4,6 +4,7 @@
 // so race simulation, comparisons and the Garage/Car page use the same numbers.
 import { baseConditionAdjustmentForCar, garageCarForDriver, installedAdjustmentForCar } from "./garage.js";
 import { carReliabilityProfile } from "./carReliability.js";
+import { aiTechnicalCarForDriver, aiTechnicalScopedState } from "../engine/AITechnicalEngine.js";
 
 const unwrap=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v))return v.result ?? v.value ?? null;
@@ -85,18 +86,23 @@ export function teamCarPerformance(gs,teamId,driverId=null){
   );
   let installed={qualifying:0,race:0,reliability:0,technical:{weight_delta_kg:0,drag_delta:0,downforce_delta:0,design_reliability_delta_pct:0}};
   let condition={qualifying:0,race:0,reliability:0};
-  if(String(teamId??"")===String(gs?.team?.team_id??gs?.team?.id??"")){
-    if(driverId){
-      const garageCar=garageCarForDriver(gs,driverId);
-      if(garageCar){
-        installed=installedAdjustmentForCar(gs,garageCar);
-        condition=baseConditionAdjustmentForCar(gs,garageCar);
-      }
-    }else{
-      const raceCars=(gs?.garage?.cars||[]).filter((x)=>x?.kind==="race");
+  {
+    const isPlayer=String(teamId??"")===String(gs?.team?.team_id??gs?.team?.id??"");
+    const sourceState=isPlayer?gs:aiTechnicalScopedState(gs,teamId);
+    if(sourceState){
+      if(driverId){
+        const garageCar=isPlayer
+          ?garageCarForDriver(gs,driverId)
+          :aiTechnicalCarForDriver(gs,teamId,driverId);
+        if(garageCar){
+          installed=installedAdjustmentForCar(sourceState,garageCar);
+          condition=baseConditionAdjustmentForCar(sourceState,garageCar);
+        }
+      }else{
+        const raceCars=(sourceState?.garage?.cars||[]).filter((x)=>x?.kind==="race");
       if(raceCars.length){
-        const installedRows=raceCars.map((x)=>installedAdjustmentForCar(gs,x));
-        const conditionRows=raceCars.map((x)=>baseConditionAdjustmentForCar(gs,x));
+        const installedRows=raceCars.map((x)=>installedAdjustmentForCar(sourceState,x));
+        const conditionRows=raceCars.map((x)=>baseConditionAdjustmentForCar(sourceState,x));
         installed={
           qualifying:installedRows.reduce((a,b)=>a+b.qualifying,0)/installedRows.length,
           race:installedRows.reduce((a,b)=>a+b.race,0)/installedRows.length,
@@ -113,6 +119,7 @@ export function teamCarPerformance(gs,teamId,driverId=null){
           race:conditionRows.reduce((a,b)=>a+b.race,0)/conditionRows.length,
           reliability:conditionRows.reduce((a,b)=>a+b.reliability,0)/conditionRows.length,
         };
+      }
       }
     }
   }
