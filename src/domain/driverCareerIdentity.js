@@ -71,3 +71,25 @@ export function historicalCareerRowKey(row,teams=[]){
   const teamName=normalizeHistoricalName(row?.team_name??row?.team??row?.constructor);
   return [Number.isFinite(year)?year:"",series,teamId||teamName].join("|");
 }
+
+
+export function mergeHistoricalCareerSources(liveRows=[],canonicalRows=[],teams=[]){
+  const merged=new Map();
+  const apply=(row)=>{
+    if(!row||typeof row!=="object")return;
+    const key=historicalCareerRowKey(row,teams);
+    const prev=merged.get(key)||{};
+    const next={...prev};
+    for(const [field,value] of Object.entries(row)){
+      const resolved=unbox(value);
+      if(resolved!==undefined&&resolved!==null&&resolved!=="")next[field]=value;
+    }
+    merged.set(key,next);
+  };
+
+  // Runtime/generated rows establish coverage. Canonical driver_career rows are
+  // applied second so historical championship position/FL/poles are not lost.
+  for(const row of Array.isArray(liveRows)?liveRows:[])apply(row);
+  for(const row of Array.isArray(canonicalRows)?canonicalRows:[])apply(row);
+  return [...merged.values()];
+}
