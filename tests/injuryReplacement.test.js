@@ -65,7 +65,7 @@ test("race accident can create deterministic injury availability",()=>{
 
   assert.deepEqual(first.driverAvailability,second.driverAvailability);
   const injury=first.driverAvailability.D2;
-  assert.equal(injury.status,"injured");
+  assert.equal(injury.status,injury.severity==="minor"?"limited":"injured");
   assert.ok(["minor","moderate","serious"].includes(injury.severity));
   assert.equal(injury.unavailableFrom,"1980-05-18");
   assert.ok(injury.expectedReturnDate>"1980-05-18");
