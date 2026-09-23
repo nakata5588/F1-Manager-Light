@@ -413,6 +413,18 @@ test("AI starts a project at review only when a meaningful competitive component
   assert.equal(state.development.projects[0].planning_trigger,"competitive_technical_gap");
 });
 
+test("newsworthy live AI development is visible in the player Inbox",()=>{
+  const gs=stateAtPlanningReview("RENAULT","1980-02-01",5_000_000);
+  const planned=planAITechnicalProject(gs,"RENAULT");
+  const news=(planned.inbox||[]).find((row)=>row.from==="Paddock Technical Watch");
+
+  assert.ok(news,"first live AI project of the season should generate technical news");
+  assert.equal(news.type,"DEV");
+  assert.match(news.subject,/Renault/i);
+  assert.match(news.body,/real AI technical project/i);
+  assert.ok(news.actions.some((action)=>String(action.route).startsWith("/Car")));
+});
+
 test("front-running AI can deliberately do nothing when no meaningful technical weakness exists",()=>{
   const gs=stateAtPlanningReview("WILLIAMS","1980-02-01",5_000_000);
   const assessment=aiTechnicalPlanningAssessment(gs,"WILLIAMS");

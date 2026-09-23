@@ -19,7 +19,8 @@ import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
 import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
 import { buildRaceEntryState } from "../src/domain/raceEntry.js";
 import { activeTestDriverContracts } from "../src/domain/developmentTesting.js";
-import { applyRaceComponentWear } from "../src/domain/componentWear.js";
+import { applyRaceComponentWear, componentWearForRaceRow } from "../src/domain/componentWear.js";
+import { applyRaceTeamMorale, teamOperationalMorale } from "../src/domain/teamMorale.js";
 import { componentConditionForCar } from "../src/domain/garage.js";
 import { normalizePhysicalPartState, partUnitById, partUnitsForDesign } from "../src/domain/partUnits.js";
 
@@ -462,4 +463,68 @@ test("two cars can use the same design while their physical units wear independe
 
   assert.ok(partUnitById(gs,unit1).condition<100);
   assert.equal(partUnitById(gs,unit2).condition,100);
+});
+
+
+test("every DNF causes component damage and critical accidents cause multi-component heavy damage",()=>{
+  const normalGearbox=componentWearForRaceRow({
+    retired:false,laps_completed:60,race_laps:60,
+  },"gearbox");
+  const mechanicalGearbox=componentWearForRaceRow({
+    retired:true,retirement_reason:"Gearbox",laps_completed:30,race_laps:60,
+  },"gearbox");
+  const genericDnfFront=componentWearForRaceRow({
+    retired:true,retirement_reason:"Retired",laps_completed:30,race_laps:60,
+  },"aero_front");
+  const criticalCrash={
+    retired:true,retirement_reason:"Accident",incident_severity:"critical",
+    incident_severity_score:0.99,laps_completed:25,race_laps:60,
+  };
+
+  assert.ok(mechanicalGearbox>normalGearbox+10,"mechanical DNF must materially damage the failed component");
+  assert.ok(genericDnfFront>5,"generic DNF should add material damage on top of distance wear");
+  assert.ok(componentWearForRaceRow(criticalCrash,"aero_front")>50);
+  assert.ok(componentWearForRaceRow(criticalCrash,"suspension")>40);
+  assert.ok(componentWearForRaceRow(criticalCrash,"underfloor")>35);
+});
+
+test("an accident marked on a classified finisher still causes crash damage",()=>{
+  const clean=componentWearForRaceRow({
+    retired:false,laps_completed:60,race_laps:60,
+  },"aero_front");
+  const incident=componentWearForRaceRow({
+    retired:false,laps_completed:60,race_laps:60,
+    incident_kind:"collision",incident_severity:"medium",
+  },"aero_front");
+  assert.ok(incident>clean+10);
+});
+
+test("Team Morale drops on DNF, drops less for an accident, and rises for points above expectation",()=>{
+  const base={
+    currentDateISO:"1980-06-01",
+    teamOperationalState:{T1:{team_id:"T1",morale:50}},
+    teamMoraleLog:{},
+  };
+  const mechanical=applyRaceTeamMorale(base,{
+    gp:{gp_name:"Mechanical GP"},
+    race:[{team_id:"T1",retired:true,retirement_reason:"Engine",position:20,points:0}],
+  });
+  assert.equal(teamOperationalMorale(mechanical,"T1"),47);
+
+  const accident=applyRaceTeamMorale(base,{
+    gp:{gp_name:"Crash GP"},
+    race:[{team_id:"T1",retired:true,retirement_reason:"Accident",position:20,points:0}],
+  });
+  assert.equal(teamOperationalMorale(accident,"T1"),48);
+
+  const strong=applyRaceTeamMorale(base,{
+    gp:{gp_name:"Strong GP"},
+    race:[{
+      team_id:"T1",retired:false,position:6,points:2,
+      driver_performance:{expected_finish:11},
+    }],
+  });
+  assert.ok(teamOperationalMorale(strong,"T1")>51);
+  assert.ok(strong.teamOperationalState.T1.reasons.some((row)=>row.key==="points"));
+  assert.ok(strong.teamOperationalState.T1.reasons.some((row)=>row.key==="above_expectation"));
 });
