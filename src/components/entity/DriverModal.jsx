@@ -12,6 +12,11 @@ import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
 import {
+  historicalCareerDriverMatches,
+  historicalCareerRowKey,
+  resolveHistoricalTeamId,
+} from "../../domain/driverCareerIdentity.js";
+import {
   driverAttributeGroups,
   driverAttributeGroupScore,
   driverAttributeGroupBehaviourForScore,
@@ -264,6 +269,8 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     ) || null,
     [driversList, idNorm]
   );
+  const driverIdentityName = displayValue(driver?.display_name ?? driver?.name, "");
+
 
   const attrs = useMemo(
     () => (ratingsList || []).find((r) =>
@@ -377,12 +384,10 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   const careerAll = useMemo(() => {
     const merged = new Map();
     const push = (row, priority = 0) => {
-      if (!sameDriver(row?.driver_id ?? row?.driverId, idNorm)) return;
+      if (!historicalCareerDriverMatches(row,{driverId:driver?.driver_id??driver?.id??entity.id,driverName:driverIdentityName})) return;
       const y = Number(unbox(row?.year));
       if (!Number.isFinite(y) || (Number.isFinite(careerStartYear) && y >= careerStartYear)) return;
-      const series = getSeries(row) || "F1";
-      const teamKey = String(unbox(row?.team_id) ?? unbox(row?.team_name) ?? "");
-      const key = [y, series.toUpperCase(), teamKey].join("|");
+      const key = historicalCareerRowKey(row,teamsList);
       const prev = merged.get(key);
       if (!prev) {
         merged.set(key, { ...row, __priority: priority });
@@ -398,7 +403,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     for (const row of generatedHistoryRaw || []) push(row, 1);
     for (const row of careerRaw || []) push(row, 2);
     return [...merged.values()].map(({ __priority, ...row }) => row);
-  }, [careerRaw, generatedHistoryRaw, idNorm, careerStartYear]);
+  }, [careerRaw, generatedHistoryRaw, driver?.driver_id, driver?.id, entity.id, driverIdentityName, teamsList, careerStartYear]);
 
   // ==== Filtros (tabs Statistics/Career) ====
   const seriesOptions = useMemo(() => {
@@ -954,6 +959,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                   seriesOptions={seriesOptions}
                   timeline={careerTimeline}
                   totals={careerTotals}
+                  teams={teamsList}
                   showFilter={false}
                 />
               </div>
@@ -1226,6 +1232,11 @@ function StageTimeline({lifecycle,history=[],currentYear=null}){
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Career Stage Timeline</div>
           <div className="mt-1 text-sm text-slate-300">Recorded years use career/save history; future years prefixed with ~ are dynamic projections, not fixed milestones.</div>
+          <div className="mt-2 flex gap-4 text-[10px] uppercase tracking-wide">
+            <span className="text-rose-300">● Past</span>
+            <span className="text-sky-300">● Current</span>
+            <span className="text-blue-300">● Future projection</span>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-wide text-slate-500">Current stage</div>
@@ -1234,21 +1245,31 @@ function StageTimeline({lifecycle,history=[],currentYear=null}){
       </div>
       <div className="mt-3 overflow-x-auto">
         <svg viewBox="0 0 690 126" className="h-32 min-w-[620px] w-full" role="img" aria-label="Driver career stage curve">
-          <polyline
-            points={points.map((p)=>`${p.x},${p.y}`).join(" ")}
-            fill="none"
-            stroke="rgba(148,163,184,.45)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {points.map((point)=>{
+          {points.slice(0,-1).map((point,index)=>{
+            const next=points[index+1];
+            const segmentPast=index<currentIndex;
+            const segmentFuture=index>=currentIndex;
+            return <line
+              key={`segment-${point.key}`}
+              x1={point.x} y1={point.y} x2={next.x} y2={next.y}
+              stroke={segmentPast?"#fb7185":segmentFuture?"#60a5fa":"rgba(148,163,184,.45)"}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={segmentFuture?"5 5":undefined}
+              opacity={0.7}
+            />;
+          })}
+          {points.map((point,index)=>{
             const active=point.key===current;
+            const past=index<currentIndex;
+            const future=index>currentIndex;
+            const fill=active?"#7dd3fc":past?"#fb7185":future?"#60a5fa":"#64748b";
+            const textFill=active?"#bae6fd":past?"#fda4af":future?"#93c5fd":"#64748b";
             return <g key={point.key}>
-              <circle cx={point.x} cy={point.y} r={active?8:4.5} fill={active?"#7dd3fc":"#64748b"} stroke={active?"#e0f2fe":"#0f172a"} strokeWidth={active?2:1}/>
-              <line x1={point.x} y1={point.y+8} x2={point.x} y2="94" stroke="rgba(148,163,184,.14)" strokeWidth="1"/>
-              <text x={point.x} y="106" textAnchor="middle" fontSize="9" fill={active?"#bae6fd":"#64748b"}>{point.label}</text>
-              <text x={point.x} y="119" textAnchor="middle" fontSize="8" fill={active?"#7dd3fc":"#475569"}>{yearLabel(point,DRIVER_LIFECYCLE_STAGES.findIndex((s)=>s.key===point.key))}</text>
+              <circle cx={point.x} cy={point.y} r={active?8:5} fill={fill} stroke={active?"#e0f2fe":"#0f172a"} strokeWidth={active?2:1}/>
+              <line x1={point.x} y1={point.y+8} x2={point.x} y2="94" stroke={past?"rgba(251,113,133,.20)":future?"rgba(96,165,250,.18)":"rgba(148,163,184,.14)"} strokeWidth="1"/>
+              <text x={point.x} y="106" textAnchor="middle" fontSize="9" fill={textFill}>{point.label}</text>
+              <text x={point.x} y="119" textAnchor="middle" fontSize="8" fill={textFill}>{yearLabel(point,index)}</text>
             </g>;
           })}
         </svg>
@@ -1408,7 +1429,7 @@ function DevelopmentTab({
           )}
 
           <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {groups.map((group)=>{
+            {(focusLocked&&focusKey?groups.filter((group)=>group.key===focusKey):groups).map((group)=>{
               const rawScore=driverAttributeGroupScore(attrs,group.key);
               const shown=presentDriverKnowledgeValue(knowledge,`group_${group.key}`,rawScore,{kind:"attribute"});
               const behaviour=shown.sortValue!=null
@@ -1461,7 +1482,7 @@ function DevelopmentTab({
           </div>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-xs">
               <thead className="text-xs text-slate-500">
                 <tr>
                   <th className="py-2 pr-3 text-left">Date</th>
@@ -1549,7 +1570,7 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
   );
 }
 
-function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, showFilter = true }) {
+function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, teams = [], showFilter = true }) {
   if (!timeline?.length) {
     return (
       <div className="space-y-4">
@@ -1564,17 +1585,17 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, s
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="text-gray-500 text-xs">
+          <thead className="text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="text-left pr-3 py-1">Year</th>
-              <th className="text-left pr-3 py-1">Series</th>
-              <th className="text-left pr-3 py-1">Team</th>
-              <th className="text-right pr-3 py-1">Starts</th>
-              <th className="text-right pr-3 py-1">Wins</th>
-              <th className="text-right pr-3 py-1">Podiums</th>
-              <th className="text-right pr-3 py-1">Poles</th>
-              <th className="text-right pr-3 py-1">FLaps</th>
-              <th className="text-right pr-3 py-1">Points</th>
+              <th className="text-left pr-2 py-1">Year</th>
+              <th className="text-left pr-2 py-1">Series</th>
+              <th className="text-left pr-2 py-1">Team</th>
+              <th className="text-right pr-2 py-1">Starts</th>
+              <th className="text-right pr-2 py-1">Wins</th>
+              <th className="text-right pr-2 py-1">Podiums</th>
+              <th className="text-right pr-2 py-1">Poles</th>
+              <th className="text-right pr-2 py-1">FLaps</th>
+              <th className="text-right pr-2 py-1">Points</th>
               <th className="text-right pr-0 py-1">Position</th>
             </tr>
           </thead>
@@ -1583,25 +1604,30 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, s
               const series = unbox(r.series_division) ?? unbox(r.series) ?? "—";
               const isTransfer = String(unbox(r.champ_pos) ?? "").toLowerCase() === "transfer";
               const isChampion = isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
+              const historicalTeamId = resolveHistoricalTeamId(r,teams);
+              const teamName = displayValue(r.team_name ?? r.team_id);
               return (
                 <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-500/10" : ""}>
-                  <td className="pr-3 py-1">{displayValue(r.year)}</td>
-                  <td className="pr-3 py-1">{series}</td>
-                  <td className="pr-3 py-1">
-                    {r.team_id ? (
-                      <span data-entity="team" data-id={unbox(r.team_id)} className="entity-link-team">
-                        {displayValue(r.team_name ?? r.team_id)}
-                      </span>
-                    ) : (
-                      displayValue(r.team_name)
-                    )}
+                  <td className="pr-2 py-1">{displayValue(r.year)}</td>
+                  <td className="pr-2 py-1">{series}</td>
+                  <td className="pr-2 py-1">
+                    <span className="inline-flex items-center gap-2">
+                      <TeamLogo teamId={historicalTeamId} name={teamName} size="h-5 w-5" className="shrink-0"/>
+                      {historicalTeamId ? (
+                        <span data-entity="team" data-id={historicalTeamId} className="entity-link-team">
+                          {teamName}
+                        </span>
+                      ) : (
+                        <span>{teamName}</span>
+                      )}
+                    </span>
                   </td>
-                  <td className="text-right pr-3 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
-                  <td className={`text-right pr-3 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
-                  <td className="text-right pr-3 py-1">{displayValue(r.podiums, 0)}</td>
-                  <td className="text-right pr-3 py-1">{displayValue(r.poles, 0)}</td>
-                  <td className="text-right pr-3 py-1">{displayValue(r.fastest_laps, 0)}</td>
-                  <td className="text-right pr-3 py-1">{displayValue(r.points, 0)}</td>
+                  <td className="text-right pr-2 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
+                  <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
+                  <td className="text-right pr-2 py-1">{displayValue(r.podiums, 0)}</td>
+                  <td className="text-right pr-2 py-1">{displayValue(r.poles, 0)}</td>
+                  <td className="text-right pr-2 py-1">{displayValue(r.fastest_laps, 0)}</td>
+                  <td className="text-right pr-2 py-1">{displayValue(r.points, 0)}</td>
                   <td className="text-right pr-0 py-1">
                     {isNumeric(r.champ_pos)
                       ? `P${unbox(r.champ_pos)}`
@@ -1612,13 +1638,13 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, s
             })}
             {totals && (
               <tr className="font-semibold">
-                <td colSpan={3} className="pr-3 py-1 text-right">Totals</td>
-                <td className="text-right pr-3 py-1">{totals.starts}</td>
-                <td className="text-right pr-3 py-1">{totals.wins}</td>
-                <td className="text-right pr-3 py-1">{totals.podiums}</td>
-                <td className="text-right pr-3 py-1">{totals.poles}</td>
-                <td className="text-right pr-3 py-1">{totals.fastest_laps}</td>
-                <td className="text-right pr-3 py-1">—</td>
+                <td colSpan={3} className="pr-2 py-1 text-right">Totals</td>
+                <td className="text-right pr-2 py-1">{totals.starts}</td>
+                <td className="text-right pr-2 py-1">{totals.wins}</td>
+                <td className="text-right pr-2 py-1">{totals.podiums}</td>
+                <td className="text-right pr-2 py-1">{totals.poles}</td>
+                <td className="text-right pr-2 py-1">{totals.fastest_laps}</td>
+                <td className="text-right pr-2 py-1">—</td>
                 <td className="text-right pr-0 py-1">—</td>
               </tr>
             )}
@@ -1946,7 +1972,7 @@ function AttributesTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
         {groups.map((group)=>{
           const rawGroupScore=driverAttributeGroupScore(attrs,group.key);
           const shownGroup=shownValue(knowledge,`group_${group.key}`,rawGroupScore,{kind:"attribute"});
@@ -1956,10 +1982,10 @@ function AttributesTab({
             ?driverAttributeGroupBehaviourForScore(group.key,shownGroup.sortValue)
             :null;
           return (
-            <div key={group.key} className="rounded-xl border border-white/10 bg-[#12141c] p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400" title={group.description}>{group.label}</div>
+            <div key={group.key} className="min-w-0 rounded-xl border border-white/10 bg-[#12141c] p-3">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400" title={group.description}>{group.label}</div>
                   <div className="mt-0.5 truncate text-[9px] text-slate-600">{group.attributes.map((attribute)=>attribute.label).join(" · ")}</div>
                 </div>
                 <div className="shrink-0 text-right">
@@ -2127,8 +2153,8 @@ function AchievementsTab({ items }) {
       <table className="min-w-full text-sm">
         <thead className="text-gray-500 text-xs">
           <tr>
-            <th className="text-left pr-3 py-1">Year</th>
-            <th className="text-left pr-3 py-1">Achievement</th>
+            <th className="text-left pr-2 py-1">Year</th>
+            <th className="text-left pr-2 py-1">Achievement</th>
             <th className="text-left pr-0 py-1">Team</th>
           </tr>
         </thead>
