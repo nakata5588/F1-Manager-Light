@@ -44,12 +44,13 @@ const TABS = [
   { key: "overview",    label: "Overview" },
   { key: "attributes",  label: "Attributes" },
   { key: "development", label: "Development" },
+  { key: "form",        label: "Form" },
   { key: "career",      label: "Career" },
 ];
 
 const TAB_ALIASES = Object.freeze({
   statistics: "career",
-  performance: "career",
+  performance: "form",
   contract: "overview",
   achievements: "career",
 });
@@ -447,13 +448,13 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       if (raceRow) {
         rec.starts += 1;
         rec.races += 1;
-        const pos = Number(raceRow.position);
+        const pos = Number(raceRow.position ?? raceRow.pos);
         if (!raceRow.retired && pos === 1) rec.wins += 1;
         if (!raceRow.retired && pos >= 1 && pos <= 3) rec.podiums += 1;
         if (raceRow.fastest_lap) rec.fastest_laps += 1;
         rec.points += Number(raceRow.points || 0);
       }
-      if (qRow && Number(qRow.position) === 1) rec.poles += 1;
+      if (qRow && Number(qRow.position ?? qRow.pos) === 1) rec.poles += 1;
     }
 
     for (const rec of byKey.values()) {
@@ -461,7 +462,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
         ? toArraySafe(standings?.drivers)
         : toArraySafe(historySeasons.find((h) => Number(h?.year) === Number(rec.year))?.standings?.drivers);
       const standing = seasonStanding.find((r) => sameDriver(r?.driver_id ?? r?.id, idNorm));
-      rec.champ_pos = standing?.position ?? null;
+      rec.champ_pos = standing?.position ?? standing?.pos ?? null;
     }
 
     return [...byKey.values()].sort((a,b) => Number(a.year)-Number(b.year));
@@ -924,8 +925,15 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             />
           )}
 
+          {activeTab === "form" && (
+            <FormTab
+              form={profileSnapshot?.form}
+              items={profileSnapshot?.performanceHistory||[]}
+            />
+          )}
+
           {activeTab === "career" && (
-            <div className="space-y-7">
+            <div className="space-y-5">
               <div>
                 <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Career Statistics</div>
                 <StatisticsTab
@@ -937,22 +945,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                   agg={statsAgg}
                 />
               </div>
-              <div className="border-t border-white/10 pt-5">
-                <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Played-Race Performance</div>
-                    <div className="mt-1 text-sm text-slate-300">Form evaluates results against the car, qualifying, team-mate comparison and incident responsibility.</div>
-                  </div>
-                  <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-right">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Current Form</div>
-                    <div className={`text-lg font-semibold ${Number(profileSnapshot?.form?.score)>=76?"text-emerald-300":Number(profileSnapshot?.form?.score)<58?"text-rose-300":"text-slate-200"}`}>
-                      {profileSnapshot?.form?.score!=null?`${Number(profileSnapshot.form.score).toFixed(1)} · ${profileSnapshot.form.label}`:"—"}
-                    </div>
-                  </div>
-                </div>
-                <PerformanceHistory items={profileSnapshot?.performanceHistory||[]} />
-              </div>
-              <div className="border-t border-white/10 pt-5">
+              <div className="border-t border-white/10 pt-4">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Season History by Team</div>
                 <CareerTab
                   seriesSel={seriesSel}
@@ -963,7 +956,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                   showFilter={false}
                 />
               </div>
-              <div className="border-t border-white/10 pt-5">
+              <div className="border-t border-white/10 pt-4">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Achievements</div>
                 <AchievementsTab items={achievementsList} />
               </div>
@@ -1188,7 +1181,7 @@ const DRIVER_LIFECYCLE_STAGES=[
   {key:"retirement_window",label:"Retirement",y:82},
 ];
 
-function StageTimeline({lifecycle,history=[]}){
+function StageTimeline({lifecycle,history=[],currentYear=null}){
   const current=String(lifecycle?.stage||"");
   const points=DRIVER_LIFECYCLE_STAGES.map((stage,index)=>{
     const x=45+index*100;
@@ -1202,6 +1195,25 @@ function StageTimeline({lifecycle,history=[]}){
       return out;
     },[])
     .slice(-8);
+  const currentIndex=Math.max(0,DRIVER_LIFECYCLE_STAGES.findIndex((stage)=>stage.key===current));
+  const age=Number(lifecycle?.age);
+  const year=Number(currentYear);
+  const targetAges={youth:20,rookie:22,developing:24,prime:28,veteran:32,decline:35,retirement_window:39};
+  const transitionYearByStage=new Map(transitions.map((row)=>[
+    String(row?.stage||""),
+    Number(String(row?.asOf||row?.dateISO||"").slice(0,4))||null,
+  ]));
+  const yearLabel=(point,index)=>{
+    const actual=transitionYearByStage.get(point.key);
+    if(actual)return String(actual);
+    if(point.key===current&&Number.isFinite(year))return String(year);
+    if(index>currentIndex&&Number.isFinite(year)&&Number.isFinite(age)){
+      const target=Number(targetAges[point.key]);
+      const projected=year+Math.max(1,Number.isFinite(target)?target-age:index-currentIndex);
+      return `~${projected}`;
+    }
+    return "";
+  };
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
@@ -1216,7 +1228,7 @@ function StageTimeline({lifecycle,history=[]}){
         </div>
       </div>
       <div className="mt-3 overflow-x-auto">
-        <svg viewBox="0 0 690 112" className="h-28 min-w-[620px] w-full" role="img" aria-label="Driver career stage curve">
+        <svg viewBox="0 0 690 126" className="h-32 min-w-[620px] w-full" role="img" aria-label="Driver career stage curve">
           <polyline
             points={points.map((p)=>`${p.x},${p.y}`).join(" ")}
             fill="none"
@@ -1229,8 +1241,9 @@ function StageTimeline({lifecycle,history=[]}){
             const active=point.key===current;
             return <g key={point.key}>
               <circle cx={point.x} cy={point.y} r={active?8:4.5} fill={active?"#7dd3fc":"#64748b"} stroke={active?"#e0f2fe":"#0f172a"} strokeWidth={active?2:1}/>
-              <line x1={point.x} y1={point.y+8} x2={point.x} y2="96" stroke="rgba(148,163,184,.14)" strokeWidth="1"/>
-              <text x={point.x} y="108" textAnchor="middle" fontSize="9" fill={active?"#bae6fd":"#64748b"}>{point.label}</text>
+              <line x1={point.x} y1={point.y+8} x2={point.x} y2="94" stroke="rgba(148,163,184,.14)" strokeWidth="1"/>
+              <text x={point.x} y="106" textAnchor="middle" fontSize="9" fill={active?"#bae6fd":"#64748b"}>{point.label}</text>
+              <text x={point.x} y="119" textAnchor="middle" fontSize="8" fill={active?"#7dd3fc":"#475569"}>{yearLabel(point,DRIVER_LIFECYCLE_STAGES.findIndex((s)=>s.key===point.key))}</text>
             </g>;
           })}
         </svg>
@@ -1365,7 +1378,7 @@ function DevelopmentTab({
           )}
 
           {canSeeHistory&&lifecycle&&(
-            <div className="mt-3 grid grid-cols-1 gap-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
               <PressureCard title="Positive Pressure" value={lifecycle.positivePressure} factors={lifecycle.positiveFactors||[]} positive/>
               <PressureCard title="Regression Pressure" value={lifecycle.negativePressure} factors={lifecycle.negativeFactors||[]}/>
             </div>
@@ -1388,7 +1401,7 @@ function DevelopmentTab({
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
             {groups.map((group)=>{
               const rawScore=driverAttributeGroupScore(attrs,group.key);
               const shown=presentDriverKnowledgeValue(knowledge,`group_${group.key}`,rawScore,{kind:"attribute"});
@@ -1398,7 +1411,7 @@ function DevelopmentTab({
               const active=focusKey===group.key;
               const unavailable=Boolean(isOwnDriver&&focusLocked&&!active);
               return (
-                <div key={group.key} className={`rounded-xl border p-3 ${active?"border-sky-400/40 bg-sky-500/10":"border-white/10 bg-[#171a23]"}`}>
+                <div key={group.key} className={`rounded-xl border p-2.5 ${active?"border-sky-400/40 bg-sky-500/10":"border-white/10 bg-[#171a23]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold">{group.label}</div>
@@ -1406,14 +1419,14 @@ function DevelopmentTab({
                     </div>
                     <div className={`text-lg font-semibold ${presentationColorClass(shown)}`}>{shown.label}</div>
                   </div>
-                  <p className="mt-2 min-h-[34px] text-xs text-slate-400">
+                  <p className="mt-1.5 text-[11px] leading-4 text-slate-400">
                     {behaviour?.text||"Scout the driver to assess this development area."}
                   </p>
                   {isOwnDriver&&(
                     <button
                       onClick={()=>onSetFocus?.(group.key)}
                       disabled={active||unavailable}
-                      className={`mt-3 w-full rounded-lg px-3 py-2 text-xs font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-not-allowed disabled:opacity-50`}
+                      className={`mt-2 w-full rounded-lg px-2.5 py-1.5 text-[11px] font-medium ${active?"bg-sky-500/15 text-sky-300":"border border-white/10 text-slate-200 hover:bg-white/5"} disabled:cursor-not-allowed disabled:opacity-50`}
                     >
                       {active?"Current monthly focus":unavailable?"Available next month":"Select for this month"}
                     </button>
@@ -1425,7 +1438,7 @@ function DevelopmentTab({
         </div>
       </div>
 
-      {canSeeHistory&&lifecycle&&<StageTimeline lifecycle={lifecycle} history={lifecycleLog||[]}/>}
+      {canSeeHistory&&lifecycle&&<StageTimeline lifecycle={lifecycle} history={lifecycleLog||[]} currentYear={Number(String(training?.monthKey||"").slice(0,4))||Number(String(focusState?.monthKey||"").slice(0,4))||null}/>}
 
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
@@ -1503,7 +1516,7 @@ function ContractTab({ team, start, end, salary, role }) {
 function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows, agg }) {
   if (!rows?.length) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
         <p className="text-gray-500 text-sm">
           No statistics available through {gameYear}{seriesSel && seriesSel !== "All" ? ` • ${seriesSel}` : ""}.
@@ -1512,93 +1525,19 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
     );
   }
 
-  const perYear = [];
-  const map = new Map();
-  for (const r of rows) {
-    const y = Number(unbox(r.year)) || 0;
-    if (!map.has(y)) {
-      map.set(y, { year: y, starts: 0, wins: 0, podiums: 0, poles: 0, fl: 0, points: 0, champ_pos: null });
-      perYear.push(map.get(y));
-    }
-    const it = map.get(y);
-    it.starts  += Number(unbox(r.starts ?? r.races) ?? 0);
-    it.wins    += Number(unbox(r.wins) ?? 0);
-    it.podiums += Number(unbox(r.podiums) ?? 0);
-    it.poles   += Number(unbox(r.poles) ?? 0);
-    it.fl      += Number(unbox(r.fastest_laps) ?? 0);
-    it.points  += Number(unbox(r.points) ?? 0);
-
-    const cp = unbox(r.champ_pos);
-    if (cp && String(cp).toLowerCase() !== "transfer") {
-      if (isNumeric(cp)) {
-        const num = Number(cp);
-        if (!isNumeric(it.champ_pos) || num < Number(it.champ_pos)) it.champ_pos = num;
-      } else if (String(cp).toUpperCase() === "NC" && it.champ_pos == null) {
-        it.champ_pos = "NC";
-      }
-    }
-  }
-  perYear.sort((a, b) => a.year - b.year);
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <KV label="Starts"            value={agg?.starts ?? 0} />
-        <KV label="Wins"              value={agg?.wins ?? 0} />
-        <KV label="Podiums"           value={agg?.podiums ?? 0} />
-        <KV label="Poles"             value={agg?.poles ?? 0} />
-        <KV label="Fastest Laps"      value={agg?.fastest_laps ?? 0} />
-        <KV label="Points"            value={agg?.points ?? 0} />
-        <KV label="Avg Points"        value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} />
-        <KV label="Highest Position"  value={
-          agg?.highestPos != null
-            ? `P${agg.highestPos}${agg.highestCount ? ` (${agg.highestCount}×)` : ""}`
-            : "—"
-        } />
-        <KV label="Avg Position"      value={agg?.avgPos != null ? agg.avgPos.toFixed(2) : "—"} />
-      </div>
-
-      <div>
-        <div className="text-sm font-semibold mb-2">
-          By Season {seriesSel && seriesSel !== "All" ? `• ${seriesSel}` : ""}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="text-gray-500 text-xs">
-              <tr>
-                <th className="text-left pr-3 py-1">Year</th>
-                <th className="text-right pr-3 py-1">Starts</th>
-                <th className="text-right pr-3 py-1">Wins</th>
-                <th className="text-right pr-3 py-1">Podiums</th>
-                <th className="text-right pr-3 py-1">Poles</th>
-                <th className="text-right pr-3 py-1">FLaps</th>
-                <th className="text-right pr-0 py-1">Points</th>
-                <th className="text-right pr-0 py-1">Pos</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {perYear.map((r) => {
-                const isChampion = isNumeric(r.champ_pos) && Number(r.champ_pos) === 1;
-                return (
-                  <tr key={r.year} className={r.year===gameYear ? "bg-sky-500/10" : (isChampion ? "bg-amber-500/10" : "")}>
-                    <td className="pr-3 py-1">{r.year}{r.year===gameYear ? " (current)" : ""}</td>
-                    <td className="text-right pr-3 py-1">{r.starts}</td>
-                    <td className={`text-right pr-3 py-1 ${Number(r.wins) > 0 ? "text-rose-300 font-semibold" : ""}`}>{r.wins}</td>
-                    <td className="text-right pr-3 py-1">{r.podiums}</td>
-                    <td className="text-right pr-3 py-1">{r.poles}</td>
-                    <td className="text-right pr-3 py-1">{r.fl}</td>
-                    <td className="text-right pr-3 py-1">{r.points}</td>
-                    <td className="text-right pr-0 py-1">
-                      {isNumeric(r.champ_pos) ? `P${r.champ_pos}` : (r.champ_pos ?? "—")}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-5 lg:grid-cols-9">
+        <ProfileMetric label="Starts" value={agg?.starts ?? 0} />
+        <ProfileMetric label="Wins" value={agg?.wins ?? 0} />
+        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} />
+        <ProfileMetric label="Poles" value={agg?.poles ?? 0} />
+        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} />
+        <ProfileMetric label="Points" value={agg?.points ?? 0} />
+        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} />
+        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} />
+        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} />
       </div>
     </div>
   );
@@ -2001,7 +1940,7 @@ function AttributesTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
         {groups.map((group)=>{
           const rawGroupScore=driverAttributeGroupScore(attrs,group.key);
           const shownGroup=shownValue(knowledge,`group_${group.key}`,rawGroupScore,{kind:"attribute"});
@@ -2108,6 +2047,38 @@ function AttributesTab({
     </div>
   );
 }
+function FormTab({ form, items }) {
+  const years=Array.from(new Set((items||[]).map((row)=>Number(row?.year)).filter(Number.isFinite))).sort((a,b)=>b-a);
+  const [year,setYear]=useState("All");
+  const filtered=year==="All"?(items||[]):(items||[]).filter((row)=>Number(row?.year)===Number(year));
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Driver Form</div>
+          <div className="mt-1 text-sm text-slate-300">Race-by-race performance versus car expectation, qualifying, team-mate and incident responsibility.</div>
+        </div>
+        <div className="flex items-end gap-3">
+          <label className="text-xs text-slate-400">
+            Season
+            <select value={year} onChange={(e)=>setYear(e.target.value)} className="ml-2 rounded-md border border-white/10 bg-[#171a23] px-2 py-1.5 text-slate-200">
+              <option value="All">All</option>
+              {years.map((y)=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </label>
+          <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-right">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">Current Form</div>
+            <div className={`text-lg font-semibold ${Number(form?.score)>=76?"text-emerald-300":Number(form?.score)<58?"text-rose-300":"text-slate-200"}`}>
+              {form?.score!=null?`${Number(form.score).toFixed(1)} · ${form.label}`:"—"}
+            </div>
+          </div>
+        </div>
+      </div>
+      <PerformanceHistory items={filtered} />
+    </div>
+  );
+}
+
 function PerformanceHistory({ items }) {
   const rows=(items||[]).slice(0,8);
   if(!rows.length){
