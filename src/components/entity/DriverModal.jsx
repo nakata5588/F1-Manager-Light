@@ -1042,9 +1042,9 @@ function KV({ label, value, className = "" }) {
 
 /* ======================== Tabs ======================== */
 
-function ProfileMetric({ label, value, tone = "" }) {
+function ProfileMetric({ label, value, tone = "", cardTone = "", title = "" }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+    <div title={title||undefined} className={`rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 ${cardTone}`}>
       <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`mt-0.5 text-sm font-semibold ${tone}`}>{displayValue(value)}</div>
     </div>
@@ -1064,6 +1064,128 @@ function ConditionBar({ label, value, inverse = false }) {
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
         <div className={`h-full ${tone}`} style={{width:`${v}%`}}/>
       </div>
+    </div>
+  );
+}
+
+function conditionFormulaRows(condition,impact){
+  const confidence=Number(condition?.confidence??50);
+  const morale=Number(condition?.morale??50);
+  const preparation=Number(condition?.preparation??50);
+  const fatigue=Number(condition?.fatigue??0);
+  const signed=(value,digits=2)=>`${value>=0?"+":""}${Number(value||0).toFixed(digits)}`;
+  const deltaText=(value)=>signed(value-50,1);
+
+  let fatigueFormula;
+  if(fatigue<=10)fatigueFormula=`Fatigue ${fatigue.toFixed(1)} ≤ 10 → no performance penalty`;
+  else if(fatigue<=30)fatigueFormula=`(${fatigue.toFixed(1)} − 10) × 0.06 = ${signed(impact?.fatigueEffect,2)}`;
+  else if(fatigue<=50)fatigueFormula=`−[1.20 + (${fatigue.toFixed(1)} − 30) × 0.10] = ${signed(impact?.fatigueEffect,2)}`;
+  else if(fatigue<=70)fatigueFormula=`−[3.20 + (${fatigue.toFixed(1)} − 50) × 0.14] = ${signed(impact?.fatigueEffect,2)}`;
+  else fatigueFormula=`High-fatigue curve at ${fatigue.toFixed(1)} = ${signed(impact?.fatigueEffect,2)}`;
+
+  return [
+    {
+      label:"Confidence",
+      value:impact?.confidenceEffect,
+      explanation:`${confidence.toFixed(1)} is ${deltaText(confidence)} from neutral 50; × 0.05 = ${signed(impact?.confidenceEffect,2)}`,
+    },
+    {
+      label:"Morale",
+      value:impact?.moraleEffect,
+      explanation:`${morale.toFixed(1)} is ${deltaText(morale)} from neutral 50; × 0.03 = ${signed(impact?.moraleEffect,2)}`,
+    },
+    {
+      label:"Preparation",
+      value:impact?.preparationEffect,
+      explanation:`${preparation.toFixed(1)} is ${deltaText(preparation)} from neutral 50; × 0.04 = ${signed(impact?.preparationEffect,2)}`,
+    },
+    {
+      label:"Fatigue",
+      value:impact?.fatigueEffect,
+      explanation:fatigueFormula,
+    },
+    {
+      label:"Medical",
+      value:impact?.medicalEffect,
+      explanation:Number(impact?.medicalEffect||0)<0
+        ?`Current medical status applies ${signed(impact?.medicalEffect,2)}`
+        :"No active medical performance penalty.",
+    },
+  ];
+}
+
+function ConditionExplanationPanel({snapshot,condition}){
+  const [open,setOpen]=useState(false);
+  const impact=snapshot?.conditionImpact||{};
+  const history=snapshot?.mentalStateHistory||[];
+  const rows=conditionFormulaRows(condition,impact);
+  const raw=rows.reduce((sum,row)=>sum+Number(row.value||0),0);
+  const total=Number(impact?.total||0);
+  const signed=(value,digits=2)=>`${value>=0?"+":""}${Number(value||0).toFixed(digits)}`;
+
+  return (
+    <div className="mt-4 border-t border-white/10 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Performance Impact</div>
+          <div className="mt-0.5 text-[11px] text-slate-400">Temporary state changes race/qualifying performance; it never changes Overall by itself.</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`text-lg font-semibold ${total>=0?"text-emerald-300":"text-rose-300"}`}>{signed(total)}</div>
+          <button
+            type="button"
+            onClick={()=>setOpen((value)=>!value)}
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${open?"border-sky-400/30 bg-sky-500/10 text-sky-300":"border-white/10 text-slate-400 hover:text-white"}`}
+            aria-expanded={open}
+            title="Explain the current performance modifier"
+          >
+            <Info size={12}/> Why these values?
+          </button>
+        </div>
+      </div>
+
+      {open&&(
+        <div className="mt-3 rounded-lg border border-sky-400/15 bg-sky-500/[0.04] p-3">
+          <div className="space-y-2">
+            {rows.map((row)=>{
+              const value=Number(row.value||0);
+              return (
+                <div key={row.label} className="grid gap-1 rounded-md border border-white/10 bg-[#171a23] px-2.5 py-2 md:grid-cols-[110px_70px_minmax(0,1fr)] md:items-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{row.label}</span>
+                  <span className={`text-sm font-semibold ${value>0?"text-emerald-300":value<0?"text-rose-300":"text-slate-400"}`}>{signed(value)}</span>
+                  <span className="text-[11px] text-slate-400">{row.explanation}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-2 text-[10px] text-slate-500">
+            Raw sum {signed(raw)} · final modifier is limited to the game range −12.00 to +6.00 → {signed(total)}.
+          </div>
+
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recent causes</div>
+            {history.length?(
+              <div className="mt-2 space-y-2">
+                {history.slice(0,6).map((entry,index)=>(
+                  <div key={`${entry?.dateISO||"event"}-${entry?.source||"state"}-${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                    <span className="min-w-[72px] text-slate-500">{entry?.dateISO||"—"}</span>
+                    <span className="font-medium text-slate-300">{entry?.reason||String(entry?.source||"Mental state").replaceAll("_"," ")}</span>
+                    <span className="flex flex-wrap gap-1">
+                      {(entry?.changes||[]).map((change)=>{
+                        const delta=Number(change?.delta||0);
+                        return <span key={change.field} className={`rounded border border-white/10 px-1.5 py-0.5 ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>{String(change.field||"").replaceAll("_"," ")} {signed(delta,1)}</span>;
+                      })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ):(
+              <div className="mt-2 text-[11px] text-slate-500">No recorded mental-state events yet for this save.</div>
+            )}
+            <div className="mt-2 text-[10px] leading-4 text-slate-500">Passive daily recovery is not logged line-by-line: Fatigue falls naturally, while Confidence and Morale drift slowly back toward 50.</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
