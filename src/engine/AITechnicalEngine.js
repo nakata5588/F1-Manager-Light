@@ -6,15 +6,27 @@
 
 import { availableCarComponentSlots, COMPONENT_STAT_KEY } from "../domain/carComponents.js";
 import { derivePartTechnicalProfile } from "../domain/carPartPerformance.js";
-import { partManufactureQuote } from "../domain/componentService.js";
+import {
+  activeWorkshopJobFor,
+  partManufactureQuote,
+  partUnitRestoreQuote,
+  processWorkshopJobs,
+  queueWorkshopJob,
+  standardRestoreQuote,
+} from "../domain/componentService.js";
 import {
   createManufacturedPartUnits,
   fitPhysicalPartUnit,
   normalizePhysicalPartState,
+  partUnitById,
+  removePhysicalPartUnit,
+  updatePhysicalPartUnitCondition,
   warehousePartUnitsForDesign,
 } from "../domain/partUnits.js";
 import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
 import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
+import { componentWearForRaceRow } from "../domain/componentWear.js";
+import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -127,9 +139,14 @@ function scopedState(gs,teamId,state){
   return {
     ...gs,
     team:{team_id:str(teamId),budget:num(state?.budget,0)},
-    finances:{...(gs?.finances||{}),balance:num(state?.budget,0)},
+    finances:{balance:num(state?.budget,0),budget:num(state?.budget,0)},
+    // Never inherit the player's HQ overrides. Shared component-service helpers
+    // will then resolve facilities using this AI TEAM's own historical rows.
+    hq:{facilityLevels:{},upgrades:[]},
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
+    componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
+    componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
   };
 }
 function componentBaseline(gs,teamId,slot){
@@ -189,6 +206,8 @@ export function normalizeAITechnicalWorld(gs){
       development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
       planning:{last_date:null,last_need:null,cycle:0},
       finance_log:[],
+      componentServiceLog:[],
+      componentWearLog:[],
     };
   }
   return {...gs,aiTechnicalWorld:{...(gs?.aiTechnicalWorld||{}),version:1,teams}};
@@ -236,6 +255,311 @@ function replaceTeamState(gs,teamId,nextState){
       teams:{...(gs?.aiTechnicalWorld?.teams||{}),[str(teamId)]:nextState},
     },
   };
+}
+
+function raceDriverId(row){
+  return str(row?.driver_id??row?.driver?.driver_id??row?.driver?.id);
+}
+
+function raceTeamId(gs,row){
+  const direct=teamIdOf(row);
+  if(direct)return direct;
+  const driverId=raceDriverId(row);
+  if(!driverId)return "";
+  const entry=(gs?.raceEntryState?.entries||[]).find((item)=>str(item?.driver_id)===driverId);
+  if(entry?.team_id)return str(entry.team_id);
+  const contract=activeDriverContracts(gs).find((item)=>driverIdOf(item)===driverId);
+  if(contract)return teamIdOf(contract);
+  return teamIdOf(row?.driver);
+}
+
+function resolveAIRaceCar(gs,row){
+  const driverId=raceDriverId(row);
+  if(!driverId)return null;
+  const player=str(gs?.team?.team_id??gs?.team?.id);
+  const preferred=raceTeamId(gs,row);
+  const candidates=[
+    preferred,
+    ...Object.keys(gs?.aiTechnicalWorld?.teams||{}).sort(),
+  ].filter(Boolean);
+  const seen=new Set();
+  for(const teamId of candidates){
+    if(seen.has(teamId)||teamId===player)continue;
+    seen.add(teamId);
+    const state=aiTechnicalTeamState(gs,teamId);
+    if(!state)continue;
+    const car=aiTechnicalCarForDriver(gs,teamId,driverId);
+    if(car)return {driverId,teamId,state,car};
+  }
+  return null;
+}
+
+function maintenanceThreshold(slot){
+  const risk=Number(PART_CONDITION_RELIABILITY_RISK?.[slot]??3);
+  return Math.round(clamp(40+risk*2.2,42,58));
+}
+
+function persistScopedState(state,scoped,{budget=null,financeLog=null}={}){
+  return {
+    ...state,
+    ...(budget==null?{}:{budget:Number(budget)}),
+    garage:scoped?.garage||state?.garage,
+    development:scoped?.development||state?.development,
+    componentServiceLog:Array.isArray(scoped?.componentServiceLog)?scoped.componentServiceLog:(state?.componentServiceLog||[]),
+    componentWearLog:Array.isArray(scoped?.componentWearLog)?scoped.componentWearLog:(state?.componentWearLog||[]),
+    ...(financeLog?{finance_log:financeLog}:{}),
+  };
+}
+
+function appendAIFinance(state,row){
+  return [...(state?.finance_log||[]),row].slice(-500);
+}
+
+function bestWarehouseUpgrade(scoped,slot,minCondition=65){
+  const candidates=[];
+  for(const part of scoped?.development?.parts||[]){
+    if(str(part?.slot)!==str(slot))continue;
+    for(const unit of warehousePartUnitsForDesign(scoped,part.id)){
+      const condition=clamp(unit?.condition??100);
+      if(condition<minCondition)continue;
+      candidates.push({part,unit,condition,perf:num(part?.perf,0)});
+    }
+  }
+  return candidates.sort((a,b)=>
+    b.perf-a.perf ||
+    b.condition-a.condition ||
+    str(a.unit?.id).localeCompare(str(b.unit?.id))
+  )[0]||null;
+}
+
+export function applyAIRaceComponentWear(gs,{race=[],gp=null}={}){
+  let next=normalizeAITechnicalWorld(gs);
+  const player=str(next?.team?.team_id??next?.team?.id);
+  const gpId=str(gp?.gp_id??gp?.id??gp?.track_id);
+  const date=str(next?.currentDateISO??gp?.race_date).slice(0,10)||null;
+
+  for(const row of Array.isArray(race)?race:[]){
+    const context=resolveAIRaceCar(next,row);
+    if(!context)continue;
+    const {driverId,teamId,state,car:mapped}=context;
+    if(teamId===player)continue;
+
+    let scoped=normalizePhysicalPartState(scopedState(next,teamId,state));
+    const carId=str(mapped?.id);
+    if(!carId)continue;
+
+    const wearRows=[];
+    const slots=availableCarComponentSlots(next,teamId);
+    for(const slot of slots){
+      const wear=Number(componentWearForRaceRow(row,slot)||0);
+      if(wear<=0)continue;
+
+      let car=(scoped?.garage?.cars||[]).find((item)=>str(item?.id)===carId);
+      if(!car)continue;
+      const installedRef=car?.installedParts?.[slot];
+      const unit=installedRef?partUnitById(scoped,installedRef):null;
+
+      if(unit){
+        const before=clamp(unit?.condition??100);
+        const after=Number(clamp(before-wear).toFixed(1));
+        scoped=updatePhysicalPartUnitCondition(scoped,unit.id,after,{
+          last_wear:Number(wear.toFixed(2)),
+          last_wear_date:date,
+        });
+        wearRows.push({
+          gp_id:gpId,date,session:"race",driver_id:driverId,car_id:carId,
+          slot,component_source:"developed_part",part_unit_id:str(unit.id),
+          design_id:str(unit.design_id),wear:Number(wear.toFixed(2)),
+          condition_before:Number(before.toFixed(1)),condition_after:after,
+          retirement_reason:row?.retirement_reason||null,
+          incident_severity:row?.incident_severity||null,
+        });
+      }else{
+        const before=clamp(car?.componentCondition?.[slot]??100);
+        const after=Number(clamp(before-wear).toFixed(1));
+        scoped={
+          ...scoped,
+          garage:{
+            ...(scoped?.garage||{}),
+            cars:(scoped?.garage?.cars||[]).map((item)=>str(item?.id)===carId
+              ?{...item,componentCondition:{...(item?.componentCondition||{}),[slot]:after}}
+              :item
+            ),
+          },
+        };
+        wearRows.push({
+          gp_id:gpId,date,session:"race",driver_id:driverId,car_id:carId,
+          slot,component_source:"base_component",part_unit_id:null,design_id:null,
+          wear:Number(wear.toFixed(2)),
+          condition_before:Number(before.toFixed(1)),condition_after:after,
+          retirement_reason:row?.retirement_reason||null,
+          incident_severity:row?.incident_severity||null,
+        });
+      }
+    }
+
+    if(wearRows.length){
+      scoped={
+        ...scoped,
+        componentWearLog:[
+          ...wearRows,
+          ...(Array.isArray(scoped?.componentWearLog)?scoped.componentWearLog:[]),
+        ].slice(0,500),
+      };
+      next=replaceTeamState(next,teamId,persistScopedState(state,scoped));
+    }
+  }
+  return next;
+}
+
+export function processAITechnicalMaintenance(gs,teamId,stateInput=null){
+  const state=stateInput||aiTechnicalTeamState(gs,teamId);
+  if(!state)return state;
+  const today=str(gs?.currentDateISO).slice(0,10);
+  if(!today)return state;
+
+  let budget=num(state?.budget,0);
+  let financeLog=[...(state?.finance_log||[])];
+  let scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
+  scoped=processWorkshopJobs(scoped);
+
+  const slots=availableCarComponentSlots(gs,teamId);
+  const carIds=(scoped?.garage?.cars||[])
+    .filter((car)=>car?.kind==="race")
+    .map((car)=>str(car?.id))
+    .sort();
+
+  for(const carId of carIds){
+    for(const slot of slots.slice().sort()){
+      let car=(scoped?.garage?.cars||[]).find((item)=>str(item?.id)===carId);
+      if(!car)continue;
+      if(activeWorkshopJobFor(scoped,{carId,slot}))continue;
+
+      let installedRef=car?.installedParts?.[slot];
+      let unit=installedRef?partUnitById(scoped,installedRef):null;
+
+      // Once a restored/developed unit returns from the workshop, refit the
+      // best healthy design instead of silently leaving the AI on the baseline.
+      if(!unit){
+        const candidate=bestWarehouseUpgrade(scoped,slot,65);
+        if(candidate){
+          scoped=fitPhysicalPartUnit(scoped,{
+            carId,slot,designId:candidate.part.id,unitId:candidate.unit.id,
+          });
+          car=(scoped?.garage?.cars||[]).find((item)=>str(item?.id)===carId);
+          installedRef=car?.installedParts?.[slot];
+          unit=installedRef?partUnitById(scoped,installedRef):null;
+        }
+      }
+
+      const threshold=maintenanceThreshold(slot);
+      if(unit){
+        const condition=clamp(unit?.condition??100);
+        if(condition>=threshold)continue;
+
+        const sameDesignSpare=warehousePartUnitsForDesign(scoped,unit.design_id)
+          .find((candidate)=>clamp(candidate?.condition??100)>=Math.max(65,threshold+8));
+        if(sameDesignSpare){
+          const wornId=str(unit.id);
+          scoped=fitPhysicalPartUnit(scoped,{
+            carId,slot,designId:unit.design_id,unitId:sameDesignSpare.id,
+          });
+          scoped={
+            ...scoped,
+            componentServiceLog:[
+              {
+                date:today,action:"swap_developed_spare",car_id:carId,slot,
+                unit_id:str(sameDesignSpare.id),replaced_unit_id:wornId,
+                condition_before:Number(condition.toFixed(1)),
+                condition_after:Number(clamp(sameDesignSpare.condition??100).toFixed(1)),
+                cost:0,
+              },
+              ...(Array.isArray(scoped?.componentServiceLog)?scoped.componentServiceLog:[]),
+            ].slice(0,300),
+          };
+          continue;
+        }
+
+        if(activeWorkshopJobFor(scoped,{unitId:unit.id}))continue;
+        const quote=partUnitRestoreQuote(scoped,unit.id);
+        if(!quote||budget<Number(quote.cost||0))continue;
+
+        const removed=removePhysicalPartUnit(scoped,{carId,slot});
+        const beforeJobs=(removed?.garage?.serviceJobs||[]).length;
+        const queued=queueWorkshopJob(removed,quote,{
+          id:`ai_service_${safeId(teamId)}_${today}_${safeId(unit.id)}`,
+          title:`Restore ${slot.replaceAll("_"," ")} · ${carId}`,
+          startedAt:today,
+        });
+        if((queued?.garage?.serviceJobs||[]).length<=beforeJobs)continue;
+
+        budget-=Number(quote.cost||0);
+        financeLog=appendAIFinance(
+          {...state,finance_log:financeLog},
+          {
+            id:`ai_tx_service_${safeId(teamId)}_${today}_${safeId(unit.id)}`,
+            dateISO:today,type:"expense",category:"Maintenance",
+            amount:-Number(quote.cost||0),desc:`Restore ${slot} · ${carId}`,
+          }
+        );
+        scoped=queued;
+        continue;
+      }
+
+      car=(scoped?.garage?.cars||[]).find((item)=>str(item?.id)===carId);
+      const condition=clamp(car?.componentCondition?.[slot]??100);
+      if(condition>=threshold)continue;
+
+      const stock=Number(scoped?.garage?.baseComponentStock?.[slot]||0);
+      if(stock>0){
+        scoped={
+          ...scoped,
+          garage:{
+            ...(scoped?.garage||{}),
+            baseComponentStock:{
+              ...(scoped?.garage?.baseComponentStock||{}),
+              [slot]:Math.max(0,stock-1),
+            },
+            cars:(scoped?.garage?.cars||[]).map((item)=>str(item?.id)===carId
+              ?{...item,componentCondition:{...(item?.componentCondition||{}),[slot]:100}}
+              :item
+            ),
+          },
+          componentServiceLog:[
+            {
+              date:today,action:"replace_standard_from_stock",car_id:carId,slot,
+              condition_before:Number(condition.toFixed(1)),condition_after:100,cost:0,
+            },
+            ...(Array.isArray(scoped?.componentServiceLog)?scoped.componentServiceLog:[]),
+          ].slice(0,300),
+        };
+        continue;
+      }
+
+      const quote=standardRestoreQuote(scoped,slot,condition,{carId});
+      if(!quote||budget<Number(quote.cost||0))continue;
+      const beforeJobs=(scoped?.garage?.serviceJobs||[]).length;
+      const queued=queueWorkshopJob(scoped,quote,{
+        id:`ai_service_${safeId(teamId)}_${today}_${safeId(carId)}_${safeId(slot)}`,
+        title:`Restore ${slot.replaceAll("_"," ")} · ${carId}`,
+        startedAt:today,
+      });
+      if((queued?.garage?.serviceJobs||[]).length<=beforeJobs)continue;
+
+      budget-=Number(quote.cost||0);
+      financeLog=appendAIFinance(
+        {...state,finance_log:financeLog},
+        {
+          id:`ai_tx_service_${safeId(teamId)}_${today}_${safeId(carId)}_${safeId(slot)}`,
+          dateISO:today,type:"expense",category:"Maintenance",
+          amount:-Number(quote.cost||0),desc:`Restore ${slot} · ${carId}`,
+        }
+      );
+      scoped=queued;
+    }
+  }
+
+  return persistScopedState(state,scoped,{budget,financeLog});
 }
 
 export function planAITechnicalProject(gs,teamId){
@@ -381,6 +705,7 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
   const today=str(next?.currentDateISO).slice(0,10);
   if(!today)return next;
 
+  state=processAITechnicalMaintenance(next,teamId,state);
   const completed=completeDesigns(next,teamId,state,today);
   state=completed.state;
   state=completeManufacturing(next,teamId,state,today);
