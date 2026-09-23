@@ -4,6 +4,7 @@ import {
   recalculateCurrentAbility,
 } from "../domain/driverRating.js";
 import {
+  appendDriverMentalStateLog,
   applyMentalStateDeltaToCondition,
   mentalStateCondition,
   passiveMentalStateRecovery,
@@ -350,6 +351,7 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
   const conditions={...(gs?.driverAttributes||{})};
   const ledger={...(gs?.driverDevelopmentTraining||{})};
   const focusMeta={...(gs?.driverDevelopmentFocusMeta||{})};
+  let mentalStateLog={...(gs?.driverMentalStateLog||{})};
 
   for(const driver of gs?.drivers||[]){
     const did=idOf(driver);
@@ -375,7 +377,16 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
 
     const current=mentalStateCondition(conditions[did]);
     const load=2.0;
-    conditions[did]=applyMentalStateDeltaToCondition(current,{fatigue:load});
+    const nextCondition=applyMentalStateDeltaToCondition(current,{fatigue:load});
+    conditions[did]=nextCondition;
+    mentalStateLog=appendDriverMentalStateLog(mentalStateLog,did,{
+      before:current,
+      after:nextCondition,
+      source:"development_training",
+      reason:`${groupKey} development training`,
+      dateISO,
+      meta:{group_key:groupKey,fatigue_cost:load},
+    });
     ledger[did]={
       ...previous,
       trainingDays:Number(previous.trainingDays||0)+1,
@@ -387,6 +398,7 @@ function applyPlayerDevelopmentLoad(gs,dateISO){
   return {
     ...gs,
     driverAttributes:conditions,
+    driverMentalStateLog:mentalStateLog,
     driverDevelopmentTraining:ledger,
     driverDevelopmentFocusMeta:focusMeta,
   };
