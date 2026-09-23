@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, advanceLiveRaceSector, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -276,6 +276,17 @@ test("Pit Now schedules the selected tyre for the next lap",()=>{
   assert.equal(pitEvent.message.includes("D1 pitted"),false);
   assert.equal(pitEvent.message.includes("gy_s"),false);
   assert.equal(pitEvent.message.includes("gy_h"),false);
+});
+
+test("RW5.2A pending player order can be cancelled before it takes effect",()=>{
+  let gs=createLiveRaceState(fixture("cancel-order"),{gp});
+  gs=advanceLiveRace(gs,{gp,laps:2});
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
+  assert.equal(gs.raceWeekendState.race_strategy.live_commands.D1.filter((row)=>row.type==="pit").length,1);
+  gs=cancelLiveRaceCommand(gs,{driverId:"D1"});
+  assert.equal(gs.raceWeekendState.race_strategy.live_commands.D1.filter((row)=>row.type==="pit").length,0);
+  assert.equal(gs.raceWeekendState.live_race.events.at(-1).type,"command_cancelled");
+  assert.match(gs.raceWeekendState.live_race.events.at(-1).message,/cancelled/i);
 });
 
 test("AI driver cannot receive player live commands",()=>{
