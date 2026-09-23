@@ -981,6 +981,49 @@ function technologyPlanningCandidate(gs,teamId,state){
     })[0]||null;
 }
 
+
+export function processAIReserveCar(gs,teamId,stateInput=null){
+  const state=stateInput||aiTechnicalTeamState(gs,teamId);
+  if(!state)return state;
+  if(state?.garage?.reserveCarBuilt===true)return state;
+
+  const today=str(gs?.currentDateISO).slice(0,10);
+  if(!today)return state;
+  const scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
+  if(activeWorkshopJobFor(scoped,{kind:"build_reserve_car"}))return state;
+
+  const snapshot=replaceTeamState(gs,teamId,state);
+  const raceCars=raceCarsForTeam(snapshot,teamId);
+  const needsBackup=raceCars.some((car)=>!carReadinessForDate(snapshot,teamId,car,today).available);
+  if(!needsBackup)return state;
+
+  const quote=reserveCarBuildQuote(scoped);
+  const reserveFloor=planningReserveFloor(gs,teamId,state);
+  const budget=num(state?.budget,0);
+  if(budget<num(quote?.cost,0)+reserveFloor)return state;
+
+  const beforeJobs=(scoped?.garage?.serviceJobs||[]).length;
+  const queued=queueWorkshopJob(scoped,quote,{
+    id:`ai_reserve_car_${safeId(teamId)}_${yearOf(gs)}`,
+    title:"Build Reserve Car",
+    startedAt:today,
+  });
+  if((queued?.garage?.serviceJobs||[]).length<=beforeJobs)return state;
+
+  const cost=num(quote?.cost,0);
+  return persistScopedState(state,queued,{
+    budget:budget-cost,
+    financeLog:appendAIFinance(state,{
+      id:`ai_tx_reserve_car_${safeId(teamId)}_${yearOf(gs)}`,
+      dateISO:today,
+      type:"expense",
+      category:"Car Construction",
+      amount:-cost,
+      desc:"Build Reserve Car",
+    }),
+  });
+}
+
 function estimatedManufacturingCommitment(gs,teamId,state,need,quote){
   const scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
   const draft={
@@ -1343,6 +1386,7 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
   if(!today)return next;
 
   state=processAITechnicalMaintenance(next,teamId,state);
+  state=processAIReserveCar(next,teamId,state);
   const completed=completeDesigns(next,teamId,state,today);
   state=completed.state;
   state=completeManufacturing(next,teamId,state,today);
