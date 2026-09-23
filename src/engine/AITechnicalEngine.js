@@ -395,7 +395,11 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
 
 export function tickAITechnicalWorld(gs,{allowPlanning=true}={}){
   let next=normalizeAITechnicalWorld(gs);
-  const ids=Object.keys(next?.aiTechnicalWorld?.teams||{}).sort();
+  const player=str(next?.team?.team_id??next?.team?.id);
+  const ids=teamRows(next)
+    .map(teamIdOf)
+    .filter((teamId)=>teamId&&teamId!==player&&aiTechnicalTeamState(next,teamId))
+    .sort();
   for(const teamId of ids)next=tickAITechnicalTeam(next,teamId,{allowPlanning});
   return next;
 }
