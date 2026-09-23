@@ -11,6 +11,12 @@ import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDe
 import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
+import {
+  discoverableCarTechnologies,
+  startTechnologyAdoption,
+  technologyAdoptionQuote,
+  technologyProjectsForTeam,
+} from "@/domain/technologyAdoption.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -120,6 +126,11 @@ export default function Development({ embedded = false, initialTab = "projects",
   const workshop = activeWorkshopJobs(physicalState);
 
   const teamId = String(gameState?.team?.team_id ?? gameState?.team?.id ?? "");
+  const technologyOpportunities = useMemo(
+    () => discoverableCarTechnologies(gameState, teamId),
+    [gameState, teamId, activeYear]
+  );
+  const technologyProjects = technologyProjectsForTeam(gameState, teamId);
   const baseFacility = (gameState?.facilities || []).find(
     (row) => String(row?.team_id ?? row?.team ?? "") === teamId && Number(row?.year ?? activeYear) === activeYear
   ) || null;
@@ -354,6 +365,11 @@ export default function Development({ embedded = false, initialTab = "projects",
     });
   };
 
+  const startTechnologyProject=(slot)=>{
+    const next=startTechnologyAdoption(gameState,teamId,slot,{origin:"player"});
+    if(next!==gameState)setGameState(next);
+  };
+
   const updateResearch = (id, focus) => {
     const next = research.map((r)=>r.id===id?{...r,focus:Number(focus)}:r);
     setGameState({development:{...dev,projects,parts,partUnits,manufacturing,research:next}});
@@ -519,12 +535,26 @@ export default function Development({ embedded = false, initialTab = "projects",
       )}
 
       {tab==="research" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {research.map((r)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
-            <div className="flex justify-between"><div className="font-semibold">{r.area}</div><div className="text-sm">{r.focus||0}% focus</div></div>
-            <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
-            <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
-          </CardContent></Card>)}
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
+            <div><div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div><div className="text-lg font-semibold">Paddock technology opportunities</div><div className="text-sm text-slate-400 mt-1">A rival using a technology can make it researchable, but adoption only unlocks the technical area. You still need to design and manufacture a competitive physical part afterwards.</div></div>
+            {technologyOpportunities.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{technologyOpportunities.map((opportunity)=>{
+              const quote=technologyAdoptionQuote(gameState,teamId,opportunity.slot);
+              const active=technologyProjects.find((project)=>project.slot===opportunity.slot&&project.status==="active");
+              return <div key={opportunity.slot} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+                <div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{opportunity.label}</div><div className="text-xs text-slate-500 mt-0.5">Observed at {opportunity.sources.map((source)=>source.name).join(", ")}</div></div>{active?<span className="text-[10px] uppercase rounded bg-amber-500/10 text-amber-200 px-2 py-1">R&D active</span>:null}</div>
+                {active?<div className="mt-3 text-sm text-slate-300">Started {active.started_at} · ETA <strong>{active.finishes_at}</strong></div>:<Button size="sm" className="mt-3 border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" disabled={budget<Number(quote.cost||0)} onClick={()=>startTechnologyProject(opportunity.slot)}>Start technology R&D · {quote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(quote.cost)}</span></Button>}
+              </div>;
+            })}</div>:<div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-slate-500">No new rival technology is currently available for adoption in this era.</div>}
+            {technologyProjects.filter((project)=>project.status==="completed").length?<div className="pt-2 border-t border-white/10"><div className="text-xs uppercase text-slate-500 mb-2">Adopted technology</div><div className="flex flex-wrap gap-2">{technologyProjects.filter((project)=>project.status==="completed").map((project)=><span key={project.id} className="rounded bg-emerald-500/10 text-emerald-200 px-2 py-1 text-xs">{project.label} · unlocked {project.completed_at}</span>)}</div></div>:null}
+          </CardContent></Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {research.map((r)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
+              <div className="flex justify-between"><div className="font-semibold">{r.area}</div><div className="text-sm">{r.focus||0}% focus</div></div>
+              <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
+              <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
+            </CardContent></Card>)}
+          </div>
         </div>
       )}
 
