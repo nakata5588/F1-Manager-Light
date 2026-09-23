@@ -4,7 +4,7 @@
 // primitives as the player. Historical data seeds the world; aiTechnicalWorld
 // becomes the save-world source of truth afterwards.
 
-import { availableCarComponentSlots, COMPONENT_STAT_KEY } from "../domain/carComponents.js";
+import { availableCarComponentSlots, componentLabel, COMPONENT_STAT_KEY } from "../domain/carComponents.js";
 import { derivePartTechnicalProfile } from "../domain/carPartPerformance.js";
 import {
   activeWorkshopJobFor,
@@ -62,6 +62,40 @@ function stableHash(text){
   let h=2166136261;
   for(const ch of str(text)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}
   return h>>>0;
+}
+function teamDisplayName(gs,teamId){
+  const row=(gs?.teams||gs?.dbTeams||[]).find((team)=>teamIdOf(team)===str(teamId));
+  return str(row?.team_name??row?.name??row?.short_name??teamId);
+}
+function appendAITechnicalNews(gs,{teamId,project,need,quote}={}){
+  if(!gs||!project||!teamId)return gs;
+  const id=`ai_technical_news_${safeId(project.id)}`;
+  if((gs?.inbox||[]).some((row)=>str(row?.id)===id))return gs;
+  const teamName=teamDisplayName(gs,teamId);
+  const component=componentLabel(gs,need?.slot??project?.type);
+  const body=[
+    `${teamName} has started a new ${component} development programme.`,
+    Number.isFinite(Number(need?.gap))?`The project follows an estimated ${Number(need.gap).toFixed(1)}-point technical gap to the current benchmark.`:null,
+    Number.isFinite(Number(quote?.days))?`Design work is expected to take around ${Number(quote.days)} days before manufacturing can begin.`:null,
+    "This is a real AI technical project: budget, design time, manufacturing, physical units and installation all use the same Save World lifecycle as the player.",
+  ].filter(Boolean).join(" ");
+  return {
+    ...gs,
+    inbox:[
+      {
+        id,
+        date:str(gs?.currentDateISO).slice(0,10)||null,
+        unread:true,
+        type:"DEV",
+        from:"Paddock Technical Watch",
+        tag:"Technology",
+        subject:`${teamName} begins ${component} development`,
+        body,
+        actions:[{label:"Compare cars",route:"/Car?view=analysis"}],
+      },
+      ...(gs?.inbox||[]),
+    ].slice(0,300),
+  };
 }
 function teamRows(gs){
   const rows=Array.isArray(gs?.teams)&&gs.teams.length?gs.teams:(gs?.dbTeams||[]);
@@ -1095,7 +1129,16 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
       amount:-quote.cost,desc:project.name,
     }],
   };
-  return replaceTeamState(next,teamId,nextState);
+  next=replaceTeamState(next,teamId,nextState);
+
+  // Expose enough of the simulated AI world for the player to observe/test it
+  // without flooding the Inbox: first project of each season, plus unusually
+  // large technical responses, become paddock news.
+  const newsworthy=!force&&(cycle===1||Number(need?.gap||0)>=4.5);
+  if(newsworthy){
+    next=appendAITechnicalNews(next,{teamId,project,need,quote});
+  }
+  return next;
 }
 
 function completeDesigns(gs,teamId,state,today){
