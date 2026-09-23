@@ -402,7 +402,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <Mini label="Budget" value={fmtMoney(budget)}/>
           <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
-          <Mini label="Team Morale" value={Math.round(teamMorale)+"/100"}/>
+          <Mini label="Operational Morale" value={Math.round(teamMorale)+"/100"}/>
           <Mini label="Work Rate" value={moraleWorkRate.label}/>
           <Mini label="Test Driver" value={testDriverProfile?.name||"None"}/>
         </div>
