@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, Search
+  Handshake, FileText, Coffee, Search, Info
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -12,8 +12,10 @@ import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
 import {
+  deriveCareerChampionshipPositions,
   historicalCareerDriverMatches,
   historicalCareerRowKey,
+  markChampionshipPositionTeam,
   mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../../domain/driverCareerIdentity.js";
@@ -229,14 +231,14 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     () => driverContractsOf(gs),
     [gs?.contracts, gs?.dbContracts]
   );
-  const careerRaw = useMemo(
-    () => mergeHistoricalCareerSources(
+  const careerRaw = useMemo(() => {
+    const merged=mergeHistoricalCareerSources(
       toArraySafe(gs?.driverCareer),
       toArraySafe(gs?.dbDriverCareer),
       [...toArraySafe(gs?.dbTeams), ...toArraySafe(gs?.teams)]
-    ),
-    [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]
-  );
+    );
+    return deriveCareerChampionshipPositions(merged);
+  }, [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]);
   const generatedHistoryRaw = useMemo(
     () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
     [gs?.driverHistory, gs?.dbDriverHistory]
@@ -448,13 +450,21 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           __simulated: true,
           __live: y === gameYear,
           year: y,
+          driver_id: driverId,
+          driver_name: driverIdentityName,
           series_division: "F1",
           team_id,
           team_name: teamNameById.get(String(team_id ?? "")) || (y === gameYear ? contractTeam : null) || "—",
           starts: 0, races: 0, wins: 0, podiums: 0, poles: 0, fastest_laps: 0, points: 0, champ_pos: null,
+          first_round: null, last_round: null,
         });
       }
       const rec = byKey.get(key);
+      const round=Number(event?.round ?? event?.round_number ?? event?.roundIndex ?? event?.round_index);
+      if(Number.isFinite(round)){
+        rec.first_round=rec.first_round==null?round:Math.min(rec.first_round,round);
+        rec.last_round=rec.last_round==null?round:Math.max(rec.last_round,round);
+      }
       if (raceRow) {
         rec.starts += 1;
         rec.races += 1;
@@ -476,7 +486,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     }
 
     return [...byKey.values()].sort((a,b) => Number(a.year)-Number(b.year));
-  }, [results, standings, historySeasons, teamsList, gameYear, careerStartYear, idNorm, contractTeam]);
+  }, [results, standings, historySeasons, teamsList, gameYear, careerStartYear, idNorm, contractTeam, driverId, driverIdentityName]);
 
   const liveSeasonRows = useMemo(
     () => simulatedCareerRows.filter((r) => Number(r.year) === Number(gameYear)),
@@ -519,7 +529,13 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     const avgPoints = yearsWithPoints.length
       ? (yearsWithPoints.reduce((a, r) => a + Number(unbox(r.points) || 0), 0) / yearsWithPoints.length)
       : null;
-    const numericPositions = rows.map((r) => unbox(r.champ_pos)).filter(isNumeric).map(Number);
+    const championshipRows=markChampionshipPositionTeam(rows)
+      .filter((r)=>r.__showChampionshipPosition!==false&&!r.__live&&isNumeric(r.champ_pos));
+    const positionsBySeason=new Map();
+    for(const row of championshipRows){
+      positionsBySeason.set(`${unbox(row.year)}|${getSeries(row).toUpperCase()}`,Number(unbox(row.champ_pos)));
+    }
+    const numericPositions=[...positionsBySeason.values()];
     const highestPos  = numericPositions.length ? Math.min(...numericPositions) : null;
     const highestCount= numericPositions.length ? numericPositions.filter((p) => p === (highestPos ?? 0)).length : 0;
     const avgPos = numericPositions.length
@@ -534,15 +550,16 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       const ya = Number(unbox(a.year)) || 0;
       const yb = Number(unbox(b.year)) || 0;
       if (ya !== yb) return ya - yb;
-      const ta = String(unbox(a.champ_pos) ?? "").toLowerCase() === "transfer" ? 1 : 0;
-      const tb = String(unbox(b.champ_pos) ?? "").toLowerCase() === "transfer" ? 1 : 0;
-      if (ta !== tb) return tb - ta;
-      const oa = Number(unbox(a.order)) || 0;
-      const ob = Number(unbox(b.order)) || 0;
-      if (oa !== ob) return oa - ob;
+      const la=Number(unbox(a.last_round));
+      const lb=Number(unbox(b.last_round));
+      if(Number.isFinite(la)&&Number.isFinite(lb)&&la!==lb)return la-lb;
+      if(Number.isFinite(la)!==Number.isFinite(lb))return Number.isFinite(la)?1:-1;
+      const oa = Number(unbox(a.order));
+      const ob = Number(unbox(b.order));
+      if(Number.isFinite(oa)&&Number.isFinite(ob)&&oa!==ob)return oa-ob;
       return String(unbox(a.team_name) || "").localeCompare(String(unbox(b.team_name) || ""));
     });
-    return list;
+    return markChampionshipPositionTeam(list);
   }, [filteredCareer]);
 
   const careerTotals = useMemo(() => {
@@ -1608,7 +1625,9 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
             {timeline.map((r, i) => {
               const series = unbox(r.series_division) ?? unbox(r.series) ?? "—";
               const isTransfer = String(unbox(r.champ_pos) ?? "").toLowerCase() === "transfer";
-              const isChampion = isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
+              const showChampionship=r.__showChampionshipPosition!==false;
+              const isLive=Boolean(r.__live);
+              const isChampion = showChampionship && isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
               const historicalTeamId = resolveHistoricalTeamId(r,teams);
               const teamName = displayValue(r.team_name ?? r.team_id);
               return (
@@ -1634,9 +1653,15 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                   <td className="text-right pr-2 py-1">{displayValue(r.fastest_laps, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.points, 0)}</td>
                   <td className="text-right pr-0 py-1">
-                    {isNumeric(r.champ_pos)
-                      ? `P${unbox(r.champ_pos)}`
-                      : (isTransfer ? <span className="italic text-purple-300">Transfer</span> : displayValue(r.champ_pos))}
+                    {!showChampionship ? (
+                      <span className="text-slate-600">—</span>
+                    ) : isNumeric(r.champ_pos) ? (
+                      <span className={isLive?"font-semibold text-sky-300":""}>
+                        P{unbox(r.champ_pos)}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}
+                      </span>
+                    ) : (
+                      isTransfer ? <span className="italic text-purple-300">Transfer</span> : displayValue(r.champ_pos)
+                    )}
                   </td>
                 </tr>
               );
@@ -1688,6 +1713,10 @@ function AttributesTab({
   const comparisonName=comparisonDriver?nameOf(comparisonDriver):"";
   const currentContract=currentSnapshot?.contract||null;
   const comparisonContract=comparisonSnapshot?.contract||null;
+  const [showConditionInfo,setShowConditionInfo]=useState(false);
+  const conditionImpact=currentSnapshot?.conditionImpact||{};
+  const mentalStateHistory=currentSnapshot?.mentalStateHistory||[];
+  const reputation=currentSnapshot?.reputation;
 
   const shownValue=(knowledgeState,field,value,{kind="attribute"}={})=>
     presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
@@ -1803,7 +1832,7 @@ function AttributesTab({
           <div className="flex-1">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
             <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
-            <div className="mt-2 grid max-w-sm grid-cols-2 gap-2">
+            <div className="mt-2 grid max-w-lg grid-cols-3 gap-2">
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
                 <div className="mt-1">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-xl"})}</div>
@@ -1811,6 +1840,12 @@ function AttributesTab({
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
                 <div className="mt-1">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-xl"})}</div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5" title="Paddock, media and fan standing. Reputation affects market evaluation, salary expectations and negotiations; it does not increase race pace or Overall.">
+                <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-500">
+                  Reputation <Info size={11}/>
+                </div>
+                <div className="mt-1">{renderValue(knowledge,"reputation",reputation,{kind:"attribute",size:"text-xl"})}</div>
               </div>
             </div>
           </div>
@@ -1877,7 +1912,18 @@ function AttributesTab({
 
       {knowledge?.canSeeCondition && (
         <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
+            <button
+              type="button"
+              onClick={()=>setShowConditionInfo((value)=>!value)}
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${showConditionInfo?"border-sky-400/30 bg-sky-500/10 text-sky-300":"border-white/10 text-slate-400 hover:text-white"}`}
+              title="Explain how current condition affects performance"
+              aria-expanded={showConditionInfo}
+            >
+              <Info size={12}/> Why these values?
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {[
               ["Confidence","confidence",condition?.confidence??50,false],
@@ -1891,6 +1937,69 @@ function AttributesTab({
               </div>
             ))}
           </div>
+
+          {showConditionInfo&&(
+            <div className="mt-3 rounded-lg border border-sky-400/15 bg-sky-500/[0.04] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-300">Current Performance Impact</div>
+                  <div className="mt-0.5 text-[11px] text-slate-400">Temporary condition modifies qualifying/race performance without changing Overall.</div>
+                </div>
+                <div className={`text-xl font-semibold ${Number(conditionImpact.total||0)>=0?"text-emerald-300":"text-rose-300"}`}>
+                  {Number(conditionImpact.total||0)>=0?"+":""}{Number(conditionImpact.total||0).toFixed(2)}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+                {[
+                  ["Confidence",conditionImpact.confidenceEffect],
+                  ["Morale",conditionImpact.moraleEffect],
+                  ["Preparation",conditionImpact.preparationEffect],
+                  ["Fatigue",conditionImpact.fatigueEffect],
+                  ["Medical",conditionImpact.medicalEffect],
+                ].map(([label,value])=>{
+                  const numeric=Number(value||0);
+                  return (
+                    <div key={label} className="rounded-md border border-white/10 bg-[#171a23] px-2 py-1.5">
+                      <div className="text-[9px] uppercase tracking-wide text-slate-500">{label}</div>
+                      <div className={`mt-0.5 text-sm font-semibold ${numeric>0?"text-emerald-300":numeric<0?"text-rose-300":"text-slate-400"}`}>
+                        {numeric>0?"+":""}{numeric.toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 border-t border-white/10 pt-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recent causes</div>
+                {mentalStateHistory.length ? (
+                  <div className="mt-2 space-y-2">
+                    {mentalStateHistory.slice(0,6).map((entry,index)=>(
+                      <div key={`${entry?.dateISO||"event"}-${entry?.source||"state"}-${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                        <span className="min-w-[72px] text-slate-500">{entry?.dateISO||"—"}</span>
+                        <span className="font-medium text-slate-300">{entry?.reason||String(entry?.source||"Mental state").replaceAll("_"," ")}</span>
+                        <span className="flex flex-wrap gap-1">
+                          {(entry?.changes||[]).map((change)=>{
+                            const delta=Number(change?.delta||0);
+                            return (
+                              <span key={change.field} className={`rounded border border-white/10 px-1.5 py-0.5 ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
+                                {String(change.field||"").replaceAll("_"," ")} {delta>0?"+":""}{delta.toFixed(1)}
+                              </span>
+                            );
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 text-[11px] text-slate-500">No recorded mental-state events yet. A fresh career starts from the neutral baseline.</div>
+                )}
+                <div className="mt-2 text-[10px] leading-4 text-slate-500">
+                  Fatigue recovers naturally as days pass. Confidence and morale also drift slowly back toward 50; these passive daily adjustments are not listed as separate events.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
