@@ -191,6 +191,9 @@ function runSoak(){
   return {gs,seasons};
 }
 
+const SOAK_A=runSoak();
+const SOAK_B=runSoak();
+
 test("career rollover keeps simulated car baseline instead of importing future historical carStats",()=>{
   let gs=normalizeAITechnicalWorld(soakFixture());
   gs=runSeason(gs,1980);
@@ -205,7 +208,7 @@ test("career rollover keeps simulated car baseline instead of importing future h
 });
 
 test("season rollover replenishes a bounded AI technical envelope without infinite money",()=>{
-  const {gs}=runSoak();
+  const {gs}=SOAK_A;
   for(const team of AI_TEAMS){
     const state=aiTechnicalTeamState(gs,team);
     assert.ok(state.season_history.length>=5,`${team} should archive each completed technical season`);
@@ -219,7 +222,7 @@ test("season rollover replenishes a bounded AI technical envelope without infini
 });
 
 test("multi-season AI development stays capacity-limited and design strength is bounded",()=>{
-  const {gs,seasons}=runSoak();
+  const {gs,seasons}=SOAK_A;
   for(const season of seasons){
     for(const team of AI_TEAMS){
       assert.ok(season.summary[team].projects<=5,`${team} exceeded seasonal project ceiling in ${season.year}`);
@@ -258,8 +261,8 @@ test("weaker and stronger teams retain unequal resources instead of receiving id
 });
 
 test("five-season technical soak is deterministic and does not freeze the whole grid",()=>{
-  const a=runSoak();
-  const b=runSoak();
+  const a=SOAK_A;
+  const b=SOAK_B;
   assert.deepEqual(a.seasons,b.seasons);
 
   const totalProjects=a.seasons.reduce((sum,season)=>
