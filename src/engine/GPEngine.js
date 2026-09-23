@@ -798,6 +798,8 @@ export async function runRaceWeekend(gs, {
     laps_completed: row.laps_completed ?? (row.retired ? null : row.race_laps ?? null),
     race_laps: row.race_laps ?? null,
     incident_lap: row.incident_lap ?? null,
+    incident_severity: row.incident_severity ?? null,
+    incident_severity_score: row.incident_severity_score ?? null,
     pit_stops: Array.isArray(row.pit_stops) ? row.pit_stops.map((stop)=>({...stop})) : [],
     stints: Array.isArray(row.stints) ? row.stints.map((stint)=>({...stint})) : [],
     tyre_supplier: row.tyre_supplier ?? null,
@@ -878,7 +880,7 @@ export async function runRaceWeekend(gs, {
 
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
-  const afterTeamMorale = applyRaceTeamMorale(afterRelations, { gp, race });
+  const afterTeamMorale = applyRaceTeamMorale(afterRelations, { gp, race:evaluatedResultEntry.classification });
   const afterInjuries = applyRaceHealthOutcomes(afterTeamMorale, { gp, race });
   const afterPlayerWear = applyRaceComponentWear(afterInjuries, { gp, race });
   let afterWear = applyAIRaceComponentWear(afterPlayerWear, { gp, race });
@@ -918,12 +920,25 @@ export async function runRaceWeekend(gs, {
   }
 
   // D6.1: race outcomes feed the central temporary Mental State engine.
+  // Use the evaluated result so "points" and "above car expectation" affect
+  // morale without duplicating the Driver Form model.
   const qualifyingPos=new Map(qualy.map((row)=>[String(row?.driver?.driver_id??""),Number(row.pos)]));
+  const evaluatedByDriver=new Map(
+    (evaluatedResultEntry.classification||[]).map((row)=>[String(row?.driver_id??""),row])
+  );
   for(const row of race){
     const did=String(row?.driver?.driver_id??"");
     if(!did)continue;
-    const change=raceMentalStateChange(row,{
+    const evaluated=evaluatedByDriver.get(did)||{};
+    const mentalRow={
+      ...row,
+      points:evaluated?.points,
+      driver_performance:evaluated?.driver_performance,
+    };
+    const change=raceMentalStateChange(mentalRow,{
       startPosition:qualifyingPos.get(did),
+      expectedPosition:evaluated?.driver_performance?.expected_finish,
+      points:evaluated?.points,
       fieldSize:race.length,
       wet:raceWet,
     });
@@ -936,6 +951,8 @@ export async function runRaceWeekend(gs, {
         gp_name:gpName,
         finish:Number(row?.pos),
         start:Number(qualifyingPos.get(did)??row?.pos),
+        expected_finish:evaluated?.driver_performance?.expected_finish??null,
+        points:Number(evaluated?.points||0),
         retired:Boolean(row?.retired),
         retirement_reason:row?.retirement_reason||null,
       },
