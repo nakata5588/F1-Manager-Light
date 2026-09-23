@@ -1204,6 +1204,10 @@ function StageTimeline({lifecycle,history=[],currentYear=null}){
     String(row?.stage||""),
     Number(String(row?.asOf||row?.dateISO||"").slice(0,4))||null,
   ]));
+  const rookieYear=Number(lifecycle?.rookieYear);
+  if(!transitionYearByStage.get("rookie")&&Number.isFinite(rookieYear)){
+    transitionYearByStage.set("rookie",rookieYear);
+  }
   const yearLabel=(point,index)=>{
     const actual=transitionYearByStage.get(point.key);
     if(actual)return String(actual);
@@ -1221,7 +1225,7 @@ function StageTimeline({lifecycle,history=[],currentYear=null}){
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Career Stage Timeline</div>
-          <div className="mt-1 text-sm text-slate-300">Lifecycle rises through development and peak before veteran/decline phases.</div>
+          <div className="mt-1 text-sm text-slate-300">Recorded years use career/save history; future years prefixed with ~ are dynamic projections, not fixed milestones.</div>
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-wide text-slate-500">Current stage</div>
