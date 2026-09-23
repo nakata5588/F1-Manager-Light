@@ -47,7 +47,8 @@ export const COMPONENT_STAT_KEY=Object.freeze({
   exhaust_system:null,
 });
 
-const SPECIAL_TECH_SLOTS=new Set(["turbocharger","electronics","kers","ers_mgu_k","ers_mgu_h","battery_pack"]);
+export const SPECIAL_TECH_SLOTS=Object.freeze(["turbocharger","electronics","kers","ers_mgu_k","ers_mgu_h","battery_pack"]);
+const SPECIAL_TECH_SET=new Set(SPECIAL_TECH_SLOTS);
 
 function teamIdOf(row){
   return String(pick(row,["team_id","team","constructor_id","constructor"],""));
@@ -100,8 +101,19 @@ function normalizedCatalog(gs){
   return [...sourceRows,...missing];
 }
 
+export function teamTechnologyUnlocked(gs,teamId,slot){
+  const tid=String(teamId??"");
+  const key=String(slot??"");
+  const playerId=String(gs?.team?.team_id??gs?.team?.id??"");
+  if(tid&&tid===playerId){
+    return Boolean(gs?.technicalUnlocks?.[tid]?.[key]);
+  }
+  return Boolean(gs?.aiTechnicalWorld?.teams?.[tid]?.technology_unlocks?.[key]);
+}
+
 function explicitTechnologySupport(gs,teamId,slot){
-  if(!SPECIAL_TECH_SLOTS.has(slot))return true;
+  if(!SPECIAL_TECH_SET.has(slot))return true;
+  if(teamTechnologyUnlocked(gs,teamId,slot))return true;
   const year=yearOf(gs);
   const car=rowForTeam(gs?.carStats||gs?.dbCarStats||[],teamId,year)||{};
   const engine=rowForTeam(gs?.teamEngines||gs?.dbTeamEngines||[],teamId,year)||{};
