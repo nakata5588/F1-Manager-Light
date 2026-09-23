@@ -10,6 +10,8 @@ import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateF
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
+import { buildFreshCareerState } from "@/core/freshCareer";
+import { syncGarageState } from "@/domain/garage";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -1214,37 +1216,23 @@ export const useGame = create((set, get) => ({
       (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
     );
 
-    const initial = {
+    let fresh = buildFreshCareerState(db, {
       currentDateISO: firstDayISO(y),
       currentRound: 0,
-      team: team ? { ...team, budget: startingBudget } : null,
-      standings: { drivers: [], teams: [] },
-      inbox: [
-        {
-          id: Date.now(),
-          subject: "Welcome to the paddock",
-          from: "FIA",
-          tag: "FIA",
-          date: `${y}-01-02`,
-          body: `Difficulty set to ${difficulty}. Good luck!`,
-        },
-      ],
-      eventsQueue: [],
-      driverAttrLog: {},
-      driverAttributes: initialDriverConditions,
-      driverAvailability: {},
-      medicalHistory: [],
-      temporaryDriverAssignments: [],
-      driverNegotiations: [],
-      raceEntryState: null,
-      raceWeekendState: null,
-      settings: get().gameState?.settings ?? defaultSettings,
       activeYear: y,
+      team: team ? { ...team, budget: startingBudget } : null,
       careerMeta: createCareerMeta(db, y),
       saveMeta: createNewSaveMeta({ year: y, teamId }),
-
-      // 💰 snapshot inicial (sem lançar no ledger)
-      financeLog: [],
+      settings: db?.settings ?? defaultSettings,
+      inbox: [{
+        id: `welcome_${y}_${teamId||"team"}`,
+        subject: "Welcome to the paddock",
+        from: "FIA",
+        tag: "FIA",
+        date: `${y}-01-02`,
+        body: `Difficulty set to ${difficulty}. Good luck!`,
+      }],
+      driverAttributes: initialDriverConditions,
       finances: {
         budget: startingBudget,
         balance: startingBudget,
@@ -1252,16 +1240,10 @@ export const useGame = create((set, get) => ({
         season_spend: 0,
         season_income: 0,
       },
-      board: null,
-      commercialScore: null,
-      academy: { drivers: [] },
-      scouting: { assignments: [], shortlist: [] },
-      development: { projects: [], parts: [], partUnits: [], manufacturing: [], research: [] },
-      hq: { facilityLevels: {}, upgrades: [] },
-    };
+    });
+    fresh = {...fresh, garage:syncGarageState(fresh,fresh.garage)};
 
-    set((s) => ({ gameState: { ...s.gameState, ...initial } }));
-    set({ currentSaveKey: null });
+    set({ gameState: fresh, currentSaveKey: null });
   },
 
   startNewGameFromCreateTeam: (payload) => {
@@ -1293,7 +1275,7 @@ export const useGame = create((set, get) => ({
 
       const inbox = [
         {
-          id: Date.now(),
+          id: `welcome_${y}_${teamId||"team"}`,
           subject: "Welcome to the paddock",
           from: "FIA",
           tag: "FIA",
@@ -1301,7 +1283,7 @@ export const useGame = create((set, get) => ({
           body: `Your entry has been accepted for the ${y} World Championship.`,
         },
         {
-          id: Date.now() + 1,
+          id: `supplier_${y}_${teamId||"team"}`,
           subject: "Supplier contract signed",
           from: "Commercial",
           tag: "Suppliers",
@@ -1310,40 +1292,28 @@ export const useGame = create((set, get) => ({
         },
       ];
 
-      set((s) => ({
-        gameState: {
-          ...s.gameState,
-          currentDateISO: firstDayISO(y),
-          currentRound: 0,
-          activeYear: y,
-          careerMeta: createCareerMeta(db, y),
-          saveMeta: createNewSaveMeta({ year: y, teamId }),
-          team: userTeam,
-          selectedDrivers: Array.isArray(drivers) ? drivers : [],
-          standings: { drivers: [], teams: [] },
-          inbox,
-          eventsQueue: [],
-          driverAttrLog: {},
-          driverAttributes: initialDriverConditions,
-          driverAvailability: {},
-          medicalHistory: [],
-          temporaryDriverAssignments: [],
-          driverNegotiations: [],
-          raceEntryState: null,
-          raceWeekendState: null,
-          settings: s.gameState?.settings ?? defaultSettings,
-
-          financeLog: [],
-          finances: {
-            budget: startingBudget,
-            balance: startingBudget,
-            weekly_burn: 0,
-            season_spend: 0,
-            season_income: 0,
-          },
+      let fresh=buildFreshCareerState(db,{
+        currentDateISO:firstDayISO(y),
+        currentRound:0,
+        activeYear:y,
+        careerMeta:createCareerMeta(db,y),
+        saveMeta:createNewSaveMeta({year:y,teamId}),
+        team:userTeam,
+        selectedDrivers:Array.isArray(drivers)?drivers:[],
+        inbox,
+        driverAttributes:initialDriverConditions,
+        settings:db?.settings??defaultSettings,
+        finances:{
+          budget:startingBudget,
+          balance:startingBudget,
+          weekly_burn:0,
+          season_spend:0,
+          season_income:0,
         },
-      }));
-      set({ currentSaveKey: null });
+      });
+      fresh={...fresh,garage:syncGarageState(fresh,fresh.garage)};
+
+      set({gameState:fresh,currentSaveKey:null});
       get().saveLocal?.();
       return true;
     } catch (e) {
