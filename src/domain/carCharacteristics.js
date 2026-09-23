@@ -5,6 +5,7 @@
 
 import { garageCarForDriver, installedPartsForCar } from "./garage.js";
 import { technicalAdjustmentForPart } from "./carPartPerformance.js";
+import { aiTechnicalCarForDriver, aiTechnicalScopedState } from "../engine/AITechnicalEngine.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -124,6 +125,22 @@ export function teamCarCharacteristics(gs,teamId,driverId=null){
           key,
           round1(rows.reduce((sum,row)=>sum+num(row?.[key],0),0)/rows.length),
         ]));
+      }
+    }
+  }else{
+    const aiState=aiTechnicalScopedState(gs,teamId);
+    if(aiState){
+      if(driverId){
+        upgradeDelta=characteristicUpgradeDeltas(aiState,aiTechnicalCarForDriver(gs,teamId,driverId));
+      }else{
+        const cars=(aiState?.garage?.cars||[]).filter((car)=>car?.kind==="race");
+        if(cars.length){
+          const rows=cars.map((car)=>characteristicUpgradeDeltas(aiState,car));
+          upgradeDelta=Object.fromEntries(Object.keys(CHARACTERISTIC_LABELS).map((key)=>[
+            key,
+            round1(rows.reduce((sum,row)=>sum+num(row?.[key],0),0)/rows.length),
+          ]));
+        }
       }
     }
   }
