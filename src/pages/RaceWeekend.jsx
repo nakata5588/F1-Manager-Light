@@ -1,13 +1,14 @@
 // src/pages/RaceWeekend.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
+import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
-import { Activity, Car, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
+import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const STEPS=[
   ["practice","Practice"],
@@ -223,6 +224,61 @@ function forecastTimingLabel(forecast,totalLaps){
     return "Forecast horizon ~"+horizon+" laps";
   }
   return String(timing.mode||"forecast").replaceAll("_"," ");
+}
+function impactDescriptor(value){
+  const n=Number(value)||0;
+  if(n>=2)return {label:"Strong performance gain",short:"Strong gain",tone:"text-emerald-300 bg-emerald-500/10 border-emerald-500/20"};
+  if(n>=1)return {label:"Useful performance gain",short:"Useful gain",tone:"text-emerald-300 bg-emerald-500/10 border-emerald-500/20"};
+  if(n>=0.35)return {label:"Small performance gain",short:"Small gain",tone:"text-sky-300 bg-sky-500/10 border-sky-500/20"};
+  if(n>-0.35)return {label:"No meaningful pace change",short:"Neutral",tone:"text-slate-300 bg-white/[0.04] border-white/10"};
+  if(n>-1)return {label:"Small performance loss",short:"Small loss",tone:"text-amber-300 bg-amber-500/10 border-amber-500/20"};
+  return {label:"Clear performance loss",short:"Clear loss",tone:"text-rose-300 bg-rose-500/10 border-rose-500/20"};
+}
+function weatherStateLabel(state){
+  const key=String(state||"UNKNOWN").toUpperCase();
+  return {
+    SUNNY:"Sunny",CLOUDY:"Cloudy",WINDY:"Windy",DRYING:"Drying",
+    DRIZZLE_DRYING:"Drying drizzle",WETTING:"Rain arriving",LIGHT_RAIN:"Light rain",
+    HEAVY_RAIN:"Heavy rain",STORM:"Storm",
+  }[key]||key.replaceAll("_"," ");
+}
+function WeatherStateIcon({state,className="h-5 w-5"}){
+  const key=String(state||"").toUpperCase();
+  if(key==="SUNNY")return <Sun className={className}/>;
+  if(key==="CLOUDY")return <Cloud className={className}/>;
+  if(key==="WINDY")return <Wind className={className}/>;
+  if(key==="DRYING")return <CloudSun className={className}/>;
+  if(key==="STORM")return <CloudLightning className={className}/>;
+  if(["WETTING","LIGHT_RAIN","HEAVY_RAIN","DRIZZLE_DRYING"].includes(key))return <CloudRain className={className}/>;
+  return <CloudSun className={className}/>;
+}
+function forecastRaceWindows(forecast,totalLaps){
+  const total=Math.max(1,Math.round(Number(totalLaps)||1));
+  const timing=forecast?.timing||{};
+  const state=String(forecast?.predicted_state||"UNKNOWN").toUpperCase();
+  const low=Number.isFinite(Number(timing.window_low_pct))
+    ?Math.max(1,Math.round(Number(timing.window_low_pct)*total)):null;
+  const high=Number.isFinite(Number(timing.window_high_pct))
+    ?Math.max(low||1,Math.round(Number(timing.window_high_pct)*total)):null;
+  if(low&&high&&timing.mode==="rain_arrival"){
+    return [
+      {from:1,to:Math.max(1,low-1),state:"DRYING",label:"Mostly dry"},
+      {from:low,to:high,state:"WETTING",label:"Rain arrival window"},
+      {from:Math.min(total,high+1),to:total,state:state==="WETTING"?"LIGHT_RAIN":state,label:"Rain risk"},
+    ].filter((row)=>row.from<=row.to);
+  }
+  if(low&&high&&timing.mode==="rain_easing"){
+    return [
+      {from:1,to:Math.max(1,low-1),state:"LIGHT_RAIN",label:"Wet phase"},
+      {from:low,to:high,state:"DRYING",label:"Drying window"},
+      {from:Math.min(total,high+1),to:total,state:"DRYING",label:"Improving"},
+    ].filter((row)=>row.from<=row.to);
+  }
+  const cuts=[1,Math.floor(total*0.25)+1,Math.floor(total*0.50)+1,Math.floor(total*0.75)+1,total+1];
+  return [0,1,2,3].map((index)=>({
+    from:cuts[index],to:Math.max(cuts[index],cuts[index+1]-1),state,
+    label:weatherStateLabel(state),
+  })).filter((row)=>row.from<=total).map((row)=>({...row,to:Math.min(total,row.to)}));
 }
 function indexDescriptor(value,{inverse=false}={}){
   const n=Math.max(0,Math.min(100,Number(value)||0));
@@ -469,6 +525,8 @@ export default function RaceWeekend(){
   const [busy,setBusy]=useState(false);
   const [activeWindow,setActiveWindow]=useState("overview");
   const [liveTimingMode,setLiveTimingMode]=useState("overall");
+  const [selectedRaceEvent,setSelectedRaceEvent]=useState(null);
+  const lastAutoPopupKey=useRef(null);
 
   const weekend=gs?.raceWeekendState;
   const drivers=gs?.drivers||[];
@@ -531,6 +589,26 @@ export default function RaceWeekend(){
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
+  useEffect(()=>{
+    if(!liveRace)return;
+    const currentLap=Number(liveRace?.current_lap)||0;
+    const important=(liveRace?.events||[]).slice().reverse().find((event)=>{
+      const type=String(event?.type||"");
+      const message=String(event?.message||"");
+      const control=String(event?.control_type||"");
+      return type==="position_change"
+        ||type==="incident"
+        ||(type==="race_control"&&(event?.cause==="incident"||control==="RED_FLAG"))
+        ||/dnf|retir|collision|crash/i.test(message);
+    });
+    if(!important)return;
+    const eventLap=Number(important?.lap)||0;
+    if(currentLap&&eventLap<currentLap-1)return;
+    const key=String(important?.event_key||[important?.type,important?.lap,important?.sector,important?.driver_id,important?.message].join(":"));
+    if(!key||lastAutoPopupKey.current===key)return;
+    lastAutoPopupKey.current=key;
+    setSelectedRaceEvent(important);
+  },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector]);
 
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
@@ -548,6 +626,40 @@ export default function RaceWeekend(){
     String(row?.team_id??row?.constructor_id??row?.id??""),
     {position:Number(row?.position??index+1),points:Number(row?.points??0)},
   ]));
+  const entrantIds=new Set(confirmedEntrants.map((row)=>String(row.driver_id)));
+  const strategyFormLeaders=confirmedEntrants.map((entry)=>({
+    driver_id:String(entry.driver_id),
+    form:driverFormSnapshot(gs,entry.driver_id),
+  })).filter((row)=>Number.isFinite(Number(row.form?.score)))
+    .sort((a,b)=>Number(b.form.score)-Number(a.form.score))
+    .slice(0,3);
+  const qualifyingOverperformers=classification.map((row)=>{
+    const form=driverFormSnapshot(gs,row.driver_id);
+    const expected=Number(form?.entries?.[0]?.expected_finish);
+    const position=Number(row?.position);
+    return {
+      driver_id:String(row.driver_id),
+      position,
+      expected,
+      delta:Number.isFinite(expected)&&Number.isFinite(position)?expected-position:null,
+    };
+  }).filter((row)=>Number.isFinite(row.delta)&&row.delta>0.4)
+    .sort((a,b)=>b.delta-a.delta)
+    .slice(0,3);
+  const gpWinnerCounts=new Map();
+  for(const result of gs?.results||[]){
+    const sameGp=String(result?.gp_id||"")===String(weekend?.gp_id||"")
+      ||String(result?.name||result?.gp_name||"").toLowerCase()===String(weekend?.gp_name||"").toLowerCase();
+    if(!sameGp)continue;
+    const winner=(result?.classification||[]).find((row)=>Number(row?.position)===1)||(result?.classification||[])[0];
+    const did=String(winner?.driver_id||"");
+    if(did&&entrantIds.has(did))gpWinnerCounts.set(did,(gpWinnerCounts.get(did)||0)+1);
+  }
+  const previousGpWinners=[...gpWinnerCounts.entries()]
+    .map(([driver_id,wins])=>({driver_id,wins}))
+    .sort((a,b)=>b.wins-a.wins)
+    .slice(0,3);
+  const strategyForecastWindows=forecastRaceWindows(strategyRaceForecast,raceStrategy?.track_snapshot?.laps);
 
   const terminalWeekend=["results","completed"].includes(String(weekend?.phase));
   const windowTabs=[
@@ -601,25 +713,32 @@ export default function RaceWeekend(){
     </div>}
 
     <nav className="sticky top-14 z-40 -mx-2 md:-mx-3 px-2 md:px-3 border-y border-white/10 bg-[#080b11]/95 backdrop-blur">
-      <div className="flex gap-1 overflow-x-auto py-1">
-        {windowTabs.map((tab)=>(
-          <button
-            type="button"
-            key={tab.id}
-            disabled={!tab.enabled}
-            onClick={()=>tab.enabled&&setActiveWindow(tab.id)}
-            className={
-              "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold transition "+
-              (activeWindow===tab.id
-                ?"bg-slate-100 text-slate-950"
-                :tab.enabled
-                  ?"border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-                  :"border border-white/5 bg-white/[0.02] text-slate-700 cursor-not-allowed")
-            }
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2 py-1">
+        <div className="flex min-w-0 gap-1 overflow-x-auto">
+          {windowTabs.map((tab)=>(
+            <button
+              type="button"
+              key={tab.id}
+              disabled={!tab.enabled}
+              onClick={()=>tab.enabled&&setActiveWindow(tab.id)}
+              className={
+                "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold transition "+
+                (activeWindow===tab.id
+                  ?"bg-slate-100 text-slate-950"
+                  :tab.enabled
+                    ?"border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                    :"border border-white/5 bg-white/[0.02] text-slate-700 cursor-not-allowed")
+              }
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {weekend.phase==="race"&&liveRace?.status==="running"?<div className="flex shrink-0 items-center gap-1">
+          <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
+          <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
+          <button disabled={busy} className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1))}>Run to Finish</button>
+        </div>:null}
       </div>
     </nav>
 
@@ -655,7 +774,10 @@ export default function RaceWeekend(){
                   {current?"LIVE":known?"OBSERVED":"FORECAST"}
                 </span>
               </div>
-              <div className="mt-3 font-semibold">{String(state||"UNKNOWN").replaceAll("_"," ")}</div>
+              <div className="mt-3 flex items-center gap-2 font-semibold">
+                <span className="text-sky-300"><WeatherStateIcon state={state}/></span>
+                <span>{weatherStateLabel(state)}</span>
+              </div>
               {known?<div className="mt-2 grid grid-cols-2 gap-1 text-xs text-slate-400">
                 <div>Air {Number(actual?.air_temp_c||0).toFixed(1)}°C</div>
                 <div>Track {Number(actual?.track_temp_c||0).toFixed(1)}°C</div>
@@ -744,12 +866,7 @@ export default function RaceWeekend(){
                   <span title="Programme race bonus; weather relevance is applied after Practice." className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-300">Race focus {signedValue(programme.raceBonus||0)}</span>
                   <span title="Stored diagnostic focus. No hidden reliability increase or automatic repair." className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Diagnostics focus ×{Number(programme.reliabilityBonus||0).toFixed(2)}</span>
                 </div>
-                <div className="mt-2 grid gap-1 text-[10px] text-slate-500 sm:grid-cols-2">
-                  <div><span className="text-violet-300">Setup:</span> learning/convergence rate, not a direct pace bonus.</div>
-                  <div><span className="text-sky-300">Qualifying:</span> feeds the final qualifying modifier after Practice.</div>
-                  <div><span className="text-emerald-300">Race:</span> feeds the final race modifier after Practice.</div>
-                  <div><span className="text-amber-300">Diagnostics:</span> recorded in the report; fault discovery is not wired yet.</div>
-                </div>
+
               </div>
             </div>;
           })}
@@ -780,22 +897,22 @@ export default function RaceWeekend(){
           const overtake=indexDescriptor(inputs.overtaking_difficulty);
           const wear=indexDescriptor(inputs.tyre_wear);
           return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Crash Risk Index</div>
               <div className={"mt-1 text-xl font-bold "+crash.tone}>{Math.round(Number(inputs.crash_risk)||0)}/100</div>
               <div className="text-xs text-slate-400">{crash.level} incident-proneness. This is not a {Math.round(Number(inputs.crash_risk)||0)}% crash probability.</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Overtaking Difficulty</div>
               <div className={"mt-1 text-xl font-bold "+overtake.tone}>{Math.round(Number(inputs.overtaking_difficulty)||0)}/100</div>
               <div className="text-xs text-slate-400">{overtake.level} difficulty. Higher means passing is harder, not a percentage chance.</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Tyre Wear Index</div>
               <div className={"mt-1 text-xl font-bold "+wear.tone}>{Math.round(Number(inputs.tyre_wear)||0)}/100</div>
               <div className="text-xs text-slate-400">{wear.level} circuit demand on tyres; used by degradation and strategy models.</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Lap Length</div>
               <div className="mt-1 text-xl font-bold text-sky-300">{Number(inputs.lap_length_km||0).toFixed(2)} km</div>
               <div className="text-xs text-slate-400">Physical circuit length used for race distance and session calculations.</div>
@@ -808,8 +925,6 @@ export default function RaceWeekend(){
             const fatigueAfter=Number(row.fatigue_after??row.fatigue_cost??0);
             const practiceImpact=practiceWeekendImpact(gs,row.driver_id);
             const conditionImpact=conditionModifierBreakdown(gs,row.driver_id);
-            const qualifyingSetupContribution=(Number(row.setup_quality||50)-50)*0.050;
-            const raceSetupContribution=(Number(row.setup_quality||50)-50)*0.035;
             return <div key={row.driver_id} className="rounded-xl border border-white/10 bg-[#171d27] p-4">
               <div className="flex items-start gap-3">
                 <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size="h-14 w-14" className="ring-white/10"/>
@@ -836,22 +951,37 @@ export default function RaceWeekend(){
 
               <div className="mt-3 rounded-lg border border-white/10 bg-[#0f141d] p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Weekend performance effect</div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                  <div><div className="text-slate-500">Qualifying total</div><div className="font-bold text-violet-300">{signedValue(practiceImpact.qualifying)}</div></div>
-                  <div><div className="text-slate-500">Race total</div><div className="font-bold text-emerald-300">{signedValue(practiceImpact.race)}</div></div>
-                  <div><div className="text-slate-500">Condition</div><div className={conditionImpact.total>=0?"font-bold text-emerald-300":"font-bold text-rose-300"}>{signedValue(conditionImpact.total)}</div></div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {(()=>{
+                    const impact=impactDescriptor(practiceImpact.qualifying);
+                    return <div title={"Internal qualifying modifier "+signedValue(practiceImpact.qualifying)} className={"rounded-lg border p-2 "+impact.tone}>
+                      <div className="text-[10px] uppercase opacity-70">Qualifying impact</div>
+                      <div className="mt-1 text-sm font-bold">{impact.short}</div>
+                      <div className="text-[10px] opacity-75">Expected effect on one-lap performance.</div>
+                    </div>;
+                  })()}
+                  {(()=>{
+                    const impact=impactDescriptor(practiceImpact.race);
+                    return <div title={"Internal race modifier "+signedValue(practiceImpact.race)} className={"rounded-lg border p-2 "+impact.tone}>
+                      <div className="text-[10px] uppercase opacity-70">Race impact</div>
+                      <div className="mt-1 text-sm font-bold">{impact.short}</div>
+                      <div className="text-[10px] opacity-75">Expected effect on race performance.</div>
+                    </div>;
+                  })()}
+                  <div className={"rounded-lg border p-2 "+fatigueTone(fatigueAfter)}>
+                    <div className="text-[10px] uppercase opacity-70">Driver cost</div>
+                    <div className="mt-1 text-sm font-bold">Fatigue +{Math.max(0,fatigueAfter-Number(row.fatigue_before||0)).toFixed(0)}</div>
+                    <div className="text-[10px] opacity-75">Ends Practice at {fatigueAfter.toFixed(0)}/100.</div>
+                  </div>
+                  <div className={"rounded-lg border p-2 "+wearTone(row.wear_factor)}>
+                    <div className="text-[10px] uppercase opacity-70">Car cost / learning</div>
+                    <div className="mt-1 text-sm font-bold">Wear +{Number(row.component_wear?.total_wear??0).toFixed(1)}</div>
+                    <div className="text-[10px] opacity-75">Setup {Math.round(row.setup_quality)}% · knowledge {Math.round(row.setup_knowledge)}%.</div>
+                  </div>
                 </div>
-                <div className="mt-2 grid gap-1 rounded border border-white/5 bg-black/15 p-2 text-[10px] sm:grid-cols-2">
-                  <div><span className="text-slate-500">Q setup contribution:</span> <span className="text-violet-300">{signedValue(qualifyingSetupContribution)}</span></div>
-                  <div><span className="text-slate-500">Q programme bonus:</span> <span className="text-violet-300">{signedValue(row.qualifying_bonus||0)}</span></div>
-                  <div><span className="text-slate-500">Race setup contribution:</span> <span className="text-emerald-300">{signedValue(raceSetupContribution)}</span></div>
-                  <div><span className="text-slate-500">Race programme bonus:</span> <span className="text-emerald-300">{signedValue(row.race_bonus||0)}</span></div>
-                  <div><span className="text-slate-500">Diagnostics focus:</span> <span className="text-amber-300">×{Number(row.reliability_diagnostic_bonus||0).toFixed(2)}</span></div>
-                  <div><span className="text-slate-500">Engineering support:</span> <span className="text-slate-300">{Number(row.engineering_support||0).toFixed(0)}/100</span></div>
+                <div className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                  Decision: {row.programme_label}. {Number(row.reliability_diagnostic_bonus||0)>0?"Diagnostics focus was recorded; fault discovery is not yet wired. ":""}No hidden reliability boost is applied.
                 </div>
-                <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                  Setup Quality feeds qualifying and race pace directly; the programme bonus is added after weather-relevance adjustment. Setup Knowledge contributes to preparation. Diagnostics focus is recorded here but fault-discovery gameplay is not wired yet; it never creates a hidden reliability boost.
-                </p>
               </div>
 
               {row.component_wear?.lowest_slot&&<div className="mt-2 text-xs text-slate-500">
@@ -928,17 +1058,13 @@ export default function RaceWeekend(){
 
     {activeWindow==="qualifying"&&weekend.phase==="qualifying_wait"&&(
       <div className="rounded-xl border border-white/10 bg-[#11161f] p-5 shadow-xl">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Session complete</div>
-            <h3 className="mt-1 font-semibold">{lastCompletedQualifyingSession?.label||"Qualifying"} Complete</h3>
-            <p className="text-sm text-slate-400 mt-1">
-              {weekend.qualifying?.status==="completed"
-                ?"Final qualifying results are saved. Review them before proceeding to Race Strategy."
-                :`Saved classification. Next: ${activeSession?.label||"Qualifying"} on ${activeSession?.dateISO||"the next session date"}.`}
-            </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+          <div className="text-xs text-slate-400">
+            <span className="font-semibold text-slate-100">{lastCompletedQualifyingSession?.label||"Qualifying"} complete</span>
+            <span className="mx-2 text-slate-700">·</span>
+            {lastCompletedQualifyingSession?.results?.length||classification.length} classified
           </div>
-          <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
+          <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
             {busy
               ?"Continuing…"
               :weekend.qualifying?.status==="completed"
@@ -948,13 +1074,8 @@ export default function RaceWeekend(){
                   :"Advance toward next session"}
           </button>
         </div>
-        {weekend.qualifying_rule_snapshot?.strategy==="best_time_across_sessions"&&!lastCompletedQualifyingSession?.advance_count&&(
-          <div className="mt-3 rounded-lg bg-blue-500/15 text-blue-200 px-3 py-2 text-sm">
-            No cars are eliminated after this session. The final order uses each driver's best valid time across all qualifying sessions.
-          </div>
-        )}
         {lastCompletedQualifyingSession&&(
-          <div className="mt-4">
+          <div className="mt-2">
             <QualifyingTable
               title={(weekend.qualifying?.status==="completed"?"Overall Qualifying":"Session")+" — classification"}
               rows={lastCompletedQualifyingSession.results||[]}
@@ -1028,9 +1149,12 @@ export default function RaceWeekend(){
               <div className="mt-1 text-xs text-slate-400">Pit loss {Number(raceStrategy?.track_snapshot?.pit_lane_loss_s||0).toFixed(1)}s · tyre wear {Math.round(Number(raceStrategy?.track_snapshot?.tyre_wear||practiceTrackInputs.tyre_wear||0))}/100</div>
             </div>
             <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.05] p-3">
-              <div className="text-[10px] uppercase tracking-wide text-violet-300">Qualifying favourites</div>
-              <div className="mt-1 grid gap-1 text-xs">
-                {classification.slice().sort((a,b)=>Number(a.position??999)-Number(b.position??999)).slice(0,3).map((row)=><div key={row.driver_id} className="flex justify-between gap-2"><span>{"P"+row.position+" "+driverName(drivers,row.driver_id)}</span><span className="font-mono text-slate-500">{formatLapTime(row.best_time_ms)}</span></div>)}
+              <div className="text-[10px] uppercase tracking-wide text-violet-300">Race watchlist</div>
+              <div className="mt-1 grid gap-1.5 text-xs">
+                {strategyFormLeaders.slice(0,2).map((row)=><div key={"form-"+row.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,row.driver_id)}</span><span className="text-emerald-300">{row.form.label} form</span></div>)}
+                {qualifyingOverperformers.slice(0,1).map((row)=><div key={"q-"+row.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,row.driver_id)}</span><span className="text-sky-300">Q +{row.delta.toFixed(1)} vs expectation</span></div>)}
+                {previousGpWinners.slice(0,1).map((row)=><div key={"win-"+row.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,row.driver_id)}</span><span className="text-amber-300">{row.wins} prior Save win{row.wins===1?"":"s"} here</span></div>)}
+                {!strategyFormLeaders.length&&!qualifyingOverperformers.length&&!previousGpWinners.length?<div className="text-slate-500">Insufficient race history for a form-based watchlist.</div>:null}
               </div>
             </div>
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] p-3">
@@ -1039,7 +1163,7 @@ export default function RaceWeekend(){
                 {playerEntrants.map((entry)=>{
                   const q=classification.find((row)=>String(row.driver_id)===String(entry.driver_id));
                   const impact=practiceWeekendImpact(gs,entry.driver_id);
-                  return <div key={entry.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,entry.driver_id)}</span><span className="text-slate-400">{(q?"Grid P"+q.position:"No Q time")+" · Race prep "+signedValue(impact.race)}</span></div>;
+                  return <div key={entry.driver_id} className="flex justify-between gap-2"><span>{driverName(drivers,entry.driver_id)}</span><span className="text-slate-400">{(q?"Grid P"+q.position:"No Q time")+" · "+impactDescriptor(impact.race).short}</span></div>;
                 })}
               </div>
             </div>
@@ -1059,15 +1183,18 @@ export default function RaceWeekend(){
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-sky-300">Full team race forecast</div>
-                <div className="mt-1 text-sm font-semibold">{String(strategyRaceForecast?.predicted_state||strategyTeamForecast.predicted_state||"UNKNOWN").replaceAll("_"," ")}</div>
                 <div className="mt-1 text-xs text-slate-400">{strategyTeamForecast.message}</div>
               </div>
-              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-right text-xs sm:grid-cols-4">
-                <div><div className="text-slate-500">Rain chance</div><div>{Number((strategyRaceForecast?.rain_chance_pct??strategyTeamForecast.rain_chance_pct)||0).toFixed(0)}%</div></div>
-                <div><div className="text-slate-500">Air temp</div><div>{Number.isFinite(Number(strategyRaceForecast?.air_temp_c))?Number(strategyRaceForecast.air_temp_c).toFixed(0)+"°C":"—"}</div></div>
-                <div><div className="text-slate-500">Confidence</div><div>{Number((strategyRaceForecast?.confidence_pct??strategyTeamForecast.confidence_pct)||0).toFixed(0)}%</div></div>
-                <div><div className="text-slate-500">Timing</div><div>{forecastTimingLabel(strategyRaceForecast,raceStrategy?.track_snapshot?.laps)}</div></div>
-              </div>
+              <div className="text-right text-[10px] text-slate-500">Rain {Number((strategyRaceForecast?.rain_chance_pct??strategyTeamForecast.rain_chance_pct)||0).toFixed(0)}% · confidence {Number((strategyRaceForecast?.confidence_pct??strategyTeamForecast.confidence_pct)||0).toFixed(0)}%</div>
+            </div>
+            <div className="mt-2 grid gap-1 sm:grid-cols-2 xl:grid-cols-4">
+              {strategyForecastWindows.map((window,index)=><div key={index} className="flex items-center gap-2 rounded border border-white/10 bg-white/[0.035] px-2 py-2">
+                <span className="text-sky-300"><WeatherStateIcon state={window.state} className="h-4 w-4"/></span>
+                <div className="min-w-0">
+                  <div className="text-[10px] text-slate-500">L{window.from}–L{window.to}</div>
+                  <div className="truncate text-xs font-semibold">{window.label}</div>
+                </div>
+              </div>)}
             </div>
           </div>
 
@@ -1157,7 +1284,7 @@ export default function RaceWeekend(){
 
         {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
           <div className="rounded-xl border border-white/10 bg-[#11161f] pb-44 text-slate-100 shadow-xl overflow-hidden xl:pb-24">
-            <div className="grid border-b border-white/10 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid border-b border-white/10 xl:grid-cols-[minmax(0,1fr)_540px]">
               <div className="px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -1175,15 +1302,10 @@ export default function RaceWeekend(){
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <RaceFlagBanner notice={raceFlagNotice(raceControlPlan,liveRace,drivers)}/>
                   <div className="flex flex-wrap justify-end gap-1.5">
-                    {liveRace.status==="running"&&<>
-                      <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
-                      <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
-                      <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1))}>Run to Finish</button>
-                    </>}
-                    {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
+                    {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
                       {busy?"Restarting…":"Restart Race"}
                     </button>}
-                    {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-400 text-slate-950 px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+                    {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-400 text-slate-950 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
                   </div>
                 </div>
               </div>
@@ -1192,32 +1314,32 @@ export default function RaceWeekend(){
                 <div className="h-full bg-slate-200 transition-all" style={{width:String(Math.max(0,Math.min(100,(((Math.max(0,Number(liveRace.current_lap||0)-1))+(Number(liveRace.current_sector||0)/3))/Math.max(1,Number(liveRace.total_laps||1)))*100)))+"%"}}/>
               </div>
 
-              <div className="mt-2 grid grid-cols-3 gap-1 text-xs 2xl:grid-cols-7">
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+              <div className="mt-1.5 grid grid-cols-3 gap-1 text-xs 2xl:grid-cols-7">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Flag className="h-3.5 w-3.5"/>Race Control</div>
                   <div className={"mt-1 font-bold "+(String(liveRace.current_control||"GREEN")==="GREEN"?"text-emerald-300":"text-amber-300")}>{String(liveRace.current_control||"GREEN")==="LOCAL_YELLOW"?"YELLOW FLAG":String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Rain</div>
                   <div className="mt-1 font-bold text-sky-300">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Wetness</div>
                   <div className="mt-1 font-bold text-cyan-300">{Math.round(Number(trackState?.track_wetness||0)*100)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Gauge className="h-3.5 w-3.5"/>Grip</div>
                   <div className="mt-1 font-bold">{Number(trackState?.grip_index??100).toFixed(0)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Activity className="h-3.5 w-3.5"/>Visibility</div>
                   <div className="mt-1 font-bold">{Number(trackState?.visibility_index??100).toFixed(0)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Thermometer className="h-3.5 w-3.5"/>Track Temp</div>
                   <div className="mt-1 font-bold">{Number(activeWeather?.track_temp_c??raceWeatherRow?.track_temp_c??0).toFixed(0)}°C</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Timer className="h-3.5 w-3.5"/>Fastest Lap</div>
                   <div className="mt-1 font-bold font-mono text-fuchsia-300">{formatLapTime(timingSummary?.fastest_lap_ms)}</div>
                   <div className="text-[10px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
@@ -1230,9 +1352,9 @@ export default function RaceWeekend(){
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race Feed</div>
                 <div className="text-[10px] text-slate-600">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} running · {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length} DNF</div>
               </div>
-              <div className="mt-2 max-h-[176px] overflow-y-auto pr-1 grid gap-1 text-xs">
+              <div className="mt-1.5 max-h-[164px] overflow-y-auto pr-1 grid gap-1 text-xs">
                 {(liveRace.events||[]).slice(-40).reverse().map((event,index)=>(
-                  <div className={"flex min-w-0 items-center gap-2 rounded border px-2 py-1 "+(
+                  <button type="button" onClick={()=>setSelectedRaceEvent(event)} className={"flex w-full min-w-0 items-start gap-2 rounded border px-2 py-1 text-left transition hover:bg-white/[0.08] "+(
                     String(event?.control_type||"")==="RED_FLAG"||String(event?.type||"")==="incident"||/dnf|retir|collision|crash/i.test(String(event?.message||""))
                       ?"border-red-900/50 bg-red-950/45 text-red-100"
                       :String(event?.control_type||"").includes("YELLOW")
@@ -1243,7 +1365,9 @@ export default function RaceWeekend(){
                             ?"border-sky-500/20 bg-sky-500/[0.07]"
                             :String(event?.type||"")==="driver_feedback"
                               ?"border-cyan-400/25 bg-cyan-400/[0.08]"
-                              :"border-white/5 bg-white/[0.025]"
+                              :String(event?.type||"")==="position_change"
+                                ?"border-violet-400/25 bg-violet-400/[0.08]"
+                                :"border-white/5 bg-white/[0.025]"
                   )} key={event?.event_key||index}>
                     <span className="shrink-0 font-mono text-slate-600">L{event.lap}{Number(event?.sector)>0?<>·S{event.sector}</>:null}</span>
                     {(()=>{
@@ -1251,8 +1375,8 @@ export default function RaceWeekend(){
                         ||(event?.command?.tyre_id?tyreName(gs?.tyres||gs?.dbTyres||[],event.command.tyre_id):null);
                       return eventCompound?<TyreCompoundIcon compound={eventCompound} size={20}/>:null;
                     })()}
-                    <span className="truncate text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
-                  </div>
+                    <span className="min-w-0 whitespace-normal leading-snug text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
+                  </button>
                 ))}
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
               </div>
@@ -1485,14 +1609,14 @@ export default function RaceWeekend(){
                   const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
                   const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
-                  const lastFeedback=(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null;
-                  return <div className={"grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_150px_minmax(0,1fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
+                  return <div className={"grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_minmax(225px,1fr)_minmax(0,1.25fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
-                      <div title={lastFeedback?.message||"No driver feedback yet"} className="mt-0.5 truncate text-[10px] text-cyan-300/90"><span className="text-slate-500">Last feedback:</span> {lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
+                      <div className="mt-1 text-[10px] leading-snug text-cyan-300/90"><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
                     </div>
 
                     <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
@@ -1945,6 +2069,27 @@ export default function RaceWeekend(){
         })()}
       </div>
     )}
+
+    {selectedRaceEvent?<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedRaceEvent(null)}>
+      <div className="w-full max-w-lg rounded-xl border border-white/15 bg-[#11161f] p-4 shadow-2xl" onClick={(event)=>event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Race event · L{selectedRaceEvent.lap??"—"}{Number(selectedRaceEvent?.sector)>0?" · S"+selectedRaceEvent.sector:""}</div>
+            <div className="mt-1 text-base font-semibold">{String(selectedRaceEvent?.type||"Event").replaceAll("_"," ")}</div>
+          </div>
+          <button type="button" onClick={()=>setSelectedRaceEvent(null)} className="rounded-md border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button>
+        </div>
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-sm leading-relaxed text-slate-200">
+          {liveEventText(selectedRaceEvent,drivers,gs?.tyres||gs?.dbTyres||[])}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          {selectedRaceEvent?.driver_id?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Driver</div><div className="mt-1 font-semibold">{driverName(drivers,selectedRaceEvent.driver_id)}</div></div>:null}
+          {selectedRaceEvent?.control_type?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Race control</div><div className="mt-1 font-semibold">{String(selectedRaceEvent.control_type).replaceAll("_"," ")}</div></div>:null}
+          {Number.isFinite(Number(selectedRaceEvent?.position_from))&&Number.isFinite(Number(selectedRaceEvent?.position_to))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Position</div><div className="mt-1 font-semibold">P{selectedRaceEvent.position_from} → P{selectedRaceEvent.position_to}</div></div>:null}
+          {selectedRaceEvent?.weather_state?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Conditions</div><div className="mt-1 font-semibold">{weatherStateLabel(selectedRaceEvent.weather_state)}</div></div>:null}
+        </div>
+      </div>
+    </div>:null}
 
   </div>;
 }

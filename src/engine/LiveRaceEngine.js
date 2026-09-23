@@ -841,6 +841,37 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   if(currentControl.type==="RED_FLAG"&&!upcomingRed)currentControl={type:"GREEN",cause:null};
   const trackState=plan?.weather_timeline?.[Math.max(0,target-1)]||null;
   const events=[...(live.events||[])];
+
+  // Surface meaningful player position changes as race events. This stays
+  // deliberately team-focused to avoid flooding the Race Feed with every pass.
+  if(targetSector===3){
+    const previousLiveByDriver=new Map((live.classification||[]).map((row)=>[
+      String(row?.driver_id||""),Number(row?.position),
+    ]));
+    const playerTeamForEvents=String(working?.team?.team_id??working?.team?.id??"");
+    for(const row of classification){
+      const did=String(row?.driver_id||"");
+      if(!did||row?.retired||String(row?.team_id||"")!==playerTeamForEvents)continue;
+      const from=previousLiveByDriver.get(did);
+      const to=Number(row?.position);
+      if(!Number.isFinite(from)||!Number.isFinite(to)||from===to)continue;
+      const delta=from-to;
+      const driverName=driverDisplayName(working,did);
+      pushUniqueEvent(events,{
+        event_key:`position_change:${did}:${target}:${from}:${to}`,
+        lap:Number(target),
+        sector:3,
+        type:"position_change",
+        driver_id:did,
+        driver_name:driverName,
+        position_from:from,
+        position_to:to,
+        positions_changed:delta,
+        message:`${driverName} ${delta>0?"gained":"lost"} ${Math.abs(delta)} position${Math.abs(delta)===1?"":"s"}: P${from} → P${to}.`,
+      });
+    }
+  }
+
   if(previousWeather&&weather!==previousWeather){
     events.push({
       lap:target,sector:targetSector,type:"weather",
@@ -973,6 +1004,8 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   for(const row of simulation.race||[]){
     const did=idOf(row.driver);
     if(!did||teamForDriver(working,did)!==playerTeam)continue;
+    const visibleDriver=classification.find((item)=>String(item?.driver_id||"")===did);
+    if(visibleDriver?.retired)continue;
     const observedTyre=(row?.tyre_state_by_lap||[]).find((state)=>Number(state?.lap)===Number(target));
     if(!observedTyre||Number(observedTyre?.weather_penalty_s||0)<=0)continue;
     const driverName=driverDisplayName(working,did);
