@@ -74,6 +74,9 @@ jobs:
       - name: Test AI technical lifecycle
         run: npm run test:ai-technical
 
+      - name: Test AI technical multi-season soak
+        run: npm run test:ai-technical-soak
+
       - name: Test save safety and deterministic RNG
         run: npm run test:save-safety
 
