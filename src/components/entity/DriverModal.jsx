@@ -647,6 +647,9 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   const abilityLog = (gs?.driverAbilityLog?.[driverId]||[])
     .slice()
     .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")));
+  const lifecycleLog = (gs?.driverLifecycleLog?.[driverId]||[])
+    .slice()
+    .sort((a,b)=>String(a?.asOf||a?.dateISO||"").localeCompare(String(b?.asOf||b?.dateISO||"")));
 
   function setDriverDevelopmentFocus(groupKey) {
     if (!isOwnDriver || !driverId || !groupKey) return;
@@ -916,6 +919,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               potentialLog={potentialLog}
               abilityLog={abilityLog}
               lifecycle={profileSnapshot?.lifecycle}
+              lifecycleLog={lifecycleLog}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
@@ -1070,6 +1074,15 @@ function OverviewTab({
           </div>
         </div>
       )}
+      {availability.available && availability.status==="limited" && (
+        <div className="xl:col-span-12 rounded-xl border border-amber-400/25 bg-amber-500/10 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-300">Fit with minor injury</div>
+          <div className="mt-1 text-sm text-slate-200">
+            {availability.reason||"Minor injury"} · Driver remains selectable, but current performance is temporarily reduced
+            {availability.expectedReturnDate?` until approximately ${availability.expectedReturnDate}`:""}.
+          </div>
+        </div>
+      )}
 
       <div className="xl:col-span-7 rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
@@ -1100,11 +1113,12 @@ function OverviewTab({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-5">
               <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
               <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
               <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
               <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
+              <ProfileMetric label="Medical effect" value={Number.isFinite(Number(impact?.medicalEffect))?Number(impact.medicalEffect).toFixed(1):"—"} tone={Number(impact?.medicalEffect)<0?"text-amber-300":""}/>
             </div>
           </>
         ) : (
@@ -1175,6 +1189,7 @@ function DevelopmentTab({
   potentialLog,
   abilityLog,
   lifecycle,
+  lifecycleLog,
   onSetFocus,
 }) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
