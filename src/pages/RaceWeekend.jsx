@@ -589,6 +589,26 @@ export default function RaceWeekend(){
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
+  useEffect(()=>{
+    if(!liveRace)return;
+    const currentLap=Number(liveRace?.current_lap)||0;
+    const important=(liveRace?.events||[]).slice().reverse().find((event)=>{
+      const type=String(event?.type||"");
+      const message=String(event?.message||"");
+      const control=String(event?.control_type||"");
+      return type==="position_change"
+        ||type==="incident"
+        ||(type==="race_control"&&(event?.cause==="incident"||control==="RED_FLAG"))
+        ||/dnf|retir|collision|crash/i.test(message);
+    });
+    if(!important)return;
+    const eventLap=Number(important?.lap)||0;
+    if(currentLap&&eventLap<currentLap-1)return;
+    const key=String(important?.event_key||[important?.type,important?.lap,important?.sector,important?.driver_id,important?.message].join(":"));
+    if(!key||lastAutoPopupKey.current===key)return;
+    lastAutoPopupKey.current=key;
+    setSelectedRaceEvent(important);
+  },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector]);
 
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
@@ -693,25 +713,32 @@ export default function RaceWeekend(){
     </div>}
 
     <nav className="sticky top-14 z-40 -mx-2 md:-mx-3 px-2 md:px-3 border-y border-white/10 bg-[#080b11]/95 backdrop-blur">
-      <div className="flex gap-1 overflow-x-auto py-1">
-        {windowTabs.map((tab)=>(
-          <button
-            type="button"
-            key={tab.id}
-            disabled={!tab.enabled}
-            onClick={()=>tab.enabled&&setActiveWindow(tab.id)}
-            className={
-              "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold transition "+
-              (activeWindow===tab.id
-                ?"bg-slate-100 text-slate-950"
-                :tab.enabled
-                  ?"border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-                  :"border border-white/5 bg-white/[0.02] text-slate-700 cursor-not-allowed")
-            }
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2 py-1">
+        <div className="flex min-w-0 gap-1 overflow-x-auto">
+          {windowTabs.map((tab)=>(
+            <button
+              type="button"
+              key={tab.id}
+              disabled={!tab.enabled}
+              onClick={()=>tab.enabled&&setActiveWindow(tab.id)}
+              className={
+                "shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold transition "+
+                (activeWindow===tab.id
+                  ?"bg-slate-100 text-slate-950"
+                  :tab.enabled
+                    ?"border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                    :"border border-white/5 bg-white/[0.02] text-slate-700 cursor-not-allowed")
+              }
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {weekend.phase==="race"&&liveRace?.status==="running"?<div className="flex shrink-0 items-center gap-1">
+          <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
+          <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
+          <button disabled={busy} className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1))}>Run to Finish</button>
+        </div>:null}
       </div>
     </nav>
 
@@ -870,22 +897,22 @@ export default function RaceWeekend(){
           const overtake=indexDescriptor(inputs.overtaking_difficulty);
           const wear=indexDescriptor(inputs.tyre_wear);
           return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Crash Risk Index</div>
               <div className={"mt-1 text-xl font-bold "+crash.tone}>{Math.round(Number(inputs.crash_risk)||0)}/100</div>
               <div className="text-xs text-slate-400">{crash.level} incident-proneness. This is not a {Math.round(Number(inputs.crash_risk)||0)}% crash probability.</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Overtaking Difficulty</div>
               <div className={"mt-1 text-xl font-bold "+overtake.tone}>{Math.round(Number(inputs.overtaking_difficulty)||0)}/100</div>
               <div className="text-xs text-slate-400">{overtake.level} difficulty. Higher means passing is harder, not a percentage chance.</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Tyre Wear Index</div>
               <div className={"mt-1 text-xl font-bold "+wear.tone}>{Math.round(Number(inputs.tyre_wear)||0)}/100</div>
               <div className="text-xs text-slate-400">{wear.level} circuit demand on tyres; used by degradation and strategy models.</div>
             </div>
-            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+            <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-500">Lap Length</div>
               <div className="mt-1 text-xl font-bold text-sky-300">{Number(inputs.lap_length_km||0).toFixed(2)} km</div>
               <div className="text-xs text-slate-400">Physical circuit length used for race distance and session calculations.</div>
@@ -1257,7 +1284,7 @@ export default function RaceWeekend(){
 
         {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
           <div className="rounded-xl border border-white/10 bg-[#11161f] pb-44 text-slate-100 shadow-xl overflow-hidden xl:pb-24">
-            <div className="grid border-b border-white/10 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid border-b border-white/10 xl:grid-cols-[minmax(0,1fr)_540px]">
               <div className="px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -1275,15 +1302,10 @@ export default function RaceWeekend(){
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <RaceFlagBanner notice={raceFlagNotice(raceControlPlan,liveRace,drivers)}/>
                   <div className="flex flex-wrap justify-end gap-1.5">
-                    {liveRace.status==="running"&&<>
-                      <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
-                      <button disabled={busy} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
-                      <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1))}>Run to Finish</button>
-                    </>}
-                    {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
+                    {liveRace.status==="red_flag"&&<button disabled={busy} className="rounded-lg bg-red-600 text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50" onClick={()=>perform(resumeLiveRace)}>
                       {busy?"Restarting…":"Restart Race"}
                     </button>}
-                    {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-400 text-slate-950 px-3 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
+                    {liveRace.status==="finished"&&<button disabled={busy} className="rounded-lg bg-emerald-400 text-slate-950 px-3 py-1.5 text-xs font-semibold disabled:opacity-50" onClick={()=>perform(runRace)}>Confirm Results</button>}
                   </div>
                 </div>
               </div>
@@ -1292,32 +1314,32 @@ export default function RaceWeekend(){
                 <div className="h-full bg-slate-200 transition-all" style={{width:String(Math.max(0,Math.min(100,(((Math.max(0,Number(liveRace.current_lap||0)-1))+(Number(liveRace.current_sector||0)/3))/Math.max(1,Number(liveRace.total_laps||1)))*100)))+"%"}}/>
               </div>
 
-              <div className="mt-2 grid grid-cols-3 gap-1 text-xs 2xl:grid-cols-7">
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+              <div className="mt-1.5 grid grid-cols-3 gap-1 text-xs 2xl:grid-cols-7">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Flag className="h-3.5 w-3.5"/>Race Control</div>
                   <div className={"mt-1 font-bold "+(String(liveRace.current_control||"GREEN")==="GREEN"?"text-emerald-300":"text-amber-300")}>{String(liveRace.current_control||"GREEN")==="LOCAL_YELLOW"?"YELLOW FLAG":String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Rain</div>
                   <div className="mt-1 font-bold text-sky-300">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Wetness</div>
                   <div className="mt-1 font-bold text-cyan-300">{Math.round(Number(trackState?.track_wetness||0)*100)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Gauge className="h-3.5 w-3.5"/>Grip</div>
                   <div className="mt-1 font-bold">{Number(trackState?.grip_index??100).toFixed(0)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Activity className="h-3.5 w-3.5"/>Visibility</div>
                   <div className="mt-1 font-bold">{Number(trackState?.visibility_index??100).toFixed(0)}%</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Thermometer className="h-3.5 w-3.5"/>Track Temp</div>
                   <div className="mt-1 font-bold">{Number(activeWeather?.track_temp_c??raceWeatherRow?.track_temp_c??0).toFixed(0)}°C</div>
                 </div>
-                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1.5">
+                <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Timer className="h-3.5 w-3.5"/>Fastest Lap</div>
                   <div className="mt-1 font-bold font-mono text-fuchsia-300">{formatLapTime(timingSummary?.fastest_lap_ms)}</div>
                   <div className="text-[10px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
@@ -1330,9 +1352,9 @@ export default function RaceWeekend(){
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race Feed</div>
                 <div className="text-[10px] text-slate-600">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} running · {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length} DNF</div>
               </div>
-              <div className="mt-2 max-h-[176px] overflow-y-auto pr-1 grid gap-1 text-xs">
+              <div className="mt-1.5 max-h-[164px] overflow-y-auto pr-1 grid gap-1 text-xs">
                 {(liveRace.events||[]).slice(-40).reverse().map((event,index)=>(
-                  <div className={"flex min-w-0 items-center gap-2 rounded border px-2 py-1 "+(
+                  <button type="button" onClick={()=>setSelectedRaceEvent(event)} className={"flex w-full min-w-0 items-start gap-2 rounded border px-2 py-1 text-left transition hover:bg-white/[0.08] "+(
                     String(event?.control_type||"")==="RED_FLAG"||String(event?.type||"")==="incident"||/dnf|retir|collision|crash/i.test(String(event?.message||""))
                       ?"border-red-900/50 bg-red-950/45 text-red-100"
                       :String(event?.control_type||"").includes("YELLOW")
@@ -1343,7 +1365,9 @@ export default function RaceWeekend(){
                             ?"border-sky-500/20 bg-sky-500/[0.07]"
                             :String(event?.type||"")==="driver_feedback"
                               ?"border-cyan-400/25 bg-cyan-400/[0.08]"
-                              :"border-white/5 bg-white/[0.025]"
+                              :String(event?.type||"")==="position_change"
+                                ?"border-violet-400/25 bg-violet-400/[0.08]"
+                                :"border-white/5 bg-white/[0.025]"
                   )} key={event?.event_key||index}>
                     <span className="shrink-0 font-mono text-slate-600">L{event.lap}{Number(event?.sector)>0?<>·S{event.sector}</>:null}</span>
                     {(()=>{
@@ -1351,8 +1375,8 @@ export default function RaceWeekend(){
                         ||(event?.command?.tyre_id?tyreName(gs?.tyres||gs?.dbTyres||[],event.command.tyre_id):null);
                       return eventCompound?<TyreCompoundIcon compound={eventCompound} size={20}/>:null;
                     })()}
-                    <span className="truncate text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
-                  </div>
+                    <span className="min-w-0 whitespace-normal leading-snug text-slate-300">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</span>
+                  </button>
                 ))}
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
               </div>
@@ -1585,14 +1609,14 @@ export default function RaceWeekend(){
                   const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
                   const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
-                  const lastFeedback=(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null;
-                  return <div className={"grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_150px_minmax(0,1fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
+                  return <div className={"grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_minmax(225px,1fr)_minmax(0,1.25fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
-                      <div title={lastFeedback?.message||"No driver feedback yet"} className="mt-0.5 truncate text-[10px] text-cyan-300/90"><span className="text-slate-500">Last feedback:</span> {lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
+                      <div className="mt-1 text-[10px] leading-snug text-cyan-300/90"><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
                     </div>
 
                     <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
@@ -2045,6 +2069,27 @@ export default function RaceWeekend(){
         })()}
       </div>
     )}
+
+    {selectedRaceEvent?<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedRaceEvent(null)}>
+      <div className="w-full max-w-lg rounded-xl border border-white/15 bg-[#11161f] p-4 shadow-2xl" onClick={(event)=>event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Race event · L{selectedRaceEvent.lap??"—"}{Number(selectedRaceEvent?.sector)>0?" · S"+selectedRaceEvent.sector:""}</div>
+            <div className="mt-1 text-base font-semibold">{String(selectedRaceEvent?.type||"Event").replaceAll("_"," ")}</div>
+          </div>
+          <button type="button" onClick={()=>setSelectedRaceEvent(null)} className="rounded-md border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button>
+        </div>
+        <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-sm leading-relaxed text-slate-200">
+          {liveEventText(selectedRaceEvent,drivers,gs?.tyres||gs?.dbTyres||[])}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          {selectedRaceEvent?.driver_id?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Driver</div><div className="mt-1 font-semibold">{driverName(drivers,selectedRaceEvent.driver_id)}</div></div>:null}
+          {selectedRaceEvent?.control_type?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Race control</div><div className="mt-1 font-semibold">{String(selectedRaceEvent.control_type).replaceAll("_"," ")}</div></div>:null}
+          {Number.isFinite(Number(selectedRaceEvent?.position_from))&&Number.isFinite(Number(selectedRaceEvent?.position_to))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Position</div><div className="mt-1 font-semibold">P{selectedRaceEvent.position_from} → P{selectedRaceEvent.position_to}</div></div>:null}
+          {selectedRaceEvent?.weather_state?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Conditions</div><div className="mt-1 font-semibold">{weatherStateLabel(selectedRaceEvent.weather_state)}</div></div>:null}
+        </div>
+      </div>
+    </div>:null}
 
   </div>;
 }
