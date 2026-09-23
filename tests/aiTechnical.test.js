@@ -12,6 +12,7 @@ import { availableCarComponentSlots } from "../src/domain/carComponents.js";
 import { teamCarCharacteristics } from "../src/domain/carCharacteristics.js";
 import { teamCarPerformance } from "../src/domain/carPerformance.js";
 import { carReliabilityProfile } from "../src/domain/carReliability.js";
+import { combinedQualifyingPerformance } from "../src/domain/driverPerformance.js";
 import { migrateGameState, prepareGameStateForSave } from "../src/core/saveSafety.js";
 
 function baseState(){
@@ -172,11 +173,15 @@ test("AI fitted upgrades feed the shared Characteristics, Performance and Reliab
   const seeded=withTeamBudget(baseState(),"RENAULT",8_000_000);
   const beforeCharacteristics=teamCarCharacteristics(seeded,"RENAULT","REN_1");
   const beforePerformance=teamCarPerformance(seeded,"RENAULT","REN_1");
+  const raceDriver={driver_id:"REN_1"};
+  const raceRating={pace:78,qualifying:78,consistency:75,pressure_handling:75,adaptability:75,mentality:75,current_ability:78};
+  const beforeQualifying=combinedQualifyingPerformance({gs:seeded,driver:raceDriver,rating:raceRating,teamId:"RENAULT"});
 
   const upgraded=completeOneAICycle(seeded,"RENAULT");
   const afterCharacteristics=teamCarCharacteristics(upgraded,"RENAULT","REN_1");
   const afterPerformance=teamCarPerformance(upgraded,"RENAULT","REN_1");
   const reliability=carReliabilityProfile(upgraded,"RENAULT","REN_1");
+  const afterQualifying=combinedQualifyingPerformance({gs:upgraded,driver:raceDriver,rating:raceRating,teamId:"RENAULT"});
 
   assert.ok(
     Object.values(afterCharacteristics.upgrade_delta).some((value)=>Math.abs(Number(value||0))>0),
@@ -189,6 +194,7 @@ test("AI fitted upgrades feed the shared Characteristics, Performance and Reliab
   );
   assert.ok(reliability.components.some((row)=>row.design_id),"AI reliability should see the installed physical design");
   assert.notDeepEqual(afterCharacteristics.values,beforeCharacteristics.values);
+  assert.notEqual(afterQualifying,beforeQualifying,"Race Weekend qualifying path should consume the AI car upgrade");
 });
 
 test("AI technical world ticks deterministically across all AI teams",()=>{
