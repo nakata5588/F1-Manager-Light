@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
-import { flagFromCountry } from "./EntityVisuals.jsx";
+import { countryNameFor, flagFromCountry } from "./EntityVisuals.jsx";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -22,8 +22,8 @@ const fmtMoney = (n) =>
 function Info({ label, value }) {
   return (
     <div className="min-w-[12rem]">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-sm font-medium">{value ?? "—"}</div>
+      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-0.5 text-sm font-medium text-slate-100">{value ?? "—"}</div>
     </div>
   );
 }
@@ -191,21 +191,22 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
       <div className="p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Team not found</h3>
-          {!pageMode && <button onClick={onClose} className="p-2 rounded hover:bg-gray-100"><X size={18}/></button>}
+          {!pageMode && <button onClick={onClose} className="p-2 rounded border border-white/10 text-slate-300 hover:bg-white/5"><X size={18}/></button>}
         </div>
-        <p className="text-sm text-gray-500">ID: {entity.id}</p>
+        <p className="text-sm text-slate-500">ID: {entity.id}</p>
       </div>
     );
   }
 
   /* ---------- Header meta ---------- */
-  const name         = team?.team_name || team?.name || brand?.official_name || "Team";
-  const country      = team?.country || brand?.country || "";
+  const name         = team?.team_name || team?.name || brand?.team_official_name || brand?.official_name || brand?.team_name || "Team";
   const countryCode  = team?.country_code || brand?.country_code || "";
+  const country      = countryNameFor(team?.country_name || team?.country || brand?.country_name || brand?.country || "", countryCode);
   const flag         = flagFromCountry(country, countryCode);
   const founded      = team?.founded_year || brand?.founded_year || "—";
-  const colorHex     = brand?.color_primary || team?.color_primary || null;
+  const colorHex     = brand?.color_primary || brand?.primary_color || team?.color_primary || team?.primary_color || null;
   const teamBase     = team?.team_base || team?.base || brand?.base || "";
+  const showTeamBase = teamBase && String(teamBase).trim().toLowerCase() !== String(country).trim().toLowerCase();
   const budget = (() => {
     if (team?.budget != null) return team.budget;
     const sb = brand?.starting_budget ?? brand?.startingBudget;
@@ -216,7 +217,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   const DriverCard = ({ d }) => (
     <button
       type="button"
-      className="flex items-center gap-3 rounded-xl border bg-white hover:shadow px-3 py-2 text-left"
+      className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#171a23] px-3 py-2 text-left text-slate-100 transition hover:border-white/20 hover:bg-white/[0.06]"
       data-entity="driver"
       data-id={d.driver_id ?? d.id}
     >
@@ -228,22 +229,22 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
           onError={(e) => (e.currentTarget.style.display = "none")}
         />
       ) : (
-        <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center text-sm font-semibold">
+        <div className="h-12 w-12 rounded bg-white/10 flex items-center justify-center text-sm font-semibold text-slate-200">
           {(d.display_name || d.name || "?").slice(0, 2).toUpperCase()}
         </div>
       )}
       <div className="min-w-0">
-        {d.prefered_number != null && <div className="text-xs text-gray-500 leading-tight">#{d.prefered_number}</div>}
+        {d.prefered_number != null && <div className="text-xs text-slate-500 leading-tight">#{d.prefered_number}</div>}
         <div className="text-sm font-semibold leading-tight truncate">{d.display_name || d.name}</div>
-        <div className="text-xs text-gray-500 mt-1">{d.__role || "Driver"}</div>
+        <div className="text-xs text-slate-500 mt-1">{d.__role || "Driver"}</div>
       </div>
     </button>
   );
 
   return (
-    <div className={`flex flex-col ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border bg-white text-slate-950 shadow-xl" : "h-[92vh]"}`}>
+    <div className={`flex flex-col ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border border-white/10 bg-[#0c0f15] text-slate-100 shadow-xl" : "h-[92vh] bg-[#0c0f15] text-slate-100"}`}>
       {/* HEADER */}
-      <div className="px-5 py-4 border-b flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {/* logo com fallback chain */}
           {logoCandidates.length > 0 && (
@@ -266,14 +267,14 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
           )}
           <div>
             <div className="text-2xl font-extrabold leading-tight">{name}</div>
-            <div className="flex items-center gap-3 text-sm text-gray-600">
+            <div className="flex items-center gap-3 text-sm text-slate-400">
               <span className="inline-flex items-center gap-1">
                 <span className="text-base">{flag}</span>
                 {country || "—"}
               </span>
               <span>•</span>
               <span>Founded {founded}</span>
-              {teamBase && (
+              {showTeamBase && (
                 <>
                   <span>•</span>
                   <span>{teamBase}</span>
@@ -286,7 +287,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                     color
                     <span className="inline-flex items-center gap-1">
                       <span className="inline-block h-3 w-3 rounded border" style={{ background: colorHex }} />
-                      <code className="text-xs text-gray-700">
+                      <code className="text-xs text-slate-400">
                         {(String(colorHex).startsWith("#") ? colorHex : `#${colorHex}`).toUpperCase()}
                       </code>
                     </span>
@@ -297,20 +298,20 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
           </div>
         </div>
         {!pageMode && (
-          <button onClick={onClose} className="p-2 rounded hover:bg-gray-100" aria-label="Close">
+          <button onClick={onClose} className="p-2 rounded hover:bg-white/5" aria-label="Close">
             <X size={18} />
           </button>
         )}
       </div>
 
       {/* TABS */}
-      <div className="flex border-b bg-gray-50">
+      <div className="flex border-b border-white/10 bg-[#11141c]">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium ${
-              activeTab === t.key ? "bg-white border-x border-t rounded-t -mb-px" : "text-gray-600 hover:text-black"
+              activeTab === t.key ? "border-b-2 border-sky-300 bg-white/5 text-white" : "border-b-2 border-transparent text-slate-500 hover:text-slate-200"
             }`}
           >
             {t.label}
@@ -343,7 +344,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                     {drivers.map((d) => <DriverCard key={d.driver_id ?? d.id} d={d} />)}
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-600">No drivers linked.</div>
+                  <div className="text-sm text-slate-400">No drivers linked.</div>
                 )}
               </div>
             </div>
@@ -352,12 +353,12 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
             <div>
               <div className="text-base font-semibold mb-2">Championships</div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl border p-4 bg-white">
-                  <div className="text-sm text-gray-500">Drivers’ Titles</div>
+                <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+                  <div className="text-sm text-slate-500">Drivers’ Titles</div>
                   <div className="text-3xl font-extrabold">{champs.driversTitles}</div>
                 </div>
-                <div className="rounded-xl border p-4 bg-white">
-                  <div className="text-sm text-gray-500">Constructors’ Titles</div>
+                <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+                  <div className="text-sm text-slate-500">Constructors’ Titles</div>
                   <div className="text-3xl font-extrabold">{champs.constructors}</div>
                 </div>
               </div>
@@ -373,7 +374,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
               (year == null || sc.year == null || Number(sc.year) === Number(year))
             ).length ? (
               <table className="min-w-full text-sm">
-                <thead className="text-gray-500 text-xs">
+                <thead className="text-slate-500 text-xs">
                   <tr>
                     <th className="text-left pr-3 py-1">Name</th>
                     <th className="text-left pr-3 py-1">Role</th>
@@ -382,7 +383,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                     <th className="text-left pr-0 py-1">Until</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-white/10">
                   {staffContractsAll
                     .filter(sc =>
                       String(sc.team_id ?? sc.team ?? sc.id) === idStr &&
@@ -396,7 +397,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                               type="button"
                               data-entity="staff"
                               data-id={sc.staff_id ?? sc.person_id ?? sc.id}
-                              className="font-medium hover:text-sky-600 hover:underline"
+                              className="font-medium hover:text-sky-300 hover:underline"
                             >
                               {sc.staff_name || sc.name || sc.person_name || "—"}
                             </button>
@@ -413,7 +414,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-gray-600">No staff contracts for this year.</p>
+              <p className="text-sm text-slate-400">No staff contracts for this year.</p>
             )}
           </div>
         )}
@@ -421,9 +422,9 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
         {/* CAR */}
         {activeTab === "car" && (
           <div className="grid gap-3">
-            <div className="text-sm"><span className="text-gray-500">Power Unit:</span> <span className="font-medium">{engineSupplierName}</span></div>
-            <div className="text-sm"><span className="text-gray-500">Engine Power:</span> <span className="font-medium">{enginePowerValue}</span></div>
-            <div className="text-sm"><span className="text-gray-500">Primary Color:</span>{" "}
+            <div className="text-sm"><span className="text-slate-500">Power Unit:</span> <span className="font-medium">{engineSupplierName}</span></div>
+            <div className="text-sm"><span className="text-slate-500">Engine Power:</span> <span className="font-medium">{enginePowerValue}</span></div>
+            <div className="text-sm"><span className="text-slate-500">Primary Color:</span>{" "}
               <span className="inline-block h-3 w-3 rounded border align-middle mr-1" style={{ background: colorHex || "#999" }} />
               <code className="text-xs">{colorHex || "—"}</code>
             </div>
@@ -433,9 +434,9 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
         {/* HQ */}
         {activeTab === "hq" && (
           <div className="grid gap-3">
-            <div className="text-sm"><span className="text-gray-500">Base:</span> <span className="font-medium">{teamBase || "—"}</span></div>
-            <div className="text-sm"><span className="text-gray-500">Facilities Avg:</span> <span className="font-medium">{facilitiesLevelAvg ?? "—"}</span></div>
-            <div className="text-sm"><span className="text-gray-500">Academy Level:</span> <span className="font-medium">{academyLevel ?? "—"}</span></div>
+            <div className="text-sm"><span className="text-slate-500">Base:</span> <span className="font-medium">{teamBase || "—"}</span></div>
+            <div className="text-sm"><span className="text-slate-500">Facilities Avg:</span> <span className="font-medium">{facilitiesLevelAvg ?? "—"}</span></div>
+            <div className="text-sm"><span className="text-slate-500">Academy Level:</span> <span className="font-medium">{academyLevel ?? "—"}</span></div>
           </div>
         )}
 
@@ -444,7 +445,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
           <div className="overflow-x-auto">
             {historyRows.length ? (
               <table className="min-w-full text-sm">
-                <thead className="text-gray-500 text-xs">
+                <thead className="text-slate-500 text-xs">
                   <tr>
                     <th className="text-left pr-3 py-1">Year</th>
                     <th className="text-left pr-3 py-1">Driver</th>
@@ -458,7 +459,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                     <th className="text-right pr-0 py-1">Pos</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-white/10">
                   {historyRows.map((r, i) => (
                     <tr key={`${r.year}-${i}`}>
                       <td className="pr-3 py-1">{r.year ?? "—"}</td>
@@ -478,7 +479,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-gray-600">No history available.</p>
+              <p className="text-sm text-slate-400">No history available.</p>
             )}
           </div>
         )}
