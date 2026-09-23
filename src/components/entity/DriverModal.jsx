@@ -1627,7 +1627,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
               const isTransfer = String(unbox(r.champ_pos) ?? "").toLowerCase() === "transfer";
               const showChampionship=r.__showChampionshipPosition!==false;
               const isLive=Boolean(r.__live);
-              const isChampion = showChampionship && isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
+              const isChampion = !isLive && showChampionship && isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
               const historicalTeamId = resolveHistoricalTeamId(r,teams);
               const teamName = displayValue(r.team_name ?? r.team_id);
               return (
