@@ -233,9 +233,9 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     () => mergeHistoricalCareerSources(
       toArraySafe(gs?.driverCareer),
       toArraySafe(gs?.dbDriverCareer),
-      teamsList
+      [...toArraySafe(gs?.dbTeams), ...toArraySafe(gs?.teams)]
     ),
-    [gs?.driverCareer, gs?.dbDriverCareer, teamsList]
+    [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]
   );
   const generatedHistoryRaw = useMemo(
     () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
