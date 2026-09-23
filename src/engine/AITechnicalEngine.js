@@ -682,6 +682,7 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
   const today=str(next?.currentDateISO).slice(0,10);
   if(!today)return next;
 
+  state=processAITechnicalMaintenance(next,teamId,state);
   const completed=completeDesigns(next,teamId,state,today);
   state=completed.state;
   state=completeManufacturing(next,teamId,state,today);
