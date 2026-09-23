@@ -607,11 +607,20 @@ export function aiTechnicalCarForDriver(gs,teamId,driverId=null){
   const did=str(driverId);
   const liveEntry=(gs?.raceEntryState?.entries||[]).find((entry)=>
     str(entry?.team_id)===str(teamId) &&
-    str(entry?.driver_id)===did &&
-    Number(entry?.car_slot)>=1 &&
-    Number(entry?.car_slot)<=2
+    str(entry?.driver_id)===did
   );
-  if(liveEntry)return cars[Number(liveEntry.car_slot)-1]||null;
+  if(liveEntry){
+    const explicitId=str(liveEntry?.car_id);
+    if(explicitId){
+      const allCars=aiTechnicalRaceCars(gs,teamId)
+        .concat((aiTechnicalTeamState(gs,teamId)?.garage?.cars||[]).filter((car)=>car?.kind==="reserve"));
+      const explicit=allCars.find((car)=>str(car?.id)===explicitId);
+      if(explicit)return explicit;
+    }
+    if(Number(liveEntry?.car_slot)>=1&&Number(liveEntry?.car_slot)<=2){
+      return cars[Number(liveEntry.car_slot)-1]||null;
+    }
+  }
 
   const raceContracts=activeDriverContracts(gs,{teamId,raceOnly:true});
   const index=raceContracts.findIndex((contract)=>driverIdOf(contract)===did);
