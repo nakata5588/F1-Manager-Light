@@ -739,19 +739,152 @@ export function processAITechnicalMaintenance(gs,teamId,stateInput=null){
   return persistScopedState(state,scoped,{budget,financeLog});
 }
 
-export function planAITechnicalProject(gs,teamId){
+function estimatedManufacturingCommitment(gs,teamId,state,need,quote){
+  const scoped=normalizePhysicalPartState(scopedState(gs,teamId,state));
+  const draft={
+    id:`planning_${safeId(teamId)}_${safeId(need?.slot)}`,
+    name:"Planning estimate",
+    slot:need?.slot,
+    perf:num(quote?.perf,0),
+  };
+  const unit=partManufactureQuote(scoped,draft)||{};
+  return {
+    qty:2,
+    unit_cost:num(unit?.cost,0),
+    cost:num(unit?.cost,0)*2,
+    days:Math.max(1,num(unit?.days,2)),
+  };
+}
+
+function planningDecisionRecord(today,action,reason,assessment){
+  return {
+    date:today,
+    action,
+    reason,
+    slot:assessment?.need?.slot||null,
+    gap:Number(assessment?.need?.gap||0),
+    threshold:Number(assessment?.gap_threshold||0),
+    budget:Number(assessment?.budget||0),
+    reserve_floor:Number(assessment?.reserve_floor||0),
+    total_commitment:Number(assessment?.total_commitment||0),
+    season_projects:Number(assessment?.season_projects||0),
+    season_limit:Number(assessment?.season_limit||0),
+  };
+}
+
+export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
+  const normalized=normalizeAITechnicalWorld(gs);
+  const state=aiTechnicalTeamState(normalized,teamId);
+  const today=str(normalized?.currentDateISO).slice(0,10);
+  if(!state||!today){
+    return {action:"hold",reason:"missing_state",team_id:str(teamId)};
+  }
+
+  const planning=state?.planning||{};
+  const need=chooseNeed(normalized,teamId,state);
+  const quote=need?projectQuote(normalized,teamId,state,need):null;
+  const manufacturing=need&&quote
+    ?estimatedManufacturingCommitment(normalized,teamId,state,need,quote)
+    :{qty:2,unit_cost:0,cost:0,days:0};
+  const budget=num(state?.budget,0);
+  const reserveFloor=planningReserveFloor(normalized,teamId,state);
+  const totalCommitment=num(quote?.cost,0)+num(manufacturing?.cost,0);
+  const projects=seasonProjectsStarted(normalized,state);
+  const limit=seasonProjectLimit(normalized,teamId);
+  const reviewInterval=planningReviewIntervalDays(normalized,teamId);
+  const nextReview=str(planning?.next_review_date).slice(0,10)||today;
+  const gapThreshold=planningGapThreshold(normalized,teamId);
+  const standing=teamStandingContext(normalized,teamId);
+  const end=seasonEndISO(normalized);
+  const daysToEnd=daysBetweenISO(today,end);
+  const remaining=racesRemaining(normalized,today);
+  const deliveryDays=num(quote?.days,0)+num(manufacturing?.days,0)+3;
+
+  const base={
+    team_id:str(teamId),
+    today,
+    need,
+    quote,
+    manufacturing,
+    budget,
+    reserve_floor:reserveFloor,
+    total_commitment:totalCommitment,
+    budget_after_commitment:budget-totalCommitment,
+    season_projects:projects,
+    season_limit:limit,
+    review_interval_days:reviewInterval,
+    next_review_date:nextReview,
+    gap_threshold:gapThreshold,
+    championship:standing,
+    season_end:end,
+    days_to_season_end:daysToEnd,
+    races_remaining:remaining,
+    delivery_days:deliveryDays,
+  };
+
+  if(activeProjects(state).length||activeManufacturing(state).length){
+    return {...base,action:"hold",reason:"technical_capacity_busy"};
+  }
+  if(!force&&today<nextReview){
+    return {...base,action:"hold",reason:"review_not_due"};
+  }
+  if(!need){
+    return {...base,action:"hold",reason:"no_legal_component"};
+  }
+  if(!force&&projects>=limit){
+    return {...base,action:"hold",reason:"season_capacity_reached"};
+  }
+  if(!force&&num(need?.gap,0)<gapThreshold){
+    return {...base,action:"hold",reason:"no_meaningful_competitive_gap"};
+  }
+  if(budget<totalCommitment){
+    return {...base,action:"hold",reason:"insufficient_budget"};
+  }
+  if(!force&&budget-totalCommitment<reserveFloor){
+    return {...base,action:"hold",reason:"budget_reserve"};
+  }
+  if(!force&&remaining===0){
+    return {...base,action:"hold",reason:"season_complete"};
+  }
+  if(!force&&daysToEnd<deliveryDays){
+    return {...base,action:"hold",reason:"too_late_to_deliver"};
+  }
+
+  return {...base,action:"develop",reason:force?"forced_lifecycle_test":"competitive_technical_gap"};
+}
+
+function recordPlanningHold(state,assessment){
+  if(assessment?.reason==="review_not_due"||assessment?.reason==="technical_capacity_busy")return state;
+  const today=assessment.today;
+  const record=planningDecisionRecord(today,"hold",assessment.reason,assessment);
+  const history=[...(state?.planning?.decision_history||[]),record].slice(-40);
+  return {
+    ...state,
+    planning:{
+      ...(state?.planning||{}),
+      last_review_date:today,
+      next_review_date:addDaysISO(today,assessment.review_interval_days),
+      last_decision:record,
+      decision_history:history,
+    },
+  };
+}
+
+export function planAITechnicalProject(gs,teamId,{force=false}={}){
   let next=normalizeAITechnicalWorld(gs);
-  const state=aiTechnicalTeamState(next,teamId);
+  let state=aiTechnicalTeamState(next,teamId);
   if(!state)return next;
-  if(activeProjects(state).length||activeManufacturing(state).length)return next;
-  const today=str(next?.currentDateISO).slice(0,10);
-  if(!today)return next;
 
-  const need=chooseNeed(next,teamId,state);
-  if(!need)return next;
-  const quote=projectQuote(next,teamId,state,need);
-  if(num(state?.budget,0)<quote.cost)return next;
+  const assessment=aiTechnicalPlanningAssessment(next,teamId,{force});
+  if(assessment.action!=="develop"){
+    const held=recordPlanningHold(state,assessment);
+    return held===state?next:replaceTeamState(next,teamId,held);
+  }
 
+  const today=assessment.today;
+  const need=assessment.need;
+  const quote=assessment.quote;
+  const manufacturing=assessment.manufacturing;
   const cycle=num(state?.planning?.cycle,0)+1;
   const id=`ai_dev_${safeId(teamId)}_${yearOf(next)}_${String(cycle).padStart(3,"0")}`;
   const project={
@@ -768,13 +901,35 @@ export function planAITechnicalProject(gs,teamId){
     perf_delta:quote.perf,
     engineering_strength:quote.strength,
     need_baseline:need.baseline,
+    planning_trigger:assessment.reason,
+    competitive_gap:Number(need.gap||0),
+    competitive_benchmark:Number(need.benchmark||0),
+    projected_manufacturing_cost:Number(manufacturing.cost||0),
   };
+  const record=planningDecisionRecord(today,"develop",assessment.reason,assessment);
+  const history=[...(state?.planning?.decision_history||[]),record].slice(-40);
+  const nextReview=addDaysISO(
+    today,
+    Number(quote.days||0)+Number(manufacturing.days||0)+assessment.review_interval_days
+  );
   const nextState={
     ...state,
     budget:num(state.budget,0)-quote.cost,
     development:{...(state.development||{}),projects:[...(state.development?.projects||[]),project]},
-    planning:{...(state.planning||{}),last_date:today,last_need:need.slot,cycle},
-    finance_log:[...(state.finance_log||[]),{id:`ai_tx_${id}`,dateISO:today,type:"expense",category:"Development",amount:-quote.cost,desc:project.name}],
+    planning:{
+      ...(state.planning||{}),
+      last_date:today,
+      last_need:need.slot,
+      cycle,
+      last_review_date:today,
+      next_review_date:nextReview,
+      last_decision:record,
+      decision_history:history,
+    },
+    finance_log:[...(state.finance_log||[]),{
+      id:`ai_tx_${id}`,dateISO:today,type:"expense",category:"Development",
+      amount:-quote.cost,desc:project.name,
+    }],
   };
   return replaceTeamState(next,teamId,nextState);
 }
