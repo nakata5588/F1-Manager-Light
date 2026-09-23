@@ -848,10 +848,10 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     const previousLiveByDriver=new Map((live.classification||[]).map((row)=>[
       String(row?.driver_id||""),Number(row?.position),
     ]));
-    const playerTeam=String(working?.team?.team_id??working?.team?.id??"");
+    const playerTeamForEvents=String(working?.team?.team_id??working?.team?.id??"");
     for(const row of classification){
       const did=String(row?.driver_id||"");
-      if(!did||row?.retired||String(row?.team_id||"")!==playerTeam)continue;
+      if(!did||row?.retired||String(row?.team_id||"")!==playerTeamForEvents)continue;
       const from=previousLiveByDriver.get(did);
       const to=Number(row?.position);
       if(!Number.isFinite(from)||!Number.isFinite(to)||from===to)continue;
