@@ -8,7 +8,7 @@ import {
   isRaceDriverSlot,
 } from "./contractRoles.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
-import { applyMentalStateDeltaToCondition, mentalStateCondition } from "./driverMentalState.js";
+import { applyDriverMentalState } from "./driverMentalState.js";
 import {
   collectionRows,
   contractActiveForYear,
@@ -294,18 +294,21 @@ function roleChangeEffects(fromSlot,toSlot){
 function applyRoleEffects(gs,effectsByDriver){
   if(!effectsByDriver.size)return gs;
   const clamp100=(value)=>Math.max(0,Math.min(100,Number(value)||0));
-  const driverAttributes={...(gs?.driverAttributes||{})};
+  let next=gs;
 
   for(const [driverId,effects] of effectsByDriver.entries()){
-    const current=mentalStateCondition(driverAttributes[driverId]);
-    driverAttributes[driverId]=applyMentalStateDeltaToCondition(current,{
-      morale:Number(effects.morale||0),
-      confidence:Number(effects.confidence||0),
+    next=applyDriverMentalState(next,driverId,{
+      deltas:{
+        morale:Number(effects.morale||0),
+        confidence:Number(effects.confidence||0),
+      },
+      source:"role_change",
+      reason:"Driver role change",
     });
   }
 
-  const driverRatings=Array.isArray(gs?.driverRatings)
-    ?gs.driverRatings.map((row)=>{
+  const driverRatings=Array.isArray(next?.driverRatings)
+    ?next.driverRatings.map((row)=>{
       const did=driverIdOf(row);
       const effects=effectsByDriver.get(did);
       if(!effects?.reputation)return row;
@@ -313,9 +316,9 @@ function applyRoleEffects(gs,effectsByDriver){
       if(!Number.isFinite(current))return row;
       return {...row,reputation:clamp100(current+effects.reputation)};
     })
-    :gs?.driverRatings;
+    :next?.driverRatings;
 
-  return {...gs,driverAttributes,driverRatings};
+  return {...next,driverRatings};
 }
 
 export function driverLineupSlots(gs,teamId){
