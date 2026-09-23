@@ -1,6 +1,6 @@
 // src/engine/EventEngine.js
 import { ensureAbilityAnchor, intensiveTrainingStatus, recalculateCurrentAbility } from "../domain/driverRating.js";
-import { applyMentalStateDeltaToCondition, mentalStateCondition } from "../domain/driverMentalState.js";
+import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition, mentalStateCondition } from "../domain/driverMentalState.js";
 
 /** Pequenas utils */
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -126,6 +126,7 @@ function applyEffects(gs, ev, ctx) {
 
   // histórico por piloto (dicionário)
   const driverAttrLog = { ...(gs.driverAttrLog || {}) };
+  let driverMentalStateLog = { ...(gs.driverMentalStateLog || {}) };
 
   // seed para novos efeitos vindos de agenda_blocks (effects_json)
   const flatFromAgenda =
@@ -222,6 +223,14 @@ function applyEffects(gs, ev, ctx) {
         const after = Number(nextCondition[attr]);
         driverAttributes[driverKey] = nextCondition;
         if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];
+        driverMentalStateLog=appendDriverMentalStateLog(driverMentalStateLog,driverKey,{
+          before:curr,
+          after:nextCondition,
+          source:"event",
+          reason:ev.title || ev.type || "Driver event",
+          dateISO:ctx.today,
+          meta:{event_id:ev.id||null,event_type:ev.type||null},
+        });
 
         const entry = {
           dateISO: ctx.today,
@@ -258,6 +267,14 @@ function applyEffects(gs, ev, ctx) {
         const after = Number(nextCondition.fatigue);
         driverAttributes[driverKey] = nextCondition;
         if (idn && idn !== driverKey && driverAttributes[idn]) delete driverAttributes[idn];
+        driverMentalStateLog=appendDriverMentalStateLog(driverMentalStateLog,driverKey,{
+          before:curr,
+          after:nextCondition,
+          source:"event",
+          reason:ev.title || ev.type || "Driver event",
+          dateISO:ctx.today,
+          meta:{event_id:ev.id||null,event_type:ev.type||null},
+        });
 
         const entry = {
           dateISO: ctx.today,
@@ -354,6 +371,7 @@ function applyEffects(gs, ev, ctx) {
   if (ratingsRef) patched[ratingsRef] = ratings;
   patched.driverAttributes = driverAttributes;
   patched.driverAttrLog = driverAttrLog;
+  patched.driverMentalStateLog = driverMentalStateLog;
 
   return { patched, logLines, changes };
 }
