@@ -275,7 +275,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
     return teamDriversResolved.map(({ name, contract }) => {
       const driverId = String(pick(contract, ["driver_id", "person_id", "id"], ""));
       const stats = byId.get(driverId) || byName.get(name);
-      return { name, pos: stats?.pos ?? "—", pts: stats?.pts ?? 0 };
+      return { driverId, name, pos: stats?.pos ?? "—", pts: stats?.pts ?? 0 };
     });
   }, [teamDriversResolved, standings]);
 
@@ -406,35 +406,42 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
           {/* CLASSIFICAÇÕES */}
           <div className="min-w-[280px] text-sm pt-2">
             <div>
-              <span style={{ opacity: 0.9 }}>Team</span>{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/Team")}
+                className="font-medium hover:underline"
+                style={{ color: brandSecondary }}
+              >
+                Team
+              </button>{" "}
               <span className="font-semibold">{teamStanding.points} pts</span>{" "}
               <span style={{ opacity: 0.9 }}>
                 ({ordinalShort(teamStanding.position)})
               </span>
             </div>
             <div className="flex gap-4">
-              <div>
-                <span style={{ opacity: 0.9 }}>
-                  {teamDriversResolved?.[0]?.name || "—"}
-                </span>{" "}
-                <span className="font-semibold">
-                  {driversRows?.[0]?.pts ?? 0} pts
-                </span>{" "}
-                <span style={{ opacity: 0.9 }}>
-                  ({ordinalShort(driversRows?.[0]?.pos)})
-                </span>
-              </div>
-              <div>
-                <span style={{ opacity: 0.9 }}>
-                  {teamDriversResolved?.[1]?.name || "—"}
-                </span>{" "}
-                <span className="font-semibold">
-                  {driversRows?.[1]?.pts ?? 0} pts
-                </span>{" "}
-                <span style={{ opacity: 0.9 }}>
-                  ({ordinalShort(driversRows?.[1]?.pos)})
-                </span>
-              </div>
+              {[0,1].map((index) => {
+                const row=driversRows?.[index];
+                const name=teamDriversResolved?.[index]?.name||"—";
+                return (
+                  <div key={row?.driverId||name||index}>
+                    {row?.driverId ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/drivers/${row.driverId}`)}
+                        className="hover:underline"
+                        style={{ color: brandSecondary, opacity: 0.9 }}
+                      >
+                        {name}
+                      </button>
+                    ) : (
+                      <span style={{ opacity: 0.9 }}>{name}</span>
+                    )}{" "}
+                    <span className="font-semibold">{row?.pts ?? 0} pts</span>{" "}
+                    <span style={{ opacity: 0.9 }}>({ordinalShort(row?.pos)})</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
