@@ -1701,6 +1701,7 @@ function AttributesTab({
   compareMode,
   setCompareMode,
 }) {
+  const [showConditionInfo,setShowConditionInfo]=useState(false);
   if (!attrs) return <p className="text-slate-500 text-sm">No attributes.</p>;
 
   const groups=driverAttributeGroups();
@@ -1713,7 +1714,6 @@ function AttributesTab({
   const comparisonName=comparisonDriver?nameOf(comparisonDriver):"";
   const currentContract=currentSnapshot?.contract||null;
   const comparisonContract=comparisonSnapshot?.contract||null;
-  const [showConditionInfo,setShowConditionInfo]=useState(false);
   const conditionImpact=currentSnapshot?.conditionImpact||{};
   const mentalStateHistory=currentSnapshot?.mentalStateHistory||[];
   const reputation=currentSnapshot?.reputation;
