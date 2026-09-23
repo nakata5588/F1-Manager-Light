@@ -51,11 +51,17 @@ const ACCIDENT_SLOT_MULTIPLIER=Object.freeze({
 });
 
 const SEVERITY_DAMAGE=Object.freeze({
-  low:1.5,
-  medium:5.0,
-  high:11.0,
-  critical:19.0,
+  // Incident damage is deliberately much larger than ordinary race wear.
+  // A heavy/critical crash should leave several structural components needing
+  // workshop attention rather than looking like one extra normal race.
+  low:4.0,
+  medium:12.0,
+  high:28.0,
+  critical:52.0,
 });
+
+const GENERIC_DNF_DAMAGE=4.0;
+const MECHANICAL_FAILURE_DAMAGE=18.0;
 
 function mechanicalAffectedSlots(reason){
   const value=String(reason||"").toLowerCase();
@@ -90,16 +96,27 @@ function raceDistanceFactor(row){
 
 export function componentWearForRaceRow(row,slot){
   const base=Number(BASE_COMPONENT_WEAR[slot]??2.5)*raceDistanceFactor(row);
+  const reason=String(row?.retirement_reason??row?.incident_reason??row?.incident_kind??"");
+  const incidentKind=String(row?.incident_kind??row?.incident_type??"").toLowerCase();
+  const hasCrash=/accident|collision|crash|contact/i.test(reason)||/accident|collision|crash|contact/.test(incidentKind);
+
+  // A crash always damages the car, whether or not the driver eventually
+  // retires. Severity determines how much of the component's remaining life
+  // is lost; high/critical incidents can damage several components heavily.
+  if(hasCrash||row?.incident_severity){
+    const severity=severityOf(row);
+    return base+Number(SEVERITY_DAMAGE[severity]||SEVERITY_DAMAGE.low)*Number(ACCIDENT_SLOT_MULTIPLIER[slot]??0.4);
+  }
+
   if(!row?.retired)return base;
 
-  const reason=String(row?.retirement_reason||"");
-  if(/accident|collision/i.test(reason)){
-    const severity=severityOf(row);
-    return base+Number(SEVERITY_DAMAGE[severity]||1.5)*Number(ACCIDENT_SLOT_MULTIPLIER[slot]??0.4);
-  }
   const affected=mechanicalAffectedSlots(reason);
-  if(affected.has(slot))return base+8;
-  return base+0.8;
+  if(affected.has(slot))return base+MECHANICAL_FAILURE_DAMAGE;
+
+  // Every DNF has a physical consequence. Mechanical failures also put a
+  // smaller stress/damage load through the rest of the car.
+  if(affected.size)return base+GENERIC_DNF_DAMAGE;
+  return base+GENERIC_DNF_DAMAGE;
 }
 
 function applyWearDeltas(gs,garage,unitDeltas,baseDeltas,wearRows){
