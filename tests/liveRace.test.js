@@ -278,6 +278,75 @@ test("Pit Now schedules the selected tyre for the next lap",()=>{
   assert.equal(pitEvent.message.includes("gy_h"),false);
 });
 
+test("RW5.2B player tyre choice is not automatically reversed by weather logic",()=>{
+  let base=fixture("rw5.2b-player-tyre-authority");
+  const wetWeather={
+    ...base.raceWeekendState.race_strategy.weather_snapshot,
+    state:"LIGHT_RAIN",
+    segments:[{from_lap:1,to_lap:12,state:"LIGHT_RAIN"}],
+    wet_race:true,
+  };
+  base={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...base.raceWeekendState.race_strategy,
+        weather_snapshot:wetWeather,
+        selections:{
+          ...base.raceWeekendState.race_strategy.selections,
+          D1:{...base.raceWeekendState.race_strategy.selections.D1,start_tyre_id:"gy_i",pit_plan:"no_stop"},
+        },
+      },
+    },
+  };
+  let gs=createLiveRaceState(base,{gp});
+  gs=advanceTo(gs,2);
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
+  gs=advanceTo(gs,6);
+  const row=gs.raceWeekendState.live_race.projected_race.find((r)=>r.driver.driver_id==="D1");
+  const stops=row.pit_stops.filter((stop)=>Number(stop.lap)>=3);
+  assert.equal(stops[0]?.reason,"player_call");
+  assert.equal(stops[0]?.tyre_to,"gy_s");
+  assert.equal(stops.some((stop)=>stop.reason==="weather"),false);
+  const softState=row.tyre_state_by_lap.find((state)=>Number(state.lap)>=3&&state.tyre_id==="gy_s");
+  assert.ok(softState);
+  assert.ok(Number(softState.weather_penalty_s)>=3.5,"slicks on an intermediate/wet track must lose performance");
+});
+
+test("RW5.2B player driver complains when the chosen tyre mismatches track conditions",()=>{
+  let base=fixture("rw5.2b-driver-feedback");
+  base={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...base.raceWeekendState.race_strategy,
+        weather_snapshot:{
+          ...base.raceWeekendState.race_strategy.weather_snapshot,
+          state:"LIGHT_RAIN",
+          segments:[{from_lap:1,to_lap:12,state:"LIGHT_RAIN"}],
+          wet_race:true,
+        },
+        selections:{
+          ...base.raceWeekendState.race_strategy.selections,
+          D1:{...base.raceWeekendState.race_strategy.selections.D1,start_tyre_id:"gy_i",pit_plan:"no_stop"},
+        },
+      },
+    },
+  };
+  let gs=createLiveRaceState(base,{gp});
+  gs=advanceTo(gs,2);
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
+  gs=advanceTo(gs,4);
+  const feedback=gs.raceWeekendState.live_race.events.find((event)=>
+    event.type==="driver_feedback"&&event.driver_id==="D1"&&event.tyre_category==="dry"
+  );
+  assert.ok(feedback);
+  assert.match(feedback.message,/too slippery for slicks/i);
+  assert.ok(Number(feedback.weather_penalty_s)>=3.5);
+});
+
 test("RW5.2A pending player order can be cancelled before it takes effect",()=>{
   let gs=createLiveRaceState(fixture("cancel-order"),{gp});
   gs=advanceLiveRace(gs,{gp,laps:2});
