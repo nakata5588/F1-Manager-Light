@@ -921,6 +921,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               abilityLog={abilityLog}
               lifecycle={profileSnapshot?.lifecycle}
               lifecycleLog={lifecycleLog}
+              currentYear={gameYear}
               onSetFocus={setDriverDevelopmentFocus}
             />
           )}
@@ -1295,6 +1296,7 @@ function DevelopmentTab({
   abilityLog,
   lifecycle,
   lifecycleLog,
+  currentYear,
   onSetFocus,
 }) {
   const overall=presentDriverKnowledgeValue(knowledge,"current_ability",attrs?.current_ability,{kind:"ability"});
@@ -1438,7 +1440,7 @@ function DevelopmentTab({
         </div>
       </div>
 
-      {canSeeHistory&&lifecycle&&<StageTimeline lifecycle={lifecycle} history={lifecycleLog||[]} currentYear={Number(String(training?.monthKey||"").slice(0,4))||Number(String(focusState?.monthKey||"").slice(0,4))||null}/>}
+      {canSeeHistory&&lifecycle&&<StageTimeline lifecycle={lifecycle} history={lifecycleLog||[]} currentYear={currentYear}/>}
 
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
