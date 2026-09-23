@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
-import { teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
+import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import { Activity, Car, CircleDot, Droplets, Flag, Gauge, Thermometer, Timer, Wrench } from "lucide-react";
@@ -203,6 +203,27 @@ function programmeIntensity(programme){
   if(fatigue<=8)return {label:"Standard",tone:"text-slate-200"};
   return {label:"Heavy",tone:"text-amber-300"};
 }
+function signedValue(value,digits=2){
+  const n=Number(value)||0;
+  return (n>=0?"+":"")+n.toFixed(digits);
+}
+function forecastTimingLabel(forecast,totalLaps){
+  const timing=forecast?.timing;
+  const total=Math.max(1,Number(totalLaps)||1);
+  if(!timing)return "Timing uncertainty unavailable";
+  if(Number.isFinite(Number(timing.window_low_pct))&&Number.isFinite(Number(timing.window_high_pct))){
+    const low=Math.max(1,Math.round(Number(timing.window_low_pct)*total));
+    const high=Math.max(low,Math.round(Number(timing.window_high_pct)*total));
+    return timing.mode==="rain_easing"
+      ?"Rain may ease around L"+low+"–L"+high
+      :"Weather transition window L"+low+"–L"+high;
+  }
+  if(Number.isFinite(Number(timing.horizon_pct))){
+    const horizon=Math.max(1,Math.round(Number(timing.horizon_pct)*total));
+    return "Forecast horizon ~"+horizon+" laps";
+  }
+  return String(timing.mode||"forecast").replaceAll("_"," ");
+}
 function indexDescriptor(value,{inverse=false}={}){
   const n=Math.max(0,Math.min(100,Number(value)||0));
   const level=n<30?"Low":n<55?"Moderate":n<75?"High":"Very high";
@@ -359,7 +380,7 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
   const ordered=rows.slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
   const times=ordered.map((row)=>Number(row?.best_time_ms??row?.lap_time_ms)).filter((value)=>Number.isFinite(value)&&value>0);
   const best=times.length?Math.min(...times):null;
-  const columnCount=ordered.length>=24?3:ordered.length>14?2:1;
+  const columnCount=ordered.length>16?2:1;
   const groupSize=Math.ceil(ordered.length/columnCount);
   const groups=Array.from({length:columnCount},(_,index)=>({
     rows:ordered.slice(index*groupSize,(index+1)*groupSize),
@@ -367,8 +388,8 @@ function QualifyingTable({title,rows=[],drivers,teams,session=null,overall=false
   })).filter((group)=>group.rows.length);
 
   const renderGroup=({rows:group,offset})=><div className="overflow-hidden rounded-lg border border-white/10 bg-[#11161f]" key={offset}>
-    <table className="w-full text-[11px] leading-tight">
-      <thead className="bg-[#171d27] text-[9px] uppercase tracking-wide text-slate-500">
+    <table className="w-full text-xs leading-snug">
+      <thead className="bg-[#171d27] text-[10px] uppercase tracking-wide text-slate-500">
         <tr>
           <th className="px-2 py-1.5 text-right w-8">Pos</th>
           <th className="px-2 py-1.5 text-left">Driver / Team</th>
@@ -503,6 +524,10 @@ export default function RaceWeekend(){
     currentWeather:null,
     totalLaps:raceStrategy?.track_snapshot?.laps,
   });
+  const strategyRaceForecast=raceForecastForTeam(gs,playerTeamId);
+  const activeQualifyingForecast=weekendWeather?.forecast?.[String(activeSession?.id||"")]||null;
+  const activeQualifyingWeather=weekendWeather?.sessions?.[String(activeSession?.id||"")]||null;
+  const practiceTrackInputs=weekend?.practice?.track_profile?.inputs||{};
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
@@ -714,10 +739,16 @@ export default function RaceWeekend(){
               <div className="mt-3 border-t border-white/10 pt-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Programme focus</div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                  <span className="rounded bg-violet-500/10 px-2 py-1 text-violet-300">Setup ×{Number(programme.learningMultiplier||1).toFixed(2)}</span>
-                  <span className="rounded bg-sky-500/10 px-2 py-1 text-sky-300">Qualifying +{Number(programme.qualifyingBonus||0).toFixed(2)}</span>
-                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-300">Race +{Number(programme.raceBonus||0).toFixed(2)}</span>
-                  <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Diagnostics ×{Number(programme.reliabilityBonus||0).toFixed(2)}</span>
+                  <span title="Multiplies how quickly the setup converges toward the circuit target." className="rounded bg-violet-500/10 px-2 py-1 text-violet-300">Setup learning ×{Number(programme.learningMultiplier||1).toFixed(2)}</span>
+                  <span title="Programme qualifying bonus; weather relevance is applied after Practice." className="rounded bg-sky-500/10 px-2 py-1 text-sky-300">Qualifying focus {signedValue(programme.qualifyingBonus||0)}</span>
+                  <span title="Programme race bonus; weather relevance is applied after Practice." className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-300">Race focus {signedValue(programme.raceBonus||0)}</span>
+                  <span title="Stored diagnostic focus. No hidden reliability increase or automatic repair." className="rounded bg-amber-500/10 px-2 py-1 text-amber-300">Diagnostics focus ×{Number(programme.reliabilityBonus||0).toFixed(2)}</span>
+                </div>
+                <div className="mt-2 grid gap-1 text-[10px] text-slate-500 sm:grid-cols-2">
+                  <div><span className="text-violet-300">Setup:</span> learning/convergence rate, not a direct pace bonus.</div>
+                  <div><span className="text-sky-300">Qualifying:</span> feeds the final qualifying modifier after Practice.</div>
+                  <div><span className="text-emerald-300">Race:</span> feeds the final race modifier after Practice.</div>
+                  <div><span className="text-amber-300">Diagnostics:</span> recorded in the report; fault discovery is not wired yet.</div>
                 </div>
               </div>
             </div>;
@@ -777,6 +808,8 @@ export default function RaceWeekend(){
             const fatigueAfter=Number(row.fatigue_after??row.fatigue_cost??0);
             const practiceImpact=practiceWeekendImpact(gs,row.driver_id);
             const conditionImpact=conditionModifierBreakdown(gs,row.driver_id);
+            const qualifyingSetupContribution=(Number(row.setup_quality||50)-50)*0.050;
+            const raceSetupContribution=(Number(row.setup_quality||50)-50)*0.035;
             return <div key={row.driver_id} className="rounded-xl border border-white/10 bg-[#171d27] p-4">
               <div className="flex items-start gap-3">
                 <DriverPortrait driver={driverObject(drivers,row.driver_id)||{display_name:driverName(drivers,row.driver_id)}} size="h-14 w-14" className="ring-white/10"/>
@@ -804,12 +837,20 @@ export default function RaceWeekend(){
               <div className="mt-3 rounded-lg border border-white/10 bg-[#0f141d] p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Weekend performance effect</div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                  <div><div className="text-slate-500">Qualifying</div><div className="font-bold text-violet-300">{practiceImpact.qualifying>=0?"+":""}{practiceImpact.qualifying.toFixed(2)}</div></div>
-                  <div><div className="text-slate-500">Race</div><div className="font-bold text-emerald-300">{practiceImpact.race>=0?"+":""}{practiceImpact.race.toFixed(2)}</div></div>
-                  <div><div className="text-slate-500">Condition</div><div className={conditionImpact.total>=0?"font-bold text-emerald-300":"font-bold text-rose-300"}>{conditionImpact.total>=0?"+":""}{conditionImpact.total.toFixed(2)}</div></div>
+                  <div><div className="text-slate-500">Qualifying total</div><div className="font-bold text-violet-300">{signedValue(practiceImpact.qualifying)}</div></div>
+                  <div><div className="text-slate-500">Race total</div><div className="font-bold text-emerald-300">{signedValue(practiceImpact.race)}</div></div>
+                  <div><div className="text-slate-500">Condition</div><div className={conditionImpact.total>=0?"font-bold text-emerald-300":"font-bold text-rose-300"}>{signedValue(conditionImpact.total)}</div></div>
+                </div>
+                <div className="mt-2 grid gap-1 rounded border border-white/5 bg-black/15 p-2 text-[10px] sm:grid-cols-2">
+                  <div><span className="text-slate-500">Q setup contribution:</span> <span className="text-violet-300">{signedValue(qualifyingSetupContribution)}</span></div>
+                  <div><span className="text-slate-500">Q programme bonus:</span> <span className="text-violet-300">{signedValue(row.qualifying_bonus||0)}</span></div>
+                  <div><span className="text-slate-500">Race setup contribution:</span> <span className="text-emerald-300">{signedValue(raceSetupContribution)}</span></div>
+                  <div><span className="text-slate-500">Race programme bonus:</span> <span className="text-emerald-300">{signedValue(row.race_bonus||0)}</span></div>
+                  <div><span className="text-slate-500">Diagnostics focus:</span> <span className="text-amber-300">×{Number(row.reliability_diagnostic_bonus||0).toFixed(2)}</span></div>
+                  <div><span className="text-slate-500">Engineering support:</span> <span className="text-slate-300">{Number(row.engineering_support||0).toFixed(0)}/100</span></div>
                 </div>
                 <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                  Setup Quality directly affects qualifying and race performance. Setup Knowledge improves preparation. Reliability Focus improves diagnostics and uses a lower-risk programme; it does not create a hidden reliability bonus — mechanical reliability comes from the car, installed parts and component condition.
+                  Setup Quality feeds qualifying and race pace directly; the programme bonus is added after weather-relevance adjustment. Setup Knowledge contributes to preparation. Diagnostics focus is recorded here but fault-discovery gameplay is not wired yet; it never creates a hidden reliability boost.
                 </p>
               </div>
 
@@ -845,6 +886,33 @@ export default function RaceWeekend(){
           <div className="border rounded-lg p-3"><div className="text-xs text-slate-500">Race grid</div><div className="font-semibold">{Number.isFinite(qualifyingCutoff)?qualifyingCutoff:"—"}</div></div>
           <div className="border rounded-lg p-3"><div className="text-xs text-slate-500">Sessions</div><div className="font-semibold">{qualifyingSessions.length}</div></div>
           <div className="border rounded-lg p-3"><div className="text-xs text-slate-500">Format</div><div className="font-semibold capitalize">{String(weekend.qualifying_rule_snapshot?.strategy||"").replaceAll("_"," ")}</div></div>
+        </div>
+
+        <div className="mt-3 grid gap-2 lg:grid-cols-3">
+          <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.06] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-sky-300">Session weather briefing</div>
+            <div className="mt-1 text-sm font-semibold">{String(activeQualifyingForecast?.predicted_state||activeQualifyingWeather?.state||"UNKNOWN").replaceAll("_"," ")}</div>
+            <div className="mt-1 text-xs text-slate-400">
+              Rain {Number(activeQualifyingForecast?.rain_chance_pct??0).toFixed(0)}%
+              {Number.isFinite(Number(activeQualifyingForecast?.air_temp_c))?<> · Air {Number(activeQualifyingForecast.air_temp_c).toFixed(0)}°C ±{Number(activeQualifyingForecast.temperature_range_c||0).toFixed(0)}°</>:null}
+              {Number.isFinite(Number(activeQualifyingForecast?.confidence_pct))?<> · confidence {Number(activeQualifyingForecast.confidence_pct).toFixed(0)}%</>:null}
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">Circuit briefing</div>
+            <div className="mt-1 text-sm font-semibold">{Number(practiceTrackInputs.lap_length_km||0).toFixed(2)} km</div>
+            <div className="mt-1 text-xs text-slate-400">Tyre wear {Math.round(Number(practiceTrackInputs.tyre_wear||0))}/100 · overtaking difficulty {Math.round(Number(practiceTrackInputs.overtaking_difficulty||0))}/100</div>
+          </div>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.05] p-3">
+            <div className="text-[10px] uppercase tracking-wide text-amber-300">Team qualifying briefing</div>
+            <div className="mt-1 grid gap-1 text-xs">
+              {playerEntrants.map((entry)=>{
+                const impact=practiceWeekendImpact(gs,entry.driver_id);
+                const saved=classification.find((row)=>String(row.driver_id)===String(entry.driver_id));
+                return <div key={entry.driver_id} className="flex items-center justify-between gap-2"><span>{driverName(drivers,entry.driver_id)}</span><span className="text-slate-400">{saved?("P"+saved.position+" · "+formatLapTime(saved.best_time_ms)):("Practice Q impact "+signedValue(impact.qualifying))}</span></div>;
+              })}
+            </div>
+          </div>
         </div>
 
         {completedQualifyingSessions.length>0&&(
@@ -892,6 +960,7 @@ export default function RaceWeekend(){
               rows={lastCompletedQualifyingSession.results||[]}
               drivers={drivers}
               teams={teams}
+              playerTeamId={playerTeamId}
               session={lastCompletedQualifyingSession}
               overall={weekend.qualifying?.status==="completed"}
               cutoff={weekend.qualifying?.status==="completed"?qualifyingCutoff:null}
