@@ -90,7 +90,7 @@ test("player technology adoption costs money and takes time before eligibility c
   assert.equal(completed.development.technologyProjects[0].status,"completed");
   assert.equal(availableCarComponentSlots(completed,"PLAYER").includes("turbocharger"),true);
   assert.ok(completed.technicalUnlocks.PLAYER.turbocharger);
-  assert.match(completed.inbox[0].body,/design and manufactur/i);
+  assert.match(completed.inbox[0].body,/designed and manufactured/i);
 });
 
 test("technology adoption unlocks an R&D area but never creates a free physical part",()=>{
