@@ -222,14 +222,18 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   })();
   const operationalMorale = teamOperationalMorale(gs,idStr);
   const operationalWorkRate = teamWorkRateLabel(gs,idStr);
-  const operationalState = gs?.teamOperationalState?.[idStr] || null;
-  const operationalReasons = Array.isArray(operationalState?.reasons) ? operationalState.reasons : [];
 
   /* ---------- UI ---------- */
-  const DriverCard = ({ d }) => (
+  const DriverCard = ({ d }) => {
+    const roleTone = d.__role === "Reserve Driver"
+      ? "border-blue-400/25 bg-blue-500/10 hover:bg-blue-500/15"
+      : d.__role === "Test Driver"
+        ? "border-amber-400/25 bg-amber-500/10 hover:bg-amber-500/15"
+        : "border-white/10 bg-[#171a23] hover:bg-white/[0.06]";
+    return (
     <button
       type="button"
-      className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#171a23] px-3 py-2 text-left text-slate-100 transition hover:border-white/20 hover:bg-white/[0.06]"
+      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left text-slate-100 transition hover:border-white/20 ${roleTone}`}
       data-entity="driver"
       data-id={d.driver_id ?? d.id}
     >
@@ -252,7 +256,8 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
         <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{DRIVER_ROLE_DESCRIPTIONS[d.__role] || "Team driver."}</div>
       </div>
     </button>
-  );
+    );
+  };
 
   return (
     <div className={`flex flex-col ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border border-white/10 bg-[#0c0f15] text-slate-100 shadow-xl" : "h-[92vh] bg-[#0c0f15] text-slate-100"}`}>
@@ -335,19 +340,6 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 <Info label="Team Principal"      value={principal ?? "—"} />
                 <Info label="Operational Morale" value={Math.round(operationalMorale)+"/100"} />
                 <Info label="Technical Work Rate" value={operationalWorkRate.label} />
-              </div>
-              <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 text-xs text-slate-400">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span>Operational morale changes technical project lead times for this team.</span>
-                  <span className={Number(operationalState?.lastChange||0)>0?"text-emerald-300":Number(operationalState?.lastChange||0)<0?"text-rose-300":"text-slate-400"}>
-                    Last change {Number(operationalState?.lastChange||0)>0?"+":""}{Number(operationalState?.lastChange||0).toFixed(1)}
-                  </span>
-                </div>
-                {operationalReasons.length>0 && (
-                  <div className="mt-1 text-[10px] text-slate-500">
-                    {operationalReasons.slice(0,3).map((reason)=>reason?.label).filter(Boolean).join(" · ")}
-                  </div>
-                )}
               </div>
 
               {/* Drivers */}
