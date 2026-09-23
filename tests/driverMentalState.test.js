@@ -49,7 +49,7 @@ test("season start resets physical load while preserving some confidence/morale 
   assert.equal(next.morale,39.5);
 });
 
-test("mechanical retirement changes temporary mental state only",()=>{
+test("mechanical DNF hurts the team but does not blame Driver Morale or Confidence",()=>{
   const change=raceMentalStateChange({
     pos:20,
     retired:true,
@@ -58,10 +58,34 @@ test("mechanical retirement changes temporary mental state only",()=>{
     race_laps:60,
   },{startPosition:5,fieldSize:20,wet:false});
 
-  assert.ok(change.deltas.confidence<0);
-  assert.ok(change.deltas.morale<0);
+  assert.equal(change.deltas.confidence,0);
+  assert.equal(change.deltas.morale,0);
   assert.equal(change.deltas.preparation,-10);
   assert.ok(change.reasons.some((reason)=>/Mechanical/i.test(reason)));
+});
+
+test("accident DNF reduces Driver Morale while a points result above expectation raises it",()=>{
+  const crash=raceMentalStateChange({
+    pos:18,
+    retired:true,
+    retirement_reason:"Accident",
+    laps_completed:20,
+    race_laps:60,
+  },{startPosition:8,expectedPosition:9,fieldSize:20,wet:false});
+  assert.ok(crash.deltas.morale<0);
+  assert.ok(crash.deltas.confidence<0);
+
+  const strong=raceMentalStateChange({
+    pos:5,
+    retired:false,
+    points:2,
+    laps_completed:60,
+    race_laps:60,
+  },{startPosition:8,expectedPosition:10,points:2,fieldSize:20,wet:false});
+  assert.ok(strong.deltas.morale>1);
+  assert.ok(strong.deltas.confidence>1);
+  assert.ok(strong.reasons.some((reason)=>/above expectation/i.test(reason)));
+  assert.ok(strong.reasons.some((reason)=>/Points finish/i.test(reason)));
 });
 
 test("condition delta helper keeps all four values in range",()=>{
