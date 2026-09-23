@@ -71,6 +71,9 @@ jobs:
       - name: Test management depth mechanics
         run: npm run test:management-depth
 
+      - name: Test AI technical lifecycle
+        run: npm run test:ai-technical
+
       - name: Test save safety and deterministic RNG
         run: npm run test:save-safety
 
