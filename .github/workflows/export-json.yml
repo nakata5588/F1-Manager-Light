@@ -74,6 +74,9 @@ jobs:
       - name: Test AI technical lifecycle
         run: npm run test:ai-technical
 
+      - name: Test technology adoption lifecycle
+        run: npm run test:technology-adoption
+
       - name: Test AI technical multi-season soak
         run: npm run test:ai-technical-soak
 
