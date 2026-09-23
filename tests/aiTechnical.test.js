@@ -6,14 +6,25 @@ import {
   normalizeAITechnicalWorld,
   planAITechnicalProject,
   tickAITechnicalTeam,
+  tickAITechnicalWorld,
 } from "../src/engine/AITechnicalEngine.js";
 import { availableCarComponentSlots } from "../src/domain/carComponents.js";
+import { teamCarCharacteristics } from "../src/domain/carCharacteristics.js";
+import { teamCarPerformance } from "../src/domain/carPerformance.js";
+import { carReliabilityProfile } from "../src/domain/carReliability.js";
+import { migrateGameState, prepareGameStateForSave } from "../src/core/saveSafety.js";
 
 function baseState(){
   return {
     activeYear:1980,
     currentDateISO:"1980-01-01",
     team:{team_id:"PLAYER",budget:5_000_000},
+    contracts:[
+      {year:1980,team_id:"RENAULT",driver_id:"REN_1",role:"Main Driver",status:"active"},
+      {year:1980,team_id:"RENAULT",driver_id:"REN_2",role:"Second Driver",status:"active"},
+      {year:1980,team_id:"WILLIAMS",driver_id:"WIL_1",role:"Main Driver",status:"active"},
+      {year:1980,team_id:"WILLIAMS",driver_id:"WIL_2",role:"Second Driver",status:"active"},
+    ],
     teams:[
       {team_id:"PLAYER",year_from:1980,year_to:1980},
       {team_id:"RENAULT",year_from:1980,year_to:1980},
@@ -140,4 +151,55 @@ test("AI technical planning is deterministic for the same save-world state",()=>
   const a=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",5_000_000),"RENAULT");
   const b=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",5_000_000),"RENAULT");
   assert.deepEqual(aiTechnicalTeamState(a,"RENAULT"),aiTechnicalTeamState(b,"RENAULT"));
+});
+
+
+function completeOneAICycle(gs,teamId){
+  let next=planAITechnicalProject(gs,teamId);
+  let state=aiTechnicalTeamState(next,teamId);
+  const project=state.development.projects.find((row)=>row.status==="active");
+  next={...next,currentDateISO:project.finishes_at};
+  next=tickAITechnicalTeam(next,teamId,{allowPlanning:false});
+  state=aiTechnicalTeamState(next,teamId);
+  const job=state.development.manufacturing.find((row)=>row.status==="active");
+  next={...next,currentDateISO:job.finishes_at};
+  return tickAITechnicalTeam(next,teamId,{allowPlanning:false});
+}
+
+test("AI fitted upgrades feed the shared Characteristics, Performance and Reliability models",()=>{
+  const seeded=withTeamBudget(baseState(),"RENAULT",8_000_000);
+  const beforeCharacteristics=teamCarCharacteristics(seeded,"RENAULT","REN_1");
+  const beforePerformance=teamCarPerformance(seeded,"RENAULT","REN_1");
+
+  const upgraded=completeOneAICycle(seeded,"RENAULT");
+  const afterCharacteristics=teamCarCharacteristics(upgraded,"RENAULT","REN_1");
+  const afterPerformance=teamCarPerformance(upgraded,"RENAULT","REN_1");
+  const reliability=carReliabilityProfile(upgraded,"RENAULT","REN_1");
+
+  assert.ok(
+    Object.values(afterCharacteristics.upgrade_delta).some((value)=>Math.abs(Number(value||0))>0),
+    "AI installed design should alter at least one driving characteristic"
+  );
+  assert.ok(
+    Number(afterPerformance.development_bonus.qualifying)!==Number(beforePerformance.development_bonus.qualifying) ||
+    Number(afterPerformance.development_bonus.race)!==Number(beforePerformance.development_bonus.race),
+    "AI installed design should alter shared car performance"
+  );
+  assert.ok(reliability.components.some((row)=>row.design_id),"AI reliability should see the installed physical design");
+  assert.notDeepEqual(afterCharacteristics.values,beforeCharacteristics.values);
+});
+
+test("AI technical world ticks deterministically across all AI teams",()=>{
+  const a=tickAITechnicalWorld(baseState());
+  const b=tickAITechnicalWorld(baseState());
+  assert.deepEqual(a.aiTechnicalWorld,b.aiTechnicalWorld);
+  assert.ok(aiTechnicalTeamState(a,"RENAULT").development.projects.length>=1);
+  assert.ok(aiTechnicalTeamState(a,"WILLIAMS").development.projects.length>=1);
+});
+
+test("AI technical save-world survives save preparation and migration",()=>{
+  const upgraded=completeOneAICycle(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT");
+  const prepared=prepareGameStateForSave(upgraded);
+  const loaded=migrateGameState(JSON.parse(JSON.stringify(prepared)));
+  assert.deepEqual(loaded.aiTechnicalWorld,prepared.aiTechnicalWorld);
 });
