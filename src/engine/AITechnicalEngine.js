@@ -1074,20 +1074,27 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     :{qty:2,unit_cost:0,cost:0,days:0};
   const budget=num(state?.budget,0);
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
-  const technologyCommitment=num(technology?.quote?.cost,0);
-  const totalCommitment=technology
-    ?technologyCommitment
-    :num(quote?.cost,0)+num(manufacturing?.cost,0);
   const projects=seasonProjectsStarted(normalized,state);
   const limit=seasonProjectLimit(normalized,teamId);
   const reviewInterval=planningReviewIntervalDays(normalized,teamId);
   const nextReview=str(planning?.next_review_date).slice(0,10)||today;
   const gapThreshold=planningGapThreshold(normalized,teamId);
+  // Rival technology is an opportunity, not an automatic priority. If the
+  // current car has a meaningful weakness, improve the existing package first.
+  // This prevents poorer teams from abandoning core development to chase every
+  // novel technology that appears elsewhere on the grid.
+  const preferTechnology=Boolean(
+    technology && (!need || num(need?.gap,0)<gapThreshold)
+  );
+  const technologyCommitment=preferTechnology?num(technology?.quote?.cost,0):0;
+  const totalCommitment=preferTechnology
+    ?technologyCommitment
+    :num(quote?.cost,0)+num(manufacturing?.cost,0);
   const standing=teamStandingContext(normalized,teamId);
   const end=seasonEndISO(normalized);
   const daysToEnd=daysBetweenISO(today,end);
   const remaining=racesRemaining(normalized,today);
-  const deliveryDays=technology
+  const deliveryDays=preferTechnology
     ?num(technology?.quote?.days,0)+21
     :num(quote?.days,0)+num(manufacturing?.days,0)+3;
 
@@ -1095,6 +1102,7 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     team_id:str(teamId),
     today,
     technology,
+    prefer_technology:preferTechnology,
     need,
     quote,
     manufacturing,
@@ -1126,7 +1134,7 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   if(!force&&remaining===0){
     return {...base,action:"hold",reason:"season_complete"};
   }
-  if(!force&&technology){
+  if(!force&&preferTechnology){
     if(budget<totalCommitment){
       return {...base,action:"hold",reason:"insufficient_budget"};
     }
