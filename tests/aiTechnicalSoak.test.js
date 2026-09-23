@@ -171,7 +171,7 @@ function runSeason(gs,year){
     if(raceDates.has(date)){
       next=applyAIRaceComponentWear(next,{gp:{gp_id:`${year}:${date}`},race:raceRows(next)});
     }
-    date=addDays(date,7);
+    date=addDays(date,14);
   }
   next={...next,standings:{...next.standings,teams:standingsFromPerformance(next)}};
   return next;
