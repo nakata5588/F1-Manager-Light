@@ -8,7 +8,6 @@ import {
   defaultDriverCondition,
   normalizeDriverCondition,
 } from "./driverRating.js";
-import { retirementResponsibility } from "./driverForm.js";
 
 export const DRIVER_MENTAL_STATE_FIELDS=Object.freeze([
   "confidence","morale","preparation","fatigue",
@@ -16,6 +15,20 @@ export const DRIVER_MENTAL_STATE_FIELDS=Object.freeze([
 
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 const round1=(value)=>Math.round(Number(value||0)*10)/10;
+
+function retirementMentalContext(reasonInput){
+  const reason=String(reasonInput||"").toLowerCase();
+  if(/engine|gearbox|transmission|electrical|cooling|fuel|hydraulic|suspension|brake|turbo|oil|fire|mechanical|power unit|driveshaft|clutch/.test(reason)){
+    return {key:"mechanical",label:"Mechanical retirement"};
+  }
+  if(/accident|crash|spin|spun|driver error|mistake/.test(reason)){
+    return {key:"driver_error",label:"Driver-error retirement"};
+  }
+  if(/collision|contact/.test(reason)){
+    return {key:"racing_incident",label:"Racing-incident retirement"};
+  }
+  return {key:"unknown",label:"Retirement"};
+}
 
 function meanRevert(value,target=50,rate=0.02){
   const current=Number(value);
@@ -145,7 +158,7 @@ export function raceMentalStateChange(row,{
   const reasons=[];
 
   if(row?.retired){
-    const responsibility=retirementResponsibility(row?.retirement_reason);
+    const responsibility=retirementMentalContext(row?.retirement_reason);
     // D6.1 keeps retirement effects temporary. Permanent ability is untouched.
     const impact=responsibility.key==="mechanical"
       ?{confidence:-2.0,morale:-1.5}
