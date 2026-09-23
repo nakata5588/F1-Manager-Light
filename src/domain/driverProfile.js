@@ -115,7 +115,7 @@ export function driverAvailabilitySnapshot(gs,driverId){
     .sort((a,b)=>String(b?.date||"").localeCompare(String(a?.date||"")))[0]||null;
 
   const status=String(pick(availability||{},["status","availability_status"],"available")).toLowerCase();
-  const available=["","available","fit","active","cleared"].includes(status);
+  const available=["","available","fit","active","cleared","limited","fit_with_injury","restricted"].includes(status);
 
   return {
     availability,
