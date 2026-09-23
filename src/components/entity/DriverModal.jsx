@@ -1178,6 +1178,98 @@ function OverviewTab({
   );
 }
 
+const DRIVER_LIFECYCLE_STAGES=[
+  {key:"youth",label:"Youth",y:82},
+  {key:"rookie",label:"Rookie",y:68},
+  {key:"developing",label:"Developing",y:46},
+  {key:"prime",label:"Prime",y:24},
+  {key:"veteran",label:"Veteran",y:34},
+  {key:"decline",label:"Decline",y:58},
+  {key:"retirement_window",label:"Retirement",y:82},
+];
+
+function StageTimeline({lifecycle,history=[]}){
+  const current=String(lifecycle?.stage||"");
+  const points=DRIVER_LIFECYCLE_STAGES.map((stage,index)=>{
+    const x=45+index*100;
+    return {...stage,x};
+  });
+  const transitions=(history||[])
+    .filter((row)=>row?.stage)
+    .reduce((out,row)=>{
+      const last=out[out.length-1];
+      if(!last||last.stage!==row.stage)out.push(row);
+      return out;
+    },[])
+    .slice(-8);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Career Stage Timeline</div>
+          <div className="mt-1 text-sm text-slate-300">Lifecycle rises through development and peak before veteran/decline phases.</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] uppercase tracking-wide text-slate-500">Current stage</div>
+          <div className="font-semibold text-sky-300">{lifecycle?.label||"—"}</div>
+        </div>
+      </div>
+      <div className="mt-3 overflow-x-auto">
+        <svg viewBox="0 0 690 112" className="h-28 min-w-[620px] w-full" role="img" aria-label="Driver career stage curve">
+          <polyline
+            points={points.map((p)=>`${p.x},${p.y}`).join(" ")}
+            fill="none"
+            stroke="rgba(148,163,184,.45)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {points.map((point)=>{
+            const active=point.key===current;
+            return <g key={point.key}>
+              <circle cx={point.x} cy={point.y} r={active?8:4.5} fill={active?"#7dd3fc":"#64748b"} stroke={active?"#e0f2fe":"#0f172a"} strokeWidth={active?2:1}/>
+              <line x1={point.x} y1={point.y+8} x2={point.x} y2="96" stroke="rgba(148,163,184,.14)" strokeWidth="1"/>
+              <text x={point.x} y="108" textAnchor="middle" fontSize="9" fill={active?"#bae6fd":"#64748b"}>{point.label}</text>
+            </g>;
+          })}
+        </svg>
+      </div>
+      {transitions.length>0&&(
+        <div className="mt-2 flex flex-wrap gap-2 border-t border-white/10 pt-3 text-[11px]">
+          {transitions.map((row,index)=>(
+            <span key={`${row.asOf||row.dateISO||"stage"}-${index}`} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-400">
+              {row.asOf||row.dateISO||"—"} · {row.label||niceRole(row.stage)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PressureCard({title,value,factors=[],positive=false}){
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#171a23] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+        <div className={`text-xl font-semibold ${positive?"text-emerald-300":"text-rose-300"}`}>{Math.round(Number(value||0))}</div>
+      </div>
+      <div className="mt-2 space-y-2">
+        {factors.length?factors.map((factor)=>(
+          <div key={factor.key} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-slate-300">{factor.label}</span>
+              <span className={positive?"text-emerald-300":"text-rose-300"}>{Number(factor.value||0).toFixed(1)}</span>
+            </div>
+            <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{factor.explanation}</div>
+          </div>
+        )):<div className="text-[11px] text-slate-500">No active factors at the moment.</div>}
+      </div>
+    </div>
+  );
+}
+
 function DevelopmentTab({
   attrs,
   log,
@@ -1216,7 +1308,7 @@ function DevelopmentTab({
             <ProfileMetric label="Career stage" value={lifecycle?.label||"—"}/>
             <ProfileMetric
               label="Trajectory"
-              value={lifecycle?.trajectory?niceRole(lifecycle.trajectory):"—"}
+              value={lifecycle?.trajectoryLabel||lifecycle?.trajectory?niceRole(lifecycle?.trajectory):"—"}
               tone={lifecycle?.trajectory==="rising"?"text-emerald-300":lifecycle?.trajectory==="falling"?"text-rose-300":"text-slate-200"}
             />
           </div>
@@ -1273,20 +1365,9 @@ function DevelopmentTab({
           )}
 
           {canSeeHistory&&lifecycle&&(
-            <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3">
-              <div className="grid grid-cols-2 gap-2">
-                <ProfileMetric label="Positive pressure" value={Math.round(Number(lifecycle.positivePressure||0))}/>
-                <ProfileMetric
-                  label="Regression pressure"
-                  value={Math.round(Number(lifecycle.negativePressure||0))}
-                  tone={Number(lifecycle.negativePressure)>Number(lifecycle.positivePressure)?"text-rose-300":"text-slate-200"}
-                />
-              </div>
-              {!!lifecycle.reasons?.length&&(
-                <div className="mt-2 space-y-1 text-[11px] text-slate-500">
-                  {lifecycle.reasons.slice(0,4).map((reason,index)=><div key={index}>• {reason}</div>)}
-                </div>
-              )}
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <PressureCard title="Positive Pressure" value={lifecycle.positivePressure} factors={lifecycle.positiveFactors||[]} positive/>
+              <PressureCard title="Regression Pressure" value={lifecycle.negativePressure} factors={lifecycle.negativeFactors||[]}/>
             </div>
           )}
         </div>
@@ -1343,6 +1424,8 @@ function DevelopmentTab({
           </div>
         </div>
       </div>
+
+      {canSeeHistory&&lifecycle&&<StageTimeline lifecycle={lifecycle} history={lifecycleLog||[]}/>}
 
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
         <div className="flex items-center justify-between gap-3">
