@@ -1,0 +1,70 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  applyDriverMentalState,
+  applyMentalStateDeltaToCondition,
+  passiveMentalStateRecovery,
+  raceMentalStateChange,
+  seasonStartMentalState,
+} from "../src/domain/driverMentalState.js";
+
+test("mental state deltas are temporary and clamped without touching ratings",()=>{
+  const gs={
+    currentDateISO:"1980-05-20",
+    driverRatings:[{driver_id:"D1",current_ability:90,pace:92}],
+    driverAttributes:{D1:{confidence:95,morale:5,preparation:50,fatigue:98}},
+  };
+  const next=applyDriverMentalState(gs,"D1",{
+    deltas:{confidence:20,morale:-20,preparation:7,fatigue:10},
+    source:"test",
+  });
+
+  assert.equal(next.driverAttributes.D1.confidence,100);
+  assert.equal(next.driverAttributes.D1.morale,0);
+  assert.equal(next.driverAttributes.D1.preparation,57);
+  assert.equal(next.driverAttributes.D1.fatigue,100);
+  assert.deepEqual(next.driverRatings,gs.driverRatings);
+  assert.equal(next.driverMentalStateLog.D1.length,1);
+});
+
+test("passive recovery reduces fatigue and mean-reverts confidence/morale",()=>{
+  const next=passiveMentalStateRecovery(
+    {confidence:80,morale:20,preparation:40,fatigue:70},
+    {dateISO:"1980-05-24"}
+  );
+  assert.ok(next.fatigue<70);
+  assert.ok(next.preparation>40);
+  assert.ok(next.confidence<80);
+  assert.ok(next.morale>20);
+});
+
+test("season start resets physical load while preserving some confidence/morale momentum",()=>{
+  const next=seasonStartMentalState({confidence:80,morale:20,preparation:90,fatigue:75});
+  assert.equal(next.fatigue,0);
+  assert.equal(next.preparation,50);
+  assert.equal(next.confidence,60.5);
+  assert.equal(next.morale,39.5);
+});
+
+test("mechanical retirement changes temporary mental state only",()=>{
+  const change=raceMentalStateChange({
+    pos:20,
+    retired:true,
+    retirement_reason:"Engine",
+    laps_completed:30,
+    race_laps:60,
+  },{startPosition:5,fieldSize:20,wet:false});
+
+  assert.ok(change.deltas.confidence<0);
+  assert.ok(change.deltas.morale<0);
+  assert.equal(change.deltas.preparation,-10);
+  assert.ok(change.reasons.some((reason)=>/Mechanical/i.test(reason)));
+});
+
+test("condition delta helper keeps all four values in range",()=>{
+  const next=applyMentalStateDeltaToCondition(
+    {confidence:50,morale:50,preparation:50,fatigue:0},
+    {confidence:100,morale:-100,preparation:60,fatigue:-20}
+  );
+  assert.deepEqual(next,{confidence:100,fatigue:0,morale:0,preparation:100});
+});
