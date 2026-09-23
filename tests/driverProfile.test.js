@@ -16,7 +16,7 @@ function state(){
       {driver_id:"D2",display_name:"Driver Two"},
     ],
     driverRatings:[
-      {driver_id:"D1",current_ability:82,potential_ability:88,pace:84,qualifying:83,racecraft:80,consistency:81},
+      {driver_id:"D1",current_ability:82,potential_ability:88,pace:84,qualifying:83,racecraft:80,consistency:81,reputation:85},
     ],
     contracts:[
       {year:1980,team_id:"T1",team_name:"Player Team",driver_id:"D1",role:"Main Driver",salary:500000,status:"active",contract_until_year:1981},
@@ -24,6 +24,14 @@ function state(){
     teams:[{team_id:"T1",team_name:"Player Team"}],
     standings:{drivers:[{driver_id:"D1",position:3,points:15}],teams:[]},
     driverAttributes:{D1:{confidence:60,morale:55,preparation:70,fatigue:20}},
+    driverMentalStateLog:{
+      D1:[{
+        dateISO:"1980-05-18",
+        source:"practice",
+        reason:"Balanced practice",
+        changes:[{field:"preparation",before:62,after:70,delta:8}],
+      }],
+    },
     driverAvailability:{
       D1:{driver_id:"D1",status:"injured",reason:"wrist sprain",expectedReturnDate:"1980-06-01"},
     },
@@ -78,6 +86,8 @@ test("driver profile snapshot keeps permanent ability separate from condition ef
   assert.equal(snap.teamName,"Player Team");
   assert.equal(snap.overall.value,82);
   assert.equal(snap.condition.confidence,60);
+  assert.equal(snap.reputation,85);
+  assert.equal(snap.mentalStateHistory[0].reason,"Balanced practice");
   assert.ok(Number.isFinite(snap.conditionImpact.total));
   assert.equal(snap.season.starts,2);
   assert.equal(snap.availability.status,"injured");
