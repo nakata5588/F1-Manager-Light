@@ -41,27 +41,43 @@ export function historicalCareerDriverMatches(row,{driverId=null,driverName=null
 
 export function resolveHistoricalTeamId(row,teams=[]){
   const direct=String(unbox(row?.team_id??row?.constructor_id??"")??"").trim();
-  if(direct)return direct;
-
-  const wanted=normalizeHistoricalName(row?.team_name??row?.team??row?.constructor);
-  if(!wanted)return "";
-
   const candidates=(Array.isArray(teams)?teams:[])
     .map((team)=>({
       team,
       id:String(unbox(team?.team_id??team?.id??"")??"").trim(),
       name:normalizeHistoricalName(team?.team_name??team?.name??team?.short_name),
+      label:String(unbox(team?.team_name??team?.name??team?.short_name??"")??"").trim(),
     }))
     .filter((entry)=>entry.id&&entry.name);
 
-  const exact=candidates.find((entry)=>entry.name===wanted);
-  if(exact)return exact.id;
+  // Keep a direct ID only when it is already a live/canonical team ID.
+  if(direct&&candidates.some((entry)=>entry.id===direct))return direct;
 
-  // Historical names can include a founder/sponsor prefix (e.g. Walter Wolf -> Wolf).
-  const fuzzy=candidates
-    .filter((entry)=>entry.name.length>=4&&(wanted.includes(entry.name)||entry.name.includes(wanted)))
-    .sort((a,b)=>b.name.length-a.name.length)[0];
-  return fuzzy?.id||"";
+  const wanted=normalizeHistoricalName(row?.team_name??row?.team??row?.constructor);
+  if(wanted){
+    const exact=candidates.find((entry)=>entry.name===wanted);
+    if(exact)return exact.id;
+
+    // Historical imports can use founder/sponsor prefixes (Walter Wolf -> Wolf)
+    // or archive constructor IDs. Prefer the canonical live team by name.
+    const fuzzy=candidates
+      .filter((entry)=>entry.name.length>=4&&(wanted.includes(entry.name)||entry.name.includes(wanted)))
+      .sort((a,b)=>b.name.length-a.name.length)[0];
+    if(fuzzy)return fuzzy.id;
+  }
+
+  return direct;
+}
+
+export function canonicalHistoricalTeam(row,teams=[]){
+  const id=resolveHistoricalTeamId(row,teams);
+  const team=(Array.isArray(teams)?teams:[]).find((candidate)=>
+    String(unbox(candidate?.team_id??candidate?.id??"")??"")===String(id)
+  );
+  return {
+    id:id||String(unbox(row?.team_id??row?.constructor_id??"")??""),
+    name:String(unbox(team?.team_name??team?.name??team?.short_name??row?.team_name??row?.team??row?.constructor??"")??""),
+  };
 }
 
 function careerDriverToken(row){
@@ -98,7 +114,14 @@ export function mergeHistoricalCareerSources(liveRows=[],canonicalRows=[],teams=
   // applied second so historical championship position/FL/poles are not lost.
   for(const row of Array.isArray(liveRows)?liveRows:[])apply(row);
   for(const row of Array.isArray(canonicalRows)?canonicalRows:[])apply(row);
-  return [...merged.values()];
+  return [...merged.values()].map((row)=>{
+    const canonical=canonicalHistoricalTeam(row,teams);
+    return {
+      ...row,
+      team_id:canonical.id||row?.team_id||null,
+      team_name:canonical.name||row?.team_name||row?.team||"—",
+    };
+  });
 }
 
 
@@ -149,6 +172,105 @@ export function deriveCareerChampionshipPositions(rows=[]){
     const driver=careerDriverToken(row);
     const rank=ranks.get(`${seasonKey(row)}|${driver}`);
     return Number.isFinite(rank)?{...row,champ_pos:rank,__champ_pos_derived:true}:row;
+  });
+}
+
+
+export function applyResultChampionshipPositions(careerRows=[],resultRows=[]){
+  const resultSource=Array.isArray(resultRows)?resultRows:[];
+  const bySeason=new Map();
+
+  for(const row of resultSource){
+    if(!row||typeof row!=="object")continue;
+    const driver=careerDriverToken(row);
+    if(!driver)continue;
+    const key=seasonKey(row);
+    if(!bySeason.has(key))bySeason.set(key,new Map());
+    const drivers=bySeason.get(key);
+    const rec=drivers.get(driver)||{
+      driver,
+      name:String(unbox(row?.driver_name??row?.display_name??row?.name??driver)??driver),
+      points:0,
+      wins:0,
+    };
+    rec.points+=Number(unbox(row?.points)||0);
+    rec.wins+=Number(unbox(row?.wins)||0);
+    drivers.set(driver,rec);
+  }
+
+  const positions=new Map();
+  for(const [key,drivers] of bySeason.entries()){
+    const ordered=[...drivers.values()].sort((a,b)=>
+      b.points-a.points||
+      b.wins-a.wins||
+      a.name.localeCompare(b.name)
+    );
+    ordered.forEach((row,index)=>positions.set(`${key}|${row.driver}`,index+1));
+  }
+
+  return (Array.isArray(careerRows)?careerRows:[]).map((row)=>{
+    const driver=careerDriverToken(row);
+    const resultPosition=positions.get(`${seasonKey(row)}|${driver}`);
+    if(Number.isFinite(resultPosition)){
+      return {
+        ...row,
+        champ_pos:resultPosition,
+        __champ_pos_source:"historical_results",
+      };
+    }
+    return {
+      ...row,
+      __champ_pos_source:hasChampionshipPosition(row?.champ_pos)?"career_fallback":"missing",
+    };
+  });
+}
+
+function rowTeamLabel(row){
+  return String(unbox(row?.team_name??row?.team??row?.team_id??"")??"").trim()||"Unknown team";
+}
+
+function careerRowOrderValue(row,index){
+  const firstRound=Number(unbox(row?.first_round));
+  const lastRound=Number(unbox(row?.last_round));
+  const order=Number(unbox(row?.order));
+  if(Number.isFinite(firstRound))return firstRound*1000+(Number.isFinite(lastRound)?lastRound:0);
+  if(Number.isFinite(lastRound))return lastRound*1000;
+  if(Number.isFinite(order))return 100000+order;
+  return 200000+index;
+}
+
+export function annotateCareerTransfers(rows=[]){
+  const source=(Array.isArray(rows)?rows:[]).map((row,index)=>({...row,__transferIndex:index}));
+  const groups=new Map();
+  for(const row of source){
+    const key=`${seasonKey(row)}|${careerDriverToken(row)}`;
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(row);
+  }
+
+  const annotations=new Map();
+  for(const group of groups.values()){
+    const distinct=[...new Set(group.map((row)=>String(unbox(row?.team_id??row?.team_name??""))))];
+    if(distinct.length<=1)continue;
+    const ordered=group.slice().sort((a,b)=>
+      careerRowOrderValue(a,a.__transferIndex)-careerRowOrderValue(b,b.__transferIndex)
+    );
+    for(let i=1;i<ordered.length;i++){
+      const previous=ordered[i-1];
+      const current=ordered[i];
+      const firstRound=Number(unbox(current?.first_round));
+      annotations.set(current.__transferIndex,{
+        from:rowTeamLabel(previous),
+        to:rowTeamLabel(current),
+        round:Number.isFinite(firstRound)?firstRound:null,
+      });
+    }
+  }
+
+  return source.map((row)=>{
+    const note=annotations.get(row.__transferIndex)||null;
+    const {__transferIndex,...rest}=row;
+    return note?{...rest,__transfer:note}:rest;
   });
 }
 

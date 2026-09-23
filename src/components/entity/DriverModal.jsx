@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, Search, Info
+  Handshake, FileText, Coffee, Search, Info, Trophy, Medal
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -12,7 +12,8 @@ import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
 import {
-  deriveCareerChampionshipPositions,
+  annotateCareerTransfers,
+  applyResultChampionshipPositions,
   historicalCareerDriverMatches,
   historicalCareerRowKey,
   markChampionshipPositionTeam,
@@ -231,14 +232,14 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     () => driverContractsOf(gs),
     [gs?.contracts, gs?.dbContracts]
   );
-  const careerRaw = useMemo(() => {
-    const merged=mergeHistoricalCareerSources(
+  const careerRaw = useMemo(
+    () => mergeHistoricalCareerSources(
       toArraySafe(gs?.driverCareer),
       toArraySafe(gs?.dbDriverCareer),
       [...toArraySafe(gs?.dbTeams), ...toArraySafe(gs?.teams)]
-    );
-    return deriveCareerChampionshipPositions(merged);
-  }, [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]);
+    ),
+    [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]
+  );
   const generatedHistoryRaw = useMemo(
     () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
     [gs?.driverHistory, gs?.dbDriverHistory]
@@ -407,9 +408,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       next.__priority = Math.max(Number(prev.__priority || 0), priority);
       merged.set(key, next);
     };
-    for (const row of generatedHistoryRaw || []) push(row, 1);
-    for (const row of careerRaw || []) push(row, 2);
-    return [...merged.values()].map(({ __priority, ...row }) => row);
+    // Manual career rows are fallback/enrichment only. Result-derived history
+    // is authoritative for starts, points, teams and other race statistics.
+    for (const row of careerRaw || []) push(row, 1);
+    for (const row of generatedHistoryRaw || []) push(row, 2);
+    const rows=[...merged.values()].map(({ __priority, ...row }) => row);
+    return applyResultChampionshipPositions(rows,generatedHistoryRaw);
   }, [careerRaw, generatedHistoryRaw, driver?.driver_id, driver?.id, entity.id, driverIdentityName, teamsList, careerStartYear]);
 
   // ==== Filtros (tabs Statistics/Career) ====
@@ -559,7 +563,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       if(Number.isFinite(oa)&&Number.isFinite(ob)&&oa!==ob)return oa-ob;
       return String(unbox(a.team_name) || "").localeCompare(String(unbox(b.team_name) || ""));
     });
-    return markChampionshipPositionTeam(list);
+    return annotateCareerTransfers(markChampionshipPositionTeam(list));
   }, [filteredCareer]);
 
   const careerTotals = useMemo(() => {
@@ -915,7 +919,6 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           {activeTab === "attributes" && (
             <AttributesTab
               attrs={meaningfulAttrs}
-              condition={condition}
               knowledge={knowledge}
               driver={driver}
               currentSnapshot={profileSnapshot}
@@ -1038,9 +1041,9 @@ function KV({ label, value, className = "" }) {
 
 /* ======================== Tabs ======================== */
 
-function ProfileMetric({ label, value, tone = "" }) {
+function ProfileMetric({ label, value, tone = "", cardTone = "", title = "" }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+    <div title={title||undefined} className={`rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 ${cardTone}`}>
       <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`mt-0.5 text-sm font-semibold ${tone}`}>{displayValue(value)}</div>
     </div>
@@ -1064,6 +1067,128 @@ function ConditionBar({ label, value, inverse = false }) {
   );
 }
 
+function conditionFormulaRows(condition,impact){
+  const confidence=Number(condition?.confidence??50);
+  const morale=Number(condition?.morale??50);
+  const preparation=Number(condition?.preparation??50);
+  const fatigue=Number(condition?.fatigue??0);
+  const signed=(value,digits=2)=>`${value>=0?"+":""}${Number(value||0).toFixed(digits)}`;
+  const deltaText=(value)=>signed(value-50,1);
+
+  let fatigueFormula;
+  if(fatigue<=10)fatigueFormula=`Fatigue ${fatigue.toFixed(1)} ≤ 10 → no performance penalty`;
+  else if(fatigue<=30)fatigueFormula=`(${fatigue.toFixed(1)} − 10) × 0.06 = ${signed(impact?.fatigueEffect,2)}`;
+  else if(fatigue<=50)fatigueFormula=`−[1.20 + (${fatigue.toFixed(1)} − 30) × 0.10] = ${signed(impact?.fatigueEffect,2)}`;
+  else if(fatigue<=70)fatigueFormula=`−[3.20 + (${fatigue.toFixed(1)} − 50) × 0.14] = ${signed(impact?.fatigueEffect,2)}`;
+  else fatigueFormula=`High-fatigue curve at ${fatigue.toFixed(1)} = ${signed(impact?.fatigueEffect,2)}`;
+
+  return [
+    {
+      label:"Confidence",
+      value:impact?.confidenceEffect,
+      explanation:`${confidence.toFixed(1)} is ${deltaText(confidence)} from neutral 50; × 0.05 = ${signed(impact?.confidenceEffect,2)}`,
+    },
+    {
+      label:"Morale",
+      value:impact?.moraleEffect,
+      explanation:`${morale.toFixed(1)} is ${deltaText(morale)} from neutral 50; × 0.03 = ${signed(impact?.moraleEffect,2)}`,
+    },
+    {
+      label:"Preparation",
+      value:impact?.preparationEffect,
+      explanation:`${preparation.toFixed(1)} is ${deltaText(preparation)} from neutral 50; × 0.04 = ${signed(impact?.preparationEffect,2)}`,
+    },
+    {
+      label:"Fatigue",
+      value:impact?.fatigueEffect,
+      explanation:fatigueFormula,
+    },
+    {
+      label:"Medical",
+      value:impact?.medicalEffect,
+      explanation:Number(impact?.medicalEffect||0)<0
+        ?`Current medical status applies ${signed(impact?.medicalEffect,2)}`
+        :"No active medical performance penalty.",
+    },
+  ];
+}
+
+function ConditionExplanationPanel({snapshot,condition}){
+  const [open,setOpen]=useState(false);
+  const impact=snapshot?.conditionImpact||{};
+  const history=snapshot?.mentalStateHistory||[];
+  const rows=conditionFormulaRows(condition,impact);
+  const raw=rows.reduce((sum,row)=>sum+Number(row.value||0),0);
+  const total=Number(impact?.total||0);
+  const signed=(value,digits=2)=>`${value>=0?"+":""}${Number(value||0).toFixed(digits)}`;
+
+  return (
+    <div className="mt-4 border-t border-white/10 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Performance Impact</div>
+          <div className="mt-0.5 text-[11px] text-slate-400">Temporary state changes race/qualifying performance; it never changes Overall by itself.</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`text-lg font-semibold ${total>=0?"text-emerald-300":"text-rose-300"}`}>{signed(total)}</div>
+          <button
+            type="button"
+            onClick={()=>setOpen((value)=>!value)}
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${open?"border-sky-400/30 bg-sky-500/10 text-sky-300":"border-white/10 text-slate-400 hover:text-white"}`}
+            aria-expanded={open}
+            title="Explain the current performance modifier"
+          >
+            <Info size={12}/> Why these values?
+          </button>
+        </div>
+      </div>
+
+      {open&&(
+        <div className="mt-3 rounded-lg border border-sky-400/15 bg-sky-500/[0.04] p-3">
+          <div className="space-y-2">
+            {rows.map((row)=>{
+              const value=Number(row.value||0);
+              return (
+                <div key={row.label} className="grid gap-1 rounded-md border border-white/10 bg-[#171a23] px-2.5 py-2 md:grid-cols-[110px_70px_minmax(0,1fr)] md:items-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{row.label}</span>
+                  <span className={`text-sm font-semibold ${value>0?"text-emerald-300":value<0?"text-rose-300":"text-slate-400"}`}>{signed(value)}</span>
+                  <span className="text-[11px] text-slate-400">{row.explanation}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-2 text-[10px] text-slate-500">
+            Raw sum {signed(raw)} · final modifier is limited to the game range −12.00 to +6.00 → {signed(total)}.
+          </div>
+
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recent causes</div>
+            {history.length?(
+              <div className="mt-2 space-y-2">
+                {history.slice(0,6).map((entry,index)=>(
+                  <div key={`${entry?.dateISO||"event"}-${entry?.source||"state"}-${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                    <span className="min-w-[72px] text-slate-500">{entry?.dateISO||"—"}</span>
+                    <span className="font-medium text-slate-300">{entry?.reason||String(entry?.source||"Mental state").replaceAll("_"," ")}</span>
+                    <span className="flex flex-wrap gap-1">
+                      {(entry?.changes||[]).map((change)=>{
+                        const delta=Number(change?.delta||0);
+                        return <span key={change.field} className={`rounded border border-white/10 px-1.5 py-0.5 ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>{String(change.field||"").replaceAll("_"," ")} {signed(delta,1)}</span>;
+                      })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ):(
+              <div className="mt-2 text-[11px] text-slate-500">No recorded mental-state events yet for this save.</div>
+            )}
+            <div className="mt-2 text-[10px] leading-4 text-slate-500">Passive daily recovery is not logged line-by-line: Fatigue falls naturally, while Confidence and Morale drift slowly back toward 50.</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OverviewTab({
   snapshot,
   condition,
@@ -1077,13 +1202,14 @@ function OverviewTab({
   futureTransfer,
 }) {
   const season=snapshot?.season||{};
-  const impact=snapshot?.conditionImpact||{};
   const availability=snapshot?.availability||{};
   const canSeeCondition=Boolean(knowledge?.canSeeCondition);
-  const impactValue=canSeeCondition?Number(impact?.total):NaN;
-  const impactTone=Number.isFinite(impactValue)
-    ?(impactValue>=0?"text-emerald-300":"text-rose-300")
-    :"text-slate-200";
+  const reputationView=presentDriverKnowledgeValue(
+    knowledge,
+    "reputation",
+    snapshot?.reputation,
+    {kind:"attribute"}
+  );
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -1111,8 +1237,14 @@ function OverviewTab({
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current State</div>
           <span className="rounded bg-sky-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-sky-300">{knowledge?.label||"Unscouted"}</span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           <ProfileMetric label="Overall" value={overallLabel}/>
+          <ProfileMetric
+            label="Reputation"
+            value={reputationView?.label??"—"}
+            tone={presentationColorClass(reputationView)}
+            title="Paddock, media and fan standing. Reputation affects market evaluation, salary expectations and negotiations; it does not add race pace or Overall."
+          />
           <ProfileMetric label="Championship" value={season.championshipPosition?`P${season.championshipPosition}`:"—"}/>
           <ProfileMetric label="Points" value={season.points??0}/>
           <ProfileMetric
@@ -1135,13 +1267,7 @@ function OverviewTab({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4 md:grid-cols-5">
-              <ProfileMetric label="Conf effect" value={Number.isFinite(Number(impact?.confidenceEffect))?`${Number(impact.confidenceEffect)>=0?"+":""}${Number(impact.confidenceEffect).toFixed(1)}`:"—"}/>
-              <ProfileMetric label="Morale effect" value={Number.isFinite(Number(impact?.moraleEffect))?`${Number(impact.moraleEffect)>=0?"+":""}${Number(impact.moraleEffect).toFixed(1)}`:"—"}/>
-              <ProfileMetric label="Prep effect" value={Number.isFinite(Number(impact?.preparationEffect))?`${Number(impact.preparationEffect)>=0?"+":""}${Number(impact.preparationEffect).toFixed(1)}`:"—"}/>
-              <ProfileMetric label="Fatigue effect" value={Number.isFinite(Number(impact?.fatigueEffect))?Number(impact.fatigueEffect).toFixed(1):"—"}/>
-              <ProfileMetric label="Medical effect" value={Number.isFinite(Number(impact?.medicalEffect))?Number(impact.medicalEffect).toFixed(1):"—"} tone={Number(impact?.medicalEffect)<0?"text-amber-300":""}/>
-            </div>
+            <ConditionExplanationPanel snapshot={snapshot} condition={condition}/>
           </>
         ) : (
           <div className="mt-5 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
@@ -1578,15 +1704,15 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
     <div className="space-y-3">
       <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
       <div className="grid grid-cols-3 gap-2 md:grid-cols-5 lg:grid-cols-9">
-        <ProfileMetric label="Starts" value={agg?.starts ?? 0} />
-        <ProfileMetric label="Wins" value={agg?.wins ?? 0} />
-        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} />
-        <ProfileMetric label="Poles" value={agg?.poles ?? 0} />
-        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} />
-        <ProfileMetric label="Points" value={agg?.points ?? 0} />
-        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} />
-        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} />
-        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} />
+        <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" />
+        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-rose-300" cardTone="border-rose-400/20 bg-rose-500/[0.06]" />
+        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
+        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" />
+        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" />
+        <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" />
+        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" />
+        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
+        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} tone="text-blue-300" cardTone="border-blue-400/20 bg-blue-500/[0.06]" />
       </div>
     </div>
   );
@@ -1627,24 +1753,33 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
               const isTransfer = String(unbox(r.champ_pos) ?? "").toLowerCase() === "transfer";
               const showChampionship=r.__showChampionshipPosition!==false;
               const isLive=Boolean(r.__live);
-              const isChampion = !isLive && showChampionship && isNumeric(r.champ_pos) && Number(unbox(r.champ_pos)) === 1;
+              const finalPosition=showChampionship&&isNumeric(r.champ_pos)?Number(unbox(r.champ_pos)):null;
+              const isChampion = !isLive && finalPosition === 1;
               const historicalTeamId = resolveHistoricalTeamId(r,teams);
               const teamName = displayValue(r.team_name ?? r.team_id);
+              const transfer=r.__transfer||null;
               return (
                 <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-500/10" : ""}>
                   <td className="pr-2 py-1">{displayValue(r.year)}</td>
                   <td className="pr-2 py-1">{series}</td>
                   <td className="pr-2 py-1">
-                    <span className="inline-flex items-center gap-2">
-                      <TeamLogo teamId={historicalTeamId} name={teamName} size="h-5 w-5" className="shrink-0"/>
-                      {historicalTeamId ? (
-                        <span data-entity="team" data-id={historicalTeamId} className="entity-link-team">
-                          {teamName}
-                        </span>
-                      ) : (
-                        <span>{teamName}</span>
+                    <div>
+                      <span className="inline-flex items-center gap-2">
+                        <TeamLogo teamId={historicalTeamId} name={teamName} size="h-5 w-5" className="shrink-0"/>
+                        {historicalTeamId ? (
+                          <span data-entity="team" data-id={historicalTeamId} className="entity-link-team">
+                            {teamName}
+                          </span>
+                        ) : (
+                          <span>{teamName}</span>
+                        )}
+                      </span>
+                      {transfer&&(
+                        <div className="mt-0.5 text-[9px] text-purple-300">
+                          Transfer from {transfer.from}{Number.isFinite(Number(transfer.round))?` · joined R${transfer.round}`:""}
+                        </div>
                       )}
-                    </span>
+                    </div>
                   </td>
                   <td className="text-right pr-2 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
                   <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
@@ -1655,9 +1790,12 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                   <td className="text-right pr-0 py-1">
                     {!showChampionship ? (
                       <span className="text-slate-600">—</span>
-                    ) : isNumeric(r.champ_pos) ? (
-                      <span className={isLive?"font-semibold text-sky-300":""}>
-                        P{unbox(r.champ_pos)}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}
+                    ) : finalPosition != null ? (
+                      <span className={`inline-flex items-center justify-end gap-1 font-semibold ${isLive?"text-sky-300":finalPosition===1?"text-amber-300":finalPosition===2?"text-slate-300":finalPosition===3?"text-orange-400":""}`}>
+                        {!isLive&&finalPosition===1&&<Trophy size={12} aria-label="World Champion"/>}
+                        {!isLive&&finalPosition===2&&<Medal size={12} aria-label="Championship runner-up"/>}
+                        {!isLive&&finalPosition===3&&<Medal size={12} aria-label="Championship third place"/>}
+                        <span>P{finalPosition}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}</span>
                       </span>
                     ) : (
                       isTransfer ? <span className="italic text-purple-300">Transfer</span> : displayValue(r.champ_pos)
@@ -1687,7 +1825,6 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
 
 function AttributesTab({
   attrs,
-  condition,
   knowledge,
   driver,
   currentSnapshot,
@@ -1701,7 +1838,6 @@ function AttributesTab({
   compareMode,
   setCompareMode,
 }) {
-  const [showConditionInfo,setShowConditionInfo]=useState(false);
   if (!attrs) return <p className="text-slate-500 text-sm">No attributes.</p>;
 
   const groups=driverAttributeGroups();
@@ -1714,9 +1850,6 @@ function AttributesTab({
   const comparisonName=comparisonDriver?nameOf(comparisonDriver):"";
   const currentContract=currentSnapshot?.contract||null;
   const comparisonContract=comparisonSnapshot?.contract||null;
-  const conditionImpact=currentSnapshot?.conditionImpact||{};
-  const mentalStateHistory=currentSnapshot?.mentalStateHistory||[];
-  const reputation=currentSnapshot?.reputation;
 
   const shownValue=(knowledgeState,field,value,{kind="attribute"}={})=>
     presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
@@ -1832,7 +1965,7 @@ function AttributesTab({
           <div className="flex-1">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
             <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
-            <div className="mt-2 grid max-w-lg grid-cols-3 gap-2">
+            <div className="mt-2 grid max-w-sm grid-cols-2 gap-2">
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
                 <div className="mt-1">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-xl"})}</div>
@@ -1840,12 +1973,6 @@ function AttributesTab({
               <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
                 <div className="mt-1">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-xl"})}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5" title="Paddock, media and fan standing. Reputation affects market evaluation, salary expectations and negotiations; it does not increase race pace or Overall.">
-                <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-500">
-                  Reputation <Info size={11}/>
-                </div>
-                <div className="mt-1">{renderValue(knowledge,"reputation",reputation,{kind:"attribute",size:"text-xl"})}</div>
               </div>
             </div>
           </div>
@@ -1910,98 +2037,7 @@ function AttributesTab({
         </div>
       </div>
 
-      {knowledge?.canSeeCondition && (
-        <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current Condition</div>
-            <button
-              type="button"
-              onClick={()=>setShowConditionInfo((value)=>!value)}
-              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] ${showConditionInfo?"border-sky-400/30 bg-sky-500/10 text-sky-300":"border-white/10 text-slate-400 hover:text-white"}`}
-              title="Explain how current condition affects performance"
-              aria-expanded={showConditionInfo}
-            >
-              <Info size={12}/> Why these values?
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              ["Confidence","confidence",condition?.confidence??50,false],
-              ["Morale","morale",condition?.morale??50,false],
-              ["Preparation","preparation",condition?.preparation??50,false],
-              ["Fatigue","fatigue",condition?.fatigue??0,true],
-            ].map(([label,field,value,inverse])=>(
-              <div key={field} className="rounded-lg border border-white/10 bg-[#171a23] px-2.5 py-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-                <div className="mt-1">{renderValue(knowledge,field,value,{kind:"condition",inverse,size:"text-lg"})}</div>
-              </div>
-            ))}
-          </div>
 
-          {showConditionInfo&&(
-            <div className="mt-3 rounded-lg border border-sky-400/15 bg-sky-500/[0.04] p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-sky-300">Current Performance Impact</div>
-                  <div className="mt-0.5 text-[11px] text-slate-400">Temporary condition modifies qualifying/race performance without changing Overall.</div>
-                </div>
-                <div className={`text-xl font-semibold ${Number(conditionImpact.total||0)>=0?"text-emerald-300":"text-rose-300"}`}>
-                  {Number(conditionImpact.total||0)>=0?"+":""}{Number(conditionImpact.total||0).toFixed(2)}
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-                {[
-                  ["Confidence",conditionImpact.confidenceEffect],
-                  ["Morale",conditionImpact.moraleEffect],
-                  ["Preparation",conditionImpact.preparationEffect],
-                  ["Fatigue",conditionImpact.fatigueEffect],
-                  ["Medical",conditionImpact.medicalEffect],
-                ].map(([label,value])=>{
-                  const numeric=Number(value||0);
-                  return (
-                    <div key={label} className="rounded-md border border-white/10 bg-[#171a23] px-2 py-1.5">
-                      <div className="text-[9px] uppercase tracking-wide text-slate-500">{label}</div>
-                      <div className={`mt-0.5 text-sm font-semibold ${numeric>0?"text-emerald-300":numeric<0?"text-rose-300":"text-slate-400"}`}>
-                        {numeric>0?"+":""}{numeric.toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 border-t border-white/10 pt-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Recent causes</div>
-                {mentalStateHistory.length ? (
-                  <div className="mt-2 space-y-2">
-                    {mentalStateHistory.slice(0,6).map((entry,index)=>(
-                      <div key={`${entry?.dateISO||"event"}-${entry?.source||"state"}-${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-                        <span className="min-w-[72px] text-slate-500">{entry?.dateISO||"—"}</span>
-                        <span className="font-medium text-slate-300">{entry?.reason||String(entry?.source||"Mental state").replaceAll("_"," ")}</span>
-                        <span className="flex flex-wrap gap-1">
-                          {(entry?.changes||[]).map((change)=>{
-                            const delta=Number(change?.delta||0);
-                            return (
-                              <span key={change.field} className={`rounded border border-white/10 px-1.5 py-0.5 ${delta>0?"text-emerald-300":delta<0?"text-rose-300":"text-slate-400"}`}>
-                                {String(change.field||"").replaceAll("_"," ")} {delta>0?"+":""}{delta.toFixed(1)}
-                              </span>
-                            );
-                          })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-[11px] text-slate-500">No recorded mental-state events yet. A fresh career starts from the neutral baseline.</div>
-                )}
-                <div className="mt-2 text-[10px] leading-4 text-slate-500">
-                  Fatigue recovers naturally as days pass. Confidence and morale also drift slowly back toward 50; these passive daily adjustments are not listed as separate events.
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {comparisonDriver && (
         <div className="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4">
