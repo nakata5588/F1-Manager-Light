@@ -4,7 +4,7 @@ import { teamCarPerformance } from "../domain/carPerformance.js";
 import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
 import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
-import { applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
+import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
@@ -300,6 +300,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const results=[];
   const conditionDict={...(gs?.driverAttributes||{})};
+  let mentalStateLog={...(gs?.driverMentalStateLog||{})};
 
   for(const entry of gs?.raceEntryState?.entries||[]){
     const driverId=String(entry?.driver_id??"");
@@ -365,6 +366,19 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
     });
     const fatigueAfter=round1(nextCondition.fatigue);
     conditionDict[driverId]=nextCondition;
+    mentalStateLog=appendDriverMentalStateLog(mentalStateLog,driverId,{
+      before:previous,
+      after:nextCondition,
+      source:"practice",
+      reason:`${programme.label} practice`,
+      dateISO:gs?.currentDateISO,
+      meta:{
+        programme:programme.id,
+        setup_quality:quality,
+        setup_knowledge:knowledge,
+        preparation_gain:round1(prepGain),
+      },
+    });
 
     results.push({
       driver_id:driverId,
@@ -403,7 +417,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
     });
   }
 
-  let next={...gs,driverAttributes:conditionDict};
+  let next={...gs,driverAttributes:conditionDict,driverMentalStateLog:mentalStateLog};
   next=applyPracticeComponentWear(next,{practiceResults:results,gp});
   const enrichedResults=results.map((row)=>({
     ...row,
