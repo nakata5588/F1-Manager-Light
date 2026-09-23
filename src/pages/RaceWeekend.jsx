@@ -447,7 +447,7 @@ export default function RaceWeekend(){
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const [busy,setBusy]=useState(false);
   const [activeWindow,setActiveWindow]=useState("overview");
-  const [liveTimingMode,setLiveTimingMode]=useState("timing");
+  const [liveTimingMode,setLiveTimingMode]=useState("overall");
 
   const weekend=gs?.raceWeekendState;
   const drivers=gs?.drivers||[];
@@ -1110,9 +1110,19 @@ export default function RaceWeekend(){
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race Feed</div>
                 <div className="text-[10px] text-slate-600">{timingSummary?.running_count??liveRows.filter((r)=>!r.retired).length} running · {timingSummary?.retired_count??liveRows.filter((r)=>r.retired).length} DNF</div>
               </div>
-              <div className="mt-2 grid gap-x-5 gap-y-1 text-xs md:grid-cols-2">
-                {(liveRace.events||[]).slice(-6).reverse().map((event,index)=>(
-                  <div className="flex min-w-0 items-center gap-2" key={event?.event_key||index}>
+              <div className="mt-2 grid gap-1 text-xs md:grid-cols-2">
+                {(liveRace.events||[]).slice(-10).reverse().map((event,index)=>(
+                  <div className={"flex min-w-0 items-center gap-2 rounded border px-2 py-1 "+(
+                    String(event?.control_type||"")==="RED_FLAG"||String(event?.type||"")==="incident"||/dnf|retir|collision|crash/i.test(String(event?.message||""))
+                      ?"border-red-900/50 bg-red-950/45 text-red-100"
+                      :String(event?.control_type||"").includes("YELLOW")
+                        ?"border-amber-500/30 bg-amber-500/10"
+                        :String(event?.control_type||"")==="GREEN"
+                          ?"border-emerald-500/25 bg-emerald-500/[0.08]"
+                          :String(event?.type||"")==="pit"
+                            ?"border-sky-500/20 bg-sky-500/[0.07]"
+                            :"border-white/5 bg-white/[0.025]"
+                  )} key={event?.event_key||index}>
                     <span className="shrink-0 font-mono text-slate-600">L{event.lap}{Number(event?.sector)>0?<>·S{event.sector}</>:null}</span>
                     {(()=>{
                       const eventCompound=event?.tyre_to
