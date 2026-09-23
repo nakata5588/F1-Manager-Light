@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, Search, Info
+  Handshake, FileText, Coffee, Search, Info, Trophy, Medal
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -12,7 +12,8 @@ import { driverProfileSnapshot } from "../../domain/driverProfile.js";
 import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { driverDerivedRatings } from "../../domain/driverDerivedRatings.js";
 import {
-  deriveCareerChampionshipPositions,
+  annotateCareerTransfers,
+  applyResultChampionshipPositions,
   historicalCareerDriverMatches,
   historicalCareerRowKey,
   markChampionshipPositionTeam,
@@ -231,14 +232,14 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     () => driverContractsOf(gs),
     [gs?.contracts, gs?.dbContracts]
   );
-  const careerRaw = useMemo(() => {
-    const merged=mergeHistoricalCareerSources(
+  const careerRaw = useMemo(
+    () => mergeHistoricalCareerSources(
       toArraySafe(gs?.driverCareer),
       toArraySafe(gs?.dbDriverCareer),
       [...toArraySafe(gs?.dbTeams), ...toArraySafe(gs?.teams)]
-    );
-    return deriveCareerChampionshipPositions(merged);
-  }, [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]);
+    ),
+    [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]
+  );
   const generatedHistoryRaw = useMemo(
     () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
     [gs?.driverHistory, gs?.dbDriverHistory]
@@ -407,9 +408,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       next.__priority = Math.max(Number(prev.__priority || 0), priority);
       merged.set(key, next);
     };
-    for (const row of generatedHistoryRaw || []) push(row, 1);
-    for (const row of careerRaw || []) push(row, 2);
-    return [...merged.values()].map(({ __priority, ...row }) => row);
+    // Manual career rows are fallback/enrichment only. Result-derived history
+    // is authoritative for starts, points, teams and other race statistics.
+    for (const row of careerRaw || []) push(row, 1);
+    for (const row of generatedHistoryRaw || []) push(row, 2);
+    const rows=[...merged.values()].map(({ __priority, ...row }) => row);
+    return applyResultChampionshipPositions(rows,generatedHistoryRaw);
   }, [careerRaw, generatedHistoryRaw, driver?.driver_id, driver?.id, entity.id, driverIdentityName, teamsList, careerStartYear]);
 
   // ==== Filtros (tabs Statistics/Career) ====
@@ -559,7 +563,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       if(Number.isFinite(oa)&&Number.isFinite(ob)&&oa!==ob)return oa-ob;
       return String(unbox(a.team_name) || "").localeCompare(String(unbox(b.team_name) || ""));
     });
-    return markChampionshipPositionTeam(list);
+    return annotateCareerTransfers(markChampionshipPositionTeam(list));
   }, [filteredCareer]);
 
   const careerTotals = useMemo(() => {
