@@ -107,9 +107,16 @@ function normalizeContainer(gs){
 
 export function synchronizeDriverRelationships(gs,{source="relationship_foundation"}={}){
   if(!gs||typeof gs!=="object")return gs;
+  const hadRelationshipState=Boolean(
+    gs?.driverRelationships &&
+    typeof gs.driverRelationships==="object" &&
+    !Array.isArray(gs.driverRelationships)
+  );
+  const driverTeams=currentDriverTeams(gs);
+  if(!hadRelationshipState&&driverTeams.size===0)return gs;
+
   const container=normalizeContainer(gs);
   const dateISO=text(gs?.currentDateISO).slice(0,10)||null;
-  const driverTeams=currentDriverTeams(gs);
   const raceByTeam=raceDriversByTeam(gs);
   const userTeamId=text(gs?.team?.team_id??gs?.team?.id);
 
