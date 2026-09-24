@@ -148,7 +148,7 @@ function setItemQuotaSafe(key, value, { evictManualSaves = true } = {}) {
   }
 }
 function setRollingSnapshot(value) {
-  return setRollingSnapshot( value, { evictManualSaves: false });
+  return setItemQuotaSafe(SAVE_KEY, value, { evictManualSaves: false });
 }
 
 function hydrateLoadedGameState(saved) {
