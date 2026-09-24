@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, Search, Info, Trophy, Medal
+  Handshake, FileText, Coffee, Search, Info, Trophy
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -459,7 +459,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           series_division: "F1",
           team_id,
           team_name: teamNameById.get(String(team_id ?? "")) || (y === gameYear ? contractTeam : null) || "—",
-          starts: 0, races: 0, wins: 0, podiums: 0, poles: 0, fastest_laps: 0, points: 0, champ_pos: null,
+          starts: 0, races: 0, wins: 0, podiums: 0, poles: 0, fastest_laps: 0, dnf: 0, points: 0, champ_pos: null,
           first_round: null, last_round: null,
         });
       }
@@ -473,9 +473,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
         rec.starts += 1;
         rec.races += 1;
         const pos = Number(raceRow.position ?? raceRow.pos);
-        if (!raceRow.retired && pos === 1) rec.wins += 1;
-        if (!raceRow.retired && pos >= 1 && pos <= 3) rec.podiums += 1;
+        const retired=Boolean(raceRow.retired)||String(raceRow.status||"").toUpperCase()==="DNF";
+        if (!retired && pos === 1) rec.wins += 1;
+        if (!retired && pos >= 1 && pos <= 3) rec.podiums += 1;
         if (raceRow.fastest_lap) rec.fastest_laps += 1;
+        if (retired) rec.dnf += 1;
         rec.points += Number(raceRow.points || 0);
       }
       if (qRow && Number(qRow.position ?? qRow.pos) === 1) rec.poles += 1;
@@ -509,6 +511,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       podiums: sum("podiums"),
       poles: sum("poles"),
       fastest_laps: sum("fastest_laps"),
+      dnf: sum("dnf"),
       points: sum("points"),
     };
   }, [liveSeasonRows]);
@@ -528,6 +531,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     const podiums      = sum((r) => r.podiums);
     const poles        = sum((r) => r.poles);
     const fastest_laps = sum((r) => r.fastest_laps);
+    const dnfs         = sum((r) => r.dnf ?? r.dnfs);
     const points       = sum((r) => r.points);
     const yearsWithPoints = rows.filter((r) => unbox(r.points) !== undefined);
     const avgPoints = yearsWithPoints.length
@@ -545,7 +549,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     const avgPos = numericPositions.length
       ? (numericPositions.reduce((a, v) => a + v, 0) / numericPositions.length)
       : null;
-    return { starts, wins, podiums, poles, fastest_laps, points, avgPoints, highestPos, highestCount, avgPos };
+    return { starts, wins, podiums, poles, fastest_laps, dnfs, points, avgPoints, highestPos, highestCount, avgPos };
   }, [filteredCareer]);
 
   const careerTimeline = useMemo(() => {
@@ -639,6 +643,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     {kind:"ability",estimated:overallView?.estimated}
   );
   const overallLabel  = overallPresentation.label;
+  const reputationPresentation = presentDriverKnowledgeValue(
+    knowledge,
+    "reputation",
+    profileSnapshot?.reputation,
+    {kind:"attribute"}
+  );
   const rawMarketValue = Number(unbox(attrs?.market_value));
   const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
   const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
@@ -794,10 +804,17 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <ProfileMetric label="OVR" value={overallLabel}/>
-          <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"}/>
-          <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0}/>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <ProfileMetric label="OVR" value={overallLabel} compact/>
+          <ProfileMetric label="Reputation" value={reputationPresentation?.label??"—"} tone={presentationColorClass(reputationPresentation)} compact/>
+          <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"} compact/>
+          <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0} compact/>
+          <ProfileMetric
+            label="Market value"
+            value={knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}
+            compact
+            cardTone="col-span-2"
+          />
         </div>
 
         <div className="mt-4">
@@ -820,7 +837,6 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
-          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}</strong></div>
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
@@ -1041,12 +1057,37 @@ function KV({ label, value, className = "" }) {
 
 /* ======================== Tabs ======================== */
 
-function ProfileMetric({ label, value, tone = "", cardTone = "", title = "" }) {
+function ProfileMetric({ label, value, tone = "", cardTone = "", title = "", compact = false }) {
   return (
-    <div title={title||undefined} className={`rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 ${cardTone}`}>
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`mt-0.5 text-sm font-semibold ${tone}`}>{displayValue(value)}</div>
+    <div
+      title={title||undefined}
+      className={`rounded-lg border border-white/10 bg-[#171a23] ${compact?"px-2 py-1.5":"px-3 py-2"} ${cardTone}`}
+    >
+      <div className={`${compact?"text-[9px]":"text-[10px]"} uppercase tracking-wide text-slate-500`}>{label}</div>
+      <div className={`${compact?"mt-0 text-[13px]":"mt-0.5 text-sm"} font-semibold ${tone}`}>{displayValue(value)}</div>
     </div>
+  );
+}
+
+function ChampionshipMedal({ position }) {
+  const isSilver=Number(position)===2;
+  const medalClass=isSilver
+    ?"border-slate-200/70 bg-gradient-to-br from-slate-100 via-slate-300 to-slate-500 text-slate-800"
+    :"border-orange-300/70 bg-gradient-to-br from-orange-200 via-orange-400 to-amber-700 text-amber-950";
+  const ribbonClass=isSilver
+    ?"from-slate-200 via-slate-500 to-slate-200"
+    :"from-orange-200 via-orange-500 to-orange-200";
+  return (
+    <span
+      className="relative inline-flex h-5 w-4 shrink-0 items-end justify-center"
+      aria-label={isSilver?"Championship runner-up":"Championship third place"}
+      title={isSilver?"Championship runner-up":"Championship third place"}
+    >
+      <span className={`absolute top-0 h-2.5 w-3 bg-gradient-to-r ${ribbonClass}`} style={{clipPath:"polygon(0 0,42% 0,50% 100%,58% 0,100% 0,72% 100%,28% 100%)"}}/>
+      <span className={`relative z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[8px] font-black leading-none shadow-sm ${medalClass}`}>
+        {position}
+      </span>
+    </span>
   );
 }
 
@@ -1254,7 +1295,7 @@ function OverviewTab({
           />
         </div>
 
-        {canSeeCondition ? (
+        {canSeeCondition&&(
           <>
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-3">
@@ -1269,10 +1310,6 @@ function OverviewTab({
 
             <ConditionExplanationPanel snapshot={snapshot} condition={condition}/>
           </>
-        ) : (
-          <div className="mt-5 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
-            Day-to-day condition is private team data. Public/scouting knowledge does not reveal current confidence, morale, preparation or fatigue.
-          </div>
         )}
       </div>
 
@@ -1313,14 +1350,45 @@ function OverviewTab({
       )}
 
       <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge & Decision Support</div>
-        <p className="mt-2 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</p>
-        <p className="mt-1 text-xs text-slate-400">
-          Exact driver ratings are only available through your own team, Academy support or a completed specific scouting report. Regional scouting and public F1 knowledge use ranges instead of database-perfect numbers.
-        </p>
-        <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
-          Overall ability stays separate from current performance. Hidden day-to-day condition never changes the permanent Overall shown by the rating model.
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last 10 Grands Prix</div>
+            <div className="mt-1 text-xs text-slate-400">Recent played-race results and performance evaluation.</div>
+          </div>
+          {!!snapshot?.performanceHistory?.length&&(
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">{Math.min(10,snapshot.performanceHistory.length)} shown</div>
+          )}
         </div>
+        {snapshot?.performanceHistory?.length?(
+          <div className="mt-3 overflow-x-auto">
+            <div className="min-w-[620px]">
+              <div className="grid grid-cols-[minmax(180px,1fr)_58px_58px_100px_70px] gap-2 border-b border-white/10 pb-1.5 text-[9px] uppercase tracking-wide text-slate-500">
+                <span>Grand Prix</span><span className="text-right">Quali</span><span className="text-right">Grid</span><span className="text-right">Result</span><span className="text-right">Eval.</span>
+              </div>
+              {snapshot.performanceHistory.slice(0,10).map((race,index)=>{
+                const retired=Boolean(race?.retired);
+                const score=Number(race?.score);
+                const resultLabel=retired
+                  ?`DNF · ${race?.retirement_reason||"Retired"}`
+                  :race?.finish_position!=null?`P${race.finish_position}`:"—";
+                return (
+                  <div key={`${race?.year||"year"}-${race?.round||index}-${race?.gp_id||race?.gp_name||index}`} className="grid grid-cols-[minmax(180px,1fr)_58px_58px_100px_70px] gap-2 border-b border-white/5 py-2 text-xs last:border-b-0">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-slate-200">{race?.gp_name||`Round ${race?.round||"—"}`}</div>
+                      <div className="mt-0.5 text-[9px] text-slate-600">{race?.year||""}{race?.round?` · R${race.round}`:""}</div>
+                    </div>
+                    <div className="text-right text-slate-300">{race?.qualifying_position!=null?`P${race.qualifying_position}`:"—"}</div>
+                    <div className="text-right text-slate-300">{race?.grid_position!=null?`P${race.grid_position}`:"—"}</div>
+                    <div className={`truncate text-right font-medium ${retired?"text-rose-300":Number(race?.finish_position)<=3?"text-emerald-300":"text-slate-200"}`} title={resultLabel}>{resultLabel}</div>
+                    <div className={`text-right font-semibold ${score>=76?"text-emerald-300":score<58?"text-rose-300":"text-slate-300"}`}>{Number.isFinite(score)?score.toFixed(1):"—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ):(
+          <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-500">No played Grand Prix results yet in this save.</div>
+        )}
       </div>
     </div>
   );
@@ -1703,16 +1771,17 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
   return (
     <div className="space-y-3">
       <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
-      <div className="grid grid-cols-3 gap-2 md:grid-cols-5 lg:grid-cols-9">
-        <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" />
-        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-rose-300" cardTone="border-rose-400/20 bg-rose-500/[0.06]" />
-        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
-        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" />
-        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" />
-        <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" />
-        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" />
-        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
-        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} tone="text-blue-300" cardTone="border-blue-400/20 bg-blue-500/[0.06]" />
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5 xl:grid-cols-10">
+        <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" compact />
+        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
+        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
+        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" compact />
+        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" compact />
+        <ProfileMetric label="DNF" value={agg?.dnfs ?? 0} tone={agg?.dnfs?"text-rose-300":""} cardTone="border-rose-400/20 bg-rose-500/[0.06]" compact />
+        <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
+        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" compact />
+        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
+        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} tone="text-blue-300" cardTone="border-blue-400/20 bg-blue-500/[0.06]" compact />
       </div>
     </div>
   );
@@ -1782,7 +1851,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                     </div>
                   </td>
                   <td className="text-right pr-2 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
-                  <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
+                  <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-emerald-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.podiums, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.poles, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.fastest_laps, 0)}</td>
@@ -1793,8 +1862,8 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                     ) : finalPosition != null ? (
                       <span className={`inline-flex items-center justify-end gap-1 font-semibold ${isLive?"text-sky-300":finalPosition===1?"text-amber-300":finalPosition===2?"text-slate-300":finalPosition===3?"text-orange-400":""}`}>
                         {!isLive&&finalPosition===1&&<Trophy size={12} aria-label="World Champion"/>}
-                        {!isLive&&finalPosition===2&&<Medal size={12} aria-label="Championship runner-up"/>}
-                        {!isLive&&finalPosition===3&&<Medal size={12} aria-label="Championship third place"/>}
+                        {!isLive&&finalPosition===2&&<ChampionshipMedal position={2}/>}
+                        {!isLive&&finalPosition===3&&<ChampionshipMedal position={3}/>} 
                         <span>P{finalPosition}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}</span>
                       </span>
                     ) : (
@@ -1854,9 +1923,9 @@ function AttributesTab({
   const shownValue=(knowledgeState,field,value,{kind="attribute"}={})=>
     presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
 
-  const renderShown=(shown,{inverse=false,size=""}={})=>(
+  const renderShown=(shown,{inverse=false,size="",toneOverride=null}={})=>(
     <span
-      className={`font-semibold ${size} ${presentationColorClass(shown,{inverse})}`}
+      className={`font-semibold ${size} ${toneOverride??presentationColorClass(shown,{inverse})}`}
       title={
         shown?.visibility==="range"?"Scouting/public estimate range":
         shown?.visibility==="hidden"?"Requires scouting":
@@ -1867,8 +1936,29 @@ function AttributesTab({
     </span>
   );
 
-  const renderValue=(knowledgeState,field,value,{kind="attribute",inverse=false,size=""}={})=>
-    renderShown(shownValue(knowledgeState,field,value,{kind}),{inverse,size});
+  const renderValue=(knowledgeState,field,value,{kind="attribute",inverse=false,size="",toneOverride=null}={})=>
+    renderShown(shownValue(knowledgeState,field,value,{kind}),{inverse,size,toneOverride});
+
+  const comparisonTone=(leftShown,rightShown,{inverse=false,side="left"}={})=>{
+    if(leftShown?.sortValue==null||rightShown?.sortValue==null)return "text-slate-400";
+    const raw=(Number(leftShown.sortValue)-Number(rightShown.sortValue))*(inverse?-1:1);
+    if(Math.abs(raw)<0.05)return "text-slate-300";
+    const leftBetter=raw>0;
+    const better=side==="left"?leftBetter:!leftBetter;
+    return better?"text-emerald-300":"text-rose-300";
+  };
+
+  const renderComparisonValue=(side,knowledgeState,field,value,otherKnowledge,otherValue,{kind="attribute",inverse=false,size=""}={})=>{
+    const shown=shownValue(knowledgeState,field,value,{kind});
+    const other=shownValue(otherKnowledge,field,otherValue,{kind});
+    const leftShown=side==="left"?shown:other;
+    const rightShown=side==="left"?other:shown;
+    return renderShown(shown,{
+      inverse,
+      size,
+      toneOverride:comparisonTone(leftShown,rightShown,{inverse,side}),
+    });
+  };
 
   const differenceFor=(field,left,right,{kind="attribute",inverse=false}={})=>{
     const leftShown=shownValue(knowledge,field,left,{kind});
@@ -1962,22 +2052,22 @@ function AttributesTab({
     <div className="space-y-3">
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
-            <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
-            <div className="mt-2 grid max-w-sm grid-cols-2 gap-2">
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
-                <div className="mt-1">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-xl"})}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
-                <div className="mt-1">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-xl"})}</div>
-              </div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="mr-2 min-w-[120px]">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
+              <div className="mt-0.5 text-xs text-slate-300">{knowledge?.label||"Unscouted"}</div>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#171a23] px-2 py-1.5">
+              <span className="text-[9px] uppercase tracking-wide text-slate-500">OVR</span>
+              {renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-base"})}
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#171a23] px-2 py-1.5">
+              <span className="text-[9px] uppercase tracking-wide text-slate-500">Potential</span>
+              {renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-base"})}
             </div>
           </div>
 
-          <div className="relative w-full lg:w-[280px]">
+          <div className="relative w-full lg:w-[250px]">
             <div className="text-xs text-slate-400">Compare with</div>
             <div className="relative mt-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-2.5 text-slate-500"/>
@@ -2084,8 +2174,8 @@ function AttributesTab({
               ].map(([label,field,left,right,kind,inverse])=>(
                 <div key={field} className="contents">
                   <div className="border-t border-white/10 py-2 text-slate-400">{label}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderValue(knowledge,field,left,{kind,inverse})}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderValue(comparisonKnowledge,field,right,{kind,inverse})}</div>
+                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind,inverse})}</div>
+                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind,inverse})}</div>
                   <div className="border-t border-white/10 py-2 text-right">{differenceFor(field,left,right,{kind,inverse})}</div>
                 </div>
               ))}
@@ -2140,10 +2230,13 @@ function AttributesTab({
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[9px] uppercase tracking-wide text-slate-600">Average</div>
-                  <div>{renderShown(shownGroup,{size:"text-lg"})}</div>
+                  <div>{renderShown(shownGroup,{
+                    size:"text-lg",
+                    toneOverride:comparisonDriver?comparisonTone(shownGroup,shownComparisonGroup,{side:"left"}):null,
+                  })}</div>
                   {comparisonDriver&&(
                     <div className="mt-0.5 text-[11px] text-slate-500">
-                      vs {renderShown(shownComparisonGroup)} · {differenceFor(`group_${group.key}`,rawGroupScore,comparisonGroupScore,{kind:"attribute"})}
+                      vs {renderShown(shownComparisonGroup,{toneOverride:comparisonTone(shownGroup,shownComparisonGroup,{side:"right"})})} · {differenceFor(`group_${group.key}`,rawGroupScore,comparisonGroupScore,{kind:"attribute"})}
                     </div>
                   )}
                 </div>
@@ -2169,10 +2262,14 @@ function AttributesTab({
                   return (
                     <div key={field} className={`grid items-center gap-1.5 text-xs ${comparisonDriver?"grid-cols-[1fr_58px_58px_48px]":"grid-cols-[1fr_58px]"}`}>
                       <span className="text-slate-400">{attribute.label}</span>
-                      <div className="text-right">{renderValue(knowledge,field,left,{kind:"attribute",inverse:attribute.inverse})}</div>
+                      <div className="text-right">
+                        {comparisonDriver
+                          ?renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind:"attribute",inverse:attribute.inverse})
+                          :renderValue(knowledge,field,left,{kind:"attribute",inverse:attribute.inverse})}
+                      </div>
                       {comparisonDriver&&(
                         <>
-                          <div className="text-right">{renderValue(comparisonKnowledge,field,right,{kind:"attribute",inverse:attribute.inverse})}</div>
+                          <div className="text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute",inverse:attribute.inverse})}</div>
                           <div className="text-right">{differenceFor(field,left,right,{kind:"attribute",inverse:attribute.inverse})}</div>
                         </>
                       )}
@@ -2212,10 +2309,15 @@ function AttributesTab({
               <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
                 <div className="mt-1 flex items-baseline justify-between gap-2">
-                  <div>{renderShown(shown,{size:"text-lg"})}</div>
+                  <div>{renderShown(shown,{
+                    size:"text-lg",
+                    toneOverride:comparisonDriver
+                      ?comparisonTone(shown,shownValue(comparisonKnowledge,field,right,{kind:"attribute"}),{side:"left"})
+                      :null,
+                  })}</div>
                   {comparisonDriver&&(
                     <div className="text-right text-xs">
-                      <div>{renderValue(comparisonKnowledge,field,right,{kind:"attribute"})}</div>
+                      <div>{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute"})}</div>
                       <div className="mt-0.5">{differenceFor(field,left,right,{kind:"attribute"})}</div>
                     </div>
                   )}
