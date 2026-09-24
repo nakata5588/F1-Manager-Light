@@ -763,7 +763,9 @@ export function cancelLiveRaceCommand(gs,{driverId,type=null}={}){
   const driverName=driverDisplayName(gs,did);
   const orderLabel=target.type==="pit"
     ?`pit order for ${tyreDisplayName(gs,did,target.tyre_id)} tyres`
-    :`${paceInstruction(target.pace_mode)} pace order`;
+    :target.type==="team_order"
+      ?`team order to let ${driverDisplayName(gs,target.teammate_id)} through`
+      :`${paceInstruction(target.pace_mode)} pace order`;
   return {
     ...gs,
     raceWeekendState:{
