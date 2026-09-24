@@ -4,6 +4,7 @@ import {
   aggregateHistoricalConstructors,
   constructorChampionForYear,
   constructorChampionshipHistory,
+  driverConstructorChampionships,
   teamChampionshipSummary,
 } from "../src/domain/championshipHistory.js";
 
@@ -83,4 +84,21 @@ test("played Save World standings override the historical future",()=>{
   const champion1980=history.find((row)=>row.year===1980);
   assert.equal(champion1980.team_id,"FERRARI");
   assert.equal(champion1980.source,"save_world");
+});
+
+
+test("driver constructor titles only include seasons where his team was champion",()=>{
+  const gs=fixture();
+  gs.dbDriverHistory.push(
+    {year:1972,series_division:"F1",driver_id:"S",team_id:"MCLAREN",team_name:"McLaren",points:0,wins:0,podiums:0,races:1},
+    {year:1972,series_division:"F1",driver_id:"L1",team_id:"LOTUS",team_name:"Lotus",points:61,wins:5,podiums:8,races:12},
+    {year:1972,series_division:"F1",driver_id:"L2",team_id:"LOTUS",team_name:"Lotus",points:10,wins:0,podiums:1,races:12},
+    {year:1972,series_division:"F1",driver_id:"M1",team_id:"MCLAREN",team_name:"McLaren",points:35,wins:1,podiums:5,races:12}
+  );
+  const career=[
+    {year:1972,series_division:"F1",team_id:"MCLAREN",team_name:"McLaren"},
+    {year:1979,series_division:"F1",team_id:"FERRARI",team_name:"Ferrari"},
+  ];
+  const titles=driverConstructorChampionships(gs,career);
+  assert.deepEqual(titles.map((row)=>[row.year,row.team_id]),[[1979,"FERRARI"]]);
 });
