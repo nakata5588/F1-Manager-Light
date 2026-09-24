@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
+import { GrandPrixFlag } from "../components/entity/GrandPrixFlag.jsx";
 
 function formatGameDate(iso){
   if(!iso)return "—";
@@ -11,12 +12,6 @@ function formatGameDate(iso){
   return date.toLocaleDateString("en-GB",{
     weekday:"short",day:"2-digit",month:"long",year:"numeric",timeZone:"UTC",
   });
-}
-
-function flagEmoji(code){
-  const value=String(code||"").trim().toUpperCase();
-  if(!/^[A-Z]{2}$/.test(value))return "🏁";
-  return String.fromCodePoint(...[...value].map((char)=>127397+char.charCodeAt(0)));
 }
 
 export default function RaceWeekendLayout(){
@@ -30,7 +25,6 @@ export default function RaceWeekendLayout(){
   const dateLabel=useMemo(()=>formatGameDate(gameState?.currentDateISO),[gameState?.currentDateISO]);
   const weekend=gameState?.raceWeekendState||null;
   const gp=(gameState?.calendar||[])[Number(weekend?.roundIndex)||0]||{};
-  const gpFlag=flagEmoji(gp?.country_code||gp?.countryCode||gp?.country_iso2||gp?.iso2);
 
   const runAdvance=async()=>{
     if(busy)return;
@@ -67,7 +61,7 @@ export default function RaceWeekendLayout(){
           {busy?"Advancing…":"Advance"}
         </button>
         {weekend?<div className="hidden min-w-0 items-center gap-2 border-l border-white/10 pl-3 md:flex">
-          <span className="text-lg" aria-hidden>{gpFlag}</span>
+          <GrandPrixFlag gameState={gameState} gp={gp} size="md"/>
           <div className="min-w-0 leading-tight">
             <div className="truncate text-xs font-semibold text-slate-200">R{weekend.round} · {weekend.gp_name}</div>
             <div className="text-[9px] uppercase tracking-wide text-slate-500">{String(weekend.phase||"").replaceAll("_"," ")}</div>
