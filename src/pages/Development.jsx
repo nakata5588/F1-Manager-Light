@@ -21,6 +21,16 @@ import {
 } from "@/domain/developmentProject.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
 import {
+  aeroAllocationPerformanceEquivalents,
+  aeroTestingRemaining,
+  componentDevelopmentRule,
+  defaultAeroAllocation,
+  developmentRegulationProfile,
+  normalizedAeroAllocation,
+  recordAeroTestingUsage,
+  usesAerodynamicTesting,
+} from "@/domain/developmentRegulations.js";
+import {
   discoverableCarTechnologies,
   startTechnologyAdoption,
   technologyAdoptionQuote,
@@ -170,6 +180,14 @@ export default function Development({ embedded = false, initialTab = "projects",
   const teamMorale=teamOperationalMorale(gameState,teamId);
   const moraleWorkRate=teamWorkRateLabel(gameState,teamId);
   const moraleTimeFactor=teamWorkRateMultiplier(gameState,teamId);
+  const regulationProfile=useMemo(
+    ()=>developmentRegulationProfile(gameState,teamId,{dateISO:currentDateISO}),
+    [gameState,teamId,currentDateISO,activeYear]
+  );
+  const atrRemaining=useMemo(
+    ()=>aeroTestingRemaining(dev,regulationProfile),
+    [dev,regulationProfile]
+  );
   const research = Array.isArray(dev.research) && dev.research.length
     ? dev.research
     : [
@@ -183,7 +201,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
-    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:20, windTunnel:10,
+    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0,
   });
 
   useEffect(() => {
@@ -206,7 +224,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced"}));
       return;
     }
-    const allowed=developmentObjectivesForSlot(gameState,draft.type);
+    const allowed=developmentObjectivesForSlot(gameState,draft.type,teamId);
     if(!allowed.some((objective)=>objective.id===draft.objective)){
       setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced"}));
     }
@@ -298,14 +316,28 @@ export default function Development({ embedded = false, initialTab = "projects",
   }, [currentDateISO, projects, parts, partUnits, manufacturing, research, dev, setGameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
-  const objectiveOptions=developmentObjectivesForSlot(gameState,draft.type);
-  const objective=objectiveOptions.find((row)=>row.id===draft.objective)||objectiveOptions[0];
-  const objectiveModifiers=objectiveProjectModifiers(gameState,draft.type,draft.objective);
-  const rawEffectiveDays = effectiveProjectDays(draft, levelOf, moraleTimeFactor);
+  const componentRule=componentDevelopmentRule(gameState,teamId,draft.type);
+  const objectiveOptions=developmentObjectivesForSlot(gameState,draft.type,teamId);
+  const objective=objectiveOptions.find((row)=>row.id===draft.objective)||objectiveOptions[0]||null;
+  const objectiveModifiers=objectiveProjectModifiers(gameState,draft.type,draft.objective,teamId);
+  const aeroAllocation=normalizedAeroAllocation(gameState,teamId,draft.type,{
+    windTunnel:draft.windTunnel,
+    cfd:draft.cfd,
+  },dev);
+  const aeroEffect=aeroAllocationPerformanceEquivalents(regulationProfile,{
+    windTunnel:aeroAllocation.wind_tunnel,
+    cfd:aeroAllocation.cfd,
+  });
+  const effectiveDraft={
+    ...draft,
+    cfd:aeroEffect.cfd_effective,
+    windTunnel:aeroEffect.wind_tunnel_effective,
+  };
+  const rawEffectiveDays = effectiveProjectDays(effectiveDraft, levelOf, moraleTimeFactor);
   const effectiveDays = Math.max(7,Math.round(rawEffectiveDays*objectiveModifiers.duration_multiplier));
-  const baseCost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
+  const baseCost = projectCost({...effectiveDraft, duration:effectiveDays}, levelOf("manufacturing_leve"));
   const cost = Math.round(baseCost*objectiveModifiers.cost_multiplier);
-  const baseExpectedPerf = perfDelta(draft, levelOf, parts);
+  const baseExpectedPerf = perfDelta(effectiveDraft, levelOf, parts);
   const expectedIncrement = Number((
     baseExpectedPerf * Number(testDriverProfile?.performanceMultiplier || 1)
   ).toFixed(2));
@@ -316,6 +348,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     objectiveId:draft.objective,
     targetStrength:strengthTarget.target_strength,
     currentPart:currentDesign,
+    teamId,
   });
   const capacity=technicalDevelopmentCapacity(gameState,teamId,{
     engineeringSupport,
@@ -332,6 +365,9 @@ export default function Development({ embedded = false, initialTab = "projects",
   const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
   const canStartProject=Boolean(
     currentDateISO &&
+    componentRule.can_start_project &&
+    objective &&
+    aeroAllocation.allowed &&
     budget>=cost &&
     hasEngineerCapacity &&
     capacity.project_slot_available &&
@@ -354,8 +390,15 @@ export default function Development({ embedded = false, initialTab = "projects",
       finishes_at:addDaysISO(currentDateISO, effectiveDays),
       duration_days:effectiveDays,
       engineers:Number(draft.engineers),
-      cfd_hours:Number(draft.cfd),
-      wt_hours:Number(draft.windTunnel),
+      cfd_hours:regulationProfile.scheme==="fia_atr"?0:Number(aeroAllocation.cfd),
+      cfd_mauh:regulationProfile.scheme==="fia_atr"?Number(aeroAllocation.cfd):null,
+      cfd_allocation:Number(aeroAllocation.cfd),
+      cfd_unit:regulationProfile.cfd_unit,
+      wt_hours:Number(aeroAllocation.wind_tunnel),
+      aero_testing_scheme:regulationProfile.scheme,
+      aero_testing_period:regulationProfile.period?.id||null,
+      atr_coefficient:regulationProfile.coefficient,
+      component_development_rule:componentRule.rule,
       cost,
       perf_delta:strengthTarget.increment,
       base_perf_delta:baseExpectedPerf,
@@ -369,9 +412,17 @@ export default function Development({ embedded = false, initialTab = "projects",
     };
 
     applyExpense(cost, `Development — ${project.name}`);
-    setGameState({
-      development:{...dev, projects:[...projects, project], parts, partUnits, manufacturing, research},
+    const nextDevelopment=recordAeroTestingUsage({
+      ...dev,
+      projects:[...projects, project],
+      parts,partUnits,manufacturing,research,
+    },regulationProfile,{
+      windTunnel:aeroAllocation.wind_tunnel,
+      cfd:aeroAllocation.cfd,
     });
+    setGameState({development:nextDevelopment});
+    const defaults=defaultAeroAllocation(gameState,teamId,draft.type,nextDevelopment);
+    setDraft((current)=>({...current,cfd:defaults.cfd,windTunnel:defaults.windTunnel}));
     setShowCreate(false);
   };
 
@@ -537,7 +588,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <div className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full font-medium text-slate-200">{automaticProjectName}</div>
                   <div className="mt-1 text-[10px] text-slate-500">Generated automatically from component, design objective and version.</div>
                 </div>
-                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value,objective:"balanced"})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
+                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>{const type=e.target.value;const defaults=defaultAeroAllocation(gameState,teamId,type,dev);setDraft({...draft,type,objective:"balanced",cfd:defaults.cfd,windTunnel:defaults.windTunnel});}}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
               </div>
 
               <div>
@@ -550,12 +601,32 @@ export default function Development({ embedded = false, initialTab = "projects",
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Development Regulations · {activeYear}</div>
+                    <div className="font-semibold text-sm">{regulationProfile.label}</div>
+                    <div className="text-[11px] text-slate-500 mt-1">{regulationProfile.note}</div>
+                  </div>
+                  <span className={"rounded px-2 py-1 text-[10px] font-semibold h-fit "+(componentRule.rule==="free"?"bg-emerald-500/10 text-emerald-300":componentRule.can_start_project?"bg-amber-500/10 text-amber-300":"bg-rose-500/10 text-rose-300")}>{componentRule.label}</span>
+                </div>
+                <div className="mt-2 text-[11px] text-slate-400">{componentRule.reason}</div>
+                {regulationProfile.hard_quota&&regulationProfile.period?<div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <Mini label={"ATP "+regulationProfile.period.number+"/6"} value={regulationProfile.period.start+" → "+regulationProfile.period.end}/>
+                  <Mini label="ATR coefficient" value={regulationProfile.coefficient+"%"}/>
+                  <Mini label="Wind-on remaining" value={Number(atrRemaining.wind_tunnel_hours_remaining||0).toFixed(1)+"h"}/>
+                  <Mini label="CFD remaining" value={Number(atrRemaining.cfd_mauh_remaining||0).toFixed(2)+" MAUh"}/>
+                </div>:null}
+              </div>
+
+              <div className={"grid grid-cols-2 "+(aeroAllocation.aero_relevant?"md:grid-cols-4":"md:grid-cols-2")+" gap-3"}>
                 <label className="text-sm">Engineers<input type="number" min="1" max={Math.max(1,capacity.available_engineers)} className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
                 <label className="text-sm">Base days<input type="number" min="7" max="90" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
-                <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
-                <label className="text-sm">Wind tunnel<input type="number" min="0" max="100" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
+                {aeroAllocation.aero_relevant&&regulationProfile.cfd_available?<label className="text-sm">CFD · {regulationProfile.cfd_unit}<input type="number" min="0" step={regulationProfile.scheme==="fia_atr"?"0.05":"1"} max={regulationProfile.hard_quota?Math.max(0,Number(atrRemaining.cfd_mauh_remaining||0)):200} className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/>{regulationProfile.hard_quota?<div className="mt-1 text-[10px] text-slate-500">After project: {Math.max(0,Number(atrRemaining.cfd_mauh_remaining||0)-Number(draft.cfd||0)).toFixed(2)} MAUh</div>:null}</label>:null}
+                {aeroAllocation.aero_relevant&&regulationProfile.wind_tunnel_available?<label className="text-sm">Wind tunnel · {regulationProfile.wind_tunnel_unit}<input type="number" min="0" step="0.5" max={regulationProfile.hard_quota?Math.max(0,Number(atrRemaining.wind_tunnel_hours_remaining||0)):100} className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/>{regulationProfile.hard_quota?<div className="mt-1 text-[10px] text-slate-500">After project: {Math.max(0,Number(atrRemaining.wind_tunnel_hours_remaining||0)-Number(draft.windTunnel||0)).toFixed(1)}h</div>:<div className="mt-1 text-[10px] text-slate-500">No FIA quota · team facility capacity only</div>}</label>:null}
               </div>
+              {!aeroAllocation.aero_relevant?<div className="text-xs text-slate-500">This component does not consume CFD or wind-tunnel allocation in the current model.</div>:null}
+              {aeroAllocation.aero_relevant&&!regulationProfile.cfd_available?<div className="text-xs text-slate-500">CFD is not available in {activeYear}. Aerodynamic development relies on physical wind-tunnel work and engineering.</div>:null}
 
               <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -571,6 +642,8 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <Button onClick={createProject} disabled={!canStartProject}>Start Project</Button>
                 <span className="text-xs text-slate-500">{capacity.available_engineers}/{capacity.engineer_pool} engineers available · {capacity.active_projects}/{capacity.max_projects} project slots used</span>
               </div>
+              {!componentRule.can_start_project&&<div className="text-sm text-rose-300">{componentRule.reason}</div>}
+              {!aeroAllocation.allowed&&<div className="text-sm text-rose-300">{aeroAllocation.reason==="wind_tunnel_quota"?"Wind-tunnel allocation exceeds the remaining ATR allowance.":"CFD allocation exceeds the remaining ATR allowance."}</div>}
               {!hasEngineerCapacity&&<div className="text-sm text-rose-300">Not enough free engineers for this brief.</div>}
               {!capacity.project_slot_available&&<div className="text-sm text-rose-300">Technical project capacity is full. Complete or free a project slot first.</div>}
               {strengthTarget.increment<=0&&<div className="text-sm text-amber-300">This component has reached the current-car development ceiling.</div>}
@@ -581,7 +654,7 @@ export default function Development({ embedded = false, initialTab = "projects",
             <div className="xl:flex-1 rounded-xl border border-white/10 bg-[#0d0f15] overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10">
                 <div className="text-xs uppercase tracking-wide text-slate-500">Design Projection</div>
-                <div className="font-semibold">{componentLabel(gameState,draft.type)} · {objective?.label||"Balanced Package"}</div>
+                <div className="font-semibold">{componentLabel(gameState,draft.type)} · {objective?.label||componentRule.label}</div>
                 <div className="text-xs text-slate-500 mt-1">Projection is an engineering estimate. The completed design can finish slightly above or below target depending on project risk and validation quality.</div>
               </div>
               <div className="p-4 space-y-3">
