@@ -5,6 +5,7 @@ import {
   applyDriverMentalState,
   applyMentalStateDeltaToCondition,
   driverMentalStateHistory,
+  expectationTeammateMentalAdjustment,
   passiveMentalStateRecovery,
   raceMentalStateChange,
   seasonStartMentalState,
@@ -126,4 +127,68 @@ test("mental-state history resolves compatible driver ID keys and keeps human-re
   assert.equal(history.length,1);
   assert.equal(history[0].reason,"Balanced practice");
   assert.equal(history[0].changes.find((row)=>row.field==="preparation").delta,8);
+});
+
+
+test("expectation and teammate effects can lower confidence after underperformance",()=>{
+  const effect=expectationTeammateMentalAdjustment({
+    expected_finish:6,
+    finish_position:11,
+    expectation_delta:-5,
+    teammate_race_delta:-3,
+    teammate_qualifying_delta:-2,
+    retired:false,
+  },{
+    rating:{mentality:50,pressure_handling:50},
+    recentEntries:[],
+  });
+  assert.ok(effect.confidence<0);
+  assert.ok(effect.morale<0);
+  assert.ok(effect.reasons.some((reason)=>/below expectation/i.test(reason)));
+  assert.ok(effect.reasons.some((reason)=>/behind team-mate/i.test(reason)));
+});
+
+test("high Mentality and Pressure Handling dampen expectation swings",()=>{
+  const performance={
+    expected_finish:7,
+    finish_position:12,
+    expectation_delta:-5,
+    teammate_race_delta:-2,
+    teammate_qualifying_delta:-2,
+    retired:false,
+  };
+  const fragile=expectationTeammateMentalAdjustment(performance,{
+    rating:{mentality:20,pressure_handling:20},
+  });
+  const resilient=expectationTeammateMentalAdjustment(performance,{
+    rating:{mentality:90,pressure_handling:90},
+  });
+  assert.ok(Math.abs(resilient.confidence)<Math.abs(fragile.confidence));
+  assert.ok(Math.abs(resilient.morale)<Math.abs(fragile.morale));
+});
+
+test("three consecutive races above expectation create extra momentum",()=>{
+  const current={
+    expected_finish:10,
+    finish_position:6,
+    expectation_delta:4,
+    teammate_race_delta:2,
+    teammate_qualifying_delta:1,
+    retired:false,
+  };
+  const recent=[
+    {dateISO:"1980-05-01",round:4,expected_finish:10,finish_position:7,expectation_delta:3,retired:false},
+    {dateISO:"1980-04-01",round:3,expected_finish:9,finish_position:6,expectation_delta:3,retired:false},
+  ];
+  const streak=expectationTeammateMentalAdjustment(current,{
+    rating:{mentality:50,pressure_handling:50},
+    recentEntries:recent,
+  });
+  const single=expectationTeammateMentalAdjustment(current,{
+    rating:{mentality:50,pressure_handling:50},
+    recentEntries:[],
+  });
+  assert.equal(streak.streak,1);
+  assert.ok(streak.confidence>single.confidence);
+  assert.ok(streak.reasons.some((reason)=>/Three-race run above expectations/i.test(reason)));
 });
