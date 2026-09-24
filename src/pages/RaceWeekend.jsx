@@ -8,6 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { raceWeekendGridRows } from "../domain/raceWeekendCompatibility.js";
 import Track2DView from "../components/race/Track2DView.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
@@ -606,7 +607,7 @@ export default function RaceWeekend(){
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
   const currentIndex=phaseIndex(weekend?.phase);
   const classification=weekend?.qualifying?.classification||[];
-  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
+  const startingGridRows=raceWeekendGridRows(weekend);
   const qualifyingSessions=(weekend?.sessions||[]).filter((row)=>["prequalifying","qualifying"].includes(row?.type));
   const activeSession=(weekend?.sessions||[]).find((row)=>String(row?.id)===String(weekend?.active_session_id||""))
     ||qualifyingSessions.find((row)=>row?.status!=="completed")
