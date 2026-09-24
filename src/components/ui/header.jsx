@@ -196,7 +196,12 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
   const teamStanding = useMemo(() => {
     const teamId = String(team?.team_id ?? team?.id ?? "");
     const teamName = String(team?.team_name ?? team?.name ?? "");
-    const row = (standings?.teams ?? standings?.constructors ?? []).find((item) => {
+    const rows = Array.isArray(standings?.teams)
+      ? standings.teams
+      : Array.isArray(standings?.constructors)
+        ? standings.constructors
+        : [];
+    const row = rows.find((item) => {
       const rowId = String(item?.team_id ?? item?.constructor_id ?? item?.id ?? "");
       const rowName = String(item?.team_name ?? item?.name ?? "");
       return (teamId && rowId === teamId) || (teamName && rowName === teamName);

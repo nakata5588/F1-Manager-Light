@@ -66,6 +66,62 @@ test("legacy gameState migrates structurally without changing gameplay fields", 
   assert.equal(migrateGameState(legacy).saveMeta.seed, saveMeta.seed);
 });
 
+test("imported saves normalize object-shaped standings before entering the UI", () => {
+  const imported = {
+    meta: { version: GAME_VERSION },
+    gameState: {
+      activeYear: 1980,
+      currentDateISO: "1980-05-18",
+      team: { team_id: "t_williams", team_name: "Williams" },
+      saveMeta: createNewSaveMeta({ year: 1980, teamId: "t_williams", seed: "object-standings" }),
+      standings: {
+        teams: {
+          t_williams: { position: 1, points: 34 },
+          t_brabham: { position: 2, points: 27 },
+        },
+        drivers: {
+          d_0178: { position: 1, points: 30 },
+          d_0199: { position: 2, points: 24 },
+        },
+      },
+    },
+  };
+
+  const restored = extractGameStateFromStoredSave(imported);
+
+  assert.ok(Array.isArray(restored.standings.teams));
+  assert.ok(Array.isArray(restored.standings.drivers));
+  assert.deepEqual(restored.standings.teams[0], {
+    team_id: "t_williams",
+    position: 1,
+    points: 34,
+  });
+  assert.deepEqual(restored.standings.drivers[0], {
+    driver_id: "d_0178",
+    position: 1,
+    points: 30,
+  });
+});
+
+test("imported saves unwrap legacy standings row containers", () => {
+  const restored = migrateGameState({
+    activeYear: 1980,
+    currentDateISO: "1980-05-18",
+    team: { team_id: "t_williams" },
+    standings: {
+      teams: { rows: [{ team_id: "t_williams", position: 3, points: 12 }] },
+      drivers: { items: [{ driver_id: "d_0178", position: 4, points: 8 }] },
+    },
+  });
+
+  assert.deepEqual(restored.standings.teams, [
+    { team_id: "t_williams", position: 3, points: 12 },
+  ]);
+  assert.deepEqual(restored.standings.drivers, [
+    { driver_id: "d_0178", position: 4, points: 8 },
+  ]);
+});
+
 test("v1 saves migrate shared design inventory into deterministic physical units", () => {
   const legacyV1 = {
     activeYear:1980,
