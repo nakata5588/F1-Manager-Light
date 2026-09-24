@@ -3,6 +3,7 @@
 // Deterministic current-car design briefs, cumulative specifications and trade-offs.
 
 import { carComponentDefinition } from "./carComponents.js";
+import { componentDevelopmentRule } from "./developmentRegulations.js";
 import { componentTechnicalBaseline, derivePartTechnicalProfile } from "./carPartPerformance.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -85,14 +86,21 @@ function objectiveAllowed(objective,definition,slot){
   return objective.areas.includes(String(definition?.impact_area||"chassis"));
 }
 
-export function developmentObjectivesForSlot(gs,slot){
+export function developmentObjectivesForSlot(gs,slot,teamId=null){
   const definition=carComponentDefinition(gs,slot)||{impact_area:"chassis"};
-  return Object.values(OBJECTIVES).filter((objective)=>objectiveAllowed(objective,definition,slot));
+  const resolvedTeam=String(teamId??gs?.team?.team_id??gs?.team?.id??"");
+  const rule=componentDevelopmentRule(gs,resolvedTeam,slot);
+  if(!rule.can_start_project)return [];
+  const allowed=Object.values(OBJECTIVES).filter((objective)=>objectiveAllowed(objective,definition,slot));
+  if(Array.isArray(rule.allowed_objectives)){
+    return allowed.filter((objective)=>rule.allowed_objectives.includes(objective.id));
+  }
+  return allowed;
 }
 
-export function developmentObjective(gs,slot,id){
-  const allowed=developmentObjectivesForSlot(gs,slot);
-  return allowed.find((objective)=>objective.id===String(id))||allowed[0]||OBJECTIVES.balanced;
+export function developmentObjective(gs,slot,id,teamId=null){
+  const allowed=developmentObjectivesForSlot(gs,slot,teamId);
+  return allowed.find((objective)=>objective.id===String(id))||allowed[0]||null;
 }
 
 export function bestDevelopedPartForSlot(parts,slot){
@@ -132,9 +140,9 @@ function zeroProfile(gs,slot){
 }
 
 export function buildDevelopmentProjection(gs,{
-  slot,objectiveId="balanced",targetStrength=0,currentPart=null,
+  slot,objectiveId="balanced",targetStrength=0,currentPart=null,teamId=null,
 }={}){
-  const objective=developmentObjective(gs,slot,objectiveId);
+  const objective=developmentObjective(gs,slot,objectiveId,teamId)||OBJECTIVES.balanced;
   const strength=clamp(num(targetStrength,0),0,MAX_DEVELOPMENT_STRENGTH);
   const baseline=componentTechnicalBaseline(gs,slot);
   const standard=derivePartTechnicalProfile(gs,{slot,perf:strength});
@@ -244,8 +252,8 @@ export function realizeDevelopmentProjection(project){
   };
 }
 
-export function objectiveProjectModifiers(gs,slot,objectiveId){
-  const objective=developmentObjective(gs,slot,objectiveId);
+export function objectiveProjectModifiers(gs,slot,objectiveId,teamId=null){
+  const objective=developmentObjective(gs,slot,objectiveId,teamId)||OBJECTIVES.balanced;
   return {
     cost_multiplier:num(objective.cost,1),
     duration_multiplier:num(objective.duration,1),

@@ -83,7 +83,7 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     _lastDriverProgressionMonth: null,
 
     // Technical Save World state.
-    development: { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [] },
+    development: { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [], aeroTestingUsage: [] },
     technicalUnlocks: {},
     technologyDiscoverySeen: {},
     garage: { cars: [], serviceJobs: [], baseComponentStock: {}, reserveCarBuilt: false },

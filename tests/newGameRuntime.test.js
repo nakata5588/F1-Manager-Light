@@ -74,6 +74,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
       partUnits: [{ id: "OLD_UNIT", design_id: "OLD_PART", condition: 12 }],
       manufacturing: [{ id: "OLD_JOB" }],
       research: [],
+      aeroTestingUsage: [{ period_id: "2025-ATP1", wind_tunnel_hours: 40, cfd_mauh: 2.5 }],
     },
     garage: {
       cars: [{ id: "car_1", componentCondition: { gearbox: 23 } }],
@@ -117,7 +118,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.deepEqual(fresh.driverDevelopmentFocus, {});
   assert.deepEqual(fresh.driverMentalStateLog, {});
   assert.deepEqual(fresh.driverReputationLog, {});
-  assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [] });
+  assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [], aeroTestingUsage: [] });
   assert.deepEqual(fresh.technicalUnlocks, {});
   assert.deepEqual(fresh.technologyDiscoverySeen, {});
   assert.deepEqual(fresh.garage, { cars: [], serviceJobs: [], baseComponentStock: {}, reserveCarBuilt: false });
