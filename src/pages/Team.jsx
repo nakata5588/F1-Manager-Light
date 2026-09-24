@@ -101,15 +101,8 @@ export default function Team(){
   const reputationState=gs?.teamReputationState?.[teamId]||null;
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-3 flex flex-wrap xl:flex-nowrap items-center gap-3">
-      <TeamLogo teamId={teamId} name={teamName} size="h-12 w-12" className="p-0.5"/>
-      <div className="min-w-[190px]">
-        <div className="text-[9px] uppercase tracking-[0.16em] text-slate-500">Team Headquarters</div>
-        <h1 className="text-xl md:text-2xl font-bold truncate">{teamName}</h1>
-        <div className="text-xs text-slate-400 truncate">{team?.team_base||team?.base||"Base unavailable"} · {year||"—"}</div>
-      </div>
-      <div className="flex-1"/>
-      <div className="grid grid-cols-4 xl:grid-cols-8 gap-1.5 min-w-0 xl:min-w-[690px]">
+    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-2.5">
+      <div className="grid grid-cols-4 xl:grid-cols-8 gap-1.5">
         <Metric compact label="Constructors" value={standing?.position?`P${standing.position}`:"—"}/>
         <Metric compact label="Points" value={standing?.points??0}/>
         <Metric compact label="Car rank" value={myRank?`#${myRank.rank}`:"—"}/>
