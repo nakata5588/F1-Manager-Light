@@ -1411,11 +1411,16 @@ function OverviewTab({
       :expectationAverage<=-1.5
         ?"Below expectation"
         :"On expectation";
+  const comparableDelta=(value)=>{
+    if(value===null||value===undefined||value==="")return null;
+    const number=Number(value);
+    return Number.isFinite(number)?number:null;
+  };
   const raceTeammateRows=performanceRows
-    .map((row)=>Number(row?.teammate_race_delta))
+    .map((row)=>comparableDelta(row?.teammate_race_delta))
     .filter(Number.isFinite);
   const qualiTeammateRows=performanceRows
-    .map((row)=>Number(row?.teammate_qualifying_delta))
+    .map((row)=>comparableDelta(row?.teammate_qualifying_delta))
     .filter(Number.isFinite);
   const h2h=(values)=>({
     wins:values.filter((value)=>value>0).length,
@@ -2691,11 +2696,13 @@ function PerformanceHistory({ items }) {
     return <p className="text-slate-500 text-sm">No played-race performance evaluations yet.</p>;
   }
   const deltaTone=(value)=>{
+    if(value===null||value===undefined||value==="")return "text-slate-500";
     const n=Number(value);
     if(!Number.isFinite(n)||Math.abs(n)<0.05)return "text-slate-500";
     return n>0?"text-emerald-300":"text-rose-300";
   };
   const deltaLabel=(value,digits=1)=>{
+    if(value===null||value===undefined||value==="")return "—";
     const n=Number(value);
     if(!Number.isFinite(n))return "—";
     return `${n>0?"+":""}${n.toFixed(digits)}`;
