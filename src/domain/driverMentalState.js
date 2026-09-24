@@ -189,12 +189,129 @@ export function seasonStartMentalState(condition){
   });
 }
 
+function expectationDeltaOf(entry){
+  if(!entry||entry?.retired)return null;
+  const explicit=Number(entry?.expectation_delta);
+  if(Number.isFinite(explicit))return explicit;
+  const expected=Number(entry?.expected_finish);
+  const finish=Number(entry?.finish_position);
+  return Number.isFinite(expected)&&Number.isFinite(finish)?expected-finish:null;
+}
+
+function teammateRaceDeltaOf(entry){
+  if(!entry||entry?.retired)return null;
+  const value=Number(entry?.teammate_race_delta);
+  return Number.isFinite(value)?value:null;
+}
+
+function recentExpectationStreak(entries,currentDelta){
+  if(!Number.isFinite(currentDelta)||Math.abs(currentDelta)<1.5)return 0;
+  const previous=(Array.isArray(entries)?entries:[])
+    .slice()
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||""))||Number(b?.round||0)-Number(a?.round||0))
+    .map(expectationDeltaOf)
+    .filter(Number.isFinite)
+    .slice(0,2);
+  if(previous.length<2)return 0;
+  const sequence=[currentDelta,...previous];
+  if(sequence.every((value)=>value>=1.5))return 1;
+  if(sequence.every((value)=>value<=-1.5))return -1;
+  return 0;
+}
+
+export function expectationTeammateMentalAdjustment(performance,{
+  rating=null,
+  recentEntries=[],
+}={}){
+  if(!performance||performance?.retired){
+    return {
+      confidence:0,
+      morale:0,
+      reasons:[],
+      expectationDelta:null,
+      teammateDelta:null,
+      streak:0,
+      swingMultiplier:1,
+    };
+  }
+
+  const mentality=Number(rating?.mentality);
+  const pressure=Number(rating?.pressure_handling);
+  const mentalAverage=[
+    Number.isFinite(mentality)?mentality:50,
+    Number.isFinite(pressure)?pressure:50,
+  ].reduce((a,b)=>a+b,0)/2;
+  // High Mentality / Pressure Handling dampens emotional volatility. Low
+  // resilience amplifies it. Permanent ability is never changed here.
+  const swingMultiplier=Math.max(0.8,Math.min(1.2,1.2-(mentalAverage/100)*0.4));
+
+  const expectationDelta=expectationDeltaOf(performance);
+  const teammateDelta=teammateRaceDeltaOf(performance);
+  const qualifyingDelta=Number(performance?.teammate_qualifying_delta);
+  const reasons=[];
+  let confidence=0;
+  let morale=0;
+
+  if(Number.isFinite(expectationDelta)&&Math.abs(expectationDelta)>=0.75){
+    confidence+=Math.max(-2.4,Math.min(2.4,expectationDelta*0.40));
+    morale+=Math.max(-1.3,Math.min(1.3,expectationDelta*0.22));
+    if(expectationDelta>0){
+      reasons.push(`Beat expectation by ${Math.abs(expectationDelta).toFixed(1)} position(s) (~P${Number(performance?.expected_finish).toFixed(1)})`);
+    }else{
+      reasons.push(`Finished ${Math.abs(expectationDelta).toFixed(1)} position(s) below expectation (~P${Number(performance?.expected_finish).toFixed(1)})`);
+    }
+  }
+
+  if(Number.isFinite(teammateDelta)&&Math.abs(teammateDelta)>=0.5){
+    confidence+=Math.max(-0.9,Math.min(0.9,teammateDelta*0.22));
+    morale+=Math.max(-0.5,Math.min(0.5,teammateDelta*0.12));
+    reasons.push(
+      teammateDelta>0
+        ?`Finished ${Math.abs(teammateDelta).toFixed(0)} position(s) ahead of team-mate`
+        :`Finished ${Math.abs(teammateDelta).toFixed(0)} position(s) behind team-mate`
+    );
+  }
+
+  if(Number.isFinite(qualifyingDelta)&&Math.abs(qualifyingDelta)>=1){
+    confidence+=Math.max(-0.35,Math.min(0.35,qualifyingDelta*0.10));
+    reasons.push(
+      qualifyingDelta>0
+        ?`Out-qualified team-mate by ${Math.abs(qualifyingDelta).toFixed(0)} position(s)`
+        :`Out-qualified by team-mate by ${Math.abs(qualifyingDelta).toFixed(0)} position(s)`
+    );
+  }
+
+  const streak=recentExpectationStreak(recentEntries,expectationDelta);
+  if(streak>0){
+    confidence+=1.0;
+    morale+=0.6;
+    reasons.push("Three-race run above expectations");
+  }else if(streak<0){
+    confidence-=1.2;
+    morale-=0.8;
+    reasons.push("Three-race run below expectations");
+  }
+
+  return {
+    confidence:round1(confidence*swingMultiplier),
+    morale:round1(morale*swingMultiplier),
+    reasons,
+    expectationDelta:Number.isFinite(expectationDelta)?round1(expectationDelta):null,
+    teammateDelta:Number.isFinite(teammateDelta)?round1(teammateDelta):null,
+    streak,
+    swingMultiplier:round1(swingMultiplier),
+  };
+}
+
 export function raceMentalStateChange(row,{
   startPosition=null,
   expectedPosition=null,
   points=null,
   fieldSize=20,
   wet=false,
+  performance=null,
+  rating=null,
+  recentEntries=[],
 }={}){
   const finish=Number(row?.pos??row?.position);
   const start=Number(startPosition??finish);
@@ -243,19 +360,20 @@ export function raceMentalStateChange(row,{
       reasons.push(`Points finish (+${scored})`);
     }
 
-    const expected=Number(expectedPosition??row?.driver_performance?.expected_finish);
-    if(Number.isFinite(expected)&&Number.isFinite(finish)){
-      const beatBy=expected-finish;
-      if(beatBy>=4){
-        confidence+=2.5;
-        morale+=1.5;
-        reasons.push(`Result well above expectation (~P${expected.toFixed(1)})`);
-      }else if(beatBy>=2){
-        confidence+=1.5;
-        morale+=1.0;
-        reasons.push(`Result above expectation (~P${expected.toFixed(1)})`);
-      }
-    }
+    const evaluatedPerformance={
+      ...(row?.driver_performance||{}),
+      ...(performance||{}),
+      expected_finish:performance?.expected_finish??row?.driver_performance?.expected_finish??expectedPosition,
+      finish_position:performance?.finish_position??row?.driver_performance?.finish_position??finish,
+      retired:Boolean(performance?.retired??row?.driver_performance?.retired??row?.retired),
+    };
+    const expectationImpact=expectationTeammateMentalAdjustment(evaluatedPerformance,{
+      rating,
+      recentEntries,
+    });
+    confidence+=expectationImpact.confidence;
+    morale+=expectationImpact.morale;
+    reasons.push(...expectationImpact.reasons);
   }
 
   const distanceRatio=Math.max(
