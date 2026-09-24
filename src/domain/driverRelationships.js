@@ -158,8 +158,8 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
         ...record,
         current_role:roleLabel||record?.current_role??null,
         current_role_slot:roleSlot||record?.current_role_slot??null,
-        expected_role:record?.expected_role??roleLabel||null,
-        expected_role_slot:record?.expected_role_slot??roleSlot||null,
+        expected_role:(record?.expected_role??roleLabel)||null,
+        expected_role_slot:(record?.expected_role_slot??roleSlot)||null,
         contract_until:record?.contract_until??contractUntil,
       };
     };
