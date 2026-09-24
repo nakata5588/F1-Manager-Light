@@ -161,3 +161,59 @@ export function applyTeammateRelationshipPair(gs,{
   });
   return next;
 }
+
+export function synchronizeTeamTeammateRelationships(gs,{teamId,driverIds=[]}={}){
+  if(!gs||typeof gs!=="object")return gs;
+  const tid=text(teamId);
+  const ids=[...new Set((driverIds||[]).map(text).filter(Boolean))];
+  if(!tid)return gs;
+
+  const container=gs?.driverRelationships&&typeof gs.driverRelationships==="object"&&!Array.isArray(gs.driverRelationships)
+    ?gs.driverRelationships
+    :{version:2,relations:{},log:[]};
+  const relations=container?.relations&&typeof container.relations==="object"&&!Array.isArray(container.relations)
+    ?{...container.relations}
+    :{};
+  const current=new Set(ids);
+  let changed=false;
+
+  for(const [key,record] of Object.entries(relations)){
+    if(record?.target_type!=="teammate"||text(record?.team_id)!==tid)continue;
+    const shouldBeActive=current.has(text(record?.driver_id))&&current.has(text(record?.target_id));
+    if(Boolean(record?.active)!==shouldBeActive){
+      relations[key]={...record,active:shouldBeActive};
+      changed=true;
+    }
+  }
+
+  const dateISO=text(gs?.currentDateISO).slice(0,10)||null;
+  for(const driverId of ids){
+    for(const teammateId of ids){
+      if(driverId===teammateId)continue;
+      const key=relationshipEventKey(driverId,"teammate",teammateId);
+      if(relations[key]){
+        if(relations[key].active!==true){
+          relations[key]={...relations[key],active:true,team_id:tid};
+          changed=true;
+        }
+        continue;
+      }
+      relations[key]=baseRecord({
+        driverId,targetType:"teammate",targetId:teammateId,teamId:tid,dateISO,active:true,
+      });
+      relations[key].source="lineup_sync";
+      changed=true;
+    }
+  }
+
+  if(!changed)return gs;
+  return {
+    ...gs,
+    driverRelationships:{
+      ...container,
+      version:Math.max(2,Number(container?.version)||0),
+      relations,
+      log:Array.isArray(container?.log)?container.log:[],
+    },
+  };
+}
