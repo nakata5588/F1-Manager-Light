@@ -469,8 +469,8 @@ export default function Development({ embedded = false, initialTab = "projects",
         <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
         <div>
           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div>
-          <h1 className="text-2xl md:text-3xl font-semibold">Car Parts Development</h1>
-          <p className="text-sm text-slate-400">Design, test and manufacture era-appropriate car parts.</p>
+          <h1 className="text-2xl md:text-3xl font-semibold">Technical Development</h1>
+          <p className="text-sm text-slate-400">Current-car design briefs, technology R&D, manufacturing and race operations.</p>
         </div>
         <div className="flex-1" />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -478,34 +478,85 @@ export default function Development({ embedded = false, initialTab = "projects",
           <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
           <Mini label="Operational Morale" value={Math.round(teamMorale)+"/100"}/>
           <Mini label="Work Rate" value={moraleWorkRate.label}/>
-          <Mini label="Test Driver" value={testDriverProfile?.name||"None"}/>
+          <Mini label="Engineers Free" value={capacity.available_engineers+"/"+capacity.engineer_pool}/>
         </div>
         <Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>
       </div>}
 
       {showCreate && (
-        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 grid gap-3">
-          <div className="font-semibold">Create development project</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="text-sm">Project name<input className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. Revised rear wing"/></label>
-            <label className="text-sm">Part type<select className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
-            <label className="text-sm">Engineers<input type="number" min="1" max="12" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
-            <label className="text-sm">Duration (days)<input type="number" min="7" max="90" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
-            <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
-            <label className="text-sm">Wind tunnel hours<input type="number" min="0" max="100" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+          <div className="flex flex-col xl:flex-row xl:items-start gap-4">
+            <div className="xl:w-[46%] space-y-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Current Car Development</div>
+                <div className="text-lg font-semibold">Create design brief</div>
+                <div className="text-sm text-slate-400">Choose what the new specification should prioritise. Different briefs create different gains and trade-offs.</div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-sm">Project name<input className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. High-downforce front wing"/></label>
+                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value,objective:"balanced"})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Design objective</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
+                    <div className="font-semibold text-sm">{row.label}</div>
+                    <div className="text-[11px] text-slate-500 mt-1">{row.description}</div>
+                  </button>)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <label className="text-sm">Engineers<input type="number" min="1" max={Math.max(1,capacity.available_engineers)} className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
+                <label className="text-sm">Base days<input type="number" min="7" max="90" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
+                <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
+                <label className="text-sm">Wind tunnel<input type="number" min="0" max="100" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <Mini label="Cost" value={fmtMoney(cost)}/>
+                  <Mini label="Effective time" value={effectiveDays+"d"}/>
+                  <Mini label="Risk" value={(projectRisk*100).toFixed(0)+"%"}/>
+                  <Mini label="Design strength" value={strengthTarget.current_strength.toFixed(2)+" → "+strengthTarget.target_strength.toFixed(2)}/>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Primary facility: <span className="text-slate-300">{relevantFacility}</span> · ETA <span className="text-slate-300">{currentDateISO?addDaysISO(currentDateISO,effectiveDays):"—"}</span> · Test driver <span className="text-slate-300">{testDriverProfile?.name||"None"}</span></div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 items-center">
+                <Button onClick={createProject} disabled={!canStartProject}>Start Project</Button>
+                <span className="text-xs text-slate-500">{capacity.available_engineers}/{capacity.engineer_pool} engineers available · {capacity.active_projects}/{capacity.max_projects} project slots used</span>
+              </div>
+              {!hasEngineerCapacity&&<div className="text-sm text-rose-300">Not enough free engineers for this brief.</div>}
+              {!capacity.project_slot_available&&<div className="text-sm text-rose-300">Technical project capacity is full. Complete or free a project slot first.</div>}
+              {strengthTarget.increment<=0&&<div className="text-sm text-amber-300">This component has reached the current-car development ceiling.</div>}
+              {!testDriverProfile&&<div className="text-sm text-amber-300">No dedicated Test Driver is contracted. Result uncertainty will be higher.</div>}
+              {budget<cost&&<div className="text-sm text-rose-300">Insufficient budget for this project.</div>}
+            </div>
+
+            <div className="xl:flex-1 rounded-xl border border-white/10 bg-[#0d0f15] overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/10">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Design Projection</div>
+                <div className="font-semibold">{componentLabel(gameState,draft.type)} · {objective?.label||"Balanced Package"}</div>
+                <div className="text-xs text-slate-500 mt-1">Projection is an engineering estimate. The completed design can finish slightly above or below target depending on project risk and validation quality.</div>
+              </div>
+              <div className="p-4 space-y-3">
+                <TechCompare label="Weight" current={technicalProjection.current.design.weight_kg} proposed={technicalProjection.design.weight_kg} suffix=" kg" lowerBetter/>
+                <TechCompare label="Drag" current={technicalProjection.current.design.drag} proposed={technicalProjection.design.drag} digits={4} lowerBetter/>
+                <TechCompare label="Downforce" current={technicalProjection.current.design.downforce} proposed={technicalProjection.design.downforce} digits={4}/>
+                <TechCompare label="Design Reliability" current={Number(technicalProjection.current.design.reliability||0)*100} proposed={Number(technicalProjection.design.reliability||0)*100} suffix="%" digits={1}/>
+                <TechCompare label="System Efficiency" current={Number(technicalProjection.current.delta.system_efficiency||technicalProjection.current.development_strength||0)} proposed={Number(technicalProjection.delta.system_efficiency||0)} digits={2}/>
+              </div>
+              <div className="border-t border-white/10 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">Characteristic trade-offs</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(technicalProjection.characteristic_bias||{}).length?Object.entries(technicalProjection.characteristic_bias||{}).map(([key,value])=><span key={key} className={"rounded px-2 py-1 text-[10px] "+(Number(value)>=0?"bg-emerald-500/10 text-emerald-300":"bg-rose-500/10 text-rose-300")}>{nice(key)} {Number(value)>=0?"+":""}{Number(value).toFixed(1)}</span>):<span className="text-xs text-slate-500">Balanced brief — no extra characteristic bias beyond the component's normal technical effect.</span>}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span>Cost: <strong>{fmtMoney(cost)}</strong></span>
-            <span>Expected performance Δ: <strong>+{expectedPerf}</strong></span>
-            <span>Test driver: <strong>{testDriverProfile ? testDriverProfile.name : "None assigned"}</strong></span>
-            {testDriverProfile && <span>Feedback: <strong>{Math.round(testDriverProfile.impact)}/100</strong></span>}
-            <span>Primary facility: <strong>{relevantFacility}</strong></span>
-            <span>Effective duration: <strong>{effectiveDays} days</strong></span>
-            <span>ETA: <strong>{currentDateISO ? addDaysISO(currentDateISO,effectiveDays) : "—"}</strong></span>
-            <Button onClick={createProject} disabled={!draft.name.trim() || budget < cost}>Start Project</Button>
-          </div>
-          {!testDriverProfile && <div className="text-sm text-amber-300">No dedicated Test Driver is contracted. The project will rely on engineer-only validation.</div>}
-          {budget < cost && <div className="text-sm text-rose-300">Insufficient budget for this project.</div>}
         </CardContent></Card>
       )}
 
@@ -519,11 +570,11 @@ export default function Development({ embedded = false, initialTab = "projects",
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="flex flex-wrap gap-2">
           {[
-            ["projects","Design & Research"],
-            ["manufacturing","Manufacture"],
-            ["parts","Parts"],
-            ["research","Research"],
-            ["pit_crew","Race Ops"],
+            ["projects","Current Car"],
+            ["manufacturing","Manufacturing"],
+            ["parts","Design Library"],
+            ["research","Research / Technology"],
+            ["pit_crew","Pit Crew"],
           ].map(([key,label])=><Button key={key} size="sm" variant={tab===key?"default":"outline"} onClick={()=>changeTab(key)}>{label}</Button>)}
         </div>
         <div className="flex-1"/>
@@ -534,6 +585,7 @@ export default function Development({ embedded = false, initialTab = "projects",
           <Mini label="Wind Tunnel" value={"Lv "+levelOf("wind_tunnel_level")}/>
           <Mini label="Manufacturing" value={"Lv "+levelOf("manufacturing_leve")}/>
         </div>
+        <Button size="sm" variant="outline" disabled>Next Season Car · Stage 7</Button>
         {embedded && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
       </div>
 
