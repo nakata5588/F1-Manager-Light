@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
     "validate:data": "node scripts/validate_json.js",
-    "check": "npm run test:career && npm run test:entities && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:management-events && npm run test:management-depth && npm run test:development && npm run test:development-regulations && npm run test:technical-department && npm run test:ai-technical && npm run test:technology-adoption && npm run test:ai-technical-soak && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:season-packs && npm run validate:data && npm run build",
+    "check": "npm run test:career && npm run test:entities && npm run test:drivers && npm run test:simulation && npm run test:management && npm run test:management-events && npm run test:management-depth && npm run test:development && npm run test:development-regulations && npm run test:technical-department && npm run test:ai-technical && npm run test:technology-adoption && npm run test:ai-technical-soak && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:track-layout && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:season-packs && npm run validate:data && npm run build",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run season:generate\"",
     "predev": "npm run season:generate",
@@ -43,7 +43,8 @@
     "test:technology-adoption": "node --test tests/technologyAdoption.test.js",
     "test:development": "node --test tests/developmentProject.test.js",
     "test:development-regulations": "node --test tests/developmentRegulations.test.js",
-    "test:technical-department": "node --test tests/technicalDepartment.test.js tests/playerTechnicalLifecycle.test.js tests/nextSeasonCar.test.js tests/nextSeasonRegulations.test.js tests/technicalKnowledge.test.js"
+    "test:technical-department": "node --test tests/technicalDepartment.test.js tests/playerTechnicalLifecycle.test.js tests/nextSeasonCar.test.js tests/nextSeasonRegulations.test.js tests/technicalKnowledge.test.js",
+    "test:track-layout": "node --test tests/trackLayout.test.js"
   },
   "keywords": [
     "f1",
