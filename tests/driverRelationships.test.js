@@ -35,6 +35,7 @@ test("D6.3A seeds neutral team, teammate, manager and staff relationships",()=>{
   assert.equal(team.affinity,50);
   assert.equal(team.satisfaction,50);
   assert.equal(team.status,"neutral");
+  assert.equal(team.active,true);
 
   assert.ok(driverRelationship(next,"D1","teammate","D2"));
   assert.ok(driverRelationship(next,"D2","teammate","D1"));
@@ -79,6 +80,24 @@ test("D6.3A backfill preserves evolved relationships and only adds missing recor
   assert.equal(synced.driverRelationships.relations[key].source,"gameplay_event");
   assert.ok(driverRelationship(synced,"D1","race_engineer","E2"));
   assert.ok(driverRelationship(synced,"D2","race_engineer","E2"));
+});
+
+test("D6.3A keeps former team and teammate links as inactive history",()=>{
+  const seeded=synchronizeDriverRelationships(fixture());
+  const moved={
+    ...seeded,
+    contracts:seeded.contracts.map((row)=>{
+      if(row.driver_id==="D1")return {...row,team_id:"T2"};
+      if(row.driver_id==="D4")return {...row,status:"released"};
+      return row;
+    }),
+  };
+  const synced=synchronizeDriverRelationships(moved,{source:"transfer_sync"});
+
+  assert.equal(driverRelationship(synced,"D1","team","T1").active,false);
+  assert.equal(driverRelationship(synced,"D1","teammate","D2").active,false);
+  assert.equal(driverRelationship(synced,"D1","team","T2").active,true);
+  assert.equal(driverRelationship(synced,"D1","teammate","D5").active,true);
 });
 
 test("D6.3A supports Create Team selected drivers before canonical contracts exist",()=>{
