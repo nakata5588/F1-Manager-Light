@@ -8,7 +8,7 @@ const round=(v,d=3)=>Number(Number(v||0).toFixed(d));
 export const PIT_CREW_TRAINING_PRESETS=Object.freeze([
   {id:"recovery",label:"Recovery",load:20,description:"Low training volume. Slow skill growth, fastest fatigue recovery."},
   {id:"balanced",label:"Balanced",load:50,description:"Steady long-term improvement with a small fatigue-recovery bias."},
-  {id:"intensive",label:"Intensive",load:75,description:"Faster development, but fatigue builds if maintained for too long."},
+  {id:"intensive",label:"Intensive",load:80,description:"Faster development, but fatigue builds if maintained for too long."},
   {id:"maximum",label:"Maximum",load:100,description:"Maximum short-term development speed with a strong fatigue cost."},
 ]);
 
