@@ -233,6 +233,9 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
     qualifying_position:qualifyingPosition,
     grid_position:gridPosition,
     finish_position:finish,
+    best_lap_ms:num(race?.best_lap_ms??race?.bestLapMs,null),
+    best_lap_number:num(race?.best_lap_number??race?.bestLapNumber,null),
+    fastest_lap:Boolean(race?.fastest_lap??race?.fastestLap),
     retired,
     retirement_reason:race?.retirement_reason||null,
     retirement_responsibility:retirement?.key||null,
@@ -298,7 +301,8 @@ function hydrateTeammateComparison(gs,driverId,entry){
   const needsRace=entry?.teammate_race_delta==null;
   const needsQualifying=entry?.teammate_qualifying_delta==null;
   const needsDriver=entry?.teammate_driver_id==null;
-  if(!needsRace&&!needsQualifying&&!needsDriver)return entry;
+  const needsBestLap=entry?.best_lap_ms==null||entry?.fastest_lap==null;
+  if(!needsRace&&!needsQualifying&&!needsDriver&&!needsBestLap)return entry;
 
   const event=resultEventForEntry(gs,entry);
   if(!event)return entry;
@@ -311,7 +315,13 @@ function hydrateTeammateComparison(gs,driverId,entry){
 
   const qualifying=rowForDriver(event?.qualifying,driverId);
   const teamQual=rowForDriver(event?.qualifying,teammateId);
-  const next={...entry,teammate_driver_id:teammateId};
+  const next={
+    ...entry,
+    teammate_driver_id:teammateId,
+    best_lap_ms:entry?.best_lap_ms??num(race?.best_lap_ms??race?.bestLapMs,null),
+    best_lap_number:entry?.best_lap_number??num(race?.best_lap_number??race?.bestLapNumber,null),
+    fastest_lap:entry?.fastest_lap??Boolean(race?.fastest_lap??race?.fastestLap),
+  };
 
   if(needsQualifying&&qualifying&&teamQual){
     const driverPos=num(qualifying?.position);

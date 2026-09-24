@@ -140,7 +140,7 @@ test("monthly focus adds weekday fatigue progressively and auto-locks a carried 
   };
 
   const next=applyProgressionTick(gs);
-  assert.ok(next.driverAttributes.D1.fatigue>10,"weekday development load should exceed normal recovery");
+  assert.ok(next.driverAttributes.D1.fatigue<10,"normal weekday recovery should now exceed the light development load");
   assert.equal(next.driverDevelopmentTraining.D1.trainingDays,1);
   assert.equal(next.driverDevelopmentTraining.D1.fatigueSpent,2);
   assert.equal(next.driverDevelopmentFocusMeta.D1.monthKey,"1980-02");
@@ -148,4 +148,31 @@ test("monthly focus adds weekday fatigue progressively and auto-locks a carried 
 
   const sameDay=applyProgressionTick(next);
   assert.equal(sameDay.driverDevelopmentTraining.D1.trainingDays,1,"training load must be idempotent on the same date");
+});
+
+
+test("monthly development training is paused during an active race weekend",()=>{
+  const gs={
+    activeYear:1980,
+    currentDateISO:"1980-05-16",
+    _lastDriverProgressionMonth:"1980-05",
+    team:{team_id:"T1"},
+    drivers:[{driver_id:"D1",display_name:"Weekend Driver",age:22}],
+    driverRatings:[{...rating}],
+    driverAttributes:{D1:{confidence:50,fatigue:30,morale:50,preparation:50}},
+    contracts:[{year:1980,driver_id:"D1",team_id:"T1",role:"Main Driver",status:"active",contract_until_year:1981}],
+    driverDevelopmentFocus:{D1:"pace"},
+    driverDevelopmentFocusMeta:{D1:{groupKey:"pace",monthKey:"1980-05",selectedAt:"1980-05-01"}},
+    driverDevelopmentTraining:{D1:{monthKey:"1980-05",groupKey:"pace",trainingDays:8,fatigueSpent:16,lastTrainingDate:"1980-05-15"}},
+    raceWeekendState:{
+      phase:"practice",
+      weekendStartDate:"1980-05-16",
+      practiceDate:"1980-05-16",
+      qualifyingDate:"1980-05-17",
+      raceDate:"1980-05-18",
+    },
+  };
+  const next=applyProgressionTick(gs);
+  assert.equal(next.driverDevelopmentTraining.D1.trainingDays,8);
+  assert.ok(next.driverAttributes.D1.fatigue<30,"driver should recover without an extra development-training load");
 });

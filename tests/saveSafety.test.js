@@ -127,6 +127,36 @@ test("manual legacy save envelope and rolling Continue save both migrate", () =>
   assert.equal(migratedContinue.saveMeta.schemaVersion, SAVE_SCHEMA_VERSION);
 });
 
+test("save snapshots retain in-progress live Race Weekend state", () => {
+  const state=prepareGameStateForSave({
+    activeYear:1980,
+    currentDateISO:"1980-05-18",
+    currentRound:4,
+    team:{team_id:"t_1"},
+    saveMeta:createNewSaveMeta({year:1980,teamId:"t_1",seed:"rw-recovery"}),
+    raceEntryState:{entries:[{driver_id:"d_1",team_id:"t_1",status:"confirmed"}]},
+    raceWeekendState:{
+      gp_id:"monaco",
+      phase:"race",
+      roundIndex:4,
+      live_race:{
+        status:"running",
+        current_lap:17,
+        current_sector:2,
+        classification:[{driver_id:"d_1",position:3,elapsed_ms:123456}],
+        events:[{lap:17,type:"command",message:"Push"}],
+      },
+      race_strategy:{live_commands:{d_1:[{type:"pace",pace_mode:"attack",effective_lap:18}]}},
+    },
+  });
+  const loaded=extractGameStateFromStoredSave(state);
+  assert.equal(loaded.raceWeekendState.phase,"race");
+  assert.equal(loaded.raceWeekendState.live_race.current_lap,17);
+  assert.equal(loaded.raceWeekendState.live_race.current_sector,2);
+  assert.equal(loaded.raceWeekendState.race_strategy.live_commands.d_1[0].pace_mode,"attack");
+  assert.equal(loaded.raceEntryState.entries[0].driver_id,"d_1");
+});
+
 test("current saves are idempotent and future schemas are rejected", () => {
   const current = prepareGameStateForSave({
     activeYear: 1980,
