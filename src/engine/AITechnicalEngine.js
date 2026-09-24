@@ -359,7 +359,9 @@ function activeProjects(state){return (state?.development?.projects||[]).filter(
 function activeManufacturing(state){return (state?.development?.manufacturing||[]).filter((p)=>p?.status==="active");}
 
 function planningReviewIntervalDays(gs,teamId){
-  return Math.round(clamp(38-engineeringStrength(gs,teamId)*2,18,36));
+  // Reviews are intentionally shorter than a normal design cycle so capable
+  // teams can fill more than one concurrent project slot when resources allow.
+  return Math.round(clamp(22-engineeringStrength(gs,teamId)*1.1,10,18));
 }
 function initialPlanningDelayDays(gs,teamId){
   return 10+(stableHash(`${teamId}|${yearOf(gs)}|first-review`)%9);
