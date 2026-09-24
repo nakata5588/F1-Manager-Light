@@ -104,7 +104,7 @@ export default function MyStaff(){
         <p className="text-sm text-slate-400">{myTeamName} · Season {year||"—"}</p>
       </div>
       <div className="flex-1"/>
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-2 min-w-[520px]">
+      <div className="grid w-full grid-cols-2 md:grid-cols-3 xl:w-auto xl:min-w-[520px] xl:grid-cols-5 gap-2">
         <Metric label="Staff" value={rows.length}/>
         <Metric label="Average rating" value={average??"—"}/>
         <Metric label="Team morale" value={Math.round(Number(teamMorale?.morale||50))+"/100"}/>
