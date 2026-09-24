@@ -643,12 +643,6 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     {kind:"ability",estimated:overallView?.estimated}
   );
   const overallLabel  = overallPresentation.label;
-  const reputationPresentation = presentDriverKnowledgeValue(
-    knowledge,
-    "reputation",
-    profileSnapshot?.reputation,
-    {kind:"attribute"}
-  );
   const rawMarketValue = Number(unbox(attrs?.market_value));
   const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
   const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
@@ -804,17 +798,10 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           <ProfileMetric label="OVR" value={overallLabel} compact/>
-          <ProfileMetric label="Reputation" value={reputationPresentation?.label??"—"} tone={presentationColorClass(reputationPresentation)} compact/>
           <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"} compact/>
           <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0} compact/>
-          <ProfileMetric
-            label="Market value"
-            value={knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}
-            compact
-            cardTone="col-span-2"
-          />
         </div>
 
         <div className="mt-4">
@@ -1828,7 +1815,16 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
               const teamName = displayValue(r.team_name ?? r.team_id);
               const transfer=r.__transfer||null;
               return (
-                <tr key={`${unbox(r.year)}-${i}`} className={isChampion ? "bg-amber-500/10" : ""}>
+                <tr
+                  key={`${unbox(r.year)}-${i}`}
+                  className={
+                    isChampion
+                      ?"bg-amber-500/10"
+                      :String(series).toUpperCase()!=="F1"
+                        ?"bg-violet-500/[0.08]"
+                        :""
+                  }
+                >
                   <td className="pr-2 py-1">{displayValue(r.year)}</td>
                   <td className="pr-2 py-1">{series}</td>
                   <td className="pr-2 py-1">
@@ -1923,6 +1919,18 @@ function AttributesTab({
   const shownValue=(knowledgeState,field,value,{kind="attribute"}={})=>
     presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
 
+  const integerAttributeLabel=(shown)=>{
+    if(!shown)return "—";
+    if(shown.visibility==="exact"&&shown.sortValue!=null){
+      const prefix=String(shown.label||"").startsWith("~")?"~":"";
+      return `${prefix}${Math.round(Number(shown.sortValue))}`;
+    }
+    if(shown.visibility==="range"&&shown.min!=null&&shown.max!=null){
+      return `${Math.round(Number(shown.min))}–${Math.round(Number(shown.max))}`;
+    }
+    return shown.label??"—";
+  };
+
   const renderShown=(shown,{inverse=false,size="",toneOverride=null}={})=>(
     <span
       className={`font-semibold ${size} ${toneOverride??presentationColorClass(shown,{inverse})}`}
@@ -1932,7 +1940,7 @@ function AttributesTab({
         shown?.visibility==="exact"?"Exact known value":"No data"
       }
     >
-      {shown?.label??"—"}
+      {integerAttributeLabel(shown)}
     </span>
   );
 
@@ -1972,7 +1980,7 @@ function AttributesTab({
     const tone=delta>0.05?"text-emerald-300":delta<-0.05?"text-rose-300":"text-slate-500";
     return (
       <span className={`font-medium ${tone}`} title="Difference from the visible/known comparison values">
-        {approximate?"≈":""}{delta>0?"+":""}{delta.toFixed(1)}
+        {approximate?"≈":""}{delta>0?"+":""}{Math.round(delta)}
       </span>
     );
   };
