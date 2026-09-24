@@ -328,6 +328,18 @@ export function recordAeroTestingUsage(development,profile,{windTunnel=0,cfd=0}=
   };
 }
 
+export function aeroAllocationPerformanceEquivalents(profile,{windTunnel=0,cfd=0}={}){
+  // Development 2.0 was originally calibrated with generic "hours". Modern
+  // ATR records CFD in MAUh, so convert only for gameplay-effect calculation;
+  // the Save World ledger always stores the real regulatory unit.
+  const wind=Math.max(0,num(windTunnel,0));
+  const compute=Math.max(0,num(cfd,0));
+  return {
+    wind_tunnel_effective:wind,
+    cfd_effective:profile?.scheme==="fia_atr"?compute*20:compute,
+  };
+}
+
 export function defaultAeroAllocation(gs,teamId,slot,development=null){
   const profile=developmentRegulationProfile(gs,teamId);
   if(!usesAerodynamicTesting(gs,slot))return {windTunnel:0,cfd:0};
