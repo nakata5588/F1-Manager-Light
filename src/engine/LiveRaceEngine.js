@@ -3,6 +3,7 @@ import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffect
 import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
+import { raceWeekendGridRows } from "../domain/raceWeekendCompatibility.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -250,7 +251,7 @@ function pitLossEstimate(gs,strategyState,driverId,lap,plan,{observedLap=null}={
   return Number((lane+stationary).toFixed(2));
 }
 function gridForWeekend(gs){
-  const rows=gs?.raceWeekendState?.startingGrid?.rows||gs?.raceWeekendState?.grid||[];
+  const rows=raceWeekendGridRows(gs?.raceWeekendState);
   return rows.map((row,index)=>({
     pos:Number(row?.grid??row?.position??index+1),
     driver:driverById(gs,row?.driver_id),
