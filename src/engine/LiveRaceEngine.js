@@ -161,6 +161,10 @@ function appendWeatherReports(events,timeline,fromLap,toLap){
       kind="rain_rising";message=`Rain intensity is rising — ${weatherBandLabel(band)} rain now.`;
     }else if(weatherBandRank(band)<weatherBandRank(prevBand)&&prevIntensity-intensity>=0.035){
       kind="rain_easing";message=`Rain is slowing down — ${weatherBandLabel(band)} rain now.`;
+    }else if(intensity>=0.18&&intensity-prevIntensity>=0.025){
+      kind="rain_rising";message=`Rain intensity is rising — ${Math.round(intensity*100)}% now.`;
+    }else if(prevIntensity>=0.18&&prevIntensity-intensity>=0.025){
+      kind="rain_easing";message=`Rain is slowing down — ${Math.round(intensity*100)}% now.`;
     }else if(prevWet<0.65&&wet>=0.65){
       kind="standing_water";message="Standing water is building on the circuit.";
     }else if(prevVisibility>=70&&visibility<70){
