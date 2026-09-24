@@ -966,9 +966,9 @@ export default function Development({ embedded = false, initialTab = "projects",
               <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
                 <div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-wide text-slate-500">7-day forecast at current load</div><div className="font-semibold text-sm">{Math.round(Number(rawPitCrew.training_load??50))}% Training Load</div></div><span className="text-xs text-slate-500">Facility Lv {pitCrewFacilityLevel}</span></div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-                  <ForecastMini label="Race-day stop" current={Number(effectivePitCrew.avg_time_s??6.8)} future={Number(pitCrewSevenDay.effective.avg_time_s??6.8)} suffix="s" lowerBetter/>
-                  <ForecastMini label="Consistency" current={Number(effectivePitCrew.consistency??70)} future={Number(pitCrewSevenDay.effective.consistency??70)} suffix="%"/>
-                  <ForecastMini label="Error rate" current={Number(effectivePitCrew.error_rate??0.05)*100} future={Number(pitCrewSevenDay.effective.error_rate??0.05)*100} suffix="%" lowerBetter/>
+                  <ForecastMini label="Race-day stop" current={Number(effectivePitCrew.avg_time_s??6.8)} future={Number(pitCrewSevenDay.effective.avg_time_s??6.8)} suffix="s" digits={3} lowerBetter/>
+                  <ForecastMini label="Consistency" current={Number(effectivePitCrew.consistency??70)} future={Number(pitCrewSevenDay.effective.consistency??70)} suffix="%" digits={2}/>
+                  <ForecastMini label="Error rate" current={Number(effectivePitCrew.error_rate??0.05)*100} future={Number(pitCrewSevenDay.effective.error_rate??0.05)*100} suffix="%" digits={2} lowerBetter/>
                   <ForecastMini label="Fatigue" current={Number(rawPitCrew.fatigue||0)} future={Number(pitCrewSevenDay.raw.fatigue||0)} suffix="/100" lowerBetter/>
                 </div>
               </div>
