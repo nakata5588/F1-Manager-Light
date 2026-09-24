@@ -893,7 +893,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                   {!canStartNextSeason&&budget<nextSeasonQuote.launch_cost?<div className="text-[11px] text-rose-300">Insufficient budget.</div>:null}
                 </div>
               </div>
-            </Card>
+            </CardContent></Card>
           ) : (
             <>
               <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
