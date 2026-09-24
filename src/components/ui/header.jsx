@@ -3,8 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "./button";
 import AdvanceButton from "./AdvanceButton";   // 👈 novo import
-import { useGame } from "../../state/GameStore";
-import { GAME_VERSION, SAVE_SCHEMA_VERSION, prepareGameStateForSave } from "../../core/saveSafety";
+import { makeLightSnapshot, useGame } from "../../state/GameStore";
 
 /* ==== helpers brand ==== */
 function resolvePlayerTeam(gameState) {
@@ -360,17 +359,20 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
   const handleExportSave = () =>
     runOnce(() => {
       try {
-        const snapshot = prepareGameStateForSave(gameState);
+        const snapshot = makeLightSnapshot(gameState);
         const name = defaultName(snapshot);
+        const gameVersion = snapshot?.saveMeta?.gameVersion ?? "unknown";
+        const schemaVersion = snapshot?.saveMeta?.schemaVersion ?? null;
+        const now = new Date().toISOString();
         const payload = {
           meta: {
             name,
-            version: GAME_VERSION,
-            gameVersion: GAME_VERSION,
-            schemaVersion: SAVE_SCHEMA_VERSION,
+            version: gameVersion,
+            gameVersion,
+            schemaVersion,
             seed: snapshot?.saveMeta?.seed ?? null,
-            savedAt: new Date().toISOString(),
-            exportedAt: new Date().toISOString(),
+            savedAt: now,
+            exportedAt: now,
           },
           gameState: snapshot,
         };
