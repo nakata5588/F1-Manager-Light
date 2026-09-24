@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Flag, Map, TriangleAlert } from "lucide-react";
-import { pointAtTrackProgress, resolveTrackLayout, trackLayoutResolutionLabel, visualTrackProgress } from "../../domain/trackLayout.js";
+import { pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackLayoutResolutionLabel, visualTrackProgress } from "../../domain/trackLayout.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -77,12 +77,12 @@ function AnimatedMarker({geometry,progress,color,label,title,mine=false,retired=
 
   const point=pointAtTrackProgress(geometry,display);
   if(!point)return null;
-  const radius=mine?12:8;
+  const radius=mine?14:9;
   return <g>
     <title>{title}</title>
-    <circle cx={point.x} cy={point.y} r={radius+3} fill="rgba(2,6,23,.78)" stroke={mine?"#f8fafc":"rgba(255,255,255,.42)"} strokeWidth={mine?3:1.5}/>
+    <circle cx={point.x} cy={point.y} r={radius+3} fill="rgba(2,6,23,.78)" stroke={mine?"#f8fafc":"rgba(255,255,255,.42)"} strokeWidth={mine?3.5:1.75}/>
     <circle cx={point.x} cy={point.y} r={radius} fill={retired?"#7f1d1d":color} opacity={retired?0.72:1}/>
-    {mine?<text x={point.x} y={point.y+3.5} textAnchor="middle" fontSize="9" fontWeight="800" fill="#fff">{label}</text>:null}
+    {mine?<text x={point.x} y={point.y+3.5} textAnchor="middle" fontSize="10" fontWeight="800" fill="#fff">{label}</text>:null}
     {retired?<path d={`M ${point.x-5} ${point.y-5} L ${point.x+5} ${point.y+5} M ${point.x+5} ${point.y-5} L ${point.x-5} ${point.y+5}`} stroke="#fff" strokeWidth="2"/>:null}
   </g>;
 }
@@ -103,6 +103,7 @@ export default function Track2DView({
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const layout=resolved.layout;
   const geometry=resolved.geometry;
+  const fittedViewBox=useMemo(()=>trackGeometryViewBox(geometry),[geometry]);
   const activeRows=(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
   const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
 
@@ -128,16 +129,16 @@ export default function Track2DView({
       </div>
     </div>
 
-    <div className="grid xl:grid-cols-[minmax(0,1fr)_240px]">
-      <div className="relative min-h-[340px] bg-[radial-gradient(circle_at_center,rgba(51,65,85,.14),transparent_62%)] md:min-h-[430px]">
-        {geometry?<svg className="absolute inset-0 h-full w-full p-5" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
+    <div className="grid xl:grid-cols-[minmax(0,1fr)_210px] 2xl:grid-cols-[minmax(0,1fr)_220px]">
+      <div className="relative min-h-[410px] bg-[radial-gradient(circle_at_center,rgba(51,65,85,.14),transparent_64%)] md:min-h-[500px] xl:min-h-[540px] 2xl:min-h-[590px]">
+        {geometry?<svg className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={fittedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
           {(()=>{
             const closed=[...geometry.points,geometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
-              <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="36" strokeLinejoin="round" strokeLinecap="round" opacity=".95"/>
-              <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="17" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
-              <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".7"/>
+              <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="32" strokeLinejoin="round" strokeLinecap="round" opacity=".95"/>
+              <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="15" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
+              <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.25" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".7"/>
             </>;
           })()}
           {activeRows.map((row,index)=>{
@@ -164,7 +165,7 @@ export default function Track2DView({
         <div className="flex items-center justify-between gap-2 px-1 pb-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">
           <span>Track order</span><span>L{Number(currentLap)||0}/{Number(totalLaps)||0}</span>
         </div>
-        <div className="max-h-[410px] overflow-y-auto pr-1">
+        <div className="max-h-[500px] overflow-y-auto pr-1 xl:max-h-[520px] 2xl:max-h-[570px]">
           {activeRows.map((row,index)=>{
             const did=String(row?.driver_id||"");
             const tid=String(row?.team_id||"");
