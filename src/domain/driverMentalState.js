@@ -256,9 +256,9 @@ export function expectationTeammateMentalAdjustment(performance,{
     confidence+=Math.max(-2.4,Math.min(2.4,expectationDelta*0.40));
     morale+=Math.max(-1.3,Math.min(1.3,expectationDelta*0.22));
     if(expectationDelta>0){
-      reasons.push(`Beat expectation by ${Math.abs(expectationDelta).toFixed(1)} position(s) (~P${Number(performance?.expected_finish).toFixed(1)})`);
+      reasons.push(`Result above expectation by ${Math.abs(expectationDelta).toFixed(1)} position(s) (~P${Number(performance?.expected_finish).toFixed(1)})`);
     }else{
-      reasons.push(`Finished ${Math.abs(expectationDelta).toFixed(1)} position(s) below expectation (~P${Number(performance?.expected_finish).toFixed(1)})`);
+      reasons.push(`Result below expectation by ${Math.abs(expectationDelta).toFixed(1)} position(s) (~P${Number(performance?.expected_finish).toFixed(1)})`);
     }
   }
 
