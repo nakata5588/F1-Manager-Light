@@ -45,15 +45,15 @@ test("manufacturing facility lowers standard component construction cost", () =>
   assert.ok(baseComponentConstructionCost(high,"gearbox") > 0);
 });
 
-test("pit crew high training load has a temporary race-day penalty", () => {
-  const base={avg_time_s:6.2,consistency:80,error_rate:0.04,training_load:50};
-  const hard={...base,training_load:90};
-  const balanced=pitCrewEffectiveProfile(base);
-  const overtrained=pitCrewEffectiveProfile(hard);
-  assert.equal(balanced.avg_time_s,6.2);
-  assert.ok(overtrained.avg_time_s>balanced.avg_time_s);
-  assert.ok(overtrained.consistency<balanced.consistency);
-  assert.ok(overtrained.error_rate>balanced.error_rate);
+test("pit crew accumulated fatigue has a temporary race-day penalty", () => {
+  const base={avg_time_s:6.2,consistency:80,error_rate:0.04,training_load:50,fatigue:0};
+  const tired={...base,training_load:90,fatigue:45};
+  const fresh=pitCrewEffectiveProfile(base);
+  const fatigued=pitCrewEffectiveProfile(tired);
+  assert.equal(fresh.avg_time_s,6.2);
+  assert.ok(fatigued.avg_time_s>fresh.avg_time_s);
+  assert.ok(fatigued.consistency<fresh.consistency);
+  assert.ok(fatigued.error_rate>fresh.error_rate);
 });
 
 test("Academy plans describe and target different development attributes", () => {
