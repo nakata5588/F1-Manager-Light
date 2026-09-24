@@ -1893,9 +1893,9 @@ function AttributesTab({
   const shownValue=(knowledgeState,field,value,{kind="attribute"}={})=>
     presentDriverKnowledgeValue(knowledgeState,field,value,{kind});
 
-  const renderShown=(shown,{inverse=false,size=""}={})=>(
+  const renderShown=(shown,{inverse=false,size="",toneOverride=null}={})=>(
     <span
-      className={`font-semibold ${size} ${presentationColorClass(shown,{inverse})}`}
+      className={`font-semibold ${size} ${toneOverride??presentationColorClass(shown,{inverse})}`}
       title={
         shown?.visibility==="range"?"Scouting/public estimate range":
         shown?.visibility==="hidden"?"Requires scouting":
@@ -1906,8 +1906,29 @@ function AttributesTab({
     </span>
   );
 
-  const renderValue=(knowledgeState,field,value,{kind="attribute",inverse=false,size=""}={})=>
-    renderShown(shownValue(knowledgeState,field,value,{kind}),{inverse,size});
+  const renderValue=(knowledgeState,field,value,{kind="attribute",inverse=false,size="",toneOverride=null}={})=>
+    renderShown(shownValue(knowledgeState,field,value,{kind}),{inverse,size,toneOverride});
+
+  const comparisonTone=(leftShown,rightShown,{inverse=false,side="left"}={})=>{
+    if(leftShown?.sortValue==null||rightShown?.sortValue==null)return "text-slate-400";
+    const raw=(Number(leftShown.sortValue)-Number(rightShown.sortValue))*(inverse?-1:1);
+    if(Math.abs(raw)<0.05)return "text-slate-300";
+    const leftBetter=raw>0;
+    const better=side==="left"?leftBetter:!leftBetter;
+    return better?"text-emerald-300":"text-rose-300";
+  };
+
+  const renderComparisonValue=(side,knowledgeState,field,value,otherKnowledge,otherValue,{kind="attribute",inverse=false,size=""}={})=>{
+    const shown=shownValue(knowledgeState,field,value,{kind});
+    const other=shownValue(otherKnowledge,field,otherValue,{kind});
+    const leftShown=side==="left"?shown:other;
+    const rightShown=side==="left"?other:shown;
+    return renderShown(shown,{
+      inverse,
+      size,
+      toneOverride:comparisonTone(leftShown,rightShown,{inverse,side}),
+    });
+  };
 
   const differenceFor=(field,left,right,{kind="attribute",inverse=false}={})=>{
     const leftShown=shownValue(knowledge,field,left,{kind});
@@ -2001,22 +2022,22 @@ function AttributesTab({
     <div className="space-y-3">
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
-            <div className="mt-1 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</div>
-            <div className="mt-2 grid max-w-sm grid-cols-2 gap-2">
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Overall</div>
-                <div className="mt-1">{renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-xl"})}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Potential</div>
-                <div className="mt-1">{renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-xl"})}</div>
-              </div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="mr-2 min-w-[120px]">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Driver Knowledge</div>
+              <div className="mt-0.5 text-xs text-slate-300">{knowledge?.label||"Unscouted"}</div>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#171a23] px-2 py-1.5">
+              <span className="text-[9px] uppercase tracking-wide text-slate-500">OVR</span>
+              {renderValue(knowledge,"current_ability",attrs.current_ability,{kind:"ability",size:"text-base"})}
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#171a23] px-2 py-1.5">
+              <span className="text-[9px] uppercase tracking-wide text-slate-500">Potential</span>
+              {renderValue(knowledge,"potential_ability",attrs.potential_ability,{kind:"potential",size:"text-base"})}
             </div>
           </div>
 
-          <div className="relative w-full lg:w-[280px]">
+          <div className="relative w-full lg:w-[250px]">
             <div className="text-xs text-slate-400">Compare with</div>
             <div className="relative mt-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-2.5 text-slate-500"/>
