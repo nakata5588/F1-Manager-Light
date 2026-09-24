@@ -160,7 +160,7 @@ export function applyRaceReputation(gs,resultEntry){
         String(entry?.round)!==String(evaluation?.round)
       );
 
-    const currentRep=num(ratingRef.rating?.reputation,num(ratingRef.rating?.current_ability,50));
+    const currentRep=num(ratingRef.rating?.reputation,50);
     const change=raceReputationChange({
       reputation:currentRep,
       evaluation,
