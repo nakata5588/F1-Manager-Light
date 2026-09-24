@@ -6,6 +6,7 @@ import Header from "../components/ui/header";
 
 const PAGE_TITLES = {
   "/Home": "Home",
+  "/ManagerProfile": "My Profile",
   "/Inbox": "Inbox",
   "/CalendarPage": "Calendar",
   "/Team": "My Team",

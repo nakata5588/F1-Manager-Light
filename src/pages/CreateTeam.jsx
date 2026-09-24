@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,8 @@ function teamLabel(t = {}) {
 
 export default function CreateTeam() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const startContext = location.state && typeof location.state === "object" ? location.state : {};
   const { gameState, applyYearFilter, startNewGameFromCreateTeam } = useGame();
 
   // === Years dinâmicos a partir do calendário carregado ===
@@ -65,7 +67,8 @@ export default function CreateTeam() {
     return Array.from(set).sort((a, b) => a - b).map(String);
   }, [gameState?.dbCalendar, gameState?.activeYear]);
 
-  const [year, setYear] = useState(years[0] ?? "1980");
+  const requestedYear = String(startContext?.year ?? "");
+  const [year, setYear] = useState(years.includes(requestedYear) ? requestedYear : (years[0] ?? "1980"));
   useEffect(() => {
     if (year) applyYearFilter(Number(year));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +113,8 @@ export default function CreateTeam() {
   const [driver1, setDriver1] = useState("");
   const [driver2, setDriver2] = useState("");
 
-  const [difficulty, setDifficulty] = useState("normal");
+  const requestedDifficulty = String(startContext?.difficulty ?? "normal").toLowerCase();
+  const [difficulty, setDifficulty] = useState(difficulties.some((row)=>row.key===requestedDifficulty) ? requestedDifficulty : "normal");
   const [startingBudget, setStartingBudget] = useState(5_000_000);
 
   // NOVO: mostrar só livres por defeito
@@ -200,6 +204,7 @@ export default function CreateTeam() {
       },
       drivers: [driver1, driver2],
       difficulty,
+      manager: startContext?.manager || null,
     };
     const ok = startNewGameFromCreateTeam(payload);
     if (ok) navigate("/Home");
@@ -209,6 +214,15 @@ export default function CreateTeam() {
     <div className="min-h-screen bg-gray-700 text-white">
       <div className="mx-auto max-w-5xl p-6 space-y-6">
         <h1 className="text-3xl font-bold">Create Your Team</h1>
+        {startContext?.manager ? (
+          <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
+            <span className="text-white/60">Team Manager</span>
+            <span className="ml-2 font-semibold">
+              {String(startContext.manager.first_name || "") + " " + String(startContext.manager.last_name || "")}
+            </span>
+            <span className="ml-2 text-white/50">· profile carried from New Game</span>
+          </div>
+        ) : null}
 
         {/* Stepper */}
         <div className="flex items-center gap-2 text-sm">

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { activeDriverContracts } from "@/domain/driverContracts";
 import { activeStaffContracts } from "@/domain/liveContracts";
+import { managerGameplayEffects } from "@/domain/managerProfile";
 
 /* ----------------- utils ----------------- */
 const fmtMoney = (n) => {
@@ -697,7 +698,8 @@ function SponsorsTab({ sponsors }) {
     const demandPressure=Math.max(0,annualRatio-1)*0.55+Math.max(0,upfrontRatio-1)*0.30+Math.max(0,winRatio-1)*0.15;
     const relationship=(commercialScore/100);
     const roundPenalty=Math.max(0,negotiationRound-1)*0.06;
-    const acceptance=Math.max(0.05,Math.min(0.95,0.68+relationship*0.25-demandPressure-roundPenalty));
+    const managerCommercial=managerGameplayEffects(gameState,{teamId}).sponsorAcceptanceDelta;
+    const acceptance=Math.max(0.05,Math.min(0.95,0.68+relationship*0.25-demandPressure-roundPenalty+managerCommercial));
 
     if(Math.random()<acceptance){
       finalizeSponsor(negotiating,{
@@ -720,7 +722,7 @@ function SponsorsTab({ sponsors }) {
         ? "The sponsor is close to walking away. This is effectively their final counter-offer."
         : `Counter-offer received. Estimated acceptance of your last proposal was ${Math.round(acceptance*100)}%.`
     );
-  },[negotiating,offerAnnual,offerUpfront,offerWinBonus,commercialScore,negotiationRound,sponsorEligibility,finalizeSponsor]);
+  },[negotiating,offerAnnual,offerUpfront,offerWinBonus,commercialScore,negotiationRound,sponsorEligibility,finalizeSponsor,gameState,teamId]);
 
   return (
     <>

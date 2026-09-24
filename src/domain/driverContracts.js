@@ -19,6 +19,7 @@ import {
 import { applyTeammateRoleStatusChange } from "./driverTeammateDynamics.js";
 import { synchronizeTeamTeammateRelationships } from "./relationshipEvents.js";
 import { applyDriverReleaseRelationship, applyDriverRoleTeamRelationship } from "./driverTeamManagerDynamics.js";
+import { managerGameplayEffects } from "./managerProfile.js";
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 
@@ -107,7 +108,7 @@ export function expectedDriverSalary(gs,driverId,{role=null}={}){
   return Math.max(75_000,adjusted);
 }
 
-export function contractAcceptanceChance(gs,driverId,offer,{renewal=false}={}){
+export function contractAcceptanceChance(gs,driverId,offer,{renewal=false,teamId=null}={}){
   const expected=expectedDriverSalary(gs,driverId,{role:offer?.role});
   const salary=Math.max(0,Number(offer?.salary||0));
   const years=Math.max(1,Number(offer?.years||1));
@@ -128,6 +129,7 @@ export function contractAcceptanceChance(gs,driverId,offer,{renewal=false}={}){
   if(/reserve|test/.test(role)&&ability>=75)chance-=0.10;
   if(renewal)chance+=0.12;
   if(rep>=80)chance-=0.05;
+  if(teamId!=null)chance+=managerGameplayEffects(gs,{teamId}).contractAcceptanceDelta;
   return clamp(chance,0.05,0.95);
 }
 

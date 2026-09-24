@@ -7,6 +7,7 @@
 
 import { currentDriverTeamId } from "./driverContracts.js";
 import { retirementResponsibility } from "./driverForm.js";
+import { managerGameplayEffects } from "./managerProfile.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const round1=(v)=>Math.round(Number(v||0)*10)/10;
@@ -115,6 +116,10 @@ export function applyRaceTeamMorale(gs,{race=[],gp=null}={}){
       reasons.push({key:"double_dnf",delta:-2,label:"Double retirement"});
     }
 
+    delta=Math.max(-10,Math.min(7,delta));
+    const managerEffects=managerGameplayEffects(gs,{teamId});
+    if(delta>0)delta*=managerEffects.positiveMoraleMultiplier;
+    else if(delta<0)delta*=managerEffects.negativeMoraleMultiplier;
     delta=Math.max(-10,Math.min(7,delta));
     const before=teamOperationalMorale(gs,teamId);
     const after=round1(clamp(before+delta));

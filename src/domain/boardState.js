@@ -1,3 +1,5 @@
+import { managerGameplayEffects } from "./managerProfile.js";
+
 const clamp01=(x)=>Math.max(0,Math.min(1,Number(x)||0));
 
 export const BOARD_EXPECTATION_LABEL=Object.freeze({
@@ -104,7 +106,8 @@ export function deriveBoardState(gs){
   const objectiveScore=objectives.length
     ?objectives.reduce((s,o)=>s+clamp01(o.progress)*Number(o.weight||1),0)/sumW
     :0.5;
-  const confidence=clamp01(reputation*0.45+objectiveScore*0.55);
+  const managerEffects=managerGameplayEffects(gs,{teamId});
+  const confidence=clamp01(reputation*0.45+objectiveScore*0.55+managerEffects.boardConfidenceDelta);
   return {
     ...stored,
     profile_version:2,
@@ -112,6 +115,7 @@ export function deriveBoardState(gs){
     expectationLabel:BOARD_EXPECTATION_LABEL[expectation]||"Competitive season",
     reputation,
     confidence,
+    managerConfidenceDelta:managerEffects.boardConfidenceDelta,
     objectiveScore,
     metrics,
     objectives,

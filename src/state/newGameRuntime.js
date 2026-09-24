@@ -55,6 +55,7 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     finances: null,
     board: null,
     commercialScore: null,
+    manager: null,
 
     rdProjectsActive: [],
     meta: {},

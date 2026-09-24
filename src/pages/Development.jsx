@@ -25,6 +25,7 @@ import {
   technicalDevelopmentCapacity,
 } from "@/domain/developmentProject.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
+import { managerGameplayEffects } from "@/domain/managerProfile.js";
 import {
   aeroAllocationPerformanceEquivalents,
   aeroTestingRemaining,
@@ -213,6 +214,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const teamMorale=teamOperationalMorale(gameState,teamId);
   const moraleWorkRate=teamWorkRateLabel(gameState,teamId);
   const moraleTimeFactor=teamWorkRateMultiplier(gameState,teamId);
+  const managerEffects=managerGameplayEffects(gameState,{teamId});
   const regulationProfile=useMemo(
     ()=>developmentRegulationProfile(gameState,teamId,{dateISO:currentDateISO}),
     [gameState,teamId,currentDateISO,activeYear]
@@ -301,7 +303,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   };
   const rawEffectiveDays = effectiveProjectDays(effectiveDraft, levelOf, moraleTimeFactor);
   const effectiveDays = Math.max(7,Math.round(
-    rawEffectiveDays*objectiveModifiers.duration_multiplier*researchSupport.duration_multiplier
+    rawEffectiveDays*objectiveModifiers.duration_multiplier*researchSupport.duration_multiplier*managerEffects.technicalTimeMultiplier
   ));
   const baseCost = projectCost({...effectiveDraft, duration:effectiveDays}, levelOf("manufacturing_leve"));
   const cost = Math.round(baseCost*objectiveModifiers.cost_multiplier);
@@ -344,12 +346,13 @@ export default function Development({ embedded = false, initialTab = "projects",
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
   const nextDesignVersion=parts.filter((part)=>String(part?.slot)===String(draft.type)).length+1;
   const automaticProjectName=`${componentLabel(gameState,draft.type)} · ${objective?.label||"Balanced Package"} · P${nextDesignVersion}`;
-  const projectRisk=Math.max(
+  const projectRiskBeforeManager=Math.max(
     0.025,
     (0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0))*
       objectiveModifiers.risk_multiplier -
       researchSupport.risk_reduction
   );
+  const projectRisk=Math.max(0.025,projectRiskBeforeManager*managerEffects.technicalRiskMultiplier);
   const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
   const canStartProject=Boolean(
     currentDateISO &&
