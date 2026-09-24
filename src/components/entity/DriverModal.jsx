@@ -622,6 +622,145 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       .map(({__priority,...row})=>row)
       .sort((a,b)=>Number(a.year)-Number(b.year));
   }, [achievementsArr,careerAll,simulatedCareerRows,idNorm,gameYear]);
+  const shortF1Career = useMemo(() => {
+    const source=[...(careerAll||[]),...(simulatedCareerRows||[])]
+      .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
+      .filter((row)=>{
+        const year=Number(unbox(row?.year));
+        const starts=Number(unbox(row?.starts??row?.races));
+        return Number.isFinite(year)&&(starts>0||year===Number(gameYear));
+      })
+      .map((row)=>{
+        const year=Number(unbox(row?.year));
+        const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
+        const teamRecord=(teamsList||[]).find((team)=>String(unbox(team?.team_id??team?.id??""))===String(teamId));
+        const teamName=displayValue(
+          teamRecord?.team_name??teamRecord?.name??row?.team_name??row?.team,
+          "Unknown Team"
+        );
+        return {
+          year,
+          teamId:String(teamId||teamName),
+          teamName:String(teamName),
+          lastRound:Number(unbox(row?.last_round)),
+        };
+      })
+      .sort((a,b)=>a.year-b.year||
+        (Number.isFinite(a.lastRound)?a.lastRound:999)-(Number.isFinite(b.lastRound)?b.lastRound:999));
+
+    const unique=[];
+    const seen=new Set();
+    for(const row of source){
+      const key=`${row.year}|${row.teamId}`;
+      if(seen.has(key))continue;
+      seen.add(key);
+      unique.push(row);
+    }
+
+    const stints=[];
+    for(const row of unique){
+      const previous=stints[stints.length-1];
+      if(previous&&previous.teamId===row.teamId&&row.year<=previous.endYear+1){
+        previous.endYear=Math.max(previous.endYear,row.year);
+      }else{
+        stints.push({
+          teamId:row.teamId,
+          teamName:row.teamName,
+          startYear:row.year,
+          endYear:row.year,
+        });
+      }
+    }
+
+    const shortYear=(year)=>String(Math.abs(Number(year))%100).padStart(2,"0");
+    return stints.map((stint)=>{
+      const current=
+        Number(stint.endYear)===Number(gameYear)&&
+        (String(stint.teamId)===String(contractTeamId)||String(stint.teamName)===String(contractTeam));
+      let years;
+      if(current){
+        years=`${shortYear(stint.startYear)}–current`;
+      }else if(stint.startYear===stint.endYear){
+        years=shortYear(stint.startYear);
+      }else{
+        years=`${shortYear(stint.startYear)}–${shortYear(stint.endYear)}`;
+      }
+      return {...stint,current,label:`${years} ${stint.teamName}`};
+    });
+  }, [careerAll,simulatedCareerRows,teamsList,gameYear,contractTeamId,contractTeam]);
+
+  const driverTitles = useMemo(() => {
+    const constructorChampionByYear=new Map();
+
+    // Historical seasons before career start: derive constructors standings
+    // from result-derived driver/team season totals.
+    const historicalRows=new Map();
+    for(const row of generatedHistoryRaw||[]){
+      const year=Number(unbox(row?.year));
+      const series=String(getSeries(row)||"F1").toUpperCase();
+      if(!Number.isFinite(year)||series!=="F1")continue;
+      if(Number.isFinite(careerStartYear)&&year>=careerStartYear)continue;
+      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??row?.team_name??""));
+      if(!teamId)continue;
+      const driverKey=String(extractDriverId(row)||displayValue(row?.driver_name,""));
+      const key=`${year}|${teamId}|${driverKey}`;
+      if(historicalRows.has(key))continue;
+      historicalRows.set(key,{year,teamId,points:Number(unbox(row?.points)||0),wins:Number(unbox(row?.wins)||0)});
+    }
+    const byYear=new Map();
+    for(const row of historicalRows.values()){
+      if(!byYear.has(row.year))byYear.set(row.year,new Map());
+      const teams=byYear.get(row.year);
+      const rec=teams.get(row.teamId)||{teamId:row.teamId,points:0,wins:0};
+      rec.points+=row.points;
+      rec.wins+=row.wins;
+      teams.set(row.teamId,rec);
+    }
+    for(const [year,teams] of byYear.entries()){
+      const champion=[...teams.values()].sort((a,b)=>b.points-a.points||b.wins-a.wins||a.teamId.localeCompare(b.teamId))[0];
+      if(champion)constructorChampionByYear.set(Number(year),String(champion.teamId));
+    }
+
+    // Played seasons: archived Save World standings are authoritative.
+    for(const season of historySeasons||[]){
+      const year=Number(season?.year);
+      const champion=toArraySafe(season?.standings?.teams)
+        .slice()
+        .sort((a,b)=>Number(a?.position??999)-Number(b?.position??999))[0];
+      const teamId=String(unbox(champion?.team_id??champion?.constructor_id??champion?.id??""));
+      if(Number.isFinite(year)&&teamId)constructorChampionByYear.set(year,teamId);
+    }
+
+    const titles=[];
+    const seen=new Set();
+    for(const achievement of achievementsList||[]){
+      if(Number(achievement?.position)!==1)continue;
+      const year=Number(achievement?.year);
+      if(!Number.isFinite(year)||year>=Number(gameYear))continue;
+      const key=`${year}|driver`;
+      if(seen.has(key))continue;
+      seen.add(key);
+      titles.push({year,type:"driver",label:"Drivers Championship"});
+    }
+
+    const driverCareerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
+      .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
+      .filter((row)=>Number(unbox(row?.year))<Number(gameYear));
+    for(const row of driverCareerRows){
+      const year=Number(unbox(row?.year));
+      if(!Number.isFinite(year))continue;
+      const championTeam=constructorChampionByYear.get(year);
+      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
+      if(!championTeam||String(teamId)!==String(championTeam))continue;
+      const key=`${year}|constructor`;
+      if(seen.has(key))continue;
+      seen.add(key);
+      titles.push({year,type:"constructor",label:"Constructors Championship"});
+    }
+
+    return titles.sort((a,b)=>a.year-b.year||a.type.localeCompare(b.type));
+  }, [generatedHistoryRaw,careerStartYear,teamsList,historySeasons,achievementsList,careerAll,simulatedCareerRows,gameYear]);
+
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
     if (!Number.isFinite(rookie) || !Number.isFinite(gameYear)) return null;
