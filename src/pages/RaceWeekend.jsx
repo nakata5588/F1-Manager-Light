@@ -567,6 +567,14 @@ export default function RaceWeekend(){
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
   const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
+  const selectedEventDriverId=String(selectedRaceEvent?.driver_id??"");
+  const selectedEventDriver=selectedEventDriverId?driverObject(drivers,selectedEventDriverId):null;
+  const selectedEventTeamId=selectedEventDriverId?String(
+    selectedRaceEvent?.team_id
+      ??liveRows.find((row)=>String(row?.driver_id??"")===selectedEventDriverId)?.team_id
+      ??confirmedEntrants.find((row)=>String(row?.driver_id??"")===selectedEventDriverId)?.team_id
+      ??""
+  ):"";
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
   const activeControlNotice=controlNotice(raceControlPlan,liveRace,drivers);
   const liveTeamForecast=teamRaceForecast(gs,{
@@ -596,8 +604,7 @@ export default function RaceWeekend(){
       const type=String(event?.type||"");
       const message=String(event?.message||"");
       const control=String(event?.control_type||"");
-      return type==="position_change"
-        ||type==="incident"
+      return type==="incident"
         ||(type==="race_control"&&(event?.cause==="incident"||control==="RED_FLAG"))
         ||/dnf|retir|collision|crash/i.test(message);
     });
@@ -1610,7 +1617,7 @@ export default function RaceWeekend(){
                   const compound=liveDriver?.tyre?.compound||"—";
                   const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
                   const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
-                  return <div className={"grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_minmax(225px,1fr)_minmax(0,1.25fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  return <div className={"grid h-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_minmax(225px,1fr)_minmax(0,1.25fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
@@ -1627,21 +1634,24 @@ export default function RaceWeekend(){
                       <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
                     </div>
 
-                    <div className="col-span-2 flex items-center justify-end gap-1.5 lg:col-span-1">
-                      <Gauge className="h-4 w-4 text-slate-500"/>
-                      <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
-                        {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
-                      </select>
-                      <Wrench className="h-4 w-4 text-slate-500"/>
-                      <div className="flex items-center gap-1" title="Available pit compounds">
-                        {teamTyres.map((tyre)=><TyreCompoundIcon key={tyre.tyre_id} compound={tyre.compound_name} size={20}/>)}
-                      </div>
-                      <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
-                        <option value="">Stay out</option>
-                        {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
-                      </select>
-                      {pending.length?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>:null}
-                      {liveDriver?.retired?<span className="rounded bg-red-900/60 px-2 py-1 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>:null}
+                    <div className="col-span-2 flex min-w-0 items-center justify-end gap-1.5 lg:col-span-1">
+                      {liveDriver?.retired
+                        ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
+                        :<>
+                          <Gauge className="h-4 w-4 text-slate-500"/>
+                          <select title="Pace next lap" className={"rounded-md border border-white/10 px-2 py-1.5 text-xs "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                            {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
+                          </select>
+                          <Wrench className="h-4 w-4 text-slate-500"/>
+                          <div className="flex items-center gap-1" title="Available pit compounds">
+                            {teamTyres.map((tyre)=><TyreCompoundIcon key={tyre.tyre_id} compound={tyre.compound_name} size={20}/>)}
+                          </div>
+                          <select title="Pit next lap" className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                            <option value="">Stay out</option>
+                            {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                          </select>
+                          {pending.length?<button type="button" onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200">Cancel Order</button>:null}
+                        </>}
                     </div>
                   </div>;
                 })}
@@ -2073,9 +2083,16 @@ export default function RaceWeekend(){
     {selectedRaceEvent?<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedRaceEvent(null)}>
       <div className="w-full max-w-lg rounded-xl border border-white/15 bg-[#11161f] p-4 shadow-2xl" onClick={(event)=>event.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Race event · L{selectedRaceEvent.lap??"—"}{Number(selectedRaceEvent?.sector)>0?" · S"+selectedRaceEvent.sector:""}</div>
-            <div className="mt-1 text-base font-semibold">{String(selectedRaceEvent?.type||"Event").replaceAll("_"," ")}</div>
+          <div className="flex min-w-0 items-center gap-3">
+            {selectedEventDriverId?<DriverPortrait driver={selectedEventDriver||{display_name:driverName(drivers,selectedEventDriverId)}} size="h-12 w-12" className="shrink-0 ring-white/10"/>:null}
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Race event · L{selectedRaceEvent.lap??"—"}{Number(selectedRaceEvent?.sector)>0?" · S"+selectedRaceEvent.sector:""}</div>
+              <div className="mt-1 text-base font-semibold">{String(selectedRaceEvent?.type||"Event").replaceAll("_"," ")}</div>
+              {selectedEventDriverId?<div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-400">
+                <TeamLogo teamId={selectedEventTeamId} name={teamName(teams,selectedEventTeamId)} size="h-5 w-5" className="shrink-0 p-0"/>
+                <span className="truncate">{driverName(drivers,selectedEventDriverId)} · {teamName(teams,selectedEventTeamId)}</span>
+              </div>:null}
+            </div>
           </div>
           <button type="button" onClick={()=>setSelectedRaceEvent(null)} className="rounded-md border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button>
         </div>
