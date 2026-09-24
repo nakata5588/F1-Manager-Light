@@ -146,6 +146,25 @@ function setItemQuotaSafe(key, value) {
   }
 }
 
+function checkpointRaceWeekendState(gs) {
+  try {
+    const phase=String(gs?.raceWeekendState?.phase||"");
+    if(!phase||phase==="completed"||gs?.settings?.autosave===false)return false;
+    const light=makeLightSnapshot(gs);
+    const ok=setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+    if(ok){
+      // Secondary recovery payload. The rolling Continue snapshot remains the
+      // primary recovery source, while this provides a timestamped checkpoint
+      // for diagnostics/future recovery UI.
+      setItemQuotaSafe("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now(),reason:"race_weekend_checkpoint"}));
+    }
+    return ok;
+  } catch (error) {
+    console.warn("race weekend checkpoint failed:",error);
+    return false;
+  }
+}
+
 /** ===== Excel sanitizers ===== */
 function unexcel(v) {
   if (v && typeof v === "object" && !Array.isArray(v)) {
@@ -1563,6 +1582,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.setPracticeProgramme(gs,{driverId,programmeId});
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState||null;
   },
 
@@ -1571,6 +1591,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.setRaceStrategy(gs,{driverId,patch});
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.race_strategy||null;
   },
 
@@ -1617,6 +1638,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.startLiveRace(gs,{gp});
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1628,6 +1650,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.advanceLiveRaceSession(gs,{gp,laps});
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1639,6 +1662,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.advanceLiveRaceSectorSession(gs,{gp,sectors});
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1647,6 +1671,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.setLiveRaceCommand(gs,command||{});
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1655,6 +1680,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.cancelLiveRaceOrder(gs,command);
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1663,6 +1689,7 @@ export const useGame = create((set, get) => ({
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.resumeLiveRaceSession(gs);
     set({gameState:next});
+    checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1692,6 +1719,7 @@ export const useGame = create((set, get) => ({
     let next=mod.continueRaceWeekendSession(gs);
     if(next!==gs){
       set({gameState:next});
+      checkpointRaceWeekendState(next);
       return {
         oldDate:clampISO(gs.currentDateISO),
         newDate:clampISO(next.currentDateISO),
