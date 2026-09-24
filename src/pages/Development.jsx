@@ -183,7 +183,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
-    name:"", type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:20, windTunnel:10,
+    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:20, windTunnel:10,
   });
 
   useEffect(() => {
@@ -322,6 +322,8 @@ export default function Development({ embedded = false, initialTab = "projects",
     projects,
   });
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
+  const nextDesignVersion=parts.filter((part)=>String(part?.slot)===String(draft.type)).length+1;
+  const automaticProjectName=`${componentLabel(gameState,draft.type)} · ${objective?.label||"Balanced Package"} · P${nextDesignVersion}`;
   const projectRisk=Math.max(
     0.025,
     (0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0))*
@@ -329,7 +331,6 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
   const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
   const canStartProject=Boolean(
-    draft.name.trim() &&
     currentDateISO &&
     budget>=cost &&
     hasEngineerCapacity &&
@@ -343,7 +344,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     const id = `dev_${teamId||"TEAM"}_${currentDateISO}_${sequence}`;
     const project = {
       id,
-      name:draft.name.trim(),
+      name:automaticProjectName,
       type:draft.type,
       objective_id:objective?.id||"balanced",
       objective_label:objective?.label||"Balanced Package",
@@ -372,7 +373,6 @@ export default function Development({ embedded = false, initialTab = "projects",
       development:{...dev, projects:[...projects, project], parts, partUnits, manufacturing, research},
     });
     setShowCreate(false);
-    setDraft((d)=>({...d,name:""}));
   };
 
   const patchProject = (id, patch) => {
@@ -532,7 +532,11 @@ export default function Development({ embedded = false, initialTab = "projects",
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <label className="text-sm">Project name<input className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. High-downforce front wing"/></label>
+                <div className="text-sm">
+                  <div>Project name</div>
+                  <div className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full font-medium text-slate-200">{automaticProjectName}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">Generated automatically from component, design objective and version.</div>
+                </div>
                 <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value,objective:"balanced"})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
               </div>
 
