@@ -75,6 +75,10 @@ test("performance score rewards beating car expectation and team-mate",()=>{
   assert.equal(evaluation.finish_position,1);
   assert.ok(evaluation.factors.some((row)=>row.key==="result_vs_car"&&row.value>0));
   assert.ok(evaluation.factors.some((row)=>row.key==="qualifying_vs_teammate"&&row.value>0));
+  assert.ok(evaluation.expectation_delta>0);
+  assert.ok(evaluation.teammate_qualifying_delta>0);
+  assert.ok(evaluation.teammate_race_delta>0);
+  assert.equal(evaluation.teammate_driver_id,"D2");
 });
 
 test("mechanical DNF is neutralised while driver-error DNF is penalised",()=>{
@@ -93,6 +97,8 @@ test("mechanical DNF is neutralised while driver-error DNF is penalised",()=>{
   );
 
   assert.equal(mechanical.retirement_responsibility,"mechanical");
+  assert.equal(mechanical.expectation_delta,null);
+  assert.equal(mechanical.teammate_race_delta,null);
   assert.ok(mechanical.factors.some((row)=>row.key==="mechanical_dnf"&&row.value===0));
   assert.ok(mechanical.score>accident.score+8,"mechanical failure must not be treated as a driving mistake");
 });

@@ -83,6 +83,9 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
   const qualifyingPosition=num(qualifying?.position);
   const retired=Boolean(race?.retired)||String(race?.status||"").toUpperCase()==="DNF";
   const retirement=retired?retirementResponsibility(race?.retirement_reason):null;
+  let teammateQualifyingDelta=null;
+  let teammateRaceDelta=null;
+  let teammateDriverId=driverIdOf(teamRace||teamQual)||null;
 
   let score=65;
   const factors=[];
@@ -107,6 +110,7 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
     const matePos=num(teamQual?.position);
     if(Number.isFinite(matePos)){
       const diff=clamp(matePos-qualifyingPosition,-4,4);
+      teammateQualifyingDelta=round1(diff);
       const effect=diff*0.9;
       score+=effect;
       pushFactor(
@@ -164,6 +168,7 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
       const mateFinish=num(teamRace?.position);
       if(Number.isFinite(mateFinish)&&(!mateRetired||mateResponsibility?.key!=="mechanical")){
         const diff=clamp(mateFinish-finish,-5,5);
+        teammateRaceDelta=round1(diff);
         const effect=diff*1.0;
         score+=effect;
         pushFactor(
@@ -211,6 +216,12 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
     dateISO:resultEntry?.dateISO||gs?.currentDateISO||null,
     score,
     expected_finish:expectation.expectedPosition,
+    expectation_delta:Number.isFinite(finish)&&!(retired&&retirement?.key==="mechanical")
+      ?round1(expectation.expectedPosition-finish)
+      :null,
+    teammate_driver_id:teammateDriverId,
+    teammate_qualifying_delta:teammateQualifyingDelta,
+    teammate_race_delta:retired&&retirement?.key==="mechanical"?null:teammateRaceDelta,
     car_rank:expectation.teamRank,
     car_score:expectation.carScore,
     qualifying_position:qualifyingPosition,

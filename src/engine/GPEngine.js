@@ -13,7 +13,8 @@ import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
 import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
-import { applyRacePerformanceEvaluation } from "../domain/driverForm.js";
+import { applyRacePerformanceEvaluation, driverPerformanceEntries } from "../domain/driverForm.js";
+import { applyRaceReputation } from "../domain/driverReputation.js";
 import { applyRaceTeamMorale } from "../domain/teamMorale.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 
@@ -854,7 +855,13 @@ export async function runRaceWeekend(gs, {
 
   const performancePass=applyRacePerformanceEvaluation(next,resultEntry);
   Object.assign(next,performancePass.gameState);
-  const evaluatedResultEntry=performancePass.resultEntry;
+
+  // D6.2: public reputation reacts gradually to actual performance versus
+  // machinery/teammate expectations. This mutates Save World reputation only;
+  // Overall and permanent driving attributes are untouched.
+  const reputationPass=applyRaceReputation(next,performancePass.resultEntry);
+  Object.assign(next,reputationPass.gameState);
+  const evaluatedResultEntry=reputationPass.resultEntry;
 
   next.results = [
     ...(Array.isArray(gs.results) ? gs.results.filter((r) => r?.key !== resultKey) : []),
@@ -935,12 +942,25 @@ export async function runRaceWeekend(gs, {
       points:evaluated?.points,
       driver_performance:evaluated?.driver_performance,
     };
+    const performance=evaluated?.driver_performance||null;
+    const recentEntries=driverPerformanceEntries(afterWear,did)
+      .filter((entry)=>
+        String(entry?.year)!==String(performance?.year)||
+        String(entry?.round)!==String(performance?.round)
+      );
+    const rating=ratingFor(
+      (afterWear?.driverRatings||[]).length?afterWear.driverRatings:afterWear?.dbDriverRatings,
+      row?.driver
+    );
     const change=raceMentalStateChange(mentalRow,{
       startPosition:qualifyingPos.get(did),
-      expectedPosition:evaluated?.driver_performance?.expected_finish,
+      expectedPosition:performance?.expected_finish,
       points:evaluated?.points,
       fieldSize:race.length,
       wet:raceWet,
+      performance,
+      rating,
+      recentEntries,
     });
     afterWear=applyDriverMentalState(afterWear,did,{
       deltas:change.deltas,
@@ -951,7 +971,12 @@ export async function runRaceWeekend(gs, {
         gp_name:gpName,
         finish:Number(row?.pos),
         start:Number(qualifyingPos.get(did)??row?.pos),
-        expected_finish:evaluated?.driver_performance?.expected_finish??null,
+        expected_finish:performance?.expected_finish??null,
+        expectation_delta:performance?.expectation_delta??null,
+        teammate_driver_id:performance?.teammate_driver_id??null,
+        teammate_race_delta:performance?.teammate_race_delta??null,
+        teammate_qualifying_delta:performance?.teammate_qualifying_delta??null,
+        reputation_delta:evaluated?.driver_reputation?.delta??0,
         points:Number(evaluated?.points||0),
         retired:Boolean(row?.retired),
         retirement_reason:row?.retirement_reason||null,
