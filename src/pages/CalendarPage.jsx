@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { buildManagementEvents, daysBetweenISO } from "@/domain/managementEvents";
+import { GrandPrixFlag } from "@/components/entity/GrandPrixFlag.jsx";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -62,7 +63,7 @@ function eventLabel(type) {
   return String(type || "Other").replaceAll("_", " ");
 }
 
-function EventPill({ event, compact = false }) {
+function EventPill({ event, compact = false, gameState = null }) {
   const style = TYPE_STYLES[event.type] || TYPE_STYLES.OTHER;
   const body = (
     <div
@@ -73,7 +74,10 @@ function EventPill({ event, compact = false }) {
       ].join(" ")}
       title={event.title}
     >
-      <div className="font-semibold truncate">{event.title}</div>
+      <div className="flex min-w-0 items-center gap-1.5 font-semibold">
+        {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
+        <span className="truncate">{event.title}</span>
+      </div>
       {!compact && event.subtitle ? <div className="opacity-80 truncate mt-0.5">{event.subtitle}</div> : null}
     </div>
   );
@@ -201,7 +205,10 @@ export default function CalendarPage() {
                   <div className="mt-2 space-y-1">
                     {events.slice(0, 3).map((event) => (
                       <div key={event.id} className={`rounded px-1.5 py-1 text-[9px] truncate ${TYPE_STYLES[event.type] || TYPE_STYLES.OTHER}`}>
-                        {eventLabel(event.type)} · {event.title.replace(/^.*? — /, "")}
+                        <span className="inline-flex min-w-0 items-center gap-1">
+                          {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
+                          <span className="truncate">{eventLabel(event.type)} · {event.title.replace(/^.*? — /, "")}</span>
+                        </span>
                       </div>
                     ))}
                     {events.length > 3 ? <div className="text-[10px] text-slate-400">+{events.length - 3} more</div> : null}
@@ -224,7 +231,7 @@ export default function CalendarPage() {
             </div>
             <div className="p-3 space-y-2 min-h-40">
               {selectedEvents.length
-                ? selectedEvents.map((event) => <EventPill key={event.id} event={event} />)
+                ? selectedEvents.map((event) => <EventPill key={event.id} event={event} gameState={gameState} />)
                 : <div className="text-sm text-slate-400 p-2">No scheduled events.</div>}
             </div>
           </div>
@@ -242,7 +249,10 @@ export default function CalendarPage() {
                     <div className="flex items-start gap-2">
                       <span className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${(TYPE_STYLES[event.type] || TYPE_STYLES.OTHER).split(" ")[0]}`} />
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">{event.title}</div>
+                        <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                          {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
+                          <span className="truncate">{event.title}</span>
+                        </div>
                         <div className="text-xs text-slate-400">
                           {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`} · {event.date}
                         </div>
