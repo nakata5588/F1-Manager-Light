@@ -10,6 +10,15 @@ import { availableCarComponentSlots, componentLabel } from "@/domain/carComponen
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
+import {
+  bestDevelopedPartForSlot,
+  buildDevelopmentProjection,
+  developmentObjectivesForSlot,
+  developmentStrengthTarget,
+  objectiveProjectModifiers,
+  realizeDevelopmentProjection,
+  technicalDevelopmentCapacity,
+} from "@/domain/developmentProject.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
 import {
   discoverableCarTechnologies,
@@ -37,6 +46,15 @@ function progressBetween(start, finish, now) {
   const a = +parseISO(start), b = +parseISO(finish), n = +parseISO(now);
   if (b <= a) return 1;
   return Math.max(0, Math.min(1, (n - a) / (b - a)));
+}
+function projectProgress(project, now) {
+  if (project?.status==="completed") return 1;
+  if (project?.status==="paused") return Number(project?.progress||0);
+  if (project?.resumed_at && Number.isFinite(Number(project?.resume_progress))) {
+    const base=Math.max(0,Math.min(1,Number(project.resume_progress)));
+    return base+(1-base)*progressBetween(project.resumed_at,project.finishes_at,now);
+  }
+  return progressBetween(project?.started_at,project?.finishes_at,now);
 }
 function nice(value) {
   return String(value || "").replace(/_/g," ").replace(/\b\w/g,(m)=>m.toUpperCase());
@@ -165,7 +183,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
-    name:"", type:"chassis", engineers:3, duration:21, cfd:20, windTunnel:10,
+    name:"", type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:20, windTunnel:10,
   });
 
   useEffect(() => {
@@ -185,9 +203,14 @@ export default function Development({ embedded = false, initialTab = "projects",
 
   useEffect(() => {
     if (!eraTypes.includes(draft.type) && eraTypes.length) {
-      setDraft((d) => ({...d, type:eraTypes[0]}));
+      setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced"}));
+      return;
     }
-  }, [eraTypes, draft.type]);
+    const allowed=developmentObjectivesForSlot(gameState,draft.type);
+    if(!allowed.some((objective)=>objective.id===draft.objective)){
+      setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced"}));
+    }
+  }, [eraTypes, draft.type, draft.objective, gameState]);
 
   // Complete projects/manufacturing when the in-game date reaches their ETA.
   useEffect(() => {
@@ -201,24 +224,41 @@ export default function Development({ embedded = false, initialTab = "projects",
       if (p.status !== "active" || !p.finishes_at || p.finishes_at > currentDateISO) return p;
       changed = true;
       const partId = `part_${p.id}`;
+      const realizedProfile=p.technical_projection?realizeDevelopmentProjection(p):null;
+      const actualStrength=Number(
+        realizedProfile?.development_strength ??
+        p.target_design_perf ??
+        p.perf_delta ??
+        0
+      );
       if (!nextParts.some((x) => x.id === partId)) {
         const draftPart={
           id:partId,
           name:p.name,
           slot:p.type,
           version:`P${nextParts.filter((x)=>x.slot===p.type).length + 1}`,
-          perf:Number(p.perf_delta || 0),
+          perf:actualStrength,
           inv:0,
           in_manufacturing:0,
           prototype:true,
           created_from:p.id,
+          development_focus:p.objective_id||"balanced",
+          created_at:currentDateISO,
         };
         nextParts.push({
           ...draftPart,
-          technical_profile:derivePartTechnicalProfile(physicalState,draftPart),
+          technical_profile:realizedProfile||derivePartTechnicalProfile(physicalState,draftPart),
         });
       }
-      return {...p, status:"completed", progress:1, completed_at:currentDateISO};
+      return {
+        ...p,
+        status:"completed",
+        progress:1,
+        completed_at:currentDateISO,
+        actual_design_perf:actualStrength,
+        technical_result:realizedProfile||null,
+        result_rating:realizedProfile?.realization?.result||"legacy",
+      };
     });
 
     const nextManufacturing = manufacturing.map((job) => {
@@ -258,21 +298,55 @@ export default function Development({ embedded = false, initialTab = "projects",
   }, [currentDateISO, projects, parts, partUnits, manufacturing, research, dev, setGameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
-  const effectiveDays = effectiveProjectDays(draft, levelOf, moraleTimeFactor);
-  const cost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
+  const objectiveOptions=developmentObjectivesForSlot(gameState,draft.type);
+  const objective=objectiveOptions.find((row)=>row.id===draft.objective)||objectiveOptions[0];
+  const objectiveModifiers=objectiveProjectModifiers(gameState,draft.type,draft.objective);
+  const rawEffectiveDays = effectiveProjectDays(draft, levelOf, moraleTimeFactor);
+  const effectiveDays = Math.max(7,Math.round(rawEffectiveDays*objectiveModifiers.duration_multiplier));
+  const baseCost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
+  const cost = Math.round(baseCost*objectiveModifiers.cost_multiplier);
   const baseExpectedPerf = perfDelta(draft, levelOf, parts);
-  const expectedPerf = Number((
+  const expectedIncrement = Number((
     baseExpectedPerf * Number(testDriverProfile?.performanceMultiplier || 1)
   ).toFixed(2));
+  const strengthTarget=developmentStrengthTarget(parts,draft.type,expectedIncrement);
+  const currentDesign=strengthTarget.current_part||bestDevelopedPartForSlot(parts,draft.type);
+  const technicalProjection=buildDevelopmentProjection(gameState,{
+    slot:draft.type,
+    objectiveId:draft.objective,
+    targetStrength:strengthTarget.target_strength,
+    currentPart:currentDesign,
+  });
+  const capacity=technicalDevelopmentCapacity(gameState,teamId,{
+    engineeringSupport,
+    projects,
+  });
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
+  const projectRisk=Math.max(
+    0.025,
+    (0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0))*
+      objectiveModifiers.risk_multiplier
+  );
+  const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
+  const canStartProject=Boolean(
+    draft.name.trim() &&
+    currentDateISO &&
+    budget>=cost &&
+    hasEngineerCapacity &&
+    capacity.project_slot_available &&
+    strengthTarget.increment>0
+  );
 
   const createProject = () => {
-    if (!draft.name.trim() || !currentDateISO || budget < cost) return;
-    const id = `dev_${Date.now()}`;
+    if (!canStartProject) return;
+    const sequence=String(projects.length+1).padStart(3,"0");
+    const id = `dev_${teamId||"TEAM"}_${currentDateISO}_${sequence}`;
     const project = {
       id,
       name:draft.name.trim(),
       type:draft.type,
+      objective_id:objective?.id||"balanced",
+      objective_label:objective?.label||"Balanced Package",
       phase:"design",
       status:"active",
       started_at:currentDateISO,
@@ -282,12 +356,12 @@ export default function Development({ embedded = false, initialTab = "projects",
       cfd_hours:Number(draft.cfd),
       wt_hours:Number(draft.windTunnel),
       cost,
-      perf_delta:expectedPerf,
+      perf_delta:strengthTarget.increment,
       base_perf_delta:baseExpectedPerf,
-      risk:Math.max(
-        0.03,
-        0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0)
-      ),
+      current_design_perf:strengthTarget.current_strength,
+      target_design_perf:strengthTarget.target_strength,
+      technical_projection:technicalProjection,
+      risk:projectRisk,
       test_driver_id:testDriverProfile?.driver_id||null,
       test_driver_name:testDriverProfile?.name||null,
       test_driver_feedback:testDriverProfile?.impact??null,
@@ -311,11 +385,33 @@ export default function Development({ embedded = false, initialTab = "projects",
     });
   };
 
-  const addHours = (project, field) => {
-    const unitCost = field === "cfd_hours" ? 3_250 : 5_500;
-    if (budget < unitCost) return;
-    applyExpense(unitCost, `Development allocation — ${project.name}`);
-    patchProject(project.id, {[field]:Number(project[field] || 0) + 5});
+  const toggleProjectPause=(project)=>{
+    const progress=projectProgress(project,currentDateISO);
+    if(project.status==="paused"){
+      const remaining=Math.max(
+        1,
+        Number(project.remaining_days)||
+        Math.ceil(Number(project.duration_days||21)*(1-progress))
+      );
+      patchProject(project.id,{
+        status:"active",
+        resumed_at:currentDateISO,
+        resume_progress:progress,
+        finishes_at:addDaysISO(currentDateISO,remaining),
+        remaining_days:null,
+      });
+      return;
+    }
+    const remaining=Math.max(
+      1,
+      Math.ceil((+parseISO(project.finishes_at)-+parseISO(currentDateISO))/DAY)
+    );
+    patchProject(project.id,{
+      status:"paused",
+      paused_at:currentDateISO,
+      progress,
+      remaining_days:remaining,
+    });
   };
 
   const manufacture = (part) => {
@@ -386,7 +482,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     const oldBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
     const nextBudget = oldBudget - value;
     const tx = {
-      id:`tx_dev_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      id:`tx_dev_${currentDateISO||"date"}_${String((gameState?.financeLog||[]).length+1).padStart(4,"0")}`,
       dateISO:currentDateISO,
       type:"expense",
       category:"Development",
@@ -411,8 +507,8 @@ export default function Development({ embedded = false, initialTab = "projects",
         <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
         <div>
           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div>
-          <h1 className="text-2xl md:text-3xl font-semibold">Car Parts Development</h1>
-          <p className="text-sm text-slate-400">Design, test and manufacture era-appropriate car parts.</p>
+          <h1 className="text-2xl md:text-3xl font-semibold">Technical Development</h1>
+          <p className="text-sm text-slate-400">Current-car design briefs, technology R&D, manufacturing and race operations.</p>
         </div>
         <div className="flex-1" />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -420,34 +516,85 @@ export default function Development({ embedded = false, initialTab = "projects",
           <Mini label="Engineering" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
           <Mini label="Operational Morale" value={Math.round(teamMorale)+"/100"}/>
           <Mini label="Work Rate" value={moraleWorkRate.label}/>
-          <Mini label="Test Driver" value={testDriverProfile?.name||"None"}/>
+          <Mini label="Engineers Free" value={capacity.available_engineers+"/"+capacity.engineer_pool}/>
         </div>
         <Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>
       </div>}
 
       {showCreate && (
-        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 grid gap-3">
-          <div className="font-semibold">Create development project</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="text-sm">Project name<input className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. Revised rear wing"/></label>
-            <label className="text-sm">Part type<select className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
-            <label className="text-sm">Engineers<input type="number" min="1" max="12" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
-            <label className="text-sm">Duration (days)<input type="number" min="7" max="90" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
-            <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
-            <label className="text-sm">Wind tunnel hours<input type="number" min="0" max="100" className="mt-1 border border-white/10 rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+          <div className="flex flex-col xl:flex-row xl:items-start gap-4">
+            <div className="xl:w-[46%] space-y-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Current Car Development</div>
+                <div className="text-lg font-semibold">Create design brief</div>
+                <div className="text-sm text-slate-400">Choose what the new specification should prioritise. Different briefs create different gains and trade-offs.</div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-sm">Project name<input className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})} placeholder="e.g. High-downforce front wing"/></label>
+                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>setDraft({...draft,type:e.target.value,objective:"balanced"})}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Design objective</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
+                    <div className="font-semibold text-sm">{row.label}</div>
+                    <div className="text-[11px] text-slate-500 mt-1">{row.description}</div>
+                  </button>)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <label className="text-sm">Engineers<input type="number" min="1" max={Math.max(1,capacity.available_engineers)} className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.engineers} onChange={(e)=>setDraft({...draft,engineers:Number(e.target.value)})}/></label>
+                <label className="text-sm">Base days<input type="number" min="7" max="90" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.duration} onChange={(e)=>setDraft({...draft,duration:Number(e.target.value)})}/></label>
+                <label className="text-sm">CFD hours<input type="number" min="0" max="200" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.cfd} onChange={(e)=>setDraft({...draft,cfd:Number(e.target.value)})}/></label>
+                <label className="text-sm">Wind tunnel<input type="number" min="0" max="100" className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.windTunnel} onChange={(e)=>setDraft({...draft,windTunnel:Number(e.target.value)})}/></label>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <Mini label="Cost" value={fmtMoney(cost)}/>
+                  <Mini label="Effective time" value={effectiveDays+"d"}/>
+                  <Mini label="Risk" value={(projectRisk*100).toFixed(0)+"%"}/>
+                  <Mini label="Design strength" value={strengthTarget.current_strength.toFixed(2)+" → "+strengthTarget.target_strength.toFixed(2)}/>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Primary facility: <span className="text-slate-300">{relevantFacility}</span> · ETA <span className="text-slate-300">{currentDateISO?addDaysISO(currentDateISO,effectiveDays):"—"}</span> · Test driver <span className="text-slate-300">{testDriverProfile?.name||"None"}</span></div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 items-center">
+                <Button onClick={createProject} disabled={!canStartProject}>Start Project</Button>
+                <span className="text-xs text-slate-500">{capacity.available_engineers}/{capacity.engineer_pool} engineers available · {capacity.active_projects}/{capacity.max_projects} project slots used</span>
+              </div>
+              {!hasEngineerCapacity&&<div className="text-sm text-rose-300">Not enough free engineers for this brief.</div>}
+              {!capacity.project_slot_available&&<div className="text-sm text-rose-300">Technical project capacity is full. Complete or free a project slot first.</div>}
+              {strengthTarget.increment<=0&&<div className="text-sm text-amber-300">This component has reached the current-car development ceiling.</div>}
+              {!testDriverProfile&&<div className="text-sm text-amber-300">No dedicated Test Driver is contracted. Result uncertainty will be higher.</div>}
+              {budget<cost&&<div className="text-sm text-rose-300">Insufficient budget for this project.</div>}
+            </div>
+
+            <div className="xl:flex-1 rounded-xl border border-white/10 bg-[#0d0f15] overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/10">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Design Projection</div>
+                <div className="font-semibold">{componentLabel(gameState,draft.type)} · {objective?.label||"Balanced Package"}</div>
+                <div className="text-xs text-slate-500 mt-1">Projection is an engineering estimate. The completed design can finish slightly above or below target depending on project risk and validation quality.</div>
+              </div>
+              <div className="p-4 space-y-3">
+                <TechCompare label="Weight" current={technicalProjection.current.design.weight_kg} proposed={technicalProjection.design.weight_kg} suffix=" kg" lowerBetter/>
+                <TechCompare label="Drag" current={technicalProjection.current.design.drag} proposed={technicalProjection.design.drag} digits={4} lowerBetter/>
+                <TechCompare label="Downforce" current={technicalProjection.current.design.downforce} proposed={technicalProjection.design.downforce} digits={4}/>
+                <TechCompare label="Design Reliability" current={Number(technicalProjection.current.design.reliability||0)*100} proposed={Number(technicalProjection.design.reliability||0)*100} suffix="%" digits={1}/>
+                <TechCompare label="System Efficiency" current={Number(technicalProjection.current.delta.system_efficiency||technicalProjection.current.development_strength||0)} proposed={Number(technicalProjection.delta.system_efficiency||0)} digits={2}/>
+              </div>
+              <div className="border-t border-white/10 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">Characteristic trade-offs</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(technicalProjection.characteristic_bias||{}).length?Object.entries(technicalProjection.characteristic_bias||{}).map(([key,value])=><span key={key} className={"rounded px-2 py-1 text-[10px] "+(Number(value)>=0?"bg-emerald-500/10 text-emerald-300":"bg-rose-500/10 text-rose-300")}>{nice(key)} {Number(value)>=0?"+":""}{Number(value).toFixed(1)}</span>):<span className="text-xs text-slate-500">Balanced brief — no extra characteristic bias beyond the component's normal technical effect.</span>}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span>Cost: <strong>{fmtMoney(cost)}</strong></span>
-            <span>Expected performance Δ: <strong>+{expectedPerf}</strong></span>
-            <span>Test driver: <strong>{testDriverProfile ? testDriverProfile.name : "None assigned"}</strong></span>
-            {testDriverProfile && <span>Feedback: <strong>{Math.round(testDriverProfile.impact)}/100</strong></span>}
-            <span>Primary facility: <strong>{relevantFacility}</strong></span>
-            <span>Effective duration: <strong>{effectiveDays} days</strong></span>
-            <span>ETA: <strong>{currentDateISO ? addDaysISO(currentDateISO,effectiveDays) : "—"}</strong></span>
-            <Button onClick={createProject} disabled={!draft.name.trim() || budget < cost}>Start Project</Button>
-          </div>
-          {!testDriverProfile && <div className="text-sm text-amber-300">No dedicated Test Driver is contracted. The project will rely on engineer-only validation.</div>}
-          {budget < cost && <div className="text-sm text-rose-300">Insufficient budget for this project.</div>}
         </CardContent></Card>
       )}
 
@@ -461,11 +608,11 @@ export default function Development({ embedded = false, initialTab = "projects",
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="flex flex-wrap gap-2">
           {[
-            ["projects","Design & Research"],
-            ["manufacturing","Manufacture"],
-            ["parts","Parts"],
-            ["research","Research"],
-            ["pit_crew","Race Ops"],
+            ["projects","Current Car"],
+            ["manufacturing","Manufacturing"],
+            ["parts","Design Library"],
+            ["research","Research / Technology"],
+            ["pit_crew","Pit Crew"],
           ].map(([key,label])=><Button key={key} size="sm" variant={tab===key?"default":"outline"} onClick={()=>changeTab(key)}>{label}</Button>)}
         </div>
         <div className="flex-1"/>
@@ -476,23 +623,49 @@ export default function Development({ embedded = false, initialTab = "projects",
           <Mini label="Wind Tunnel" value={"Lv "+levelOf("wind_tunnel_level")}/>
           <Mini label="Manufacturing" value={"Lv "+levelOf("manufacturing_leve")}/>
         </div>
+        <Button size="sm" variant="outline" disabled>Next Season Car · Stage 7</Button>
         {embedded && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
       </div>
 
       {tab==="projects" && (
         <div className="grid grid-cols-1 gap-2">
           {projects.map((p)=>{
-            const progress = p.status==="completed" ? 1 : p.status==="paused" ? Number(p.progress||0) : progressBetween(p.started_at,p.finishes_at,currentDateISO);
+            const progress = projectProgress(p,currentDateISO);
+            const projection=p.technical_projection||null;
+            const result=p.technical_result||null;
+            const currentStrength=Number(p.current_design_perf||0);
+            const targetStrength=Number(p.target_design_perf??p.perf_delta??0);
+            const actualStrength=Number(p.actual_design_perf??targetStrength);
             return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={p.id}><CardContent className="p-4 space-y-3">
-              <div className="flex justify-between gap-2"><div><div className="text-xs text-slate-400">{nice(p.type)} · {nice(p.phase)}</div><div className="font-semibold">{p.name}</div></div><span className="text-xs rounded bg-white/10 px-2 py-1 h-fit">{nice(p.status)}</span></div>
-              <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-800" style={{width:`${progress*100}%`}}/></div></div>
-              <div className="grid grid-cols-3 gap-2 text-sm"><Mini label="Engineers" value={p.engineers}/><Mini label="CFD" value={`${p.cfd_hours||0}h`}/><Mini label="WT" value={`${p.wt_hours||0}h`}/></div>
-              <div className="text-xs text-slate-400">{p.started_at} → {p.finishes_at} · {fmtMoney(p.cost)} · Δ +{p.perf_delta}</div>
-              {p.test_driver_name && <div className="text-xs text-slate-400">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                <div>
+                  <div className="text-xs text-slate-400">{componentLabel(gameState,p.type)} · {p.objective_label||"Legacy development"} · {nice(p.phase)}</div>
+                  <div className="font-semibold">{p.name}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {p.status==="completed"&&p.result_rating&&p.result_rating!=="legacy"?<ResultPill result={p.result_rating}/>:null}
+                  <span className="text-xs rounded bg-white/10 px-2 py-1 h-fit">{nice(p.status)}</span>
+                </div>
+              </div>
+              <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-200" style={{width:`${progress*100}%`}}/></div></div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+                <Mini label="Engineers" value={p.engineers}/>
+                <Mini label="CFD" value={`${p.cfd_hours||0}h`}/>
+                <Mini label="WT" value={`${p.wt_hours||0}h`}/>
+                <Mini label="Risk" value={p.risk!=null?(Number(p.risk)*100).toFixed(0)+"%":"—"}/>
+                <Mini label={p.status==="completed"?"Actual strength":"Target strength"} value={(p.status==="completed"?actualStrength:targetStrength).toFixed(2)}/>
+              </div>
+              {projection?<div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <ProjectDelta label="Weight" current={projection.current?.design?.weight_kg} proposed={(result||projection)?.design?.weight_kg} suffix=" kg" lowerBetter/>
+                <ProjectDelta label="Drag" current={projection.current?.design?.drag} proposed={(result||projection)?.design?.drag} digits={4} lowerBetter/>
+                <ProjectDelta label="Downforce" current={projection.current?.design?.downforce} proposed={(result||projection)?.design?.downforce} digits={4}/>
+                <ProjectDelta label="Reliability" current={Number(projection.current?.design?.reliability||0)*100} proposed={Number((result||projection)?.design?.reliability||0)*100} suffix="%" digits={1}/>
+              </div>:null}
+              <div className="text-xs text-slate-400">{p.started_at} → {p.finishes_at} · <span className="text-rose-300">{fmtMoney(p.cost)}</span> · Design {currentStrength.toFixed(2)} → {targetStrength.toFixed(2)}{p.status==="completed"&&Math.abs(actualStrength-targetStrength)>=0.005?` · actual ${actualStrength.toFixed(2)}`:""}</div>
+              {p.test_driver_name && <div className="text-xs text-slate-400">Validation: {p.test_driver_name} · feedback {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
-                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
-                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"wt_hours")}>+5 WT</Button>
+                <Button size="sm" onClick={()=>toggleProjectPause(p)}>{p.status==="paused"?"Resume":"Pause"}</Button>
+                <span className="text-xs text-slate-500 self-center">Design brief is locked once the project starts.</span>
               </div>}
             </CardContent></Card>;
           })}
@@ -593,5 +766,24 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
 }
 
+function TechCompare({label,current,proposed,suffix="",digits=2,lowerBetter=false}){
+  const a=Number(current||0),b=Number(proposed||0),delta=b-a;
+  const good=lowerBetter?delta<0:delta>0;
+  const neutral=Math.abs(delta)<Math.pow(10,-digits);
+  return <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center text-sm">
+    <span className="text-slate-400">{label}</span>
+    <span className="tabular-nums text-slate-500">{a.toFixed(digits)}{suffix}</span>
+    <span className="text-slate-600">→</span>
+    <span className={"font-semibold tabular-nums "+(neutral?"text-slate-200":good?"text-emerald-300":"text-rose-300")}>{b.toFixed(digits)}{suffix}</span>
+  </div>;
+}
+function ProjectDelta(props){
+  return <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-2"><div className="text-[9px] uppercase tracking-wide text-slate-500 mb-1">{props.label}</div><TechCompare {...props} label=""/></div>;
+}
+function ResultPill({result}){
+  const cls=result==="above_expectation"?"bg-emerald-500/10 text-emerald-300":result==="below_expectation"?"bg-rose-500/10 text-rose-300":"bg-cyan-500/10 text-cyan-300";
+  const label=result==="above_expectation"?"Above target":result==="below_expectation"?"Below target":"On target";
+  return <span className={"rounded px-2 py-1 text-[10px] uppercase font-semibold "+cls}>{label}</span>;
+}
 function Stat({label,value}){return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
-function Mini({label,value}){return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value}</div></div>;}
+function Mini({label,value}){return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium truncate">{value}</div></div>;}

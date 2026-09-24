@@ -101,8 +101,15 @@ function characteristicUpgradeDeltas(gs,car){
       Math.max(0,-num(technical?.technical?.drag_delta,0))*85+
       Math.max(0,-num(technical?.technical?.weight_delta_kg,0))*0.08;
     const baseScale=strength*0.48+technicalScale;
+    const health=condition/100;
+    const focusBias=technical?.profile?.characteristic_bias||{};
     for(const [key,weight] of Object.entries(weights)){
-      delta[key]+=baseScale*Number(weight||0);
+      delta[key]+=baseScale*Number(weight||0)+num(focusBias?.[key],0)*health;
+    }
+    for(const [key,value] of Object.entries(focusBias)){
+      if(Object.prototype.hasOwnProperty.call(weights,key))continue;
+      if(!Object.prototype.hasOwnProperty.call(delta,key))continue;
+      delta[key]+=num(value,0)*health;
     }
   }
   return Object.fromEntries(Object.entries(delta).map(([key,value])=>[key,round1(value)]));
