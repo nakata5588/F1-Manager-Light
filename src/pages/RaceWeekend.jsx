@@ -1705,7 +1705,7 @@ export default function RaceWeekend(){
                     !pending.some((command)=>command?.type==="team_order")
                   );
                   const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
-                  return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.85fr)_minmax(250px,1fr)_minmax(330px,auto)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
@@ -1714,42 +1714,38 @@ export default function RaceWeekend(){
                       <div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
                     </div>
 
-                    <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
-                      <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} age={liveDriver?.tyre?.age_laps??0} compact/></span>
-                      <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
-                      <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
-                      <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
-                      <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
-                    </div>
+                    <div className="col-span-2 grid min-w-0 gap-1.5 lg:col-span-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
+                        <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} age={liveDriver?.tyre?.age_laps??0} compact/></span>
+                        <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
+                        <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
+                        <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
+                        <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
+                      </div>
 
-                    <div className="col-span-2 flex min-w-0 flex-nowrap items-center justify-end gap-1.5 lg:col-span-1">
-                      {liveDriver?.retired
-                        ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
-                        :<>
-                          <Gauge className="h-4 w-4 text-slate-500"/>
-                          <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
-                            {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
-                          </select>
-                          <Wrench className="h-4 w-4 text-slate-500"/>
-                          <div className="flex items-center gap-1" title="Available pit compounds">
-                            {teamTyres.map((tyre)=><TyreCompoundIcon key={tyre.tyre_id} compound={tyre.compound_name} size={20}/>)}
-                          </div>
-                          <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
-                            <option value="">Stay out</option>
-                            {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
-                          </select>
-                          {canYieldToTeammate?<button
-                            type="button"
-                            title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
-                            onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
-                            className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-500/20"
-                          >Let {driverName(drivers,teammateId).split(" ").at(-1)} through</button>:null}
-                          <div className="w-[78px] shrink-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/5 pt-1.5">
+                        {liveDriver?.retired
+                          ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
+                          :<>
+                            <Gauge className="h-4 w-4 shrink-0 text-slate-500"/>
+                            <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                              {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
+                            </select>
+                            <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                              <option value="">Stay out</option>
+                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                            </select>
+                            {canYieldToTeammate?<button
+                              type="button"
+                              title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
+                              onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
+                              className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-500/20"
+                            >Let {driverName(drivers,teammateId).split(" ").at(-1)} through</button>:null}
                             {pending.length
-                              ?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="w-full rounded-md border border-amber-400/30 bg-amber-500/10 px-1.5 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>
-                              :<span aria-hidden="true" className="block w-full px-1.5 py-1.5 text-[10px] opacity-0">Cancel Order</span>}
-                          </div>
-                        </>}
+                              ?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>
+                              :null}
+                          </>}
+                      </div>
                     </div>
                   </div>;
                 })}
