@@ -220,6 +220,10 @@ test("RaceStrategy consumes the saved weekend Race weather instead of generating
   assert.equal(snapshot.source,"weekend_weather_world");
   assert.equal(snapshot.state,race.state);
   assert.equal(snapshot.avg_temp_c,race.air_temp_c);
+  assert.equal(snapshot.starting_air_temp_c,race.environment.start_air_temp_c);
+  assert.equal(snapshot.starting_track_temp_c,race.environment.start_track_temp_c);
+  assert.equal(snapshot.starting_visibility_index,race.environment.start_visibility_index);
+  assert.equal(snapshot.starting_spray_index,race.environment.start_spray_index);
   assert.equal(snapshot.starting_track_wetness,race.track.start_wetness);
   assert.equal(snapshot.starting_rubber_level,race.track.start_rubber_level);
   assert.equal(snapshot.starting_grip_index,race.track.start_grip_index);
@@ -241,4 +245,23 @@ test("RW5.2D1 weekend sessions retain start/end surface state instead of one sta
     assert.ok(["NONE","DRIZZLE","LIGHT","MODERATE","HEAVY","EXTREME"].includes(session.rain_band));
   }
   assert.ok(practice.track.start_grip_index<98,"the weekend should not initialise with near-perfect grip");
+});
+
+test("RW5.2D2 weekend sessions persist thermal and visibility ranges",()=>{
+  const gs=baseGs(1980,"rw5.2d2-weekend-environment");
+  const world=createWeekendWeatherState(gs,{gp,sessions});
+  for(const session of Object.values(world.sessions)){
+    const env=session.environment;
+    assert.ok(env,"each competitive session should have an environment snapshot");
+    assert.ok(Number.isFinite(Number(env.start_air_temp_c)));
+    assert.ok(Number.isFinite(Number(env.end_air_temp_c)));
+    assert.ok(Number.isFinite(Number(env.start_track_temp_c)));
+    assert.ok(Number.isFinite(Number(env.end_track_temp_c)));
+    assert.ok(Number.isFinite(Number(env.start_visibility_index)));
+    assert.ok(Number.isFinite(Number(env.end_visibility_index)));
+    assert.ok(Number.isFinite(Number(env.start_spray_index)));
+    assert.ok(Number.isFinite(Number(env.end_spray_index)));
+    assert.ok(["CLEAR","REDUCED","POOR","VERY_POOR"].includes(env.visibility_band));
+    assert.ok(["NONE","LIGHT","MODERATE","HEAVY","EXTREME"].includes(env.spray_band));
+  }
 });
