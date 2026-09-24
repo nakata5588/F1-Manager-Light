@@ -6,6 +6,7 @@ import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
+import { resolveDriverPortrait } from "@/domain/driverPortraits";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
@@ -1011,7 +1012,7 @@ export const useGame = create((set, get) => ({
           country_code: d.country_code ?? d.nationality_code ?? "",
           dob: d.dob ?? d.date_of_birth ?? "",
           prefered_number: d.prefered_number ?? d.number ?? "",
-          portrait_path: d.portrait_path ?? d.portrait ?? "",
+          portrait_path: resolveDriverPortrait(driverId, y, d.portrait_path ?? d.portrait ?? ""),
           helmet_color_primary: d.helmet_color_primary ?? "",
           helmet_color_secondary: d.helmet_color_secondary ?? "",
           age,
@@ -1074,7 +1075,7 @@ export const useGame = create((set, get) => ({
         country_code: d.country_code ?? d.nationality_code ?? "",
         dob: d.dob ?? d.date_of_birth ?? "",
         prefered_number: d.prefered_number ?? d.number ?? "",
-        portrait_path: d.portrait_path ?? d.portrait ?? "",
+        portrait_path: resolveDriverPortrait(driverId, y, d.portrait_path ?? d.portrait ?? ""),
         helmet_color_primary: d.helmet_color_primary ?? "",
         helmet_color_secondary: d.helmet_color_secondary ?? "",
         status,
