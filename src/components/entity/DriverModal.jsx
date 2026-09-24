@@ -2693,57 +2693,75 @@ function FormTab({ form, items }) {
 }
 
 function PerformanceHistory({ items }) {
-  const rows=(items||[]).slice(0,8);
+  const rows=(items||[]);
   if(!rows.length){
     return <p className="text-slate-500 text-sm">No played-race performance evaluations yet.</p>;
   }
+  const deltaTone=(value)=>{
+    const n=Number(value);
+    if(!Number.isFinite(n)||Math.abs(n)<0.05)return "text-slate-500";
+    return n>0?"text-emerald-300":"text-rose-300";
+  };
+  const deltaLabel=(value,digits=1)=>{
+    const n=Number(value);
+    if(!Number.isFinite(n))return "—";
+    return `${n>0?"+":""}${n.toFixed(digits)}`;
+  };
+  const resultLabel=(row)=>{
+    if(row?.retired)return row?.retirement_reason?`DNF · ${row.retirement_reason}`:"DNF";
+    return row?.finish_position!=null?`P${row.finish_position}`:"—";
+  };
   return (
-    <div className="space-y-3">
-      {rows.map((row,index)=>(
-        <div key={`${row?.year||"year"}-${row?.round||index}`} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold">{row?.gp_name||`Round ${row?.round||"—"}`}</div>
-              <div className="mt-0.5 text-[11px] text-slate-500">
-                {row?.year||"—"} · expected ~P{Number(row?.expected_finish||0).toFixed(1)} · {row?.retired?(row?.retirement_reason||"DNF"):`finished P${row?.finish_position||"—"}`}
-              </div>
-            </div>
-            <div className={`rounded-lg border px-3 py-1.5 text-lg font-semibold ${Number(row?.score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(row?.score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
-              {Number(row?.score||0).toFixed(1)}
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
-            {Number.isFinite(Number(row?.expectation_delta))&&(
-              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.expectation_delta)>0?"text-emerald-300":Number(row.expectation_delta)<0?"text-rose-300":"text-slate-400"}`}>
-                Expectation {Number(row.expectation_delta)>0?"+":""}{Number(row.expectation_delta).toFixed(1)} pos
-              </span>
-            )}
-            {Number.isFinite(Number(row?.teammate_race_delta))&&(
-              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_race_delta)>0?"text-emerald-300":Number(row.teammate_race_delta)<0?"text-rose-300":"text-slate-400"}`}>
-                Race vs teammate {Number(row.teammate_race_delta)>0?"+":""}{Number(row.teammate_race_delta).toFixed(0)}
-              </span>
-            )}
-            {Number.isFinite(Number(row?.teammate_qualifying_delta))&&(
-              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_qualifying_delta)>0?"text-emerald-300":Number(row.teammate_qualifying_delta)<0?"text-rose-300":"text-slate-400"}`}>
-                Quali vs teammate {Number(row.teammate_qualifying_delta)>0?"+":""}{Number(row.teammate_qualifying_delta).toFixed(0)}
-              </span>
-            )}
-          </div>
-          {!!row?.factors?.length&&(
-            <div className="mt-3 space-y-1">
-              {row.factors.slice(0,4).map((factor,i)=>(
-                <div key={`${factor.key||"factor"}-${i}`} className={`text-xs ${factor.tone==="positive"?"text-emerald-300":factor.tone==="negative"?"text-rose-300":"text-slate-400"}`}>
-                  {factor.value>0?"+":""}{Number(factor.value||0).toFixed(1)} · {factor.message}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+    <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#12141c]">
+      <table className="min-w-[980px] w-full text-xs">
+        <thead className="bg-[#171a23] text-[10px] uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-3 py-2 text-left">Season</th>
+            <th className="px-3 py-2 text-left">Grand Prix</th>
+            <th className="px-3 py-2 text-right">Quali</th>
+            <th className="px-3 py-2 text-right">Grid</th>
+            <th className="px-3 py-2 text-right">Result</th>
+            <th className="px-3 py-2 text-right">Expected</th>
+            <th className="px-3 py-2 text-right">Δ Exp.</th>
+            <th className="px-3 py-2 text-right">Race vs TM</th>
+            <th className="px-3 py-2 text-right">Quali vs TM</th>
+            <th className="px-3 py-2 text-right">Eval.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row,index)=>{
+            const score=Number(row?.score);
+            const factorTitle=(row?.factors||[]).map((factor)=>factor.message).filter(Boolean).join(" · ");
+            return (
+              <tr key={`${row?.year||"year"}-${row?.round||index}-${row?.gp_id||row?.gp_name||index}`} className="border-t border-white/10 hover:bg-white/[0.025]">
+                <td className="px-3 py-2 text-slate-500">{row?.year||"—"}</td>
+                <td className="px-3 py-2">
+                  <div className="font-medium text-slate-200" title={factorTitle||undefined}>{row?.gp_name||`Round ${row?.round||"—"}`}</div>
+                  {row?.round&&<div className="mt-0.5 text-[9px] text-slate-600">Round {row.round}</div>}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-300">{row?.qualifying_position!=null?`P${row.qualifying_position}`:"—"}</td>
+                <td className="px-3 py-2 text-right text-slate-300">{row?.grid_position!=null?`P${row.grid_position}`:"—"}</td>
+                <td className={`px-3 py-2 text-right font-medium ${row?.retired?"text-rose-300":Number(row?.finish_position)<=3?"text-emerald-300":"text-slate-200"}`}>
+                  {resultLabel(row)}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-400">{Number.isFinite(Number(row?.expected_finish))?`P${Number(row.expected_finish).toFixed(1)}`:"—"}</td>
+                <td className={`px-3 py-2 text-right font-medium ${deltaTone(row?.expectation_delta)}`}>{deltaLabel(row?.expectation_delta,1)}</td>
+                <td className={`px-3 py-2 text-right font-medium ${deltaTone(row?.teammate_race_delta)}`}>{deltaLabel(row?.teammate_race_delta,0)}</td>
+                <td className={`px-3 py-2 text-right font-medium ${deltaTone(row?.teammate_qualifying_delta)}`}>{deltaLabel(row?.teammate_qualifying_delta,0)}</td>
+                <td className={`px-3 py-2 text-right font-semibold ${score>=76?"text-emerald-300":score<58?"text-rose-300":"text-sky-300"}`}>
+                  {Number.isFinite(score)?score.toFixed(1):"—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="border-t border-white/10 px-3 py-2 text-[10px] text-slate-600">
+        Positive deltas mean the driver beat the car expectation or team-mate. Hover a Grand Prix for the evaluation factors.
+      </div>
     </div>
   );
 }
-
 function AchievementsTab({ items }) {
   if (!items?.length) return <p className="text-gray-500 text-sm">No championship top-three achievements yet.</p>;
   return (
