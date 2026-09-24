@@ -28,11 +28,11 @@ export const PIT_CREW_TRAINING_PRESETS=Object.freeze([
 ]);
 
 const LOAD_ANCHORS=Object.freeze([
-  {load:0,development:0,fatigue:-4.0},
-  {load:20,development:0,fatigue:-3.0},
-  {load:50,development:0.45,fatigue:0.10},
-  {load:80,development:0.85,fatigue:1.60},
-  {load:100,development:1.00,fatigue:3.50},
+  {load:0,development:0,pace:0,consistency:0,error:0,fatigue:-4.0},
+  {load:20,development:0,pace:0,consistency:0,error:0,fatigue:-3.0},
+  {load:50,development:0.35,pace:0.08,consistency:0.35,error:0.35,fatigue:0.10},
+  {load:80,development:0.80,pace:0.65,consistency:0.75,error:0.75,fatigue:1.60},
+  {load:100,development:1.00,pace:1.00,consistency:1.00,error:0.55,fatigue:3.50},
 ]);
 
 function interpolateAnchors(load){
@@ -47,6 +47,9 @@ function interpolateAnchors(load){
     return {
       load:value,
       development:left.development+(right.development-left.development)*t,
+      pace:left.pace+(right.pace-left.pace)*t,
+      consistency:left.consistency+(right.consistency-left.consistency)*t,
+      error:left.error+(right.error-left.error)*t,
       fatigue:left.fatigue+(right.fatigue-left.fatigue)*t,
     };
   }
@@ -61,6 +64,9 @@ export function pitCrewTrainingLoadEffects(loadInput){
   return {
     load,
     development_multiplier:developmentMultiplier,
+    pace_training_multiplier:round(anchor.pace,3),
+    consistency_training_multiplier:round(anchor.consistency,3),
+    error_training_multiplier:round(anchor.error,3),
     fatigue_delta_per_day:fatigueDelta,
     fatigue_direction:fatigueDelta>0.05?"builds":fatigueDelta<-0.05?"recovers":"stable",
     recovery_only:load<=20,
@@ -77,12 +83,12 @@ export function advancePitCrewTrainingDay(crewInput={},facilityLevel=5,dateISO=n
   const consistency=num(crew.consistency,70);
   const error=num(crew.error_rate,0.05);
   const fatigue=clamp(num(crew.fatigue,0),0,100);
-  const intensity=effects.development_multiplier;
-
-  // Recovery uses intensity=0: raw skill is frozen while fatigue comes down.
-  const paceGain=Math.max(0,avg-2.2)*0.0012*intensity*facilityFactor;
-  const consistencyGain=Math.max(0,100-consistency)*0.0014*intensity*facilityFactor;
-  const errorGain=Math.max(0,error-0.005)*0.0040*intensity*facilityFactor;
+  // Recovery has zero multipliers: raw skill is frozen while fatigue comes down.
+  // The other presets train different execution dimensions at different rates,
+  // so Balanced can be race-neutral while Intensive/Maximum create real trade-offs.
+  const paceGain=Math.max(0,avg-2.2)*0.0012*effects.pace_training_multiplier*facilityFactor;
+  const consistencyGain=Math.max(0,100-consistency)*0.0014*effects.consistency_training_multiplier*facilityFactor;
+  const errorGain=Math.max(0,error-0.005)*0.0040*effects.error_training_multiplier*facilityFactor;
   const nextFatigue=clamp(fatigue+effects.fatigue_delta_per_day,0,100);
 
   return {
@@ -100,11 +106,15 @@ export function pitCrewEffectiveProfile(crewInput={}){
   const crew={...(crewInput||{})};
   const fatigue=clamp(num(crew.fatigue,0),0,100);
 
-  // Fatigue affects execution, not permanent crew skill. Error-proneness is the
-  // most sensitive dimension; stop pace and consistency deteriorate more gently.
-  const avgPenalty=fatigue*0.0035;
-  const consistencyPenalty=fatigue*0.055;
-  const errorPenalty=fatigue*0.00013;
+  // Fatigue affects execution, not permanent crew skill. Stop pace and
+  // consistency deteriorate gently; operational errors rise sharply only once
+  // fatigue reaches the overworked zone. This keeps Balanced race-neutral,
+  // allows Intensive to make small gains, and makes Maximum risky on race day.
+  const avgPenalty=fatigue*0.0012;
+  const consistencyPenalty=fatigue*0.005;
+  const errorPenalty=fatigue<=15
+    ?fatigue*0.00003
+    :15*0.00003+(fatigue-15)*0.0005;
 
   return {
     ...crew,
