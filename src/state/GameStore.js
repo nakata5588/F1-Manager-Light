@@ -6,7 +6,7 @@ import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
-import { resolveDriverPortrait } from "@/domain/driverPortraits";
+import { hydrateDriverPortraitRows, resolveDriverPortrait } from "@/domain/driverPortraits";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
@@ -160,8 +160,11 @@ function setRollingSnapshot(value) {
 }
 
 function hydrateLoadedGameState(saved) {
+  const activeYear = Number(saved?.activeYear ?? saved?.seasonYear);
   return {
     ...saved,
+    drivers: hydrateDriverPortraitRows(saved?.drivers, activeYear),
+    dbDrivers: hydrateDriverPortraitRows(saved?.dbDrivers, activeYear),
     manager: normalizeManagerProfile(saved?.manager, { year: saved?.activeYear, team: saved?.team }),
     settings: { ...defaultSettings, ...(saved?.settings || {}) },
     inbox: Array.isArray(saved?.inbox) ? saved.inbox : [],
