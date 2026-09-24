@@ -128,6 +128,67 @@ test("RW5.2D1 drying removes water lap by lap and restores grip",()=>{
   assert.equal(timeline.at(-1).rain_intensity,0);
 });
 
+
+test("RW5.2D2 track temperature evolves during a dry session instead of remaining fixed",()=>{
+  const weather={
+    state:"SUNNY",
+    avg_temp_c:24,
+    starting_air_temp_c:24,
+    starting_track_temp_c:35,
+    starting_track_wetness:0,
+    starting_rubber_level:12,
+    wind_profile:"medium",
+    segments:[{from_lap:1,to_lap:30,state:"SUNNY"}],
+  };
+  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:30});
+  const temps=timeline.map((row)=>row.track_temp_c);
+  assert.ok(temps.every(Number.isFinite));
+  assert.ok(Math.max(...temps)-Math.min(...temps)>=0.5,"track temperature should move through the session");
+  assert.ok(timeline.every((row)=>Number.isFinite(row.air_temp_c)));
+});
+
+test("RW5.2D2 rain cools the track and spray reduces visibility",()=>{
+  const weather={
+    state:"SUNNY",
+    avg_temp_c:25,
+    starting_air_temp_c:25,
+    starting_track_temp_c:39,
+    starting_track_wetness:0,
+    starting_rubber_level:20,
+    wind_profile:"medium",
+    segments:[
+      {from_lap:1,to_lap:4,state:"SUNNY"},
+      {from_lap:5,to_lap:16,state:"HEAVY_RAIN"},
+    ],
+  };
+  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:16});
+  const beforeRain=timeline[3];
+  const wet=timeline.at(-1);
+  assert.ok(wet.track_temp_c<beforeRain.track_temp_c,"sustained rain should cool the asphalt");
+  assert.ok(wet.spray_index>beforeRain.spray_index);
+  assert.ok(wet.visibility_index<beforeRain.visibility_index);
+  assert.ok(["HEAVY","EXTREME"].includes(wet.spray_band));
+  assert.ok(["POOR","VERY_POOR"].includes(wet.visibility_band));
+});
+
+test("RW5.2D2 spray can persist after rain stops and clears as the surface dries",()=>{
+  const weather={
+    state:"DRYING",
+    avg_temp_c:23,
+    starting_air_temp_c:22,
+    starting_track_temp_c:24,
+    starting_track_wetness:0.88,
+    starting_rubber_level:8,
+    wind_profile:"medium",
+    segments:[{from_lap:1,to_lap:24,state:"DRYING"}],
+  };
+  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:24});
+  assert.equal(timeline[0].rain_intensity,0);
+  assert.ok(timeline[0].spray_index>0.20,"standing water should still generate spray after rainfall stops");
+  assert.ok(timeline.at(-1).spray_index<timeline[0].spray_index);
+  assert.ok(timeline.at(-1).visibility_index>timeline[0].visibility_index);
+});
+
 test("1980 race control never invents modern Safety Car or VSC periods",()=>{
   const state=gs(1980);
   const race=[
