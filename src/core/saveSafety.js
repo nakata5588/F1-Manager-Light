@@ -52,9 +52,9 @@ function normalizeCollectionRows(value, idKey = null) {
   const looksLikeRow =
     value.driver_id != null ||
     value.team_id != null ||
-    value.position != null ||
-    value.grid != null ||
-    value.pos != null;
+    (value.position != null && !isRecord(value.position) && !Array.isArray(value.position)) ||
+    (value.grid != null && !isRecord(value.grid) && !Array.isArray(value.grid)) ||
+    (value.pos != null && !isRecord(value.pos) && !Array.isArray(value.pos));
   if (looksLikeRow) return [value];
 
   return Object.entries(value).flatMap(([key, row]) => {
