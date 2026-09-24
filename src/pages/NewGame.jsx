@@ -1,8 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore";
+import {
+  MANAGER_ATTRIBUTES,
+  MANAGER_BACKGROUNDS,
+  MANAGER_EXPERIENCE_LEVELS,
+  createManagerProfile,
+  managerAge,
+  managerBackground,
+  managerExperience,
+} from "../domain/managerProfile.js";
 
 const ERA_DECADES = ["1950s", "1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
+const STEP_LABELS=["CHOOSE ERA","CHOOSE YEAR","CREATE MANAGER","CHOOSE TEAM","DIFFICULTY","REVIEW"];
 
 const eraToRange = (era) => {
   const m1 = /^(\d{4})s$/.exec(era);
@@ -37,23 +47,62 @@ function safeText(v, fallback = "—") {
   try { return JSON.stringify(v); } catch { return fallback; }
 }
 
-function FallbackAvatar({ title }) {
+function FallbackAvatar({ title, large=false }) {
   const initials = String(title || "?").split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
-  return <div className="w-8 h-8 rounded-md bg-white/10 flex items-center justify-center text-xs font-bold">{initials}</div>;
+  return <div className={(large?"w-20 h-20 rounded-2xl text-xl":"w-8 h-8 rounded-md text-xs")+" bg-white/10 flex items-center justify-center font-bold"}>{initials}</div>;
 }
 
-function TeamLogo({ candidates, title }) {
+function TeamLogo({ candidates, title, large=false }) {
   const [failedIdx, setFailedIdx] = useState(0);
   const src = Array.isArray(candidates) ? candidates[failedIdx] : null;
-  if (!src) return <FallbackAvatar title={title} />;
+  if (!src) return <FallbackAvatar title={title} large={large} />;
   return (
     <img
       src={src}
       alt={safeText(title, "Team")}
-      className="w-8 h-8 rounded-md object-contain bg-white/5"
+      className={(large?"w-20 h-20 rounded-2xl":"w-8 h-8 rounded-md")+" object-contain bg-white/5"}
       onError={() => setFailedIdx((i) => i + 1)}
     />
   );
+}
+
+function ManagerPortrait({manager,size="large"}){
+  const name=(String(manager?.first_name||"")+" "+String(manager?.last_name||"")).trim()||"Team Manager";
+  const large=size==="large";
+  if(manager?.portrait_data_url){
+    return <img src={manager.portrait_data_url} alt={name} className={(large?"w-24 h-24 rounded-2xl":"w-12 h-12 rounded-xl")+" object-cover border border-white/10 bg-white/5"}/>;
+  }
+  return <FallbackAvatar title={name} large={large}/>;
+}
+
+function readManagerPortrait(file){
+  return new Promise((resolve,reject)=>{
+    if(!file){resolve({dataUrl:null,fileName:null});return;}
+    if(!String(file.type||"").startsWith("image/")){reject(new Error("Please choose an image file."));return;}
+    if(Number(file.size||0)>8_000_000){reject(new Error("Image is too large. Maximum source size is 8 MB."));return;}
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error("Unable to read image."));
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error("Unable to process image."));
+      img.onload=()=>{
+        const target=512;
+        const canvas=document.createElement("canvas");
+        canvas.width=target;
+        canvas.height=target;
+        const ctx=canvas.getContext("2d");
+        const source=Math.min(img.naturalWidth||img.width,img.naturalHeight||img.height);
+        const sx=((img.naturalWidth||img.width)-source)/2;
+        const sy=((img.naturalHeight||img.height)-source)/2;
+        ctx.drawImage(img,sx,sy,source,source,0,0,target,target);
+        let dataUrl="";
+        try{dataUrl=canvas.toDataURL("image/webp",0.82);}catch{dataUrl=canvas.toDataURL("image/jpeg",0.82);}
+        resolve({dataUrl,fileName:file.name||"manager-profile"});
+      };
+      img.src=String(reader.result||"");
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function NewGame() {
@@ -68,11 +117,26 @@ export default function NewGame() {
     getTeamLogoCandidates,
   } = useGame();
 
+  const initialYear=String(gameState?.activeYear ?? 1980);
   const [step, setStep] = useState(0);
   const [era, setEra] = useState("1980s");
-  const [year, setYear] = useState(String(gameState?.activeYear ?? 1980));
+  const [year, setYear] = useState(initialYear);
   const [teamId, setTeamId] = useState("");
   const [difficulty, setDifficulty] = useState("Normal");
+  const [manager, setManager] = useState({
+    first_name:"",
+    last_name:"",
+    nationality_name:"",
+    nationality_code:"",
+    date_of_birth:String(Number(initialYear)-35).padStart(4,"0")+"-01-01",
+    place_of_birth:"",
+    portrait_data_url:null,
+    portrait_file_name:null,
+    background:"newcomer",
+    experience_level:"rookie",
+  });
+  const [dobTouched,setDobTouched]=useState(false);
+  const [portraitError,setPortraitError]=useState("");
   const [yearLoading, setYearLoading] = useState(false);
   const [yearSource, setYearSource] = useState("");
   const [yearError, setYearError] = useState("");
@@ -112,6 +176,12 @@ export default function NewGame() {
     return ()=>{cancelled=true;};
   }, [era, eraYears.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(()=>{
+    if(dobTouched)return;
+    const defaultDob=String(Number(year)-35).padStart(4,"0")+"-01-01";
+    setManager((current)=>({...current,date_of_birth:defaultDob}));
+  },[year,dobTouched]);
+
   const pickYear = async (y) => {
     setYear(String(y));
     setTeamId("");
@@ -135,12 +205,48 @@ export default function NewGame() {
   const gpCount = Array.isArray(gameState?.calendar) ? gameState.calendar.length : 0;
   const driverCount = Array.isArray(gameState?.drivers) ? gameState.drivers.length : 0;
   const isLoading = !gameState?.dbCalendar?.length || !gameState?.dbTeams?.length || !gameState?.dbDrivers?.length;
+  const selectedTeam=teamId==="create"?null:(teamsForYear.find((team)=>getTeamId(team)===teamId)||null);
+  const selectedTeamTitle=teamId==="create"
+    ?"Create New Team"
+    :safeText(getTeamDisplayName?.(selectedTeam)??pick(selectedTeam,["team_name","name","short_name"],teamId),"—");
+  const managerPreview=useMemo(
+    ()=>createManagerProfile(manager,{year:+year,team:selectedTeam||{name:teamId==="create"?"New Team":"Unattached"}}),
+    [manager,year,selectedTeam,teamId]
+  );
+  const managerPreviewAge=managerAge(managerPreview,String(year).padStart(4,"0")+"-01-01");
+  const managerValid=Boolean(
+    String(manager.first_name||"").trim() &&
+    String(manager.last_name||"").trim() &&
+    String(manager.nationality_name||"").trim() &&
+    /^\d{4}-\d{2}-\d{2}$/.test(String(manager.date_of_birth||"")) &&
+    managerPreviewAge!=null && managerPreviewAge>=21 && managerPreviewAge<=85
+  );
 
-  const canNext = !yearLoading && (step === 0 ? !!era : step === 1 ? !!year && eraYears.includes(year) : step === 2 ? !!teamId : !!difficulty);
+  const canNext = !yearLoading && (
+    step === 0 ? !!era :
+    step === 1 ? !!year && eraYears.includes(year) :
+    step === 2 ? managerValid :
+    step === 3 ? !!teamId :
+    step === 4 ? !!difficulty :
+    managerValid && !!teamId && !!difficulty
+  );
+
+  const patchManager=(patch)=>setManager((current)=>({...current,...patch}));
+
+  const handlePortrait=async(file)=>{
+    setPortraitError("");
+    try{
+      const result=await readManagerPortrait(file);
+      patchManager({portrait_data_url:result.dataUrl,portrait_file_name:result.fileName});
+    }catch(error){
+      setPortraitError(String(error?.message||error));
+    }
+  };
 
   const handleFinish = async () => {
+    if (!canNext) return;
     if (teamId === "create") {
-      navigate("/CreateTeam", { state: { era, year, difficulty } });
+      navigate("/CreateTeam", { state: { era, year, difficulty, manager } });
       return;
     }
     const loaded=await loadSeasonPack?.(+year);
@@ -150,21 +256,21 @@ export default function NewGame() {
     }
     const freshTeams=useGame.getState().gameState?.teams||teamsForYear;
     const team = freshTeams.find((t) => getTeamId(t) === teamId) ?? null;
-    startNewGame({ era, year: +year, team, difficulty });
+    startNewGame({ era, year: +year, team, difficulty, manager });
     saveLocal();
     navigate("/Home");
   };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-5xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         <h1 className="text-3xl font-bold mb-6">New Game</h1>
 
-        <div className="flex items-center gap-2 text-sm mb-6">
-          <StepDot active={step >= 0} label="CHOOSE ERA" /><span className="opacity-40">/</span>
-          <StepDot active={step >= 1} label="CHOOSE YEAR" /><span className="opacity-40">/</span>
-          <StepDot active={step >= 2} label="CHOOSE TEAM" /><span className="opacity-40">/</span>
-          <StepDot active={step >= 3} label="DIFFICULTY" />
+        <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs mb-6">
+          {STEP_LABELS.map((label,index)=><React.Fragment key={label}>
+            <StepDot active={step >= index} current={step===index} label={label} />
+            {index<STEP_LABELS.length-1?<span className="opacity-30">/</span>:null}
+          </React.Fragment>)}
         </div>
 
         <div className="rounded-2xl bg-white/5 border border-white/10 p-6">
@@ -178,7 +284,7 @@ export default function NewGame() {
                       const [a, b] = eraToRange(label);
                       const selected = era === label;
                       return (
-                        <button key={label} onClick={() => setEra(label)} className={`p-4 rounded-xl border text-left ${selected ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30"}`}>
+                        <button key={label} onClick={() => setEra(label)} className={"p-4 rounded-xl border text-left "+(selected ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>
                           <div className="font-medium">{label}</div><div className="text-xs opacity-70">{a}–{b}</div>
                         </button>
                       );
@@ -192,22 +298,93 @@ export default function NewGame() {
                   <h2 className="text-xl font-semibold">Choose Year</h2>
                   <div className="flex flex-wrap gap-2">
                     {eraYears.map((y) => (
-                      <button key={y} onClick={() => pickYear(y)} className={`px-3 py-2 rounded-lg border text-sm ${year === y ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30"}`}>{y}</button>
+                      <button key={y} onClick={() => pickYear(y)} className={"px-3 py-2 rounded-lg border text-sm "+(year === y ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>{y}</button>
                     ))}
                   </div>
                   <p className="text-xs opacity-70">
-                    Dataset for {safeText(year)}: {yearLoading ? "loading…" : `${gpCount} GPs · ${teamsForYear.length} teams · ${driverCount} drivers`}
-                    {yearSource ? ` · ${yearSource}` : ""}
+                    Dataset for {safeText(year)}: {yearLoading ? "loading…" : gpCount+" GPs · "+teamsForYear.length+" teams · "+driverCount+" drivers"}
+                    {yearSource ? " · "+yearSource : ""}
                   </p>
                   {yearError && <p className="text-xs text-amber-300">{yearError}</p>}
                 </div>
               )}
 
               {step === 2 && (
+                <div className="space-y-5">
+                  <div>
+                    <h2 className="text-xl font-semibold">Create Team Manager</h2>
+                    <p className="mt-1 text-sm text-slate-400">This is your career identity. Backgrounds redistribute the same core ability; experience trades starting strength for long-term potential.</p>
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="text-sm">First name<input value={manager.first_name} onChange={(e)=>patchManager({first_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="First name"/></label>
+                        <label className="text-sm">Last name<input value={manager.last_name} onChange={(e)=>patchManager({last_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="Last name"/></label>
+                        <label className="text-sm">Nationality<input value={manager.nationality_name} onChange={(e)=>patchManager({nationality_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="e.g. Portuguese"/></label>
+                        <label className="text-sm">Nationality code <span className="text-xs text-slate-500">(optional)</span><input value={manager.nationality_code} maxLength={3} onChange={(e)=>patchManager({nationality_code:e.target.value.toUpperCase()})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2 uppercase" placeholder="PRT"/></label>
+                        <label className="text-sm">Date of birth<input type="date" value={manager.date_of_birth} onChange={(e)=>{setDobTouched(true);patchManager({date_of_birth:e.target.value});}} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2"/></label>
+                        <label className="text-sm">Place of birth <span className="text-xs text-slate-500">(optional)</span><input value={manager.place_of_birth} onChange={(e)=>patchManager({place_of_birth:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="City, Country"/></label>
+                      </div>
+                      {managerPreviewAge!=null&&managerPreviewAge<21?<div className="text-xs text-amber-300">The Team Manager must be at least 21 at the start of the selected season.</div>:null}
+
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-500 mb-2">Background</div>
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                          {MANAGER_BACKGROUNDS.map((row)=><button type="button" key={row.id} onClick={()=>patchManager({background:row.id})} className={"rounded-xl border p-3 text-left "+(manager.background===row.id?"border-emerald-400 bg-emerald-400/10":"border-white/10 hover:border-white/30")}>
+                            <div className="font-semibold">{row.label}</div>
+                            <div className="mt-1 text-xs text-slate-400">{row.description}</div>
+                          </button>)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-500 mb-2">Starting Experience</div>
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                          {MANAGER_EXPERIENCE_LEVELS.map((row)=><button type="button" key={row.id} onClick={()=>patchManager({experience_level:row.id})} className={"rounded-xl border p-3 text-left "+(manager.experience_level===row.id?"border-emerald-400 bg-emerald-400/10":"border-white/10 hover:border-white/30")}>
+                            <div className="font-semibold">{row.label}</div>
+                            <div className="mt-1 text-xs text-slate-400">{row.description}</div>
+                          </button>)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <aside className="rounded-xl border border-white/10 bg-[#0d0f15] p-4 h-fit">
+                      <div className="flex items-center gap-3">
+                        <ManagerPortrait manager={managerPreview}/>
+                        <div>
+                          <div className="text-lg font-semibold">{managerPreview.display_name}</div>
+                          <div className="text-xs text-slate-400">{manager.nationality_name||"Nationality"}{managerPreviewAge!=null?" · Age "+managerPreviewAge:""}</div>
+                          <div className="mt-1 text-xs text-slate-500">{managerBackground(manager.background).label} · {managerExperience(manager.experience_level).label}</div>
+                        </div>
+                      </div>
+                      <label className="mt-4 block text-xs text-slate-400">Profile photo <span className="text-slate-600">(optional)</span>
+                        <input type="file" accept="image/*" onChange={(e)=>handlePortrait(e.target.files?.[0])} className="mt-2 block w-full text-xs text-slate-500 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-slate-200"/>
+                      </label>
+                      {portraitError?<div className="mt-2 text-xs text-amber-300">{portraitError}</div>:null}
+                      {manager.portrait_data_url?<button type="button" onClick={()=>patchManager({portrait_data_url:null,portrait_file_name:null})} className="mt-2 text-xs text-slate-400 hover:text-white">Remove photo</button>:null}
+
+                      <div className="mt-5 space-y-2">
+                        {MANAGER_ATTRIBUTES.map((definition)=><div key={definition.key} className="flex items-center gap-2 text-xs">
+                          <span className="min-w-0 flex-1 text-slate-400">{definition.shortLabel}</span>
+                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-200" style={{width:String(managerPreview.attributes?.[definition.key]||0)+"%"}}/></div>
+                          <span className="w-6 text-right font-semibold tabular-nums">{managerPreview.attributes?.[definition.key]}</span>
+                        </div>)}
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-[10px] uppercase text-slate-500">Reputation</div><div className="font-semibold">{Math.round(managerPreview.reputation)}/100</div></div>
+                        <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-[10px] uppercase text-slate-500">Potential</div><div className="font-semibold">{Math.round(managerPreview.potential)}/100</div></div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold">Choose Team</h2>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <button onClick={() => setTeamId("create")} className={`p-4 rounded-xl border text-left ${teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30"}`}>
+                    <button onClick={() => setTeamId("create")} className={"p-4 rounded-xl border text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>
                       <div className="font-medium text-lg">Create New Team</div><div className="text-xs opacity-70">Start as a brand-new privateer entry</div>
                     </button>
                     {teamsForYear.map((t) => {
@@ -217,7 +394,7 @@ export default function NewGame() {
                       const driverNames = contracts.filter((c) => sameTeam(c, t) && /driver/i.test(String(pick(c, ["role", "position"], ""))))
                         .map((c) => safeText(pick(c, ["driver_name", "name", "full_name"], ""))).filter(Boolean);
                       return (
-                        <button key={id} onClick={() => setTeamId(id)} className={`p-4 rounded-xl border text-left ${teamId === id ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30"}`}>
+                        <button key={id} onClick={() => setTeamId(id)} className={"p-4 rounded-xl border text-left "+(teamId === id ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>
                           <div className="flex items-center gap-3"><TeamLogo candidates={getTeamLogoCandidates?.(t) || []} title={title} /><div className="font-medium text-lg">{title}</div></div>
                           <div className="mt-2 text-xs opacity-80 space-y-1">
                             <div>Base: {safeText(pick(t, ["team_base", "base", "country", "location"], "—"))}</div>
@@ -231,10 +408,60 @@ export default function NewGame() {
                 </div>
               )}
 
-              {step === 3 && (
+              {step === 4 && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-semibold">Choose Difficulty</h2>
-                  <div className="flex gap-2">{["Easy", "Normal", "Hard"].map((d) => <button key={d} onClick={() => setDifficulty(d)} className={`px-3 py-2 rounded-lg border text-sm ${difficulty === d ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30"}`}>{d}</button>)}</div>
+                  <div>
+                    <h2 className="text-xl font-semibold">Choose Difficulty</h2>
+                    <p className="mt-1 text-sm text-slate-400">Difficulty remains separate from your manager background. Manager attributes are career identity, not a difficulty selector.</p>
+                  </div>
+                  <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+                    {["Easy", "Normal", "Hard"].map((d) => <button key={d} onClick={() => setDifficulty(d)} className={"px-4 py-4 rounded-xl border text-left "+(difficulty === d ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>
+                      <div className="font-semibold">{d}</div>
+                    </button>)}
+                  </div>
+                </div>
+              )}
+
+              {step === 5 && (
+                <div className="space-y-5">
+                  <div>
+                    <h2 className="text-xl font-semibold">Career Summary</h2>
+                    <p className="mt-1 text-sm text-slate-400">Review the starting conditions before creating the Save World.</p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-4">
+                      <div className="text-xs uppercase tracking-[0.15em] text-slate-500">Manager</div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <ManagerPortrait manager={managerPreview} size="small"/>
+                        <div><div className="font-semibold">{managerPreview.display_name}</div><div className="text-xs text-slate-400">{manager.nationality_name}{managerPreviewAge!=null?" · Age "+managerPreviewAge:""}</div></div>
+                      </div>
+                      <div className="mt-3 text-sm text-slate-300">{managerBackground(manager.background).label} · {managerExperience(manager.experience_level).label}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-4">
+                      <div className="text-xs uppercase tracking-[0.15em] text-slate-500">Career</div>
+                      <div className="mt-3 text-2xl font-semibold">{year}</div>
+                      <div className="mt-1 text-sm text-slate-400">Formula One World Championship</div>
+                      <div className="mt-3 text-xs text-slate-500">{gpCount} Grands Prix · {teamsForYear.length} teams</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-4">
+                      <div className="text-xs uppercase tracking-[0.15em] text-slate-500">Team</div>
+                      <div className="mt-3 flex items-center gap-3">
+                        {selectedTeam?<TeamLogo candidates={getTeamLogoCandidates?.(selectedTeam)||[]} title={selectedTeamTitle} large/>:<FallbackAvatar title={selectedTeamTitle} large/>}
+                        <div><div className="font-semibold">{selectedTeamTitle}</div><div className="text-xs text-slate-400">Difficulty: {difficulty}</div></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-4">
+                    <div className="text-xs uppercase tracking-[0.15em] text-slate-500">Starting Manager Attributes</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
+                      {MANAGER_ATTRIBUTES.map((definition)=><div key={definition.key} className="rounded-lg bg-white/[0.04] p-3">
+                        <div className="text-[10px] text-slate-500">{definition.shortLabel}</div>
+                        <div className="mt-1 text-xl font-semibold">{managerPreview.attributes?.[definition.key]}</div>
+                      </div>)}
+                    </div>
+                    <div className="mt-3 text-xs text-slate-500">These ratings create bounded management modifiers. They do not add car pace or replace specialist staff.</div>
+                  </div>
                 </div>
               )}
             </>
@@ -246,10 +473,10 @@ export default function NewGame() {
             <button onClick={() => navigate("/")} className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40">Main Menu</button>
             <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-4 py-2 rounded-lg border border-white/20 disabled:opacity-40">Back</button>
           </div>
-          {step < 3 ? (
-            <button onClick={() => setStep((s) => Math.min(3, s + 1))} disabled={!canNext || isLoading || yearLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Next</button>
+          {step < STEP_LABELS.length-1 ? (
+            <button onClick={() => setStep((s) => Math.min(STEP_LABELS.length-1, s + 1))} disabled={!canNext || isLoading || yearLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Next</button>
           ) : (
-            <button onClick={handleFinish} disabled={!canNext || isLoading || yearLoading} className="px-4 py-2 rounded-lg bg-emerald-500 disabled:opacity-40">Continue</button>
+            <button onClick={handleFinish} disabled={!canNext || isLoading || yearLoading} className="px-5 py-2 rounded-lg bg-emerald-500 font-semibold disabled:opacity-40">{teamId==="create"?"Continue to Create Team":"Start Career"}</button>
           )}
         </div>
       </div>
@@ -257,6 +484,6 @@ export default function NewGame() {
   );
 }
 
-function StepDot({ active, label }) {
-  return <div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-emerald-400" : "bg-white/30"}`} /><span className={`uppercase tracking-wide ${active ? "text-white" : "text-white/60"}`}>{label}</span></div>;
+function StepDot({ active, current, label }) {
+  return <div className="flex items-center gap-2"><span className={"h-2.5 w-2.5 rounded-full "+(current?"bg-white ring-2 ring-emerald-400":active?"bg-emerald-400":"bg-white/30")} /><span className={"uppercase tracking-wide "+(active?"text-white":"text-white/60")}>{label}</span></div>;
 }
