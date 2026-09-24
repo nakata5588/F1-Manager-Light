@@ -7,6 +7,11 @@
 import { availableCarComponentSlots, componentLabel, COMPONENT_STAT_KEY } from "../domain/carComponents.js";
 import { derivePartTechnicalProfile } from "../domain/carPartPerformance.js";
 import {
+  bestDevelopedPartForSlot,
+  buildDevelopmentProjection,
+  developmentObjectivesForSlot,
+} from "../domain/developmentProject.js";
+import {
   activeWorkshopJobFor,
   partManufactureQuote,
   partUnitRestoreQuote,
@@ -301,6 +306,24 @@ function chooseNeed(gs,teamId,state){
     .sort((a,b)=>b.score-a.score||a.baseline-b.baseline||a.slot.localeCompare(b.slot));
   return scored[0]||null;
 }
+function aiDevelopmentObjective(gs,teamId,state,need){
+  const slot=str(need?.slot);
+  const options=developmentObjectivesForSlot(gs,slot);
+  const has=(id)=>options.some((row)=>row.id===id);
+  const recentStress=(state?.componentWearLog||[])
+    .filter((row)=>str(row?.slot)===slot&&num(row?.condition_after,100)<55)
+    .slice(0,8).length;
+  if(recentStress>=2&&has("reliability"))return "reliability";
+  if(["chassis","suspension","brakes"].includes(slot)&&has("mechanical_grip"))return "mechanical_grip";
+  if(["gearbox","turbocharger","fuel_system","exhaust_system","kers","ers_mgu_k","ers_mgu_h","battery_pack"].includes(slot)&&has("power_delivery"))return "power_delivery";
+  if(["cooling","sidepods"].includes(slot)&&has("cooling_capacity"))return "cooling_capacity";
+  if(["aero_front","aero_rear","underfloor"].includes(slot)){
+    const preferred=(stableHash(`${teamId}|${yearOf(gs)}|${slot}|design-objective`)%2)?"downforce":"efficiency";
+    if(has(preferred))return preferred;
+  }
+  return options[0]?.id||"balanced";
+}
+
 function projectQuote(gs,teamId,state,need){
   const strength=engineeringStrength(gs,teamId);
   const moraleTime=teamWorkRateMultiplier(gs,teamId);
@@ -1231,11 +1254,21 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
   const manufacturing=assessment.manufacturing;
   const cycle=num(state?.planning?.cycle,0)+1;
   const id=`ai_dev_${safeId(teamId)}_${yearOf(next)}_${String(cycle).padStart(3,"0")}`;
+  const objectiveId=aiDevelopmentObjective(next,teamId,state,need);
+  const currentPart=bestDevelopedPartForSlot(state?.development?.parts||[],need.slot);
+  const technicalProjection=buildDevelopmentProjection(next,{
+    slot:need.slot,
+    objectiveId,
+    targetStrength:quote.perf,
+    currentPart,
+  });
   const project={
     id,
     team_id:str(teamId),
     name:`AI ${need.slot.replaceAll("_"," ")} package ${cycle}`,
     type:need.slot,
+    objective_id:objectiveId,
+    objective_label:technicalProjection?.objective?.label||objectiveId,
     phase:"design",
     status:"active",
     started_at:today,
@@ -1245,6 +1278,7 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
     perf_delta:quote.increment,
     base_design_perf:quote.incumbent,
     target_design_perf:quote.perf,
+    technical_projection:technicalProjection,
     development_headroom:quote.headroom,
     engineering_strength:quote.strength,
     need_baseline:need.baseline,
@@ -1304,8 +1338,12 @@ function completeDesigns(gs,teamId,state,today){
         version:`AI-${completedDesignCount(state,project.type)+1}`,
         perf:num(project.target_design_perf,project.perf_delta),inv:0,in_manufacturing:0,
         prototype:true,created_from:project.id,ai_team_id:str(teamId),
+        development_focus:project.objective_id||"balanced",
       };
-      parts.push({...draft,technical_profile:derivePartTechnicalProfile(scoped,draft)});
+      parts.push({
+        ...draft,
+        technical_profile:project.technical_projection||derivePartTechnicalProfile(scoped,draft),
+      });
     }
     return {...project,status:"completed",progress:1,completed_at:today};
   });
