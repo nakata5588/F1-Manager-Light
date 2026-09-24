@@ -1002,6 +1002,25 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
 }
 
+function EffectChip({label,value}){
+  const amount=Number(value||0);
+  const neutral=Math.abs(amount)<0.05;
+  const good=label==="Risk"?amount<0:amount<=0;
+  return <span className={"rounded px-1.5 py-0.5 text-[9px] "+(neutral?"bg-white/5 text-slate-500":good?"bg-emerald-500/10 text-emerald-300":"bg-amber-500/10 text-amber-300")}>{label} {amount>0?"+":""}{amount.toFixed(0)}%</span>;
+}
+function ForecastMini({label,current,future,suffix="",lowerBetter=false,digits=2}){
+  const a=Number(current||0),b=Number(future||0),delta=b-a;
+  const good=lowerBetter?delta<0:delta>0;
+  const neutral=Math.abs(delta)<Math.pow(10,-digits);
+  return <div className="rounded-lg border border-white/10 p-2">
+    <div className="text-[10px] text-slate-500">{label}</div>
+    <div className="mt-1 flex items-center gap-1 text-sm tabular-nums">
+      <span className="text-slate-500">{a.toFixed(digits)}{suffix}</span>
+      <span className="text-slate-600">→</span>
+      <strong className={neutral?"text-slate-200":good?"text-emerald-300":"text-rose-300"}>{b.toFixed(digits)}{suffix}</strong>
+    </div>
+  </div>;
+}
 function TechCompare({label,current,proposed,suffix="",digits=2,lowerBetter=false}){
   const a=Number(current||0),b=Number(proposed||0),delta=b-a;
   const good=lowerBetter?delta<0:delta>0;
