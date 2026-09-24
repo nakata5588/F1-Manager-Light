@@ -10,7 +10,7 @@ import {
 } from "./partUnits.js";
 import { derivePartTechnicalProfile } from "./carPartPerformance.js";
 import { realizeDevelopmentProjection } from "./developmentProject.js";
-import { applyTechnicalKnowledgeGains, completedProjectKnowledgeGains } from "./technicalKnowledge.js";
+import { applyTechnicalKnowledgeGains, completedProjectKnowledgeGains, technicalKnowledgeSnapshot } from "./technicalKnowledge.js";
 
 const str=(value)=>String(value??"");
 
@@ -27,6 +27,7 @@ function completeDevelopmentProjects(state,today){
   const dev=state?.development||{};
   const projects=Array.isArray(dev?.projects)?dev.projects:[];
   const parts=Array.isArray(dev?.parts)?[...dev.parts]:[];
+  const knowledgeBase=dev?.technicalKnowledge||technicalKnowledgeSnapshot(state);
   const knowledgeEvents=[];
   let changed=false;
 
@@ -90,6 +91,7 @@ function completeDevelopmentProjects(state,today){
       ...dev,
       projects:nextProjects,
       parts,
+      technicalKnowledge:knowledgeBase,
     },
   });
   for(const event of knowledgeEvents){
