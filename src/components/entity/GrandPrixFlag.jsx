@@ -3,7 +3,12 @@ import React from "react";
 import { CountryFlag } from "./EntityVisuals.jsx";
 
 const text=(value)=>String(value??"").trim();
-const yearOf=(row)=>Number(row?.year??row?.season_year??String(row?.dateISO??row?.date??row?.race_date??"").slice(0,4));
+const yearOf=(row)=>{
+  const raw=row?.year??row?.season_year??String(row?.dateISO??row?.date??row?.race_date??"").slice(0,4);
+  if(raw===null||raw===undefined||String(raw).trim()==="")return NaN;
+  const value=Number(raw);
+  return Number.isFinite(value)?value:NaN;
+};
 
 function sameGrandPrix(candidate,record){
   if(!candidate||!record)return false;
