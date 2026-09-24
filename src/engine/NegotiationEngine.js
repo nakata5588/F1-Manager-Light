@@ -996,7 +996,7 @@ export function processDriverNegotiations(gs,{forceOutcomeById={},forceTransferO
     }
 
     const forced=forceOutcomeById?.[negotiation.id];
-    const chance=contractAcceptanceChance(next,negotiation.driver_id,negotiation.offer,{renewal});
+    const chance=contractAcceptanceChance(next,negotiation.driver_id,negotiation.offer,{renewal,teamId:negotiation.team_id});
     const rng=rngFor(next,"negotiation-response:"+negotiation.id+":"+negotiation.round);
     const roll=rng.next();
     let outcome=forced||null;
