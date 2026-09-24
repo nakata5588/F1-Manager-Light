@@ -143,6 +143,8 @@ test("Swap race drivers changes Main and Second safely in live state",()=>{
   assert.equal(next.driverAttributes.D1.confidence,48);
   assert.equal(next.driverAttributes.D2.morale,52);
   assert.equal(next.driverAttributes.D2.confidence,52);
+  assert.ok(next.driverRelationships?.relations?.["D1|teammate|D2"]?.rivalry>0);
+  assert.ok(next.driverRelationships?.relations?.["D2|teammate|D1"]?.rivalry>0);
 });
 
 test("role changes cannot mutate another team's contract",()=>{
