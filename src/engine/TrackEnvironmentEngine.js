@@ -117,7 +117,8 @@ export function initialiseTrackEnvironment({
   sessionProgress=0,
 }={}){
   const weatherState=upper(state);
-  const air=Number.isFinite(Number(airTempC))
+  const hasAirTemp=airTempC!==null&&airTempC!==undefined&&Number.isFinite(Number(airTempC));
+  const air=hasAirTemp
     ?Number(airTempC)
     :num(baseAirTempC,22)+(AIR_OFFSET_C[weatherState]??0);
   const target=targetTrackTemp({
@@ -127,7 +128,8 @@ export function initialiseTrackEnvironment({
     rainIntensity,
     sessionProgress,
   });
-  const track=Number.isFinite(Number(trackTempC))?Number(trackTempC):target;
+  const hasTrackTemp=trackTempC!==null&&trackTempC!==undefined&&Number.isFinite(Number(trackTempC));
+  const track=hasTrackTemp?Number(trackTempC):target;
   const spray=sprayIndexForConditions({wetness,rainIntensity,carsOnTrack,windProfile});
   const visibility=visibilityIndexForConditions({state:weatherState,wetness,rainIntensity,carsOnTrack,windProfile});
   return {
