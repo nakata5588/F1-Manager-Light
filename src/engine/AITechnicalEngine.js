@@ -48,7 +48,7 @@ import {
   normalizedAeroAllocation,
   recordAeroTestingUsage,
 } from "../domain/developmentRegulations.js";
-import { applyTechnicalKnowledgeGains, completedProjectKnowledgeGains } from "../domain/technicalKnowledge.js";
+import { applyTechnicalKnowledgeGains, completedProjectKnowledgeGains, technicalKnowledgeSnapshot } from "../domain/technicalKnowledge.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -1399,9 +1399,10 @@ function completeDesigns(gs,teamId,state,today){
   });
   if(!changed)return {changed:false,state};
 
+  const knowledgeBase=state?.development?.technicalKnowledge||technicalKnowledgeSnapshot(scoped,{teamId});
   let learnedScoped={
     ...scoped,
-    development:{...(state.development||{}),projects,parts},
+    development:{...(state.development||{}),projects,parts,technicalKnowledge:knowledgeBase},
   };
   for(const project of knowledgeEvents){
     learnedScoped=applyTechnicalKnowledgeGains(
