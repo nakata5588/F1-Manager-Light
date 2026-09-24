@@ -146,6 +146,47 @@ function setItemQuotaSafe(key, value) {
   }
 }
 
+function hydrateLoadedGameState(saved) {
+  return {
+    ...saved,
+    settings: { ...defaultSettings, ...(saved?.settings || {}) },
+    inbox: Array.isArray(saved?.inbox) ? saved.inbox : [],
+    eventsQueue: Array.isArray(saved?.eventsQueue) ? saved.eventsQueue : [],
+    driverAttrLog: saved?.driverAttrLog || {},
+    driverAvailability: saved?.driverAvailability || {},
+    medicalHistory: Array.isArray(saved?.medicalHistory) ? saved.medicalHistory : [],
+    temporaryDriverAssignments: Array.isArray(saved?.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
+    driverNegotiations: Array.isArray(saved?.driverNegotiations) ? saved.driverNegotiations : [],
+    raceEntryState: saved?.raceEntryState || null,
+    raceWeekendState: saved?.raceWeekendState || null,
+    financeLog: Array.isArray(saved?.financeLog) ? saved.financeLog : [],
+    finances: saved?.finances || null,
+    showSeasonSummary: false,
+  };
+}
+
+function latestManualSaveKey() {
+  try {
+    const items = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(SAVE_PREFIX)) continue;
+      const raw = localStorage.getItem(key);
+      let ts = 0;
+      try { ts = Date.parse(JSON.parse(raw)?.meta?.savedAt || ""); } catch {}
+      if (!Number.isFinite(ts) || ts <= 0) {
+        const match = String(key).match(/(\d{10,})$/);
+        if (match) ts = Number(match[1]);
+      }
+      items.push({ key, ts: Number(ts) || 0 });
+    }
+    items.sort((a, b) => b.ts - a.ts);
+    return items[0]?.key || null;
+  } catch {
+    return null;
+  }
+}
+
 function checkpointRaceWeekendState(gs) {
   try {
     const phase=String(gs?.raceWeekendState?.phase||"");
@@ -1371,25 +1412,7 @@ export const useGame = create((set, get) => ({
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       const saved = extractGameStateFromStoredSave(JSON.parse(raw));
-      set(() => ({
-        gameState: {
-          ...saved,
-          settings: { ...defaultSettings, ...(saved.settings || {}) },
-          inbox: saved.inbox || [],
-          eventsQueue: saved.eventsQueue || [],
-          driverAttrLog: saved.driverAttrLog || {},
-          driverAvailability: saved.driverAvailability || {},
-          medicalHistory: Array.isArray(saved.medicalHistory) ? saved.medicalHistory : [],
-          temporaryDriverAssignments: Array.isArray(saved.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
-          driverNegotiations: Array.isArray(saved.driverNegotiations) ? saved.driverNegotiations : [],
-          raceEntryState: saved.raceEntryState || null,
-          raceWeekendState: saved.raceWeekendState || null,
-          financeLog: Array.isArray(saved.financeLog) ? saved.financeLog : [],
-          finances: saved.finances || null,
-          showSeasonSummary: false,
-        },
-      }));
-      set({ currentSaveKey: null });
+      set({ gameState: hydrateLoadedGameState(saved), currentSaveKey: null });
       return true;
     } catch (e) {
       console.error("loadLocal() failed:", e);
@@ -1410,7 +1433,18 @@ export const useGame = create((set, get) => ({
     }
   },
 
-  loadLastPlayed: () => get().loadLocal(),
+  loadLastPlayed: () => {
+    if (get().loadLocal()) return true;
+    try {
+      const remembered = localStorage.getItem(LAST_SAVE_KEY);
+      if (remembered && get().loadFromKey(remembered)) return true;
+      const latest = latestManualSaveKey();
+      return latest ? Boolean(get().loadFromKey(latest)) : false;
+    } catch (e) {
+      console.error("loadLastPlayed() failed:", e);
+      return false;
+    }
+  },
 
   getLastSaveMeta: () => {
     try {
@@ -1424,27 +1458,10 @@ export const useGame = create((set, get) => ({
   },
 
   loadGame: (gs) => {
-    if (!gs || typeof gs !== "object") return;
+    if (!gs || typeof gs !== "object") return null;
     const migrated = extractGameStateFromStoredSave(gs);
-    set({
-      gameState: {
-        ...migrated,
-        settings: { ...defaultSettings, ...(migrated.settings || {}) },
-        inbox: migrated.inbox || [],
-        eventsQueue: migrated.eventsQueue || [],
-        driverAttrLog: migrated.driverAttrLog || {},
-        driverAvailability: migrated.driverAvailability || {},
-        medicalHistory: Array.isArray(migrated.medicalHistory) ? migrated.medicalHistory : [],
-        temporaryDriverAssignments: Array.isArray(migrated.temporaryDriverAssignments) ? migrated.temporaryDriverAssignments : [],
-        driverNegotiations: Array.isArray(migrated.driverNegotiations) ? migrated.driverNegotiations : [],
-        raceEntryState: migrated.raceEntryState || null,
-        raceWeekendState: migrated.raceWeekendState || null,
-        financeLog: Array.isArray(migrated.financeLog) ? migrated.financeLog : [],
-        finances: migrated.finances || null,
-        showSeasonSummary: false,
-      },
-      currentSaveKey: null
-    });
+    set({ gameState: hydrateLoadedGameState(migrated), currentSaveKey: null });
+    return migrated;
   },
 
   saveGame: (options) => {
@@ -1472,23 +1489,30 @@ export const useGame = create((set, get) => ({
       // previous career just because it happened to be the last save used.
       const key = overwriteKeyIn || `${SAVE_PREFIX}${now}`;
 
+      let persisted = false;
+      let continueSnapshotOk = false;
+      let errorMessage = null;
       try {
-        const ok = setItemQuotaSafe(key, JSON.stringify(payload));
-        if (ok) {
+        persisted = setItemQuotaSafe(key, JSON.stringify(payload));
+        if (persisted) {
           localStorage.setItem(LAST_SAVE_KEY, key);
           // Keep Continue in sync with the most recently saved career.
-          setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
+          continueSnapshotOk = setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
           set({ currentSaveKey: key });
         } else {
+          errorMessage = "Browser storage is full. The save was not written.";
           console.warn("saveGame: quota still exceeded after eviction.");
         }
       } catch (e) {
+        errorMessage = String(e?.message || e || "Save failed.");
         console.warn("saveGame (multi) failed:", e);
       }
 
       __lastSaveHash = h;
       __lastSaveTs = now;
-      __lastSaveResult = { key, meta };
+      __lastSaveResult = persisted
+        ? { ok: true, key, meta, continueSnapshotOk }
+        : { ok: false, key: null, meta, error: errorMessage || "Save failed." };
       return __lastSaveResult;
     } finally {
       setTimeout(() => { __savingMutex = false; }, 0);
@@ -1513,24 +1537,16 @@ export const useGame = create((set, get) => ({
       const raw = localStorage.getItem(key);
       if (!raw) return null;
       const obj = safeJSONParse(raw);
+      if (!obj || typeof obj !== "object") return null;
       const gs = extractGameStateFromStoredSave(obj);
       if (gs && typeof gs === "object") {
-        set({
-          gameState: {
-            ...gs,
-            inbox: gs.inbox || [],
-            eventsQueue: gs.eventsQueue || [],
-            driverAttrLog: gs.driverAttrLog || {},
-            driverAvailability: gs.driverAvailability || {},
-            raceEntryState: gs.raceEntryState || null,
-            raceWeekendState: gs.raceWeekendState || null,
-            financeLog: Array.isArray(gs.financeLog) ? gs.financeLog : [],
-            finances: gs.finances || null,
-            showSeasonSummary: false,
-          },
-          currentSaveKey: key
-        });
-        try { localStorage.setItem(LAST_SAVE_KEY, key); } catch {}
+        set({ gameState: hydrateLoadedGameState(gs), currentSaveKey: key });
+        try {
+          localStorage.setItem(LAST_SAVE_KEY, key);
+          // Loading a manual/imported save must also become the active Continue
+          // snapshot, otherwise Continue can reopen a different career.
+          setItemQuotaSafe(SAVE_KEY, JSON.stringify(makeLightSnapshot(gs)));
+        } catch {}
         return gs;
       }
     } catch (e) {
