@@ -202,6 +202,23 @@ export function driverChampionshipHistory(gs){
   return [...map.values()].sort((a,b)=>a.year-b.year);
 }
 
+export function driverConstructorChampionships(gs,careerRows=[]){
+  const teamsBySeason=new Map();
+  for(const row of rows(careerRows)){
+    const year=Number(unbox(row?.year));
+    const series=String(unbox(row?.series_division??row?.series)??"F1").toUpperCase();
+    if(!Number.isFinite(year)||series!=="F1")continue;
+    const teamId=teamIdOf(row);
+    if(!teamId)continue;
+    if(!teamsBySeason.has(year))teamsBySeason.set(year,new Set());
+    teamsBySeason.get(year).add(teamId);
+  }
+
+  return constructorChampionshipHistory(gs).filter((champion)=>
+    teamsBySeason.get(Number(champion?.year))?.has(String(champion?.team_id))
+  );
+}
+
 export function teamChampionshipSummary(gs,teamId){
   const id=String(teamId??"");
   const constructorTitles=constructorChampionshipHistory(gs).filter((row)=>String(row.team_id)===id);
