@@ -136,6 +136,40 @@ test("development project slots are concurrent capacity, not a seasonal allowanc
   assert.equal(full.project_slot_available,false);
 });
 
+test("Pit Crew presets match the intended seven-day race-day trade-offs",()=>{
+  const seed={
+    avg_time_s:6.29,
+    consistency:84.1,
+    error_rate:0.03,
+    fatigue:0,
+  };
+  const current=pitCrewEffectiveProfile(seed);
+  const recovery=projectPitCrewTraining({...seed,training_load:20},8,7);
+  const balanced=projectPitCrewTraining({...seed,training_load:50},8,7);
+  const intensive=projectPitCrewTraining({...seed,training_load:80},8,7);
+  const maximum=projectPitCrewTraining({...seed,training_load:100},8,7);
+
+  assert.equal(recovery.raw.fatigue,0);
+  assert.equal(recovery.effective.avg_time_s,current.avg_time_s);
+  assert.equal(recovery.effective.consistency,current.consistency);
+  assert.equal(recovery.effective.error_rate,current.error_rate);
+
+  assert.ok(Math.abs(balanced.effective.avg_time_s-current.avg_time_s)<0.005);
+  assert.ok(balanced.effective.consistency>current.consistency);
+  assert.ok(balanced.effective.error_rate<current.error_rate);
+  assert.ok(balanced.raw.fatigue>0&&balanced.raw.fatigue<2);
+
+  assert.ok(intensive.effective.avg_time_s<current.avg_time_s);
+  assert.ok(intensive.effective.consistency>current.consistency);
+  assert.ok(intensive.effective.error_rate<current.error_rate);
+  assert.ok(intensive.raw.fatigue>8&&intensive.raw.fatigue<20);
+
+  assert.ok(maximum.effective.avg_time_s<current.avg_time_s);
+  assert.ok(maximum.effective.consistency>current.consistency);
+  assert.ok(maximum.effective.error_rate>current.error_rate+0.002);
+  assert.ok(maximum.raw.fatigue>20);
+});
+
 test("maximum pit crew training improves raw skill faster but creates race-day fatigue",()=>{
   const seed={
     avg_time_s:6.4,
