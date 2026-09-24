@@ -139,18 +139,27 @@ function StatusPill({status,condition}){
   return <span className={"inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase "+cls}>{condition<60?<TriangleAlert className="h-3 w-3"/>:null}{status?.label||nice(key)}</span>;
 }
 function PerformanceRows({ranking,teamId,perf,driverId=null}){
-  return <div className="space-y-3">
-    {PERFORMANCE_METRICS.map(([key,label])=>{
-      const value=Number(perf?.[key]||0);
-      const avg=metricAverage(ranking,teamId,perf,key,driverId);
-      const delta=value-avg;
-      const rank=metricRank(ranking,teamId,perf,key,driverId);
-      return <div key={key}>
-        <div className="grid grid-cols-[1fr_auto_auto] gap-3 text-sm items-center"><span className="text-slate-400">{label}</span><strong className="tabular-nums">{value.toFixed(1)}</strong><span className={"w-10 text-right text-xs "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span></div>
-        <div className="mt-1.5 flex items-center gap-2"><div className="flex-1"><ProgressLine value={value} warn={delta<-5}/></div><span className={"w-14 text-right text-[10px] "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span></div>
-      </div>;
-    })}
-    <div className="pt-2 border-t border-white/10 text-[10px] uppercase tracking-wide text-slate-500">Delta vs current grid average</div>
+  return <div>
+    <div className="grid grid-cols-2 gap-2">
+      {PERFORMANCE_METRICS.map(([key,label])=>{
+        const value=Number(perf?.[key]||0);
+        const avg=metricAverage(ranking,teamId,perf,key,driverId);
+        const delta=value-avg;
+        const rank=metricRank(ranking,teamId,perf,key,driverId);
+        return <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">{label}</span>
+            <strong className="tabular-nums text-sm">{value.toFixed(1)}</strong>
+            <span className={"w-8 text-right text-[10px] "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="min-w-0 flex-1"><ProgressLine value={value} warn={delta<-5}/></div>
+            <span className={"w-10 text-right text-[9px] tabular-nums "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span>
+          </div>
+        </div>;
+      })}
+    </div>
+    <div className="pt-2 text-[9px] uppercase tracking-wide text-slate-500">Delta vs current grid average</div>
   </div>;
 }
 function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performance"}){
