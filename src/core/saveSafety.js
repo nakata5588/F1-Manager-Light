@@ -1,6 +1,7 @@
 // src/core/saveSafety.js
 import { hashSeed } from "./random.js";
 import { normalizePhysicalPartState } from "../domain/partUnits.js";
+import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
 
 export const SAVE_SCHEMA_VERSION = 2;
 export const MIN_SUPPORTED_SAVE_SCHEMA_VERSION = 0;
@@ -146,7 +147,7 @@ export function migrateGameState(input) {
     migrations: Array.isArray(state?.saveMeta?.migrations) ? state.saveMeta.migrations : [],
   };
 
-  return state;
+  return synchronizeDriverRelationships(state,{source:"save_backfill_neutral"});
 }
 
 export function prepareGameStateForSave(input) {
