@@ -62,6 +62,10 @@ import {
   nextSeasonRegulationImpact,
   regulationImpactAreaSummary,
 } from "@/domain/nextSeasonRegulations.js";
+import {
+  nextSeasonKnowledgeCarryover,
+  technicalKnowledgeSnapshot,
+} from "@/domain/technicalKnowledge.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -226,6 +230,18 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
   const nextSeasonImpact=nextSeasonCar.regulation_impact||calculatedNextSeasonImpact;
   const nextSeasonImpactAreas=regulationImpactAreaSummary(nextSeasonImpact);
+  const technicalKnowledge=useMemo(
+    ()=>technicalKnowledgeSnapshot(gameState,{teamId}),
+    [gameState,teamId,activeYear]
+  );
+  const nextSeasonKnowledge=useMemo(
+    ()=>nextSeasonKnowledgeCarryover(gameState,{
+      teamId,
+      targetSeason:nextSeasonCar.targetSeason,
+      regulationImpact:nextSeasonImpact,
+    }),
+    [gameState,teamId,nextSeasonCar.targetSeason,nextSeasonImpact]
+  );
   const nextSeasonReservedEngineers=nextSeasonCar.status==="active"?Number(nextSeasonCar.engineers||0):0;
 
   const validTabs = ["projects","next_season","parts","manufacturing","research","pit_crew"];
@@ -920,6 +936,40 @@ export default function Development({ embedded = false, initialTab = "projects",
               </div>
               <div className="text-[11px] text-slate-500 mt-2">This is the regulation-only retention ceiling. Stage 7.3 will combine it with the team's actual technical knowledge, research, staff and completed design work.</div>
             </div>:null}
+          </CardContent></Card>
+
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Technical Knowledge</div>
+                  <div className="font-semibold">Current expertise → transferable expertise</div>
+                </div>
+                <InfoPopover title="Technical Knowledge & Carry-over">
+                  Technical Knowledge is persistent team know-how built from the current career state, Research and completed development projects. Regulation changes can reduce how much of that knowledge transfers to the target car; physical parts themselves are not carried over.
+                </InfoPopover>
+              </div>
+              <div className="lg:flex-1"/>
+              <div className="grid grid-cols-3 gap-2">
+                <Mini label="Current avg." value={nextSeasonKnowledge.current_average.toFixed(1)}/>
+                <Mini label="Retained avg." value={nextSeasonKnowledge.retained_average.toFixed(1)}/>
+                <Mini label="Carry-over" value={nextSeasonKnowledge.retention_percent.toFixed(1)+"%"}/>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+              {nextSeasonKnowledge.rows.map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">{row.label}</div>
+                <div className="mt-1 flex items-end gap-1.5 tabular-nums">
+                  <strong className="text-base">{row.current_level.toFixed(1)}</strong>
+                  <span className="text-slate-600">→</span>
+                  <strong className={row.regulation_retention_percent<100?"text-amber-200":"text-emerald-200"}>{row.retained_level.toFixed(1)}</strong>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500">{row.regulation_retention_percent}% regulation retention</div>
+              </div>)}
+            </div>
+            <div className="text-[11px] text-slate-500">
+              Opening calibration: staff {Number(technicalKnowledge.opening_context?.staff_quality||0).toFixed(0)}/100 · facilities {Number(technicalKnowledge.opening_context?.facility_quality||0).toFixed(0)}/100. From this point onward, the ledger evolves from the simulated career.
+            </div>
           </CardContent></Card>
 
           {nextSeasonCar.status==="not_started" ? (

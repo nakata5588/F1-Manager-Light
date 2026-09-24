@@ -10,6 +10,7 @@ import {
 } from "./partUnits.js";
 import { derivePartTechnicalProfile } from "./carPartPerformance.js";
 import { realizeDevelopmentProjection } from "./developmentProject.js";
+import { applyTechnicalKnowledgeGains, completedProjectKnowledgeGains, technicalKnowledgeSnapshot } from "./technicalKnowledge.js";
 
 const str=(value)=>String(value??"");
 
@@ -26,6 +27,8 @@ function completeDevelopmentProjects(state,today){
   const dev=state?.development||{};
   const projects=Array.isArray(dev?.projects)?dev.projects:[];
   const parts=Array.isArray(dev?.parts)?[...dev.parts]:[];
+  const knowledgeBase=dev?.technicalKnowledge||technicalKnowledgeSnapshot(state);
+  const knowledgeEvents=[];
   let changed=false;
 
   const nextProjects=projects.map((project)=>{
@@ -43,6 +46,12 @@ function completeDevelopmentProjects(state,today){
       project?.perf_delta ??
       0
     );
+
+    knowledgeEvents.push({
+      project,
+      technicalResult:realized,
+      completionDate,
+    });
 
     if(!parts.some((part)=>str(part?.id)===partId)){
       const draftPart={
@@ -76,14 +85,27 @@ function completeDevelopmentProjects(state,today){
   });
 
   if(!changed)return state;
-  return normalizePhysicalPartState({
+  let next=normalizePhysicalPartState({
     ...state,
     development:{
       ...dev,
       projects:nextProjects,
       parts,
+      technicalKnowledge:knowledgeBase,
     },
   });
+  for(const event of knowledgeEvents){
+    next=applyTechnicalKnowledgeGains(
+      next,
+      completedProjectKnowledgeGains(state,event.project,event.technicalResult),
+      {
+        dateISO:event.completionDate,
+        eventId:`project_${event.project?.id}_knowledge`,
+        source:"project",
+      }
+    );
+  }
+  return next;
 }
 
 function completeBlueprintManufacturing(state,today){

@@ -48,6 +48,7 @@ import {
   normalizedAeroAllocation,
   recordAeroTestingUsage,
 } from "../domain/developmentRegulations.js";
+import { applyTechnicalKnowledgeGains, completedProjectKnowledgeGains, technicalKnowledgeSnapshot } from "../domain/technicalKnowledge.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -206,7 +207,7 @@ function scopedState(gs,teamId,state){
     // will then resolve facilities using this AI TEAM's own historical rows.
     hq:{facilityLevels:{},upgrades:[]},
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
-    development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[]},
+    development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technicalKnowledge:null},
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
   };
@@ -597,7 +598,7 @@ function normalizeAITeamState(gs,teamId,state){
     ...state,
     initial_budget:initial,
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
-    development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
+    development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],technicalKnowledge:null},
     finance_log:Array.isArray(state?.finance_log)?state.finance_log:[],
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
@@ -629,7 +630,7 @@ export function normalizeAITechnicalWorld(gs){
         budget,
         initial_budget:budget,
         garage:{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
-        development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
+        development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],technicalKnowledge:null},
         planning:{},
         economy:{season_year:yearOf(gs),last_allocation:0,opening_budget:budget},
         season_history:[],
@@ -1375,9 +1376,11 @@ function completeDesigns(gs,teamId,state,today){
   let changed=false;
   const scoped=scopedState(gs,teamId,state);
   let parts=[...(state?.development?.parts||[])];
+  const knowledgeEvents=[];
   const projects=(state?.development?.projects||[]).map((project)=>{
     if(project?.status!=="active"||!project?.finishes_at||project.finishes_at>today)return project;
     changed=true;
+    knowledgeEvents.push(project);
     const designId=`part_${project.id}`;
     if(!parts.some((part)=>str(part?.id)===designId)){
       const draft={
@@ -1394,7 +1397,32 @@ function completeDesigns(gs,teamId,state,today){
     }
     return {...project,status:"completed",progress:1,completed_at:today};
   });
-  return {changed,state:changed?{...state,development:{...(state.development||{}),projects,parts}}:state};
+  if(!changed)return {changed:false,state};
+
+  const knowledgeBase=state?.development?.technicalKnowledge||technicalKnowledgeSnapshot(scoped,{teamId});
+  let learnedScoped={
+    ...scoped,
+    development:{...(state.development||{}),projects,parts,technicalKnowledge:knowledgeBase},
+  };
+  for(const project of knowledgeEvents){
+    learnedScoped=applyTechnicalKnowledgeGains(
+      learnedScoped,
+      completedProjectKnowledgeGains(scoped,project,project.technical_projection||null),
+      {
+        teamId,
+        dateISO:today,
+        eventId:`ai_project_${project.id}_knowledge`,
+        source:"project",
+      }
+    );
+  }
+  return {
+    changed:true,
+    state:{
+      ...state,
+      development:learnedScoped.development,
+    },
+  };
 }
 
 function queueManufacturing(gs,teamId,state,today){
