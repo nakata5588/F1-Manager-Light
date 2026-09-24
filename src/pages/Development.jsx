@@ -821,7 +821,7 @@ export default function Development({ embedded = false, initialTab = "projects",
               </InfoPopover>
             </div>
           </CardContent></Card>
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><div className="px-3 py-3 border-b border-white/10"><div className="font-semibold">Blueprint Production</div></div><table className="min-w-full text-sm">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Build</th></tr></thead>
             <tbody>{parts.map((p)=>{
               const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
@@ -856,7 +856,9 @@ export default function Development({ embedded = false, initialTab = "projects",
               </InfoPopover>
             </div>
           </CardContent></Card>
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto">
+            <div className="px-3 py-3 border-b border-white/10 flex items-center gap-2"><div className="font-semibold">Blueprint Production</div><InfoPopover title="Blueprint Production">Physical units ordered from Blueprints are manufactured here. When the batch finishes, the new units enter inventory and can be fitted to Car 1 / Car 2 or kept as spares.</InfoPopover></div>
+            <table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
             <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right"><span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-300">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</span></td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
             {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">No manufacturing batches.</td></tr>}</tbody>
