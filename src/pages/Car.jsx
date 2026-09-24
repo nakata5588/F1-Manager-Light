@@ -149,13 +149,13 @@ function PerformanceRows({ranking,teamId,perf,driverId=null}){
         return <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">{label}</span>
-            <strong className="tabular-nums text-sm">{value.toFixed(1)}</strong>
-            <span className={"w-8 text-right text-[10px] "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span>
+            <div className="flex items-baseline gap-2 whitespace-nowrap">
+              <strong className="tabular-nums text-sm text-cyan-200">{value.toFixed(1)}</strong>
+              <span className={"text-[10px] font-semibold tabular-nums "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span>
+              <span className={"w-7 text-right text-[10px] "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span>
+            </div>
           </div>
-          <div className="mt-1.5 flex items-center gap-2">
-            <div className="min-w-0 flex-1"><ProgressLine value={value} warn={delta<-5}/></div>
-            <span className={"w-10 text-right text-[9px] tabular-nums "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span>
-          </div>
+          <div className="mt-1.5"><ProgressLine value={value} warn={delta<-5}/></div>
         </div>;
       })}
     </div>
