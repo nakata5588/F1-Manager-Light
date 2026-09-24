@@ -148,7 +148,16 @@ export function approvedTechnicalRegulationChanges(gs,targetSeason){
   const governance=normalizeRegulationGovernance(gs?.regulationGovernance);
   const target=Number(targetSeason);
   return governance.approved_changes
-    .filter((change)=>Number(change?.effective_season??change?.effectiveSeason)===target)
+    .filter((change)=>{
+      if(Number(change?.effective_season??change?.effectiveSeason)!==target)return false;
+      const approvedSeason=Number(change?.approved_season??change?.vote_season??change?.approvedSeason);
+      // Career votes are guarded again at consumption time so a malformed save
+      // cannot surprise a car already being designed for next season.
+      if(Number.isInteger(approvedSeason)){
+        return regulationVoteTiming(approvedSeason,target).allowed;
+      }
+      return true;
+    })
     .map((change)=>({
       id:str(change?.id||`reg_${target}`),
       effective_season:target,
@@ -159,6 +168,36 @@ export function approvedTechnicalRegulationChanges(gs,targetSeason){
       areas:normalizeAreaList(change?.areas??change?.area),
       source:str(change?.source||"career_governance"),
     }));
+}
+
+export function approveFutureTechnicalRegulationChange(gs,change={}){
+  if(!gs||typeof gs!=="object")return gs;
+  const current=yearOf(gs);
+  const effective=Number(change?.effective_season??change?.effectiveSeason);
+  const timing=regulationVoteTiming(current,effective);
+  if(!timing.allowed)return gs;
+
+  const governance=normalizeRegulationGovernance(gs?.regulationGovernance);
+  const id=str(change?.id||`reg_vote_${current}_${effective}_${governance.approved_changes.length+1}`);
+  if(governance.approved_changes.some((row)=>str(row?.id)===id))return gs;
+
+  const approved={
+    ...change,
+    id,
+    approved_season:current,
+    effective_season:effective,
+    severity:normalizeSeverity(change?.severity),
+    areas:normalizeAreaList(change?.areas??change?.area),
+    source:str(change?.source||"career_governance"),
+    status:"approved",
+  };
+  return {
+    ...gs,
+    regulationGovernance:{
+      ...governance,
+      approved_changes:[...governance.approved_changes,approved],
+    },
+  };
 }
 
 export function technicalRegulationSnapshot(gs,season,{teamId=null}={}){
