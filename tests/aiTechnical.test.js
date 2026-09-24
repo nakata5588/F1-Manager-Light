@@ -169,6 +169,8 @@ test("completed design queues timed manufacture, creates physical units and fits
 
   assert.equal(state.development.projects[0].status,"completed");
   assert.equal(state.development.parts.length,1);
+  assert.ok(state.development.technicalKnowledge);
+  assert.ok(state.development.technicalKnowledge.history.some((row)=>row.source==="project"));
   assert.equal(state.development.manufacturing.length,1);
   assert.equal(state.development.manufacturing[0].status,"active");
   assert.ok(state.development.manufacturing[0].finishes_at>project.finishes_at);
