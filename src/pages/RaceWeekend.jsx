@@ -610,6 +610,7 @@ export default function RaceWeekend(){
       const message=String(event?.message||"");
       const control=String(event?.control_type||"");
       return type==="incident"
+        ||type==="weather_report"
         ||(type==="race_control"&&(event?.cause==="incident"||control==="RED_FLAG"))
         ||/dnf|retir|collision|crash/i.test(message);
     });
@@ -1365,8 +1366,8 @@ export default function RaceWeekend(){
                 </div>
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Thermometer className="h-3.5 w-3.5"/>Track Temp</div>
-                  <div className="mt-1 font-bold">{Number(trackState?.track_temp_c??activeWeather?.track_temp_c??raceWeatherRow?.track_temp_c??0).toFixed(0)}°C</div>
-                  <div className="text-[9px] text-slate-500">Air {Number(trackState?.air_temp_c??activeWeather?.air_temp_c??raceWeatherRow?.air_temp_c??0).toFixed(0)}°C</div>
+                  <div className="mt-1 font-bold">{Number(trackState?.track_temp_c??activeWeather?.track_temp_c??raceWeatherRow?.track_temp_c??0).toFixed(1)}°C</div>
+                  <div className="text-[9px] text-slate-500">Air {Number(trackState?.air_temp_c??activeWeather?.air_temp_c??raceWeatherRow?.air_temp_c??0).toFixed(1)}°C</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Timer className="h-3.5 w-3.5"/>Fastest Lap</div>
@@ -1394,6 +1395,8 @@ export default function RaceWeekend(){
                             ?"border-sky-500/20 bg-sky-500/[0.07]"
                             :String(event?.type||"")==="driver_feedback"
                               ?"border-cyan-400/25 bg-cyan-400/[0.08]"
+                              :String(event?.type||"")==="weather_report"||String(event?.type||"")==="weather"
+                                ?"border-sky-400/25 bg-sky-400/[0.08]"
                               :String(event?.type||"")==="position_change"
                                 ?"border-violet-400/25 bg-violet-400/[0.08]"
                                 :"border-white/5 bg-white/[0.025]"
@@ -2130,6 +2133,9 @@ export default function RaceWeekend(){
           {selectedRaceEvent?.control_type?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Race control</div><div className="mt-1 font-semibold">{String(selectedRaceEvent.control_type).replaceAll("_"," ")}</div></div>:null}
           {Number.isFinite(Number(selectedRaceEvent?.position_from))&&Number.isFinite(Number(selectedRaceEvent?.position_to))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Position</div><div className="mt-1 font-semibold">P{selectedRaceEvent.position_from} → P{selectedRaceEvent.position_to}</div></div>:null}
           {selectedRaceEvent?.weather_state?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Conditions</div><div className="mt-1 font-semibold">{weatherStateLabel(selectedRaceEvent.weather_state)}</div></div>:null}
+          {Number.isFinite(Number(selectedRaceEvent?.rain_intensity))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Rain intensity</div><div className="mt-1 font-semibold">{Math.round(Number(selectedRaceEvent.rain_intensity)*100)}%</div></div>:null}
+          {Number.isFinite(Number(selectedRaceEvent?.track_wetness))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Track wetness</div><div className="mt-1 font-semibold">{Math.round(Number(selectedRaceEvent.track_wetness)*100)}%</div></div>:null}
+          {Number.isFinite(Number(selectedRaceEvent?.track_temp_c))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Track temp</div><div className="mt-1 font-semibold">{Number(selectedRaceEvent.track_temp_c).toFixed(1)}°C</div></div>:null}
         </div>
       </div>
     </div>:null}

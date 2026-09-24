@@ -124,6 +124,73 @@ function pushUniqueEvent(events,event){
   if(key&&events.some((row)=>String(row?.event_key||"")===key))return;
   events.push(event);
 }
+function weatherBandRank(band){
+  return {NONE:0,DRIZZLE:1,LIGHT:2,MODERATE:3,HEAVY:4,EXTREME:5}[String(band||"NONE").toUpperCase()]??0;
+}
+function weatherBandLabel(band){
+  return String(band||"rain").replaceAll("_"," ").toLowerCase();
+}
+function appendWeatherReports(events,timeline,fromLap,toLap){
+  if(!Array.isArray(timeline)||!timeline.length)return;
+  const start=Math.max(1,Number(fromLap)||1);
+  const end=Math.max(start,Number(toLap)||start);
+  let lastReportLap=(events||[])
+    .filter((row)=>row?.type==="weather_report")
+    .map((row)=>Number(row?.lap)||0)
+    .sort((a,b)=>b-a)[0]||-99;
+
+  for(let lap=start;lap<=end;lap+=1){
+    const current=timeline[lap-1];
+    const previous=lap>1?timeline[lap-2]:null;
+    if(!current||!previous)continue;
+    const prevIntensity=Number(previous?.rain_intensity)||0;
+    const intensity=Number(current?.rain_intensity)||0;
+    const prevBand=String(previous?.rain_band||"NONE");
+    const band=String(current?.rain_band||"NONE");
+    const prevWet=Number(previous?.track_wetness)||0;
+    const wet=Number(current?.track_wetness)||0;
+    const prevVisibility=Number(previous?.visibility_index??100);
+    const visibility=Number(current?.visibility_index??100);
+
+    let kind=null,message=null,urgent=false;
+    if(prevIntensity<0.04&&intensity>=0.04){
+      kind="rain_started";message="Rain has started.";urgent=true;
+    }else if(prevIntensity>=0.04&&intensity<0.04){
+      kind="rain_stopped";message="The rain has stopped.";urgent=true;
+    }else if(weatherBandRank(band)>weatherBandRank(prevBand)&&intensity-prevIntensity>=0.035){
+      kind="rain_rising";message=`Rain intensity is rising — ${weatherBandLabel(band)} rain now.`;
+    }else if(weatherBandRank(band)<weatherBandRank(prevBand)&&prevIntensity-intensity>=0.035){
+      kind="rain_easing";message=`Rain is slowing down — ${weatherBandLabel(band)} rain now.`;
+    }else if(intensity>=0.18&&intensity-prevIntensity>=0.025){
+      kind="rain_rising";message=`Rain intensity is rising — ${Math.round(intensity*100)}% now.`;
+    }else if(prevIntensity>=0.18&&prevIntensity-intensity>=0.025){
+      kind="rain_easing";message=`Rain is slowing down — ${Math.round(intensity*100)}% now.`;
+    }else if(prevWet<0.65&&wet>=0.65){
+      kind="standing_water";message="Standing water is building on the circuit.";
+    }else if(prevVisibility>=70&&visibility<70){
+      kind="visibility";message="Visibility is deteriorating in the spray.";
+    }else if(prevWet>=0.20&&wet<0.20&&intensity<0.08){
+      kind="drying_track";message="The racing line is drying quickly.";
+    }
+    if(!kind)continue;
+    if(!urgent&&lap-lastReportLap<3)continue;
+    pushUniqueEvent(events,{
+      event_key:`weather_report:${kind}:${lap}`,
+      lap,
+      sector:1,
+      type:"weather_report",
+      report_kind:kind,
+      weather_state:current.state,
+      rain_intensity:Number(intensity.toFixed(2)),
+      rain_band:band,
+      track_wetness:Number(wet.toFixed(3)),
+      visibility_index:Number(visibility.toFixed(1)),
+      track_temp_c:Number(current?.track_temp_c),
+      message,
+    });
+    lastReportLap=lap;
+  }
+}
 function paceInstruction(mode){
   return {
     attack:"push",
@@ -144,6 +211,16 @@ function desiredTyreCategoryForState(weatherState){
 }
 function tyreWeatherFeedback(driverName,tyreState){
   const have=String(tyreState?.category||"dry");
+  const wetness=Number(tyreState?.track_wetness);
+  const target=String(tyreState?.crossover_target||"");
+  if(Number.isFinite(wetness)){
+    if(have==="dry"&&wetness>=0.36)return `${driverName}: "I'm really struggling for grip — it's getting too wet for slicks."`;
+    if(have==="dry"&&(target==="intermediate"||wetness>=0.20))return `${driverName}: "It's getting slippery. Intermediates are becoming an option."`;
+    if(have==="intermediate"&&wetness>=0.78)return `${driverName}: "There's too much standing water for the intermediates."`;
+    if(have==="intermediate"&&(target==="dry"||wetness<=0.14))return `${driverName}: "The track is drying — the intermediates are overheating."`;
+    if(have==="wet"&&(target==="intermediate"||wetness<=0.58))return `${driverName}: "The wets are starting to overheat; intermediates may be quicker now."`;
+    return null;
+  }
   const want=desiredTyreCategoryForState(tyreState?.weather_state);
   if(have===want)return null;
   if(have==="dry"&&want==="intermediate")return `${driverName}: "It's still too slippery for slicks."`;
@@ -682,7 +759,7 @@ export function createLiveRaceState(gs,{gp={}}={}){
       ...preliminary.gameState.raceWeekendState,
       race_strategy:{...preliminary.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
-        version:2,status:"running",current_lap:0,current_sector:0,completed_laps:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
+        version:3,status:"running",current_lap:0,current_sector:0,completed_laps:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
         classification:[],events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
         last_weather:null,current_control:"GREEN",track_state:plan.weather_timeline?.[0]||null,started_at:gs?.currentDateISO||null,
       },
@@ -887,9 +964,17 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     }
   }
 
+  appendWeatherReports(
+    events,
+    plan?.weather_timeline||[],
+    Math.max(1,currentLap||1),
+    target
+  );
   if(previousWeather&&weather!==previousWeather){
-    events.push({
+    pushUniqueEvent(events,{
+      event_key:`weather_state:${target}:${weather}`,
       lap:target,sector:targetSector,type:"weather",
+      weather_state:weather,
       message:`Conditions changed from ${previousWeather.replaceAll("_"," ").toLowerCase()} to ${weather.replaceAll("_"," ").toLowerCase()}.`,
     });
   }
@@ -1079,7 +1164,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
       ...working.raceWeekendState,
       live_race:{
         ...live,
-        version:2,
+        version:3,
         current_lap:target,
         current_sector:targetSector,
         completed_laps:completedLaps,

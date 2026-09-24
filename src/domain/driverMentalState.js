@@ -392,7 +392,9 @@ export function raceMentalStateChange(row,{
   const fallbackLoad=row?.retired?6+distanceRatio*8:16;
   const modeledFatigue=Number(row?.race_fatigue_gain);
   const fatigue=Number.isFinite(modeledFatigue)
-    ?modeledFatigue*(row?.retired?Math.max(0.38,distanceRatio):1)
+    ?row?.retired
+      ?Math.max(8,modeledFatigue*Math.max(0.38,distanceRatio))
+      :modeledFatigue
     :fallbackLoad+(wet?3:0);
 
   return {

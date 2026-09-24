@@ -295,7 +295,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const qualifyingWeather=Object.values(gs?.raceWeekendState?.weekend_weather?.sessions||{}).find((row)=>row?.kind==="qualifying")||null;
   const raceRelevance=weatherSimilarity(sessionWeather,raceWeather);
   const qualifyingRelevance=weatherSimilarity(sessionWeather,qualifyingWeather);
-  const weatherRisk=1+num(sessionWeather?.rain_intensity,0)*0.85+Math.max(0,88-num(sessionWeather?.track?.grip_index,88))*0.018;
+  const weatherRisk=1+num(sessionWeather?.rain_intensity,0)*0.85+Math.max(0,62-num(sessionWeather?.track?.grip_index,62))*0.022;
   const weatherLearning=clamp(1-num(sessionWeather?.rain_intensity,0)*0.16,0.78,1);
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const results=[];

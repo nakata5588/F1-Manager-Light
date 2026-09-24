@@ -63,6 +63,24 @@ function weatherRow(gs,state){
 export function weatherStateAtLap(weather,lap){
   return weather?.segments?.find((row)=>lap>=Number(row?.from_lap)&&lap<=Number(row?.to_lap))?.state||weather?.state||"SUNNY";
 }
+function rainIntensityAtLap(weather,lap,previousIntensity=null){
+  const state=weatherStateAtLap(weather,lap);
+  const target=rainIntensityForState(state);
+  if(Number(lap)<=1||previousIntensity===null||previousIntensity===undefined)return target;
+  const previousState=weatherStateAtLap(weather,Math.max(1,Number(lap)-1));
+  const previousTarget=rainIntensityForState(previousState);
+  const prev=clamp(num(previousIntensity,previousTarget),0,1);
+
+  // Weather labels describe the broad regime. Actual rainfall intensity moves
+  // toward that regime progressively so a shower does not jump 0% -> 46% in one lap.
+  const stateChanged=String(state)!==String(previousState);
+  const response=stateChanged
+    ?target>previousTarget?0.30:0.42
+    :target>prev?0.28:0.34;
+  const next=prev+(target-prev)*response;
+  if(target<=0.001&&next<0.015)return 0;
+  return clamp(next,0,1);
+}
 export function buildTrackWeatherTimeline(gs,weather,track){
   const out=[];
   const firstState=weatherStateAtLap(weather,1);
@@ -90,18 +108,22 @@ export function buildTrackWeatherTimeline(gs,weather,track){
     sessionProgress:0,
   });
   const laps=Math.max(1,Number(track?.laps)||1);
+  let previousIntensity=null;
   for(let lap=1;lap<=laps;lap++){
     const state=weatherStateAtLap(weather,lap);
     const beforeWetness=surface.track_wetness;
     const progress=laps<=1?1:(lap-1)/(laps-1);
+    const intensityInput=rainIntensityAtLap(weather,lap,previousIntensity);
     surface=evolveTrackSurface(surface,{
       state,
+      rainIntensity:intensityInput,
       carsOnTrack,
       trackTempC:environment.track_temp_c,
       windProfile,
       drainage,
     });
     const intensity=surface.rain_intensity;
+    previousIntensity=intensity;
     environment=evolveTrackEnvironment(environment,{
       state,
       baseAirTempC:baseAirTemp,
@@ -327,7 +349,8 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
   }
 
   return {
-    version:2,
+    version:3,
+    environment_model:"rw5.2d3",
     rules,
     incidents:incidents.sort((a,b)=>a.lap-b.lap),
     periods:mergePeriods(periods,timeline.length),

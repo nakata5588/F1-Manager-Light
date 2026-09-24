@@ -11,6 +11,7 @@ import { driverCondition } from "../domain/driverRating.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { raceControlAtLap } from "./RaceControlEngine.js";
 import { raceForecastForTeam, raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
+import { aiTyreCrossoverDecision, tyreWeatherPenaltyForWetness } from "./TyreCrossoverEngine.js";
 import {
   pitCrewEffectiveProfile as sharedPitCrewEffectiveProfile,
   pitCrewExecutionProfile,
@@ -697,9 +698,14 @@ function strategyForGridRow(gs,row,strategyState){
   if(saved)return saved;
   return defaultStrategy(gs,{driver_id:did,team_id:tid},strategyState.weather_snapshot,strategyState.track_snapshot,strategyState.rules_snapshot);
 }
-function choosePitTyre(options,current,strategy,state,reason){
-  const category=weatherCategory(state);
-  if(reason==="weather")return bestTyreForCategory(options,category,{durable:category==="dry"});
+function choosePitTyre(options,current,strategy,state,reason,targetCategory=null){
+  const category=targetCategory||weatherCategory(state);
+  // When conditions are no longer dry, every automatic stop must respect the
+  // current crossover category. This prevents planned/degradation stops from
+  // fitting slicks in heavy rain and correcting themselves one lap later.
+  if(reason==="weather"||category!=="dry"){
+    return bestTyreForCategory(options,category,{durable:category==="dry",excludeId:tyreId(current)})||current;
+  }
   const requested=tyreById(options,strategy.next_tyre_id);
   if(requested&&tyreId(requested)!==tyreId(current))return requested;
   return bestTyreForCategory(options,category,{durable:strategy.pace_mode!=="attack",excludeId:tyreId(current)})||current;
@@ -827,8 +833,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const state=stateAtLap(weather,lap);
       const trackWeather=strategyState?.race_control_plan?.weather_timeline?.[Math.max(0,lap-1)]||null;
       const wetness=Number(trackWeather?.track_wetness);
+      const wetnessDelta=Number(trackWeather?.wetness_delta)||0;
+      const rainIntensity=Number(trackWeather?.rain_intensity)||0;
       const tyreState=Number.isFinite(wetness)
-        ?wetness>=0.70?"HEAVY_RAIN":wetness>=0.22?"LIGHT_RAIN":"SUNNY"
+        ?wetness>=0.72?"HEAVY_RAIN":wetness>=0.20?"LIGHT_RAIN":"SUNNY"
         :state;
       const category=weatherCategory(tyreState);
       if(String(tyre?.category||"dry")==="dry")usedDry.add(tyreId(tyre));
@@ -836,7 +844,22 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const nextFuelTarget=fuelStopTargets[refuelCount]??null;
       const hasFuelTarget=nextFuelTarget!==null&&nextFuelTarget!==undefined&&Number.isFinite(Number(nextFuelTarget));
       const fuelStopDue=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget)&&remaining>1;
-      const mismatch=tyreWeatherPenalty(tyre,tyreState);
+      const mismatch=Number.isFinite(wetness)
+        ?tyreWeatherPenaltyForWetness(tyre?.category||"dry",wetness)
+        :tyreWeatherPenalty(tyre,tyreState);
+      const lastPitLap=pits.length?Number(pits.at(-1)?.lap):null;
+      const crossover=aiTyreCrossoverDecision({
+        driverId:did,
+        teamId:tid,
+        rating,
+        currentCategory:tyre?.category||"dry",
+        wetness:Number.isFinite(wetness)?wetness:0,
+        wetnessDelta,
+        rainIntensity,
+        lap,
+        totalLaps:track.laps,
+        lastPitLap,
+      });
       const projectedTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,Math.max(1,stintLap+1),trackWeather?.track_temp_c);
       const projectedOptimum=optimalTyreTemp(tyre);
       const projectedHotWear=projectedTemp>projectedOptimum+8?1+Math.min(0.25,(projectedTemp-projectedOptimum-8)*0.018):1;
@@ -863,13 +886,14 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const playerTyreAuthority=!isAi&&liveCommands.some((command)=>
         command?.type==="pit"&&Number(command?.effective_lap||0)<=lap
       );
+      const interactivePlayer=!isAi&&Boolean(working?.raceWeekendState?.live_race);
       let stopReason=null;
 
       if(lap>1){
         if(forcedPit&&remaining>1)stopReason="player_call";
-        else if((isAi||!playerTyreAuthority)&&mismatch>=3.5&&remaining>3)stopReason="weather";
+        else if((isAi||!interactivePlayer)&&!playerTyreAuthority&&crossover.should_pit&&remaining>2)stopReason="weather";
         else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
-        else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap)stopReason=plannedReason;
+        else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap&&!crossover.cooldown_active)stopReason=plannedReason;
         else if(isAi&&strategicStopValue&&rng.chance(0.44+intelligence*0.0045))stopReason="degradation_value";
         else if(strategy.pit_plan==="adaptive"&&condition<34&&remaining>6)stopReason="degradation";
         else if(criticalTyre||severeTyre&&projectedCritical)stopReason="tyre_safety";
@@ -886,13 +910,23 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           projected_stay_out_loss_s:stayOut.seconds,
           projected_condition:stayOut.condition_end,
           pace_mode:activePaceMode,
+          crossover_target:crossover?.target_category||null,
+          crossover_threshold:Number.isFinite(Number(crossover?.threshold))?Number(crossover.threshold):null,
+          track_wetness:Number.isFinite(wetness)?Number(wetness.toFixed(3)):null,
         });
       }
 
       if(stopReason){
         stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
-        const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,tyreState,stopReason);
+        const nextTyre=commandedTyre||choosePitTyre(
+          options,
+          tyre,
+          strategy,
+          tyreState,
+          stopReason,
+          stopReason==="weather"?crossover.target_category:null
+        );
         const refuel=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget);
         const errorChance=clamp(
           num(crew.effective_error_chance,crew.error_rate??0.05),
@@ -931,7 +965,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
 
       if(String(tyre?.category||"dry")!=="dry")hasUsedWet=true;
       stintLap+=1;
-      const tyreTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,stintLap);
+      const tyreTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,stintLap,trackWeather?.track_temp_c);
       tempSum+=tyreTemp; tempCount+=1;
       const optimum=optimalTyreTemp(tyre);
       const tempDelta=Math.abs(tyreTemp-optimum);
@@ -957,7 +991,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const controlDelta=control.type==="SAFETY_CAR"?Math.max(12,18-gridIndex*0.30):control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
       const noise=(rng.next()-0.5)*(control.type==="GREEN"?0.62:0.20);
       const lapSeconds=(track.reference_lap_ms/1000)+perfPenalty+gripDelta+wearPenalty+warmupPenalty+
-        tyreWeatherPenalty(tyre,tyreState)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+noise;
+        (Number.isFinite(wetness)
+          ?tyreWeatherPenaltyForWetness(tyre?.category||"dry",wetness)
+          :tyreWeatherPenalty(tyre,tyreState))
+        +tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+noise;
       const lapMs=Math.max(30000,Math.round(lapSeconds*1000));
       lapTimes.push(lapMs);
       totalMs+=lapMs;
@@ -980,7 +1017,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         air_temp_c:Number.isFinite(Number(trackWeather?.air_temp_c))?Number(trackWeather.air_temp_c):null,
         visibility_index:Number.isFinite(Number(trackWeather?.visibility_index))?Number(trackWeather.visibility_index):null,
         spray_index:Number.isFinite(Number(trackWeather?.spray_index))?Number(trackWeather.spray_index):null,
-        weather_penalty_s:Number(tyreWeatherPenalty(tyre,tyreState).toFixed(2)),
+        weather_penalty_s:Number((Number.isFinite(wetness)
+          ?tyreWeatherPenaltyForWetness(tyre?.category||"dry",wetness)
+          :tyreWeatherPenalty(tyre,tyreState)).toFixed(2)),
+        crossover_target:crossover?.target_category||null,
+        crossover_threshold:Number.isFinite(Number(crossover?.threshold))?Number(crossover.threshold):null,
       });
     }
 
