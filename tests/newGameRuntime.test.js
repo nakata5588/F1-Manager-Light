@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildFreshCareerState, freshCareerRuntimeState } from "../src/state/newGameRuntime.js";
+import { seasonPackStatePatch } from "../src/data/seasonPackLoader.js";
 
 test("fresh career runtime clears driver form, development and team morale state", () => {
   const conditions = { D1: { confidence: 50, morale: 50, preparation: 50, fatigue: 0 } };
@@ -144,4 +145,38 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.equal(fresh.saveMeta.seed, "new-save");
   assert.equal(fresh.careerMeta.sourceSeason, 1980);
   assert.equal(fresh.driverAttributes.D1.fatigue, 0);
+});
+
+
+test("Season Pack driver rows receive current portrait paths before New Game starts", () => {
+  const patch=seasonPackStatePatch({
+    format:"f1ml-season-pack",
+    schemaVersion:1,
+    year:1980,
+    validation:{ok:true},
+    state:{
+      drivers:[
+        {driver_id:"d_0117",display_name:"Alain Prost",portrait_path:""},
+        {driver_id:"custom",display_name:"Custom Driver",portrait_path:"/custom/driver.png"},
+      ],
+    },
+  });
+
+  assert.equal(patch.drivers[0].portrait_path,"/portraits/drivers/d_0117.webp");
+  assert.equal(patch.drivers[1].portrait_path,"/custom/driver.png");
+});
+
+test("fresh career boundary rehydrates live and DB driver portraits", () => {
+  const fresh=buildFreshCareerState({
+    activeYear:1980,
+    seasonPackMeta:{format:"f1ml-season-pack",year:1980},
+    drivers:[{driver_id:"d_0117",display_name:"Alain Prost",portrait_path:""}],
+    dbDrivers:[{driver_id:"d_0178",display_name:"Alan Jones",portrait_path:""}],
+  },{
+    activeYear:1980,
+    currentDateISO:"1980-01-01",
+  });
+
+  assert.equal(fresh.drivers[0].portrait_path,"/portraits/drivers/d_0117.webp");
+  assert.equal(fresh.dbDrivers[0].portrait_path,"/portraits/drivers/d_0178.webp");
 });

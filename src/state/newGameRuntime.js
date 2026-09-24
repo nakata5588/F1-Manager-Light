@@ -1,4 +1,5 @@
 import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
+import { hydrateDriverPortraitRows } from "../domain/driverPortraits.js";
 
 // src/state/newGameRuntime.js
 // New Game isolation boundary.
@@ -119,5 +120,11 @@ export function buildFreshCareerState(source,runtimePatch={}){
     }),
     ...runtimePatch,
   };
-  return synchronizeDriverRelationships(fresh,{source:"career_start_neutral"});
+  const activeYear=Number(fresh?.activeYear??source?.activeYear??fresh?.seasonPackMeta?.year);
+  const withPortraits={
+    ...fresh,
+    drivers:hydrateDriverPortraitRows(fresh?.drivers,activeYear),
+    dbDrivers:hydrateDriverPortraitRows(fresh?.dbDrivers,activeYear),
+  };
+  return synchronizeDriverRelationships(withPortraits,{source:"career_start_neutral"});
 }
