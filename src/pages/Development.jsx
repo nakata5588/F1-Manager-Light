@@ -814,20 +814,32 @@ export default function Development({ embedded = false, initialTab = "projects",
       )}
 
       {!showCreate && tab==="parts" && (
-        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-          <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
-          <tbody>{parts.map((p)=>{
-            const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
-            const allUnits=partUnitsForDesign(physicalState,p.id);
-            const fitted=Math.max(0,allUnits.length-warehouse.length);
-            const worn=warehouse.filter((unit)=>Number(unit?.condition??100)<99.5).sort((a,b)=>Number(a.condition||100)-Number(b.condition||100))[0]||null;
-            const restoreQuote=worn?partUnitRestoreQuote(physicalState,worn.id):null;
-            const manufactureQuote=partManufactureQuote(physicalState,p);
-            const technical=derivePartTechnicalProfile(physicalState,p);
-            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium"><div>{p.name}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{technical.delta.weight_kg.toFixed(2)} kg · DF +{technical.delta.downforce.toFixed(3)}</div></td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><div className="flex justify-end gap-1"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button>{worn&&restoreQuote?<Button size="sm" className="border border-amber-400/30 !bg-amber-500/10 !text-amber-200 hover:!bg-amber-500/20" onClick={()=>restoreUnit(p,worn)} disabled={budget<Number(restoreQuote.cost||0)}>Restore {Number(worn.condition||0).toFixed(0)}% · {restoreQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(restoreQuote.cost)}</span></Button>:null}</div></td></tr>;
-          })}
-          {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
-        </table></CardContent></Card>
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Engineering Blueprints</div>
+            <div className="font-semibold">Approved designs — not physical parts</div>
+            <div className="text-sm text-slate-400 mt-1">A completed Current Car project creates a blueprint here. The blueprint stores the technical specification forever; use <strong className="text-slate-300">Build</strong> to send physical units to Manufacturing. Fitted and warehouse units are shown only as inventory references.</div>
+          </CardContent></Card>
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Build</th></tr></thead>
+            <tbody>{parts.map((p)=>{
+              const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
+              const allUnits=partUnitsForDesign(physicalState,p.id);
+              const fitted=Math.max(0,allUnits.length-warehouse.length);
+              const manufactureQuote=partManufactureQuote(physicalState,p);
+              const technical=derivePartTechnicalProfile(physicalState,p);
+              return <tr key={p.id} className="border-t border-white/10">
+                <td className="px-3 py-2 font-medium"><div>{p.name}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td>
+                <td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td>
+                <td className="px-3 py-2">{p.version||"—"}</td>
+                <td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{p.development_focus?nice(p.development_focus):"Balanced"}</div></td>
+                <td className="px-3 py-2 text-right"><div>{allUnits.length} total{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {warehouse.length} warehouse</div></td>
+                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Build · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
+              </tr>;
+            })}
+            {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a Current Car design project to create your first blueprint.</td></tr>}</tbody>
+          </table></CardContent></Card>
+        </div>
       )}
 
       {!showCreate && tab==="manufacturing" && (
