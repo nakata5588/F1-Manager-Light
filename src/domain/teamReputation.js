@@ -7,6 +7,8 @@
 //
 // Reputation never changes car pace directly.
 
+import { teamChampionshipSummary } from "./championshipHistory.js";
+
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 const round1=(value)=>Math.round(Number(value||0)*10)/10;
 const rows=(value)=>Array.isArray(value)?value:[];
@@ -45,20 +47,21 @@ function historicalBaseline(gs,teamId){
       const series=String(unbox(row?.series_division??row?.series)??"F1").toUpperCase();
       return teamIdOf(row)===String(teamId)&&series==="F1"&&Number.isFinite(year)&&(!Number.isFinite(activeYear)||year<activeYear);
     });
-  const achievements=rows(gs?.dbAchievements).filter((row)=>teamIdOf(row)===String(teamId));
   const wins=history.reduce((sum,row)=>sum+num(row?.wins,0),0);
   const podiums=history.reduce((sum,row)=>sum+num(row?.podiums,0),0);
-  const driverTitles=achievements.filter((row)=>Number(unbox(row?.driver_championship))===1).length;
+  const titles=teamChampionshipSummary(gs,teamId);
 
   // Neutral teams start around 45–50. Sustained historical success raises the
-  // seed, but leaves room for the alternate future to reshape standing.
+  // seed, and Constructors titles now come from the same standings-derived
+  // championship history used by the Team/Standings UI.
   return round1(clamp(
     45+
-    Math.min(24,wins*0.45)+
-    Math.min(10,podiums*0.08)+
-    Math.min(15,driverTitles*3),
+    Math.min(20,wins*0.40)+
+    Math.min(8,podiums*0.06)+
+    Math.min(12,titles.driversTitles*2.5)+
+    Math.min(15,titles.constructors*3),
     30,
-    90
+    92
   ));
 }
 

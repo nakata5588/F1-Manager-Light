@@ -20,6 +20,7 @@ import {
   mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../../domain/driverCareerIdentity.js";
+import { driverConstructorChampionships } from "../../domain/championshipHistory.js";
 import {
   driverAttributeGroups,
   driverAttributeGroupScore,
@@ -690,49 +691,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   }, [careerAll,simulatedCareerRows,teamsList,gameYear,contractTeamId,contractTeam]);
 
   const driverTitles = useMemo(() => {
-    const constructorChampionByYear=new Map();
-
-    // Historical seasons before career start: derive constructors standings
-    // from result-derived driver/team season totals.
-    const historicalRows=new Map();
-    for(const row of generatedHistoryRaw||[]){
-      const year=Number(unbox(row?.year));
-      const series=String(getSeries(row)||"F1").toUpperCase();
-      if(!Number.isFinite(year)||series!=="F1")continue;
-      if(Number.isFinite(careerStartYear)&&year>=careerStartYear)continue;
-      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??row?.team_name??""));
-      if(!teamId)continue;
-      const driverKey=String(extractDriverId(row)||displayValue(row?.driver_name,""));
-      const key=`${year}|${teamId}|${driverKey}`;
-      if(historicalRows.has(key))continue;
-      historicalRows.set(key,{year,teamId,points:Number(unbox(row?.points)||0),wins:Number(unbox(row?.wins)||0)});
-    }
-    const byYear=new Map();
-    for(const row of historicalRows.values()){
-      if(!byYear.has(row.year))byYear.set(row.year,new Map());
-      const teams=byYear.get(row.year);
-      const rec=teams.get(row.teamId)||{teamId:row.teamId,points:0,wins:0};
-      rec.points+=row.points;
-      rec.wins+=row.wins;
-      teams.set(row.teamId,rec);
-    }
-    for(const [year,teams] of byYear.entries()){
-      const champion=[...teams.values()].sort((a,b)=>b.points-a.points||b.wins-a.wins||a.teamId.localeCompare(b.teamId))[0];
-      if(champion)constructorChampionByYear.set(Number(year),String(champion.teamId));
-    }
-
-    // Played seasons: archived Save World standings are authoritative.
-    for(const season of historySeasons||[]){
-      const year=Number(season?.year);
-      const champion=toArraySafe(season?.standings?.teams)
-        .slice()
-        .sort((a,b)=>Number(a?.position??999)-Number(b?.position??999))[0];
-      const teamId=String(unbox(champion?.team_id??champion?.constructor_id??champion?.id??""));
-      if(Number.isFinite(year)&&teamId)constructorChampionByYear.set(year,teamId);
-    }
-
     const titles=[];
     const seen=new Set();
+
+    // Drivers Championship: championship P1 only, with the team attached to
+    // the actual title season.
     for(const achievement of achievementsList||[]){
       if(Number(achievement?.position)!==1)continue;
       const year=Number(achievement?.year);
@@ -740,26 +703,42 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       const key=`${year}|driver`;
       if(seen.has(key))continue;
       seen.add(key);
-      titles.push({year,type:"driver",label:"Drivers Championship"});
+      titles.push({
+        year,
+        type:"driver",
+        label:"Drivers Championship",
+        team_id:String(unbox(achievement?.team_id??"")),
+        team_name:displayValue(achievement?.team_name??achievement?.team,"—"),
+      });
     }
 
-    const driverCareerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
+    // Constructors Championship: use the same standings-derived history as
+    // the Standings/Team pages.
+    const careerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
       .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
-      .filter((row)=>Number(unbox(row?.year))<Number(gameYear));
-    for(const row of driverCareerRows){
-      const year=Number(unbox(row?.year));
-      if(!Number.isFinite(year))continue;
-      const championTeam=constructorChampionByYear.get(year);
-      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
-      if(!championTeam||String(teamId)!==String(championTeam))continue;
+      .filter((row)=>Number(unbox(row?.year))<Number(gameYear))
+      .map((row)=>({
+        ...row,
+        team_id:resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??"")),
+      }));
+
+    for(const champion of driverConstructorChampionships(gs,careerRows)){
+      const year=Number(champion?.year);
+      if(!Number.isFinite(year)||year>=Number(gameYear))continue;
       const key=`${year}|constructor`;
       if(seen.has(key))continue;
       seen.add(key);
-      titles.push({year,type:"constructor",label:"Constructors Championship"});
+      titles.push({
+        year,
+        type:"constructor",
+        label:"Constructors Championship",
+        team_id:String(champion?.team_id??""),
+        team_name:displayValue(champion?.team_name,"—"),
+      });
     }
 
     return titles.sort((a,b)=>a.year-b.year||a.type.localeCompare(b.type));
-  }, [generatedHistoryRaw,careerStartYear,teamsList,historySeasons,achievementsList,careerAll,simulatedCareerRows,gameYear]);
+  }, [gs,achievementsList,careerAll,simulatedCareerRows,teamsList,gameYear]);
 
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
@@ -985,7 +964,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                 {title.type==="driver"
                   ?<Trophy size={12} className="shrink-0 text-amber-300"/>
                   :<span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-sky-300/40 bg-sky-500/10 text-[7px] font-bold text-sky-300">C</span>}
-                <span><strong className="text-slate-200">{title.year}</strong> · {title.label}</span>
+                <span className="min-w-0">
+                  <strong className="text-slate-200">{title.year}</strong> · {title.label}
+                  {title.team_name&&title.team_name!=="—"&&(
+                    <span className="text-slate-500"> · {title.team_name}</span>
+                  )}
+                </span>
               </div>
             )):<div className="text-slate-600">No F1 titles.</div>}
           </div>
@@ -1427,11 +1411,16 @@ function OverviewTab({
       :expectationAverage<=-1.5
         ?"Below expectation"
         :"On expectation";
+  const comparableDelta=(value)=>{
+    if(value===null||value===undefined||value==="")return null;
+    const number=Number(value);
+    return Number.isFinite(number)?number:null;
+  };
   const raceTeammateRows=performanceRows
-    .map((row)=>Number(row?.teammate_race_delta))
+    .map((row)=>comparableDelta(row?.teammate_race_delta))
     .filter(Number.isFinite);
   const qualiTeammateRows=performanceRows
-    .map((row)=>Number(row?.teammate_qualifying_delta))
+    .map((row)=>comparableDelta(row?.teammate_qualifying_delta))
     .filter(Number.isFinite);
   const h2h=(values)=>({
     wins:values.filter((value)=>value>0).length,
@@ -2702,57 +2691,77 @@ function FormTab({ form, items }) {
 }
 
 function PerformanceHistory({ items }) {
-  const rows=(items||[]).slice(0,8);
+  const rows=(items||[]);
   if(!rows.length){
     return <p className="text-slate-500 text-sm">No played-race performance evaluations yet.</p>;
   }
+  const deltaTone=(value)=>{
+    if(value===null||value===undefined||value==="")return "text-slate-500";
+    const n=Number(value);
+    if(!Number.isFinite(n)||Math.abs(n)<0.05)return "text-slate-500";
+    return n>0?"text-emerald-300":"text-rose-300";
+  };
+  const deltaLabel=(value,digits=1)=>{
+    if(value===null||value===undefined||value==="")return "—";
+    const n=Number(value);
+    if(!Number.isFinite(n))return "—";
+    return `${n>0?"+":""}${n.toFixed(digits)}`;
+  };
+  const resultLabel=(row)=>{
+    if(row?.retired)return row?.retirement_reason?`DNF · ${row.retirement_reason}`:"DNF";
+    return row?.finish_position!=null?`P${row.finish_position}`:"—";
+  };
   return (
-    <div className="space-y-3">
-      {rows.map((row,index)=>(
-        <div key={`${row?.year||"year"}-${row?.round||index}`} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold">{row?.gp_name||`Round ${row?.round||"—"}`}</div>
-              <div className="mt-0.5 text-[11px] text-slate-500">
-                {row?.year||"—"} · expected ~P{Number(row?.expected_finish||0).toFixed(1)} · {row?.retired?(row?.retirement_reason||"DNF"):`finished P${row?.finish_position||"—"}`}
-              </div>
-            </div>
-            <div className={`rounded-lg border px-3 py-1.5 text-lg font-semibold ${Number(row?.score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(row?.score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
-              {Number(row?.score||0).toFixed(1)}
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
-            {Number.isFinite(Number(row?.expectation_delta))&&(
-              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.expectation_delta)>0?"text-emerald-300":Number(row.expectation_delta)<0?"text-rose-300":"text-slate-400"}`}>
-                Expectation {Number(row.expectation_delta)>0?"+":""}{Number(row.expectation_delta).toFixed(1)} pos
-              </span>
-            )}
-            {Number.isFinite(Number(row?.teammate_race_delta))&&(
-              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_race_delta)>0?"text-emerald-300":Number(row.teammate_race_delta)<0?"text-rose-300":"text-slate-400"}`}>
-                Race vs teammate {Number(row.teammate_race_delta)>0?"+":""}{Number(row.teammate_race_delta).toFixed(0)}
-              </span>
-            )}
-            {Number.isFinite(Number(row?.teammate_qualifying_delta))&&(
-              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_qualifying_delta)>0?"text-emerald-300":Number(row.teammate_qualifying_delta)<0?"text-rose-300":"text-slate-400"}`}>
-                Quali vs teammate {Number(row.teammate_qualifying_delta)>0?"+":""}{Number(row.teammate_qualifying_delta).toFixed(0)}
-              </span>
-            )}
-          </div>
-          {!!row?.factors?.length&&(
-            <div className="mt-3 space-y-1">
-              {row.factors.slice(0,4).map((factor,i)=>(
-                <div key={`${factor.key||"factor"}-${i}`} className={`text-xs ${factor.tone==="positive"?"text-emerald-300":factor.tone==="negative"?"text-rose-300":"text-slate-400"}`}>
-                  {factor.value>0?"+":""}{Number(factor.value||0).toFixed(1)} · {factor.message}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+    <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#12141c]">
+      <table className="min-w-[980px] w-full text-xs">
+        <thead className="bg-[#171a23] text-[10px] uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-3 py-2 text-left">Season</th>
+            <th className="px-3 py-2 text-left">Grand Prix</th>
+            <th className="px-3 py-2 text-right">Quali</th>
+            <th className="px-3 py-2 text-right">Grid</th>
+            <th className="px-3 py-2 text-right">Result</th>
+            <th className="px-3 py-2 text-right">Expected</th>
+            <th className="px-3 py-2 text-right">Δ Exp.</th>
+            <th className="px-3 py-2 text-right">Race vs TM</th>
+            <th className="px-3 py-2 text-right">Quali vs TM</th>
+            <th className="px-3 py-2 text-right">Eval.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row,index)=>{
+            const score=Number(row?.score);
+            const factorTitle=(row?.factors||[]).map((factor)=>factor.message).filter(Boolean).join(" · ");
+            return (
+              <tr key={`${row?.year||"year"}-${row?.round||index}-${row?.gp_id||row?.gp_name||index}`} className="border-t border-white/10 hover:bg-white/[0.025]">
+                <td className="px-3 py-2 text-slate-500">{row?.year||"—"}</td>
+                <td className="px-3 py-2">
+                  <div className="font-medium text-slate-200" title={factorTitle||undefined}>{row?.gp_name||`Round ${row?.round||"—"}`}</div>
+                  {row?.round&&<div className="mt-0.5 text-[9px] text-slate-600">Round {row.round}</div>}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-300">{row?.qualifying_position!=null?`P${row.qualifying_position}`:"—"}</td>
+                <td className="px-3 py-2 text-right text-slate-300">{row?.grid_position!=null?`P${row.grid_position}`:"—"}</td>
+                <td className={`px-3 py-2 text-right font-medium ${row?.retired?"text-rose-300":Number(row?.finish_position)<=3?"text-emerald-300":"text-slate-200"}`}>
+                  {resultLabel(row)}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-400">{Number.isFinite(Number(row?.expected_finish))?`P${Number(row.expected_finish).toFixed(1)}`:"—"}</td>
+                <td className={`px-3 py-2 text-right font-medium ${deltaTone(row?.expectation_delta)}`}>{deltaLabel(row?.expectation_delta,1)}</td>
+                <td className={`px-3 py-2 text-right font-medium ${deltaTone(row?.teammate_race_delta)}`}>{deltaLabel(row?.teammate_race_delta,0)}</td>
+                <td className={`px-3 py-2 text-right font-medium ${deltaTone(row?.teammate_qualifying_delta)}`}>{deltaLabel(row?.teammate_qualifying_delta,0)}</td>
+                <td className={`px-3 py-2 text-right font-semibold ${score>=76?"text-emerald-300":score<58?"text-rose-300":"text-sky-300"}`}>
+                  {Number.isFinite(score)?score.toFixed(1):"—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="border-t border-white/10 px-3 py-2 text-[10px] text-slate-600">
+        Positive deltas mean the driver beat the car expectation or team-mate. Hover a Grand Prix for the evaluation factors.
+      </div>
     </div>
   );
 }
-
 function AchievementsTab({ items }) {
   if (!items?.length) return <p className="text-gray-500 text-sm">No championship top-three achievements yet.</p>;
   return (

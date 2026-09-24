@@ -76,7 +76,13 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
   const qualifying=rowForDriver(resultEntry?.qualifying,driverId);
   const grid=rowForDriver(resultEntry?.startingGrid,driverId);
   const teamRace=teammateRow(resultEntry?.classification,driverId,teamId);
-  const teamQual=teammateRow(resultEntry?.qualifying,driverId,teamId);
+  const raceTeammateDriverId=driverIdOf(teamRace)||null;
+  // Race Weekend qualifying classifications can omit team_id. Once the
+  // teammate is known from the race classification, match qualifying by
+  // driver identity instead of requiring team_id to be repeated there.
+  const teamQual=raceTeammateDriverId
+    ?rowForDriver(resultEntry?.qualifying,raceTeammateDriverId)
+    :teammateRow(resultEntry?.qualifying,driverId,teamId);
   const expectation=carExpectation(gs,resultEntry,teamId);
   const finish=num(race?.position);
   const gridPosition=num(grid?.grid??qualifying?.position);
@@ -85,7 +91,7 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
   const retirement=retired?retirementResponsibility(race?.retirement_reason):null;
   let teammateQualifyingDelta=null;
   let teammateRaceDelta=null;
-  let teammateDriverId=driverIdOf(teamRace||teamQual)||null;
+  let teammateDriverId=raceTeammateDriverId||driverIdOf(teamQual)||null;
 
   let score=65;
   const factors=[];
@@ -275,13 +281,73 @@ export function rollingDriverForm(entriesInput,limit=5){
   };
 }
 
+function resultEventForEntry(gs,entry){
+  const year=Number(entry?.year);
+  const round=Number(entry?.round);
+  const gpId=String(entry?.gp_id??"");
+  return rows(gs?.results).find((event)=>{
+    if(Number.isFinite(year)&&Number(event?.year)!==year)return false;
+    if(Number.isFinite(round)&&Number(event?.round)!==round)return false;
+    if(gpId&&String(event?.gp_id??"")&&String(event.gp_id)!==gpId)return false;
+    return true;
+  })||null;
+}
+
+function hydrateTeammateComparison(gs,driverId,entry){
+  if(!entry||typeof entry!=="object")return entry;
+  const needsRace=entry?.teammate_race_delta==null;
+  const needsQualifying=entry?.teammate_qualifying_delta==null;
+  const needsDriver=entry?.teammate_driver_id==null;
+  if(!needsRace&&!needsQualifying&&!needsDriver)return entry;
+
+  const event=resultEventForEntry(gs,entry);
+  if(!event)return entry;
+  const race=rowForDriver(event?.classification,driverId);
+  if(!race)return entry;
+  const teamId=teamIdOf(race)||String(entry?.team_id??"");
+  const teamRace=teammateRow(event?.classification,driverId,teamId);
+  const teammateId=String(entry?.teammate_driver_id??driverIdOf(teamRace)??"");
+  if(!teammateId)return entry;
+
+  const qualifying=rowForDriver(event?.qualifying,driverId);
+  const teamQual=rowForDriver(event?.qualifying,teammateId);
+  const next={...entry,teammate_driver_id:teammateId};
+
+  if(needsQualifying&&qualifying&&teamQual){
+    const driverPos=num(qualifying?.position);
+    const matePos=num(teamQual?.position);
+    if(Number.isFinite(driverPos)&&Number.isFinite(matePos)){
+      next.teammate_qualifying_delta=round1(clamp(matePos-driverPos,-4,4));
+    }
+  }
+
+  if(needsRace&&teamRace){
+    const driverRetired=Boolean(race?.retired)||String(race?.status||"").toUpperCase()==="DNF";
+    const driverResponsibility=driverRetired?retirementResponsibility(race?.retirement_reason):null;
+    const mateRetired=Boolean(teamRace?.retired)||String(teamRace?.status||"").toUpperCase()==="DNF";
+    const mateResponsibility=mateRetired?retirementResponsibility(teamRace?.retirement_reason):null;
+    const driverFinish=num(race?.position);
+    const mateFinish=num(teamRace?.position);
+    const comparableDriver=!driverRetired||driverResponsibility?.key!=="mechanical";
+    const comparableMate=!mateRetired||mateResponsibility?.key!=="mechanical";
+    if(comparableDriver&&comparableMate&&Number.isFinite(driverFinish)&&Number.isFinite(mateFinish)){
+      next.teammate_race_delta=round1(clamp(mateFinish-driverFinish,-5,5));
+    }
+  }
+
+  return next;
+}
+
 export function driverPerformanceEntries(gs,driverId){
   const dict=gs?.driverPerformanceLog||{};
   const direct=dict?.[String(driverId)];
-  if(Array.isArray(direct))return direct;
   const key=normId(driverId);
-  if(Array.isArray(dict?.[key]))return dict[key];
-  return [];
+  const source=Array.isArray(direct)
+    ?direct
+    :Array.isArray(dict?.[key])
+      ?dict[key]
+      :[];
+  return source.map((entry)=>hydrateTeammateComparison(gs,driverId,entry));
 }
 
 export function driverFormSnapshot(gs,driverId){
