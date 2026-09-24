@@ -147,7 +147,11 @@ function setItemQuotaSafe(key, value, { evictManualSaves = true } = {}) {
     try { localStorage.setItem(key, value); return true; } catch { return false; }
   }
 }
+function cleanupLegacyAutosaveDuplicate() {
+  try { localStorage.removeItem("f1ml.autosave"); } catch {}
+}
 function setRollingSnapshot(value) {
+  cleanupLegacyAutosaveDuplicate();
   return setItemQuotaSafe(SAVE_KEY, value, { evictManualSaves: false });
 }
 
@@ -1493,6 +1497,9 @@ export const useGame = create((set, get) => ({
       let persisted = false;
       let continueSnapshotOk = false;
       let errorMessage = null;
+      // Reclaim the obsolete duplicate Race Weekend autosave before a manual
+      // save attempts quota eviction.
+      cleanupLegacyAutosaveDuplicate();
       try {
         persisted = setItemQuotaSafe(key, JSON.stringify(payload));
         if (persisted) {
