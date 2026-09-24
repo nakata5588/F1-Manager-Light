@@ -459,7 +459,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           series_division: "F1",
           team_id,
           team_name: teamNameById.get(String(team_id ?? "")) || (y === gameYear ? contractTeam : null) || "—",
-          starts: 0, races: 0, wins: 0, podiums: 0, poles: 0, fastest_laps: 0, points: 0, champ_pos: null,
+          starts: 0, races: 0, wins: 0, podiums: 0, poles: 0, fastest_laps: 0, dnf: 0, points: 0, champ_pos: null,
           first_round: null, last_round: null,
         });
       }
@@ -473,9 +473,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
         rec.starts += 1;
         rec.races += 1;
         const pos = Number(raceRow.position ?? raceRow.pos);
-        if (!raceRow.retired && pos === 1) rec.wins += 1;
-        if (!raceRow.retired && pos >= 1 && pos <= 3) rec.podiums += 1;
+        const retired=Boolean(raceRow.retired)||String(raceRow.status||"").toUpperCase()==="DNF";
+        if (!retired && pos === 1) rec.wins += 1;
+        if (!retired && pos >= 1 && pos <= 3) rec.podiums += 1;
         if (raceRow.fastest_lap) rec.fastest_laps += 1;
+        if (retired) rec.dnf += 1;
         rec.points += Number(raceRow.points || 0);
       }
       if (qRow && Number(qRow.position ?? qRow.pos) === 1) rec.poles += 1;
@@ -509,6 +511,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       podiums: sum("podiums"),
       poles: sum("poles"),
       fastest_laps: sum("fastest_laps"),
+      dnf: sum("dnf"),
       points: sum("points"),
     };
   }, [liveSeasonRows]);
@@ -1292,7 +1295,7 @@ function OverviewTab({
           />
         </div>
 
-        {canSeeCondition ? (
+        {canSeeCondition&&(
           <>
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-3">
@@ -1307,10 +1310,6 @@ function OverviewTab({
 
             <ConditionExplanationPanel snapshot={snapshot} condition={condition}/>
           </>
-        ) : (
-          <div className="mt-5 rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-400">
-            Day-to-day condition is private team data. Public/scouting knowledge does not reveal current confidence, morale, preparation or fatigue.
-          </div>
         )}
       </div>
 
@@ -1351,14 +1350,45 @@ function OverviewTab({
       )}
 
       <div className="xl:col-span-12 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge & Decision Support</div>
-        <p className="mt-2 text-sm text-slate-300">{knowledge?.label||"Unscouted"}</p>
-        <p className="mt-1 text-xs text-slate-400">
-          Exact driver ratings are only available through your own team, Academy support or a completed specific scouting report. Regional scouting and public F1 knowledge use ranges instead of database-perfect numbers.
-        </p>
-        <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-400">
-          Overall ability stays separate from current performance. Hidden day-to-day condition never changes the permanent Overall shown by the rating model.
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last 10 Grands Prix</div>
+            <div className="mt-1 text-xs text-slate-400">Recent played-race results and performance evaluation.</div>
+          </div>
+          {!!snapshot?.performanceHistory?.length&&(
+            <div className="text-[10px] uppercase tracking-wide text-slate-500">{Math.min(10,snapshot.performanceHistory.length)} shown</div>
+          )}
         </div>
+        {snapshot?.performanceHistory?.length?(
+          <div className="mt-3 overflow-x-auto">
+            <div className="min-w-[620px]">
+              <div className="grid grid-cols-[minmax(180px,1fr)_58px_58px_100px_70px] gap-2 border-b border-white/10 pb-1.5 text-[9px] uppercase tracking-wide text-slate-500">
+                <span>Grand Prix</span><span className="text-right">Quali</span><span className="text-right">Grid</span><span className="text-right">Result</span><span className="text-right">Eval.</span>
+              </div>
+              {snapshot.performanceHistory.slice(0,10).map((race,index)=>{
+                const retired=Boolean(race?.retired);
+                const score=Number(race?.score);
+                const resultLabel=retired
+                  ?`DNF · ${race?.retirement_reason||"Retired"}`
+                  :race?.finish_position!=null?`P${race.finish_position}`:"—";
+                return (
+                  <div key={`${race?.year||"year"}-${race?.round||index}-${race?.gp_id||race?.gp_name||index}`} className="grid grid-cols-[minmax(180px,1fr)_58px_58px_100px_70px] gap-2 border-b border-white/5 py-2 text-xs last:border-b-0">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-slate-200">{race?.gp_name||`Round ${race?.round||"—"}`}</div>
+                      <div className="mt-0.5 text-[9px] text-slate-600">{race?.year||""}{race?.round?` · R${race.round}`:""}</div>
+                    </div>
+                    <div className="text-right text-slate-300">{race?.qualifying_position!=null?`P${race.qualifying_position}`:"—"}</div>
+                    <div className="text-right text-slate-300">{race?.grid_position!=null?`P${race.grid_position}`:"—"}</div>
+                    <div className={`truncate text-right font-medium ${retired?"text-rose-300":Number(race?.finish_position)<=3?"text-emerald-300":"text-slate-200"}`} title={resultLabel}>{resultLabel}</div>
+                    <div className={`text-right font-semibold ${score>=76?"text-emerald-300":score<58?"text-rose-300":"text-slate-300"}`}>{Number.isFinite(score)?score.toFixed(1):"—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ):(
+          <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-500">No played Grand Prix results yet in this save.</div>
+        )}
       </div>
     </div>
   );
