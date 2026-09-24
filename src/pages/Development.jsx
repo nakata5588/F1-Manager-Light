@@ -733,19 +733,19 @@ export default function Development({ embedded = false, initialTab = "projects",
         </CardContent></Card>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {!showCreate && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Active Projects" value={projects.filter((p)=>p.status==="active").length}/>
         <Stat label="Completed Projects" value={projects.filter((p)=>p.status==="completed").length}/>
-        <Stat label="Designed Parts" value={parts.length}/>
+        <Stat label="Blueprints" value={parts.length}/>
         <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length + workshop.length}/>
-      </div>
+      </div>}
 
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+      {!showCreate && <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="flex flex-wrap gap-2">
           {[
             ["projects","Current Car"],
             ["manufacturing","Manufacturing"],
-            ["parts","Design Library"],
+            ["parts","Blueprints"],
             ["research","Research / Technology"],
             ["pit_crew","Pit Crew"],
           ].map(([key,label])=><Button key={key} size="sm" variant={tab===key?"default":"outline"} onClick={()=>changeTab(key)}>{label}</Button>)}
@@ -760,9 +760,9 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
         <Button size="sm" variant="outline" disabled>Next Season Car · Stage 7</Button>
         {embedded && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
-      </div>
+      </div>}
 
-      {tab==="projects" && (
+      {!showCreate && tab==="projects" && (
         <div className="grid grid-cols-1 gap-2">
           {projects.map((p)=>{
             const progress = projectProgress(p,currentDateISO);
@@ -808,7 +808,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
       )}
 
-      {tab==="parts" && (
+      {!showCreate && tab==="parts" && (
         <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
           <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
           <tbody>{parts.map((p)=>{
@@ -825,7 +825,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         </table></CardContent></Card>
       )}
 
-      {tab==="manufacturing" && (
+      {!showCreate && tab==="manufacturing" && (
         <div className="space-y-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
@@ -842,7 +842,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
       )}
 
-      {tab==="research" && (
+      {!showCreate && tab==="research" && (
         <div className="space-y-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
             <div><div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div><div className="text-lg font-semibold">Paddock technology opportunities</div><div className="text-sm text-slate-400 mt-1">A rival using a technology can make it researchable, but adoption only unlocks the technical area. You still need to design and manufacture a competitive physical part afterwards.</div></div>
@@ -866,7 +866,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
       )}
 
-      {tab==="pit_crew" && (
+      {!showCreate && tab==="pit_crew" && (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
             <div>
