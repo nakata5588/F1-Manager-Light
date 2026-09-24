@@ -8,6 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import Track2DView from "../components/race/Track2DView.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const STEPS=[
@@ -1466,6 +1467,22 @@ export default function RaceWeekend(){
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
               </div>
               </div>
+            </div>
+
+            <div className="border-b border-white/10 bg-[#0b1017] p-2 md:p-3">
+              <Track2DView
+                trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
+                year={weekend?.year||gs?.activeYear}
+                rows={liveRows}
+                drivers={drivers}
+                teams={teams}
+                teamBrands={gs?.teamBrands||gs?.team_brands||[]}
+                playerTeamId={playerTeamId}
+                currentLap={liveRace?.current_lap||0}
+                currentSector={liveRace?.current_sector||0}
+                totalLaps={liveRace?.total_laps||raceStrategy?.track_snapshot?.laps||0}
+                currentControl={liveRace?.current_control||"GREEN"}
+              />
             </div>
 
             <div className="border-b border-white/10 bg-[#0c1118] px-4 py-2">
