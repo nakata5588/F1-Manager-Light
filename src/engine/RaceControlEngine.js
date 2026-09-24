@@ -270,7 +270,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
   const incidents=[];
   const periods=[];
 
-  for(const row of race||[]){
+  for(const [raceIndex,row] of (race||[]).entries()){
     const roll=rng.next();
     const mech=mechanicalRetirementChance(gs,row);
     const accident=accidentRetirementChance(gs,row);
@@ -293,8 +293,18 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     const reliability=kind==="mechanical"
       ?carReliabilityProfile(gs,teamIdForDriver(gs,driverId),driverId)
       :null;
+    let otherDriverId=null;
+    if(kind==="collision"){
+      const neighbourIndexes=[raceIndex-1,raceIndex+1].filter((index)=>index>=0&&index<(race||[]).length);
+      if(neighbourIndexes.length){
+        const pickIndex=neighbourIndexes.length===1?neighbourIndexes[0]:neighbourIndexes[Math.floor(rng.next()*neighbourIndexes.length)];
+        otherDriverId=idOf((race||[])[pickIndex]?.driver||(race||[])[pickIndex])||null;
+        if(otherDriverId===driverId)otherDriverId=null;
+      }
+    }
     const incident={
       driver_id:driverId,
+      other_driver_id:otherDriverId,
       lap,
       sector,
       kind,
