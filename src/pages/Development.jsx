@@ -10,6 +10,15 @@ import { availableCarComponentSlots, componentLabel } from "@/domain/carComponen
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
+import {
+  bestDevelopedPartForSlot,
+  buildDevelopmentProjection,
+  developmentObjectivesForSlot,
+  developmentStrengthTarget,
+  objectiveProjectModifiers,
+  realizeDevelopmentProjection,
+  technicalDevelopmentCapacity,
+} from "@/domain/developmentProject.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
 import {
   discoverableCarTechnologies,
@@ -165,7 +174,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
-    name:"", type:"chassis", engineers:3, duration:21, cfd:20, windTunnel:10,
+    name:"", type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:20, windTunnel:10,
   });
 
   useEffect(() => {
@@ -185,9 +194,14 @@ export default function Development({ embedded = false, initialTab = "projects",
 
   useEffect(() => {
     if (!eraTypes.includes(draft.type) && eraTypes.length) {
-      setDraft((d) => ({...d, type:eraTypes[0]}));
+      setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced"}));
+      return;
     }
-  }, [eraTypes, draft.type]);
+    const allowed=developmentObjectivesForSlot(gameState,draft.type);
+    if(!allowed.some((objective)=>objective.id===draft.objective)){
+      setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced"}));
+    }
+  }, [eraTypes, draft.type, draft.objective, gameState]);
 
   // Complete projects/manufacturing when the in-game date reaches their ETA.
   useEffect(() => {
