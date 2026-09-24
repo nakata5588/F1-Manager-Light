@@ -69,8 +69,8 @@ export function sprayIndexForConditions({
   const traffic=clamp(num(carsOnTrack,20)/20,0,1.6);
   if(wet<0.015&&intensity<0.02)return 0;
   const raw=wet*(0.30+0.62*traffic)*(0.72+intensity*0.45);
-  // Wind disperses the spray cloud slightly faster.
-  return clamp(raw/(0.96+0.12*(windFactor(windProfile)-1)),0,1);
+  // Wind disperses the spray cloud slightly faster; calm air lets it linger.
+  return clamp(raw/windFactor(windProfile),0,1);
 }
 
 export function visibilityIndexForConditions({
