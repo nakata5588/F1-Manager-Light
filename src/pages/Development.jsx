@@ -723,7 +723,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       )}
 
       {!showCreate && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Active Projects" value={projects.filter((p)=>p.status==="active").length}/>
+        <Stat label="Project Slots" value={capacity.active_projects+"/"+capacity.max_projects}/>
         <Stat label="Completed Projects" value={projects.filter((p)=>p.status==="completed").length}/>
         <Stat label="Blueprints" value={parts.length}/>
         <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length + workshop.length}/>
@@ -822,7 +822,7 @@ export default function Development({ embedded = false, initialTab = "projects",
             </div>
           </CardContent></Card>
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Build</th></tr></thead>
+            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Manufacture</th></tr></thead>
             <tbody>{parts.map((p)=>{
               const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
               const allUnits=partUnitsForDesign(physicalState,p.id);
@@ -835,7 +835,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <td className="px-3 py-2">{p.version||"—"}</td>
                 <td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{p.development_focus?nice(p.development_focus):"Balanced"}</div></td>
                 <td className="px-3 py-2 text-right"><div>{allUnits.length} total{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {warehouse.length} warehouse</div></td>
-                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Build · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
+                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
               </tr>;
             })}
             {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a Current Car design project to create your first blueprint.</td></tr>}</tbody>
