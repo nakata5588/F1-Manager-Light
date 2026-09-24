@@ -11,6 +11,7 @@ import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateF
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
+import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
 import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
 import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
@@ -627,6 +628,7 @@ export const useGame = create((set, get) => ({
       updated = refreshDriverAvailability(updated, updated.currentDateISO);
       updated = processWorkshopJobs(updated);
       updated = processPlayerTechnicalLifecycle(updated);
+      updated = advanceNextSeasonCarDay(updated);
       updated = processTechnologyAdoption(updated);
       updated = tickAITechnicalWorld(updated);
       updated = processTechnologyDiscoveryNews(updated);
@@ -1824,6 +1826,7 @@ export const useGame = create((set, get) => ({
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
       updated=processWorkshopJobs(updated);
       updated=processPlayerTechnicalLifecycle(updated);
+      updated=advanceNextSeasonCarDay(updated);
       updated=processTechnologyAdoption(updated);
       updated=tickAITechnicalWorld(updated);
       updated=processTechnologyDiscoveryNews(updated);
