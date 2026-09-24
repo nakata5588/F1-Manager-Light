@@ -28,7 +28,6 @@ import {
   developmentRegulationProfile,
   normalizedAeroAllocation,
   recordAeroTestingUsage,
-  usesAerodynamicTesting,
 } from "@/domain/developmentRegulations.js";
 import {
   discoverableCarTechnologies,
