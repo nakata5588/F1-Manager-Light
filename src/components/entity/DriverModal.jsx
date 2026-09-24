@@ -20,6 +20,7 @@ import {
   mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../../domain/driverCareerIdentity.js";
+import { constructorChampionshipHistory } from "../../domain/championshipHistory.js";
 import {
   driverAttributeGroups,
   driverAttributeGroupScore,
@@ -690,49 +691,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   }, [careerAll,simulatedCareerRows,teamsList,gameYear,contractTeamId,contractTeam]);
 
   const driverTitles = useMemo(() => {
-    const constructorChampionByYear=new Map();
-
-    // Historical seasons before career start: derive constructors standings
-    // from result-derived driver/team season totals.
-    const historicalRows=new Map();
-    for(const row of generatedHistoryRaw||[]){
-      const year=Number(unbox(row?.year));
-      const series=String(getSeries(row)||"F1").toUpperCase();
-      if(!Number.isFinite(year)||series!=="F1")continue;
-      if(Number.isFinite(careerStartYear)&&year>=careerStartYear)continue;
-      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??row?.team_name??""));
-      if(!teamId)continue;
-      const driverKey=String(extractDriverId(row)||displayValue(row?.driver_name,""));
-      const key=`${year}|${teamId}|${driverKey}`;
-      if(historicalRows.has(key))continue;
-      historicalRows.set(key,{year,teamId,points:Number(unbox(row?.points)||0),wins:Number(unbox(row?.wins)||0)});
-    }
-    const byYear=new Map();
-    for(const row of historicalRows.values()){
-      if(!byYear.has(row.year))byYear.set(row.year,new Map());
-      const teams=byYear.get(row.year);
-      const rec=teams.get(row.teamId)||{teamId:row.teamId,points:0,wins:0};
-      rec.points+=row.points;
-      rec.wins+=row.wins;
-      teams.set(row.teamId,rec);
-    }
-    for(const [year,teams] of byYear.entries()){
-      const champion=[...teams.values()].sort((a,b)=>b.points-a.points||b.wins-a.wins||a.teamId.localeCompare(b.teamId))[0];
-      if(champion)constructorChampionByYear.set(Number(year),String(champion.teamId));
-    }
-
-    // Played seasons: archived Save World standings are authoritative.
-    for(const season of historySeasons||[]){
-      const year=Number(season?.year);
-      const champion=toArraySafe(season?.standings?.teams)
-        .slice()
-        .sort((a,b)=>Number(a?.position??999)-Number(b?.position??999))[0];
-      const teamId=String(unbox(champion?.team_id??champion?.constructor_id??champion?.id??""));
-      if(Number.isFinite(year)&&teamId)constructorChampionByYear.set(year,teamId);
-    }
-
     const titles=[];
     const seen=new Set();
+
+    // Drivers Championship: championship P1 only, with the team attached to
+    // the actual title season.
     for(const achievement of achievementsList||[]){
       if(Number(achievement?.position)!==1)continue;
       const year=Number(achievement?.year);
@@ -740,26 +703,49 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       const key=`${year}|driver`;
       if(seen.has(key))continue;
       seen.add(key);
-      titles.push({year,type:"driver",label:"Drivers Championship"});
+      titles.push({
+        year,
+        type:"driver",
+        label:"Drivers Championship",
+        team_id:String(unbox(achievement?.team_id??"")),
+        team_name:displayValue(achievement?.team_name??achievement?.team,"—"),
+      });
     }
 
-    const driverCareerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
+    // Constructors Championship: use the same standings-derived history as
+    // the Standings/Team pages, then keep only seasons where this driver raced
+    // for the champion constructor.
+    const careerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
       .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
       .filter((row)=>Number(unbox(row?.year))<Number(gameYear));
-    for(const row of driverCareerRows){
+    const teamsBySeason=new Map();
+    for(const row of careerRows){
       const year=Number(unbox(row?.year));
       if(!Number.isFinite(year))continue;
-      const championTeam=constructorChampionByYear.get(year);
       const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
-      if(!championTeam||String(teamId)!==String(championTeam))continue;
+      if(!teamId)continue;
+      if(!teamsBySeason.has(year))teamsBySeason.set(year,new Set());
+      teamsBySeason.get(year).add(String(teamId));
+    }
+
+    for(const champion of constructorChampionshipHistory(gs)){
+      const year=Number(champion?.year);
+      if(!Number.isFinite(year)||year>=Number(gameYear))continue;
+      if(!teamsBySeason.get(year)?.has(String(champion?.team_id)))continue;
       const key=`${year}|constructor`;
       if(seen.has(key))continue;
       seen.add(key);
-      titles.push({year,type:"constructor",label:"Constructors Championship"});
+      titles.push({
+        year,
+        type:"constructor",
+        label:"Constructors Championship",
+        team_id:String(champion?.team_id??""),
+        team_name:displayValue(champion?.team_name,"—"),
+      });
     }
 
     return titles.sort((a,b)=>a.year-b.year||a.type.localeCompare(b.type));
-  }, [generatedHistoryRaw,careerStartYear,teamsList,historySeasons,achievementsList,careerAll,simulatedCareerRows,gameYear]);
+  }, [gs,achievementsList,careerAll,simulatedCareerRows,teamsList,gameYear]);
 
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
@@ -985,7 +971,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                 {title.type==="driver"
                   ?<Trophy size={12} className="shrink-0 text-amber-300"/>
                   :<span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-sky-300/40 bg-sky-500/10 text-[7px] font-bold text-sky-300">C</span>}
-                <span><strong className="text-slate-200">{title.year}</strong> · {title.label}</span>
+                <span className="min-w-0">
+                  <strong className="text-slate-200">{title.year}</strong> · {title.label}
+                  {title.team_name&&title.team_name!=="—"&&(
+                    <span className="text-slate-500"> · {title.team_name}</span>
+                  )}
+                </span>
               </div>
             )):<div className="text-slate-600">No F1 titles.</div>}
           </div>
