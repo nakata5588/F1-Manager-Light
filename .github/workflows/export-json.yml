@@ -77,6 +77,9 @@ jobs:
       - name: Test Development regulations
         run: npm run test:development-regulations
 
+      - name: Test Technical Department
+        run: npm run test:technical-department
+
       - name: Test AI technical lifecycle
         run: npm run test:ai-technical
 

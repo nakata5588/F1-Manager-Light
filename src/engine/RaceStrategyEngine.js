@@ -11,6 +11,10 @@ import { driverCondition } from "../domain/driverRating.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { raceControlAtLap } from "./RaceControlEngine.js";
 import { raceForecastForTeam, raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
+import {
+  pitCrewEffectiveProfile as sharedPitCrewEffectiveProfile,
+  pitCrewExecutionProfile,
+} from "../domain/pitCrewTraining.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -205,6 +209,7 @@ function seedPitCrew(gs,tid){
       consistency:clamp(num(historical.consistency,70)),
       error_rate:clamp(num(historical.error_rate,0.05),0,0.35),
       training_load:clamp(num(historical.training_load,50),0,100),
+      fatigue:0,
       source:"career_seed",
     };
   }
@@ -214,6 +219,7 @@ function seedPitCrew(gs,tid){
     consistency:Math.round(clamp(48+level*5,40,95)),
     error_rate:Number(clamp(0.12-level*0.012,0.015,0.12).toFixed(3)),
     training_load:50,
+    fatigue:0,
     source:"facility_seed",
   };
 }
@@ -675,23 +681,10 @@ function optimalTyreTemp(tyre){
   return category==="wet"?68:category==="intermediate"?78:96;
 }
 export function pitCrewEffectiveProfile(crew={}){
-  const load=clamp(num(crew?.training_load,50),0,100);
-  const over=Math.max(0,load-60);
-  return {
-    ...crew,
-    training_load:load,
-    avg_time_s:Number(clamp(num(crew?.avg_time_s,6.8)+over*0.005,2,18).toFixed(2)),
-    consistency:Number(clamp(num(crew?.consistency,70)-over*0.15,35,100).toFixed(1)),
-    error_rate:Number(clamp(num(crew?.error_rate,0.05)+over*0.0004,0.005,0.35).toFixed(3)),
-    training_penalty:over>0?{
-      avg_time_s:Number((over*0.005).toFixed(2)),
-      consistency:Number((over*0.15).toFixed(1)),
-      error_rate:Number((over*0.0004).toFixed(3)),
-    }:null,
-  };
+  return sharedPitCrewEffectiveProfile(crew);
 }
 function pitCrew(gs,tid){
-  return pitCrewEffectiveProfile(gs?.raceStrategyWorld?.pitCrews?.[String(tid)]||seedPitCrew(gs,tid));
+  return pitCrewExecutionProfile(gs?.raceStrategyWorld?.pitCrews?.[String(tid)]||seedPitCrew(gs,tid));
 }
 function strategyForGridRow(gs,row,strategyState){
   const did=idOf(row?.driver||row);
@@ -894,10 +887,18 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
         const nextTyre=commandedTyre||choosePitTyre(options,tyre,strategy,tyreState,stopReason);
         const refuel=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget);
-        const error=rng.chance(clamp(num(crew.error_rate,0.05),0,0.35));
+        const errorChance=clamp(
+          num(crew.effective_error_chance,crew.error_rate??0.05),
+          0.005,
+          0.35
+        );
+        const error=rng.chance(errorChance);
         const errorDelay=error?3+rng.next()*8:0;
         const fuelDelay=refuel?(Number(working?.activeYear)<=1983?9:6):0;
-        const stationary=Math.max(num(crew.avg_time_s,6.8),fuelDelay)+errorDelay;
+        const executionVariance=num(crew.execution_variance_s,0.5);
+        const serviceVariation=(rng.next()+rng.next()-1)*executionVariance;
+        const serviceTime=Math.max(2,num(crew.avg_time_s,6.8)+serviceVariation);
+        const stationary=Math.max(serviceTime,fuelDelay)+errorDelay;
         const pitLaneMultiplier=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
         const loss=track.pit_lane_loss_s*pitLaneMultiplier+stationary;
         totalMs+=Math.round(loss*1000);
