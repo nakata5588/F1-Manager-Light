@@ -66,6 +66,7 @@ export function applyDriverRelationshipChange(gs,{
   source="relationship_event",
   reason="Relationship changed",
   meta=null,
+  patch={},
   active=true,
 }={}){
   if(!gs||typeof gs!=="object")return gs;
@@ -81,8 +82,10 @@ export function applyDriverRelationshipChange(gs,{
     :{};
   const key=relationshipEventKey(did,type,tid);
   const before=relations[key]||baseRecord({driverId:did,targetType:type,targetId:tid,teamId,dateISO,active});
+  const safePatch=patch&&typeof patch==="object"&&!Array.isArray(patch)?patch:{};
   const next={
     ...before,
+    ...safePatch,
     team_id:teamId?text(teamId):before?.team_id??null,
     active:active===undefined?before?.active!==false:Boolean(active),
     source,
@@ -100,7 +103,9 @@ export function applyDriverRelationshipChange(gs,{
     changes.push({field,delta:Number((after-prior).toFixed(2)),before:prior,after:Number(after.toFixed(2))});
   }
 
-  if(!changes.length&&relations[key])return gs;
+  const patchChanged=Object.keys(safePatch).some((field)=>before?.[field]!==safePatch[field]);
+  const activeChanged=Boolean(before?.active)!==Boolean(next?.active);
+  if(!changes.length&&!patchChanged&&!activeChanged&&relations[key])return gs;
   next.score=scoreOf(next);
   next.status=relationshipStatus(next.score);
   next.rivalry_status=relationshipRivalryBand(next.rivalry);
