@@ -22,7 +22,7 @@ const text=(value)=>String(value??"").trim();
 
 export const MANAGER_ATTRIBUTES=Object.freeze([
   Object.freeze({key:"leadership",label:"Leadership",shortLabel:"Leadership",description:"Board trust, team response and leadership under pressure."}),
-  Object.freeze({key:"personnel",label:"People Management",shortLabel:"People",description:"Staff/driver relationships and how strongly the team reacts to results."}),
+  Object.freeze({key:"personnel",label:"People Management",shortLabel:"People",description:"Driver relationships and how strongly the team reacts to results."}),
   Object.freeze({key:"negotiation",label:"Negotiation",shortLabel:"Negotiation",description:"Personal terms and contract negotiation outcomes."}),
   Object.freeze({key:"technical",label:"Technical Understanding",shortLabel:"Technical",description:"Project coordination, lead time and development risk. It never replaces specialist staff."}),
   Object.freeze({key:"commercial",label:"Commercial",shortLabel:"Commercial",description:"Sponsor negotiation outcomes and future commercial-management hooks."}),
