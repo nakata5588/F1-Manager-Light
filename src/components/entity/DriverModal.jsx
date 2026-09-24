@@ -1403,6 +1403,44 @@ function OverviewTab({
     snapshot?.reputation,
     {kind:"attribute"}
   );
+  const performanceRows=snapshot?.performanceHistory||[];
+  const expectationDeltaOf=(row)=>{
+    if(row?.retired)return null;
+    const explicit=Number(row?.expectation_delta);
+    if(Number.isFinite(explicit))return explicit;
+    const expected=Number(row?.expected_finish);
+    const finish=Number(row?.finish_position);
+    return Number.isFinite(expected)&&Number.isFinite(finish)?expected-finish:null;
+  };
+  const expectationRows=performanceRows
+    .map((row)=>({...row,__expectationDelta:expectationDeltaOf(row)}))
+    .filter((row)=>Number.isFinite(row.__expectationDelta));
+  const latestExpectation=expectationRows[0]||null;
+  const expectationWindow=expectationRows.slice(0,5);
+  const expectationAverage=expectationWindow.length
+    ?expectationWindow.reduce((sum,row)=>sum+row.__expectationDelta,0)/expectationWindow.length
+    :null;
+  const expectationTrend=expectationAverage==null
+    ?"No data"
+    :expectationAverage>=1.5
+      ?"Above expectation"
+      :expectationAverage<=-1.5
+        ?"Below expectation"
+        :"On expectation";
+  const raceTeammateRows=performanceRows
+    .map((row)=>Number(row?.teammate_race_delta))
+    .filter(Number.isFinite);
+  const qualiTeammateRows=performanceRows
+    .map((row)=>Number(row?.teammate_qualifying_delta))
+    .filter(Number.isFinite);
+  const h2h=(values)=>({
+    wins:values.filter((value)=>value>0).length,
+    losses:values.filter((value)=>value<0).length,
+    ties:values.filter((value)=>value===0).length,
+    avg:values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null,
+  });
+  const raceH2H=h2h(raceTeammateRows);
+  const qualiH2H=h2h(qualiTeammateRows);
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -1475,6 +1513,62 @@ function OverviewTab({
           <ProfileMetric label="DNF" value={season.dnfs??0} tone={season.dnfs?"text-rose-300":""}/>
           <ProfileMetric label="Best finish" value={season.bestFinish?`P${season.bestFinish}`:"—"}/>
         </div>
+      </div>
+
+      <div className="xl:col-span-6 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Performance vs Expectation</div>
+        {latestExpectation?(
+          <>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <ProfileMetric
+                label="Latest"
+                value={`${latestExpectation.__expectationDelta>=0?"+":""}${latestExpectation.__expectationDelta.toFixed(1)} pos`}
+                tone={latestExpectation.__expectationDelta>0?"text-emerald-300":latestExpectation.__expectationDelta<0?"text-rose-300":"text-slate-300"}
+              />
+              <ProfileMetric
+                label="Last 5 Avg"
+                value={expectationAverage!=null?`${expectationAverage>=0?"+":""}${expectationAverage.toFixed(1)} pos`:"—"}
+                tone={expectationAverage>0?"text-emerald-300":expectationAverage<0?"text-rose-300":"text-slate-300"}
+              />
+              <ProfileMetric
+                label="Trend"
+                value={expectationTrend}
+                tone={expectationAverage>=1.5?"text-emerald-300":expectationAverage<=-1.5?"text-rose-300":"text-sky-300"}
+              />
+            </div>
+            <div className="mt-2 text-[11px] text-slate-500">
+              {latestExpectation.gp_name||`Round ${latestExpectation.round||"—"}`} · expected ~P{Number(latestExpectation.expected_finish||0).toFixed(1)} · finished P{latestExpectation.finish_position||"—"}.
+            </div>
+          </>
+        ):(
+          <div className="mt-3 text-sm text-slate-500">No completed race with a valid car expectation yet.</div>
+        )}
+      </div>
+
+      <div className="xl:col-span-6 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teammate Comparison</div>
+        {raceTeammateRows.length||qualiTeammateRows.length?(
+          <>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <ProfileMetric
+                label="Race H2H"
+                value={raceTeammateRows.length?`${raceH2H.wins}–${raceH2H.losses}${raceH2H.ties?`–${raceH2H.ties}`:""}`:"—"}
+                tone={raceH2H.wins>raceH2H.losses?"text-emerald-300":raceH2H.wins<raceH2H.losses?"text-rose-300":"text-slate-300"}
+              />
+              <ProfileMetric
+                label="Qualifying H2H"
+                value={qualiTeammateRows.length?`${qualiH2H.wins}–${qualiH2H.losses}${qualiH2H.ties?`–${qualiH2H.ties}`:""}`:"—"}
+                tone={qualiH2H.wins>qualiH2H.losses?"text-emerald-300":qualiH2H.wins<qualiH2H.losses?"text-rose-300":"text-slate-300"}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+              {raceH2H.avg!=null&&<span>Avg race delta <strong className={raceH2H.avg>0?"text-emerald-300":raceH2H.avg<0?"text-rose-300":"text-slate-300"}>{raceH2H.avg>=0?"+":""}{raceH2H.avg.toFixed(1)} positions</strong></span>}
+              {qualiH2H.avg!=null&&<span>Avg qualifying delta <strong className={qualiH2H.avg>0?"text-emerald-300":qualiH2H.avg<0?"text-rose-300":"text-slate-300"}>{qualiH2H.avg>=0?"+":""}{qualiH2H.avg.toFixed(1)} positions</strong></span>}
+            </div>
+          </>
+        ):(
+          <div className="mt-3 text-sm text-slate-500">No comparable team-mate race data yet.</div>
+        )}
       </div>
 
       {snapshot?.performanceHistory?.[0]&&(
