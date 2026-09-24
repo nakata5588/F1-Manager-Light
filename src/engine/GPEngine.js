@@ -18,6 +18,7 @@ import { applyRaceReputation } from "../domain/driverReputation.js";
 import { applyRaceTeamMorale } from "../domain/teamMorale.js";
 import { applyRaceTeamReputation } from "../domain/teamReputation.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
+import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -169,6 +170,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
         retirement_reason:plannedIncident.reason||"Incident",
         incident_severity:plannedIncident.severity??null,
         incident_severity_score:plannedIncident.severity_score??null,
+        incident_with_driver_id:plannedIncident.other_driver_id??null,
         reliability_pct:plannedIncident.reliability_pct??null,
         reliability_source:plannedIncident.reliability_source??null,
         laps_completed:incidentLap,
@@ -802,6 +804,7 @@ export async function runRaceWeekend(gs, {
     incident_lap: row.incident_lap ?? null,
     incident_severity: row.incident_severity ?? null,
     incident_severity_score: row.incident_severity_score ?? null,
+    incident_with_driver_id: row.incident_with_driver_id ?? null,
     pit_stops: Array.isArray(row.pit_stops) ? row.pit_stops.map((stop)=>({...stop})) : [],
     stints: Array.isArray(row.stints) ? row.stints.map((stint)=>({...stint})) : [],
     tyre_supplier: row.tyre_supplier ?? null,
@@ -863,6 +866,10 @@ export async function runRaceWeekend(gs, {
   const reputationPass=applyRaceReputation(next,performancePass.resultEntry);
   Object.assign(next,reputationPass.gameState);
   const evaluatedResultEntry=reputationPass.resultEntry;
+
+  // D6.3B: teammate results, qualifying comparisons and teammate contact
+  // evolve the persistent relationship graph after each completed GP.
+  Object.assign(next,applyRaceTeammateDynamics(next,evaluatedResultEntry));
 
   next.results = [
     ...(Array.isArray(gs.results) ? gs.results.filter((r) => r?.key !== resultKey) : []),
