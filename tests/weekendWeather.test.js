@@ -221,5 +221,24 @@ test("RaceStrategy consumes the saved weekend Race weather instead of generating
   assert.equal(snapshot.state,race.state);
   assert.equal(snapshot.avg_temp_c,race.air_temp_c);
   assert.equal(snapshot.starting_track_wetness,race.track.start_wetness);
-  assert.equal(snapshot.rubber_level,race.track.rubber_level);
+  assert.equal(snapshot.starting_rubber_level,race.track.start_rubber_level);
+  assert.equal(snapshot.starting_grip_index,race.track.start_grip_index);
+  assert.equal(snapshot.rubber_level,race.track.start_rubber_level);
+});
+
+test("RW5.2D1 weekend sessions retain start/end surface state instead of one static grip value",()=>{
+  const gs=baseGs(1980,"rw5.2d1-weekend-surface");
+  const world=createWeekendWeatherState(gs,{gp,sessions});
+  const practice=world.sessions.practice;
+  const race=world.sessions.race;
+  for(const session of [practice,race]){
+    assert.ok(Number.isFinite(Number(session.track.start_wetness)));
+    assert.ok(Number.isFinite(Number(session.track.end_wetness)));
+    assert.ok(Number.isFinite(Number(session.track.start_rubber_level)));
+    assert.ok(Number.isFinite(Number(session.track.end_rubber_level)));
+    assert.ok(Number.isFinite(Number(session.track.start_grip_index)));
+    assert.ok(Number.isFinite(Number(session.track.end_grip_index)));
+    assert.ok(["NONE","DRIZZLE","LIGHT","MODERATE","HEAVY","EXTREME"].includes(session.rain_band));
+  }
+  assert.ok(practice.track.start_grip_index<98,"the weekend should not initialise with near-perfect grip");
 });
