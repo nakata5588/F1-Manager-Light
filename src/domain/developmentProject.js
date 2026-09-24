@@ -81,7 +81,7 @@ const OBJECTIVES=Object.freeze({
 
 function objectiveAllowed(objective,definition,slot){
   if(objective.id==="balanced")return true;
-  if(Array.isArray(objective.slots)&&objective.slots.includes(String(slot)))return true;
+  if(Array.isArray(objective.slots))return objective.slots.includes(String(slot));
   return objective.areas.includes(String(definition?.impact_area||"chassis"));
 }
 
