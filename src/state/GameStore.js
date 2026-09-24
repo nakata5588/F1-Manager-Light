@@ -7,6 +7,7 @@ import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
+import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
@@ -160,6 +161,7 @@ function setRollingSnapshot(value) {
 function hydrateLoadedGameState(saved) {
   return {
     ...saved,
+    manager: normalizeManagerProfile(saved?.manager, { year: saved?.activeYear, team: saved?.team }),
     settings: { ...defaultSettings, ...(saved?.settings || {}) },
     inbox: Array.isArray(saved?.inbox) ? saved.inbox : [],
     eventsQueue: Array.isArray(saved?.eventsQueue) ? saved.eventsQueue : [],
@@ -489,6 +491,7 @@ export const useGame = create((set, get) => ({
 
     // save/ui
     team: null,
+    manager: null,
     standings: { drivers: [], teams: [] },
 
     // Inbox e fila
@@ -1279,7 +1282,7 @@ export const useGame = create((set, get) => ({
 
   /** ===================== NEW GAME ===================== */
   startNewGame: (cfg) => {
-    const { year, team, difficulty } = cfg;
+    const { year, team, difficulty, manager } = cfg;
     const y = Number(year);
     if (Number(get().gameState?.seasonPackMeta?.year) !== y) {
       get().applyYearFilter(y, { normalizeDate: true });
@@ -1288,6 +1291,7 @@ export const useGame = create((set, get) => ({
     const teamId = getTeamId(team || {});
     const db = get().gameState;
     const startingBudget = computeStartingBudget(db, teamId, y);
+    const managerProfile = createManagerProfile(manager || {}, { year: y, team });
     const initialDriverConditions = Object.fromEntries(
       (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
     );
@@ -1297,6 +1301,7 @@ export const useGame = create((set, get) => ({
       currentRound: 0,
       activeYear: y,
       team: team ? { ...team, budget: startingBudget } : null,
+      manager: managerProfile,
       careerMeta: createCareerMeta(db, y),
       saveMeta: createNewSaveMeta({ year: y, teamId }),
       settings: db?.settings ?? defaultSettings,
@@ -1306,7 +1311,7 @@ export const useGame = create((set, get) => ({
         from: "FIA",
         tag: "FIA",
         date: `${y}-01-02`,
-        body: `Difficulty set to ${difficulty}. Good luck!`,
+        body: `${managerProfile.display_name}, welcome to the ${y} season. Difficulty set to ${difficulty}. Good luck!`,
       }],
       driverAttributes: initialDriverConditions,
       finances: {
@@ -1327,7 +1332,7 @@ export const useGame = create((set, get) => ({
 
   startNewGameFromCreateTeam: (payload) => {
     try {
-      const { year, team, drivers, difficulty } = payload;
+      const { year, team, drivers, difficulty, manager } = payload;
       const y = Number(year);
       if (Number(get().gameState?.seasonPackMeta?.year) !== y) {
         get().applyYearFilter(y, { normalizeDate: true });
@@ -1352,6 +1357,8 @@ export const useGame = create((set, get) => ({
         is_user_controlled: true,
       };
 
+      const managerProfile = createManagerProfile(manager || {}, { year: y, team: userTeam });
+
       let fresh = buildFreshCareerState(db, {
         currentDateISO: firstDayISO(y),
         currentRound: 0,
@@ -1359,6 +1366,7 @@ export const useGame = create((set, get) => ({
         careerMeta: createCareerMeta(db, y),
         saveMeta: createNewSaveMeta({ year: y, teamId }),
         team: userTeam,
+        manager: managerProfile,
         selectedDrivers: Array.isArray(drivers) ? drivers : [],
         settings: db?.settings ?? defaultSettings,
         inbox: [
