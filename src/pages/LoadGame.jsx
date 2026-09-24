@@ -358,7 +358,8 @@ export default function LoadGame() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/")}>← Main Menu</Button>
+          <Button variant="outline" onClick={() => navigate(-1)}>← Back</Button>
+          <Button variant="outline" onClick={() => navigate("/")}>Main Menu</Button>
           <h1 className="text-2xl md:text-3xl font-semibold">Load Game</h1>
         </div>
         <div className="text-sm text-muted-foreground">
