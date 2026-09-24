@@ -22,6 +22,8 @@ import {
   driverLifecycleSnapshot,
   driverMonthlyCareerDevelopmentPlan,
 } from "../domain/driverLifecycle.js";
+import { advancePitCrewTrainingDay } from "../domain/pitCrewTraining.js";
+import { advanceTechnicalResearch } from "../domain/technicalResearch.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -76,27 +78,12 @@ function applyPitCrewTraining(gs,dateISO){
   const pitCrews={...world.pitCrews};
   let changed=false;
   for(const [teamId,raw] of Object.entries(pitCrews)){
-    const crew={...(raw||{})};
-    const load=clamp(Number(crew.training_load??50),0,100);
-    const intensity=load/100;
-    const facility=pitCrewFacilityLevel(gs,teamId);
-    const facilityFactor=0.82+facility*0.036;
-    const avg=Number(crew.avg_time_s??6.8);
-    const consistency=Number(crew.consistency??70);
-    const error=Number(crew.error_rate??0.05);
-
-    const paceGain=Math.max(0,avg-2.2)*0.00055*intensity*facilityFactor;
-    const consistencyGain=Math.max(0,100-consistency)*0.00045*intensity*facilityFactor;
-    const errorGain=Math.max(0,error-0.005)*0.0017*intensity*facilityFactor;
-
-    pitCrews[teamId]={
-      ...crew,
-      training_load:load,
-      avg_time_s:Number(Math.max(2.2,avg-paceGain).toFixed(3)),
-      consistency:Number(Math.min(100,consistency+consistencyGain).toFixed(3)),
-      error_rate:Number(Math.max(0.005,error-errorGain).toFixed(5)),
-      last_training_date:dateISO,
-    };
+    if(String(raw?.last_training_date||"")===String(dateISO))continue;
+    pitCrews[teamId]=advancePitCrewTrainingDay(
+      raw||{},
+      pitCrewFacilityLevel(gs,teamId),
+      dateISO
+    );
     changed=true;
   }
   return changed?{...gs,raceStrategyWorld:{...world,pitCrews}}:gs;
@@ -499,5 +486,6 @@ export function applyProgressionTick(gs){
   }
 
   next=applyPlayerDevelopmentLoad(next,dateISO);
+  next=advanceTechnicalResearch(next,dateISO);
   return next;
 }
