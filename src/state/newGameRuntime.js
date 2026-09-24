@@ -63,6 +63,7 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
 
     driverAttrLog: {},
     driverMentalStateLog: {},
+    driverReputationLog: {},
     driverAttributes: initialDriverConditions,
     driverAvailability: {},
     medicalHistory: [],
