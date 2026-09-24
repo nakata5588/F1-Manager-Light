@@ -39,8 +39,8 @@ function currentTeamForDriver(gs,driverId){
 
 function historicalBaseline(gs,teamId){
   const activeYear=Number(gs?.activeYear);
-  const history=[...rows(gs?.dbDriverHistory),...rows(gs?.driverHistory)]
-    .filter((row)=>{
+  const historySource=rows(gs?.driverHistory).length?rows(gs?.driverHistory):rows(gs?.dbDriverHistory);
+  const history=historySource.filter((row)=>{
       const year=num(row?.year,NaN);
       const series=String(unbox(row?.series_division??row?.series)??"F1").toUpperCase();
       return teamIdOf(row)===String(teamId)&&series==="F1"&&Number.isFinite(year)&&(!Number.isFinite(activeYear)||year<activeYear);
@@ -112,9 +112,11 @@ function updateTeamState(gs,teamId,{
   reasons=[],
   dateISO=null,
   meta=null,
+  maxDelta=3,
 }={}){
   const before=teamReputation(gs,teamId);
-  const bounded=round1(Math.max(-3,Math.min(3,Number(delta)||0)));
+  const cap=Math.max(0.1,Number(maxDelta)||3);
+  const bounded=round1(Math.max(-cap,Math.min(cap,Number(delta)||0)));
   const after=round1(clamp(before+bounded));
   const current={...(gs?.teamReputationState||{})};
   const log={...(gs?.teamReputationLog||{})};
@@ -300,6 +302,7 @@ export function applySeasonTeamReputation(gs,year=Number(gs?.activeYear)){
       reasons,
       dateISO:`${year}-12-31`,
       meta:{year,constructor_position:finalPos??null,expected_constructor_position:expected??null},
+      maxDelta:8,
     });
   }
   return next;
