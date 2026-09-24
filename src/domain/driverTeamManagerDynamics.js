@@ -1,5 +1,6 @@
 // src/domain/driverTeamManagerDynamics.js
 import { applyDriverRelationshipChange } from "./relationshipEvents.js";
+import { managerGameplayEffects } from "./managerProfile.js";
 
 const text=(value)=>String(value??"").trim();
 const slot=(role)=>{
@@ -50,12 +51,22 @@ function applyTeamAndManager(gs,{
     active,
   });
   if(isPlayerTeam(next,tid)&&managerDeltas){
+    const effects=managerGameplayEffects(next,{teamId:tid});
+    const adjustedManagerDeltas=Object.fromEntries(
+      Object.entries(managerDeltas).map(([key,value])=>{
+        const amount=Number(value)||0;
+        const factor=amount>=0
+          ?effects.relationshipPositiveMultiplier
+          :effects.relationshipNegativeMultiplier;
+        return [key,Number((amount*factor).toFixed(3))];
+      })
+    );
     next=applyDriverRelationshipChange(next,{
       driverId:did,
       targetType:"manager",
       targetId:"player_manager",
       teamId:tid,
-      deltas:managerDeltas,
+      deltas:adjustedManagerDeltas,
       source,
       reason,
       meta,
