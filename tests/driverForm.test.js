@@ -5,6 +5,7 @@ import {
   evaluateDriverRacePerformance,
   retirementResponsibility,
   rollingDriverForm,
+  driverPerformanceEntries,
 } from "../src/domain/driverForm.js";
 import { dynamicPotentialAdjustment } from "../src/domain/driverPotential.js";
 
@@ -149,4 +150,44 @@ test("dynamic potential can fall after poor form, weak environment and neglected
   assert.ok(out.rating.potential_ability<82);
   assert.ok(out.change.delta<0);
   assert.ok(out.rating.potential_ability>=70);
+});
+
+
+test("qualifying teammate comparison survives qualifying rows without team_id",()=>{
+  const entry=result();
+  entry.qualifying=entry.qualifying.map(({team_id,...row})=>row);
+  const evaluation=evaluateDriverRacePerformance(baseState(),entry,"D1");
+  assert.equal(evaluation.teammate_driver_id,"D2");
+  assert.equal(evaluation.teammate_qualifying_delta,2);
+  assert.ok(evaluation.factors.some((row)=>row.key==="qualifying_vs_teammate"));
+});
+
+test("existing save Form rows backfill teammate deltas from stored race results",()=>{
+  const event=result();
+  event.qualifying=event.qualifying.map(({team_id,...row})=>row);
+  const gs={
+    ...baseState(),
+    results:[event],
+    driverPerformanceLog:{
+      D1:[{
+        driver_id:"D1",
+        team_id:"T1",
+        year:1980,
+        round:5,
+        gp_id:"test",
+        gp_name:"Test Grand Prix",
+        dateISO:"1980-05-18",
+        score:80,
+        qualifying_position:1,
+        finish_position:1,
+        teammate_driver_id:null,
+        teammate_qualifying_delta:null,
+        teammate_race_delta:null,
+      }],
+    },
+  };
+  const [entry]=driverPerformanceEntries(gs,"D1");
+  assert.equal(entry.teammate_driver_id,"D2");
+  assert.equal(entry.teammate_qualifying_delta,2);
+  assert.equal(entry.teammate_race_delta,2);
 });
