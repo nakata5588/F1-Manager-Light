@@ -101,7 +101,7 @@ const HEAVY_KEYS = [
   "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbCoreTracks",
   "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
 ];
-function makeLightSnapshot(gs) {
+export function makeLightSnapshot(gs) {
   const light = { ...gs };
   for (const k of HEAVY_KEYS) delete light[k];
   return prepareGameStateForSave(light);
