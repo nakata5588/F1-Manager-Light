@@ -143,3 +143,26 @@ export function visualTrackProgress(row,{currentLap=0,currentSector=0,referenceL
   const stagger=(Number(index)||0)*0.00035;
   return ((base-behind-stagger)%1+1)%1;
 }
+
+
+export function trackGeometryViewBox(geometry,{paddingRatio=0.055,minPadding=24}={}){
+  const points=Array.isArray(geometry?.points)?geometry.points:[];
+  const valid=points.filter((point)=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1])));
+  if(!valid.length)return [0,0,1000,1000];
+
+  const xs=valid.map((point)=>Number(point[0]));
+  const ys=valid.map((point)=>Number(point[1]));
+  const minX=Math.min(...xs),maxX=Math.max(...xs);
+  const minY=Math.min(...ys),maxY=Math.max(...ys);
+  const width=Math.max(1,maxX-minX);
+  const height=Math.max(1,maxY-minY);
+  const basis=Math.max(width,height);
+  const padding=Math.max(Number(minPadding)||0,basis*Math.max(0,Number(paddingRatio)||0));
+
+  return [
+    Number((minX-padding).toFixed(2)),
+    Number((minY-padding).toFixed(2)),
+    Number((width+padding*2).toFixed(2)),
+    Number((height+padding*2).toFixed(2)),
+  ];
+}
