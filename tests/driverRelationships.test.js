@@ -113,3 +113,17 @@ test("D6.3A supports Create Team selected drivers before canonical contracts exi
   assert.ok(driverRelationship(next,"D7","team","CUSTOM"));
   assert.ok(driverRelationship(next,"D8","manager","player_manager"));
 });
+
+test("D6.3A leaves unrelated legacy state unchanged when nothing can be seeded",()=>{
+  const legacy={
+    activeYear:1980,
+    currentDateISO:"1980-05-18",
+    currentRound:5,
+    team:{team_id:"T1"},
+    contracts:[],
+    staffContracts:[],
+  };
+  const synced=synchronizeDriverRelationships(legacy,{source:"legacy_backfill"});
+  assert.equal(synced,legacy);
+  assert.equal(Object.prototype.hasOwnProperty.call(synced,"driverRelationships"),false);
+});
