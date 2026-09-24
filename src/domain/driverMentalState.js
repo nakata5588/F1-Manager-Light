@@ -169,10 +169,19 @@ export function passiveMentalStateRecovery(condition,{dateISO=null}={}){
   const dow=dateISO
     ?new Date(`${String(dateISO).slice(0,10)}T00:00:00Z`).getUTCDay()
     :1;
-  const baseRecovery=(dow===0||dow===6)?1.7:1.1;
-  const highLoadRecovery=current.fatigue>=60?0.3:current.fatigue>=40?0.15:0;
+  const weekend=dow===0||dow===6;
+  const baseRecovery=weekend?4.5:3.2;
+  const loadRecovery=current.fatigue>=75
+    ?2.0
+    :current.fatigue>=55
+      ?1.4
+      :current.fatigue>=35
+        ?0.8
+        :current.fatigue>=15
+          ?0.3
+          :0;
   return setMentalStateValues(current,{
-    fatigue:current.fatigue-(baseRecovery+highLoadRecovery),
+    fatigue:current.fatigue-(baseRecovery+loadRecovery),
     preparation:current.preparation+(current.preparation<60?0.20:0),
     confidence:meanRevert(current.confidence,50,0.018),
     morale:meanRevert(current.morale,50,0.010),
