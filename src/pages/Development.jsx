@@ -606,10 +606,13 @@ export default function Development({ embedded = false, initialTab = "projects",
         <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
           <div className="flex flex-col xl:flex-row xl:items-start gap-4">
             <div className="xl:w-[46%] space-y-4">
-              <div>
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Current Car Development</div>
-                <div className="text-lg font-semibold">Create design brief</div>
-                <div className="text-sm text-slate-400">Choose what the new specification should prioritise. Different briefs create different gains and trade-offs.</div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Current Car Development</div>
+                  <div className="text-lg font-semibold">Create design brief</div>
+                  <div className="text-sm text-slate-400">Choose the component, technical objective and resources. The preview on the right shows the expected engineering trade-off before you commit.</div>
+                </div>
+                <Button size="sm" variant="outline" onClick={()=>setShowCreate(false)}>Back to Development</Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -618,15 +621,20 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <div className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full font-medium text-slate-200">{automaticProjectName}</div>
                   <div className="mt-1 text-[10px] text-slate-500">Generated automatically from component, design objective and version.</div>
                 </div>
-                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>{const type=e.target.value;const defaults=defaultAeroAllocation(gameState,teamId,type,dev);setDraft({...draft,type,objective:"balanced",cfd:defaults.cfd,windTunnel:defaults.windTunnel});}}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
+                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>{const type=e.target.value;const defaults=defaultAeroAllocation(gameState,teamId,type,dev);setDraft({...draft,type,objective:"balanced",cfd:defaults.cfd,windTunnel:defaults.windTunnel,researchSupport:0});}}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
               </div>
 
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Design objective</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {objectiveOptions.length?objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
-                    <div className="font-semibold text-sm">{row.label}</div>
+                  {objectiveOptions.length?objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id,researchSupport:0})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
+                    <div className="flex items-center justify-between gap-2"><div className="font-semibold text-sm">{row.label}</div><span className="text-[9px] uppercase text-slate-500">{row.id==="balanced"?"General":"Specialist"}</span></div>
                     <div className="text-[11px] text-slate-500 mt-1">{row.description}</div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <EffectChip label="Cost" value={(Number(row.cost||1)-1)*100}/>
+                      <EffectChip label="Time" value={(Number(row.duration||1)-1)*100}/>
+                      <EffectChip label="Risk" value={(Number(row.risk||1)-1)*100}/>
+                    </div>
                   </button>):<div className="sm:col-span-2 rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">Normal current-car development is not permitted for this component under the {activeYear} rules.</div>}
                 </div>
               </div>
@@ -647,6 +655,26 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <Mini label="Wind-on remaining" value={Number(atrRemaining.wind_tunnel_hours_remaining||0).toFixed(1)+"h"}/>
                   <Mini label="CFD remaining" value={Number(atrRemaining.cfd_mauh_remaining||0).toFixed(2)+" MAUh"}/>
                 </div>:null}
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Research Support</div>
+                    <div className="font-semibold text-sm">{researchArea?.label||"Technical Research"}</div>
+                    <div className="text-[11px] text-slate-500 mt-1">Spend banked Research Points on this design. They reduce development time and risk and give a small expected-performance boost. Points are consumed when the project starts.</div>
+                  </div>
+                  <span className="rounded bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200">{Number(researchArea?.points||0).toFixed(1)} RP available</span>
+                </div>
+                <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 items-center">
+                  <input className="w-full" type="range" min="0" max={Math.min(15,Number(researchArea?.points||0))} step="0.5" value={Math.min(Number(draft.researchSupport||0),Math.min(15,Number(researchArea?.points||0)))} onChange={(e)=>setDraft({...draft,researchSupport:Number(e.target.value)})}/>
+                  <strong className="tabular-nums">{researchSupport.points_used.toFixed(1)} RP</strong>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">Time {((researchSupport.duration_multiplier-1)*100).toFixed(0)}%</span>
+                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">Risk −{(researchSupport.risk_reduction*100).toFixed(1)} pp</span>
+                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">Expected gain +{((researchSupport.performance_multiplier-1)*100).toFixed(1)}%</span>
+                </div>
               </div>
 
               <div className={"grid grid-cols-2 "+(aeroAllocation.aero_relevant?"md:grid-cols-4":"md:grid-cols-2")+" gap-3"}>
