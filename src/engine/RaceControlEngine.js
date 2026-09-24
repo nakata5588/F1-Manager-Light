@@ -63,20 +63,45 @@ function weatherRow(gs,state){
 export function weatherStateAtLap(weather,lap){
   return weather?.segments?.find((row)=>lap>=Number(row?.from_lap)&&lap<=Number(row?.to_lap))?.state||weather?.state||"SUNNY";
 }
-function rainIntensityAtLap(weather,lap,previousIntensity=null){
+function stableHash(value){
+  let hash=2166136261;
+  for(const ch of String(value??"")){
+    hash^=ch.charCodeAt(0);
+    hash=Math.imul(hash,16777619)>>>0;
+  }
+  return hash>>>0;
+}
+function rainTargetForLap(state,lap,seed="weather"){
+  const weatherState=String(state||"SUNNY").toUpperCase();
+  const base=rainIntensityForState(weatherState);
+  if(base<=0.001)return 0;
+  const amplitude={
+    DRIZZLE_DRYING:0.025,
+    WETTING:0.075,
+    LIGHT_RAIN:0.115,
+    HEAVY_RAIN:0.10,
+    STORM:0.055,
+  }[weatherState]??0.045;
+  const phase=(stableHash(seed+":"+weatherState)%6283)/1000;
+  const l=Math.max(1,Number(lap)||1);
+  const wave=Math.sin(l*0.41+phase)*0.68+Math.sin(l*0.17+phase*1.73)*0.32;
+  return clamp(base+amplitude*wave,0,1);
+}
+function rainIntensityAtLap(weather,lap,previousIntensity=null,seed="weather"){
   const state=weatherStateAtLap(weather,lap);
-  const target=rainIntensityForState(state);
+  const target=rainTargetForLap(state,lap,seed);
   if(Number(lap)<=1||previousIntensity===null||previousIntensity===undefined)return target;
   const previousState=weatherStateAtLap(weather,Math.max(1,Number(lap)-1));
-  const previousTarget=rainIntensityForState(previousState);
+  const previousTarget=rainTargetForLap(previousState,Math.max(1,Number(lap)-1),seed);
   const prev=clamp(num(previousIntensity,previousTarget),0,1);
 
-  // Weather labels describe the broad regime. Actual rainfall intensity moves
-  // toward that regime progressively so a shower does not jump 0% -> 46% in one lap.
+  // Weather labels describe broad regimes, not fixed rainfall percentages.
+  // Intensity moves toward a slowly varying target inside the regime, so a
+  // prolonged shower can strengthen/ease naturally instead of parking at 46%.
   const stateChanged=String(state)!==String(previousState);
   const response=stateChanged
     ?target>previousTarget?0.30:0.42
-    :target>prev?0.28:0.34;
+    :target>prev?0.25:0.30;
   const next=prev+(target-prev)*response;
   if(target<=0.001&&next<0.015)return 0;
   return clamp(next,0,1);
@@ -108,12 +133,19 @@ export function buildTrackWeatherTimeline(gs,weather,track){
     sessionProgress:0,
   });
   const laps=Math.max(1,Number(track?.laps)||1);
+  const weatherSeed=[
+    gs?.activeYear,
+    gs?.raceWeekendState?.gp_id,
+    track?.track_id,
+    weather?.source,
+    weather?.state,
+  ].join(":");
   let previousIntensity=null;
   for(let lap=1;lap<=laps;lap++){
     const state=weatherStateAtLap(weather,lap);
     const beforeWetness=surface.track_wetness;
     const progress=laps<=1?1:(lap-1)/(laps-1);
-    const intensityInput=rainIntensityAtLap(weather,lap,previousIntensity);
+    const intensityInput=rainIntensityAtLap(weather,lap,previousIntensity,weatherSeed);
     surface=evolveTrackSurface(surface,{
       state,
       rainIntensity:intensityInput,
@@ -360,7 +392,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
 
   return {
     version:3,
-    environment_model:"rw5.2d3",
+    environment_model:"rw5.2d3.1",
     rules,
     incidents:incidents.sort((a,b)=>a.lap-b.lap),
     periods:mergePeriods(periods,timeline.length),

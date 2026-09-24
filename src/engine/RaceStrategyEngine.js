@@ -949,10 +949,13 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         const fuelDelay=refuel?(Number(working?.activeYear)<=1983?9:6):0;
         const executionVariance=num(crew.execution_variance_s,0.5);
         const serviceVariation=(rng.next()+rng.next()-1)*executionVariance;
-        const serviceTime=Math.max(2,num(crew.avg_time_s,6.8)+serviceVariation);
+        const expectedService=Math.max(2,num(crew.avg_time_s,6.8));
+        const serviceTime=Math.max(2,expectedService+serviceVariation);
+        const expectedStationary=Math.max(expectedService,fuelDelay);
         const stationary=Math.max(serviceTime,fuelDelay)+errorDelay;
         const pitLaneMultiplier=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
-        const loss=track.pit_lane_loss_s*pitLaneMultiplier+stationary;
+        const pitLaneLoss=track.pit_lane_loss_s*pitLaneMultiplier;
+        const loss=pitLaneLoss+stationary;
         totalMs+=Math.round(loss*1000);
         pits.push({
           lap,
@@ -960,6 +963,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           tyre_from:tyreId(tyre),
           tyre_to:tyreId(nextTyre),
           stationary_s:Number(stationary.toFixed(2)),
+          expected_stationary_s:Number(expectedStationary.toFixed(2)),
+          execution_delta_s:Number((stationary-expectedStationary).toFixed(2)),
+          crew_error_delay_s:Number(errorDelay.toFixed(2)),
+          pit_lane_loss_s:Number(pitLaneLoss.toFixed(2)),
           total_loss_s:Number(loss.toFixed(2)),
           error,
           refuelled:refuel,
@@ -1024,6 +1031,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         stint_start_lap:stintStart,
         weather_state:tyreState,
         track_wetness:Number.isFinite(wetness)?Number(wetness.toFixed(3)):null,
+        wetness_delta:Number.isFinite(Number(trackWeather?.wetness_delta))?Number(trackWeather.wetness_delta):null,
+        rain_intensity:Number.isFinite(Number(trackWeather?.rain_intensity))?Number(trackWeather.rain_intensity):null,
         track_temp_c:Number.isFinite(Number(trackWeather?.track_temp_c))?Number(trackWeather.track_temp_c):null,
         air_temp_c:Number.isFinite(Number(trackWeather?.air_temp_c))?Number(trackWeather.air_temp_c):null,
         visibility_index:Number.isFinite(Number(trackWeather?.visibility_index))?Number(trackWeather.visibility_index):null,
