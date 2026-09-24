@@ -25,6 +25,8 @@ function fixture(){
       {year:1979,series_division:"F1",team_id:"T1",team_name:"Ferrari",driver_id:"D2",driver_name:"Jody Scheckter",races:15},
       {year:1978,series_division:"F1",team_id:"T1",team_name:"Ferrari",driver_id:"D4",driver_name:"Reserve Only",races:0},
       {year:1981,series_division:"F1",team_id:"T1",team_name:"Ferrari",driver_id:"D3",driver_name:"Future Driver",races:12},
+      {year:0,series_division:"F1",team_id:"T1",team_name:"Ferrari",driver_id:"D1",driver_name:"Gilles Villeneuve",races:1},
+      {year:"",series_division:"F1",team_id:"T1",team_name:"Ferrari",driver_id:"D2",driver_name:"Jody Scheckter",races:1},
     ],
   };
 }
@@ -52,4 +54,5 @@ test("historical relationship year labels collapse contiguous seasons",()=>{
   assert.equal(formatRelationshipYears([1977]),"1977");
   assert.equal(formatRelationshipYears([1977,1978,1979]),"1977–1979");
   assert.equal(formatRelationshipYears([1977,1979]),"1977, 1979");
+  assert.equal(formatRelationshipYears([0,"",1979]),"1979");
 });
