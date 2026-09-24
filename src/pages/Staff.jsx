@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { flagFromCountry } from "../components/entity/EntityVisuals.jsx";
+import { contractActiveForYear } from "../domain/liveContracts.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -28,10 +29,10 @@ function department(role){
 export default function Staff(){
   const gs=useGame(s=>s.gameState);
   const year=Number(gs?.activeYear);
-  const core=Array.isArray(gs?.staffCore)?gs.staffCore:[];
-  const ratings=Array.isArray(gs?.staffRatings)?gs.staffRatings:[];
-  const contracts=Array.isArray(gs?.staffContracts)?gs.staffContracts:[];
-  const teams=Array.isArray(gs?.teams)?gs.teams:[];
+  const core=Array.isArray(gs?.staffCore)&&gs.staffCore.length?gs.staffCore:(gs?.dbStaffCore||[]);
+  const ratings=Array.isArray(gs?.staffRatings)&&gs.staffRatings.length?gs.staffRatings:(gs?.dbStaffRatings||[]);
+  const contracts=Array.isArray(gs?.staffContracts)?gs.staffContracts:(gs?.dbStaffContracts||[]);
+  const teams=Array.isArray(gs?.teams)&&gs.teams.length?gs.teams:(gs?.dbTeams||[]);
 
   const [q,setQ]=useState("");
   const [dept,setDept]=useState("ALL");
@@ -46,19 +47,21 @@ export default function Staff(){
   const rows=useMemo(()=>{
     // Only people with a current-season rating or contract are considered active.
     // staff_core is identity metadata and must not make every living person "active".
-    const ids=new Set([...ratings.map(staffIdOf),...contracts.map(staffIdOf)]);
+    const activeContracts=contracts.filter((contract)=>contractActiveForYear(contract,year));
+    const ids=new Set([...ratings.map(staffIdOf),...activeContracts.map(staffIdOf)]);
     return [...ids].filter(Boolean).map(id=>{
       const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
-      const contract=contracts.find(c=>{
-        const cy=Number(pick(c,["year","season_year"],year));
-        return staffIdOf(c)===id&&(!Number.isFinite(year)||!Number.isFinite(cy)||cy===year);
-      })||null;
-      const role=pick(contract,["role","position"],pick(s,["role_primary"],"Staff"));
+      const contract=activeContracts.find((row)=>staffIdOf(row)===id)||null;
+      const primaryRole=pick(s,["role_primary"],"Staff");
+      const assignedRole=contract?pick(contract,["role","position"],primaryRole):null;
+      const role=assignedRole||primaryRole;
       const tid=teamIdOf(contract);
       return {
         id,
         name:pick(s,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id)),
         role:nice(role),
+        primaryRole:nice(primaryRole),
+        assignedRole:assignedRole?nice(assignedRole):"Free",
         dept:department(role),
         country:pick(s,["country_name","country","nationality"],"—"),
         code:pick(s,["country_code"],""),
@@ -77,7 +80,7 @@ export default function Staff(){
     if(team!=="ALL"&&r.team!==team)return false;
     if(market==="Free"&&r.team!=="Free")return false;
     if(market==="Contracted"&&r.team==="Free")return false;
-    if(q&&![r.name,r.role,r.dept,r.country,r.team].some(v=>String(v).toLowerCase().includes(q.toLowerCase())))return false;
+    if(q&&![r.name,r.role,r.primaryRole,r.assignedRole,r.dept,r.country,r.team].some(v=>String(v).toLowerCase().includes(q.toLowerCase())))return false;
     return true;
   }).sort((a,b)=>{
     if(sort==="overall") return (Number(b.overall)||0)-(Number(a.overall)||0)||a.name.localeCompare(b.name);
@@ -108,15 +111,15 @@ export default function Staff(){
     </div>
 
     <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
-      <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Role</th><th className="px-4 py-3 text-left">Dept</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Nationality</th><th className="px-4 py-3 text-right">Overall</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 text-left">Contract</th></tr></thead>
+      <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Primary Role</th><th className="px-4 py-3 text-left">Assigned Role</th><th className="px-4 py-3 text-left">Dept</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Nationality</th><th className="px-4 py-3 text-right">Overall</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 text-left">Contract</th></tr></thead>
       <tbody>{filtered.map(s=><tr key={s.id} className="border-t hover:bg-gray-50">
         <td className="px-4 py-2"><button type="button" data-entity="staff" data-id={s.id} className="font-medium hover:underline text-left">{s.name}</button></td>
-        <td className="px-4 py-2">{s.role}</td><td className="px-4 py-2">{s.dept}</td><td className="px-4 py-2">{s.team}</td>
+        <td className="px-4 py-2">{s.primaryRole}</td><td className="px-4 py-2">{s.assignedRole}</td><td className="px-4 py-2">{s.dept}</td><td className="px-4 py-2">{s.team}</td>
         <td className="px-4 py-2">{flagFromCountry(s.country,s.code)} {s.country}</td><td className="px-4 py-2 text-right font-semibold">{s.overall}</td>
         <td className="px-4 py-2 text-right">{s.salary?new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(s.salary):"—"}</td>
         <td className="px-4 py-2">{s.until}</td>
       </tr>)}
-      {!filtered.length&&<tr><td colSpan={8} className="px-4 py-6 text-center text-gray-500">No staff found.</td></tr>}</tbody>
+      {!filtered.length&&<tr><td colSpan={9} className="px-4 py-6 text-center text-gray-500">No staff found.</td></tr>}</tbody>
     </table></div>
   </div>;
 }
