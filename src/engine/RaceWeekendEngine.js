@@ -6,6 +6,7 @@ import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngin
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, resumeLiveRace } from "./LiveRaceEngine.js";
 import { driverCondition } from "../domain/driverRating.js";
+import { raceWeekendGridRows } from "../domain/raceWeekendCompatibility.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import {
@@ -230,7 +231,7 @@ export function continueRaceWeekendSession(gs){
       weekend.phase==="qualifying_wait"&&
       !next&&
       weekend?.qualifying?.status==="completed"&&
-      (weekend?.startingGrid?.rows||weekend?.grid||[]).length
+      (raceWeekendGridRows(weekend)).length
     ){
       return {
         ...gs,
@@ -510,7 +511,7 @@ export async function completeRaceSession(gs,{gp}={}){
   if(!weekend||weekend.phase!=="race")return gs;
   if(weekend.live_race&&!liveRaceReadyToFinalize(gs))return gs;
   const targetGp=targetGpForWeekend(weekend,gp);
-  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
+  const startingGridRows=raceWeekendGridRows(weekend);
   if(!startingGridRows.length)return gs;
 
   const liveRaceRows=weekend.live_race?finalizedLiveRaceRows(gs):null;
