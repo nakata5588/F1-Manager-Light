@@ -13,7 +13,7 @@ import {
 } from "@/domain/pitCrewTraining.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
-import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
+import { normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 import { activeWorkshopJobs, partManufactureQuote } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 import {
@@ -22,7 +22,6 @@ import {
   developmentObjectivesForSlot,
   developmentStrengthTarget,
   objectiveProjectModifiers,
-  realizeDevelopmentProjection,
   technicalDevelopmentCapacity,
 } from "@/domain/developmentProject.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
@@ -240,91 +239,6 @@ export default function Development({ embedded = false, initialTab = "projects",
       setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced",researchSupport:0}));
     }
   }, [eraTypes, draft.type, draft.objective, gameState]);
-
-  // Complete projects/manufacturing when the in-game date reaches their ETA.
-  useEffect(() => {
-    if (!currentDateISO) return;
-    let changed = false;
-    let nextParts = [...parts];
-    let nextUnits = [...partUnits];
-    let nextGarage = physicalState?.garage || gameState?.garage;
-
-    const nextProjects = projects.map((p) => {
-      if (p.status !== "active" || !p.finishes_at || p.finishes_at > currentDateISO) return p;
-      changed = true;
-      const partId = `part_${p.id}`;
-      const realizedProfile=p.technical_projection?realizeDevelopmentProjection(p):null;
-      const actualStrength=Number(
-        realizedProfile?.development_strength ??
-        p.target_design_perf ??
-        p.perf_delta ??
-        0
-      );
-      if (!nextParts.some((x) => x.id === partId)) {
-        const draftPart={
-          id:partId,
-          name:p.name,
-          slot:p.type,
-          version:`P${nextParts.filter((x)=>x.slot===p.type).length + 1}`,
-          perf:actualStrength,
-          inv:0,
-          in_manufacturing:0,
-          prototype:true,
-          created_from:p.id,
-          development_focus:p.objective_id||"balanced",
-          created_at:currentDateISO,
-        };
-        nextParts.push({
-          ...draftPart,
-          technical_profile:realizedProfile||derivePartTechnicalProfile(physicalState,draftPart),
-        });
-      }
-      return {
-        ...p,
-        status:"completed",
-        progress:1,
-        completed_at:currentDateISO,
-        actual_design_perf:actualStrength,
-        technical_result:realizedProfile||null,
-        result_rating:realizedProfile?.realization?.result||"legacy",
-      };
-    });
-
-    const nextManufacturing = manufacturing.map((job) => {
-      if (job.status !== "active" || !job.finishes_at || job.finishes_at > currentDateISO) return job;
-      changed = true;
-      const produced = createManufacturedPartUnits({
-        ...physicalState,
-        garage:nextGarage,
-        development:{...dev,parts:nextParts,partUnits:nextUnits,manufacturing},
-      },{
-        designId:job.part_id,
-        qty:Number(job.qty||1),
-        batchId:job.id,
-        manufacturedAt:currentDateISO,
-      });
-      nextParts=(produced?.development?.parts||nextParts).map((part) =>
-        part.id === job.part_id
-          ? {...part, in_manufacturing:Math.max(0, Number(part.in_manufacturing || 0) - Number(job.qty || 1))}
-          : part
-      );
-      nextUnits=produced?.development?.partUnits||nextUnits;
-      nextGarage=produced?.garage||nextGarage;
-      return {...job, status:"completed", completed_at:currentDateISO};
-    });
-
-    if (changed) {
-      const finalState=normalizePhysicalPartState({
-        ...physicalState,
-        garage:nextGarage,
-        development:{...dev, projects:nextProjects, parts:nextParts, partUnits:nextUnits, manufacturing:nextManufacturing, research},
-      });
-      setGameState({
-        garage:finalState?.garage,
-        development:finalState?.development,
-      });
-    }
-  }, [currentDateISO, projects, parts, partUnits, manufacturing, research, dev, setGameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
   const componentRule=componentDevelopmentRule(gameState,teamId,draft.type);
@@ -817,7 +731,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <div className="font-semibold">Blueprints</div>
               </div>
               <InfoPopover title="What is a Blueprint?">
-                A Blueprint is the approved specification created by a completed development project. It is not a physical part. Use Build to manufacture physical units; those units can then sit in the warehouse or be fitted to Car 1 / Car 2.
+                A Blueprint is the approved specification created by a completed development project. It is not a physical part. Use Manufacture to create physical units; those units can then sit in the warehouse or be fitted to Car 1 / Car 2.
               </InfoPopover>
             </div>
           </CardContent></Card>
@@ -883,7 +797,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <div className="font-semibold">Research Focus & RP</div>
                 </div>
                 <InfoPopover title="Research Focus & Research Points">
-                  The four Focus sliders always share 100%. Focus decides where daily Research Points are generated. RP do not improve the car automatically: bank them, then spend up to 15 RP as Research Support when creating a matching Current Car project.
+                  Focus always totals 100% across the four technical areas. It determines where daily Research Points are generated. Banked RP can then support matching Current Car projects.
                 </InfoPopover>
               </div>
               <div className="lg:flex-1"/>
@@ -904,8 +818,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <div className="text-right"><div className="font-semibold tabular-nums">{Number(r.focus||0).toFixed(0)}%</div><div className="text-[10px] text-emerald-300">+{daily.toFixed(2)} RP/day</div></div>
                 </div>
                 <input className="w-full mt-4" type="range" min="0" max="100" step="5" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
-                <div className="mt-3 flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Available for future projects</span>
+                <div className="mt-3 flex items-center justify-end text-xs">
                   <strong className="text-cyan-200 tabular-nums">{Number(r.points||0).toFixed(1)} RP</strong>
                 </div>
               </CardContent></Card>;
@@ -919,7 +832,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <div className="font-semibold">Paddock opportunities</div>
               </div>
               <InfoPopover title="Technology Adoption">
-                Separate from Research Points. If another TEAM proves an era-legal technology we do not understand, we can fund an adoption programme. Completion unlocks that technical area; a Blueprint and physical parts still need to be developed afterwards.
+                Rival technologies can be researched independently when they are legal for the era. Adoption unlocks the technical area; it does not create a Blueprint or a physical part.
               </InfoPopover>
             </div>
             {technologyOpportunities.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{technologyOpportunities.map((opportunity)=>{
@@ -1030,12 +943,17 @@ function ForecastMini({label,current,future,suffix="",lowerBetter=false,digits=2
   const a=Number(current||0),b=Number(future||0),delta=b-a;
   const good=lowerBetter?delta<0:delta>0;
   const neutral=Math.abs(delta)<Math.pow(10,-digits);
+  const cls=neutral?"text-slate-400":good?"text-emerald-300":"text-rose-300";
+  const sign=delta>0?"+":"";
   return <div className="rounded-lg border border-white/10 p-2">
     <div className="text-[10px] text-slate-500">{label}</div>
     <div className="mt-1 flex items-center gap-1 text-sm tabular-nums">
       <span className="text-slate-500">{a.toFixed(digits)}{suffix}</span>
       <span className="text-slate-600">→</span>
-      <strong className={neutral?"text-slate-200":good?"text-emerald-300":"text-rose-300"}>{b.toFixed(digits)}{suffix}</strong>
+      <strong className={cls}>{b.toFixed(digits)}{suffix}</strong>
+    </div>
+    <div className={"mt-0.5 text-[10px] tabular-nums "+cls}>
+      {neutral?"No material change":`${sign}${delta.toFixed(digits)}${suffix}`}
     </div>
   </div>;
 }

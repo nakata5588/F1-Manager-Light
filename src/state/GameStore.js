@@ -10,6 +10,7 @@ import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { processWorkshopJobs } from "@/domain/componentService";
+import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
 import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
 import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
@@ -585,7 +586,7 @@ export const useGame = create((set, get) => ({
     try {
       // Never applyYearFilter here: that would replace the simulated career
       // with historical future assignments/outcomes from the Global Database.
-      set((s) => ({ gameState: rolloverSeasonPure(s.gameState, nextYear) }));
+      set((s) => ({ gameState: processPlayerTechnicalLifecycle(rolloverSeasonPure(s.gameState, nextYear)) }));
     } catch (e) {
       console.warn("rolloverSeason fallback:", e);
       set((s) => ({
@@ -625,6 +626,7 @@ export const useGame = create((set, get) => ({
       updated = processScoutingTick(updated);
       updated = refreshDriverAvailability(updated, updated.currentDateISO);
       updated = processWorkshopJobs(updated);
+      updated = processPlayerTechnicalLifecycle(updated);
       updated = processTechnologyAdoption(updated);
       updated = tickAITechnicalWorld(updated);
       updated = processTechnologyDiscoveryNews(updated);
@@ -1821,6 +1823,7 @@ export const useGame = create((set, get) => ({
       updated=processScoutingTick(updated);
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
       updated=processWorkshopJobs(updated);
+      updated=processPlayerTechnicalLifecycle(updated);
       updated=processTechnologyAdoption(updated);
       updated=tickAITechnicalWorld(updated);
       updated=processTechnologyDiscoveryNews(updated);
