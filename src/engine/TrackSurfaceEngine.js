@@ -45,12 +45,13 @@ function windDryingFactor(profile){
 function surfaceGrip({wetness=0,rubber=0,state="SUNNY"}={}){
   const wet=clamp(wetness,0,1);
   const rub=clamp(rubber,0,100);
-  // A green dry circuit begins around the high-80s/low-90s rather than 98–100.
-  // Rubber improves dry grip progressively; water then removes a much larger share.
-  const dryGrip=87.5+rub*0.105;
-  const waterPenalty=wet*(21+wet*12);
-  const stormPenalty=upper(state)==="STORM"?5.5:0;
-  return clamp(dryGrip-waterPenalty-stormPenalty,45,100);
+  // This is a track-condition index, not a literal percentage of physical tyre
+  // adhesion. A green circuit starts around 55–60, then builds toward the 80s/90s
+  // as the racing line rubbers in. Water removes a progressively larger share.
+  const dryGrip=55.5+rub*0.37;
+  const waterPenalty=wet*(18+wet*17);
+  const stormPenalty=upper(state)==="STORM"?7:0;
+  return clamp(dryGrip-waterPenalty-stormPenalty,20,100);
 }
 
 export function initialiseTrackSurface({
