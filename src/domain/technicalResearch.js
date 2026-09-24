@@ -7,6 +7,7 @@
 // a modest expected-performance benefit.
 
 import { carComponentDefinition } from "./carComponents.js";
+import { applyTechnicalKnowledgeGains, researchKnowledgeGains } from "./technicalKnowledge.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const str=(v)=>String(v??"");
@@ -137,11 +138,16 @@ export function advanceTechnicalResearch(gs,dateISO){
   if(str(dev?.lastResearchDate)===str(dateISO))return gs;
   const rows=normalizeTechnicalResearch(dev?.research);
   const output=technicalResearchDailyOutput(gs);
-  const research=rows.map((row)=>({
-    ...row,
-    points:round(row.points+output.total_points_per_day*(row.focus/100),3),
-  }));
-  return {
+  const generated={};
+  const research=rows.map((row)=>{
+    const gain=output.total_points_per_day*(row.focus/100);
+    generated[row.id]=round(gain,4);
+    return {
+      ...row,
+      points:round(row.points+gain,3),
+    };
+  });
+  let next={
     ...gs,
     development:{
       ...dev,
@@ -149,6 +155,16 @@ export function advanceTechnicalResearch(gs,dateISO){
       lastResearchDate:str(dateISO),
     },
   };
+  next=applyTechnicalKnowledgeGains(
+    next,
+    researchKnowledgeGains(generated),
+    {
+      dateISO,
+      eventId:`research_${dateISO}`,
+      source:"research",
+    }
+  );
+  return next;
 }
 
 export function technicalResearchAreaForProject(gs,slot,objectiveId="balanced"){
