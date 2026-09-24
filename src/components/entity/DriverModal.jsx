@@ -2144,8 +2144,8 @@ function AttributesTab({
               ].map(([label,field,left,right,kind,inverse])=>(
                 <div key={field} className="contents">
                   <div className="border-t border-white/10 py-2 text-slate-400">{label}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderValue(knowledge,field,left,{kind,inverse})}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderValue(comparisonKnowledge,field,right,{kind,inverse})}</div>
+                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind,inverse})}</div>
+                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind,inverse})}</div>
                   <div className="border-t border-white/10 py-2 text-right">{differenceFor(field,left,right,{kind,inverse})}</div>
                 </div>
               ))}
@@ -2200,10 +2200,13 @@ function AttributesTab({
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[9px] uppercase tracking-wide text-slate-600">Average</div>
-                  <div>{renderShown(shownGroup,{size:"text-lg"})}</div>
+                  <div>{renderShown(shownGroup,{
+                    size:"text-lg",
+                    toneOverride:comparisonDriver?comparisonTone(shownGroup,shownComparisonGroup,{side:"left"}):null,
+                  })}</div>
                   {comparisonDriver&&(
                     <div className="mt-0.5 text-[11px] text-slate-500">
-                      vs {renderShown(shownComparisonGroup)} · {differenceFor(`group_${group.key}`,rawGroupScore,comparisonGroupScore,{kind:"attribute"})}
+                      vs {renderShown(shownComparisonGroup,{toneOverride:comparisonTone(shownGroup,shownComparisonGroup,{side:"right"})})} · {differenceFor(`group_${group.key}`,rawGroupScore,comparisonGroupScore,{kind:"attribute"})}
                     </div>
                   )}
                 </div>
@@ -2229,10 +2232,14 @@ function AttributesTab({
                   return (
                     <div key={field} className={`grid items-center gap-1.5 text-xs ${comparisonDriver?"grid-cols-[1fr_58px_58px_48px]":"grid-cols-[1fr_58px]"}`}>
                       <span className="text-slate-400">{attribute.label}</span>
-                      <div className="text-right">{renderValue(knowledge,field,left,{kind:"attribute",inverse:attribute.inverse})}</div>
+                      <div className="text-right">
+                        {comparisonDriver
+                          ?renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind:"attribute",inverse:attribute.inverse})
+                          :renderValue(knowledge,field,left,{kind:"attribute",inverse:attribute.inverse})}
+                      </div>
                       {comparisonDriver&&(
                         <>
-                          <div className="text-right">{renderValue(comparisonKnowledge,field,right,{kind:"attribute",inverse:attribute.inverse})}</div>
+                          <div className="text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute",inverse:attribute.inverse})}</div>
                           <div className="text-right">{differenceFor(field,left,right,{kind:"attribute",inverse:attribute.inverse})}</div>
                         </>
                       )}
@@ -2272,10 +2279,15 @@ function AttributesTab({
               <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
                 <div className="mt-1 flex items-baseline justify-between gap-2">
-                  <div>{renderShown(shown,{size:"text-lg"})}</div>
+                  <div>{renderShown(shown,{
+                    size:"text-lg",
+                    toneOverride:comparisonDriver
+                      ?comparisonTone(shown,shownValue(comparisonKnowledge,field,right,{kind:"attribute"}),{side:"left"})
+                      :null,
+                  })}</div>
                   {comparisonDriver&&(
                     <div className="text-right text-xs">
-                      <div>{renderValue(comparisonKnowledge,field,right,{kind:"attribute"})}</div>
+                      <div>{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute"})}</div>
                       <div className="mt-0.5">{differenceFor(field,left,right,{kind:"attribute"})}</div>
                     </div>
                   )}
