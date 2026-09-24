@@ -58,6 +58,10 @@ import {
   setNextSeasonCarEngineers,
   startNextSeasonCarProgramme,
 } from "@/domain/nextSeasonCar.js";
+import {
+  nextSeasonRegulationImpact,
+  regulationImpactAreaSummary,
+} from "@/domain/nextSeasonRegulations.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -216,6 +220,12 @@ export default function Development({ embedded = false, initialTab = "projects",
   const research = normalizeTechnicalResearch(dev.research);
   const researchOutput=technicalResearchDailyOutput(gameState);
   const nextSeasonCar=normalizeNextSeasonCarProgramme(dev.nextSeasonCar,{activeYear});
+  const calculatedNextSeasonImpact=useMemo(
+    ()=>nextSeasonRegulationImpact(gameState,{targetSeason:nextSeasonCar.targetSeason,teamId}),
+    [gameState,nextSeasonCar.targetSeason,teamId,activeYear]
+  );
+  const nextSeasonImpact=nextSeasonCar.regulation_impact||calculatedNextSeasonImpact;
+  const nextSeasonImpactAreas=regulationImpactAreaSummary(nextSeasonImpact);
   const nextSeasonReservedEngineers=nextSeasonCar.status==="active"?Number(nextSeasonCar.engineers||0):0;
 
   const validTabs = ["projects","next_season","parts","manufacturing","research","pit_crew"];
@@ -865,6 +875,51 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <Mini label="Engineers" value={String(nextSeasonCar.engineers||0)}/>
               </div>
             </div>
+          </CardContent></Card>
+
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+              <div className="flex items-start gap-2 lg:w-[42%]">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Target Regulations</div>
+                  <div className="font-semibold">{nextSeasonImpact.label} · {nextSeasonImpact.targetSeason}</div>
+                  <div className="text-xs text-slate-500 mt-1">{nextSeasonImpact.governance.note}</div>
+                </div>
+                <InfoPopover title="Regulation impact">
+                  The next-season car uses the already-known technical rules for its target season. New regulation votes cannot take effect next season; they require at least two seasons of lead time. Minor, Medium and Major describe how much the target technical rules differ from the current season.
+                </InfoPopover>
+              </div>
+              <div className="lg:flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Impact" value={nextSeasonImpact.label}/>
+                <Mini label="Changes" value={String(nextSeasonImpact.changes.length)}/>
+                <Mini label="Rules locked" value={nextSeasonImpact.governance.next_season_locked?"Yes":"No"}/>
+                <Mini label="Earliest new vote" value={String(nextSeasonImpact.governance.minimum_vote_effective_season)}/>
+              </div>
+            </div>
+
+            {nextSeasonImpact.changes.length ? (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                {nextSeasonImpact.changes.map((change,index)=><div key={change.id||change.type+"_"+index} className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-sm">{change.title}</div>
+                    <span className="rounded bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-200">{nice(change.area||"multiple")}</span>
+                  </div>
+                  {change.detail?<div className="text-[11px] text-slate-500 mt-1">{change.detail}</div>:null}
+                </div>)}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-emerald-400/15 bg-emerald-500/[0.05] p-3 text-sm text-emerald-200">
+                No structural technical-rule changes are detected between {nextSeasonImpact.currentSeason} and {nextSeasonImpact.targetSeason}. The programme can carry current technical knowledge forward without a regulation-reset penalty.
+              </div>
+            )}
+
+            {nextSeasonImpactAreas.length ? <div>
+              <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">Knowledge carry-over preview</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+                {nextSeasonImpactAreas.map((row)=><Mini key={row.area} label={nice(row.area)} value={row.retention.percent+"%"}/>)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-2">This is the regulation-only retention ceiling. Stage 7.3 will combine it with the team's actual technical knowledge, research, staff and completed design work.</div>
+            </div>:null}
           </CardContent></Card>
 
           {nextSeasonCar.status==="not_started" ? (
