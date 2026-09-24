@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /* ---------------- routing target após carregar um save ---------------- */
 const AFTER_LOAD_ROUTE = "/Home"; // 🧭 ajusta para a tua página do Hub ("/hub", "/game", etc.)
@@ -207,6 +207,14 @@ export default function LoadGame() {
     loadGameFromSlot, // (id) => void
   } = useGame();
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedReturnTo =
+    typeof location.state?.returnTo === "string" &&
+    location.state.returnTo.startsWith("/") &&
+    !location.state.returnTo.startsWith("/LoadGame")
+      ? location.state.returnTo
+      : null;
+  const backTarget = requestedReturnTo || (gameState?.careerMeta?.started ? "/Home" : "/");
 
   const [localSaves, setLocalSaves] = useState([]);
   const [demoSaves, setDemoSaves] = useState([]);
@@ -273,14 +281,26 @@ export default function LoadGame() {
     if (!save) return;
     setLoadingKey(save.key);
     try {
+      let loadedOk = false;
+
       if (typeof loadFromKey === "function" && SAVE_PREFIXES.some((p) => save.key.startsWith(p))) {
-        await Promise.resolve(loadFromKey(save.key));
+        loadedOk = Boolean(await Promise.resolve(loadFromKey(save.key)));
+        // Imported files can still be loaded directly when localStorage could
+        // not persist them (for example because the browser quota is full).
+        if (!loadedOk && typeof loadGame === "function" && save.raw) {
+          loadedOk = Boolean(await Promise.resolve(loadGame(save.raw)));
+        }
       } else if (typeof loadGameFromSlot === "function") {
-        await Promise.resolve(loadGameFromSlot(save.key));
+        loadedOk = Boolean(await Promise.resolve(loadGameFromSlot(save.key)));
       } else if (typeof loadGame === "function") {
-        await Promise.resolve(loadGame(save.gameState));
+        loadedOk = Boolean(await Promise.resolve(loadGame(save.gameState)));
       } else if (typeof setGameState === "function") {
         setGameState(save.gameState);
+        loadedOk = true;
+      }
+
+      if (!loadedOk) {
+        throw new Error("The selected save could not be restored.");
       }
 
       navigate(AFTER_LOAD_ROUTE);
@@ -357,9 +377,10 @@ export default function LoadGame() {
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/")}>← Main Menu</Button>
-          <h1 className="text-2xl md:text-3xl font-semibold">Load Game</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => navigate(backTarget, { replace: true })}>← Back</Button>
+          <Button variant="outline" onClick={() => navigate("/")}>Main Menu</Button>
+          <h1 className="ml-1 text-2xl md:text-3xl font-semibold">Load Game</h1>
         </div>
         <div className="text-sm text-muted-foreground">
           Current:{" "}

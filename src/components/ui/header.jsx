@@ -1,9 +1,9 @@
 // src/components/ui/header.jsx
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "./button";
 import AdvanceButton from "./AdvanceButton";   // 👈 novo import
-import { useGame } from "../../state/GameStore";
+import { makeLightSnapshot, useGame } from "../../state/GameStore";
 
 /* ==== helpers brand ==== */
 function resolvePlayerTeam(gameState) {
@@ -101,6 +101,7 @@ function downloadJSON(filename, dataObj) {
 
 export default function Header({ pageTitle = "F1 History Manager" }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     gameState,
     quickSave,
@@ -108,6 +109,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
     currentSaveKey,
     getTeamLogoCandidates,
     advanceOneDayUntilBreak,
+    pushToast,
   } = useGame();
 
   if (!gameState) return null;
@@ -300,10 +302,28 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
   };
 
   /* ===== save actions ===== */
+  const reportSaveResult = (res, successPrefix = "Saved") => {
+    if (res?.ok === false) {
+      const description = res?.error || "The browser could not write the save.";
+      console.error("[SAVE]", description);
+      pushToast?.({
+        title: "Save failed",
+        description,
+        type: "error",
+        ttl: 4500,
+      });
+      return false;
+    }
+    const label = res?.meta?.name ? `${successPrefix}: ${res.meta.name}` : `${successPrefix}.`;
+    toastMini(label);
+    pushToast?.({ title: successPrefix, description: res?.meta?.name || "", type: "success", ttl: 2200 });
+    return true;
+  };
+
   const handleQuickSave = () =>
     runOnce(() => {
       const res = quickSave();
-      toastMini(res?.meta?.name ? `Saved: ${res.meta.name}` : "Saved.");
+      reportSaveResult(res);
       setSaveOpen(false);
     });
 
@@ -313,7 +333,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
       const name = window.prompt("Save name:", suggested);
       if (!name) return;
       const res = saveGame({ name: String(name).trim() || suggested });
-      toastMini(res?.meta?.name ? `Saved: ${res.meta.name}` : "Saved.");
+      reportSaveResult(res);
       setSaveOpen(false);
     });
 
@@ -324,7 +344,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
       if (!Number.isInteger(idx) || idx < 1 || idx > 5) return;
       const base = defaultName(gameState);
       const res = saveGame({ name: `${base} — Slot ${idx}` });
-      toastMini(res?.meta?.name ? `Saved: ${res.meta.name}` : "Saved.");
+      reportSaveResult(res);
       setSaveOpen(false);
     });
 
@@ -332,8 +352,45 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
     runOnce(() => {
       if (!currentSaveKey) return;
       const res = saveGame({ overwriteKey: currentSaveKey });
-      toastMini(res?.meta?.name ? `Saved (overwrite): ${res.meta.name}` : "Saved.");
+      reportSaveResult(res, "Saved (overwrite)");
       setSaveOpen(false);
+    });
+
+  const handleExportSave = () =>
+    runOnce(() => {
+      try {
+        const snapshot = makeLightSnapshot(gameState);
+        const name = defaultName(snapshot);
+        const gameVersion = snapshot?.saveMeta?.gameVersion ?? "unknown";
+        const schemaVersion = snapshot?.saveMeta?.schemaVersion ?? null;
+        const now = new Date().toISOString();
+        const payload = {
+          meta: {
+            name,
+            version: gameVersion,
+            gameVersion,
+            schemaVersion,
+            seed: snapshot?.saveMeta?.seed ?? null,
+            savedAt: now,
+            exportedAt: now,
+          },
+          gameState: snapshot,
+        };
+        const teamPart = fileSafePart(snapshot?.team?.short_name || snapshot?.team?.team_name || snapshot?.team?.name || "team");
+        const seasonPart = fileSafePart(snapshot?.activeYear || snapshot?.seasonYear || "career");
+        downloadJSON(`f1-manager-light_${teamPart}_${seasonPart}_${tsStamp()}.json`, payload);
+        pushToast?.({ title: "Save exported", description: `${name}.json`, type: "success", ttl: 2600 });
+      } catch (error) {
+        console.error("Export save failed:", error);
+        pushToast?.({
+          title: "Export failed",
+          description: String(error?.message || error || "Could not export save."),
+          type: "error",
+          ttl: 4500,
+        });
+      } finally {
+        setSaveOpen(false);
+      }
     });
 
   const canOverwrite = Boolean(currentSaveKey);
@@ -568,7 +625,11 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => navigate("/LoadGame")}
+                onClick={() =>
+                  navigate("/LoadGame", {
+                    state: { returnTo: `${location.pathname}${location.search}${location.hash}` },
+                  })
+                }
                 className="h-6 px-2.5 text-xs whitespace-nowrap"
                 style={{
                   background: "transparent",
@@ -602,6 +663,13 @@ function defaultName(gs) {
   const team = gs?.team?.team_name || gs?.team?.name || "Save";
   const season = gs?.activeYear || gs?.seasonYear || "";
   return `${team}${season ? ` — ${season}` : ""}`;
+}
+function fileSafePart(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "save";
 }
 function toastMini(msg) {
   // eslint-disable-next-line no-console
