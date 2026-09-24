@@ -115,12 +115,8 @@ export default function MyDrivers(){
   }
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-3 flex flex-wrap xl:flex-nowrap items-center gap-3">
-      <TeamLogo teamId={myTeamId} name={myTeamName} size="h-11 w-11" className="p-0.5"/>
-      <div className="min-w-[170px]">
-        <div className="text-[9px] uppercase tracking-[0.16em] text-slate-500">Race Department</div>
-        <div className="flex flex-wrap items-baseline gap-x-2"><h1 className="text-xl font-bold">My Drivers</h1><span className="text-xs text-slate-400">{myTeamName} · {year||"—"}</span></div>
-      </div>
+    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-2.5 flex flex-wrap items-center gap-2.5">
+      <h1 className="text-lg font-semibold">My Drivers</h1>
       <div className="flex-1"/>
       <div className="grid grid-cols-3 gap-1.5 min-w-[330px]">
         <Metric compact label="Filled roles" value={slotRows.filter((r)=>r.contract).length+"/4"}/>

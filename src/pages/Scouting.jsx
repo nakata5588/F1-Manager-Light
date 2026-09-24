@@ -346,17 +346,10 @@ export default function Scouting() {
 
   return (
     <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-        <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
-        <div>
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Recruitment Network</div>
-          <h1 className="text-2xl md:text-3xl font-semibold">Scouting</h1>
-          <p className="text-sm text-slate-400">
-            Commission an individual report on an external driver, or explore a region for young lower-series talent.
-          </p>
-        </div>
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-2.5 flex flex-wrap items-center gap-2.5">
+        <TeamLogo teamId={teamId} name={teamName} size="h-10 w-10" className="p-0.5"/>
         <div className="flex-1" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
           <Mini label="Active" value={assignments.filter((a)=>a.status==="active").length}/>
           <Mini label="Shortlist" value={shortlist.length}/>
           <Mini label="Prospects" value={allProspects.length}/>

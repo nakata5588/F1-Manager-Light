@@ -111,11 +111,10 @@ export default function HQ(){
   };
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-      <TeamLogo teamId={teamId} name={teamName} size="h-14 w-14"/>
-      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Infrastructure</div><h1 className="text-2xl md:text-3xl font-semibold">HQ & Facilities</h1><p className="text-sm text-slate-400">Era-aware infrastructure available to {teamName} in {year}.</p></div>
+    <div className="rounded-xl border border-white/10 bg-[#12141c] p-2.5 flex flex-wrap items-center gap-2.5">
+      <TeamLogo teamId={teamId} name={teamName} size="h-10 w-10" className="p-0.5"/>
       <div className="flex-1"/>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
         <MiniStat label="Budget" value={fmtMoney(budget)}/>
         <MiniStat label="Facilities" value={available.length}/>
         <MiniStat label="Avg Level" value={avg.toFixed(1)}/>

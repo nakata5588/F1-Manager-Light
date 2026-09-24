@@ -585,8 +585,7 @@ export default function Car(){
         <button onClick={()=>view==="overview"?null:setView("overview")} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center">
           {view==="overview"?<CarFront className="h-5 w-5"/>:<ArrowLeft className="h-4 w-4"/>}
         </button>
-        <TeamLogo teamId={teamId} name={teamName} size="h-10 w-10" className="p-0.5"/>
-        <div className="min-w-0"><div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Technical Department</div><h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>{view==="car"?<div className="text-xs text-slate-400 truncate">Assigned to <span className="text-slate-200 font-medium">{selectedDriver?.display_name||selectedDriver?.name||"No driver assigned"}</span></div>:null}</div>
+        <div className="min-w-0"><h1 className="text-xl md:text-2xl font-semibold truncate">{title}</h1>{view==="car"?<div className="text-xs text-slate-400 truncate">Assigned to <span className="text-slate-200 font-medium">{selectedDriver?.display_name||selectedDriver?.name||"No driver assigned"}</span></div>:null}</div>
       </div>
       <div className="flex-1"/>
       <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-white/10 bg-[#0d0f15] p-1">

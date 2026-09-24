@@ -49,6 +49,8 @@ import {
   startDriverRenewal,
 } from "../../engine/NegotiationEngine.js";
 import { driverRelationshipRecords } from "../../domain/driverRelationships.js";
+import { formatRelationshipYears, historicalDriverRelationshipRecords } from "../../domain/driverRelationshipHistory.js";
+import { managerDisplayName } from "../../domain/managerProfile.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -2705,36 +2707,97 @@ function AttributesTab({
 }
 
 function RelationshipsTab({ gameState, driverId }) {
-  const records=driverRelationshipRecords(gameState,driverId)
-    .slice()
-    .sort((a,b)=>Number(b?.active===true)-Number(a?.active===true)||Number(b?.score||0)-Number(a?.score||0));
+  const [statusFilter,setStatusFilter]=useState("all");
+  const [yearFilter,setYearFilter]=useState("all");
+  const [showLegend,setShowLegend]=useState(false);
+
   const drivers=[...(gameState?.drivers||[]),...(gameState?.dbDrivers||[])];
   const teams=[...(gameState?.teams||[]),...(gameState?.dbTeams||[])];
   const staff=[...(gameState?.staffCore||[]),...(gameState?.dbStaffCore||[])];
+  const subjectDriver=drivers.find((item)=>String(item?.driver_id??item?.id??"")===String(driverId))||null;
+  const subjectName=subjectDriver?.display_name||subjectDriver?.name||[subjectDriver?.first_name,subjectDriver?.last_name].filter(Boolean).join(" ")||null;
+  const activeYear=Number(gameState?.activeYear);
 
+  const liveRecords=driverRelationshipRecords(gameState,driverId);
+  const historicalRecords=historicalDriverRelationshipRecords(gameState,{
+    driverId,
+    driverName:subjectName,
+  });
+
+  const yearsForRecord=(record)=>{
+    const values=new Set((Array.isArray(record?.years)?record.years:[]).map(Number).filter(Number.isFinite));
+    for(const raw of [record?.created_at,record?.updated_at]){
+      const year=Number(String(raw||"").slice(0,4));
+      if(Number.isFinite(year))values.add(year);
+    }
+    if(record?.active&&Number.isFinite(activeYear))values.add(activeYear);
+    return [...values].sort((a,b)=>a-b);
+  };
+
+  const merged=new Map();
+  for(const record of historicalRecords){
+    merged.set(String(record?.target_type)+"|"+String(record?.target_id),{
+      ...record,
+      years:yearsForRecord(record),
+    });
+  }
+  for(const record of liveRecords){
+    const key=String(record?.target_type)+"|"+String(record?.target_id);
+    const historical=merged.get(key)||null;
+    const years=new Set([
+      ...(historical?.years||[]),
+      ...yearsForRecord(record),
+    ]);
+    merged.set(key,{
+      ...(historical||{}),
+      ...record,
+      target_name:record?.target_name||historical?.target_name||null,
+      years:[...years].map(Number).filter(Number.isFinite).sort((a,b)=>a-b),
+      scores_known:true,
+      historical_context:Boolean(historical),
+    });
+  }
+
+  const allRecords=[...merged.values()].sort((a,b)=>
+    Number(b?.active===true)-Number(a?.active===true)||
+    Number((b?.years||[]).at(-1)||0)-Number((a?.years||[]).at(-1)||0)||
+    Number(b?.score||0)-Number(a?.score||0)
+  );
+  const yearOptions=[...new Set(allRecords.flatMap((record)=>record?.years||[]).map(Number).filter(Number.isFinite))].sort((a,b)=>b-a);
+  const records=allRecords.filter((record)=>{
+    if(statusFilter==="active"&&!record?.active)return false;
+    if(statusFilter==="inactive"&&record?.active)return false;
+    if(yearFilter!=="all"&&!(record?.years||[]).includes(Number(yearFilter)))return false;
+    return true;
+  });
+
+  const manager=gameState?.manager||null;
+  const managerName=managerDisplayName(manager);
   const targetMeta=(record)=>{
     const targetId=String(record?.target_id||"");
     if(record?.target_type==="teammate"){
-      const row=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId)||{driver_id:targetId,display_name:targetId};
+      const row=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId)
+        ||drivers.find((item)=>String(item?.display_name||item?.name||"").toLowerCase()===String(record?.target_name||"").toLowerCase())
+        ||{driver_id:targetId,display_name:record?.target_name||targetId};
       return {
-        name:row?.display_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId,
+        name:row?.display_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||record?.target_name||targetId,
         visual:<DriverPortrait driver={row} size="h-9 w-9"/>,
       };
     }
     if(record?.target_type==="team"){
       const row=teams.find((item)=>String(item?.team_id??item?.id??"")===targetId)||{};
-      const name=row?.team_name||row?.name||row?.short_name||targetId;
+      const name=row?.team_name||row?.name||row?.short_name||record?.target_name||targetId;
       return {name,visual:<TeamLogo teamId={targetId} name={name} size="h-9 w-9" className="p-0.5"/>};
     }
     if(record?.target_type==="manager"){
       return {
-        name:"Team Manager",
-        visual:<StaffPortrait staff={{staff_name:"Team Manager"}} size="h-9 w-9"/>,
+        name:managerName,
+        visual:<StaffPortrait staff={{display_name:managerName,portrait_path:manager?.portrait_data_url||null}} size="h-9 w-9"/>,
       };
     }
-    const row=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId)||{staff_id:targetId,staff_name:targetId};
+    const row=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId)||{staff_id:targetId,staff_name:record?.target_name||targetId};
     return {
-      name:row?.display_name||row?.staff_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId,
+      name:row?.display_name||row?.staff_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||record?.target_name||targetId,
       visual:<StaffPortrait staff={row} size="h-9 w-9"/>,
     };
   };
@@ -2746,24 +2809,52 @@ function RelationshipsTab({ gameState, driverId }) {
     race_engineer:"Race Engineer",
   }[String(value)]||String(value||"Relationship").replaceAll("_"," "));
 
+  const niceRole=(value)=>{
+    const key=String(value||"").trim().toLowerCase().replace(/[\s-]+/g,"_");
+    if(!key)return "";
+    if(/main|first|lead|driver_?1/.test(key))return "Main Driver";
+    if(/second|driver_?2/.test(key))return "Second Driver";
+    if(/reserve/.test(key))return "Reserve Driver";
+    if(/test|tester/.test(key))return "Test Driver";
+    return key.split("_").filter(Boolean).map((part)=>part.charAt(0).toUpperCase()+part.slice(1)).join(" ");
+  };
   const relationTone=(score)=>{
+    if(score===null||score===undefined||score==="")return "text-slate-500";
     const value=Number(score);
     if(value>=65)return "text-emerald-300";
     if(value<45)return "text-rose-300";
     return "text-slate-200";
   };
   const rivalryTone=(value)=>{
+    if(value===null||value===undefined||value==="")return "text-slate-500";
     const n=Number(value)||0;
     if(n>=60)return "text-rose-300";
     if(n>=35)return "text-amber-300";
     if(n>=15)return "text-sky-300";
     return "text-slate-400";
   };
+  const metricTone=(short,value)=>{
+    if(value===null||value===undefined||value==="")return "text-slate-600";
+    if(short==="T")return "text-sky-300";
+    if(short==="R")return "text-emerald-300";
+    if(short==="A")return "text-violet-300";
+    if(short==="S")return "text-amber-300";
+    return rivalryTone(value);
+  };
+  const metricShort=(field)=>({
+    trust:"T",
+    respect:"R",
+    affinity:"A",
+    satisfaction:"S",
+    rivalry:"Riv",
+  }[String(field)]||String(field||"").slice(0,3));
+  const metricValue=(value)=>value===null||value===undefined||value===""?"—":Number(value).toFixed(0);
+
   const performanceRows=Array.isArray(gameState?.driverPerformanceLog?.[String(driverId)])
     ?gameState.driverPerformanceLog[String(driverId)]
     :[];
   const h2hFor=(record)=>{
-    if(record?.target_type!=="teammate")return null;
+    if(record?.target_type!=="teammate"||record?.scores_known===false)return null;
     const rows=performanceRows.filter((row)=>String(row?.teammate_driver_id??"")===String(record?.target_id??""));
     const race=rows.map((row)=>Number(row?.teammate_race_delta)).filter(Number.isFinite);
     const quali=rows.map((row)=>Number(row?.teammate_qualifying_delta)).filter(Number.isFinite);
@@ -2779,13 +2870,45 @@ function RelationshipsTab({ gameState, driverId }) {
     .filter((entry)=>String(entry?.driver_id??"")===String(driverId))
     .slice(0,12);
 
-  if(!records.length){
-    return <div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-sm text-slate-400">No relationships have been established in this Save World yet.</div>;
+  if(!allRecords.length){
+    return <div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-sm text-slate-400">No relationships have been established for this driver yet.</div>;
   }
 
-  return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+  return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
     <div className="space-y-2">
-      {records.map((record)=>{
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#12141c] px-3 py-2">
+        <div className="flex items-center gap-1">
+          {[["all","All"],["active","Active"],["inactive","Inactive"]].map(([key,label])=><button
+            key={key}
+            type="button"
+            onClick={()=>setStatusFilter(key)}
+            className={"rounded px-2 py-1 text-[10px] font-medium "+(statusFilter===key?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400 hover:text-white")}
+          >{label}</button>)}
+        </div>
+        <select value={yearFilter} onChange={(event)=>setYearFilter(event.target.value)} className="rounded border border-white/10 bg-[#171a23] px-2 py-1 text-[10px] text-slate-300">
+          <option value="all">All years</option>
+          {yearOptions.map((year)=><option key={year} value={year}>{year}</option>)}
+        </select>
+        <div className="flex-1"/>
+        <button
+          type="button"
+          onClick={()=>setShowLegend((value)=>!value)}
+          className={"inline-flex h-7 w-7 items-center justify-center rounded border text-slate-400 hover:text-white "+(showLegend?"border-sky-400/30 bg-sky-500/10":"border-white/10 bg-white/5")}
+          aria-expanded={showLegend}
+          title="Relationship metrics"
+        ><Info size={13}/></button>
+      </div>
+
+      {showLegend?<div className="rounded-lg border border-sky-400/15 bg-sky-500/[0.04] px-3 py-2 text-[10px] text-slate-400">
+        <span className="mr-3"><strong className="text-sky-300">T</strong> Trust</span>
+        <span className="mr-3"><strong className="text-emerald-300">R</strong> Respect</span>
+        <span className="mr-3"><strong className="text-violet-300">A</strong> Affinity</span>
+        <span className="mr-3"><strong className="text-amber-300">S</strong> Satisfaction</span>
+        <span><strong className="text-rose-300">Riv</strong> Rivalry</span>
+        <div className="mt-1 text-slate-600">Historical database links establish who shared a team; pre-career relationship scores stay unknown until the Save World creates them.</div>
+      </div>:null}
+
+      {records.length?records.map((record)=>{
         const h2h=h2hFor(record);
         const target=targetMeta(record);
         const metrics=[
@@ -2793,52 +2916,63 @@ function RelationshipsTab({ gameState, driverId }) {
           ["R",record?.respect,"Respect"],
           ["A",record?.affinity,"Affinity"],
           ["S",record?.satisfaction,"Satisfaction"],
-          ...(record?.target_type==="teammate"?[["Riv",record?.rivalry??0,"Rivalry"]]:[]),
+          ...(record?.target_type==="teammate"?[["Riv",record?.rivalry,"Rivalry"]]:[]),
         ];
-        return <div key={String(record?.driver_id)+"|"+String(record?.target_type)+"|"+String(record?.target_id)} className={"rounded-lg border px-3 py-2 "+(record?.active?"border-white/10 bg-[#12141c]":"border-white/5 bg-[#0f1117] opacity-70")}>
+        const expectedRole=niceRole(record?.expected_role);
+        const currentRole=niceRole(record?.current_role);
+        const showExpected=Boolean(expectedRole&&(!currentRole||expectedRole!==currentRole));
+        const yearsLabel=formatRelationshipYears(record?.years||[]);
+        const scoreKnown=record?.scores_known!==false&&record?.score!==null&&record?.score!==undefined;
+        return <div key={String(record?.driver_id)+"|"+String(record?.target_type)+"|"+String(record?.target_id)} className={"rounded-lg border px-3 py-2 "+(record?.active?"border-white/10 bg-[#12141c]":"border-white/5 bg-[#0f1117]")}>
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="shrink-0">{target.visual}</div>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{typeLabel(record?.target_type)}</span>
                 <strong className="truncate text-sm text-slate-100">{target.name}</strong>
-                <span className={"rounded px-1.5 py-0.5 text-[9px] "+(record?.active?"bg-emerald-500/10 text-emerald-300":"bg-white/5 text-slate-500")}>{record?.active?"Current":"Historical"}</span>
-                {record?.expected_role?<span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] text-sky-300">Expected: {record.expected_role}</span>:null}
+                <span className={"rounded px-1.5 py-0.5 text-[9px] "+(record?.active?"bg-emerald-500/10 text-emerald-300":"bg-white/5 text-slate-500")}>{record?.active?"Active":"Inactive"}</span>
+                {yearsLabel?<span className="text-[9px] text-slate-500">{yearsLabel}</span>:null}
+                {showExpected?<span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] text-sky-300">Expected role: {expectedRole}</span>:null}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
-                {metrics.map(([short,value,title])=><span key={short} title={title}><span className="text-slate-600">{short}</span> <strong className={short==="Riv"?rivalryTone(value):"text-slate-300"}>{Number(value??0).toFixed(0)}</strong></span>)}
+                {metrics.map(([short,value,title])=><span key={short} title={title} className={metricTone(short,value)}><span className="opacity-70">{short}</span> <strong>{metricValue(value)}</strong></span>)}
                 {h2h?<>
                   <span>Race <strong className="text-slate-300">{h2h.race.wins}-{h2h.race.losses}{h2h.race.ties?"-"+h2h.race.ties:""}</strong></span>
                   <span>Quali <strong className="text-slate-300">{h2h.quali.wins}-{h2h.quali.losses}{h2h.quali.ties?"-"+h2h.quali.ties:""}</strong></span>
                 </>:null}
-                {record?.target_type==="teammate"?<span className={"capitalize "+rivalryTone(record?.rivalry)}>{record?.rivalry_status||"low"} rivalry</span>:null}
+                {record?.target_type==="teammate"&&record?.rivalry!==null&&record?.rivalry!==undefined?<span className={"capitalize "+rivalryTone(record?.rivalry)}>{record?.rivalry_status||"low"} rivalry</span>:null}
               </div>
             </div>
             <div className="shrink-0 text-right">
-              <div className={ "text-xl font-bold leading-none "+relationTone(record?.score)}>{Number(record?.score??50).toFixed(0)}</div>
-              <div className="mt-0.5 text-[9px] capitalize text-slate-600">{record?.status||"neutral"}</div>
+              <div className={"text-xl font-bold leading-none "+relationTone(record?.score)}>{scoreKnown?Number(record.score).toFixed(0):"—"}</div>
+              <div className="mt-0.5 text-[9px] capitalize text-slate-600">{scoreKnown?(record?.status||"neutral"):"Historical data"}</div>
             </div>
           </div>
         </div>;
-      })}
+      }):<div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-xs text-slate-500">No relationships match the selected filters.</div>}
     </div>
 
     <aside className="rounded-lg border border-white/10 bg-[#12141c] p-3">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Recent Events</div>
       <div className="mt-2 space-y-1.5">
-        {logs.length?logs.map((entry,index)=><div key={entry?.id||index} className="border-b border-white/5 pb-1.5 last:border-0 last:pb-0">
-          <div className="flex items-center justify-between gap-2 text-[9px] text-slate-600">
-            <span>{entry?.dateISO||"—"}</span>
-            <span className="capitalize">{String(entry?.source||"event").replaceAll("_"," ")}</span>
-          </div>
-          <div className="mt-0.5 truncate text-[11px] font-medium text-slate-300" title={entry?.reason||"Relationship changed"}>{entry?.reason||"Relationship changed"}</div>
-          <div className="mt-0.5 flex flex-wrap gap-1">
-            {(entry?.changes||[]).map((change)=>{
-              const delta=Number(change?.delta||0);
-              return <span key={change?.field} className={delta>0?"text-[9px] text-emerald-300":delta<0?"text-[9px] text-rose-300":"text-[9px] text-slate-500"}>{String(change?.field||"").slice(0,3)} {delta>0?"+":""}{delta.toFixed(1)}</span>;
-            })}
-          </div>
-        </div>):<div className="text-xs text-slate-500">No relationship-changing events yet.</div>}
+        {logs.length?logs.map((entry,index)=>{
+          const eventTarget=targetMeta(entry);
+          return <div key={entry?.id||index} className="border-b border-white/5 pb-1.5 last:border-0 last:pb-0">
+            <div className="flex items-center justify-between gap-2 text-[9px] text-slate-600">
+              <span>{entry?.dateISO||"—"}</span>
+              <span className="capitalize">{String(entry?.source||"event").replaceAll("_"," ")}</span>
+            </div>
+            <div className="mt-0.5 truncate text-[11px] font-medium text-slate-300" title={entry?.reason||"Relationship changed"}>{entry?.reason||"Relationship changed"}</div>
+            <div className="mt-0.5 truncate text-[9px] text-slate-500">{typeLabel(entry?.target_type)} · {eventTarget.name}</div>
+            <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+              {(entry?.changes||[]).map((change)=>{
+                const delta=Number(change?.delta||0);
+                const short=metricShort(change?.field);
+                return <span key={change?.field} className={"text-[9px] "+metricTone(short,change?.after)}>{short} {delta>0?"+":""}{delta.toFixed(1)}</span>;
+              })}
+            </div>
+          </div>;
+        }):<div className="text-xs text-slate-500">No relationship-changing events yet.</div>}
       </div>
     </aside>
   </div>;
