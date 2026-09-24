@@ -148,6 +148,10 @@ test("RW5.2D2 track temperature evolves during a dry session instead of remainin
 });
 
 test("RW5.2D2 rain cools the track and spray reduces visibility",()=>{
+  const state=gs();
+  state.raceEntryState={entries:Array.from({length:20},(_,index)=>({
+    driver_id:`W${index+1}`,team_id:`T${Math.floor(index/2)+1}`,status:"confirmed",
+  }))};
   const weather={
     state:"SUNNY",
     avg_temp_c:25,
@@ -161,7 +165,7 @@ test("RW5.2D2 rain cools the track and spray reduces visibility",()=>{
       {from_lap:5,to_lap:16,state:"HEAVY_RAIN"},
     ],
   };
-  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:16});
+  const timeline=buildTrackWeatherTimeline(state,weather,{...track,laps:16});
   const beforeRain=timeline[3];
   const wet=timeline.at(-1);
   assert.ok(wet.track_temp_c<beforeRain.track_temp_c,"sustained rain should cool the asphalt");
