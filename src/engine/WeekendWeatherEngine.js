@@ -3,6 +3,7 @@
 
 import { rngFor } from "../core/random.js";
 import { evolveSessionSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
+import { evolveSessionEnvironment } from "./TrackEnvironmentEngine.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -103,10 +104,6 @@ function segments(rng,state){
   ];
   return [{from_pct:0,to_pct:1,state}];
 }
-function trackTemp(air,state){
-  const d=state==="SUNNY"?12:state==="CLOUDY"?6:state==="WINDY"?5:/RAIN|STORM|WETTING/.test(state)?1:4;
-  return Number((air+d).toFixed(1));
-}
 function actualSession(gs,gp,s,index,previous){
   const year=Number(gs?.activeYear)||Number(gp?.year)||1980;
   const p=profile(gs,gp);
@@ -116,11 +113,12 @@ function actualSession(gs,gp,s,index,previous){
   const rainChance=clamp(num(p?.rain_chance,18),0,100);
   const stormChance=clamp(num(p?.storm_chance,3),0,100);
   const state=nextState(rng,previous?.state,rainChance,stormChance,p?.wind_profile);
-  const air=Number((num(p?.avg_temp,22)+(rng.next()-0.5)*5.5+(state==="SUNNY"?1.5:/RAIN|STORM/.test(state)?-2:0)).toFixed(1));
+  const baseAir=Number((num(p?.avg_temp,22)+(rng.next()-0.5)*5.5).toFixed(1));
   const gap=previous?dayGap(previous.dateISO,isoOf(s,gp)):0;
-  const sessionTrackTemp=trackTemp(air,state);
   const confirmedCars=(gs?.raceEntryState?.entries||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id).length;
   const carsOnTrack=confirmedCars||Math.max(12,(gs?.teams||[]).length*2||20);
+  const windProfile=p?.wind_profile||"medium";
+  const intensity=rainIntensityForState(state);
   const priorSurface=previous?.track
     ?{
       track_wetness:num(previous.track.end_wetness,0),
@@ -129,26 +127,60 @@ function actualSession(gs,gp,s,index,previous){
     }
     :initialiseTrackSurface({
       state,
-      startingWetness:rainIntensityForState(state)*0.30,
+      startingWetness:intensity*0.30,
       rubberLevel:12,
     });
+  const previousEnvironment=previous?.environment
+    ?{
+      air_temp_c:num(previous.environment.end_air_temp_c,previous.air_temp_c??baseAir),
+      track_temp_c:num(previous.environment.end_track_temp_c,previous.track_temp_c??baseAir),
+    }
+    :previous
+      ?{air_temp_c:num(previous.air_temp_c,baseAir),track_temp_c:num(previous.track_temp_c,baseAir)}
+      :null;
+  const preliminaryEnvironment=evolveSessionEnvironment(previousEnvironment,{
+    state,
+    kind:kindOf(s),
+    baseAirTempC:baseAir,
+    wetnessStart:num(priorSurface.track_wetness,0),
+    wetnessEnd:num(priorSurface.track_wetness,0),
+    rainIntensity:intensity,
+    carsOnTrack,
+    windProfile,
+    gapDays:gap,
+  });
+  const surfaceTemp=(preliminaryEnvironment.start_track_temp_c+preliminaryEnvironment.end_track_temp_c)/2;
   const track=evolveSessionSurface(priorSurface,{
     state,
     kind:kindOf(s),
     gapDays:gap,
     carsOnTrack,
-    trackTempC:sessionTrackTemp,
-    windProfile:p?.wind_profile||"medium",
+    trackTempC:surfaceTemp,
+    windProfile,
     drainage:0.5,
+  });
+  const environment=evolveSessionEnvironment(previousEnvironment,{
+    state,
+    kind:kindOf(s),
+    baseAirTempC:baseAir,
+    wetnessStart:track.start_wetness,
+    wetnessEnd:track.end_wetness,
+    rainIntensity:intensity,
+    carsOnTrack,
+    windProfile,
+    gapDays:gap,
   });
   return {
     id:key,kind:kindOf(s),label:s?.label||key,dateISO:isoOf(s,gp),state,
     segments:segments(rng,state),
-    air_temp_c:air,track_temp_c:sessionTrackTemp,
+    air_temp_c:environment.start_air_temp_c,
+    track_temp_c:environment.start_track_temp_c,
+    visibility_index:environment.start_visibility_index,
+    spray_index:environment.start_spray_index,
     rain_intensity:Number(track.rain_intensity.toFixed(2)),
     rain_band:track.rain_band,
     rain_chance_profile_pct:rainChance,storm_chance_profile_pct:stormChance,
-    wind_profile:p?.wind_profile||"medium",track,
+    wind_profile:windProfile,track,environment,
   };
 }
 function family(state){
