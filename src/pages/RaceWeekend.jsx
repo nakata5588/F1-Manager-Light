@@ -342,8 +342,11 @@ function controlNotice(plan,liveRace,drivers){
   const period=(plan?.periods||[]).find((row)=>lap>=Number(row?.from_lap)&&lap<=Number(row?.to_lap))
     ||liveRace?.red_flag_period
     ||null;
-  const incident=period?.driver_id
-    ?(plan?.incidents||[]).find((row)=>String(row?.driver_id)===String(period.driver_id)&&Number(row?.lap)===Number(period?.from_lap))
+  const incident=period
+    ?(plan?.incidents||[]).find((row)=>
+        (period?.driver_id&&String(row?.driver_id)===String(period.driver_id)&&Number(row?.lap)===Number(period?.from_lap))||
+        (!period?.driver_id&&Number(row?.lap)===Number(period?.from_lap)&&Number(row?.sector??1)===Number(period?.from_sector??1))
+      )||null
     :null;
   const label={
     LOCAL_YELLOW:"YELLOW FLAG",
@@ -355,7 +358,8 @@ function controlNotice(plan,liveRace,drivers){
   if(period?.cause==="weather")reason="Extreme weather conditions";
   else if(incident){
     reason=incidentNoticeText(incident,drivers);
-  }else if(period?.cause)reason=String(period.cause).replaceAll("_"," ");
+  }else if(period?.cause==="incident")reason="Incident on track";
+  else if(period?.cause)reason=String(period.cause).replaceAll("_"," ");
   return {label,reason,type:current,period};
 }
 function raceFlagNotice(plan,liveRace,drivers){
