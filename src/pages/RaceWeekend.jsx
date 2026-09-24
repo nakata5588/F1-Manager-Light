@@ -803,12 +803,14 @@ export default function RaceWeekend(){
                 <span>{weatherStateLabel(state)}</span>
               </div>
               {known?<div className="mt-2 grid grid-cols-2 gap-1 text-xs text-slate-400">
-                <div>Air {Number(actual?.air_temp_c||0).toFixed(1)}°C</div>
-                <div>Track {Number(actual?.track_temp_c||0).toFixed(1)}°C</div>
-                <div>Wetness {Math.round(Number(actual?.track?.start_wetness||0)*100)}%</div>
-                <div>Grip {Number(actual?.track?.grip_index||0).toFixed(0)}%</div>
-                <div>Rubber {Number(actual?.track?.rubber_level||0).toFixed(0)}%</div>
-                <div>Rain {Math.round(Number(actual?.rain_intensity||0)*100)}%</div>
+                <div>Air {Number(actual?.environment?.start_air_temp_c??actual?.air_temp_c??0).toFixed(1)}→{Number(actual?.environment?.end_air_temp_c??actual?.air_temp_c??0).toFixed(1)}°C</div>
+                <div>Track {Number(actual?.environment?.start_track_temp_c??actual?.track_temp_c??0).toFixed(1)}→{Number(actual?.environment?.end_track_temp_c??actual?.track_temp_c??0).toFixed(1)}°C</div>
+                <div>Wetness {Math.round(Number(actual?.track?.start_wetness||0)*100)}→{Math.round(Number(actual?.track?.end_wetness??actual?.track?.start_wetness??0)*100)}%</div>
+                <div>Grip {Number(actual?.track?.start_grip_index??actual?.track?.grip_index??0).toFixed(0)}→{Number(actual?.track?.end_grip_index??actual?.track?.grip_index??0).toFixed(0)}%</div>
+                <div>Rubber {Number(actual?.track?.start_rubber_level??actual?.track?.rubber_level??0).toFixed(0)}→{Number(actual?.track?.end_rubber_level??actual?.track?.rubber_level??0).toFixed(0)}%</div>
+                <div>Rain {Math.round(Number(actual?.rain_intensity||0)*100)}% · {String(actual?.rain_band||"NONE").replaceAll("_"," ").toLowerCase()}</div>
+                <div>Visibility {Number(actual?.environment?.start_visibility_index??actual?.visibility_index??100).toFixed(0)}→{Number(actual?.environment?.end_visibility_index??actual?.visibility_index??100).toFixed(0)}%</div>
+                <div>Spray {Math.round(Number(actual?.environment?.end_spray_index??actual?.spray_index??0)*100)}% · {String(actual?.environment?.spray_band||"NONE").replaceAll("_"," ").toLowerCase()}</div>
               </div>:<div className="mt-2 text-xs text-slate-400">
                 Rain {Number(forecast?.rain_chance_pct||0).toFixed(0)}% · Air {Number(forecast?.air_temp_c||0).toFixed(1)}°C ±{Number(forecast?.temperature_range_c||0).toFixed(1)} · confidence {Number(forecast?.confidence_pct||0).toFixed(0)}%
               </div>}
@@ -1346,6 +1348,7 @@ export default function RaceWeekend(){
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Rain</div>
                   <div className="mt-1 font-bold text-sky-300">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div>
+                  <div className="text-[9px] capitalize text-slate-500">{String(trackState?.rain_band||"none").replaceAll("_"," ").toLowerCase()}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Droplets className="h-3.5 w-3.5"/>Wetness</div>
@@ -1358,10 +1361,12 @@ export default function RaceWeekend(){
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Activity className="h-3.5 w-3.5"/>Visibility</div>
                   <div className="mt-1 font-bold">{Number(trackState?.visibility_index??100).toFixed(0)}%</div>
+                  <div className="text-[9px] capitalize text-slate-500">Spray {Math.round(Number(trackState?.spray_index||0)*100)}% · {String(trackState?.spray_band||"none").replaceAll("_"," ").toLowerCase()}</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Thermometer className="h-3.5 w-3.5"/>Track Temp</div>
-                  <div className="mt-1 font-bold">{Number(activeWeather?.track_temp_c??raceWeatherRow?.track_temp_c??0).toFixed(0)}°C</div>
+                  <div className="mt-1 font-bold">{Number(trackState?.track_temp_c??activeWeather?.track_temp_c??raceWeatherRow?.track_temp_c??0).toFixed(0)}°C</div>
+                  <div className="text-[9px] text-slate-500">Air {Number(trackState?.air_temp_c??activeWeather?.air_temp_c??raceWeatherRow?.air_temp_c??0).toFixed(0)}°C</div>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-[#171d27] px-2 py-1">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-slate-500"><Timer className="h-3.5 w-3.5"/>Fastest Lap</div>
