@@ -141,7 +141,7 @@ export function DriverQuickView({entity,onClose}){
     <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("driver",id))}>
       <div className="p-5">
         <div className="flex items-center gap-4">
-          <DriverPortrait driver={driver} size="h-20 w-20" className="!rounded-xl"/>
+          <DriverPortrait driver={driver} size="h-36 w-36" className="!rounded-xl"/>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Driver Quick View</div>
             <div className="mt-1 truncate text-2xl font-semibold">{name}</div>

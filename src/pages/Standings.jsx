@@ -159,16 +159,40 @@ export default function Standings(){
 
   useEffect(()=>{ if(Number.isFinite(activeYear))setYearFilter(String(activeYear)); },[activeYear]);
 
-  const driversDb=firstArray(gameState?.drivers,gameState?.dbDrivers);
-  const teamsDb=firstArray(gameState?.teams,gameState?.dbTeams);
-  const allDrivers=firstArray(gameState?.dbDrivers,gameState?.drivers);
-  const allTeams=firstArray(gameState?.dbTeams,gameState?.teams);
+  const liveDriversDb=Array.isArray(gameState?.drivers)?gameState.drivers:[];
+  const seedDriversDb=Array.isArray(gameState?.dbDrivers)?gameState.dbDrivers:[];
+  const liveTeamsDb=Array.isArray(gameState?.teams)?gameState.teams:[];
+  const seedTeamsDb=Array.isArray(gameState?.dbTeams)?gameState.dbTeams:[];
   const liveStandings=gameState?.standings||{drivers:[],teams:[]};
   const results=Array.isArray(gameState?.results)?gameState.results:[];
   const history=Array.isArray(gameState?.dbDriverHistory)?gameState.dbDriverHistory:[];
 
-  const driversById=useMemo(()=>new Map(allDrivers.map((d)=>[str(d?.driver_id??d?.id),d])),[allDrivers]);
-  const teamsById=useMemo(()=>new Map(allTeams.map((t)=>[str(t?.team_id??t?.id),t])),[allTeams]);
+  // Historical DB rows are the base, but the Save World is authoritative.
+  // This is especially important for runtime fields such as portrait_path.
+  const driversById=useMemo(()=>{
+    const map=new Map();
+    for(const d of seedDriversDb){
+      const id=str(d?.driver_id??d?.id);
+      if(id)map.set(id,d);
+    }
+    for(const d of liveDriversDb){
+      const id=str(d?.driver_id??d?.id);
+      if(id)map.set(id,{...(map.get(id)||{}),...d});
+    }
+    return map;
+  },[seedDriversDb,liveDriversDb]);
+  const teamsById=useMemo(()=>{
+    const map=new Map();
+    for(const t of seedTeamsDb){
+      const id=str(t?.team_id??t?.id);
+      if(id)map.set(id,t);
+    }
+    for(const t of liveTeamsDb){
+      const id=str(t?.team_id??t?.id);
+      if(id)map.set(id,{...(map.get(id)||{}),...t});
+    }
+    return map;
+  },[seedTeamsDb,liveTeamsDb]);
 
   const yearOptions=useMemo(()=>{
     const years=new Set();
