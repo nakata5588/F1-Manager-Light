@@ -7,6 +7,7 @@
 
 import { technicalDevelopmentCapacity } from "./developmentProject.js";
 import { nextSeasonRegulationImpact } from "./nextSeasonRegulations.js";
+import { nextSeasonKnowledgeCarryover, technicalKnowledgeSnapshot } from "./technicalKnowledge.js";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -84,6 +85,8 @@ export function defaultNextSeasonCarProgramme(activeYear=1980){
     completed_at:null,
     readiness:"planning",
     regulation_impact:null,
+    knowledge_at_launch:null,
+    knowledge_carryover:null,
   };
 }
 
@@ -200,6 +203,12 @@ export function startNextSeasonCarProgramme(gs,{
   const date=dateOnly(gs?.currentDateISO);
   let next=patchBudget(gs,quote.launch_cost,`Next Season Car — ${quote.targetSeason} programme launch`);
   const regulationImpact=nextSeasonRegulationImpact(gs,{targetSeason:quote.targetSeason,teamId:id});
+  const knowledgeAtLaunch=technicalKnowledgeSnapshot(gs,{teamId:id});
+  const knowledgeCarryover=nextSeasonKnowledgeCarryover(gs,{
+    teamId:id,
+    targetSeason:quote.targetSeason,
+    regulationImpact,
+  });
   const programme=normalizeNextSeasonCarProgramme({
     ...defaultNextSeasonCarProgramme(activeYearOf(gs)),
     targetSeason:quote.targetSeason,
@@ -211,6 +220,8 @@ export function startNextSeasonCarProgramme(gs,{
     started_at:date,
     last_progress_date:date,
     regulation_impact:regulationImpact,
+    knowledge_at_launch:knowledgeAtLaunch,
+    knowledge_carryover:knowledgeCarryover,
   },{activeYear:activeYearOf(gs)});
 
   return {
@@ -289,6 +300,12 @@ export function advanceNextSeasonCarDay(gs,{teamId=null}={}){
   const overall=clamp(programme.overall_progress+dailyProgress,0,100);
   const phase=phaseForProgress(overall);
   const completed=overall>=100;
+  const knowledgeCarryover=nextSeasonKnowledgeCarryover(gs,{
+    teamId:id,
+    targetSeason:programme.targetSeason,
+    regulationImpact:programme.regulation_impact||null,
+    development:dev,
+  });
 
   return {
     ...gs,
@@ -304,6 +321,7 @@ export function advanceNextSeasonCarDay(gs,{teamId=null}={}){
         completed_at:completed?today:null,
         readiness:completed?"ready":"developing",
         engineers:completed?0:programme.engineers,
+        knowledge_carryover:knowledgeCarryover,
       },
     },
   };
