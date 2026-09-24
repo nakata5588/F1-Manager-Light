@@ -17,6 +17,7 @@ test("fresh career runtime clears driver form, development and team morale state
     driverPotentialLog: { D1: [{ after: 90 }] },
     driverAbilityLog: { D1: [{ after: 85 }] },
     driverMentalStateLog: { D1: [{ source: "old-race" }] },
+    driverReputationLog: { D1: [{ delta: 1.2 }] },
     teamOperationalState: { T1: { morale: 22 } },
     teamMoraleLog: { T1: [{ delta: -5 }] },
   };
@@ -35,6 +36,7 @@ test("fresh career runtime clears driver form, development and team morale state
   assert.deepEqual(next.driverPotentialLog, {});
   assert.deepEqual(next.driverAbilityLog, {});
   assert.deepEqual(next.driverMentalStateLog, {});
+  assert.deepEqual(next.driverReputationLog, {});
   assert.deepEqual(next.teamOperationalState, {});
   assert.deepEqual(next.teamMoraleLog, {});
   assert.deepEqual(next.driverAttributes, conditions);
@@ -60,6 +62,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
     driverForm: { D1: { score: 91, label: "Excellent" } },
     driverDevelopmentFocus: { D1: "pace" },
     driverMentalStateLog: { D1: [{ source: "old-race" }] },
+    driverReputationLog: { D1: [{ delta: -0.8 }] },
     driverAttributes: { D1: { fatigue: 88, confidence: 12 } },
     development: {
       projects: [{ id: "OLD_PROJECT" }],
@@ -109,6 +112,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.deepEqual(fresh.driverForm, {});
   assert.deepEqual(fresh.driverDevelopmentFocus, {});
   assert.deepEqual(fresh.driverMentalStateLog, {});
+  assert.deepEqual(fresh.driverReputationLog, {});
   assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [] });
   assert.deepEqual(fresh.technicalUnlocks, {});
   assert.deepEqual(fresh.technologyDiscoverySeen, {});
