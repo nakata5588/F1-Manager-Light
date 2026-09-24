@@ -5,6 +5,7 @@ import {
   relationshipKey,
   synchronizeDriverRelationships,
 } from "../src/domain/driverRelationships.js";
+import { applyRaceTeammateDynamics } from "../src/domain/driverTeammateDynamics.js";
 
 function fixture(){
   return {
@@ -126,4 +127,81 @@ test("D6.3A leaves unrelated legacy state unchanged when nothing can be seeded",
   const synced=synchronizeDriverRelationships(legacy,{source:"legacy_backfill"});
   assert.equal(synced,legacy);
   assert.equal(Object.prototype.hasOwnProperty.call(synced,"driverRelationships"),false);
+});
+
+
+test("D6.3B race and qualifying comparisons build teammate rivalry gradually",()=>{
+  let gs=synchronizeDriverRelationships(fixture());
+  const result={
+    gp_id:"GP1",round:1,
+    qualifying:[
+      {driver_id:"D1",team_id:"T1",position:2},
+      {driver_id:"D2",team_id:"T1",position:1},
+    ],
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:1,status:"Finished",retired:false},
+      {driver_id:"D2",team_id:"T1",position:3,status:"Finished",retired:false},
+    ],
+  };
+  gs=applyRaceTeammateDynamics(gs,result);
+  const d1=driverRelationship(gs,"D1","teammate","D2");
+  const d2=driverRelationship(gs,"D2","teammate","D1");
+  assert.ok(d1.rivalry>0);
+  assert.ok(d2.rivalry>d1.rivalry,"losing to a team-mate should create slightly more competitive pressure");
+  assert.ok(d1.satisfaction>50);
+  assert.ok(d2.satisfaction<50);
+  assert.ok(gs.driverRelationships.log.some((entry)=>entry.source==="teammate_race"));
+});
+
+test("D6.3B mechanical DNF does not count as a sporting teammate defeat",()=>{
+  let gs=synchronizeDriverRelationships(fixture());
+  const before=structuredClone(driverRelationship(gs,"D1","teammate","D2"));
+  gs=applyRaceTeammateDynamics(gs,{
+    gp_id:"GP2",round:2,qualifying:[],
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:20,status:"DNF",retired:true,retirement_reason:"Engine"},
+      {driver_id:"D2",team_id:"T1",position:2,status:"Finished",retired:false},
+    ],
+  });
+  const after=driverRelationship(gs,"D1","teammate","D2");
+  assert.equal(after.satisfaction,before.satisfaction);
+  assert.equal(after.rivalry,before.rivalry);
+});
+
+test("D6.3B teammate collision strongly damages trust and raises rivalry",()=>{
+  let gs=synchronizeDriverRelationships(fixture());
+  gs=applyRaceTeammateDynamics(gs,{
+    gp_id:"GP3",round:3,qualifying:[],
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:18,status:"DNF",retired:true,retirement_reason:"Collision",incident_with_driver_id:"D2"},
+      {driver_id:"D2",team_id:"T1",position:6,status:"Finished",retired:false},
+    ],
+  });
+  const d1=driverRelationship(gs,"D1","teammate","D2");
+  const d2=driverRelationship(gs,"D2","teammate","D1");
+  assert.equal(d1.trust,44);
+  assert.equal(d2.trust,44);
+  assert.equal(d1.rivalry,8);
+  assert.equal(d2.rivalry,8);
+});
+
+test("D6.3B completed let-through orders are recorded as teammate dynamics",()=>{
+  let gs=synchronizeDriverRelationships(fixture());
+  gs=applyRaceTeammateDynamics(gs,{
+    gp_id:"GP4",round:4,qualifying:[],
+    raceStrategy:{
+      strategies:{
+        D1:{strategy_decisions:[{lap:12,action:"team_order",order:"yield",teammate_id:"D2"}]},
+      },
+    },
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:4,status:"Finished",retired:false},
+      {driver_id:"D2",team_id:"T1",position:3,status:"Finished",retired:false},
+    ],
+  });
+  const yielding=driverRelationship(gs,"D1","teammate","D2");
+  const beneficiary=driverRelationship(gs,"D2","teammate","D1");
+  assert.ok(yielding.satisfaction<49);
+  assert.ok(beneficiary.respect>51);
+  assert.ok(gs.driverRelationships.log.some((entry)=>entry.source==="team_order_yield"));
 });
