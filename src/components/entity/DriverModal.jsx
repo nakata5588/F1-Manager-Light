@@ -30,7 +30,7 @@ import {
   driverDevelopmentFocusState,
   driverWheelToWheelBehaviour,
 } from "../../domain/driverAttributeGroups.js";
-import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
+import { DriverPortrait, StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import { GrandPrixFlag } from "./GrandPrixFlag.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
@@ -2712,19 +2712,31 @@ function RelationshipsTab({ gameState, driverId }) {
   const teams=[...(gameState?.teams||[]),...(gameState?.dbTeams||[])];
   const staff=[...(gameState?.staffCore||[]),...(gameState?.dbStaffCore||[])];
 
-  const nameOf=(record)=>{
+  const targetMeta=(record)=>{
     const targetId=String(record?.target_id||"");
     if(record?.target_type==="teammate"){
-      const row=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId);
-      return row?.display_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId;
+      const row=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId)||{driver_id:targetId,display_name:targetId};
+      return {
+        name:row?.display_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId,
+        visual:<DriverPortrait driver={row} size="h-9 w-9"/>,
+      };
     }
     if(record?.target_type==="team"){
-      const row=teams.find((item)=>String(item?.team_id??item?.id??"")===targetId);
-      return row?.team_name||row?.name||row?.short_name||targetId;
+      const row=teams.find((item)=>String(item?.team_id??item?.id??"")===targetId)||{};
+      const name=row?.team_name||row?.name||row?.short_name||targetId;
+      return {name,visual:<TeamLogo teamId={targetId} name={name} size="h-9 w-9" className="p-0.5"/>};
     }
-    if(record?.target_type==="manager")return "Team Manager";
-    const row=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId);
-    return row?.display_name||row?.staff_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId;
+    if(record?.target_type==="manager"){
+      return {
+        name:"Team Manager",
+        visual:<StaffPortrait staff={{staff_name:"Team Manager"}} size="h-9 w-9"/>,
+      };
+    }
+    const row=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId)||{staff_id:targetId,staff_name:targetId};
+    return {
+      name:row?.display_name||row?.staff_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId,
+      visual:<StaffPortrait staff={row} size="h-9 w-9"/>,
+    };
   };
   const typeLabel=(value)=>({
     teammate:"Team-mate",
@@ -2765,73 +2777,68 @@ function RelationshipsTab({ gameState, driverId }) {
 
   const logs=(gameState?.driverRelationships?.log||[])
     .filter((entry)=>String(entry?.driver_id??"")===String(driverId))
-    .slice(0,30);
+    .slice(0,12);
 
   if(!records.length){
-    return <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 text-sm text-slate-400">No relationships have been established in this Save World yet.</div>;
+    return <div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-sm text-slate-400">No relationships have been established in this Save World yet.</div>;
   }
 
-  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-    <div className="space-y-3">
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Relationship Network</div>
-        <div className="mt-1 text-sm text-slate-400">Relationships evolve from shared results, hierarchy changes, team orders and incidents. Historical links remain in the Save World after people move on.</div>
-      </div>
+  return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="space-y-2">
       {records.map((record)=>{
         const h2h=h2hFor(record);
-        return <div key={String(record?.driver_id)+"|"+String(record?.target_type)+"|"+String(record?.target_id)} className={"rounded-xl border p-4 "+(record?.active?"border-white/10 bg-[#12141c]":"border-white/5 bg-[#0f1117] opacity-75")}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{typeLabel(record?.target_type)}</div>
-              <div className="mt-0.5 text-lg font-semibold text-slate-100">{nameOf(record)}</div>
-              <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
-                <span className={"rounded px-2 py-0.5 "+(record?.active?"bg-emerald-500/10 text-emerald-300":"bg-white/5 text-slate-500")}>{record?.active?"Current":"Historical"}</span>
-                <span className="rounded bg-white/5 px-2 py-0.5 capitalize text-slate-400">{record?.status||"neutral"}</span>
-                {record?.target_type==="teammate"?<span className={"rounded bg-white/5 px-2 py-0.5 capitalize "+rivalryTone(record?.rivalry)}>{record?.rivalry_status||"low"} rivalry</span>:null}
+        const target=targetMeta(record);
+        const metrics=[
+          ["T",record?.trust,"Trust"],
+          ["R",record?.respect,"Respect"],
+          ["A",record?.affinity,"Affinity"],
+          ["S",record?.satisfaction,"Satisfaction"],
+          ...(record?.target_type==="teammate"?[["Riv",record?.rivalry??0,"Rivalry"]]:[]),
+        ];
+        return <div key={String(record?.driver_id)+"|"+String(record?.target_type)+"|"+String(record?.target_id)} className={"rounded-lg border px-3 py-2 "+(record?.active?"border-white/10 bg-[#12141c]":"border-white/5 bg-[#0f1117] opacity-70")}>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="shrink-0">{target.visual}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{typeLabel(record?.target_type)}</span>
+                <strong className="truncate text-sm text-slate-100">{target.name}</strong>
+                <span className={"rounded px-1.5 py-0.5 text-[9px] "+(record?.active?"bg-emerald-500/10 text-emerald-300":"bg-white/5 text-slate-500")}>{record?.active?"Current":"Historical"}</span>
+                {record?.expected_role?<span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] text-sky-300">Expected: {record.expected_role}</span>:null}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+                {metrics.map(([short,value,title])=><span key={short} title={title}><span className="text-slate-600">{short}</span> <strong className={short==="Riv"?rivalryTone(value):"text-slate-300"}>{Number(value??0).toFixed(0)}</strong></span>)}
+                {h2h?<>
+                  <span>Race <strong className="text-slate-300">{h2h.race.wins}-{h2h.race.losses}{h2h.race.ties?"-"+h2h.race.ties:""}</strong></span>
+                  <span>Quali <strong className="text-slate-300">{h2h.quali.wins}-{h2h.quali.losses}{h2h.quali.ties?"-"+h2h.quali.ties:""}</strong></span>
+                </>:null}
+                {record?.target_type==="teammate"?<span className={"capitalize "+rivalryTone(record?.rivalry)}>{record?.rivalry_status||"low"} rivalry</span>:null}
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wide text-slate-500">Relationship</div>
-              <div className={"text-2xl font-bold "+relationTone(record?.score)}>{Number(record?.score??50).toFixed(0)}</div>
+            <div className="shrink-0 text-right">
+              <div className={ "text-xl font-bold leading-none "+relationTone(record?.score)}>{Number(record?.score??50).toFixed(0)}</div>
+              <div className="mt-0.5 text-[9px] capitalize text-slate-600">{record?.status||"neutral"}</div>
             </div>
           </div>
-          <div className={"mt-3 grid gap-2 "+(record?.target_type==="teammate"?"grid-cols-5":"grid-cols-4")}>
-            {[
-              ["Trust",record?.trust],
-              ["Respect",record?.respect],
-              ["Affinity",record?.affinity],
-              ["Satisfaction",record?.satisfaction],
-              ...(record?.target_type==="teammate"?[["Rivalry",record?.rivalry??0]]:[]),
-            ].map(([label,value])=><div key={label} className="rounded-lg border border-white/5 bg-white/[0.025] px-2 py-2">
-              <div className="text-[9px] uppercase tracking-wide text-slate-600">{label}</div>
-              <div className={"mt-0.5 font-semibold "+(label==="Rivalry"?rivalryTone(value):"text-slate-200")}>{Number(value??0).toFixed(0)}</div>
-            </div>)}
-          </div>
-          {h2h?<div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-white/5 pt-2 text-[11px] text-slate-400">
-            <span>Race H2H <strong className="text-slate-200">{h2h.race.wins}-{h2h.race.losses}</strong>{h2h.race.ties?("-"+h2h.race.ties):""}</span>
-            <span>Quali H2H <strong className="text-slate-200">{h2h.quali.wins}-{h2h.quali.losses}</strong>{h2h.quali.ties?("-"+h2h.quali.ties):""}</span>
-            <span>{h2h.races} shared GP evaluations</span>
-          </div>:null}
         </div>;
       })}
     </div>
 
-    <aside className="rounded-xl border border-white/10 bg-[#12141c] p-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent Relationship Events</div>
-      <div className="mt-3 space-y-2">
-        {logs.length?logs.map((entry,index)=><div key={entry?.id||index} className="rounded-lg border border-white/5 bg-white/[0.025] p-2.5">
-          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+    <aside className="rounded-lg border border-white/10 bg-[#12141c] p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Recent Events</div>
+      <div className="mt-2 space-y-1.5">
+        {logs.length?logs.map((entry,index)=><div key={entry?.id||index} className="border-b border-white/5 pb-1.5 last:border-0 last:pb-0">
+          <div className="flex items-center justify-between gap-2 text-[9px] text-slate-600">
             <span>{entry?.dateISO||"—"}</span>
             <span className="capitalize">{String(entry?.source||"event").replaceAll("_"," ")}</span>
           </div>
-          <div className="mt-1 text-xs font-medium text-slate-300">{entry?.reason||"Relationship changed"}</div>
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-0.5 truncate text-[11px] font-medium text-slate-300" title={entry?.reason||"Relationship changed"}>{entry?.reason||"Relationship changed"}</div>
+          <div className="mt-0.5 flex flex-wrap gap-1">
             {(entry?.changes||[]).map((change)=>{
               const delta=Number(change?.delta||0);
-              return <span key={change?.field} className={"rounded px-1.5 py-0.5 text-[9px] "+(delta>0?"bg-emerald-500/10 text-emerald-300":delta<0?"bg-rose-500/10 text-rose-300":"bg-white/5 text-slate-500")}>{String(change?.field||"").replaceAll("_"," ")} {delta>0?"+":""}{delta.toFixed(1)}</span>;
+              return <span key={change?.field} className={delta>0?"text-[9px] text-emerald-300":delta<0?"text-[9px] text-rose-300":"text-[9px] text-slate-500"}>{String(change?.field||"").slice(0,3)} {delta>0?"+":""}{delta.toFixed(1)}</span>;
             })}
           </div>
-        </div>):<div className="text-sm text-slate-500">No relationship-changing events recorded yet.</div>}
+        </div>):<div className="text-xs text-slate-500">No relationship-changing events yet.</div>}
       </div>
     </aside>
   </div>;

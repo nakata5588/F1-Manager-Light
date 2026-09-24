@@ -11,6 +11,7 @@ import {
   terminationCost,
 } from "../src/domain/driverContracts.js";
 import { effectiveContractRule } from "../src/domain/driverTransfers.js";
+import { driverRelationship } from "../src/domain/driverRelationships.js";
 import {
   acceptCounterOffer,
   acceptTransferCounter,
@@ -244,6 +245,13 @@ test("player can negotiate a renewal with a currently contracted driver",()=>{
   assert.equal(contract.renewal_source,"player_renewal");
   assert.equal(resolved.contracts.length,4,"accepted renewal should extend the existing contract");
   assert.ok(resolved.inbox.some((m)=>/renews with Player Team/.test(String(m.subject||""))));
+  const teamRelation=driverRelationship(resolved,"P1","team","T1");
+  const managerRelation=driverRelationship(resolved,"P1","manager","player_manager");
+  assert.ok(teamRelation.satisfaction>50);
+  assert.ok(managerRelation.trust>50);
+  assert.equal(teamRelation.expected_role,"Main Driver");
+  assert.equal(teamRelation.contract_until,1982);
+  assert.ok(resolved.driverRelationships.log.some((entry)=>entry.source==="contract_renewal"));
 });
 
 test("player can release a driver and immediately open the seat for hiring",()=>{
@@ -260,6 +268,13 @@ test("player can release a driver and immediately open the seat for hiring",()=>
   assert.equal(released.team.budget,2_000_000-cost);
   assert.ok(released.financeLog.some((tx)=>tx.amount===-cost));
   assert.equal(availableContractRoles(released,"T1").includes("Main Driver"),true);
+  const teamRelation=driverRelationship(released,"P1","team","T1");
+  const managerRelation=driverRelationship(released,"P1","manager","player_manager");
+  assert.equal(teamRelation.active,false);
+  assert.equal(managerRelation.active,false);
+  assert.ok(teamRelation.satisfaction<50);
+  assert.ok(managerRelation.trust<50);
+  assert.ok(released.driverRelationships.log.some((entry)=>entry.source==="contract_release"));
 });
 
 test("release is idempotent and cannot charge termination twice",()=>{

@@ -34,8 +34,8 @@ const SLOT_ORDER=[
 function money(value){
   return Number(value)?new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)):"—";
 }
-function Metric({label,value,tone=""}){
-  return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div><div className={"font-semibold mt-0.5 "+tone}>{value??"—"}</div></div>;
+function Metric({label,value,tone="",compact=false}){
+  return <div className={"rounded-lg border border-white/10 bg-[#171a23] "+(compact?"px-2 py-1.5":"px-3 py-2")}><div className={(compact?"text-[9px]":"text-[10px]")+" uppercase tracking-wide text-slate-500"}>{label}</div><div className={(compact?"text-xs":"")+" font-semibold mt-0.5 truncate "+tone}>{value??"—"}</div></div>;
 }
 function Bar({label,value,inverse=false}){
   const v=Math.max(0,Math.min(100,Number(value)||0));
@@ -115,12 +115,19 @@ export default function MyDrivers(){
   }
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-      <TeamLogo teamId={myTeamId} name={myTeamName} size="h-16 w-16"/>
-      <div><div className="text-xs uppercase tracking-[0.18em] text-slate-500">Race Department</div><h1 className="text-3xl font-bold">My Drivers</h1><p className="text-sm text-slate-400">{myTeamName} · Season {year||"—"}</p></div>
+    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-3 flex flex-wrap xl:flex-nowrap items-center gap-3">
+      <TeamLogo teamId={myTeamId} name={myTeamName} size="h-11 w-11" className="p-0.5"/>
+      <div className="min-w-[170px]">
+        <div className="text-[9px] uppercase tracking-[0.16em] text-slate-500">Race Department</div>
+        <div className="flex flex-wrap items-baseline gap-x-2"><h1 className="text-xl font-bold">My Drivers</h1><span className="text-xs text-slate-400">{myTeamName} · {year||"—"}</span></div>
+      </div>
       <div className="flex-1"/>
-      <div className="grid grid-cols-3 gap-2 min-w-[360px]"><Metric label="Filled roles" value={slotRows.filter((r)=>r.contract).length+"/4"}/><Metric label="Annual payroll" value={money(annualPayroll)}/><Metric label="Negotiations" value={activeRenewalByDriver.size}/></div>
-      <button type="button" className="rounded-md px-4 py-2 text-sm bg-slate-100 text-slate-950 font-semibold" onClick={()=>navigate("/Drivers")}>Driver Market</button>
+      <div className="grid grid-cols-3 gap-1.5 min-w-[330px]">
+        <Metric compact label="Filled roles" value={slotRows.filter((r)=>r.contract).length+"/4"}/>
+        <Metric compact label="Annual payroll" value={money(annualPayroll)}/>
+        <Metric compact label="Negotiations" value={activeRenewalByDriver.size}/>
+      </div>
+      <button type="button" className="rounded-md px-3 py-1.5 text-xs bg-slate-100 text-slate-950 font-semibold" onClick={()=>navigate("/Drivers")}>Driver Market</button>
     </div>
 
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
