@@ -155,8 +155,9 @@ function legacyPortfolioBonus(gs,area){
   const matching=completed.filter((project)=>
     technicalKnowledgeAreaForComponent(gs,project?.type,project?.objective_id)===area
   );
-  const strength=matching.reduce((sum,project)=>
-    sum+Math.max(0,num(project?.actual_design_perf,project?.target_design_perf??project?.perf_delta??0)),0
+  const strength=matching.reduce(
+    (sum,project)=>sum+Math.max(0,num(project?.actual_design_perf,project?.target_design_perf??project?.perf_delta??0)),
+    0
   );
   return Math.min(6,matching.length*0.55+strength*0.18);
 }
