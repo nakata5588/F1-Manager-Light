@@ -10,7 +10,6 @@ import {
   driverLineupSlots,
   expectedDriverSalary,
   releaseDriverContract,
-  swapRaceDriverRoles,
   terminationCost,
 } from "../domain/driverContracts.js";
 import {
@@ -95,9 +94,6 @@ export default function MyDrivers(){
     });
   },[gs,driverById,myTeamId,standings]);
 
-  const main=slotRows.find((row)=>row.key==="main");
-  const second=slotRows.find((row)=>row.key==="second");
-  const canSwap=Boolean(main?.contract&&second?.contract);
   const annualPayroll=slotRows.reduce((sum,row)=>sum+Number(row.salary||0),0);
 
   function submitRenewal(offer){
@@ -111,7 +107,6 @@ export default function MyDrivers(){
     if(!window.confirm("Release "+row.name+"?\n\nContract termination cost: "+money(cost)+"\n\nThis immediately opens the "+row.label+" seat."))return;
     setGameState(releaseDriverContract(gs,row.id));
   }
-  function swapRaceDrivers(){if(canSwap)setGameState(swapRaceDriverRoles(gs,{teamId:myTeamId}));}
   function openRoleChange(row){setChangingRoleRow(row);setTargetRoleKey(SLOT_ORDER.find((slot)=>slot.key!==row.key)?.key||"");}
   function applyRoleChange(){
     if(!changingRoleRow||!targetRoleKey)return;
@@ -127,8 +122,6 @@ export default function MyDrivers(){
       <div className="grid grid-cols-3 gap-2 min-w-[360px]"><Metric label="Filled roles" value={slotRows.filter((r)=>r.contract).length+"/4"}/><Metric label="Annual payroll" value={money(annualPayroll)}/><Metric label="Negotiations" value={activeRenewalByDriver.size}/></div>
       <button type="button" className="rounded-md px-4 py-2 text-sm bg-slate-100 text-slate-950 font-semibold" onClick={()=>navigate("/Drivers")}>Driver Market</button>
     </div>
-
-    <div className="flex justify-end"><button type="button" className="border border-white/15 rounded-md px-3 py-2 text-sm disabled:opacity-40 hover:bg-white/5" disabled={!canSwap} onClick={swapRaceDrivers}>Swap race drivers</button></div>
 
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {slotRows.map((row)=>row.contract?<article key={row.key} className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden">
