@@ -5,7 +5,7 @@ import { rngFor } from "../core/random.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
-import { evolveTrackSurface, initialiseTrackSurface } from "./TrackSurfaceEngine.js";
+import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -72,7 +72,7 @@ export function buildTrackWeatherTimeline(gs,weather,track){
     state:firstState,
     startingWetness:Number.isFinite(Number(weather?.starting_track_wetness))
       ?clamp(Number(weather.starting_track_wetness),0,1)
-      :0,
+      :rainIntensityForState(firstState)*0.55,
     rubberLevel:clamp(num(weather?.starting_rubber_level??weather?.rubber_level,12),0,100),
   });
   const laps=Math.max(1,Number(track?.laps)||1);
