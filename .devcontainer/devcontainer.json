@@ -10,7 +10,7 @@
   "portsAttributes": {
     "5173": {
       "label": "F1 Manager Light",
-      "onAutoForward": "openPreview",
+      "onAutoForward": "openBrowser",
       "protocol": "http"
     }
   },
