@@ -8,6 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import Track2DView from "../components/race/Track2DView.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const STEPS=[
@@ -583,6 +584,7 @@ export default function RaceWeekend(){
   const runRace=useGame((s)=>s.completeRaceWeekendRace);
   const startLiveRace=useGame((s)=>s.startRaceWeekendLiveRace);
   const advanceLiveRace=useGame((s)=>s.advanceRaceWeekendLiveRace);
+  const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
@@ -812,6 +814,7 @@ export default function RaceWeekend(){
           ))}
         </div>
         {weekend.phase==="race"&&liveRace?.status==="running"?<div className="flex shrink-0 items-center gap-1">
+          <button disabled={busy} className="rounded-md border border-sky-400/25 bg-sky-400/[0.08] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 hover:bg-sky-400/[0.14] disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRaceSector(1))}>+1 Sector</button>
           <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
           <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
           <button disabled={busy} className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1))}>Run to Finish</button>
@@ -1466,6 +1469,22 @@ export default function RaceWeekend(){
                 {!(liveRace.events||[]).length&&<div className="text-slate-600">No race-control events yet.</div>}
               </div>
               </div>
+            </div>
+
+            <div className="border-b border-white/10 bg-[#0b1017] p-2 md:p-3">
+              <Track2DView
+                trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
+                year={weekend?.year||gs?.activeYear}
+                rows={liveRows}
+                drivers={drivers}
+                teams={teams}
+                teamBrands={gs?.teamBrands||gs?.team_brands||[]}
+                playerTeamId={playerTeamId}
+                currentLap={liveRace?.current_lap||0}
+                currentSector={liveRace?.current_sector||0}
+                totalLaps={liveRace?.total_laps||raceStrategy?.track_snapshot?.laps||0}
+                currentControl={liveRace?.current_control||"GREEN"}
+              />
             </div>
 
             <div className="border-b border-white/10 bg-[#0c1118] px-4 py-2">

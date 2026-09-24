@@ -107,6 +107,9 @@ jobs:
       - name: Test live race control
         run: npm run test:live-race
 
+      - name: Test historical 2D track layout resolution
+        run: npm run test:track-layout
+
       - name: Test race control and weather effects
         run: npm run test:race-control
 
