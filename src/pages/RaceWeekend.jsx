@@ -1639,18 +1639,18 @@ export default function RaceWeekend(){
                         ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
                         :<>
                           <Gauge className="h-4 w-4 text-slate-500"/>
-                          <select title="Pace next lap" className={"rounded-md border border-white/10 px-2 py-1.5 text-xs "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                          <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
                             {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
                           </select>
                           <Wrench className="h-4 w-4 text-slate-500"/>
                           <div className="flex items-center gap-1" title="Available pit compounds">
                             {teamTyres.map((tyre)=><TyreCompoundIcon key={tyre.tyre_id} compound={tyre.compound_name} size={20}/>)}
                           </div>
-                          <select title="Pit next lap" className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                          <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
                             <option value="">Stay out</option>
                             {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                           </select>
-                          {pending.length?<button type="button" onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200">Cancel Order</button>:null}
+                          {pending.length?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>:null}
                         </>}
                     </div>
                   </div>;
