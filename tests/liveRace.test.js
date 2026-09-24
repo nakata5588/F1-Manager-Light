@@ -259,6 +259,43 @@ test("pace command is lap-scoped and changes only future simulation",()=>{
     advanceTo(createLiveRaceState(fixture(),{gp}),3).raceWeekendState.live_race.classification.find((r)=>r.driver_id==="D1").elapsed_ms);
 });
 
+test("D6.3B let-through order is only accepted for a close team-mate immediately behind",()=>{
+  let gs=createLiveRaceState(fixture("d63b-team-order"),{gp});
+  gs=advanceTo(gs,2);
+  const rows=gs.raceWeekendState.live_race.classification.map((row)=>{
+    if(row.driver_id==="D1")return {...row,position:1,retired:false};
+    if(row.driver_id==="D2")return {...row,position:2,retired:false,gap_to_previous_ms:1200,interval_ms:1200};
+    return row;
+  });
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      live_race:{...gs.raceWeekendState.live_race,classification:rows},
+    },
+  };
+
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"team_order",teamOrder:"yield",teammateId:"D2"});
+  const command=gs.raceWeekendState.race_strategy.live_commands.D1.at(-1);
+  assert.equal(command.type,"team_order");
+  assert.equal(command.team_order,"yield");
+  assert.equal(command.teammate_id,"D2");
+  assert.equal(command.effective_lap,3);
+  assert.match(gs.raceWeekendState.live_race.events.at(-1).message,/let Player Two through/i);
+
+  gs=advanceTo(gs,3);
+  const projected=gs.raceWeekendState.live_race.projected_race.find((row)=>row.driver.driver_id==="D1");
+  assert.ok(projected.strategy_summary.strategy_decisions.some((decision)=>decision.action==="team_order"&&decision.order==="yield"&&decision.lap===3));
+});
+
+test("D6.3B rejects a let-through order when the team-mate is not directly behind",()=>{
+  let gs=createLiveRaceState(fixture("d63b-invalid-team-order"),{gp});
+  gs=advanceTo(gs,2);
+  const before=structuredClone(gs.raceWeekendState.race_strategy.live_commands||{});
+  const next=issueLiveRaceCommand(gs,{driverId:"D1",type:"team_order",teamOrder:"yield",teammateId:"D2"});
+  assert.deepEqual(next.raceWeekendState.race_strategy.live_commands||{},before);
+});
+
 test("Pit Now schedules the selected tyre for the next lap",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   gs=advanceTo(gs,2);
