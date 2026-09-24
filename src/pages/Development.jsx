@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "@/state/GameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { InfoPopover } from "@/components/ui/InfoPopover.jsx";
 import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
@@ -681,7 +682,12 @@ export default function Development({ embedded = false, initialTab = "projects",
 
               <div className="flex flex-wrap gap-2 items-center">
                 <Button onClick={createProject} disabled={!canStartProject}>Start Project</Button>
-                <span className="text-xs text-slate-500">{capacity.available_engineers}/{capacity.engineer_pool} engineers available · {capacity.active_projects}/{capacity.max_projects} project slots used</span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                  {capacity.available_engineers}/{capacity.engineer_pool} engineers available · {capacity.active_projects}/{capacity.max_projects} concurrent project slots used
+                  <InfoPopover title="Concurrent project capacity" align="right">
+                    Project slots limit how many design projects can occupy the Technical Department at the same time. They are not a season allowance: completed projects free their slot immediately, while paused projects still occupy one. Facilities currently cap this at {capacity.max_projects} simultaneous projects for this TEAM.
+                  </InfoPopover>
+                </span>
               </div>
               {!componentRule.can_start_project&&<div className="text-sm text-rose-300">{componentRule.reason}</div>}
               {!aeroAllocation.allowed&&<div className="text-sm text-rose-300">{aeroAllocation.reason==="wind_tunnel_quota"?"Wind-tunnel allocation exceeds the remaining ATR allowance.":"CFD allocation exceeds the remaining ATR allowance."}</div>}
@@ -717,7 +723,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       )}
 
       {!showCreate && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Active Projects" value={projects.filter((p)=>p.status==="active").length}/>
+        <Stat label="Project Slots" value={capacity.active_projects+"/"+capacity.max_projects}/>
         <Stat label="Completed Projects" value={projects.filter((p)=>p.status==="completed").length}/>
         <Stat label="Blueprints" value={parts.length}/>
         <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length + workshop.length}/>
@@ -748,9 +754,15 @@ export default function Development({ embedded = false, initialTab = "projects",
       {!showCreate && tab==="projects" && (
         <div className="grid grid-cols-1 gap-2">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Current Car</div>
-            <div className="font-semibold">Design projects for the car you are racing now</div>
-            <div className="text-sm text-slate-400 mt-1">This is the engineering pipeline: active design briefs, their progress and completed project results. Completing a project creates a blueprint — it does not create a physical spare until you manufacture it.</div>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Current Car</div>
+                <div className="font-semibold">Design projects</div>
+              </div>
+              <InfoPopover title="Current Car projects">
+                Active and paused design briefs for the car you are racing now. Completing a project creates an engineering Blueprint; it does not create a physical part until that Blueprint is manufactured.
+              </InfoPopover>
+            </div>
           </CardContent></Card>
           {projects.map((p)=>{
             const progress = projectProgress(p,currentDateISO);
@@ -799,12 +811,18 @@ export default function Development({ embedded = false, initialTab = "projects",
       {!showCreate && tab==="parts" && (
         <div className="space-y-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Engineering Blueprints</div>
-            <div className="font-semibold">Approved designs — not physical parts</div>
-            <div className="text-sm text-slate-400 mt-1">A completed Current Car project creates a blueprint here. The blueprint stores the technical specification forever; use <strong className="text-slate-300">Build</strong> to send physical units to Manufacturing. Fitted and warehouse units are shown only as inventory references.</div>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Engineering</div>
+                <div className="font-semibold">Blueprints</div>
+              </div>
+              <InfoPopover title="What is a Blueprint?">
+                A Blueprint is the approved specification created by a completed development project. It is not a physical part. Use Build to manufacture physical units; those units can then sit in the warehouse or be fitted to Car 1 / Car 2.
+              </InfoPopover>
+            </div>
           </CardContent></Card>
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Build</th></tr></thead>
+            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Manufacture</th></tr></thead>
             <tbody>{parts.map((p)=>{
               const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
               const allUnits=partUnitsForDesign(physicalState,p.id);
@@ -817,7 +835,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <td className="px-3 py-2">{p.version||"—"}</td>
                 <td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{p.development_focus?nice(p.development_focus):"Balanced"}</div></td>
                 <td className="px-3 py-2 text-right"><div>{allUnits.length} total{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {warehouse.length} warehouse</div></td>
-                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Build · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
+                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
               </tr>;
             })}
             {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a Current Car design project to create your first blueprint.</td></tr>}</tbody>
@@ -828,17 +846,25 @@ export default function Development({ embedded = false, initialTab = "projects",
       {!showCreate && tab==="manufacturing" && (
         <div className="space-y-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Physical Production</div>
-            <div className="font-semibold">Manufacturing & Workshop</div>
-            <div className="text-sm text-slate-400 mt-1">Manufacturing turns an approved blueprint into physical units for Car 1, Car 2 or the warehouse. Workshop jobs cover restoration, standard-component work and reserve-car construction.</div>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Physical Production</div>
+                <div className="font-semibold">Manufacturing & Workshop</div>
+              </div>
+              <InfoPopover title="What appears here?">
+                Blueprint Production contains newly developed physical parts ordered from Blueprints. Car Workshop is directly linked to Car 1 / Car 2 actions: restore, build, build & fit, standard spares, developed-part restoration and reserve-car work all enter the same workshop queue.
+              </InfoPopover>
+            </div>
           </CardContent></Card>
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto">
+            <div className="px-3 py-3 border-b border-white/10 flex items-center gap-2"><div className="font-semibold">Blueprint Production</div><InfoPopover title="Blueprint Production">Physical units ordered from Blueprints are manufactured here. When the batch finishes, the new units enter inventory and can be fitted to Car 1 / Car 2 or kept as spares.</InfoPopover></div>
+            <table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
             <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right"><span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-300">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</span></td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
             {!manufacturing.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">No manufacturing batches.</td></tr>}</tbody>
           </table></CardContent></Card>
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto">
-            <div className="px-3 py-3 border-b border-white/10"><div className="font-semibold">Workshop</div><div className="text-xs text-slate-500">Standard component builds and part restoration take real in-game time.</div></div>
+            <div className="px-3 py-3 border-b border-white/10 flex items-center gap-2"><div className="font-semibold">Car Workshop</div><InfoPopover title="Car Workshop queue">Jobs started from Car 1 / Car 2 are shown here and use real in-game time. This includes restoration, replacement/build work, standard spares, developed-part restoration and reserve-car construction.</InfoPopover></div>
             <table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Job</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
               <tbody>{(physicalState?.garage?.serviceJobs||[]).map((job)=><tr key={job.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{job.title||nice(job.kind)}</td><td className="px-3 py-2">{job.started_at}</td><td className="px-3 py-2">{job.finishes_at}</td><td className="px-3 py-2 text-right"><span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-300">{fmtMoney(job.cost)}</span></td><td className="px-3 py-2">{nice(job.status)}</td></tr>)}
               {!(physicalState?.garage?.serviceJobs||[]).length&&<tr><td colSpan={5} className="px-3 py-5 text-center text-slate-400">No workshop jobs.</td></tr>}</tbody>
@@ -850,23 +876,22 @@ export default function Development({ embedded = false, initialTab = "projects",
       {!showCreate && tab==="research" && (
         <div className="space-y-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
-            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-              <div className="lg:w-[44%]">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Technical Research</div>
-                <div className="text-lg font-semibold">Focus builds knowledge. Research Points support designs.</div>
-                <div className="text-sm text-slate-400 mt-1">Your technical department generates Research Points every in-game day. Focus controls where that passive research goes; the four areas always share a total of 100%.</div>
-                <div className="text-sm text-slate-400 mt-2">Research Points do <strong className="text-slate-200">not</strong> improve the car automatically. Bank them here, then spend up to 15 RP as <strong className="text-slate-200">Research Support</strong> when you create a Current Car design brief.</div>
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Technical Research</div>
+                  <div className="font-semibold">Research Focus & RP</div>
+                </div>
+                <InfoPopover title="Research Focus & Research Points">
+                  The four Focus sliders always share 100%. Focus decides where daily Research Points are generated. RP do not improve the car automatically: bank them, then spend up to 15 RP as Research Support when creating a matching Current Car project.
+                </InfoPopover>
               </div>
-              <div className="lg:flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Mini label="Department output" value={researchOutput.total_points_per_day.toFixed(2)+" RP/day"}/>
-                <Mini label="Focus allocated" value={research.reduce((sum,row)=>sum+Number(row.focus||0),0).toFixed(0)+"%"}/>
-                <Mini label="Banked knowledge" value={research.reduce((sum,row)=>sum+Number(row.points||0),0).toFixed(1)+" RP"}/>
+              <div className="lg:flex-1"/>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Mini label="Output" value={researchOutput.total_points_per_day.toFixed(2)+" RP/day"}/>
+                <Mini label="Focus" value={research.reduce((sum,row)=>sum+Number(row.focus||0),0).toFixed(0)+"%"}/>
+                <Mini label="Banked" value={research.reduce((sum,row)=>sum+Number(row.points||0),0).toFixed(1)+" RP"}/>
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4 text-xs">
-              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">1 · Set Focus</div><div className="text-slate-500 mt-1">Prioritise the technical areas you expect to develop. Moving one slider automatically rebalances the other areas.</div></div>
-              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">2 · Bank RP</div><div className="text-slate-500 mt-1">Research accumulates daily. Better technical facilities increase the department's total daily output.</div></div>
-              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">3 · Support a Design</div><div className="text-slate-500 mt-1">Spend RP in New Project to shorten development, lower risk and modestly improve the expected design gain.</div></div>
             </div>
           </CardContent></Card>
 
@@ -875,7 +900,7 @@ export default function Development({ embedded = false, initialTab = "projects",
               const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100);
               return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div><div className="font-semibold">{r.label||r.area}</div><div className="text-xs text-slate-500 mt-1">{r.description}</div></div>
+                  <div className="flex items-center gap-2"><div className="font-semibold">{r.label||r.area}</div><InfoPopover title={r.label||r.area}>{r.description} Focus controls this area's share of daily RP generation; banked RP can support matching development projects.</InfoPopover></div>
                   <div className="text-right"><div className="font-semibold tabular-nums">{Number(r.focus||0).toFixed(0)}%</div><div className="text-[10px] text-emerald-300">+{daily.toFixed(2)} RP/day</div></div>
                 </div>
                 <input className="w-full mt-4" type="range" min="0" max="100" step="5" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
@@ -888,10 +913,14 @@ export default function Development({ embedded = false, initialTab = "projects",
           </div>
 
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div>
-              <div className="text-lg font-semibold">Paddock technology opportunities</div>
-              <div className="text-sm text-slate-400 mt-1">This is separate from Research Points. If another TEAM proves an era-legal technology that we do not yet understand, we can fund an adoption programme. Completing it unlocks that component family; we must still design a blueprint and manufacture physical units afterwards.</div>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div>
+                <div className="font-semibold">Paddock opportunities</div>
+              </div>
+              <InfoPopover title="Technology Adoption">
+                Separate from Research Points. If another TEAM proves an era-legal technology we do not understand, we can fund an adoption programme. Completion unlocks that technical area; a Blueprint and physical parts still need to be developed afterwards.
+              </InfoPopover>
             </div>
             {technologyOpportunities.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{technologyOpportunities.map((opportunity)=>{
               const quote=technologyAdoptionQuote(gameState,teamId,opportunity.slot);
@@ -910,10 +939,14 @@ export default function Development({ embedded = false, initialTab = "projects",
         <div className="space-y-3">
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
             <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-              <div className="lg:w-[48%]">
-                <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
-                <div className="text-lg font-semibold">Pit Crew Training</div>
-                <div className="text-sm text-slate-400 mt-1">Training Load is a long-term trade-off. More load improves the crew's underlying stop pace, consistency and error rate faster; sustained heavy work also builds fatigue, which makes the crew slower and less reliable on race day.</div>
+              <div className="lg:w-[48%] flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
+                  <div className="font-semibold">Pit Crew Training</div>
+                </div>
+                <InfoPopover title="Pit Crew Training">
+                  Training Load controls long-term skill development and fatigue. Recovery is fatigue-only; Balanced gives modest development with almost neutral fatigue; Intensive and Maximum develop raw skill faster but build fatigue that can hurt race-day execution.
+                </InfoPopover>
               </div>
               <div className="lg:flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Mini label="Training facility" value={"Lv "+pitCrewFacilityLevel}/>
@@ -946,15 +979,20 @@ export default function Development({ embedded = false, initialTab = "projects",
                 })}
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 text-xs text-slate-400">
-                <strong className="text-slate-200">Recovery vs Balanced:</strong> they no longer represent the same thing. Recovery sacrifices development speed to remove fatigue quickly; Balanced gives more skill growth while still slowly recovering fatigue. Intensive and Maximum improve raw ability faster, but can leave a tired crew for the next race.
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                Training modes
+                <InfoPopover title="Training modes">
+                  Recovery: no raw skill training, only fatigue reduction. Balanced: modest development with near-neutral fatigue. Intensive: faster development with meaningful fatigue. Maximum: strongest raw development with the largest fatigue cost.
+                </InfoPopover>
               </div>
             </CardContent></Card>
 
             <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4 space-y-4">
-              <div>
+              <div className="flex items-center gap-2">
                 <div className="font-semibold">Pit Crew Performance</div>
-                <div className="text-xs text-slate-500 mt-1">Base values are permanent crew skill. Race-day values include current fatigue and are the values used by the pit-stop simulation.</div>
+                <InfoPopover title="Race Weekend connection" align="right">
+                  Base stop skill is permanent crew ability. Race-day values include current fatigue. The Race Weekend uses the same profile: average stop skill sets stationary-time baseline, Consistency controls stop-to-stop variance, and Error Rate controls operational-mistake probability.
+                </InfoPopover>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Mini label="Base stop skill" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
@@ -973,10 +1011,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                 </div>
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
-                <div className="font-medium">Race Weekend connection</div>
-                <div className="text-slate-400 mt-1">Every pit stop now reads this same crew profile. <strong className="text-slate-300">Average stop skill</strong> sets the baseline stationary time, <strong className="text-slate-300">Consistency</strong> controls stop-to-stop time variance, and <strong className="text-slate-300">Error rate</strong> controls the chance of a slow operational mistake. Fatigue worsens all three on race day.</div>
-              </div>
+
             </CardContent></Card>
           </div>
         </div>
