@@ -318,7 +318,7 @@ test("RW5.2B player tyre choice is not automatically reversed by weather logic",
   assert.equal(stops.some((stop)=>stop.reason==="weather"),false);
   const softState=row.tyre_state_by_lap.find((state)=>Number(state.lap)>=3&&state.tyre_id==="gy_s");
   assert.ok(softState);
-  assert.ok(Number(softState.weather_penalty_s)>=3.5,"slicks on an intermediate/wet track must lose performance");
+  assert.ok(Number(softState.weather_penalty_s)>0.5,"slicks on a wetting track must lose progressively more performance");
 });
 
 test("RW5.2B player driver complains when the chosen tyre mismatches track conditions",()=>{
@@ -350,8 +350,77 @@ test("RW5.2B player driver complains when the chosen tyre mismatches track condi
     event.type==="driver_feedback"&&event.driver_id==="D1"&&event.tyre_category==="dry"
   );
   assert.ok(feedback);
-  assert.match(feedback.message,/too slippery for slicks/i);
-  assert.ok(Number(feedback.weather_penalty_s)>=3.5);
+  assert.match(feedback.message,/slippery|too wet|intermediates/i);
+  assert.ok(Number(feedback.weather_penalty_s)>0.5);
+});
+
+test("RW5.2D3 live race reports the start and strengthening of rain",()=>{
+  let base=fixture("rw5.2d3-weather-report");
+  base={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...base.raceWeekendState.race_strategy,
+        weather_snapshot:{
+          ...base.raceWeekendState.race_strategy.weather_snapshot,
+          state:"SUNNY",
+          starting_track_wetness:0,
+          starting_air_temp_c:25,
+          starting_track_temp_c:34,
+          segments:[
+            {from_lap:1,to_lap:4,state:"SUNNY"},
+            {from_lap:5,to_lap:12,state:"LIGHT_RAIN"},
+          ],
+          wet_race:true,
+        },
+      },
+    },
+  };
+  let gs=createLiveRaceState(base,{gp});
+  gs=advanceTo(gs,9);
+  const reports=gs.raceWeekendState.live_race.events.filter((event)=>event.type==="weather_report");
+  assert.ok(reports.some((event)=>event.report_kind==="rain_started"));
+  assert.ok(reports.some((event)=>event.report_kind==="rain_rising"));
+  const started=reports.find((event)=>event.report_kind==="rain_started");
+  assert.equal(started.lap,5);
+  assert.ok(started.rain_intensity>0&&started.rain_intensity<0.30);
+  assert.match(started.message,/rain has started/i);
+});
+
+test("RW5.2D3 an in-progress v2 live save upgrades its future environment without a new career",()=>{
+  let gs=createLiveRaceState(fixture("rw5.2d3-live-save-upgrade"),{gp});
+  gs=advanceTo(gs,2);
+  const live=gs.raceWeekendState.live_race;
+  const plan=gs.raceWeekendState.race_strategy.race_control_plan;
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:{
+          ...plan,
+          version:2,
+          environment_model:null,
+          weather_timeline:(plan.weather_timeline||[]).map((row)=>({
+            lap:row.lap,state:row.state,rain_intensity:row.rain_intensity,
+            track_wetness:row.track_wetness,rubber_level:row.rubber_level,
+            grip_index:row.grip_index,visibility_index:row.visibility_index,
+          })),
+        },
+      },
+      live_race:{...live,version:2},
+    },
+  };
+  const stored=prepareGameStateForSave(gs);
+  let loaded=extractGameStateFromStoredSave({meta:{name:"D3 old live save"},gameState:stored});
+  loaded=advanceTo(loaded,3);
+  assert.equal(loaded.raceWeekendState.live_race.version,3);
+  assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.version,3);
+  assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.environment_model,"rw5.2d3");
+  assert.ok(Number.isFinite(Number(loaded.raceWeekendState.live_race.track_state.track_temp_c)));
+  assert.ok(Number.isFinite(Number(loaded.raceWeekendState.live_race.track_state.spray_index)));
 });
 
 test("RW5.2A pending player order can be cancelled before it takes effect",()=>{
