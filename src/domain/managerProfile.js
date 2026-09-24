@@ -219,9 +219,6 @@ export function managerAttribute(manager,key,fallback=50){
   return Number.isFinite(value)?clamp(value):clamp(fallback);
 }
 
-function centered(value){
-  return (managerAttribute({attributes:{value}}, "value", 50)-50)/50;
-}
 
 export function managerAppliesToTeam(gs,teamId=null){
   const manager=gs?.manager;
