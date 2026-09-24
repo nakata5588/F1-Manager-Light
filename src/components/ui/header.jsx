@@ -105,6 +105,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
     gameState,
     quickSave,
     saveGame,
+    buildExportSave,
     currentSaveKey,
     getTeamLogoCandidates,
     advanceOneDayUntilBreak,
@@ -333,6 +334,21 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
       if (!currentSaveKey) return;
       const res = saveGame({ overwriteKey: currentSaveKey });
       toastMini(res?.meta?.name ? `Saved (overwrite): ${res.meta.name}` : "Saved.");
+      setSaveOpen(false);
+    });
+
+  const handleExportSave = () =>
+    runOnce(() => {
+      const payload = buildExportSave();
+      const baseName = payload?.meta?.name || defaultName(gameState);
+      const safeName = String(baseName)
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "") || "F1_Manager_Light_Save";
+      const filename = `${safeName}_${tsStamp()}.json`;
+      downloadJSON(filename, payload);
+      toastMini(`Exported: ${filename}`);
       setSaveOpen(false);
     });
 
