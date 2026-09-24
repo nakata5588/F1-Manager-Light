@@ -2710,6 +2710,7 @@ function RelationshipsTab({ gameState, driverId }) {
   const [statusFilter,setStatusFilter]=useState("all");
   const [yearFilter,setYearFilter]=useState("all");
   const [showLegend,setShowLegend]=useState(false);
+  const openEntity=useModalStore((state)=>state.open);
 
   const drivers=[...(gameState?.drivers||[]),...(gameState?.dbDrivers||[])];
   const teams=[...(gameState?.teams||[]),...(gameState?.dbTeams||[])];
@@ -2717,6 +2718,10 @@ function RelationshipsTab({ gameState, driverId }) {
   const subjectDriver=drivers.find((item)=>String(item?.driver_id??item?.id??"")===String(driverId))||null;
   const subjectName=subjectDriver?.display_name||subjectDriver?.name||[subjectDriver?.first_name,subjectDriver?.last_name].filter(Boolean).join(" ")||null;
   const activeYear=Number(gameState?.activeYear);
+  const relationshipYear=(value)=>{
+    const year=Number(value);
+    return Number.isInteger(year)&&year>=1950?year:null;
+  };
 
   const liveRecords=driverRelationshipRecords(gameState,driverId);
   const historicalRecords=historicalDriverRelationshipRecords(gameState,{
@@ -2725,12 +2730,17 @@ function RelationshipsTab({ gameState, driverId }) {
   });
 
   const yearsForRecord=(record)=>{
-    const values=new Set((Array.isArray(record?.years)?record.years:[]).map(Number).filter(Number.isFinite));
+    const values=new Set(
+      (Array.isArray(record?.years)?record.years:[])
+        .map(relationshipYear)
+        .filter((year)=>year!==null)
+    );
     for(const raw of [record?.created_at,record?.updated_at]){
-      const year=Number(String(raw||"").slice(0,4));
-      if(Number.isFinite(year))values.add(year);
+      const year=relationshipYear(String(raw||"").slice(0,4));
+      if(year!==null)values.add(year);
     }
-    if(record?.active&&Number.isFinite(activeYear))values.add(activeYear);
+    const currentYear=relationshipYear(activeYear);
+    if(record?.active&&currentYear!==null)values.add(currentYear);
     return [...values].sort((a,b)=>a-b);
   };
 
@@ -2752,7 +2762,7 @@ function RelationshipsTab({ gameState, driverId }) {
       ...(historical||{}),
       ...record,
       target_name:record?.target_name||historical?.target_name||null,
-      years:[...years].map(Number).filter(Number.isFinite).sort((a,b)=>a-b),
+      years:[...years].map(relationshipYear).filter((year)=>year!==null).sort((a,b)=>a-b),
       scores_known:true,
       historical_context:Boolean(historical),
     });
@@ -2763,7 +2773,11 @@ function RelationshipsTab({ gameState, driverId }) {
     Number((b?.years||[]).at(-1)||0)-Number((a?.years||[]).at(-1)||0)||
     Number(b?.score||0)-Number(a?.score||0)
   );
-  const yearOptions=[...new Set(allRecords.flatMap((record)=>record?.years||[]).map(Number).filter(Number.isFinite))].sort((a,b)=>b-a);
+  const yearOptions=[...new Set(
+    allRecords.flatMap((record)=>record?.years||[])
+      .map(relationshipYear)
+      .filter((year)=>year!==null)
+  )].sort((a,b)=>b-a);
   const records=allRecords.filter((record)=>{
     if(statusFilter==="active"&&!record?.active)return false;
     if(statusFilter==="inactive"&&record?.active)return false;
@@ -2776,29 +2790,41 @@ function RelationshipsTab({ gameState, driverId }) {
   const targetMeta=(record)=>{
     const targetId=String(record?.target_id||"");
     if(record?.target_type==="teammate"){
-      const row=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId)
+      const matched=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId)
         ||drivers.find((item)=>String(item?.display_name||item?.name||"").toLowerCase()===String(record?.target_name||"").toLowerCase())
-        ||{driver_id:targetId,display_name:record?.target_name||targetId};
+        ||null;
+      const row=matched||{driver_id:targetId,display_name:record?.target_name||targetId};
+      const resolvedId=String(matched?.driver_id??matched?.id??"");
       return {
         name:row?.display_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||record?.target_name||targetId,
         visual:<DriverPortrait driver={row} size="h-9 w-9"/>,
+        entity:resolvedId?{type:"driver",id:resolvedId}:null,
       };
     }
     if(record?.target_type==="team"){
-      const row=teams.find((item)=>String(item?.team_id??item?.id??"")===targetId)||{};
+      const row=teams.find((item)=>String(item?.team_id??item?.id??"")===targetId)||null;
       const name=row?.team_name||row?.name||row?.short_name||record?.target_name||targetId;
-      return {name,visual:<TeamLogo teamId={targetId} name={name} size="h-9 w-9" className="p-0.5"/>};
+      const resolvedId=String(row?.team_id??row?.id??"");
+      return {
+        name,
+        visual:<TeamLogo teamId={targetId} name={name} size="h-9 w-9" className="p-0.5"/>,
+        entity:resolvedId?{type:"team",id:resolvedId}:null,
+      };
     }
     if(record?.target_type==="manager"){
       return {
         name:managerName,
         visual:<StaffPortrait staff={{display_name:managerName,portrait_path:manager?.portrait_data_url||null}} size="h-9 w-9"/>,
+        entity:null,
       };
     }
-    const row=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId)||{staff_id:targetId,staff_name:record?.target_name||targetId};
+    const matched=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId)||null;
+    const row=matched||{staff_id:targetId,staff_name:record?.target_name||targetId};
+    const resolvedId=String(matched?.staff_id??matched?.person_id??matched?.id??"");
     return {
       name:row?.display_name||row?.staff_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||record?.target_name||targetId,
       visual:<StaffPortrait staff={row} size="h-9 w-9"/>,
+      entity:resolvedId?{type:"staff",id:resolvedId}:null,
     };
   };
   const typeLabel=(value)=>({
@@ -2923,30 +2949,37 @@ function RelationshipsTab({ gameState, driverId }) {
         const showExpected=Boolean(expectedRole&&(!currentRole||expectedRole!==currentRole));
         const yearsLabel=formatRelationshipYears(record?.years||[]);
         const scoreKnown=record?.scores_known!==false&&record?.score!==null&&record?.score!==undefined;
+        const openTarget=target.entity
+          ?()=>openEntity({...target.entity,tab:"overview"})
+          :null;
         return <div key={String(record?.driver_id)+"|"+String(record?.target_type)+"|"+String(record?.target_id)} className={"rounded-lg border px-3 py-2 "+(record?.active?"border-white/10 bg-[#12141c]":"border-white/5 bg-[#0f1117]")}>
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="shrink-0">{target.visual}</div>
+            <div className="shrink-0">
+              {openTarget?<button type="button" onClick={openTarget} className="rounded-full hover:ring-2 hover:ring-sky-400/30" title={"Open "+target.name}>{target.visual}</button>:target.visual}
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{typeLabel(record?.target_type)}</span>
-                <strong className="truncate text-sm text-slate-100">{target.name}</strong>
+                {openTarget
+                  ?<button type="button" onClick={openTarget} className="truncate text-sm font-bold text-slate-100 hover:text-sky-300 hover:underline" title={"Open "+target.name}>{target.name}</button>
+                  :<strong className="truncate text-sm text-slate-100">{target.name}</strong>}
                 <span className={"rounded px-1.5 py-0.5 text-[9px] "+(record?.active?"bg-emerald-500/10 text-emerald-300":"bg-white/5 text-slate-500")}>{record?.active?"Active":"Inactive"}</span>
                 {yearsLabel?<span className="text-[9px] text-slate-500">{yearsLabel}</span>:null}
                 {showExpected?<span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] text-sky-300">Expected role: {expectedRole}</span>:null}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+              {record?.active?<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
                 {metrics.map(([short,value,title])=><span key={short} title={title} className={metricTone(short,value)}><span className="opacity-70">{short}</span> <strong>{metricValue(value)}</strong></span>)}
                 {h2h?<>
                   <span>Race <strong className="text-slate-300">{h2h.race.wins}-{h2h.race.losses}{h2h.race.ties?"-"+h2h.race.ties:""}</strong></span>
                   <span>Quali <strong className="text-slate-300">{h2h.quali.wins}-{h2h.quali.losses}{h2h.quali.ties?"-"+h2h.quali.ties:""}</strong></span>
                 </>:null}
                 {record?.target_type==="teammate"&&record?.rivalry!==null&&record?.rivalry!==undefined?<span className={"capitalize "+rivalryTone(record?.rivalry)}>{record?.rivalry_status||"low"} rivalry</span>:null}
-              </div>
+              </div>:null}
             </div>
-            <div className="shrink-0 text-right">
+            {record?.active?<div className="shrink-0 text-right">
               <div className={"text-xl font-bold leading-none "+relationTone(record?.score)}>{scoreKnown?Number(record.score).toFixed(0):"—"}</div>
-              <div className="mt-0.5 text-[9px] capitalize text-slate-600">{scoreKnown?(record?.status||"neutral"):"Historical data"}</div>
-            </div>
+              <div className="mt-0.5 text-[9px] capitalize text-slate-600">{scoreKnown?(record?.status||"neutral"):"Neutral"}</div>
+            </div>:null}
           </div>
         </div>;
       }):<div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-xs text-slate-500">No relationships match the selected filters.</div>}
