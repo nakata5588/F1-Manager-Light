@@ -212,13 +212,17 @@ function desiredTyreCategoryForState(weatherState){
 function tyreWeatherFeedback(driverName,tyreState){
   const have=String(tyreState?.category||"dry");
   const wetness=Number(tyreState?.track_wetness);
+  const wetnessDelta=Number(tyreState?.wetness_delta);
+  const intensity=Number(tyreState?.rain_intensity);
   const target=String(tyreState?.crossover_target||"");
+  const drying=Number.isFinite(wetnessDelta)&&wetnessDelta<-0.002&&(!Number.isFinite(intensity)||intensity<0.16);
+  const gettingWetter=Number.isFinite(wetnessDelta)&&wetnessDelta>0.002;
   if(Number.isFinite(wetness)){
     if(have==="dry"&&wetness>=0.36)return `${driverName}: "I'm really struggling for grip — it's getting too wet for slicks."`;
-    if(have==="dry"&&(target==="intermediate"||wetness>=0.20))return `${driverName}: "It's getting slippery. Intermediates are becoming an option."`;
+    if(have==="dry"&&(target==="intermediate"||wetness>=0.20||gettingWetter&&wetness>=0.16))return `${driverName}: "It's getting slippery. Intermediates are becoming an option."`;
     if(have==="intermediate"&&wetness>=0.78)return `${driverName}: "There's too much standing water for the intermediates."`;
-    if(have==="intermediate"&&(target==="dry"||wetness<=0.14))return `${driverName}: "The track is drying — the intermediates are overheating."`;
-    if(have==="wet"&&(target==="intermediate"||wetness<=0.58))return `${driverName}: "The wets are starting to overheat; intermediates may be quicker now."`;
+    if(have==="intermediate"&&(target==="dry"||drying&&wetness<=0.16))return `${driverName}: "The track is drying — the intermediates are overheating."`;
+    if(have==="wet"&&(target==="intermediate"||drying&&wetness<=0.58))return `${driverName}: "The wets are starting to overheat; intermediates may be quicker now."`;
     return null;
   }
   const want=desiredTyreCategoryForState(tyreState?.weather_state);
@@ -1117,10 +1121,17 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
           tyre_to_id:stop.tyre_to,
           tyre_from:previousTyre,
           tyre_to:nextTyre,
+          team_id:teamForDriver(working,did),
+          stationary_s:Number(stop.stationary_s),
+          expected_stationary_s:Number(stop.expected_stationary_s),
+          execution_delta_s:Number(stop.execution_delta_s),
+          crew_error_delay_s:Number(stop.crew_error_delay_s),
+          pit_lane_loss_s:Number(stop.pit_lane_loss_s),
           total_loss_s:Number(stop.total_loss_s),
+          crew_error:Boolean(stop.error),
           position_before:positionBefore,
           position_after:positionAfter,
-          message:`${driverName} changed from ${previousTyre} to ${nextTyre} tyres (${Number(stop.total_loss_s).toFixed(1)}s lost${positionText}).`,
+          message:`${driverName} changed from ${previousTyre} to ${nextTyre} tyres (${Number(stop.stationary_s).toFixed(1)}s stationary, ${Number(stop.total_loss_s).toFixed(1)}s total loss${positionText}${stop.error?`, crew delay +${Number(stop.crew_error_delay_s||0).toFixed(1)}s`:""}).`,
         });
       }
     }
@@ -1150,6 +1161,8 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
       tyre_category:observedTyre.category,
       weather_state:observedTyre.weather_state,
       track_wetness:observedTyre.track_wetness,
+      wetness_delta:observedTyre.wetness_delta,
+      rain_intensity:observedTyre.rain_intensity,
       weather_penalty_s:observedTyre.weather_penalty_s,
       message,
     });
