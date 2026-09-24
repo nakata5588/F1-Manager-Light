@@ -90,25 +90,25 @@ export default function Teams(){
 
   const filtered=rows.filter(r=>!q||[`${r.name}`,`${r.country}`,`${r.principal}`].some(v=>v.toLowerCase().includes(q.toLowerCase())));
 
-  return <div className="grid gap-4">
-    <div className="bg-white rounded-xl shadow p-4">
+  return <div className="grid gap-4 text-slate-100">
+    <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
       <div className="flex flex-col md:flex-row md:items-center gap-3">
-        <div><h2 className="text-xl font-semibold">All Teams</h2><p className="text-sm text-gray-500">Teams active in the selected season.</p></div>
+        <div><h2 className="text-xl font-semibold">All Teams</h2><p className="text-sm text-slate-400">Teams active in the selected season.</p></div>
         <div className="flex-1"/>
-        <select className="border rounded-md px-3 py-2 text-sm" value={year} onChange={e=>setYear(Number(e.target.value))}>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600" value={year} onChange={e=>setYear(Number(e.target.value))}>
           {years.map(y=><option key={y} value={y}>{y}</option>)}
         </select>
-        <input className="border rounded-md px-3 py-2 text-sm" placeholder="Search team…" value={q} onChange={e=>setQ(e.target.value)}/>
+        <input className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600" placeholder="Search team…" value={q} onChange={e=>setQ(e.target.value)}/>
       </div>
     </div>
 
-    <div className="bg-white rounded-xl shadow overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#11141c] shadow-xl">
       <table className="min-w-full text-sm">
-        <thead className="bg-gray-50"><tr>
+        <thead className="bg-white/[0.04] text-slate-400"><tr>
           <th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Country / Base</th>
           <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-left">Staff assignments</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
         </tr></thead>
-        <tbody>{filtered.map(t=><tr key={t.id} className="border-t hover:bg-gray-50">
+        <tbody>{filtered.map(t=><tr key={t.id} className="border-t border-white/10 hover:bg-white/[0.04]">
           <td className="px-4 py-2">
             <button type="button" data-entity="team" data-id={t.id} className="flex items-center gap-3 font-medium hover:underline text-left">
               <TeamLogo teamId={t.id} name={t.name} size="h-9 w-9"/><span>{t.name}</span>
@@ -118,19 +118,19 @@ export default function Teams(){
           <td className="px-4 py-2">{t.principal}</td>
           <td className="px-4 py-2">
             <div className="font-medium">{t.staffCount}</div>
-            <div className="max-w-[280px] truncate text-xs text-gray-500" title={(t.staffRoles||[]).join(", ")}>{(t.staffRoles||[]).join(" · ")||"—"}</div>
+            <div className="max-w-[280px] truncate text-xs text-slate-500" title={(t.staffRoles||[]).join(", ")}>{(t.staffRoles||[]).join(" · ")||"—"}</div>
           </td>
           <td className="px-4 py-2 text-right">{t.drivers}</td>
           <td className="px-4 py-2 text-right">
             {t.reputation!=null?(
-              <span className={Number(t.reputation)>=72?"font-semibold text-emerald-700":Number(t.reputation)<48?"font-semibold text-rose-700":"font-medium text-slate-700"}>
+              <span className={Number(t.reputation)>=72?"font-semibold text-emerald-300":Number(t.reputation)<48?"font-semibold text-rose-300":"font-medium text-slate-300"}>
                 {Math.round(Number(t.reputation))} · {teamReputationLabel(t.reputation)}
               </span>
             ):"—"}
           </td>
           <td className="px-4 py-2 text-right">{t.founded}</td>
         </tr>)}
-        {!filtered.length&&<tr><td colSpan={7} className="px-4 py-6 text-center text-gray-500">No teams found for {year}.</td></tr>}</tbody>
+        {!filtered.length&&<tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">No teams found for {year}.</td></tr>}</tbody>
       </table>
     </div>
   </div>;

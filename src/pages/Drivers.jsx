@@ -28,11 +28,11 @@ const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructo
 const nameOf=(d)=>d?.display_name||d?.name||d?.driver_name||`${d?.first_name??""} ${d?.last_name??""}`.trim()||idOf(d)||"—";
 const money=(value)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)||0);
 const statusClass=(status)=>{
-  if(status==="accepted")return "bg-green-100 text-green-800";
-  if(status==="countered")return "bg-amber-100 text-amber-800";
-  if(status==="rejected"||status==="signed_elsewhere")return "bg-red-100 text-red-800";
-  if(status==="withdrawn")return "bg-gray-100 text-gray-600";
-  return "bg-blue-100 text-blue-800";
+  if(status==="accepted")return "border border-emerald-400/20 bg-emerald-500/10 text-emerald-300";
+  if(status==="countered")return "border border-amber-400/20 bg-amber-500/10 text-amber-300";
+  if(status==="rejected"||status==="signed_elsewhere")return "border border-rose-400/20 bg-rose-500/10 text-rose-300";
+  if(status==="withdrawn")return "border border-white/10 bg-white/5 text-slate-400";
+  return "border border-sky-400/20 bg-sky-500/10 text-sky-300";
 };
 
 function marketStatus(driver, contract, pending, activeYear){
@@ -69,6 +69,7 @@ export default function Drivers(){
   const [sortKey,setSortKey]=useState("name");
   const [sortDir,setSortDir]=useState("asc");
   const [page,setPage]=useState(1);
+  const [showAll,setShowAll]=useState(false);
   const [negotiatingDriver,setNegotiatingDriver]=useState(null);
   const PAGE_SIZE=16;
 
@@ -202,7 +203,7 @@ export default function Drivers(){
 
   const pages=Math.max(1,Math.ceil(sorted.length/PAGE_SIZE));
   const p=Math.min(page,pages);
-  const paged=sorted.slice((p-1)*PAGE_SIZE,p*PAGE_SIZE);
+  const paged=showAll?sorted:sorted.slice((p-1)*PAGE_SIZE,p*PAGE_SIZE);
 
   const headers=[
     ["name","Driver"],["team_name","Team"],["nationality","Nationality"],["market_status","Status"],
@@ -226,38 +227,38 @@ export default function Drivers(){
   const acceptTeamCounter=(id)=>setGameState(acceptTransferCounter(gs,id));
   const withdrawTeamApproach=(id)=>setGameState(withdrawTransferApproach(gs,id));
 
-  return <div className="grid gap-4">
-    <div className="bg-white rounded-xl shadow p-4">
+  return <div className="grid gap-4 text-slate-100">
+    <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
       <h2 className="text-lg font-semibold">Driver Market</h2>
-      <p className="text-sm text-gray-500">Browse the market, approach available drivers and negotiate role, salary and contract length. Offers do not resolve instantly.</p>
+      <p className="text-sm text-slate-400">Browse the market, approach available drivers and negotiate role, salary and contract length. Offers do not resolve instantly.</p>
       <div className="mt-3 flex flex-col lg:flex-row gap-2">
-        <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search driver/team/nationality/status…" value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}/>
+        <input className="flex-1 rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600" placeholder="Search driver/team/nationality/status…" value={q} onChange={e=>{setQ(e.target.value);setPage(1);}}/>
         <button
-          className={"border rounded-md px-3 py-2 text-sm " + (status==="Free" ? "bg-slate-900 text-white" : "")}
+          className={"rounded-md border px-3 py-2 text-sm " + (status==="Free" ? "border-sky-400/30 bg-sky-500/15 text-sky-200" : "border-white/10 bg-[#171a23] text-slate-200")}
           onClick={()=>{setStatus(status==="Free"?"ALL":"Free");setPage(1);}}
         >Free Drivers</button>
-        <select className="border rounded-md px-3 py-2 text-sm" value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}>{statusOptions.map(v=><option key={v}>{v}</option>)}</select>
-        <select className="border rounded-md px-3 py-2 text-sm" value={team} onChange={e=>{setTeam(e.target.value);setPage(1);}}>{teamOptions.map(v=><option key={v}>{v}</option>)}</select>
-        <select className="border rounded-md px-3 py-2 text-sm" value={sortKey} onChange={e=>setSortKey(e.target.value)}>{headers.map(([k,l])=><option key={k} value={k}>Sort: {l}</option>)}</select>
-        <button className="border rounded-md px-3 py-2 text-sm" onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}>{sortDir==="asc"?"Asc ↑":"Desc ↓"}</button>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}>{statusOptions.map(v=><option key={v}>{v}</option>)}</select>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={team} onChange={e=>{setTeam(e.target.value);setPage(1);}}>{teamOptions.map(v=><option key={v}>{v}</option>)}</select>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={sortKey} onChange={e=>setSortKey(e.target.value)}>{headers.map(([k,l])=><option key={k} value={k}>Sort: {l}</option>)}</select>
+        <button className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}>{sortDir==="asc"?"Asc ↑":"Desc ↓"}</button>
       </div>
     </div>
 
     {!!activePlayerTransferApproaches.length&&(
-      <div className="bg-white rounded-xl shadow p-4">
+      <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
             <h3 className="font-semibold">Team Transfer Talks</h3>
-            <p className="text-xs text-gray-500">For contracted drivers without a release clause, the current team must agree a fee before personal terms can be completed.</p>
+            <p className="text-xs text-slate-500">For contracted drivers without a release clause, the current team must agree a fee before personal terms can be completed.</p>
           </div>
-          <span className="text-xs text-gray-500">{activePlayerTransferApproaches.length} active</span>
+          <span className="text-xs text-slate-500">{activePlayerTransferApproaches.length} active</span>
         </div>
         <div className="grid gap-2">
           {activePlayerTransferApproaches.map((a)=>(
-            <div key={a.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+            <div key={a.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#171a23] p-3 lg:flex-row lg:items-center">
               <div className="flex-1 min-w-0">
                 <div className="font-medium">{a.driver_name}</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-slate-500">
                   {a.seller_team_name} · offered {money(a.offer_fee)}
                   {a.status==="submitted"&&a.response_date?(" · response by "+a.response_date):""}
                 </div>
@@ -270,12 +271,12 @@ export default function Drivers(){
               <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(a.status)}>{String(a.status||"").replaceAll("_"," ")}</span>
               {a.status==="countered"&&(
                 <div className="flex gap-2">
-                  <button className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white" onClick={()=>acceptTeamCounter(a.id)}>Accept fee</button>
-                  <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawTeamApproach(a.id)}>Withdraw</button>
+                  <button className="rounded border border-sky-400/30 bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200 hover:bg-sky-500/25" onClick={()=>acceptTeamCounter(a.id)}>Accept fee</button>
+                  <button className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10" onClick={()=>withdrawTeamApproach(a.id)}>Withdraw</button>
                 </div>
               )}
               {a.status==="submitted"&&(
-                <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdrawTeamApproach(a.id)}>Withdraw</button>
+                <button className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10" onClick={()=>withdrawTeamApproach(a.id)}>Withdraw</button>
               )}
             </div>
           ))}
@@ -284,20 +285,20 @@ export default function Drivers(){
     )}
 
     {!!activePlayerNegotiations.length&&(
-      <div className="bg-white rounded-xl shadow p-4">
+      <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
             <h3 className="font-semibold">Active Negotiations</h3>
-            <p className="text-xs text-gray-500">Only submitted offers and counter-offers remain in this view.</p>
+            <p className="text-xs text-slate-500">Only submitted offers and counter-offers remain in this view.</p>
           </div>
-          <span className="text-xs text-gray-500">{activePlayerNegotiations.length} active</span>
+          <span className="text-xs text-slate-500">{activePlayerNegotiations.length} active</span>
         </div>
         <div className="grid gap-2">
           {activePlayerNegotiations.map((n)=>(
-            <div key={n.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+            <div key={n.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#171a23] p-3 lg:flex-row lg:items-center">
               <div className="flex-1 min-w-0">
                 <div className="font-medium">{n.driver_name}</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-slate-500">
                   {n.offer?.role} · {money(n.offer?.salary)} · {n.offer?.years} year{Number(n.offer?.years)===1?"":"s"}
                   {n.status==="submitted"&&n.response_date?(" · response by "+n.response_date):""}
                 </div>
@@ -310,12 +311,12 @@ export default function Drivers(){
               <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(n.status)}>{String(n.status||"").replaceAll("_"," ")}</span>
               {n.status==="countered"&&(
                 <div className="flex gap-2">
-                  <button className="rounded px-3 py-1.5 text-xs bg-slate-900 text-white" onClick={()=>acceptCounter(n.id)}>Accept counter</button>
-                  <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdraw(n.id)}>Withdraw</button>
+                  <button className="rounded border border-sky-400/30 bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200 hover:bg-sky-500/25" onClick={()=>acceptCounter(n.id)}>Accept counter</button>
+                  <button className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10" onClick={()=>withdraw(n.id)}>Withdraw</button>
                 </div>
               )}
               {n.status==="submitted"&&(
-                <button className="border rounded px-3 py-1.5 text-xs" onClick={()=>withdraw(n.id)}>Withdraw</button>
+                <button className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10" onClick={()=>withdraw(n.id)}>Withdraw</button>
               )}
             </div>
           ))}
@@ -324,22 +325,22 @@ export default function Drivers(){
     )}
 
     {!!negotiationHistory.length&&(
-      <details className="bg-white rounded-xl shadow p-4">
+      <details className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
         <summary className="cursor-pointer select-none flex items-center justify-between gap-3">
           <span className="font-semibold">Negotiation History</span>
-          <span className="text-xs text-gray-500">{negotiationHistory.length} completed</span>
+          <span className="text-xs text-slate-500">{negotiationHistory.length} completed</span>
         </summary>
         <div className="mt-3 grid gap-2">
           {negotiationHistory.slice(0,20).map((n)=>(
-            <div key={n.id} className="border rounded-lg p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+            <div key={n.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#171a23] p-3 lg:flex-row lg:items-center">
               <div className="flex-1 min-w-0">
                 <div className="font-medium">{n.driver_name}</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-slate-500">
                   {n.offer?.role} · {money(n.offer?.salary)} · {n.offer?.years} year{Number(n.offer?.years)===1?"":"s"}
                   {(n.resolved_at||n.responded_at)?(" · "+(n.resolved_at||n.responded_at)):""}
                 </div>
                 {n.resolution_note&&(
-                  <div className="text-xs text-gray-500 mt-1">{n.resolution_note}</div>
+                  <div className="text-xs text-slate-500 mt-1">{n.resolution_note}</div>
                 )}
               </div>
               <span className={"px-2 py-1 rounded text-xs font-medium "+statusClass(n.status)}>
@@ -348,7 +349,7 @@ export default function Drivers(){
             </div>
           ))}
           {negotiationHistory.length>20&&(
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-slate-500">
               Showing the 20 most recent completed negotiations.
             </div>
           )}
@@ -356,22 +357,22 @@ export default function Drivers(){
       </details>
     )}
 
-    <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
-      <thead className="bg-gray-50"><tr>{headers.map(([k,l])=><th key={k} className="px-4 py-3 text-left cursor-pointer" onClick={()=>{if(sortKey===k)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortKey(k);setSortDir("asc");}}}>{l}{sortKey===k?(sortDir==="asc"?" ↑":" ↓"):""}</th>)}<th className="px-4 py-3 text-right">Action</th></tr></thead>
-      <tbody>{paged.map(d=><tr key={d.id} className="border-t hover:bg-gray-50">
+    <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#11141c] shadow-xl"><table className="min-w-full text-sm">
+      <thead className="bg-white/[0.04]"><tr>{headers.map(([k,l])=><th key={k} className="px-4 py-3 text-left cursor-pointer" onClick={()=>{if(sortKey===k)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortKey(k);setSortDir("asc");}}}>{l}{sortKey===k?(sortDir==="asc"?" ↑":" ↓"):""}</th>)}<th className="px-4 py-3 text-right">Action</th></tr></thead>
+      <tbody>{paged.map(d=><tr key={d.id} className="border-t border-white/10 hover:bg-white/[0.04]">
         <td className="px-4 py-2"><button type="button" data-entity="driver" data-id={d.id} className="flex items-center gap-3 font-medium hover:underline text-left"><DriverPortrait driver={d} size="h-10 w-10"/><span>{d.name}</span></button></td>
         <td className="px-4 py-2">{d.team_name}</td>
         <td className="px-4 py-2">{flagFromCountry(d.nationality,d.country_code)} {d.nationality}</td>
         <td className="px-4 py-2">
           <div className="flex flex-col items-start gap-1">
-            <span className="px-2 py-1 rounded bg-gray-100 text-xs">{d.market_status}</span>
-            {d.role&&<span className="text-xs text-gray-500">{d.role}</span>}
+            <span className="px-2 py-1 rounded border border-white/10 bg-white/5 text-xs text-slate-300">{d.market_status}</span>
+            {d.role&&<span className="text-xs text-slate-500">{d.role}</span>}
           </div>
         </td>
         <td className="px-4 py-2">{d.age??"—"}</td>
         <td className="px-4 py-2">
           <div className="font-semibold" title={d.knowledge?.label||"Driver knowledge"}>{d.overall}</div>
-          <div className="text-[10px] text-gray-500">{d.knowledge?.label||"Unscouted"}</div>
+          <div className="text-[10px] text-slate-500">{d.knowledge?.label||"Unscouted"}</div>
         </td>
         <td className="px-4 py-2">
           {d.wage?(
@@ -383,10 +384,10 @@ export default function Drivers(){
         <td className="px-4 py-2">{d.contract_until}</td>
         <td className="px-4 py-2 text-right">
           {d.pending?(
-            <span className="text-xs text-blue-700">Negotiating</span>
+            <span className="text-xs text-sky-300">Negotiating</span>
           ):d.can_negotiate?(
             <button
-              className="border rounded px-2 py-1 text-xs"
+              className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
               onClick={()=>setNegotiatingDriver(d)}
               title={d.negotiation_kind==="transfer"&&d.negotiation_buyout
                 ?("Transfer buyout: "+money(d.negotiation_buyout.fee))
@@ -395,24 +396,31 @@ export default function Drivers(){
               {d.negotiation_kind==="transfer"?"Approach transfer":"Approach"}
             </button>
           ):d.negotiation_reason==="insufficient_buyout_funds"?(
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-slate-500">
               Buyout {money(d.negotiation_buyout?.fee||0)}
             </span>
           ):d.negotiation_reason==="under_contract"?(
-            <span className="text-xs text-gray-500">Under contract</span>
+            <span className="text-xs text-slate-500">Under contract</span>
           ):d.negotiation_reason==="already_contracted"?(
-            <span className="text-xs text-gray-500">Your driver</span>
+            <span className="text-xs text-slate-500">Your driver</span>
           ):d.negotiation_reason==="lineup_full"?(
-            <span className="text-xs text-gray-500">Line-up full</span>
+            <span className="text-xs text-slate-500">Line-up full</span>
           ):d.negotiation_reason==="not_f1_eligible"?(
-            <span className="text-xs text-gray-500">Not eligible</span>
+            <span className="text-xs text-slate-500">Not eligible</span>
           ):"—"}
         </td>
       </tr>)}
-      {!paged.length&&<tr><td colSpan={headers.length+1} className="px-4 py-6 text-center text-gray-500">No drivers found.</td></tr>}</tbody>
+      {!paged.length&&<tr><td colSpan={headers.length+1} className="px-4 py-6 text-center text-slate-500">No drivers found.</td></tr>}</tbody>
     </table></div>
 
-    <div className="flex items-center justify-between text-sm"><span className="text-gray-600">{sorted.length} results · Page {p}/{pages}</span><div className="flex gap-2"><button className="border rounded px-3 py-1 disabled:opacity-40" disabled={p<=1} onClick={()=>setPage(x=>Math.max(1,x-1))}>Prev</button><button className="border rounded px-3 py-1 disabled:opacity-40" disabled={p>=pages} onClick={()=>setPage(x=>Math.min(pages,x+1))}>Next</button></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#11141c] px-3 py-2 text-sm">
+      <span className="text-slate-400">{sorted.length} results · {showAll?"Showing all":`Page ${p}/${pages}`}</span>
+      <div className="flex flex-wrap gap-2">
+        {!showAll&&<button className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-slate-200 disabled:opacity-40" disabled={p<=1} onClick={()=>setPage(x=>Math.max(1,x-1))}>Prev Page</button>}
+        {!showAll&&<button className="rounded border border-sky-400/30 bg-sky-500/10 px-3 py-1.5 font-medium text-sky-200 disabled:opacity-40" disabled={p>=pages} onClick={()=>setPage(x=>Math.min(pages,x+1))}>Next Page</button>}
+        <button className="rounded border border-white/10 bg-white/5 px-3 py-1.5 text-slate-200 hover:bg-white/10" onClick={()=>{setShowAll(v=>!v);setPage(1);}}>{showAll?"Paginate":"Show All"}</button>
+      </div>
+    </div>
 
     {negotiatingDriver&&(
       <ContractNegotiationModal

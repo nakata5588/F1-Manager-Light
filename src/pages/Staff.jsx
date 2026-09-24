@@ -89,37 +89,37 @@ export default function Staff(){
     return a.name.localeCompare(b.name);
   });
 
-  return <div className="grid gap-4">
-    <div className="bg-white rounded-xl shadow p-4">
+  return <div className="grid gap-4 text-slate-100">
+    <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
       <h2 className="text-lg font-semibold">All Staff</h2>
-      <p className="text-sm text-gray-500">Season {year||"—"} · click a staff member to open the profile.</p>
+      <p className="text-sm text-slate-400">Season {year||"—"} · click a staff member to open the profile.</p>
       <div className="mt-3 flex flex-col lg:flex-row gap-2">
-        <input className="border rounded-md px-3 py-2 text-sm flex-1" placeholder="Search name/role/team/nationality…" value={q} onChange={e=>setQ(e.target.value)}/>
+        <input className="flex-1 rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600" placeholder="Search name/role/team/nationality…" value={q} onChange={e=>setQ(e.target.value)}/>
         <button
-          className={"border rounded-md px-3 py-2 text-sm " + (market==="Free" ? "bg-slate-900 text-white" : "")}
+          className={"rounded-md border px-3 py-2 text-sm " + (market==="Free" ? "border-sky-400/30 bg-sky-500/15 text-sky-200" : "border-white/10 bg-[#171a23] text-slate-200")}
           onClick={()=>setMarket(market==="Free"?"ALL":"Free")}
         >Free Staff</button>
-        <select className="border rounded-md px-3 py-2 text-sm" value={market} onChange={e=>setMarket(e.target.value)}>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={market} onChange={e=>setMarket(e.target.value)}>
           <option value="ALL">All market</option>
           <option value="Contracted">Contracted</option>
           <option value="Free">Free</option>
         </select>
-        <select className="border rounded-md px-3 py-2 text-sm" value={dept} onChange={e=>setDept(e.target.value)}>{depts.map(v=><option key={v}>{v}</option>)}</select>
-        <select className="border rounded-md px-3 py-2 text-sm" value={team} onChange={e=>setTeam(e.target.value)}>{teamsOpt.map(v=><option key={v}>{v}</option>)}</select>
-        <select className="border rounded-md px-3 py-2 text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="overall">Sort: Overall</option><option value="role">Sort: Role</option><option value="team">Sort: Team</option><option value="name">Sort: Name</option></select>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={dept} onChange={e=>setDept(e.target.value)}>{depts.map(v=><option key={v}>{v}</option>)}</select>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={team} onChange={e=>setTeam(e.target.value)}>{teamsOpt.map(v=><option key={v}>{v}</option>)}</select>
+        <select className="rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100" value={sort} onChange={e=>setSort(e.target.value)}><option value="overall">Sort: Overall</option><option value="role">Sort: Role</option><option value="team">Sort: Team</option><option value="name">Sort: Name</option></select>
       </div>
     </div>
 
-    <div className="bg-white rounded-xl shadow overflow-x-auto"><table className="min-w-full text-sm">
-      <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Primary Role</th><th className="px-4 py-3 text-left">Assigned Role</th><th className="px-4 py-3 text-left">Dept</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Nationality</th><th className="px-4 py-3 text-right">Overall</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 text-left">Contract</th></tr></thead>
-      <tbody>{filtered.map(s=><tr key={s.id} className="border-t hover:bg-gray-50">
+    <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#11141c] shadow-xl"><table className="min-w-full text-sm">
+      <thead className="bg-white/[0.04] text-slate-400"><tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Primary Role</th><th className="px-4 py-3 text-left">Assigned Role</th><th className="px-4 py-3 text-left">Dept</th><th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Nationality</th><th className="px-4 py-3 text-right">Overall</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 text-left">Contract</th></tr></thead>
+      <tbody>{filtered.map(s=><tr key={s.id} className="border-t border-white/10 hover:bg-white/[0.04]">
         <td className="px-4 py-2"><button type="button" data-entity="staff" data-id={s.id} className="font-medium hover:underline text-left">{s.name}</button></td>
         <td className="px-4 py-2">{s.primaryRole}</td><td className="px-4 py-2">{s.assignedRole}</td><td className="px-4 py-2">{s.dept}</td><td className="px-4 py-2">{s.team}</td>
         <td className="px-4 py-2">{flagFromCountry(s.country,s.code)} {s.country}</td><td className="px-4 py-2 text-right font-semibold">{s.overall}</td>
         <td className="px-4 py-2 text-right">{s.salary?new Intl.NumberFormat("en-GB",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(s.salary):"—"}</td>
         <td className="px-4 py-2">{s.until}</td>
       </tr>)}
-      {!filtered.length&&<tr><td colSpan={9} className="px-4 py-6 text-center text-gray-500">No staff found.</td></tr>}</tbody>
+      {!filtered.length&&<tr><td colSpan={9} className="px-4 py-6 text-center text-slate-500">No staff found.</td></tr>}</tbody>
     </table></div>
   </div>;
 }
