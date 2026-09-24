@@ -40,7 +40,7 @@ test("fresh career runtime clears driver form, development and team morale state
   assert.deepEqual(next.driverAbilityLog, {});
   assert.deepEqual(next.driverMentalStateLog, {});
   assert.deepEqual(next.driverReputationLog, {});
-  assert.deepEqual(next.driverRelationships, { version:1, relations:{}, log:[] });
+  assert.deepEqual(next.driverRelationships, { version:2, relations:{}, log:[] });
   assert.deepEqual(next.teamOperationalState, {});
   assert.deepEqual(next.teamMoraleLog, {});
   assert.deepEqual(next.teamReputationState, {});
