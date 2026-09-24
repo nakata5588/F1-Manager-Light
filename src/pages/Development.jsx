@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
+import {
+  PIT_CREW_TRAINING_PRESETS,
+  pitCrewTrainingLoadEffects,
+  projectPitCrewTraining,
+} from "@/domain/pitCrewTraining.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
@@ -29,6 +34,15 @@ import {
   normalizedAeroAllocation,
   recordAeroTestingUsage,
 } from "@/domain/developmentRegulations.js";
+import {
+  consumeTechnicalResearch,
+  normalizeTechnicalResearch,
+  setTechnicalResearchFocus,
+  technicalResearchArea,
+  technicalResearchAreaForProject,
+  technicalResearchDailyOutput,
+  technicalResearchSupport,
+} from "@/domain/technicalResearch.js";
 import {
   discoverableCarTechnologies,
   startTechnologyAdoption,
@@ -187,20 +201,13 @@ export default function Development({ embedded = false, initialTab = "projects",
     ()=>aeroTestingRemaining(dev,regulationProfile),
     [dev,regulationProfile]
   );
-  const research = Array.isArray(dev.research) && dev.research.length
-    ? dev.research
-    : [
-        { id:"aero", area:"Aerodynamics", focus:25, points:0 },
-        { id:"chassis", area:"Chassis", focus:25, points:0 },
-        { id:"reliability", area:"Reliability", focus:25, points:0 },
-        { id:"powertrain", area:"Powertrain Integration", focus:25, points:0 },
-      ];
+  const research = normalizeTechnicalResearch(dev.research);
 
   const validTabs = ["projects","parts","manufacturing","research","pit_crew"];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
-    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0,
+    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0, researchSupport:0,
   });
 
   useEffect(() => {
@@ -220,12 +227,12 @@ export default function Development({ embedded = false, initialTab = "projects",
 
   useEffect(() => {
     if (!eraTypes.includes(draft.type) && eraTypes.length) {
-      setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced"}));
+      setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced", researchSupport:0}));
       return;
     }
     const allowed=developmentObjectivesForSlot(gameState,draft.type,teamId);
     if(!allowed.some((objective)=>objective.id===draft.objective)){
-      setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced"}));
+      setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced",researchSupport:0}));
     }
   }, [eraTypes, draft.type, draft.objective, gameState]);
 
@@ -319,6 +326,9 @@ export default function Development({ embedded = false, initialTab = "projects",
   const objectiveOptions=developmentObjectivesForSlot(gameState,draft.type,teamId);
   const objective=objectiveOptions.find((row)=>row.id===draft.objective)||objectiveOptions[0]||null;
   const objectiveModifiers=objectiveProjectModifiers(gameState,draft.type,draft.objective,teamId);
+  const researchAreaId=technicalResearchAreaForProject(gameState,draft.type,draft.objective);
+  const researchArea=technicalResearchArea(research,researchAreaId);
+  const researchSupport=technicalResearchSupport(research,researchAreaId,draft.researchSupport);
   const aeroAllocation=normalizedAeroAllocation(gameState,teamId,draft.type,{
     windTunnel:draft.windTunnel,
     cfd:draft.cfd,
@@ -333,12 +343,16 @@ export default function Development({ embedded = false, initialTab = "projects",
     windTunnel:aeroEffect.wind_tunnel_effective,
   };
   const rawEffectiveDays = effectiveProjectDays(effectiveDraft, levelOf, moraleTimeFactor);
-  const effectiveDays = Math.max(7,Math.round(rawEffectiveDays*objectiveModifiers.duration_multiplier));
+  const effectiveDays = Math.max(7,Math.round(
+    rawEffectiveDays*objectiveModifiers.duration_multiplier*researchSupport.duration_multiplier
+  ));
   const baseCost = projectCost({...effectiveDraft, duration:effectiveDays}, levelOf("manufacturing_leve"));
   const cost = Math.round(baseCost*objectiveModifiers.cost_multiplier);
   const baseExpectedPerf = perfDelta(effectiveDraft, levelOf, parts);
   const expectedIncrement = Number((
-    baseExpectedPerf * Number(testDriverProfile?.performanceMultiplier || 1)
+    baseExpectedPerf *
+    Number(testDriverProfile?.performanceMultiplier || 1) *
+    researchSupport.performance_multiplier
   ).toFixed(2));
   const strengthTarget=developmentStrengthTarget(parts,draft.type,expectedIncrement);
   const currentDesign=strengthTarget.current_part||bestDevelopedPartForSlot(parts,draft.type);
@@ -359,7 +373,8 @@ export default function Development({ embedded = false, initialTab = "projects",
   const projectRisk=Math.max(
     0.025,
     (0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0))*
-      objectiveModifiers.risk_multiplier
+      objectiveModifiers.risk_multiplier -
+      researchSupport.risk_reduction
   );
   const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
   const canStartProject=Boolean(
@@ -408,20 +423,32 @@ export default function Development({ embedded = false, initialTab = "projects",
       test_driver_id:testDriverProfile?.driver_id||null,
       test_driver_name:testDriverProfile?.name||null,
       test_driver_feedback:testDriverProfile?.impact??null,
+      research_area:researchSupport.area_id,
+      research_points_used:researchSupport.points_used,
+      research_support:{
+        duration_multiplier:researchSupport.duration_multiplier,
+        risk_reduction:researchSupport.risk_reduction,
+        performance_multiplier:researchSupport.performance_multiplier,
+      },
     };
 
     applyExpense(cost, `Development — ${project.name}`);
+    const nextResearch=consumeTechnicalResearch(
+      research,
+      researchSupport.area_id,
+      researchSupport.points_used
+    );
     const nextDevelopment=recordAeroTestingUsage({
       ...dev,
       projects:[...projects, project],
-      parts,partUnits,manufacturing,research,
+      parts,partUnits,manufacturing,research:nextResearch,
     },regulationProfile,{
       windTunnel:aeroAllocation.wind_tunnel,
       cfd:aeroAllocation.cfd,
     });
     setGameState({development:nextDevelopment});
     const defaults=defaultAeroAllocation(gameState,teamId,draft.type,nextDevelopment);
-    setDraft((current)=>({...current,cfd:defaults.cfd,windTunnel:defaults.windTunnel}));
+    setDraft((current)=>({...current,cfd:defaults.cfd,windTunnel:defaults.windTunnel,researchSupport:0}));
     setShowCreate(false);
   };
 
@@ -517,7 +544,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   };
 
   const updateResearch = (id, focus) => {
-    const next = research.map((r)=>r.id===id?{...r,focus:Number(focus)}:r);
+    const next=setTechnicalResearchFocus(research,id,focus);
     setGameState({development:{...dev,projects,parts,partUnits,manufacturing,research:next}});
   };
 
