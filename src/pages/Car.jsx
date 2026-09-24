@@ -636,13 +636,24 @@ export default function Car(){
         </Panel>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button onClick={()=>setView("analysis",{car:raceCars[0]?.id})} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><BarChart3 className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Car Analysis</div><div className="text-sm text-slate-500">Compare your car against the current grid average.</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
+          <button onClick={()=>setView("analysis",{car:raceCars[0]?.id})} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><BarChart3 className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Car Analysis</div><div className="text-sm text-slate-500">Compare every car across sortable Characteristics and Performance.</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
           <button onClick={()=>openDevelopment("manufacturing")} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><Factory className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Manufacturing</div><div className="text-sm text-slate-500">{activeManufacturing.length} active · {availableParts.length} stocked designs</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
         </div>
+
+        <Panel title="Technical Summary">
+          <div className="p-2.5 grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2">
+            <Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/>
+            <Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/>
+            <Metric label="Projects" value={activeProjects.length}/>
+            <Metric label="Manufacturing" value={activeManufacturing.length}/>
+            <Metric label="Workshop" value={workshop.length}/>
+            <Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/>
+            <Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/>
+          </div>
+        </Panel>
       </div>
       <div className="xl:col-span-4 space-y-4">
         <PerformancePanel ranking={ranking} teamId={teamId} perf={myRank} title="Team Car Performance"/>
-        <Panel title="Technical Summary"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/><Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/><Metric label="Active projects" value={activeProjects.length}/><Metric label="Manufacturing" value={activeManufacturing.length}/><Metric label="Workshop" value={workshop.length}/><Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/><Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/></div></Panel>
         <Panel title="Reserve Car">
           <div className="p-4 space-y-3">
             {reserveCar?<><div className="flex items-center justify-between gap-3"><div><div className="font-semibold text-emerald-200">Reserve Car available</div><div className="text-xs text-slate-500">A race car can be substituted if its primary chassis is not raceworthy.</div></div><div className="text-right"><div className="text-[10px] uppercase text-slate-500">Condition</div><strong>{Number(reserveHealth??100).toFixed(0)}%</strong></div></div></>
