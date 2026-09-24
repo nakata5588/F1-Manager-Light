@@ -187,9 +187,12 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
   const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
   const rawPitCrew=gameState?.raceStrategyWorld?.pitCrews?.[teamId]||{
-    avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,source:"fallback"
+    avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,fatigue:0,source:"fallback"
   };
   const effectivePitCrew=pitCrewEffectiveProfile(rawPitCrew);
+  const pitCrewFacilityLevel=levelOf("pitcrew_training_level");
+  const pitCrewLoadEffects=pitCrewTrainingLoadEffects(rawPitCrew.training_load??50);
+  const pitCrewSevenDay=projectPitCrewTraining(rawPitCrew,pitCrewFacilityLevel,7);
   const teamMorale=teamOperationalMorale(gameState,teamId);
   const moraleWorkRate=teamWorkRateLabel(gameState,teamId);
   const moraleTimeFactor=teamWorkRateMultiplier(gameState,teamId);
@@ -202,6 +205,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     [dev,regulationProfile]
   );
   const research = normalizeTechnicalResearch(dev.research);
+  const researchOutput=technicalResearchDailyOutput(gameState);
 
   const validTabs = ["projects","parts","manufacturing","research","pit_crew"];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
