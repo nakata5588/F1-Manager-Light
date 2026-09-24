@@ -291,6 +291,20 @@ test("D6.3B let-through order is only accepted for a close team-mate immediately
 test("D6.3B rejects a let-through order when the team-mate is not directly behind",()=>{
   let gs=createLiveRaceState(fixture("d63b-invalid-team-order"),{gp});
   gs=advanceTo(gs,2);
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      live_race:{
+        ...gs.raceWeekendState.live_race,
+        classification:gs.raceWeekendState.live_race.classification.map((row)=>{
+          if(row.driver_id==="D1")return {...row,position:1};
+          if(row.driver_id==="D2")return {...row,position:3,gap_to_previous_ms:900};
+          return row;
+        }),
+      },
+    },
+  };
   const before=structuredClone(gs.raceWeekendState.race_strategy.live_commands||{});
   const next=issueLiveRaceCommand(gs,{driverId:"D1",type:"team_order",teamOrder:"yield",teammateId:"D2"});
   assert.deepEqual(next.raceWeekendState.race_strategy.live_commands||{},before);
