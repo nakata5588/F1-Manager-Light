@@ -593,16 +593,41 @@ export default function Development({ embedded = false, initialTab = "projects",
         <div className="grid grid-cols-1 gap-2">
           {projects.map((p)=>{
             const progress = p.status==="completed" ? 1 : p.status==="paused" ? Number(p.progress||0) : progressBetween(p.started_at,p.finishes_at,currentDateISO);
+            const projection=p.technical_projection||null;
+            const result=p.technical_result||null;
+            const currentStrength=Number(p.current_design_perf||0);
+            const targetStrength=Number(p.target_design_perf??p.perf_delta??0);
+            const actualStrength=Number(p.actual_design_perf??targetStrength);
             return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={p.id}><CardContent className="p-4 space-y-3">
-              <div className="flex justify-between gap-2"><div><div className="text-xs text-slate-400">{nice(p.type)} · {nice(p.phase)}</div><div className="font-semibold">{p.name}</div></div><span className="text-xs rounded bg-white/10 px-2 py-1 h-fit">{nice(p.status)}</span></div>
-              <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-800" style={{width:`${progress*100}%`}}/></div></div>
-              <div className="grid grid-cols-3 gap-2 text-sm"><Mini label="Engineers" value={p.engineers}/><Mini label="CFD" value={`${p.cfd_hours||0}h`}/><Mini label="WT" value={`${p.wt_hours||0}h`}/></div>
-              <div className="text-xs text-slate-400">{p.started_at} → {p.finishes_at} · {fmtMoney(p.cost)} · Δ +{p.perf_delta}</div>
-              {p.test_driver_name && <div className="text-xs text-slate-400">Test feedback: {p.test_driver_name} · {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                <div>
+                  <div className="text-xs text-slate-400">{componentLabel(gameState,p.type)} · {p.objective_label||"Legacy development"} · {nice(p.phase)}</div>
+                  <div className="font-semibold">{p.name}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {p.status==="completed"&&p.result_rating&&p.result_rating!=="legacy"?<ResultPill result={p.result_rating}/>:null}
+                  <span className="text-xs rounded bg-white/10 px-2 py-1 h-fit">{nice(p.status)}</span>
+                </div>
+              </div>
+              <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-200" style={{width:`${progress*100}%`}}/></div></div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+                <Mini label="Engineers" value={p.engineers}/>
+                <Mini label="CFD" value={`${p.cfd_hours||0}h`}/>
+                <Mini label="WT" value={`${p.wt_hours||0}h`}/>
+                <Mini label="Risk" value={p.risk!=null?(Number(p.risk)*100).toFixed(0)+"%":"—"}/>
+                <Mini label={p.status==="completed"?"Actual strength":"Target strength"} value={(p.status==="completed"?actualStrength:targetStrength).toFixed(2)}/>
+              </div>
+              {projection?<div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <ProjectDelta label="Weight" current={projection.current?.design?.weight_kg} proposed={(result||projection)?.design?.weight_kg} suffix=" kg" lowerBetter/>
+                <ProjectDelta label="Drag" current={projection.current?.design?.drag} proposed={(result||projection)?.design?.drag} digits={4} lowerBetter/>
+                <ProjectDelta label="Downforce" current={projection.current?.design?.downforce} proposed={(result||projection)?.design?.downforce} digits={4}/>
+                <ProjectDelta label="Reliability" current={Number(projection.current?.design?.reliability||0)*100} proposed={Number((result||projection)?.design?.reliability||0)*100} suffix="%" digits={1}/>
+              </div>:null}
+              <div className="text-xs text-slate-400">{p.started_at} → {p.finishes_at} · <span className="text-rose-300">{fmtMoney(p.cost)}</span> · Design {currentStrength.toFixed(2)} → {targetStrength.toFixed(2)}{p.status==="completed"&&Math.abs(actualStrength-targetStrength)>=0.005?` · actual ${actualStrength.toFixed(2)}`:""}</div>
+              {p.test_driver_name && <div className="text-xs text-slate-400">Validation: {p.test_driver_name} · feedback {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
-                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"cfd_hours")}>+5 CFD</Button>
-                <Button size="sm" variant="darkOutline" onClick={()=>addHours(p,"wt_hours")}>+5 WT</Button>
+                <span className="text-xs text-slate-500 self-center">Design brief is locked once the project starts.</span>
               </div>}
             </CardContent></Card>;
           })}
@@ -703,5 +728,24 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
 }
 
+function TechCompare({label,current,proposed,suffix="",digits=2,lowerBetter=false}){
+  const a=Number(current||0),b=Number(proposed||0),delta=b-a;
+  const good=lowerBetter?delta<0:delta>0;
+  const neutral=Math.abs(delta)<Math.pow(10,-digits);
+  return <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center text-sm">
+    <span className="text-slate-400">{label}</span>
+    <span className="tabular-nums text-slate-500">{a.toFixed(digits)}{suffix}</span>
+    <span className="text-slate-600">→</span>
+    <span className={"font-semibold tabular-nums "+(neutral?"text-slate-200":good?"text-emerald-300":"text-rose-300")}>{b.toFixed(digits)}{suffix}</span>
+  </div>;
+}
+function ProjectDelta(props){
+  return <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-2"><div className="text-[9px] uppercase tracking-wide text-slate-500 mb-1">{props.label}</div><TechCompare {...props} label=""/></div>;
+}
+function ResultPill({result}){
+  const cls=result==="above_expectation"?"bg-emerald-500/10 text-emerald-300":result==="below_expectation"?"bg-rose-500/10 text-rose-300":"bg-cyan-500/10 text-cyan-300";
+  const label=result==="above_expectation"?"Above target":result==="below_expectation"?"Below target":"On target";
+  return <span className={"rounded px-2 py-1 text-[10px] uppercase font-semibold "+cls}>{label}</span>;
+}
 function Stat({label,value}){return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4"><div className="text-xs text-slate-400">{label}</div><div className="text-xl font-semibold">{value}</div></CardContent></Card>;}
-function Mini({label,value}){return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium">{value}</div></div>;}
+function Mini({label,value}){return <div className="border border-white/10 rounded p-2"><div className="text-[10px] text-slate-400">{label}</div><div className="font-medium truncate">{value}</div></div>;}
