@@ -530,16 +530,18 @@ test("AI protects a technical cash reserve even when it can technically afford t
   assert.ok(assessment.budget_after_commitment<assessment.reserve_floor);
 });
 
-test("AI respects season development capacity derived from its engineering facilities",()=>{
-  let gs=stateAtPlanningReview("RENAULT","1980-06-01",5_000_000);
+test("AI uses concurrent project slots instead of a seasonal project allowance",()=>{
+  let gs=stateAtPlanningReview("RENAULT","1980-06-01",8_000_000);
   const seeded=aiTechnicalTeamState(gs,"RENAULT");
-  const limit=aiTechnicalPlanningAssessment(gs,"RENAULT").season_limit;
-  const projects=Array.from({length:limit},(_,index)=>({
+  const probe=aiTechnicalPlanningAssessment(gs,"RENAULT",{force:true});
+
+  const completed=Array.from({length:10},(_,index)=>({
     id:`completed_${index+1}`,
     type:index%2?"aero_front":"gearbox",
     status:"completed",
-    started_at:`1980-0${Math.min(5,index+1)}-01`,
-    completed_at:`1980-0${Math.min(5,index+1)}-20`,
+    started_at:"1980-02-01",
+    completed_at:"1980-03-01",
+    engineers:3,
   }));
   gs={
     ...gs,
@@ -549,17 +551,44 @@ test("AI respects season development capacity derived from its engineering facil
         ...gs.aiTechnicalWorld.teams,
         RENAULT:{
           ...seeded,
-          development:{...seeded.development,projects},
+          development:{...seeded.development,projects:completed},
           planning:{...seeded.planning,next_review_date:"1980-06-01"},
         },
       },
     },
   };
 
-  const assessment=aiTechnicalPlanningAssessment(gs,"RENAULT");
-  assert.equal(assessment.action,"hold");
-  assert.equal(assessment.reason,"season_capacity_reached");
-  assert.equal(assessment.season_projects,assessment.season_limit);
+  const afterCompleted=aiTechnicalPlanningAssessment(gs,"RENAULT",{force:true});
+  assert.notEqual(afterCompleted.reason,"season_capacity_reached");
+  assert.equal(afterCompleted.action,"develop");
+
+  const active=Array.from({length:probe.project_slots},(_,index)=>({
+    id:`active_${index+1}`,
+    type:index%2?"aero_front":"gearbox",
+    status:"active",
+    started_at:"1980-05-01",
+    finishes_at:"1980-07-01",
+    engineers:1,
+  }));
+  gs={
+    ...gs,
+    aiTechnicalWorld:{
+      ...gs.aiTechnicalWorld,
+      teams:{
+        ...gs.aiTechnicalWorld.teams,
+        RENAULT:{
+          ...seeded,
+          development:{...seeded.development,projects:active},
+          planning:{...seeded.planning,next_review_date:"1980-06-01"},
+        },
+      },
+    },
+  };
+
+  const full=aiTechnicalPlanningAssessment(gs,"RENAULT",{force:true});
+  assert.equal(full.action,"hold");
+  assert.equal(full.reason,"technical_capacity_busy");
+  assert.equal(full.concurrent_projects,full.project_slots);
 });
 
 test("AI will not start an upgrade too late to design manufacture and fit before season end",()=>{
@@ -581,14 +610,16 @@ test("AI will not start an upgrade too late to design manufacture and fit before
   assert.ok(assessment.days_to_season_end<assessment.delivery_days);
 });
 
-test("after committing a package AI schedules a future review beyond design and manufacture",()=>{
+test("after committing a package AI schedules another review before the design cycle ends",()=>{
   const gs=stateAtPlanningReview("RENAULT","1980-02-01",5_000_000);
   const planned=planAITechnicalProject(gs,"RENAULT");
   const state=aiTechnicalTeamState(planned,"RENAULT");
   const project=state.development.projects[0];
 
   assert.ok(project);
-  assert.ok(state.planning.next_review_date>project.finishes_at);
+  assert.ok(project.engineers>=1);
+  assert.ok(state.planning.next_review_date>project.started_at);
+  assert.ok(state.planning.next_review_date<project.finishes_at);
   assert.equal(state.planning.last_need,project.type);
 });
 
