@@ -127,7 +127,11 @@ function normalizeSave(key, raw) {
   // Team Position (supports current `standings.teams` and legacy constructors)
   let teamPosition = "—";
   try {
-    const rows = gs?.standings?.teams ?? gs?.standings?.constructors ?? [];
+    const rows = Array.isArray(gs?.standings?.teams)
+      ? gs.standings.teams
+      : Array.isArray(gs?.standings?.constructors)
+        ? gs.standings.constructors
+        : [];
     const row = rows.find((item) => {
       const rowId = item?.team_id ?? item?.constructor_id ?? item?.id ?? null;
       const rowName = item?.team_name ?? item?.name ?? null;
