@@ -866,8 +866,50 @@ export default function Development({ embedded = false, initialTab = "projects",
 
       {!showCreate && tab==="research" && (
         <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+              <div className="lg:w-[44%]">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Technical Research</div>
+                <div className="text-lg font-semibold">Focus builds knowledge. Research Points support designs.</div>
+                <div className="text-sm text-slate-400 mt-1">Your technical department generates Research Points every in-game day. Focus controls where that passive research goes; the four areas always share a total of 100%.</div>
+                <div className="text-sm text-slate-400 mt-2">Research Points do <strong className="text-slate-200">not</strong> improve the car automatically. Bank them here, then spend up to 15 RP as <strong className="text-slate-200">Research Support</strong> when you create a Current Car design brief.</div>
+              </div>
+              <div className="lg:flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Mini label="Department output" value={researchOutput.total_points_per_day.toFixed(2)+" RP/day"}/>
+                <Mini label="Focus allocated" value={research.reduce((sum,row)=>sum+Number(row.focus||0),0).toFixed(0)+"%"}/>
+                <Mini label="Banked knowledge" value={research.reduce((sum,row)=>sum+Number(row.points||0),0).toFixed(1)+" RP"}/>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4 text-xs">
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">1 · Set Focus</div><div className="text-slate-500 mt-1">Prioritise the technical areas you expect to develop. Moving one slider automatically rebalances the other areas.</div></div>
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">2 · Bank RP</div><div className="text-slate-500 mt-1">Research accumulates daily. Better technical facilities increase the department's total daily output.</div></div>
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">3 · Support a Design</div><div className="text-slate-500 mt-1">Spend RP in New Project to shorten development, lower risk and modestly improve the expected design gain.</div></div>
+            </div>
+          </CardContent></Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {research.map((r)=>{
+              const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100);
+              return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div><div className="font-semibold">{r.label||r.area}</div><div className="text-xs text-slate-500 mt-1">{r.description}</div></div>
+                  <div className="text-right"><div className="font-semibold tabular-nums">{Number(r.focus||0).toFixed(0)}%</div><div className="text-[10px] text-emerald-300">+{daily.toFixed(2)} RP/day</div></div>
+                </div>
+                <input className="w-full mt-4" type="range" min="0" max="100" step="5" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
+                <div className="mt-3 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Available for future projects</span>
+                  <strong className="text-cyan-200 tabular-nums">{Number(r.points||0).toFixed(1)} RP</strong>
+                </div>
+              </CardContent></Card>;
+            })}
+          </div>
+
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
-            <div><div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div><div className="text-lg font-semibold">Paddock technology opportunities</div><div className="text-sm text-slate-400 mt-1">A rival using a technology can make it researchable, but adoption only unlocks the technical area. You still need to design and manufacture a competitive physical part afterwards.</div></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div>
+              <div className="text-lg font-semibold">Paddock technology opportunities</div>
+              <div className="text-sm text-slate-400 mt-1">This is separate from Research Points. If another TEAM proves an era-legal technology that we do not yet understand, we can fund an adoption programme. Completing it unlocks that component family; we must still design a blueprint and manufacture physical units afterwards.</div>
+            </div>
             {technologyOpportunities.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{technologyOpportunities.map((opportunity)=>{
               const quote=technologyAdoptionQuote(gameState,teamId,opportunity.slot);
               const active=technologyProjects.find((project)=>project.slot===opportunity.slot&&project.status==="active");
@@ -878,45 +920,82 @@ export default function Development({ embedded = false, initialTab = "projects",
             })}</div>:<div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-slate-500">No new rival technology is currently available for adoption in this era.</div>}
             {technologyProjects.filter((project)=>project.status==="completed").length?<div className="pt-2 border-t border-white/10"><div className="text-xs uppercase text-slate-500 mb-2">Adopted technology</div><div className="flex flex-wrap gap-2">{technologyProjects.filter((project)=>project.status==="completed").map((project)=><span key={project.id} className="rounded bg-emerald-500/10 text-emerald-200 px-2 py-1 text-xs">{project.label} · unlocked {project.completed_at}</span>)}</div></div>:null}
           </CardContent></Card>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {research.map((r)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
-              <div className="flex justify-between"><div className="font-semibold">{r.area}</div><div className="text-sm">{r.focus||0}% focus</div></div>
-              <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
-              <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
-            </CardContent></Card>)}
-          </div>
         </div>
       )}
 
       {!showCreate && tab==="pit_crew" && (
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
-              <div className="text-lg font-semibold">Pit Crew Training Load</div>
-              <p className="text-sm text-slate-400 mt-1">Training improves pit-stop pace, consistency and error rate over time. Heavy training accelerates development but creates a temporary race-day fatigue penalty.</p>
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+              <div className="lg:w-[48%]">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
+                <div className="text-lg font-semibold">Pit Crew Training</div>
+                <div className="text-sm text-slate-400 mt-1">Training Load is a long-term trade-off. More load improves the crew's underlying stop pace, consistency and error rate faster; sustained heavy work also builds fatigue, which makes the crew slower and less reliable on race day.</div>
+              </div>
+              <div className="lg:flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Training facility" value={"Lv "+pitCrewFacilityLevel}/>
+                <Mini label="Current fatigue" value={Number(rawPitCrew.fatigue||0).toFixed(0)+"/100"}/>
+                <Mini label="Development speed" value={"×"+pitCrewLoadEffects.development_multiplier.toFixed(2)}/>
+                <Mini label="Fatigue / day" value={(pitCrewLoadEffects.fatigue_delta_per_day>=0?"+":"")+pitCrewLoadEffects.fatigue_delta_per_day.toFixed(2)}/>
+              </div>
             </div>
-            <input className="w-full" type="range" min="0" max="100" step="5" value={Number(rawPitCrew.training_load??50)} onChange={(e)=>setPitCrewTrainingLoad(e.target.value)}/>
-            <div className="flex items-center justify-between text-sm"><span className="text-slate-400">Current load</span><strong>{Math.round(Number(rawPitCrew.training_load??50))}%</strong></div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {[["Recovery",20],["Balanced",50],["Intensive",80],["Maximum",100]].map(([label,value])=><Button key={label} size="sm" variant={Number(rawPitCrew.training_load??50)===value?"default":"outline"} onClick={()=>setPitCrewTrainingLoad(value)}>{label}</Button>)}
-            </div>
-            <div className="text-xs text-slate-500">Suggestion: taper the load before a race weekend if you want to avoid the race-day penalty from very high training intensity.</div>
           </CardContent></Card>
 
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4">
-            <div className="font-semibold mb-3">Pit Crew Performance</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Mini label="Base stop" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
-              <Mini label="Race-day stop" value={Number(effectivePitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
-              <Mini label="Consistency" value={Number(effectivePitCrew.consistency??70).toFixed(1)+"%"}/>
-              <Mini label="Error rate" value={(Number(effectivePitCrew.error_rate??0.05)*100).toFixed(1)+"%"}/>
-            </div>
-            <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
-              <div className="font-medium">How it works</div>
-              <div className="text-slate-400 mt-1">Daily training progression is affected by the Pit Crew Training facility. Loads above 60% improve the crew faster but temporarily add stop-time and error risk on race day. This is now the same crew profile used by the race-strategy pit-stop simulation.</div>
-            </div>
-          </CardContent></Card>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+            <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
+              <div>
+                <div className="flex items-center justify-between"><div className="font-semibold">Training Load</div><strong>{Math.round(Number(rawPitCrew.training_load??50))}%</strong></div>
+                <input className="w-full mt-3" type="range" min="0" max="100" step="5" value={Number(rawPitCrew.training_load??50)} onChange={(e)=>setPitCrewTrainingLoad(e.target.value)}/>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {PIT_CREW_TRAINING_PRESETS.map((preset)=>{
+                  const effects=pitCrewTrainingLoadEffects(preset.load);
+                  const active=Number(rawPitCrew.training_load??50)===preset.load;
+                  return <button key={preset.id} onClick={()=>setPitCrewTrainingLoad(preset.load)} className={"rounded-lg border p-3 text-left transition "+(active?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-[#0d0f15] hover:bg-white/[0.04]")}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-semibold text-sm">{preset.label}</span><span className="text-xs">{preset.load}%</span></div>
+                    <div className="text-[11px] text-slate-500 mt-1">{preset.description}</div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-200">Training ×{effects.development_multiplier.toFixed(2)}</span>
+                      <span className={"rounded px-1.5 py-0.5 text-[10px] "+(effects.fatigue_delta_per_day>0?"bg-rose-500/10 text-rose-300":"bg-emerald-500/10 text-emerald-300")}>Fatigue {(effects.fatigue_delta_per_day>=0?"+":"")+effects.fatigue_delta_per_day.toFixed(2)}/day</span>
+                    </div>
+                  </button>;
+                })}
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 text-xs text-slate-400">
+                <strong className="text-slate-200">Recovery vs Balanced:</strong> they no longer represent the same thing. Recovery sacrifices development speed to remove fatigue quickly; Balanced gives more skill growth while still slowly recovering fatigue. Intensive and Maximum improve raw ability faster, but can leave a tired crew for the next race.
+              </div>
+            </CardContent></Card>
+
+            <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4 space-y-4">
+              <div>
+                <div className="font-semibold">Pit Crew Performance</div>
+                <div className="text-xs text-slate-500 mt-1">Base values are permanent crew skill. Race-day values include current fatigue and are the values used by the pit-stop simulation.</div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Base stop skill" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+                <Mini label="Race-day stop" value={Number(effectivePitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+                <Mini label="Race-day consistency" value={Number(effectivePitCrew.consistency??70).toFixed(1)+"%"}/>
+                <Mini label="Race-day error rate" value={(Number(effectivePitCrew.error_rate??0.05)*100).toFixed(1)+"%"}/>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-wide text-slate-500">7-day forecast at current load</div><div className="font-semibold text-sm">{Math.round(Number(rawPitCrew.training_load??50))}% Training Load</div></div><span className="text-xs text-slate-500">Facility Lv {pitCrewFacilityLevel}</span></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                  <ForecastMini label="Race-day stop" current={Number(effectivePitCrew.avg_time_s??6.8)} future={Number(pitCrewSevenDay.effective.avg_time_s??6.8)} suffix="s" lowerBetter/>
+                  <ForecastMini label="Consistency" current={Number(effectivePitCrew.consistency??70)} future={Number(pitCrewSevenDay.effective.consistency??70)} suffix="%"/>
+                  <ForecastMini label="Error rate" current={Number(effectivePitCrew.error_rate??0.05)*100} future={Number(pitCrewSevenDay.effective.error_rate??0.05)*100} suffix="%" lowerBetter/>
+                  <ForecastMini label="Fatigue" current={Number(rawPitCrew.fatigue||0)} future={Number(pitCrewSevenDay.raw.fatigue||0)} suffix="/100" lowerBetter/>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
+                <div className="font-medium">Race Weekend connection</div>
+                <div className="text-slate-400 mt-1">Every pit stop now reads this same crew profile. <strong className="text-slate-300">Average stop skill</strong> sets the baseline stationary time, <strong className="text-slate-300">Consistency</strong> controls stop-to-stop time variance, and <strong className="text-slate-300">Error rate</strong> controls the chance of a slow operational mistake. Fatigue worsens all three on race day.</div>
+              </div>
+            </CardContent></Card>
+          </div>
         </div>
       )}
     </div>
