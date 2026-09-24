@@ -80,6 +80,7 @@ export function evolveTrackSurface(previous,{
   windProfile="medium",
   drainage=0.5,
   lapFraction=1,
+  rubberingMultiplier=1,
 }={}){
   const prev=previous||initialiseTrackSurface({state});
   const weatherState=upper(state);
@@ -89,6 +90,7 @@ export function evolveTrackSurface(previous,{
   const fraction=clamp(lapFraction,0.05,4);
   const cars=clamp(num(carsOnTrack,20),0,40);
   const trafficFactor=clamp(cars/20,0,1.6);
+  const rubberingFactor=clamp(num(rubberingMultiplier,1),0.25,6);
   const drainageLevel=clamp(num(drainage,0.5),0,1);
   const temp=Math.max(0,num(trackTempC,26));
 
@@ -117,9 +119,9 @@ export function evolveTrackSurface(previous,{
   // Cars lay rubber on a dry racing line. Sustained rain and high surface water
   // wash that rubber away; damp conditions largely pause rubber build-up.
   if(wetness<0.10&&intensity<0.08){
-    rubber+=0.24*trafficFactor*fraction;
+    rubber+=0.24*trafficFactor*fraction*rubberingFactor;
   }else if(wetness<0.20&&intensity<0.16){
-    rubber+=0.07*trafficFactor*fraction;
+    rubber+=0.07*trafficFactor*fraction*rubberingFactor;
   }else if(intensity>=0.20||wetness>=0.30){
     const wash=(intensity*0.48+Math.max(0,wetness-0.30)*0.20)*fraction;
     rubber-=wash;
@@ -170,6 +172,10 @@ export function evolveSessionSurface(previous,{
 
   const startSnapshot={...start,state:upper(state)};
   const steps=kind==="practice"?18:kind==="qualifying"?12:kind==="race"?24:10;
+  // These steps represent a full session rather than one literal lap. Practice
+  // and qualifying therefore lay substantially more rubber than a single live-race
+  // lap, allowing Sunday to inherit an evolved racing line.
+  const sessionRubbering=kind==="practice"?3.8:kind==="qualifying"?4.8:kind==="race"?2.4:2.5;
   let end=startSnapshot;
   for(let i=0;i<steps;i+=1){
     end=evolveTrackSurface(end,{
@@ -179,6 +185,7 @@ export function evolveSessionSurface(previous,{
       windProfile,
       drainage,
       lapFraction:1,
+      rubberingMultiplier:sessionRubbering,
     });
   }
 
