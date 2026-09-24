@@ -528,6 +528,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     const podiums      = sum((r) => r.podiums);
     const poles        = sum((r) => r.poles);
     const fastest_laps = sum((r) => r.fastest_laps);
+    const dnfs         = sum((r) => r.dnf ?? r.dnfs);
     const points       = sum((r) => r.points);
     const yearsWithPoints = rows.filter((r) => unbox(r.points) !== undefined);
     const avgPoints = yearsWithPoints.length
@@ -545,7 +546,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     const avgPos = numericPositions.length
       ? (numericPositions.reduce((a, v) => a + v, 0) / numericPositions.length)
       : null;
-    return { starts, wins, podiums, poles, fastest_laps, points, avgPoints, highestPos, highestCount, avgPos };
+    return { starts, wins, podiums, poles, fastest_laps, dnfs, points, avgPoints, highestPos, highestCount, avgPos };
   }, [filteredCareer]);
 
   const careerTimeline = useMemo(() => {
@@ -639,6 +640,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     {kind:"ability",estimated:overallView?.estimated}
   );
   const overallLabel  = overallPresentation.label;
+  const reputationPresentation = presentDriverKnowledgeValue(
+    knowledge,
+    "reputation",
+    profileSnapshot?.reputation,
+    {kind:"attribute"}
+  );
   const rawMarketValue = Number(unbox(attrs?.market_value));
   const marketValue   = Number.isFinite(rawMarketValue) && rawMarketValue > 0 ? rawMarketValue : null;
   const meaningfulAttrs = hasMeaningfulDriverAttributes(attrs) ? attrs : null;
@@ -794,10 +801,17 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <ProfileMetric label="OVR" value={overallLabel}/>
-          <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"}/>
-          <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0}/>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <ProfileMetric label="OVR" value={overallLabel} compact/>
+          <ProfileMetric label="Reputation" value={reputationPresentation?.label??"—"} tone={presentationColorClass(reputationPresentation)} compact/>
+          <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"} compact/>
+          <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0} compact/>
+          <ProfileMetric
+            label="Market value"
+            value={knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}
+            compact
+            cardTone="col-span-2"
+          />
         </div>
 
         <div className="mt-4">
@@ -820,7 +834,6 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
-          <div className="flex justify-between gap-3"><span>Market value</span><strong className="text-slate-200">{knowledge?.exactAbility?fmtMoney(marketValue):"Scout required"}</strong></div>
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
@@ -1728,16 +1741,17 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
   return (
     <div className="space-y-3">
       <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
-      <div className="grid grid-cols-3 gap-2 md:grid-cols-5 lg:grid-cols-9">
-        <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" />
-        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-rose-300" cardTone="border-rose-400/20 bg-rose-500/[0.06]" />
-        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
-        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" />
-        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" />
-        <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" />
-        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" />
-        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" />
-        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} tone="text-blue-300" cardTone="border-blue-400/20 bg-blue-500/[0.06]" />
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5 xl:grid-cols-10">
+        <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" compact />
+        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
+        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
+        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" compact />
+        <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" compact />
+        <ProfileMetric label="DNF" value={agg?.dnfs ?? 0} tone={agg?.dnfs?"text-rose-300":""} cardTone="border-rose-400/20 bg-rose-500/[0.06]" compact />
+        <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
+        <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" compact />
+        <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
+        <ProfileMetric label="Avg Champ." value={agg?.avgPos != null ? agg.avgPos.toFixed(1) : "—"} tone="text-blue-300" cardTone="border-blue-400/20 bg-blue-500/[0.06]" compact />
       </div>
     </div>
   );
@@ -1807,7 +1821,7 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                     </div>
                   </td>
                   <td className="text-right pr-2 py-1">{displayValue(unbox(r.starts) ?? unbox(r.races), 0)}</td>
-                  <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-rose-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
+                  <td className={`text-right pr-2 py-1 ${Number(unbox(r.wins)) > 0 ? "text-emerald-300 font-semibold" : ""}`}>{displayValue(r.wins, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.podiums, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.poles, 0)}</td>
                   <td className="text-right pr-2 py-1">{displayValue(r.fastest_laps, 0)}</td>
@@ -1818,8 +1832,8 @@ function CareerTab({ seriesSel, setSeriesSel, seriesOptions, timeline, totals, t
                     ) : finalPosition != null ? (
                       <span className={`inline-flex items-center justify-end gap-1 font-semibold ${isLive?"text-sky-300":finalPosition===1?"text-amber-300":finalPosition===2?"text-slate-300":finalPosition===3?"text-orange-400":""}`}>
                         {!isLive&&finalPosition===1&&<Trophy size={12} aria-label="World Champion"/>}
-                        {!isLive&&finalPosition===2&&<Medal size={12} aria-label="Championship runner-up"/>}
-                        {!isLive&&finalPosition===3&&<Medal size={12} aria-label="Championship third place"/>}
+                        {!isLive&&finalPosition===2&&<ChampionshipMedal position={2}/>}
+                        {!isLive&&finalPosition===3&&<ChampionshipMedal position={3}/>} 
                         <span>P{finalPosition}{isLive&&<span className="ml-1 text-[9px] uppercase tracking-wide">Live</span>}</span>
                       </span>
                     ) : (
