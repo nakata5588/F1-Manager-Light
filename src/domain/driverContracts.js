@@ -16,6 +16,8 @@ import {
   pickValue,
   preferLiveRows,
 } from "./liveContracts.js";
+import { applyTeammateRoleStatusChange } from "./driverTeammateDynamics.js";
+import { synchronizeTeamTeammateRelationships } from "./relationshipEvents.js";
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 
@@ -365,11 +367,60 @@ function applyRoleAssignments(gs,assignments){
   }
 
   if(!contractUpdates.size)return gs;
-  const next={
+  let next={
     ...gs,
     contracts:source.map((row)=>contractUpdates.get(row)||row),
   };
-  return applyRoleEffects(next,changes);
+  next=applyRoleEffects(next,changes);
+
+  // D6.3B: hierarchy changes also alter teammate dynamics. A reciprocal slot
+  // swap is recorded once for the pair; a promotion/demotion into a vacant
+  // seat is compared with the resulting race teammate.
+  const handled=new Set();
+  for(let index=0;index<assignments.length;index++){
+    const assignment=assignments[index];
+    const contract=assignment?.contract;
+    const fromSlot=assignment?.fromSlot||driverRoleSlot(contract);
+    const toSlot=assignment?.toSlot;
+    const did=driverIdOf(contract);
+    const tid=teamIdOf(contract);
+    if(!did||!tid||!fromSlot||!toSlot||fromSlot===toSlot)continue;
+    if(!isRaceDriverSlot(fromSlot)&&!isRaceDriverSlot(toSlot))continue;
+
+    let teammateId=null;
+    for(let otherIndex=index+1;otherIndex<assignments.length;otherIndex++){
+      const other=assignments[otherIndex];
+      const otherFrom=other?.fromSlot||driverRoleSlot(other?.contract);
+      const otherTo=other?.toSlot;
+      if(otherFrom===toSlot&&otherTo===fromSlot){
+        teammateId=driverIdOf(other?.contract);
+        handled.add(otherIndex);
+        break;
+      }
+    }
+    if(handled.has(index))continue;
+
+    if(!teammateId){
+      teammateId=activeDriverContracts(next,{teamId:tid,raceOnly:true})
+        .map(driverIdOf)
+        .find((id)=>id&&id!==did)||null;
+    }
+    if(!teammateId)continue;
+    next=applyTeammateRoleStatusChange(next,{
+      driverId:did,
+      teammateId,
+      teamId:tid,
+      fromSlot,
+      toSlot,
+    });
+  }
+
+  const affectedTeams=[...new Set(assignments.map((assignment)=>teamIdOf(assignment?.contract)).filter(Boolean))];
+  for(const tid of affectedTeams){
+    const raceDriverIds=activeDriverContracts(next,{teamId:tid,raceOnly:true}).map(driverIdOf).filter(Boolean);
+    next=synchronizeTeamTeammateRelationships(next,{teamId:tid,driverIds:raceDriverIds});
+  }
+  return next;
 }
 
 export function changeDriverContractRole(gs,{

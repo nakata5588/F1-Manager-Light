@@ -2,7 +2,7 @@
 import { activeDriverContracts, driverIdOf, teamIdOf } from "./driverContracts.js";
 import { activeStaffContracts, staffIdOf } from "./liveContracts.js";
 
-export const DRIVER_RELATIONSHIP_VERSION=1;
+export const DRIVER_RELATIONSHIP_VERSION=2;
 export const NEUTRAL_RELATIONSHIP_SCORE=50;
 
 const clamp100=(value)=>Math.max(0,Math.min(100,Number(value)||0));
@@ -83,6 +83,8 @@ function neutralRecord({driverId,targetType,targetId,teamId=null,dateISO=null,so
     respect:NEUTRAL_RELATIONSHIP_SCORE,
     affinity:NEUTRAL_RELATIONSHIP_SCORE,
     satisfaction:NEUTRAL_RELATIONSHIP_SCORE,
+    rivalry:0,
+    rivalry_status:"low",
     status:"neutral",
     active:true,
     source,
@@ -184,9 +186,11 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
       respect:clamp100(record.respect??NEUTRAL_RELATIONSHIP_SCORE),
       affinity:clamp100(record.affinity??NEUTRAL_RELATIONSHIP_SCORE),
       satisfaction:clamp100(record.satisfaction??NEUTRAL_RELATIONSHIP_SCORE),
+      rivalry:clamp100(record.rivalry??0),
     };
     normalized.score=relationshipScore(normalized);
     normalized.status=relationshipBand(normalized.score);
+    normalized.rivalry_status=normalized.rivalry>=80?"hostile":normalized.rivalry>=60?"intense":normalized.rivalry>=35?"rivalry":normalized.rivalry>=15?"competitive":"low";
     container.relations[key]=normalized;
   }
 

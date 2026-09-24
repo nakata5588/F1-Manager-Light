@@ -98,6 +98,10 @@ test("promoting Test Driver into occupied Second seat swaps atomically",()=>{
   assert.equal(next.driverRatings.find((r)=>r.driver_id==="D2").reputation,68);
 
   assert.equal(gs.driverAttributes.D4.morale,50,"input state must stay immutable");
+  assert.equal(next.driverRelationships.relations["D1|teammate|D4"].active,true);
+  assert.equal(next.driverRelationships.relations["D4|teammate|D1"].active,true);
+  assert.equal(next.driverRelationships.relations["D4|teammate|D2"].active,false);
+  assert.ok(next.driverRelationships.relations["D4|teammate|D2"].rivalry>0);
 });
 
 test("promotion into a vacant race seat changes role without terminating the contract",()=>{
@@ -117,6 +121,8 @@ test("promotion into a vacant race seat changes role without terminating the con
   assert.equal(contract.role_changed_at,"1981-03-15");
   assert.equal(next.driverAttributes.D3.morale,53);
   assert.equal(next.driverAttributes.D3.confidence,52);
+  assert.equal(next.driverRelationships.relations["D1|teammate|D3"].active,true);
+  assert.equal(next.driverRelationships.relations["D3|teammate|D1"].active,true);
 });
 
 test("occupied target can be rejected when swap is disabled",()=>{
@@ -143,6 +149,8 @@ test("Swap race drivers changes Main and Second safely in live state",()=>{
   assert.equal(next.driverAttributes.D1.confidence,48);
   assert.equal(next.driverAttributes.D2.morale,52);
   assert.equal(next.driverAttributes.D2.confidence,52);
+  assert.ok(next.driverRelationships?.relations?.["D1|teammate|D2"]?.rivalry>0);
+  assert.ok(next.driverRelationships?.relations?.["D2|teammate|D1"]?.rivalry>0);
 });
 
 test("role changes cannot mutate another team's contract",()=>{
