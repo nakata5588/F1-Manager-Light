@@ -84,6 +84,7 @@ function neutralRecord({driverId,targetType,targetId,teamId=null,dateISO=null,so
     affinity:NEUTRAL_RELATIONSHIP_SCORE,
     satisfaction:NEUTRAL_RELATIONSHIP_SCORE,
     status:"neutral",
+    active:true,
     source,
     created_at:dateISO||null,
     updated_at:dateISO||null,
@@ -112,12 +113,23 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
   const raceByTeam=raceDriversByTeam(gs);
   const userTeamId=text(gs?.team?.team_id??gs?.team?.id);
 
+  for(const [key,record] of Object.entries(container.relations)){
+    if(record&&typeof record==="object")container.relations[key]={...record,active:false};
+  }
+
   const add=(driverId,targetType,targetId,teamId)=>{
     const did=text(driverId);
     const tid=text(targetId);
     if(!did||!targetType||!tid)return;
     const key=relationshipKey(did,targetType,tid);
-    if(container.relations[key])return;
+    if(container.relations[key]){
+      container.relations[key]={
+        ...container.relations[key],
+        active:true,
+        team_id:teamId?text(teamId):container.relations[key]?.team_id??null,
+      };
+      return;
+    }
     container.relations[key]=neutralRecord({
       driverId:did,targetType,targetId:tid,teamId,dateISO,source,
     });
