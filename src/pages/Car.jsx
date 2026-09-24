@@ -165,6 +165,48 @@ function PerformanceRows({ranking,teamId,perf,driverId=null}){
 function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performance"}){
   return <Panel title={title}><div className="p-4"><PerformanceRows ranking={ranking} teamId={teamId} perf={perf} driverId={driverId}/></div></Panel>;
 }
+function SortableAnalysisTable({rows,metrics,sortKey,sortDir,onSort,teamId,driverId,driverById}){
+  const sorted=[...(rows||[])].sort((a,b)=>{
+    const av=Number(a?.[sortKey]);
+    const bv=Number(b?.[sortKey]);
+    if(Number.isFinite(av)||Number.isFinite(bv)){
+      const delta=(Number.isFinite(bv)?bv:-Infinity)-(Number.isFinite(av)?av:-Infinity);
+      if(delta)return sortDir==="desc"?delta:-delta;
+    }
+    return String(a?.team_name??a?.team_id??"").localeCompare(String(b?.team_name??b?.team_id??""))||
+      Number(a?.car_slot||0)-Number(b?.car_slot||0);
+  });
+  return <div className="max-h-[68vh] overflow-auto">
+    <table className="min-w-[980px] w-full text-xs">
+      <thead className="sticky top-0 z-20 bg-[#171a23] text-slate-400">
+        <tr>
+          <th className="sticky left-0 z-30 min-w-[220px] bg-[#171a23] px-3 py-2 text-left">Team / Car</th>
+          {metrics.map(([key,label])=><th key={key} className="px-2 py-2 text-right whitespace-nowrap">
+            <button onClick={()=>onSort(key)} className={"inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-white/5 "+(sortKey===key?"text-white":"")}>
+              {label}<span className="text-[9px] text-slate-500">{sortKey===key?(sortDir==="desc"?"▼":"▲"):"↕"}</span>
+            </button>
+          </th>)}
+        </tr>
+      </thead>
+      <tbody>{sorted.map((row,index)=>{
+        const isSelected=String(row.team_id)===String(teamId)&&String(row.driver_id||"")===String(driverId||"");
+        const driver=driverById.get(String(row.driver_id||""));
+        return <tr key={String(row.team_id)+"-"+String(row.driver_id||row.car_slot||index)} className={"border-t border-white/10 "+(isSelected?"bg-cyan-300/[0.08]":"")}>
+          <td className={"sticky left-0 z-10 px-3 py-2 "+(isSelected?"bg-[#132027]":"bg-[#12141c]")}>
+            <div className="flex items-center gap-2">
+              <span className="w-5 text-[10px] text-slate-600 tabular-nums">{index+1}</span>
+              <div className="min-w-0"><div className="font-medium truncate">{row.team_name||row.team_id} · Car {row.car_slot||1}</div><div className="text-[10px] text-slate-500 truncate">{driver?.display_name||driver?.name||row.driver_id||"Team baseline"}</div></div>
+            </div>
+          </td>
+          {metrics.map(([key])=>{
+            const value=Number(row?.[key]);
+            return <td key={key} className={"px-2 py-2 text-right tabular-nums "+(isSelected?"font-semibold text-cyan-200":"text-slate-300")}>{Number.isFinite(value)?value.toFixed(1):"—"}</td>;
+          })}
+        </tr>;
+      })}</tbody>
+    </table>
+  </div>;
+}
 
 export default function Car(){
   const gs=useGame((s)=>s.gameState);
@@ -176,6 +218,7 @@ export default function Car(){
   const currentDateISO=String(gs?.currentDateISO||"").slice(0,10);
   const [carInfoTab,setCarInfoTab]=useState("performance");
   const [analysisMode,setAnalysisMode]=useState("characteristics");
+  const [analysisSort,setAnalysisSort]=useState({key:"top_speed",dir:"desc"});
 
   const rawSyncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
     gs?.garage,gs?.contracts,gs?.activeYear,teamId,
