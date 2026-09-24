@@ -31,6 +31,7 @@ import {
   driverWheelToWheelBehaviour,
 } from "../../domain/driverAttributeGroups.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
+import { GrandPrixFlag } from "./GrandPrixFlag.jsx";
 import ContractNegotiationModal from "../drivers/ContractNegotiationModal.jsx";
 import {
   activeDriverContract,
@@ -1070,6 +1071,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               contractEnd={contractEnd}
               contractSalary={contractSalary}
               futureTransfer={futureTransfer}
+              gameState={gs}
             />
           )}
 
@@ -1117,6 +1119,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             <FormTab
               form={profileSnapshot?.form}
               items={profileSnapshot?.performanceHistory||[]}
+              gameState={gs}
             />
           )}
 
@@ -1382,6 +1385,7 @@ function OverviewTab({
   contractEnd,
   contractSalary,
   futureTransfer,
+  gameState,
 }) {
   const [showExpectationInfo,setShowExpectationInfo]=useState(false);
   const season=snapshot?.season||{};
@@ -1641,7 +1645,10 @@ function OverviewTab({
                 return (
                   <div key={`${race?.year||"year"}-${race?.round||index}-${race?.gp_id||race?.gp_name||index}`} className="grid grid-cols-[minmax(190px,1fr)_62px_100px_62px_72px_92px] gap-2 border-b border-white/5 py-2 text-xs last:border-b-0">
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-slate-200">{race?.gp_name||`Round ${race?.round||"—"}`}</div>
+                      <div className="flex min-w-0 items-center gap-1.5 font-medium text-slate-200">
+                        <GrandPrixFlag gameState={gameState} record={race} size="sm"/>
+                        <span className="truncate">{race?.gp_name||`Round ${race?.round||"—"}`}</span>
+                      </div>
                       <div className="mt-0.5 text-[9px] text-slate-600">{race?.year||""}{race?.round?` · R${race.round}`:""}</div>
                     </div>
                     <div className="text-right text-slate-300">{race?.qualifying_position!=null?`P${race.qualifying_position}`:"—"}</div>
@@ -2690,7 +2697,7 @@ function AttributesTab({
     </div>
   );
 }
-function FormTab({ form, items }) {
+function FormTab({ form, items, gameState }) {
   const years=Array.from(new Set((items||[]).map((row)=>Number(row?.year)).filter(Number.isFinite))).sort((a,b)=>b-a);
   const [year,setYear]=useState("All");
   const filtered=year==="All"?(items||[]):(items||[]).filter((row)=>Number(row?.year)===Number(year));
@@ -2717,12 +2724,12 @@ function FormTab({ form, items }) {
           </div>
         </div>
       </div>
-      <PerformanceHistory items={filtered} />
+      <PerformanceHistory items={filtered} gameState={gameState} />
     </div>
   );
 }
 
-function PerformanceHistory({ items }) {
+function PerformanceHistory({ items, gameState }) {
   const rows=(items||[]);
   if(!rows.length){
     return <p className="text-slate-500 text-sm">No played-race performance evaluations yet.</p>;
@@ -2768,7 +2775,10 @@ function PerformanceHistory({ items }) {
               <tr key={`${row?.year||"year"}-${row?.round||index}-${row?.gp_id||row?.gp_name||index}`} className="border-t border-white/10 hover:bg-white/[0.025]">
                 <td className="px-3 py-2 text-slate-500">{row?.year||"—"}</td>
                 <td className="px-3 py-2">
-                  <div className="font-medium text-slate-200" title={factorTitle||undefined}>{row?.gp_name||`Round ${row?.round||"—"}`}</div>
+                  <div className="flex min-w-0 items-center gap-1.5 font-medium text-slate-200" title={factorTitle||undefined}>
+                    <GrandPrixFlag gameState={gameState} record={row} size="sm"/>
+                    <span className="truncate">{row?.gp_name||`Round ${row?.round||"—"}`}</span>
+                  </div>
                   {row?.round&&<div className="mt-0.5 text-[9px] text-slate-600">Round {row.round}</div>}
                 </td>
                 <td className="px-3 py-2 text-right text-slate-300">{row?.qualifying_position!=null?`P${row.qualifying_position}`:"—"}</td>

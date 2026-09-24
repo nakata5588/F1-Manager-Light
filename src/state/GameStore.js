@@ -425,6 +425,7 @@ export const useGame = create((set, get) => ({
     driverCareer: {},
     driverAttributes: {},
     driverMentalStateLog: {},
+    driverRelationships: { version: 1, relations: {}, log: [] },
     driverAvailability: {},
     medicalHistory: [],
     temporaryDriverAssignments: [],

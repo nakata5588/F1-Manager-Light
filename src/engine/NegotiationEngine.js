@@ -10,6 +10,7 @@ import {
   makeDriverContract,
   teamIdOf,
 } from "../domain/driverContracts.js";
+import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
 import {
   isRaceDriverContract,
   isReserveDriverContract,
@@ -817,11 +818,11 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     }
   }
 
-  return {
+  return synchronizeDriverRelationships({
     ...nextState,
     driverNegotiations:negotiations,
     inbox:[...messages,...(nextState?.inbox||[])],
-  };
+  },{source:"contract_change_neutral"});
 }
 
 function counterOffer(gs,negotiation){

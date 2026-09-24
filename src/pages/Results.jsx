@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameStore";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { GrandPrixFlag } from "../components/entity/GrandPrixFlag.jsx";
 
 const pick = (obj, keys, fb = undefined) => {
   for (const k of keys) {
@@ -249,7 +250,12 @@ export default function ResultsPage() {
                 >
                   <td className="px-3 py-2">{r.year ?? "—"}</td>
                   <td className="px-3 py-2">{r.round ?? "—"}</td>
-                  <td className="px-3 py-2">{r.name ?? r.gp_name ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center gap-1.5">
+                      <GrandPrixFlag gameState={gameState} record={r} size="sm"/>
+                      <span>{r.name ?? r.gp_name ?? "—"}</span>
+                    </span>
+                  </td>
                   <td className="px-3 py-2">{resolveDriverName(driversDb,(r.classification||[]).find((row)=>Number(row?.position)===1&&!row?.retired)?.driver_id)}</td>
                   <td className="px-3 py-2 text-right text-rose-300">{(r.classification||[]).filter((row)=>row?.retired||String(row?.status||"").toUpperCase()==="DNF").length}</td>
                   <td className="px-3 py-2 text-right">{r.classification?.length ?? 0}</td>
@@ -267,9 +273,12 @@ export default function ResultsPage() {
 
       {selected && (
         <div className="bg-[#12141c] border border-white/10 rounded-xl shadow-lg p-4">
-          <h3 className="text-base font-semibold">
-            {selected.name || selected.gp_name || "Grand Prix"}
-            {selected.round ? <span className="text-slate-400"> · Round {selected.round}</span> : null}
+          <h3 className="flex items-center gap-2 text-base font-semibold">
+            <GrandPrixFlag gameState={gameState} record={selected} size="md"/>
+            <span>
+              {selected.name || selected.gp_name || "Grand Prix"}
+              {selected.round ? <span className="text-slate-400"> · Round {selected.round}</span> : null}
+            </span>
           </h3>
           <div className="mt-3 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
             <RaceMetric label="Winner" value={selectedSummary.winner}/>
