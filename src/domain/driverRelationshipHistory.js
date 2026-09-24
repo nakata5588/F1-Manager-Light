@@ -18,7 +18,10 @@ const num=(value,fb=null)=>{
 const driverIdOf=(row)=>text(row?.driver_id??row?.driverId??row?.person_id??row?.id);
 const driverNameOf=(row)=>text(row?.display_name??row?.driver_name??row?.name??[row?.first_name,row?.last_name].filter(Boolean).join(" "));
 const teamNameOf=(row)=>text(row?.team_name??row?.team??row?.constructor);
-const careerYear=(row)=>num(row?.year??row?.season_year,null);
+const careerYear=(row)=>{
+  const year=num(row?.year??row?.season_year,null);
+  return Number.isInteger(year)&&year>=1950?year:null;
+};
 const isF1=(row)=>text(row?.series_division??row?.division??row?.series??"F1").toUpperCase()==="F1";
 const raced=(row)=>{
   const starts=num(row?.races??row?.starts,null);
@@ -48,7 +51,7 @@ function resolveHistoricalDriver(row,drivers=[]){
 }
 
 function yearsOf(group){
-  return [...group].map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+  return [...group].map(Number).filter((year)=>Number.isInteger(year)&&year>=1950).sort((a,b)=>a-b);
 }
 
 function neutralHistoricalRecord({driverId,targetType,targetId,targetName,years,teamIds=[],teamNames=[]}){
@@ -175,7 +178,7 @@ export function historicalDriverRelationshipRecords(gs,{driverId,driverName=null
 }
 
 export function formatRelationshipYears(years=[]){
-  const values=[...new Set((Array.isArray(years)?years:[]).map(Number).filter(Number.isFinite))].sort((a,b)=>a-b);
+  const values=[...new Set((Array.isArray(years)?years:[]).map(Number).filter((year)=>Number.isInteger(year)&&year>=1950))].sort((a,b)=>a-b);
   if(!values.length)return "";
   if(values.length===1)return String(values[0]);
   const contiguous=values.every((year,index)=>index===0||year===values[index-1]+1);
