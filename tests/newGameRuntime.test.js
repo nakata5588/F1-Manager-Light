@@ -131,6 +131,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.deepEqual(fresh.componentWearLog, []);
   assert.deepEqual(fresh.componentServiceLog, []);
   assert.deepEqual(fresh.aiTechnicalWorld, { version: 1, teams: {} });
+  assert.deepEqual(fresh.regulationGovernance, { version: 1, votes: [], approved_changes: [] });
   assert.deepEqual(fresh.teamOperationalState, {});
   assert.deepEqual(fresh.teamMoraleLog, {});
   assert.deepEqual(fresh.teamReputationState, {});

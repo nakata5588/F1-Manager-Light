@@ -64,6 +64,8 @@ test("next-season programme uses engineers but never consumes a Current Car proj
   });
 
   assert.equal(started.development.nextSeasonCar.status,"active");
+  assert.equal(started.development.nextSeasonCar.regulation_impact.targetSeason,1981);
+  assert.equal(started.development.nextSeasonCar.regulation_impact.governance.next_season_locked,true);
   assert.equal(after.active_projects,before.active_projects);
   assert.equal(after.max_projects,before.max_projects);
   assert.equal(after.reserved_engineers,4);
