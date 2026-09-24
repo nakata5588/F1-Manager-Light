@@ -20,7 +20,7 @@ import {
   mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../../domain/driverCareerIdentity.js";
-import { constructorChampionshipHistory } from "../../domain/championshipHistory.js";
+import { driverConstructorChampionships } from "../../domain/championshipHistory.js";
 import {
   driverAttributeGroups,
   driverAttributeGroupScore,
@@ -713,25 +713,18 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     }
 
     // Constructors Championship: use the same standings-derived history as
-    // the Standings/Team pages, then keep only seasons where this driver raced
-    // for the champion constructor.
+    // the Standings/Team pages.
     const careerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
       .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
-      .filter((row)=>Number(unbox(row?.year))<Number(gameYear));
-    const teamsBySeason=new Map();
-    for(const row of careerRows){
-      const year=Number(unbox(row?.year));
-      if(!Number.isFinite(year))continue;
-      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
-      if(!teamId)continue;
-      if(!teamsBySeason.has(year))teamsBySeason.set(year,new Set());
-      teamsBySeason.get(year).add(String(teamId));
-    }
+      .filter((row)=>Number(unbox(row?.year))<Number(gameYear))
+      .map((row)=>({
+        ...row,
+        team_id:resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??"")),
+      }));
 
-    for(const champion of constructorChampionshipHistory(gs)){
+    for(const champion of driverConstructorChampionships(gs,careerRows)){
       const year=Number(champion?.year);
       if(!Number.isFinite(year)||year>=Number(gameYear))continue;
-      if(!teamsBySeason.get(year)?.has(String(champion?.team_id)))continue;
       const key=`${year}|constructor`;
       if(seen.has(key))continue;
       seen.add(key);
