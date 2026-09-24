@@ -1638,6 +1638,16 @@ export default function RaceWeekend(){
                   const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
                   const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
+                  const teammateEntry=playerEntrants.find((candidate)=>String(candidate?.driver_id??"")!==did)||null;
+                  const teammateId=String(teammateEntry?.driver_id??"");
+                  const teammateLive=teammateId?liveRows.find((row)=>String(row?.driver_id??"")===teammateId):null;
+                  const teammateGapMs=Number(teammateLive?.gap_to_previous_ms??teammateLive?.interval_ms);
+                  const canYieldToTeammate=Boolean(
+                    teammateId&&liveDriver&&!liveDriver?.retired&&teammateLive&&!teammateLive?.retired&&
+                    Number(teammateLive?.position)===Number(liveDriver?.position)+1&&
+                    (!Number.isFinite(teammateGapMs)||teammateGapMs<=3500)&&
+                    !pending.some((command)=>command?.type==="team_order")
+                  );
                   const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
                   return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.85fr)_minmax(250px,1fr)_minmax(330px,auto)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
@@ -1672,6 +1682,12 @@ export default function RaceWeekend(){
                             <option value="">Stay out</option>
                             {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                           </select>
+                          {canYieldToTeammate?<button
+                            type="button"
+                            title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
+                            onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
+                            className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-500/20"
+                          >Let {driverName(drivers,teammateId).split(" ").at(-1)} through</button>:null}
                           <div className="w-[78px] shrink-0">
                             {pending.length
                               ?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="w-full rounded-md border border-amber-400/30 bg-amber-500/10 px-1.5 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>
