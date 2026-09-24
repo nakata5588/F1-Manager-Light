@@ -13,7 +13,7 @@ import {
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
-import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
+import { activeWorkshopJobs, partManufactureQuote } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 import {
   bestDevelopedPartForSlot,
@@ -522,23 +522,6 @@ export default function Development({ embedded = false, initialTab = "projects",
         manufacturing:[...manufacturing,job],
         research,
       },
-    });
-  };
-
-  const restoreUnit = (part, unit) => {
-    const quote=partUnitRestoreQuote(physicalState,unit?.id);
-    if(!quote||!currentDateISO||budget<Number(quote.cost||0))return;
-    const beforeJobs=(physicalState?.garage?.serviceJobs||[]).length;
-    const next=queueWorkshopJob(physicalState,quote,{
-      id:`workshop_${Date.now()}`,
-      title:`Restore ${part?.name||part?.version||unit?.id} · ${unit?.id}`,
-      startedAt:currentDateISO,
-    });
-    if((next?.garage?.serviceJobs||[]).length<=beforeJobs)return;
-    applyExpense(quote.cost,`Restoration — ${part?.name||unit?.id}`);
-    setGameState({
-      garage:next?.garage,
-      development:next?.development,
     });
   };
 
