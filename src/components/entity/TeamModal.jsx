@@ -6,6 +6,7 @@ import { useGame } from "../../state/GameStore.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 import { countryNameFor, flagFromCountry } from "./EntityVisuals.jsx";
 import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
+import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -222,6 +223,8 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   })();
   const operationalMorale = teamOperationalMorale(gs,idStr);
   const operationalWorkRate = teamWorkRateLabel(gs,idStr);
+  const reputation = teamReputation(gs,idStr);
+  const reputationState = gs?.teamReputationState?.[idStr]||null;
 
   /* ---------- UI ---------- */
   const DriverCard = ({ d }) => {
@@ -338,8 +341,15 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 <Info label="Facilities Level"    value={facilitiesLevelAvg ?? "—"} />
                 <Info label="Academy Level"       value={academyLevel ?? "—"} />
                 <Info label="Team Principal"      value={principal ?? "—"} />
+                <Info label="Team Reputation" value={Math.round(reputation)+"/100 · "+teamReputationLabel(reputation)} />
                 <Info label="Operational Morale" value={Math.round(operationalMorale)+"/100"} />
                 <Info label="Technical Work Rate" value={operationalWorkRate.label} />
+                <Info
+                  label="Reputation Trend"
+                  value={reputationState?.lastChange!=null
+                    ?`${Number(reputationState.lastChange)>=0?"+":""}${Number(reputationState.lastChange).toFixed(1)} · ${reputationState.lastEvent||"Recent update"}`
+                    :"Stable"}
+                />
               </div>
 
               {/* Drivers */}
