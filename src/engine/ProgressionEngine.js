@@ -345,6 +345,19 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
 function applyPlayerDevelopmentLoad(gs,dateISO){
   const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
   if(!teamId)return gs;
+
+  // Race-weekend duties replace normal weekday development training.
+  const weekend=gs?.raceWeekendState;
+  const weekendStart=String(weekend?.weekendStartDate||weekend?.practiceDate||"").slice(0,10);
+  const weekendEnd=String(weekend?.raceDate||"").slice(0,10);
+  const activeWeekend=Boolean(
+    weekend&&
+    String(weekend?.phase||"")!=="completed"&&
+    weekendStart&&weekendEnd&&
+    dateISO>=weekendStart&&dateISO<=weekendEnd
+  );
+  if(activeWeekend)return gs;
+
   const monthKey=dateISO.slice(0,7);
   const dow=new Date(`${dateISO}T00:00:00Z`).getUTCDay();
   const trainingDay=dow>=1&&dow<=5;
