@@ -1427,6 +1427,22 @@ export const useGame = create((set, get) => ({
     });
   },
 
+  buildExportSave: () => {
+    const gs = get().gameState || {};
+    const light = makeLightSnapshot(gs);
+    const savedAt = nowIso();
+    const meta = {
+      name: defaultSaveName(gs),
+      version: GAME_VERSION,
+      schemaVersion: SAVE_SCHEMA_VERSION,
+      gameVersion: GAME_VERSION,
+      seed: light.saveMeta?.seed ?? null,
+      savedAt,
+      exportedAt: savedAt,
+    };
+    return { meta, gameState: light };
+  },
+
   saveGame: (options) => {
     if (__savingMutex) return __lastSaveResult;
     __savingMutex = true;
