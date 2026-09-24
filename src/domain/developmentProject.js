@@ -278,16 +278,18 @@ export function technicalDevelopmentCapacity(gs,teamId,{
     4+num(engineeringSupport,50)/18+facilityAverage*0.48,
     6,16
   ));
-  const active=(projects||[]).filter((project)=>project?.status==="active"||project?.status==="paused");
-  const usedEngineers=active.reduce((sum,project)=>sum+Math.max(0,num(project?.engineers,0)),0);
+  const occupying=(projects||[]).filter((project)=>project?.status==="active"||project?.status==="paused");
+  const working=occupying.filter((project)=>project?.status==="active");
+  const usedEngineers=working.reduce((sum,project)=>sum+Math.max(0,num(project?.engineers,0)),0);
   const maxProjects=Math.round(clamp(1+Math.floor((facilityAverage-2)/3),1,3));
   return {
     engineer_pool:engineerPool,
     used_engineers:usedEngineers,
     available_engineers:Math.max(0,engineerPool-usedEngineers),
-    active_projects:active.length,
+    active_projects:occupying.length,
+    working_projects:working.length,
     max_projects:maxProjects,
-    project_slot_available:active.length<maxProjects,
+    project_slot_available:occupying.length<maxProjects,
     facilities,
   };
 }
