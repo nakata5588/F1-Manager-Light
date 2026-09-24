@@ -922,21 +922,14 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0} compact/>
         </div>
 
-        <div className="mt-4">
-          {knowledge?.canSeeCondition ? (
-            <div className="space-y-3">
-              <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
-              <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
-              <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
-              <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
-              <div className="text-[10px] uppercase tracking-wide text-slate-500">Private condition data</div>
-              <div className="mt-1 text-xs text-slate-400">Confidence, morale, preparation and fatigue are only visible for your contracted team drivers.</div>
-            </div>
-          )}
-        </div>
+        {knowledge?.canSeeCondition&&(
+          <div className="mt-4 space-y-3">
+            <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
+            <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
+            <ConditionBar label="Preparation" value={condition?.preparation ?? 50}/>
+            <ConditionBar label="Fatigue" value={condition?.fatigue ?? 0} inverse/>
+          </div>
+        )}
 
         <div className="mt-4 border-t border-white/10 pt-4 text-xs text-slate-400 space-y-2">
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
@@ -958,6 +951,18 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
 
         <div className="mt-4 border-t border-white/10 pt-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Titles</div>
+          {driverTitles.length>0&&(
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <div className="rounded-md border border-amber-400/15 bg-amber-500/[0.06] px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">Drivers</div>
+                <div className="text-sm font-bold text-amber-200">{driverTitles.filter((title)=>title.type==="driver").length}</div>
+              </div>
+              <div className="rounded-md border border-sky-400/15 bg-sky-500/[0.06] px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">Constructors</div>
+                <div className="text-sm font-bold text-sky-200">{driverTitles.filter((title)=>title.type==="constructor").length}</div>
+              </div>
+            </div>
+          )}
           <div className="mt-2 space-y-1.5 text-[11px]">
             {driverTitles.length?driverTitles.map((title,index)=>(
               <div key={`${title.year}-${title.type}-${index}`} className="flex items-center gap-2 text-slate-300">
@@ -996,8 +1001,9 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           <div className="flex items-start justify-between gap-4 px-5 pt-4">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Driver Profile</div>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
+              <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                 <h2 className="text-2xl font-semibold truncate">{driverName}</h2>
+                <span className="text-sm text-slate-400">· {contractTeam || profileSnapshot?.teamName || "Free Agent"} · {contractRole || "No active role"}</span>
                 {isOwnDriver && <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-300">YOUR DRIVER</span>}
                 {!profileSnapshot?.availability?.available && (
                   <span className="rounded bg-rose-500/15 px-2 py-1 text-[10px] font-medium uppercase text-rose-300">
@@ -1005,12 +1011,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                   </span>
                 )}
               </div>
-              <div className="mt-1 text-xs text-slate-400">
-                {contractTeam || profileSnapshot?.teamName || "Free Agent"} · {contractRole || "No active role"}
-                {knowledge?.canSeeCondition && Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))
-                  ? ` · Current performance ${Number(profileSnapshot.conditionImpact.total)>=0?"+":""}${Number(profileSnapshot.conditionImpact.total).toFixed(1)}`
-                  : ""}
-              </div>
+              {knowledge?.canSeeCondition && Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))&&(
+                <div className="mt-0.5 text-[11px] text-slate-500">
+                  Current performance {Number(profileSnapshot.conditionImpact.total)>=0?"+":""}{Number(profileSnapshot.conditionImpact.total).toFixed(1)}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -1378,6 +1383,7 @@ function OverviewTab({
   contractSalary,
   futureTransfer,
 }) {
+  const [showExpectationInfo,setShowExpectationInfo]=useState(false);
   const season=snapshot?.season||{};
   const availability=snapshot?.availability||{};
   const canSeeCondition=Boolean(knowledge?.canSeeCondition);
@@ -1505,7 +1511,25 @@ function OverviewTab({
       </div>
 
       <div className="xl:col-span-6 rounded-xl border border-white/10 bg-[#12141c] p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Performance vs Expectation</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Performance vs Expectation</div>
+          <button
+            type="button"
+            onClick={()=>setShowExpectationInfo((value)=>!value)}
+            className="inline-flex items-center gap-1 rounded border border-sky-400/20 bg-sky-500/[0.06] px-2 py-1 text-[10px] font-medium text-sky-300 hover:bg-sky-500/10"
+            aria-expanded={showExpectationInfo}
+            title="How expectation is calculated"
+          >
+            <Info size={12}/> How is this calculated?
+          </button>
+        </div>
+        {showExpectationInfo&&(
+          <div className="mt-2 rounded-lg border border-sky-400/15 bg-sky-500/[0.05] p-2.5 text-[11px] leading-4 text-slate-400">
+            <strong className="text-slate-200">Expected finish</strong> is the car/machinery baseline for that Grand Prix relative to the field.
+            A positive delta means the driver finished ahead of that expectation; a negative delta means below it.
+            <span className="text-slate-500"> It feeds race evaluation, Form and temporary Confidence/Morale responses, but does not directly change Overall.</span>
+          </div>
+        )}
         {latestExpectation?(
           <>
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -1596,9 +1620,9 @@ function OverviewTab({
         </div>
         {snapshot?.performanceHistory?.length?(
           <div className="mt-3 overflow-x-auto">
-            <div className="min-w-[620px]">
-              <div className="grid grid-cols-[minmax(180px,1fr)_58px_58px_100px_70px] gap-2 border-b border-white/10 pb-1.5 text-[9px] uppercase tracking-wide text-slate-500">
-                <span>Grand Prix</span><span className="text-right">Quali</span><span className="text-right">Grid</span><span className="text-right">Result</span><span className="text-right">Eval.</span>
+            <div className="min-w-[720px]">
+              <div className="grid grid-cols-[minmax(190px,1fr)_62px_100px_62px_72px_92px] gap-2 border-b border-white/10 pb-1.5 text-[9px] uppercase tracking-wide text-slate-500">
+                <span>Grand Prix</span><span className="text-right">Quali</span><span className="text-right">Result</span><span className="text-right">Δ</span><span className="text-right">Eval.</span><span className="text-right">Best Lap</span>
               </div>
               {snapshot.performanceHistory.slice(0,10).map((race,index)=>{
                 const retired=Boolean(race?.retired);
@@ -1606,22 +1630,30 @@ function OverviewTab({
                 const resultLabel=retired
                   ?`DNF · ${race?.retirement_reason||"Retired"}`
                   :race?.finish_position!=null?`P${race.finish_position}`:"—";
+                const quali=Number(race?.qualifying_position);
+                const finish=Number(race?.finish_position);
+                const positionDelta=!retired&&Number.isFinite(quali)&&Number.isFinite(finish)?quali-finish:null;
+                const deltaLabel=retired?"DNF":positionDelta==null?"—":`${positionDelta>0?"+":""}${positionDelta}`;
+                const bestLapMs=Number(race?.best_lap_ms);
+                const bestLapLabel=Number.isFinite(bestLapMs)&&bestLapMs>0
+                  ?`${Math.floor(bestLapMs/60000)}:${((bestLapMs%60000)/1000).toFixed(3).padStart(6,"0")}`
+                  :"—";
                 return (
-                  <div key={`${race?.year||"year"}-${race?.round||index}-${race?.gp_id||race?.gp_name||index}`} className="grid grid-cols-[minmax(180px,1fr)_58px_58px_100px_70px] gap-2 border-b border-white/5 py-2 text-xs last:border-b-0">
+                  <div key={`${race?.year||"year"}-${race?.round||index}-${race?.gp_id||race?.gp_name||index}`} className="grid grid-cols-[minmax(190px,1fr)_62px_100px_62px_72px_92px] gap-2 border-b border-white/5 py-2 text-xs last:border-b-0">
                     <div className="min-w-0">
                       <div className="truncate font-medium text-slate-200">{race?.gp_name||`Round ${race?.round||"—"}`}</div>
                       <div className="mt-0.5 text-[9px] text-slate-600">{race?.year||""}{race?.round?` · R${race.round}`:""}</div>
                     </div>
                     <div className="text-right text-slate-300">{race?.qualifying_position!=null?`P${race.qualifying_position}`:"—"}</div>
-                    <div className="text-right text-slate-300">{race?.grid_position!=null?`P${race.grid_position}`:"—"}</div>
                     <div className={`truncate text-right font-medium ${retired?"text-rose-300":Number(race?.finish_position)<=3?"text-emerald-300":"text-slate-200"}`} title={resultLabel}>{resultLabel}</div>
+                    <div className={`text-right font-semibold ${retired||Number(positionDelta)<0?"text-rose-300":Number(positionDelta)>0?"text-emerald-300":"text-slate-500"}`}>{deltaLabel}</div>
                     <div className={`text-right font-semibold ${score>=76?"text-emerald-300":score<58?"text-rose-300":"text-slate-300"}`}>{Number.isFinite(score)?score.toFixed(1):"—"}</div>
+                    <div className={`text-right font-mono ${race?.fastest_lap?"text-fuchsia-300":"text-slate-400"}`} title={race?.fastest_lap?"Fastest lap of the race":undefined}>{bestLapLabel}{race?.fastest_lap?" ★":""}</div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        ):(
+          </div>        ):(
           <div className="mt-3 rounded-lg border border-white/10 bg-[#171a23] p-3 text-xs text-slate-500">No played Grand Prix results yet in this save.</div>
         )}
       </div>
@@ -2783,8 +2815,9 @@ function AchievementsTab({ items }) {
               </td>
               <td className="pr-0 py-2">
                 {a.team_id ? (
-                  <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team">
-                    {displayValue(a.team_name ?? a.team_id)}
+                  <span data-entity="team" data-id={unbox(a.team_id)} className="entity-link-team inline-flex items-center gap-2">
+                    <TeamLogo teamId={String(unbox(a.team_id))} name={displayValue(a.team_name ?? a.team_id)} size="h-6 w-6"/>
+                    <span>{displayValue(a.team_name ?? a.team_id)}</span>
                   </span>
                 ) : (
                   displayValue(a.team_name)
