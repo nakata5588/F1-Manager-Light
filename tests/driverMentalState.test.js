@@ -40,6 +40,14 @@ test("passive recovery reduces fatigue and mean-reverts confidence/morale",()=>{
   assert.ok(next.preparation>40);
   assert.ok(next.confidence<80);
   assert.ok(next.morale>20);
+  assert.ok(next.fatigue<=64.5,"high weekend fatigue should recover materially rather than ~2 points/day");
+});
+
+test("fatigue recovery accelerates at high load and is stronger on weekends",()=>{
+  const weekday=passiveMentalStateRecovery({confidence:50,morale:50,preparation:50,fatigue:80},{dateISO:"1980-05-21"});
+  const weekend=passiveMentalStateRecovery({confidence:50,morale:50,preparation:50,fatigue:80},{dateISO:"1980-05-24"});
+  assert.ok(weekday.fatigue<=75);
+  assert.ok(weekend.fatigue<weekday.fatigue);
 });
 
 test("season start resets physical load while preserving some confidence/morale momentum",()=>{
