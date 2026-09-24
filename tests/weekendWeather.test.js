@@ -15,6 +15,7 @@ import {
 } from "../src/engine/WeekendWeatherEngine.js";
 import { buildRaceWeatherSnapshot } from "../src/engine/RaceStrategyEngine.js";
 import { trackSetupProfile } from "../src/engine/PracticeSetupEngine.js";
+import { evolveSessionSurface, initialiseTrackSurface } from "../src/engine/TrackSurfaceEngine.js";
 
 const gp={gp_id:"weather_gp",track_id:"weather_track",race_date:"1980-05-18",year:1980};
 const sessions=[
@@ -264,4 +265,25 @@ test("RW5.2D2 weekend sessions persist thermal and visibility ranges",()=>{
     assert.ok(["CLEAR","REDUCED","POOR","VERY_POOR"].includes(env.visibility_band));
     assert.ok(["NONE","LIGHT","MODERATE","HEAVY","EXTREME"].includes(env.spray_band));
   }
+});
+
+
+test("RW5.2D3.1 dry Practice and Qualifying materially rubber in the circuit before Race",()=>{
+  const green=initialiseTrackSurface({state:"SUNNY",startingWetness:0,rubberLevel:12});
+  const practice=evolveSessionSurface(green,{
+    state:"SUNNY",kind:"practice",carsOnTrack:20,trackTempC:32,windProfile:"medium",drainage:0.5,
+  });
+  const qualifyingStart={
+    state:"SUNNY",
+    track_wetness:practice.end_wetness,
+    rubber_level:practice.end_rubber_level,
+    grip_index:practice.end_grip_index,
+  };
+  const qualifying=evolveSessionSurface(qualifyingStart,{
+    state:"SUNNY",kind:"qualifying",carsOnTrack:20,trackTempC:34,windProfile:"medium",drainage:0.5,
+  });
+  assert.ok(practice.end_rubber_level>green.rubber_level+10,"Practice should add meaningful rubber across a full session");
+  assert.ok(qualifying.end_rubber_level>practice.end_rubber_level+8,"Qualifying should further rubber in the racing line");
+  assert.ok(qualifying.end_grip_index>=68,"a dry Race weekend should not reach Sunday on an FP1-green grip index");
+  assert.ok(qualifying.end_grip_index>green.grip_index+8);
 });
