@@ -83,6 +83,51 @@ test("weather timeline models a wet track that dries progressively",()=>{
   assert.ok(timeline[0].crash_risk_multiplier>1);
 });
 
+
+test("RW5.2D1 green dry track rubbers in instead of starting near maximum grip",()=>{
+  const state=gs();
+  state.raceEntryState={entries:Array.from({length:20},(_,index)=>({
+    driver_id:`F${index+1}`,team_id:`T${Math.floor(index/2)+1}`,status:"confirmed",
+  }))};
+  const dry={state:"SUNNY",starting_track_wetness:0,starting_rubber_level:8,segments:[{from_lap:1,to_lap:30,state:"SUNNY"}]};
+  const timeline=buildTrackWeatherTimeline(state,dry,{...track,laps:30});
+  assert.ok(timeline[0].grip_index<95,"a green track should not begin at ~98–100% grip");
+  assert.ok(timeline.at(-1).rubber_level>timeline[0].rubber_level,"dry traffic should lay rubber down");
+  assert.ok(timeline.at(-1).grip_index>timeline[0].grip_index,"rubbering-in should improve dry grip");
+});
+
+test("RW5.2D1 sustained light rain keeps accumulating surface water beyond a fixed target",()=>{
+  const weather={
+    state:"LIGHT_RAIN",
+    starting_track_wetness:0,
+    starting_rubber_level:24,
+    track_temp_c:24,
+    wind_profile:"medium",
+    segments:[{from_lap:1,to_lap:30,state:"LIGHT_RAIN"}],
+  };
+  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:30});
+  assert.ok(timeline[9].track_wetness>timeline[0].track_wetness);
+  assert.ok(timeline.at(-1).track_wetness>0.62,"light rain must not be capped at the old 62% wetness target");
+  assert.equal(timeline[0].rain_band,"MODERATE");
+  assert.ok(timeline.at(-1).rubber_level<timeline[0].rubber_level,"persistent rain should wash rubber away");
+  assert.ok(timeline.at(-1).grip_index<timeline[0].grip_index);
+});
+
+test("RW5.2D1 drying removes water lap by lap and restores grip",()=>{
+  const weather={
+    state:"DRYING",
+    starting_track_wetness:0.82,
+    starting_rubber_level:10,
+    track_temp_c:29,
+    wind_profile:"medium",
+    segments:[{from_lap:1,to_lap:24,state:"DRYING"}],
+  };
+  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:24});
+  assert.ok(timeline.at(-1).track_wetness<timeline[0].track_wetness);
+  assert.ok(timeline.at(-1).grip_index>timeline[0].grip_index);
+  assert.equal(timeline.at(-1).rain_intensity,0);
+});
+
 test("1980 race control never invents modern Safety Car or VSC periods",()=>{
   const state=gs(1980);
   const race=[
