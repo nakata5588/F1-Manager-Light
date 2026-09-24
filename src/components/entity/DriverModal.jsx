@@ -2463,6 +2463,22 @@ function AttributesTab({
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-sky-300">Compare Drivers</div>
               <div className="mt-1 text-sm text-slate-300">{currentName} vs {comparisonName}</div>
+              {compareMode==="performance"&&(
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500">
+                  <span>
+                    OVR&nbsp;
+                    {renderComparisonValue("left",knowledge,"current_ability",attrs?.current_ability,comparisonKnowledge,comparisonAttrs?.current_ability,{kind:"ability"})}
+                    <span className="mx-1 text-slate-600">vs</span>
+                    {renderComparisonValue("right",comparisonKnowledge,"current_ability",comparisonAttrs?.current_ability,knowledge,attrs?.current_ability,{kind:"ability"})}
+                  </span>
+                  <span>
+                    Potential&nbsp;
+                    {renderComparisonValue("left",knowledge,"potential_ability",attrs?.potential_ability,comparisonKnowledge,comparisonAttrs?.potential_ability,{kind:"potential"})}
+                    <span className="mx-1 text-slate-600">vs</span>
+                    {renderComparisonValue("right",comparisonKnowledge,"potential_ability",comparisonAttrs?.potential_ability,knowledge,attrs?.potential_ability,{kind:"potential"})}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex rounded-lg border border-white/10 bg-[#11141c] p-1">
               {[
