@@ -1,4 +1,5 @@
 // src/data/seasonPackLoader.js
+import { hydrateDriverPortraitRows } from "../domain/driverPortraits.js";
 export class SeasonPackError extends Error {
   constructor(message, details = null) {
     super(message);
@@ -51,7 +52,7 @@ export function seasonPackStatePatch(pack) {
     currentRound: 0,
     calendar: Array.isArray(s.calendar) ? s.calendar : [],
     teams: Array.isArray(s.teams) ? s.teams : [],
-    drivers: Array.isArray(s.drivers) ? s.drivers : [],
+    drivers: hydrateDriverPortraitRows(Array.isArray(s.drivers) ? s.drivers : [], Number(pack.year)),
     driverRatings: Array.isArray(s.driverRatings) ? s.driverRatings : [],
     driverCareer: Array.isArray(s.driverCareer) ? s.driverCareer : [],
     driverHistory: Array.isArray(s.driverHistory) ? s.driverHistory : [],
