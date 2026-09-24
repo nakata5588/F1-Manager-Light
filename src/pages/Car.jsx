@@ -684,16 +684,15 @@ export default function Car(){
             .filter(({unit})=>Number(unit?.condition??100)<99.5)
             .sort((a,b)=>Number(a.unit?.condition??100)-Number(b.unit?.condition??100))[0]||null;
           const restorableQuote=restorable?partUnitRestoreQuote(carState,restorable.unit.id):null;
-          return <div key={row.slot} className="px-3 py-2.5 grid grid-cols-[36px_minmax(0,1fr)] md:grid-cols-[36px_minmax(0,1fr)_78px_minmax(230px,auto)] gap-3 items-center">
-            <div className="h-9 w-9 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
+          return <div key={row.slot} className="px-3 py-1.5 grid grid-cols-[32px_minmax(0,1fr)] md:grid-cols-[32px_minmax(0,1fr)_68px_minmax(210px,auto)] gap-2 items-center">
+            <div className="h-8 w-8 rounded-md border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
             <div className="min-w-0">
               <div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div>
-              <div className="text-[11px] text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}</div>
-              {row.installed?.part?(()=>{const tech=derivePartTechnicalProfile(carState,row.installed.part);return <div className="text-[10px] text-slate-500 truncate">Wt {tech.design.weight_kg.toFixed(1)}kg · DF {tech.design.downforce.toFixed(3)} · Drag {tech.design.drag.toFixed(3)} · Rel {(tech.design.reliability*100).toFixed(1)}%</div>;})():null}
-              <div className="mt-1.5"><ProgressLine value={row.condition} warn={row.condition<60}/></div>
+              <div className="text-[10px] text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}{row.installed?.part?(()=>{const tech=derivePartTechnicalProfile(carState,row.installed.part);return ` · Wt ${tech.design.weight_kg.toFixed(1)}kg · DF ${tech.design.downforce.toFixed(3)} · Drag ${tech.design.drag.toFixed(3)} · Rel ${(tech.design.reliability*100).toFixed(1)}%`;})():""}</div>
+              <div className="mt-1"><ProgressLine value={row.condition} warn={row.condition<60}/></div>
             </div>
-            <div className="text-right"><div className="font-semibold tabular-nums">{row.condition.toFixed(1)}%</div><div className="text-[9px] uppercase tracking-wide text-slate-500">condition</div></div>
-            <div className="col-span-2 md:col-span-1 flex flex-wrap md:justify-end gap-1.5">
+            <div className="text-right"><div className="text-sm font-semibold tabular-nums">{row.condition.toFixed(1)}%</div><div className="text-[8px] uppercase tracking-wide text-slate-500">condition</div></div>
+            <div className="col-span-2 md:col-span-1 flex flex-wrap md:justify-end gap-1">
               {activeCarJob?<div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-[10px] text-cyan-200 whitespace-nowrap">Workshop · {activeCarJob.finishes_at}</div>:null}
               {stocked?<Button size="sm" className="whitespace-nowrap" onClick={()=>fitPart(selectedCar,stocked)} disabled={Boolean(activeCarJob)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
               {row.installed?<Button size="sm" className="whitespace-nowrap" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)} disabled={Boolean(activeCarJob)}>Remove</Button>:row.condition<99.5?<>
