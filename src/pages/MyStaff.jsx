@@ -96,22 +96,17 @@ export default function MyStaff(){
   const payroll=rows.reduce((sum,row)=>sum+Number(row.salary||0),0);
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-      <TeamLogo teamId={myTeamId} name={myTeamName} size="h-16 w-16" className="p-1"/>
-      <div>
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Team Personnel</div>
-        <h2 className="text-2xl font-semibold">My Staff</h2>
-        <p className="text-sm text-slate-400">{myTeamName} · Season {year||"—"}</p>
-      </div>
+    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-2.5 flex flex-wrap items-center gap-2.5">
+      <h2 className="text-lg font-semibold">My Staff</h2>
       <div className="flex-1"/>
-      <div className="grid w-full grid-cols-2 md:grid-cols-3 xl:w-auto xl:min-w-[520px] xl:grid-cols-5 gap-2">
+      <div className="grid w-full grid-cols-2 md:grid-cols-3 xl:w-auto xl:min-w-[520px] xl:grid-cols-5 gap-1.5">
         <Metric label="Staff" value={rows.length}/>
         <Metric label="Average rating" value={average??"—"}/>
         <Metric label="Team morale" value={Math.round(Number(teamMorale?.morale||50))+"/100"}/>
         <Metric label="Engineering support" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
         <Metric label="Annual payroll" value={money(payroll)}/>
       </div>
-      <Link to="/Staff" className="rounded-md bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold hover:bg-white">Staff Market</Link>
+      <Link to="/Staff" className="rounded-md bg-slate-100 text-slate-950 px-3 py-1.5 text-xs font-semibold hover:bg-white">Staff Market</Link>
     </div>
 
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
