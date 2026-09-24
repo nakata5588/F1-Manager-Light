@@ -6,6 +6,7 @@
 // source for structural future information and newly eligible entity identity.
 
 import { seasonStartMentalState } from "../domain/driverMentalState.js";
+import { applySeasonTeamReputation } from "../domain/teamReputation.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -302,6 +303,10 @@ export function materializeNextCareerSeason(state,targetYearInput){
   const previousYear=Number(state?.activeYear??targetYear-1);
   if(!Number.isInteger(targetYear))throw new TypeError("Target season must be an integer.");
 
+  // Close the previous season before clearing live standings. Team Reputation
+  // receives title and final expectation effects while the final table exists.
+  const seasonReviewedState=applySeasonTeamReputation(state,previousYear);
+
   const calendar=materializeCalendar(state,targetYear);
 
   // Carry the mutable world forward. Historical future contracts/assignments are
@@ -421,6 +426,8 @@ export function materializeNextCareerSeason(state,targetYearInput){
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),
     carStats:(state.carStats||[]).map((r)=>({...r,year:targetYear})),
     driverAttributes:nextDriverAttributes,
+    teamReputationState:{...(seasonReviewedState?.teamReputationState||{})},
+    teamReputationLog:{...(seasonReviewedState?.teamReputationLog||{})},
 
     // Player-created commercial state survives; historical future sponsor deals
     // are never injected automatically.

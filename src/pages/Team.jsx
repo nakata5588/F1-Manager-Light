@@ -10,6 +10,7 @@ import { driverOverallPresentation } from "@/domain/driverMarketEvaluation.js";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { deriveBoardState } from "@/domain/boardState.js";
+import { teamReputation, teamReputationLabel } from "@/domain/teamReputation.js";
 
 const firstArray=(...rows)=>rows.find(Array.isArray)||[];
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
@@ -96,6 +97,8 @@ export default function Team(){
   const balance=num(gs?.finances?.balance??team?.budget,0);
   const boardState=deriveBoardState(gs);
   const boardConfidence=boardState?.confidence??null;
+  const reputation=teamReputation(gs,teamId);
+  const reputationState=gs?.teamReputationState?.[teamId]||null;
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
     <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-5 flex flex-col lg:flex-row lg:items-center gap-4">
@@ -106,13 +109,20 @@ export default function Team(){
         <div className="text-sm text-slate-400 mt-1">{team?.team_base||team?.base||"Base unavailable"} · Season {year||"—"}</div>
       </div>
       <div className="flex-1"/>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 min-w-[420px]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 min-w-[520px]">
         <Metric label="Constructors" value={standing?.position?`P${standing.position}`:"—"}/>
         <Metric label="Points" value={standing?.points??0}/>
         <Metric label="Car rank" value={myRank?`#${myRank.rank}`:"—"}/>
+        <Metric label="Reputation" value={Math.round(reputation)+" · "+teamReputationLabel(reputation)}/>
         <Metric label="Balance" value={money(balance)}/>
         <Metric label="Engineering" value={Math.round(engineeringSupport)+"/100"}/>
         <Metric label="Board" value={boardConfidence==null?"—":Math.round(Number(boardConfidence)*100)+"%"}/>
+        <Metric
+          label="Rep trend"
+          value={reputationState?.lastChange!=null
+            ?`${Number(reputationState.lastChange)>=0?"+":""}${Number(reputationState.lastChange).toFixed(1)}`
+            :"Stable"}
+        />
       </div>
     </div>
 

@@ -8,6 +8,7 @@ import { presentDriverKnowledgeValue } from "../../domain/driverKnowledge.js";
 import { driverContractsOf, driverIdOf, teamIdOf } from "../../domain/driverContracts.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 import { entityProfilePath } from "../../domain/entityRoutes.js";
+import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v.text??v):v;
@@ -64,6 +65,30 @@ function Metric({label,value,tone=""}){
       <div className={`mt-1 text-base font-semibold ${tone}`}>{value??"—"}</div>
     </div>
   );
+}
+
+function numericTone(value,{inverse=false}={}){
+  const n=Number(value);
+  if(!Number.isFinite(n))return "text-slate-300";
+  const score=inverse?100-n:n;
+  if(score>=80)return "text-emerald-300";
+  if(score>=65)return "text-sky-300";
+  if(score>=50)return "text-amber-300";
+  return "text-rose-300";
+}
+
+function presentationTone(view,{inverse=false}={}){
+  const value=view?.sortValue;
+  return numericTone(value,{inverse});
+}
+
+function championshipTone(position){
+  const pos=Number(position);
+  if(!Number.isFinite(pos))return "text-slate-300";
+  if(pos===1)return "text-amber-300";
+  if(pos<=3)return "text-emerald-300";
+  if(pos<=10)return "text-sky-300";
+  return "text-slate-300";
 }
 
 function openFull(navigate,onClose,path){
@@ -132,12 +157,16 @@ export function DriverQuickView({entity,onClose}){
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-          <Metric label="Overall" value={overall.label}/>
-          <Metric label="Potential" value={potential.label}/>
-          <Metric label="Reputation" value={reputation.label}/>
+          <Metric label="Overall" value={overall.label} tone={presentationTone(overall)}/>
+          <Metric label="Potential" value={potential.label} tone={presentationTone(potential)}/>
+          <Metric label="Reputation" value={reputation.label} tone={presentationTone(reputation)}/>
           <Metric label="Form" value={form?.score!=null?`${Number(form.score).toFixed(1)} · ${form.label}`:"—"} tone={formTone}/>
-          <Metric label="Championship" value={snapshot?.season?.championshipPosition?`P${snapshot.season.championshipPosition}`:"—"}/>
-          <Metric label="Market Value" value={marketValueLabel}/>
+          <Metric
+            label="Championship"
+            value={snapshot?.season?.championshipPosition?`P${snapshot.season.championshipPosition}`:"—"}
+            tone={championshipTone(snapshot?.season?.championshipPosition)}
+          />
+          <Metric label="Market Value" value={marketValueLabel} tone={marketValueLabel==="Scout required"?"text-slate-400":"text-cyan-300"}/>
         </div>
 
         <div className="mt-4 rounded-xl border border-white/10 bg-[#11141c] p-4">
@@ -147,10 +176,10 @@ export function DriverQuickView({entity,onClose}){
           </div>
           {knowledge?.canSeeCondition ? (
             <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-              <Metric label="Confidence" value={Math.round(Number(condition?.confidence??50))}/>
-              <Metric label="Morale" value={Math.round(Number(condition?.morale??50))}/>
-              <Metric label="Prep" value={Math.round(Number(condition?.preparation??50))}/>
-              <Metric label="Fatigue" value={Math.round(Number(condition?.fatigue??0))}/>
+              <Metric label="Confidence" value={Math.round(Number(condition?.confidence??50))} tone={numericTone(condition?.confidence)}/>
+              <Metric label="Morale" value={Math.round(Number(condition?.morale??50))} tone={numericTone(condition?.morale)}/>
+              <Metric label="Prep" value={Math.round(Number(condition?.preparation??50))} tone={numericTone(condition?.preparation)}/>
+              <Metric label="Fatigue" value={Math.round(Number(condition?.fatigue??0))} tone={numericTone(condition?.fatigue,{inverse:true})}/>
             </div>
           ) : (
             <div className="mt-2 text-xs text-slate-500">Current condition is private team information.</div>
@@ -177,6 +206,7 @@ export function TeamQuickView({entity,onClose}){
   const base=pick(team,["team_base","base"],pick(brand,["base"],""));
   const standings=asRows(gs?.standings?.teams);
   const standing=standings.find((row)=>String(row?.team_id??row?.id??"")===id)||null;
+  const reputation=teamReputation(gs,id);
   const contracts=driverContractsOf(gs).filter((row)=>{
     if(String(teamIdOf(row))!==id||!isDriverContract(row))return false;
     const rowYear=Number(row?.year??row?.season_year);
@@ -209,9 +239,10 @@ export function TeamQuickView({entity,onClose}){
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Metric label="Championship" value={standing?.position?`P${standing.position}`:"—"}/>
-          <Metric label="Points" value={standing?.points??0}/>
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+          <Metric label="Championship" value={standing?.position?`P${standing.position}`:"—"} tone={championshipTone(standing?.position)}/>
+          <Metric label="Points" value={standing?.points??0} tone="text-emerald-300"/>
+          <Metric label="Reputation" value={`${Math.round(reputation)} · ${teamReputationLabel(reputation)}`} tone={numericTone(reputation)}/>
           <Metric label="Founded" value={pick(team,["founded_year"],pick(brand,["founded_year"],"—"))}/>
           <Metric label="Budget" value={fmtMoney(pick(team,["budget"],pick(brand,["starting_budget"],null)))}/>
         </div>

@@ -98,6 +98,8 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     // Team operational state is simulated runtime state.
     teamOperationalState: {},
     teamMoraleLog: {},
+    teamReputationState: {},
+    teamReputationLog: {},
 
     raceEntryState: null,
     raceWeekendState: null,

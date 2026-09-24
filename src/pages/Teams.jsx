@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
+import { teamReputation, teamReputationLabel } from "../domain/teamReputation.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -77,9 +78,10 @@ export default function Teams(){
             teamIdOf(r)===id
           ).length,
         principal:pick(principal,["staff_name","name"],"—"),
+        reputation:y===currentYear?teamReputation(gs,id):null,
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
-  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,year]);
+  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,year,currentYear,gs]);
 
   const filtered=rows.filter(r=>!q||[`${r.name}`,`${r.country}`,`${r.principal}`].some(v=>v.toLowerCase().includes(q.toLowerCase())));
 
@@ -99,7 +101,7 @@ export default function Teams(){
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50"><tr>
           <th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Country / Base</th>
-          <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Founded</th>
+          <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
         </tr></thead>
         <tbody>{filtered.map(t=><tr key={t.id} className="border-t hover:bg-gray-50">
           <td className="px-4 py-2">
@@ -110,9 +112,16 @@ export default function Teams(){
           <td className="px-4 py-2">{flagFromCountry(t.country,t.code)} {t.country||"—"}</td>
           <td className="px-4 py-2">{t.principal}</td>
           <td className="px-4 py-2 text-right">{t.drivers}</td>
+          <td className="px-4 py-2 text-right">
+            {t.reputation!=null?(
+              <span className={Number(t.reputation)>=72?"font-semibold text-emerald-700":Number(t.reputation)<48?"font-semibold text-rose-700":"font-medium text-slate-700"}>
+                {Math.round(Number(t.reputation))} · {teamReputationLabel(t.reputation)}
+              </span>
+            ):"—"}
+          </td>
           <td className="px-4 py-2 text-right">{t.founded}</td>
         </tr>)}
-        {!filtered.length&&<tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500">No teams found for {year}.</td></tr>}</tbody>
+        {!filtered.length&&<tr><td colSpan={6} className="px-4 py-6 text-center text-gray-500">No teams found for {year}.</td></tr>}</tbody>
       </table>
     </div>
   </div>;

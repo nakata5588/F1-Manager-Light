@@ -16,6 +16,7 @@ import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeathe
 import { applyRacePerformanceEvaluation, driverPerformanceEntries } from "../domain/driverForm.js";
 import { applyRaceReputation } from "../domain/driverReputation.js";
 import { applyRaceTeamMorale } from "../domain/teamMorale.js";
+import { applyRaceTeamReputation } from "../domain/teamReputation.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
@@ -888,7 +889,8 @@ export async function runRaceWeekend(gs, {
   const afterBonuses = awardRaceBonuses(next, race, gpName);
   const afterRelations = updateSponsorRelationships(afterBonuses);
   const afterTeamMorale = applyRaceTeamMorale(afterRelations, { gp, race:evaluatedResultEntry.classification });
-  const afterInjuries = applyRaceHealthOutcomes(afterTeamMorale, { gp, race });
+  const afterTeamReputation = applyRaceTeamReputation(afterTeamMorale, { gp, race:evaluatedResultEntry.classification });
+  const afterInjuries = applyRaceHealthOutcomes(afterTeamReputation, { gp, race });
   const afterPlayerWear = applyRaceComponentWear(afterInjuries, { gp, race });
   let afterWear = applyAIRaceComponentWear(afterPlayerWear, { gp, race });
 

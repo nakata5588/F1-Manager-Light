@@ -622,6 +622,145 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
       .map(({__priority,...row})=>row)
       .sort((a,b)=>Number(a.year)-Number(b.year));
   }, [achievementsArr,careerAll,simulatedCareerRows,idNorm,gameYear]);
+  const shortF1Career = useMemo(() => {
+    const source=[...(careerAll||[]),...(simulatedCareerRows||[])]
+      .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
+      .filter((row)=>{
+        const year=Number(unbox(row?.year));
+        const starts=Number(unbox(row?.starts??row?.races));
+        return Number.isFinite(year)&&(starts>0||year===Number(gameYear));
+      })
+      .map((row)=>{
+        const year=Number(unbox(row?.year));
+        const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
+        const teamRecord=(teamsList||[]).find((team)=>String(unbox(team?.team_id??team?.id??""))===String(teamId));
+        const teamName=displayValue(
+          teamRecord?.team_name??teamRecord?.name??row?.team_name??row?.team,
+          "Unknown Team"
+        );
+        return {
+          year,
+          teamId:String(teamId||teamName),
+          teamName:String(teamName),
+          lastRound:Number(unbox(row?.last_round)),
+        };
+      })
+      .sort((a,b)=>a.year-b.year||
+        (Number.isFinite(a.lastRound)?a.lastRound:999)-(Number.isFinite(b.lastRound)?b.lastRound:999));
+
+    const unique=[];
+    const seen=new Set();
+    for(const row of source){
+      const key=`${row.year}|${row.teamId}`;
+      if(seen.has(key))continue;
+      seen.add(key);
+      unique.push(row);
+    }
+
+    const stints=[];
+    for(const row of unique){
+      const previous=stints[stints.length-1];
+      if(previous&&previous.teamId===row.teamId&&row.year<=previous.endYear+1){
+        previous.endYear=Math.max(previous.endYear,row.year);
+      }else{
+        stints.push({
+          teamId:row.teamId,
+          teamName:row.teamName,
+          startYear:row.year,
+          endYear:row.year,
+        });
+      }
+    }
+
+    const shortYear=(year)=>String(Math.abs(Number(year))%100).padStart(2,"0");
+    return stints.map((stint)=>{
+      const current=
+        Number(stint.endYear)===Number(gameYear)&&
+        (String(stint.teamId)===String(contractTeamId)||String(stint.teamName)===String(contractTeam));
+      let years;
+      if(current){
+        years=`${shortYear(stint.startYear)}–current`;
+      }else if(stint.startYear===stint.endYear){
+        years=shortYear(stint.startYear);
+      }else{
+        years=`${shortYear(stint.startYear)}–${shortYear(stint.endYear)}`;
+      }
+      return {...stint,current,label:`${years} ${stint.teamName}`};
+    });
+  }, [careerAll,simulatedCareerRows,teamsList,gameYear,contractTeamId,contractTeam]);
+
+  const driverTitles = useMemo(() => {
+    const constructorChampionByYear=new Map();
+
+    // Historical seasons before career start: derive constructors standings
+    // from result-derived driver/team season totals.
+    const historicalRows=new Map();
+    for(const row of generatedHistoryRaw||[]){
+      const year=Number(unbox(row?.year));
+      const series=String(getSeries(row)||"F1").toUpperCase();
+      if(!Number.isFinite(year)||series!=="F1")continue;
+      if(Number.isFinite(careerStartYear)&&year>=careerStartYear)continue;
+      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??row?.team_name??""));
+      if(!teamId)continue;
+      const driverKey=String(extractDriverId(row)||displayValue(row?.driver_name,""));
+      const key=`${year}|${teamId}|${driverKey}`;
+      if(historicalRows.has(key))continue;
+      historicalRows.set(key,{year,teamId,points:Number(unbox(row?.points)||0),wins:Number(unbox(row?.wins)||0)});
+    }
+    const byYear=new Map();
+    for(const row of historicalRows.values()){
+      if(!byYear.has(row.year))byYear.set(row.year,new Map());
+      const teams=byYear.get(row.year);
+      const rec=teams.get(row.teamId)||{teamId:row.teamId,points:0,wins:0};
+      rec.points+=row.points;
+      rec.wins+=row.wins;
+      teams.set(row.teamId,rec);
+    }
+    for(const [year,teams] of byYear.entries()){
+      const champion=[...teams.values()].sort((a,b)=>b.points-a.points||b.wins-a.wins||a.teamId.localeCompare(b.teamId))[0];
+      if(champion)constructorChampionByYear.set(Number(year),String(champion.teamId));
+    }
+
+    // Played seasons: archived Save World standings are authoritative.
+    for(const season of historySeasons||[]){
+      const year=Number(season?.year);
+      const champion=toArraySafe(season?.standings?.teams)
+        .slice()
+        .sort((a,b)=>Number(a?.position??999)-Number(b?.position??999))[0];
+      const teamId=String(unbox(champion?.team_id??champion?.constructor_id??champion?.id??""));
+      if(Number.isFinite(year)&&teamId)constructorChampionByYear.set(year,teamId);
+    }
+
+    const titles=[];
+    const seen=new Set();
+    for(const achievement of achievementsList||[]){
+      if(Number(achievement?.position)!==1)continue;
+      const year=Number(achievement?.year);
+      if(!Number.isFinite(year)||year>=Number(gameYear))continue;
+      const key=`${year}|driver`;
+      if(seen.has(key))continue;
+      seen.add(key);
+      titles.push({year,type:"driver",label:"Drivers Championship"});
+    }
+
+    const driverCareerRows=[...(careerAll||[]),...(simulatedCareerRows||[])]
+      .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
+      .filter((row)=>Number(unbox(row?.year))<Number(gameYear));
+    for(const row of driverCareerRows){
+      const year=Number(unbox(row?.year));
+      if(!Number.isFinite(year))continue;
+      const championTeam=constructorChampionByYear.get(year);
+      const teamId=resolveHistoricalTeamId(row,teamsList)||String(unbox(row?.team_id??""));
+      if(!championTeam||String(teamId)!==String(championTeam))continue;
+      const key=`${year}|constructor`;
+      if(seen.has(key))continue;
+      seen.add(key);
+      titles.push({year,type:"constructor",label:"Constructors Championship"});
+    }
+
+    return titles.sort((a,b)=>a.year-b.year||a.type.localeCompare(b.type));
+  }, [generatedHistoryRaw,careerStartYear,teamsList,historySeasons,achievementsList,careerAll,simulatedCareerRows,gameYear]);
+
   const yearsRaced = useMemo(() => {
     const rookie = Number(unbox(driver?.f1_rookie_season));
     if (!Number.isFinite(rookie) || !Number.isFinite(gameYear)) return null;
@@ -824,6 +963,32 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">F1 Career</div>
+          <div className="mt-2 space-y-1 text-[11px]">
+            {shortF1Career.length?shortF1Career.map((stint,index)=>(
+              <div key={`${stint.startYear}-${stint.teamId}-${index}`} className="flex items-center gap-2 text-slate-300">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400/70"/>
+                <span className={stint.current?"font-semibold text-sky-300":""}>{stint.label}</span>
+              </div>
+            )):<div className="text-slate-600">No F1 career recorded.</div>}
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Titles</div>
+          <div className="mt-2 space-y-1.5 text-[11px]">
+            {driverTitles.length?driverTitles.map((title,index)=>(
+              <div key={`${title.year}-${title.type}-${index}`} className="flex items-center gap-2 text-slate-300">
+                {title.type==="driver"
+                  ?<Trophy size={12} className="shrink-0 text-amber-300"/>
+                  :<span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-sky-300/40 bg-sky-500/10 text-[7px] font-bold text-sky-300">C</span>}
+                <span><strong className="text-slate-200">{title.year}</strong> · {title.label}</span>
+              </div>
+            )):<div className="text-slate-600">No F1 titles.</div>}
+          </div>
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
@@ -1238,6 +1403,44 @@ function OverviewTab({
     snapshot?.reputation,
     {kind:"attribute"}
   );
+  const performanceRows=snapshot?.performanceHistory||[];
+  const expectationDeltaOf=(row)=>{
+    if(row?.retired)return null;
+    const explicit=Number(row?.expectation_delta);
+    if(Number.isFinite(explicit))return explicit;
+    const expected=Number(row?.expected_finish);
+    const finish=Number(row?.finish_position);
+    return Number.isFinite(expected)&&Number.isFinite(finish)?expected-finish:null;
+  };
+  const expectationRows=performanceRows
+    .map((row)=>({...row,__expectationDelta:expectationDeltaOf(row)}))
+    .filter((row)=>Number.isFinite(row.__expectationDelta));
+  const latestExpectation=expectationRows[0]||null;
+  const expectationWindow=expectationRows.slice(0,5);
+  const expectationAverage=expectationWindow.length
+    ?expectationWindow.reduce((sum,row)=>sum+row.__expectationDelta,0)/expectationWindow.length
+    :null;
+  const expectationTrend=expectationAverage==null
+    ?"No data"
+    :expectationAverage>=1.5
+      ?"Above expectation"
+      :expectationAverage<=-1.5
+        ?"Below expectation"
+        :"On expectation";
+  const raceTeammateRows=performanceRows
+    .map((row)=>Number(row?.teammate_race_delta))
+    .filter(Number.isFinite);
+  const qualiTeammateRows=performanceRows
+    .map((row)=>Number(row?.teammate_qualifying_delta))
+    .filter(Number.isFinite);
+  const h2h=(values)=>({
+    wins:values.filter((value)=>value>0).length,
+    losses:values.filter((value)=>value<0).length,
+    ties:values.filter((value)=>value===0).length,
+    avg:values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null,
+  });
+  const raceH2H=h2h(raceTeammateRows);
+  const qualiH2H=h2h(qualiTeammateRows);
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -1310,6 +1513,62 @@ function OverviewTab({
           <ProfileMetric label="DNF" value={season.dnfs??0} tone={season.dnfs?"text-rose-300":""}/>
           <ProfileMetric label="Best finish" value={season.bestFinish?`P${season.bestFinish}`:"—"}/>
         </div>
+      </div>
+
+      <div className="xl:col-span-6 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Performance vs Expectation</div>
+        {latestExpectation?(
+          <>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <ProfileMetric
+                label="Latest"
+                value={`${latestExpectation.__expectationDelta>=0?"+":""}${latestExpectation.__expectationDelta.toFixed(1)} pos`}
+                tone={latestExpectation.__expectationDelta>0?"text-emerald-300":latestExpectation.__expectationDelta<0?"text-rose-300":"text-slate-300"}
+              />
+              <ProfileMetric
+                label="Last 5 Avg"
+                value={expectationAverage!=null?`${expectationAverage>=0?"+":""}${expectationAverage.toFixed(1)} pos`:"—"}
+                tone={expectationAverage>0?"text-emerald-300":expectationAverage<0?"text-rose-300":"text-slate-300"}
+              />
+              <ProfileMetric
+                label="Trend"
+                value={expectationTrend}
+                tone={expectationAverage>=1.5?"text-emerald-300":expectationAverage<=-1.5?"text-rose-300":"text-sky-300"}
+              />
+            </div>
+            <div className="mt-2 text-[11px] text-slate-500">
+              {latestExpectation.gp_name||`Round ${latestExpectation.round||"—"}`} · expected ~P{Number(latestExpectation.expected_finish||0).toFixed(1)} · finished P{latestExpectation.finish_position||"—"}.
+            </div>
+          </>
+        ):(
+          <div className="mt-3 text-sm text-slate-500">No completed race with a valid car expectation yet.</div>
+        )}
+      </div>
+
+      <div className="xl:col-span-6 rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teammate Comparison</div>
+        {raceTeammateRows.length||qualiTeammateRows.length?(
+          <>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <ProfileMetric
+                label="Race H2H"
+                value={raceTeammateRows.length?`${raceH2H.wins}–${raceH2H.losses}${raceH2H.ties?`–${raceH2H.ties}`:""}`:"—"}
+                tone={raceH2H.wins>raceH2H.losses?"text-emerald-300":raceH2H.wins<raceH2H.losses?"text-rose-300":"text-slate-300"}
+              />
+              <ProfileMetric
+                label="Qualifying H2H"
+                value={qualiTeammateRows.length?`${qualiH2H.wins}–${qualiH2H.losses}${qualiH2H.ties?`–${qualiH2H.ties}`:""}`:"—"}
+                tone={qualiH2H.wins>qualiH2H.losses?"text-emerald-300":qualiH2H.wins<qualiH2H.losses?"text-rose-300":"text-slate-300"}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+              {raceH2H.avg!=null&&<span>Avg race delta <strong className={raceH2H.avg>0?"text-emerald-300":raceH2H.avg<0?"text-rose-300":"text-slate-300"}>{raceH2H.avg>=0?"+":""}{raceH2H.avg.toFixed(1)} positions</strong></span>}
+              {qualiH2H.avg!=null&&<span>Avg qualifying delta <strong className={qualiH2H.avg>0?"text-emerald-300":qualiH2H.avg<0?"text-rose-300":"text-slate-300"}>{qualiH2H.avg>=0?"+":""}{qualiH2H.avg.toFixed(1)} positions</strong></span>}
+            </div>
+          </>
+        ):(
+          <div className="mt-3 text-sm text-slate-500">No comparable team-mate race data yet.</div>
+        )}
       </div>
 
       {snapshot?.performanceHistory?.[0]&&(
@@ -2056,6 +2315,67 @@ function AttributesTab({
     return `${diff>0?"+":""}${fmtMoney(diff)}`;
   };
 
+  const compactCompareSections=[
+    {
+      label:"Pace & Racecraft",
+      metrics:[
+        ["Pace","pace",attrs?.pace,comparisonAttrs?.pace,false],
+        ["Qualifying","qualifying",attrs?.qualifying,comparisonAttrs?.qualifying,false],
+        ["Start & Launch","start_launch",attrs?.start_launch,comparisonAttrs?.start_launch,false],
+        ["Racecraft","racecraft",attrs?.racecraft,comparisonAttrs?.racecraft,false],
+        ["Overtaking","derived_overtaking",derived?.overtaking?.value,comparisonDerived?.overtaking?.value,false],
+        ["Defending","derived_defending",derived?.defending?.value,comparisonDerived?.defending?.value,false],
+      ],
+    },
+    {
+      label:"Control & Management",
+      metrics:[
+        ["Race Intelligence","race_intelligence",attrs?.race_intelligence,comparisonAttrs?.race_intelligence,false],
+        ["Pressure Handling","pressure_handling",attrs?.pressure_handling,comparisonAttrs?.pressure_handling,false],
+        ["Consistency","consistency",attrs?.consistency,comparisonAttrs?.consistency,false],
+        ["Wet Skill","wet_skill",attrs?.wet_skill,comparisonAttrs?.wet_skill,false],
+        ["Adaptability","adaptability",attrs?.adaptability,comparisonAttrs?.adaptability,false],
+        ["Tyre Management","tire_management",attrs?.tire_management,comparisonAttrs?.tire_management,false],
+        ["Strategy","derived_strategy",derived?.strategy_intelligence?.value,comparisonDerived?.strategy_intelligence?.value,false],
+      ],
+    },
+    {
+      label:"Technical & Mental",
+      metrics:[
+        ["ERS / Fuel","ers_fuel_management",attrs?.ers_fuel_management,comparisonAttrs?.ers_fuel_management,false],
+        ["Technical Feedback","technical_feedback",attrs?.technical_feedback,comparisonAttrs?.technical_feedback,false],
+        ["Development","car_development_impact",attrs?.car_development_impact,comparisonAttrs?.car_development_impact,false],
+        ["Mentality","mentality",attrs?.mentality,comparisonAttrs?.mentality,false],
+        ["Leadership","leadership",attrs?.leadership,comparisonAttrs?.leadership,false],
+        ["Team Player","team_player",attrs?.team_player,comparisonAttrs?.team_player,false],
+        ["Crash Likelihood","crash_likelihood",attrs?.crash_likelihood,comparisonAttrs?.crash_likelihood,true],
+      ],
+    },
+  ];
+
+  const compareBar=(field,left,right,inverse=false)=>{
+    const leftShown=shownValue(knowledge,field,left,{kind:"attribute"});
+    const rightShown=shownValue(comparisonKnowledge,field,right,{kind:"attribute"});
+    if(leftShown?.sortValue==null||rightShown?.sortValue==null){
+      return <div className="h-1.5 flex-1 rounded-full bg-white/10"/>;
+    }
+    const raw=(Number(leftShown.sortValue)-Number(rightShown.sortValue))*(inverse?-1:1);
+    if(Math.abs(raw)<0.05){
+      return <div className="relative h-1.5 flex-1 rounded-full bg-white/10"><span className="absolute left-1/2 top-0 h-1.5 w-px bg-slate-500"/></div>;
+    }
+    const width=Math.min(50,Math.max(3,Math.abs(raw)*2.5));
+    const leftBetter=raw>0;
+    return (
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+        <span className="absolute left-1/2 top-0 h-1.5 w-px bg-slate-600"/>
+        <span
+          className={`absolute top-0 h-1.5 rounded-full ${leftBetter?"bg-emerald-400":"bg-rose-400"}`}
+          style={leftBetter?{right:"50%",width:`${width}%`}:{left:"50%",width:`${width}%`}}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
@@ -2143,6 +2463,22 @@ function AttributesTab({
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-sky-300">Compare Drivers</div>
               <div className="mt-1 text-sm text-slate-300">{currentName} vs {comparisonName}</div>
+              {compareMode==="performance"&&(
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500">
+                  <span>
+                    OVR&nbsp;
+                    {renderComparisonValue("left",knowledge,"current_ability",attrs?.current_ability,comparisonKnowledge,comparisonAttrs?.current_ability,{kind:"ability"})}
+                    <span className="mx-1 text-slate-600">vs</span>
+                    {renderComparisonValue("right",comparisonKnowledge,"current_ability",comparisonAttrs?.current_ability,knowledge,attrs?.current_ability,{kind:"ability"})}
+                  </span>
+                  <span>
+                    Potential&nbsp;
+                    {renderComparisonValue("left",knowledge,"potential_ability",attrs?.potential_ability,comparisonKnowledge,comparisonAttrs?.potential_ability,{kind:"potential"})}
+                    <span className="mx-1 text-slate-600">vs</span>
+                    {renderComparisonValue("right",comparisonKnowledge,"potential_ability",comparisonAttrs?.potential_ability,knowledge,attrs?.potential_ability,{kind:"potential"})}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex rounded-lg border border-white/10 bg-[#11141c] p-1">
               {[
@@ -2161,32 +2497,26 @@ function AttributesTab({
           </div>
 
           {compareMode==="performance" ? (
-            <div className="mt-4 grid grid-cols-[minmax(110px,1fr)_90px_90px_72px] gap-x-3 text-sm">
-              <div className="pb-2 text-xs uppercase tracking-wide text-slate-500">Metric</div>
-              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">{currentName}</div>
-              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">{comparisonName}</div>
-              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">Δ</div>
-
-              {[
-                ["Overall","current_ability",attrs.current_ability,comparisonAttrs?.current_ability,"ability",false],
-                ["Potential","potential_ability",attrs.potential_ability,comparisonAttrs?.potential_ability,"potential",false],
-                ["Pace","pace",attrs.pace,comparisonAttrs?.pace,"attribute",false],
-                ["Qualifying","qualifying",attrs.qualifying,comparisonAttrs?.qualifying,"attribute",false],
-                ["Racecraft","racecraft",attrs.racecraft,comparisonAttrs?.racecraft,"attribute",false],
-                ["Consistency","consistency",attrs.consistency,comparisonAttrs?.consistency,"attribute",false],
-                ["Wet Skill","wet_skill",attrs.wet_skill,comparisonAttrs?.wet_skill,"attribute",false],
-                ["Tyre Management","tire_management",attrs.tire_management,comparisonAttrs?.tire_management,"attribute",false],
-                ["Overtaking","derived_overtaking",derived.overtaking?.value,comparisonDerived.overtaking?.value,"attribute",false],
-                ["Defending","derived_defending",derived.defending?.value,comparisonDerived.defending?.value,"attribute",false],
-                ["Strategy","derived_strategy",derived.strategy_intelligence?.value,comparisonDerived.strategy_intelligence?.value,"attribute",false],
-              ].map(([label,field,left,right,kind,inverse])=>(
-                <div key={field} className="contents">
-                  <div className="border-t border-white/10 py-2 text-slate-400">{label}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind,inverse})}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind,inverse})}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{differenceFor(field,left,right,{kind,inverse})}</div>
+            <div className="mt-3 grid gap-2 lg:grid-cols-3">
+              {compactCompareSections.map((section)=>(
+                <div key={section.label} className="rounded-lg border border-white/10 bg-[#11141c] p-2.5">
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{section.label}</div>
+                  <div className="space-y-0.5">
+                    {section.metrics.map(([label,field,left,right,inverse])=>(
+                      <div key={field} className="grid grid-cols-[minmax(88px,1fr)_34px_minmax(52px,.9fr)_34px] items-center gap-1.5 rounded px-1 py-1 text-[11px] hover:bg-white/[0.025]">
+                        <span className="truncate text-slate-400" title={label}>{label}</span>
+                        <span className="text-right">{renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind:"attribute",inverse})}</span>
+                        {compareBar(field,left,right,inverse)}
+                        <span className="text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute",inverse})}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
+              <div className="lg:col-span-3 flex flex-wrap items-center justify-between gap-2 px-1 pt-1 text-[10px] text-slate-500">
+                <span>{currentName} left · {comparisonName} right</span>
+                <span>Green = stronger · Red = weaker · lower Crash Likelihood is better</span>
+              </div>
             </div>
           ) : (
             <div className="mt-4">
@@ -2220,7 +2550,7 @@ function AttributesTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+      <div className={`${comparisonDriver&&compareMode==="performance"?"hidden":""} grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6`}>
         {groups.map((group)=>{
           const rawGroupScore=driverAttributeGroupScore(attrs,group.key);
           const shownGroup=shownValue(knowledge,`group_${group.key}`,rawGroupScore,{kind:"attribute"});
@@ -2290,7 +2620,7 @@ function AttributesTab({
         })}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
+      <div className={`${comparisonDriver&&compareMode==="performance"?"hidden":""} rounded-xl border border-white/10 bg-[#12141c] p-3`}>
         <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Race Behaviour & Derived Ratings</div>
         <p className="text-xs text-slate-500">These ratings combine existing attributes; they are not separate database attributes.</p>
 
@@ -2390,6 +2720,23 @@ function PerformanceHistory({ items }) {
             <div className={`rounded-lg border px-3 py-1.5 text-lg font-semibold ${Number(row?.score)>=76?"border-emerald-400/20 bg-emerald-500/10 text-emerald-300":Number(row?.score)<58?"border-rose-400/20 bg-rose-500/10 text-rose-300":"border-white/10 bg-white/5 text-slate-200"}`}>
               {Number(row?.score||0).toFixed(1)}
             </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+            {Number.isFinite(Number(row?.expectation_delta))&&(
+              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.expectation_delta)>0?"text-emerald-300":Number(row.expectation_delta)<0?"text-rose-300":"text-slate-400"}`}>
+                Expectation {Number(row.expectation_delta)>0?"+":""}{Number(row.expectation_delta).toFixed(1)} pos
+              </span>
+            )}
+            {Number.isFinite(Number(row?.teammate_race_delta))&&(
+              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_race_delta)>0?"text-emerald-300":Number(row.teammate_race_delta)<0?"text-rose-300":"text-slate-400"}`}>
+                Race vs teammate {Number(row.teammate_race_delta)>0?"+":""}{Number(row.teammate_race_delta).toFixed(0)}
+              </span>
+            )}
+            {Number.isFinite(Number(row?.teammate_qualifying_delta))&&(
+              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_qualifying_delta)>0?"text-emerald-300":Number(row.teammate_qualifying_delta)<0?"text-rose-300":"text-slate-400"}`}>
+                Quali vs teammate {Number(row.teammate_qualifying_delta)>0?"+":""}{Number(row.teammate_qualifying_delta).toFixed(0)}
+              </span>
+            )}
           </div>
           {!!row?.factors?.length&&(
             <div className="mt-3 space-y-1">

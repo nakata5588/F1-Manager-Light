@@ -20,6 +20,8 @@ test("fresh career runtime clears driver form, development and team morale state
     driverReputationLog: { D1: [{ delta: 1.2 }] },
     teamOperationalState: { T1: { morale: 22 } },
     teamMoraleLog: { T1: [{ delta: -5 }] },
+    teamReputationState: { T1: { reputation: 81 } },
+    teamReputationLog: { T1: [{ delta: 2 }] },
   };
 
   const next = { ...dirty, ...freshCareerRuntimeState({ initialDriverConditions: conditions }) };
@@ -39,6 +41,8 @@ test("fresh career runtime clears driver form, development and team morale state
   assert.deepEqual(next.driverReputationLog, {});
   assert.deepEqual(next.teamOperationalState, {});
   assert.deepEqual(next.teamMoraleLog, {});
+  assert.deepEqual(next.teamReputationState, {});
+  assert.deepEqual(next.teamReputationLog, {});
   assert.deepEqual(next.driverAttributes, conditions);
   assert.equal(next._lastDriverProgressionMonth, null);
 });
@@ -122,6 +126,8 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.deepEqual(fresh.aiTechnicalWorld, { version: 1, teams: {} });
   assert.deepEqual(fresh.teamOperationalState, {});
   assert.deepEqual(fresh.teamMoraleLog, {});
+  assert.deepEqual(fresh.teamReputationState, {});
+  assert.deepEqual(fresh.teamReputationLog, {});
   assert.deepEqual(fresh.financeLog, []);
   assert.deepEqual(fresh.medicalHistory, []);
   assert.equal(fresh.raceWeekendState, null);
