@@ -281,7 +281,8 @@ function fieldBenchmarkForSlot(gs,slot){
 }
 
 function chooseNeed(gs,teamId,state){
-  const slots=availableCarComponentSlots(gs,teamId);
+  const slots=availableCarComponentSlots(gs,teamId)
+    .filter((slot)=>developmentObjectivesForSlot(gs,slot,teamId).length>0);
   if(!slots.length)return null;
   const scored=slots.map((slot)=>{
     const baseline=componentBaseline(gs,teamId,slot);
@@ -308,7 +309,7 @@ function chooseNeed(gs,teamId,state){
 }
 function aiDevelopmentObjective(gs,teamId,state,need){
   const slot=str(need?.slot);
-  const options=developmentObjectivesForSlot(gs,slot);
+  const options=developmentObjectivesForSlot(gs,slot,teamId);
   const has=(id)=>options.some((row)=>row.id===id);
   const recentStress=(state?.componentWearLog||[])
     .filter((row)=>str(row?.slot)===slot&&num(row?.condition_after,100)<55)
@@ -321,7 +322,7 @@ function aiDevelopmentObjective(gs,teamId,state,need){
     const preferred=(stableHash(`${teamId}|${yearOf(gs)}|${slot}|design-objective`)%2)?"downforce":"efficiency";
     if(has(preferred))return preferred;
   }
-  return options[0]?.id||"balanced";
+  return options[0]?.id||null;
 }
 
 function projectQuote(gs,teamId,state,need){
@@ -1255,12 +1256,14 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
   const cycle=num(state?.planning?.cycle,0)+1;
   const id=`ai_dev_${safeId(teamId)}_${yearOf(next)}_${String(cycle).padStart(3,"0")}`;
   const objectiveId=aiDevelopmentObjective(next,teamId,state,need);
+  if(!objectiveId)return next;
   const currentPart=bestDevelopedPartForSlot(state?.development?.parts||[],need.slot);
   const technicalProjection=buildDevelopmentProjection(next,{
     slot:need.slot,
     objectiveId,
     targetStrength:quote.perf,
     currentPart,
+    teamId,
   });
   const project={
     id,
