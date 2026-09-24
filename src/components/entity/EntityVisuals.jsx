@@ -140,17 +140,20 @@ export function CountryFlag({country="",code="",className="",title=null,size="md
 export function DriverPortrait({ driver, size = "h-8 w-8", className = "" }) {
   const name = driver?.display_name || driver?.name || driver?.driver_name || "Driver";
   const src = driver?.portrait_path || driver?.portrait || null;
-  if (src) {
+  const [failedSrc, setFailedSrc] = React.useState(null);
+  const initials = name.split(/\\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0,2).toUpperCase();
+
+  if (src && failedSrc !== src) {
     return (
       <img
         src={src}
         alt={name}
         className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
-        onError={(e) => { e.currentTarget.style.display = "none"; }}
+        onError={() => setFailedSrc(src)}
       />
     );
   }
-  const initials = name.split(/\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0,2).toUpperCase();
+
   return (
     <div className={`${size} rounded-full bg-gray-100 ring-1 ring-black/10 flex items-center justify-center text-[10px] font-semibold ${className}`}>
       {initials || "?"}
