@@ -17,6 +17,7 @@ import {
   PiggyBank,
   ClipboardList,
   UsersRound,
+  UserRound,
 } from "lucide-react";
 
 const HelmetIcon = ({ className = "w-5 h-5" }) => (
@@ -137,6 +138,7 @@ export default function Sidebar() {
     >
       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Main</div>
       <Item to="/Home" label="Home" icon={Home} brand={brand} />
+      <Item to="/ManagerProfile" label="My Profile" icon={UserRound} brand={brand} />
       <Item to="/CalendarPage" label="Calendar" icon={Calendar} brand={brand} />
       <Item to="/Inbox" label="Inbox" icon={Inbox} brand={brand} badge={attention.inbox} />
 
