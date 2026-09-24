@@ -301,7 +301,8 @@ function hydrateTeammateComparison(gs,driverId,entry){
   const needsRace=entry?.teammate_race_delta==null;
   const needsQualifying=entry?.teammate_qualifying_delta==null;
   const needsDriver=entry?.teammate_driver_id==null;
-  if(!needsRace&&!needsQualifying&&!needsDriver)return entry;
+  const needsBestLap=entry?.best_lap_ms==null||entry?.fastest_lap==null;
+  if(!needsRace&&!needsQualifying&&!needsDriver&&!needsBestLap)return entry;
 
   const event=resultEventForEntry(gs,entry);
   if(!event)return entry;
