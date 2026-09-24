@@ -47,6 +47,15 @@ function progressBetween(start, finish, now) {
   if (b <= a) return 1;
   return Math.max(0, Math.min(1, (n - a) / (b - a)));
 }
+function projectProgress(project, now) {
+  if (project?.status==="completed") return 1;
+  if (project?.status==="paused") return Number(project?.progress||0);
+  if (project?.resumed_at && Number.isFinite(Number(project?.resume_progress))) {
+    const base=Math.max(0,Math.min(1,Number(project.resume_progress)));
+    return base+(1-base)*progressBetween(project.resumed_at,project.finishes_at,now);
+  }
+  return progressBetween(project?.started_at,project?.finishes_at,now);
+}
 function nice(value) {
   return String(value || "").replace(/_/g," ").replace(/\b\w/g,(m)=>m.toUpperCase());
 }
@@ -376,6 +385,35 @@ export default function Development({ embedded = false, initialTab = "projects",
     });
   };
 
+  const toggleProjectPause=(project)=>{
+    const progress=projectProgress(project,currentDateISO);
+    if(project.status==="paused"){
+      const remaining=Math.max(
+        1,
+        Number(project.remaining_days)||
+        Math.ceil(Number(project.duration_days||21)*(1-progress))
+      );
+      patchProject(project.id,{
+        status:"active",
+        resumed_at:currentDateISO,
+        resume_progress:progress,
+        finishes_at:addDaysISO(currentDateISO,remaining),
+        remaining_days:null,
+      });
+      return;
+    }
+    const remaining=Math.max(
+      1,
+      Math.ceil((+parseISO(project.finishes_at)-+parseISO(currentDateISO))/DAY)
+    );
+    patchProject(project.id,{
+      status:"paused",
+      paused_at:currentDateISO,
+      progress,
+      remaining_days:remaining,
+    });
+  };
+
   const manufacture = (part) => {
     const qty = 1;
     const quote=partManufactureQuote(physicalState,part);
@@ -592,7 +630,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       {tab==="projects" && (
         <div className="grid grid-cols-1 gap-2">
           {projects.map((p)=>{
-            const progress = p.status==="completed" ? 1 : p.status==="paused" ? Number(p.progress||0) : progressBetween(p.started_at,p.finishes_at,currentDateISO);
+            const progress = projectProgress(p,currentDateISO);
             const projection=p.technical_projection||null;
             const result=p.technical_result||null;
             const currentStrength=Number(p.current_design_perf||0);
@@ -626,7 +664,7 @@ export default function Development({ embedded = false, initialTab = "projects",
               <div className="text-xs text-slate-400">{p.started_at} → {p.finishes_at} · <span className="text-rose-300">{fmtMoney(p.cost)}</span> · Design {currentStrength.toFixed(2)} → {targetStrength.toFixed(2)}{p.status==="completed"&&Math.abs(actualStrength-targetStrength)>=0.005?` · actual ${actualStrength.toFixed(2)}`:""}</div>
               {p.test_driver_name && <div className="text-xs text-slate-400">Validation: {p.test_driver_name} · feedback {Math.round(Number(p.test_driver_feedback||0))}/100</div>}
               {p.status!=="completed" && <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={()=>patchProject(p.id,{status:p.status==="paused"?"active":"paused",progress})}>{p.status==="paused"?"Resume":"Pause"}</Button>
+                <Button size="sm" onClick={()=>toggleProjectPause(p)}>{p.status==="paused"?"Resume":"Pause"}</Button>
                 <span className="text-xs text-slate-500 self-center">Design brief is locked once the project starts.</span>
               </div>}
             </CardContent></Card>;
