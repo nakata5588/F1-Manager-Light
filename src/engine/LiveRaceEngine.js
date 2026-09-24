@@ -104,6 +104,21 @@ function formatWeatherControlMessage(type,state){
   const weather=String(state||"extreme weather").replaceAll("_"," ").toLowerCase();
   return `${controlLabel(type)} — ${weather.charAt(0).toUpperCase()+weather.slice(1)} conditions.`;
 }
+function incidentForControlPeriod(plan,period){
+  const incidents=Array.isArray(plan?.incidents)?plan.incidents:[];
+  const driverId=String(period?.driver_id??"");
+  if(driverId){
+    const direct=incidents.find((incident)=>
+      String(incident?.driver_id??"")===driverId&&
+      Number(incident?.lap)===Number(period?.from_lap)
+    );
+    if(direct)return direct;
+  }
+  return incidents.find((incident)=>
+    Number(incident?.lap)===Number(period?.from_lap)&&
+    Number(incident?.sector??1)===Number(period?.from_sector??1)
+  )||null;
+}
 function pushUniqueEvent(events,event){
   const key=String(event?.event_key||"");
   if(key&&events.some((row)=>String(row?.event_key||"")===key))return;
@@ -933,16 +948,26 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     const key=`${period.type}:${period.from_lap}:${period.from_sector||1}:${period.driver_id||""}`;
     if(startOrdinal>currentOrdinal&&startOrdinal<=targetOrdinal&&!controlPeriodsStarted.has(key)){
       const weatherAtStart=plan?.weather_timeline?.[Math.max(0,Number(period.from_lap)-1)]?.state;
+      const linkedIncident=period.cause==="incident"?incidentForControlPeriod(plan,period):null;
+      const linkedDriverId=String(linkedIncident?.driver_id??period?.driver_id??"");
+      const linkedDriverName=linkedDriverId?driverDisplayName(working,linkedDriverId):null;
+      const linkedMedical=linkedIncident?incidentMedicalStatus(working,linkedIncident):null;
       pushUniqueEvent(events,{
         event_key:`race_control:${period.type}:${period.from_lap}:${period.from_sector||1}:${period.cause||"control"}`,
         lap:Number(period.from_lap),
         sector:Number(period.from_sector)||1,
         type:"race_control",
+        driver_id:linkedDriverId||null,
+        driver_name:linkedDriverName||null,
         control_type:period.type,
         cause:period.cause,
+        incident_kind:linkedIncident?String(linkedIncident?.kind||"incident").toLowerCase():null,
+        incident_reason:linkedIncident?String(linkedIncident?.reason||linkedIncident?.kind||"incident").toLowerCase():null,
         message:period.cause==="weather"
           ?formatWeatherControlMessage(period.type,weatherAtStart)
-          :`${controlLabel(period.type)} — Race control intervention.`,
+          :linkedIncident
+            ?formatRaceIncidentMessage({controlType:period.type,driverName:linkedDriverName||"Driver",incident:linkedIncident,medicalConcern:linkedMedical?.medicalConcern})
+            :`${controlLabel(period.type)} — Incident on track.`,
       });
     }
     if(endOrdinal>=currentOrdinal&&endOrdinal<targetOrdinal&&period.type!=="RED_FLAG"){
