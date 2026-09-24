@@ -139,22 +139,73 @@ function StatusPill({status,condition}){
   return <span className={"inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase "+cls}>{condition<60?<TriangleAlert className="h-3 w-3"/>:null}{status?.label||nice(key)}</span>;
 }
 function PerformanceRows({ranking,teamId,perf,driverId=null}){
-  return <div className="space-y-3">
-    {PERFORMANCE_METRICS.map(([key,label])=>{
-      const value=Number(perf?.[key]||0);
-      const avg=metricAverage(ranking,teamId,perf,key,driverId);
-      const delta=value-avg;
-      const rank=metricRank(ranking,teamId,perf,key,driverId);
-      return <div key={key}>
-        <div className="grid grid-cols-[1fr_auto_auto] gap-3 text-sm items-center"><span className="text-slate-400">{label}</span><strong className="tabular-nums">{value.toFixed(1)}</strong><span className={"w-10 text-right text-xs "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span></div>
-        <div className="mt-1.5 flex items-center gap-2"><div className="flex-1"><ProgressLine value={value} warn={delta<-5}/></div><span className={"w-14 text-right text-[10px] "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span></div>
-      </div>;
-    })}
-    <div className="pt-2 border-t border-white/10 text-[10px] uppercase tracking-wide text-slate-500">Delta vs current grid average</div>
+  return <div>
+    <div className="grid grid-cols-2 gap-2">
+      {PERFORMANCE_METRICS.map(([key,label])=>{
+        const value=Number(perf?.[key]||0);
+        const avg=metricAverage(ranking,teamId,perf,key,driverId);
+        const delta=value-avg;
+        const rank=metricRank(ranking,teamId,perf,key,driverId);
+        return <div key={key} className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">{label}</span>
+            <strong className="tabular-nums text-sm">{value.toFixed(1)}</strong>
+            <span className={"w-8 text-right text-[10px] "+(rank&&rank<=3?"text-cyan-300":"text-slate-500")}>{rank?"#"+rank:"—"}</span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="min-w-0 flex-1"><ProgressLine value={value} warn={delta<-5}/></div>
+            <span className={"w-10 text-right text-[9px] tabular-nums "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</span>
+          </div>
+        </div>;
+      })}
+    </div>
+    <div className="pt-2 text-[9px] uppercase tracking-wide text-slate-500">Delta vs current grid average</div>
   </div>;
 }
 function PerformancePanel({ranking,teamId,perf,driverId=null,title="Car Performance"}){
   return <Panel title={title}><div className="p-4"><PerformanceRows ranking={ranking} teamId={teamId} perf={perf} driverId={driverId}/></div></Panel>;
+}
+function SortableAnalysisTable({rows,metrics,sortKey,sortDir,onSort,teamId,driverId,driverById}){
+  const sorted=[...(rows||[])].sort((a,b)=>{
+    const av=Number(a?.[sortKey]);
+    const bv=Number(b?.[sortKey]);
+    if(Number.isFinite(av)||Number.isFinite(bv)){
+      const delta=(Number.isFinite(bv)?bv:-Infinity)-(Number.isFinite(av)?av:-Infinity);
+      if(delta)return sortDir==="desc"?delta:-delta;
+    }
+    return String(a?.team_name??a?.team_id??"").localeCompare(String(b?.team_name??b?.team_id??""))||
+      Number(a?.car_slot||0)-Number(b?.car_slot||0);
+  });
+  return <div className="max-h-[68vh] overflow-auto">
+    <table className="min-w-[980px] w-full text-xs">
+      <thead className="sticky top-0 z-20 bg-[#171a23] text-slate-400">
+        <tr>
+          <th className="sticky left-0 z-30 min-w-[220px] bg-[#171a23] px-3 py-2 text-left">Team / Car</th>
+          {metrics.map(([key,label])=><th key={key} className="px-2 py-2 text-right whitespace-nowrap">
+            <button onClick={()=>onSort(key)} className={"inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-white/5 "+(sortKey===key?"text-white":"")}>
+              {label}<span className="text-[9px] text-slate-500">{sortKey===key?(sortDir==="desc"?"▼":"▲"):"↕"}</span>
+            </button>
+          </th>)}
+        </tr>
+      </thead>
+      <tbody>{sorted.map((row,index)=>{
+        const isSelected=String(row.team_id)===String(teamId)&&String(row.driver_id||"")===String(driverId||"");
+        const driver=driverById.get(String(row.driver_id||""));
+        return <tr key={String(row.team_id)+"-"+String(row.driver_id||row.car_slot||index)} className={"border-t border-white/10 "+(isSelected?"bg-cyan-300/[0.08]":"")}>
+          <td className={"sticky left-0 z-10 px-3 py-2 "+(isSelected?"bg-[#132027]":"bg-[#12141c]")}>
+            <div className="flex items-center gap-2">
+              <span className="w-5 text-[10px] text-slate-600 tabular-nums">{index+1}</span>
+              <div className="min-w-0"><div className="font-medium truncate">{row.team_name||row.team_id} · Car {row.car_slot||1}</div><div className="text-[10px] text-slate-500 truncate">{driver?.display_name||driver?.name||row.driver_id||"Team baseline"}</div></div>
+            </div>
+          </td>
+          {metrics.map(([key])=>{
+            const value=Number(row?.[key]);
+            return <td key={key} className={"px-2 py-2 text-right tabular-nums "+(isSelected?"font-semibold text-cyan-200":"text-slate-300")}>{Number.isFinite(value)?value.toFixed(1):"—"}</td>;
+          })}
+        </tr>;
+      })}</tbody>
+    </table>
+  </div>;
 }
 
 export default function Car(){
@@ -167,6 +218,7 @@ export default function Car(){
   const currentDateISO=String(gs?.currentDateISO||"").slice(0,10);
   const [carInfoTab,setCarInfoTab]=useState("performance");
   const [analysisMode,setAnalysisMode]=useState("characteristics");
+  const [analysisSort,setAnalysisSort]=useState({key:"top_speed",dir:"desc"});
 
   const rawSyncedGarage=useMemo(()=>syncGarageState(gs,gs?.garage||{}),[
     gs?.garage,gs?.contracts,gs?.activeYear,teamId,
@@ -512,6 +564,20 @@ export default function Car(){
     const vals=eligibleComponentSlots.map((slot)=>componentConditionForCar(carState,car,slot));
     return vals.reduce((a,b)=>a+b,0)/Math.max(1,vals.length);
   }).reduce((a,b)=>a+b,0)/raceCars.length:0;
+  const visibleCharacteristicMetrics=CHARACTERISTIC_METRICS.filter(([key])=>
+    characteristicGrid.some((row)=>row?.[key]!=null)
+  );
+  const changeAnalysisSort=(key)=>setAnalysisSort((current)=>({
+    key,
+    dir:current.key===key&&current.dir==="desc"?"asc":"desc",
+  }));
+  const selectAnalysisMode=(mode)=>{
+    setAnalysisMode(mode);
+    const metrics=mode==="performance"?PERFORMANCE_METRICS:visibleCharacteristicMetrics;
+    if(!metrics.some(([key])=>key===analysisSort.key)){
+      setAnalysisSort({key:metrics[0]?.[0]||"overall",dir:"desc"});
+    }
+  };
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-5 space-y-4">
     <div className="rounded-xl border border-white/10 bg-[#12141c] px-4 py-3 flex flex-col xl:flex-row xl:items-center gap-3">
@@ -570,13 +636,24 @@ export default function Car(){
         </Panel>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button onClick={()=>setView("analysis",{car:raceCars[0]?.id})} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><BarChart3 className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Car Analysis</div><div className="text-sm text-slate-500">Compare your car against the current grid average.</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
+          <button onClick={()=>setView("analysis",{car:raceCars[0]?.id})} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><BarChart3 className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Car Analysis</div><div className="text-sm text-slate-500">Compare every car across sortable Characteristics and Performance.</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
           <button onClick={()=>openDevelopment("manufacturing")} className="rounded-xl border border-white/10 bg-[#12141c] p-4 text-left hover:bg-[#171a23] flex items-center gap-4"><div className="h-11 w-11 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><Factory className="h-5 w-5"/></div><div className="flex-1"><div className="font-semibold">Manufacturing</div><div className="text-sm text-slate-500">{activeManufacturing.length} active · {availableParts.length} stocked designs</div></div><ArrowRight className="h-4 w-4 text-slate-600"/></button>
         </div>
+
+        <Panel title="Technical Summary">
+          <div className="p-2.5 grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2">
+            <Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/>
+            <Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/>
+            <Metric label="Projects" value={activeProjects.length}/>
+            <Metric label="Manufacturing" value={activeManufacturing.length}/>
+            <Metric label="Workshop" value={workshop.length}/>
+            <Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/>
+            <Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/>
+          </div>
+        </Panel>
       </div>
       <div className="xl:col-span-4 space-y-4">
         <PerformancePanel ranking={ranking} teamId={teamId} perf={myRank} title="Team Car Performance"/>
-        <Panel title="Technical Summary"><div className="p-3 grid grid-cols-2 gap-2"><Metric label="Grid rank" value={myRank?"#"+myRank.rank:"—"}/><Metric label="Fleet health" value={fleetHealth.toFixed(0)+"%"}/><Metric label="Active projects" value={activeProjects.length}/><Metric label="Manufacturing" value={activeManufacturing.length}/><Metric label="Workshop" value={workshop.length}/><Metric label="Parts stock" value={availableParts.reduce((s,p)=>s+Number(p.inv||0),0)}/><Metric label="Budget" value={Number(gs?.team?.budget??gs?.finances?.balance??0).toLocaleString("en-GB",{notation:"compact",maximumFractionDigits:1})}/></div></Panel>
         <Panel title="Reserve Car">
           <div className="p-4 space-y-3">
             {reserveCar?<><div className="flex items-center justify-between gap-3"><div><div className="font-semibold text-emerald-200">Reserve Car available</div><div className="text-xs text-slate-500">A race car can be substituted if its primary chassis is not raceworthy.</div></div><div className="text-right"><div className="text-[10px] uppercase text-slate-500">Condition</div><strong>{Number(reserveHealth??100).toFixed(0)}%</strong></div></div></>
@@ -607,16 +684,15 @@ export default function Car(){
             .filter(({unit})=>Number(unit?.condition??100)<99.5)
             .sort((a,b)=>Number(a.unit?.condition??100)-Number(b.unit?.condition??100))[0]||null;
           const restorableQuote=restorable?partUnitRestoreQuote(carState,restorable.unit.id):null;
-          return <div key={row.slot} className="px-3 py-2.5 grid grid-cols-[36px_minmax(0,1fr)] md:grid-cols-[36px_minmax(0,1fr)_78px_minmax(230px,auto)] gap-3 items-center">
-            <div className="h-9 w-9 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
+          return <div key={row.slot} className="px-3 py-1.5 grid grid-cols-[32px_minmax(0,1fr)] md:grid-cols-[32px_minmax(0,1fr)_68px_minmax(210px,auto)] gap-2 items-center">
+            <div className="h-8 w-8 rounded-md border border-white/10 bg-white/5 flex items-center justify-center"><PartIcon slot={row.slot}/></div>
             <div className="min-w-0">
               <div className="flex flex-wrap gap-2 items-center"><strong>{componentLabel(carState,row.slot)}</strong><StatusPill status={row.status} condition={row.condition}/></div>
-              <div className="text-[11px] text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}</div>
-              {row.installed?.part?(()=>{const tech=derivePartTechnicalProfile(carState,row.installed.part);return <div className="text-[10px] text-slate-500 truncate">Wt {tech.design.weight_kg.toFixed(1)}kg · DF {tech.design.downforce.toFixed(3)} · Drag {tech.design.drag.toFixed(3)} · Rel {(tech.design.reliability*100).toFixed(1)}%</div>;})():null}
-              <div className="mt-1.5"><ProgressLine value={row.condition} warn={row.condition<60}/></div>
+              <div className="text-[10px] text-slate-500 truncate">{row.installed?.part?.name||"Standard component"}{row.installed?.part?.version?" · "+row.installed.part.version:""}{row.installed?.unit?.id?" · "+row.installed.unit.id:""}{row.installed?.part?(()=>{const tech=derivePartTechnicalProfile(carState,row.installed.part);return ` · Wt ${tech.design.weight_kg.toFixed(1)}kg · DF ${tech.design.downforce.toFixed(3)} · Drag ${tech.design.drag.toFixed(3)} · Rel ${(tech.design.reliability*100).toFixed(1)}%`;})():""}</div>
+              <div className="mt-1"><ProgressLine value={row.condition} warn={row.condition<60}/></div>
             </div>
-            <div className="text-right"><div className="font-semibold tabular-nums">{row.condition.toFixed(1)}%</div><div className="text-[9px] uppercase tracking-wide text-slate-500">condition</div></div>
-            <div className="col-span-2 md:col-span-1 flex flex-wrap md:justify-end gap-1.5">
+            <div className="text-right"><div className="text-sm font-semibold tabular-nums">{row.condition.toFixed(1)}%</div><div className="text-[8px] uppercase tracking-wide text-slate-500">condition</div></div>
+            <div className="col-span-2 md:col-span-1 flex flex-wrap md:justify-end gap-1">
               {activeCarJob?<div className="rounded border border-cyan-300/20 bg-cyan-300/10 px-2 py-1.5 text-[10px] text-cyan-200 whitespace-nowrap">Workshop · {activeCarJob.finishes_at}</div>:null}
               {stocked?<Button size="sm" className="whitespace-nowrap" onClick={()=>fitPart(selectedCar,stocked)} disabled={Boolean(activeCarJob)}>Fit {stocked.version||"developed"} · {warehousePartUnitsForDesign(carState,stocked.id)[0]?.condition?.toFixed?.(0)??100}%</Button>:null}
               {row.installed?<Button size="sm" className="whitespace-nowrap" variant="darkOutline" onClick={()=>removePart(selectedCar,row.slot)} disabled={Boolean(activeCarJob)}>Remove</Button>:row.condition<99.5?<>
@@ -683,25 +759,19 @@ export default function Car(){
           const active=car.id===selectedCar?.id;
           return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"rounded-lg border px-3 py-2 flex items-center gap-3 text-left "+(active?"border-cyan-300/30 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-10 w-10"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-[10px] uppercase tracking-wide text-cyan-300">Selected</span>:null}</button>;
         })}</div>
-        <div className="lg:max-w-[430px] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-500">Historical starting specification is TEAM + YEAR, so Car 1 and Car 2 can begin identical. Physical units, wear, accidents, upgrades and setup make them diverge during the save.</div>
+        <div className="lg:max-w-[430px] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-500">Click any metric heading to sort the whole grid. Car 1 and Car 2 may start from the same TEAM + YEAR baseline, then diverge through upgrades, wear, accidents and setup.</div>
       </div></Panel>
-      <Panel title="Grid Analysis" action={<div className="flex gap-1"><button onClick={()=>setAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>setAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
-        {analysisMode==="performance"?<div className="max-h-[68vh] overflow-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
-          const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id); const delta=value-avg; const rank=metricRank(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id);
-          return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
-        })}</tbody></table></div>:<div className="max-h-[68vh] overflow-auto">
-          <table className="min-w-[1080px] w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-[#171a23] text-slate-400"><tr><th className="px-3 py-2 text-left">Team / Car</th>{CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key,label])=><th key={key} className="px-3 py-2 text-right whitespace-nowrap">{label}</th>)}</tr></thead>
-            <tbody>{characteristicGrid.map((row,index)=>{
-              const isSelected=String(row.team_id)===teamId&&String(row.driver_id||"")===String(selectedCar?.driver_id||"");
-              const driver=driverById.get(String(row.driver_id||""));
-              return <tr key={String(row.team_id)+"-"+String(row.driver_id||index)} className={"border-t border-white/10 "+(isSelected?"bg-cyan-300/[0.08]":"")}>
-                <td className="px-3 py-2"><div className="font-medium">{row.team_name||row.team_id} · Car {row.car_slot||1}</div><div className="text-[10px] text-slate-500">{driver?.display_name||driver?.name||row.driver_id||"Team baseline"}</div></td>
-                {CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key])=>{const value=row?.[key]; const selectedValue=Number(selectedCharacteristics?.values?.[key]||0); const cls=isSelected?"font-semibold text-cyan-200":Number(value)>selectedValue?"text-emerald-300":"text-slate-300"; return <td key={key} className={"px-3 py-2 text-right tabular-nums "+cls}>{value==null?"—":Number(value).toFixed(1)}</td>;})}
-              </tr>;
-            })}</tbody>
-          </table>
-        </div>}
+      <Panel title="Grid Analysis" action={<div className="flex gap-1"><button onClick={()=>selectAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>selectAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
+        <SortableAnalysisTable
+          rows={analysisMode==="performance"?carGrid:characteristicGrid}
+          metrics={analysisMode==="performance"?PERFORMANCE_METRICS:visibleCharacteristicMetrics}
+          sortKey={analysisSort.key}
+          sortDir={analysisSort.dir}
+          onSort={changeAnalysisSort}
+          teamId={teamId}
+          driverId={selectedCar?.driver_id}
+          driverById={driverById}
+        />
       </Panel>
     </div>}
 

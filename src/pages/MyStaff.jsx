@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { teamEngineeringSupport } from "../engine/PracticeSetupEngine.js";
+import { teamWorkRateLabel } from "../domain/teamMorale.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -82,6 +83,8 @@ export default function MyStaff(){
   }).sort((a,b)=>String(a.role).localeCompare(String(b.role))||String(a.name).localeCompare(String(b.name))),[contracts,year,myTeamId,coreById,ratings]);
 
   const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,myTeamId),[gs,myTeamId]);
+  const teamMorale=useMemo(()=>teamWorkRateLabel(gs,myTeamId),[gs,myTeamId]);
+  const moraleState=gs?.teamOperationalState?.[myTeamId]||null;
   const livePit=gs?.raceStrategyWorld?.pitCrews?.[myTeamId]||null;
 
   const pit=useMemo(()=>livePit||pitcrew.find((row)=>
@@ -101,9 +104,10 @@ export default function MyStaff(){
         <p className="text-sm text-slate-400">{myTeamName} · Season {year||"—"}</p>
       </div>
       <div className="flex-1"/>
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 min-w-[420px]">
+      <div className="grid w-full grid-cols-2 md:grid-cols-3 xl:w-auto xl:min-w-[520px] xl:grid-cols-5 gap-2">
         <Metric label="Staff" value={rows.length}/>
         <Metric label="Average rating" value={average??"—"}/>
+        <Metric label="Team morale" value={Math.round(Number(teamMorale?.morale||50))+"/100"}/>
         <Metric label="Engineering support" value={Math.round(Number(engineeringSupport||0))+"/100"}/>
         <Metric label="Annual payroll" value={money(payroll)}/>
       </div>
@@ -148,6 +152,28 @@ export default function MyStaff(){
       </section>
 
       <aside className="xl:col-span-3 space-y-4">
+        <section className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10">
+            <div className="font-semibold">Team Morale</div>
+            <div className="text-xs text-slate-500">Operational morale · separate from Driver Morale</div>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="text-3xl font-bold tabular-nums">{Math.round(Number(teamMorale?.morale||50))}</div>
+                <div className="text-xs text-slate-500">out of 100</div>
+              </div>
+              <div className={"rounded-md border px-2.5 py-1.5 text-xs font-semibold "+(Number(teamMorale?.morale||50)>=65?"border-emerald-400/25 bg-emerald-400/10 text-emerald-300":Number(teamMorale?.morale||50)<40?"border-rose-400/25 bg-rose-400/10 text-rose-300":"border-white/10 bg-white/5 text-slate-300")}>{teamMorale?.label||"Neutral"}</div>
+            </div>
+            <div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-slate-200" style={{width:`${Math.max(0,Math.min(100,Number(teamMorale?.morale||50)))}%`}}/></div>
+            <div className="grid grid-cols-2 gap-2">
+              <Metric label="Last change" value={moraleState?.lastChange==null?"—":(Number(moraleState.lastChange)>=0?"+":"")+Number(moraleState.lastChange).toFixed(1)}/>
+              <Metric label="Last event" value={moraleState?.lastEvent||"No race event yet"}/>
+            </div>
+            <div className="text-xs text-slate-500">Team Morale affects operational work-rate in Development and Workshop. Driver Morale remains an individual driver state.</div>
+          </div>
+        </section>
+
         <section className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10">
             <div className="font-semibold">Pit Crew</div>
