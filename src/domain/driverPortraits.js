@@ -116,13 +116,23 @@ export function hydrateDriverPortraitRows(rows, activeYear) {
   return rows.map((driver) => {
     if (!driver || typeof driver !== "object") return driver;
     const driverId = driverIdOf(driver);
+    const hadPortraitField =
+      Object.prototype.hasOwnProperty.call(driver, "portrait_path") ||
+      Object.prototype.hasOwnProperty.call(driver, "portrait");
+    const portraitPath = resolveDriverPortrait(
+      driverId,
+      activeYear,
+      driver.portrait_path ?? driver.portrait ?? ""
+    );
+
+    // Do not mutate seed rows that never had any portrait information and for
+    // which the registry has no image. Existing managed paths still get
+    // rewritten/cleared so old saves cannot retain stale portrait ids.
+    if (!portraitPath && !hadPortraitField) return driver;
+
     return {
       ...driver,
-      portrait_path: resolveDriverPortrait(
-        driverId,
-        activeYear,
-        driver.portrait_path ?? driver.portrait ?? ""
-      ),
+      portrait_path: portraitPath,
     };
   });
 }
