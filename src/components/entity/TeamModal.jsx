@@ -7,6 +7,7 @@ import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.
 import { countryNameFor, flagFromCountry } from "./EntityVisuals.jsx";
 import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
+import { teamChampionshipSummary } from "../../domain/championshipHistory.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -176,18 +177,11 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
       .sort((a,b) => (order[a.__role] ?? 9) - (order[b.__role] ?? 9));
   }, [driversAll, driverContracts]);
 
-  /* ---------- Títulos (achievements) ---------- */
-  const achAll = getArr(gs, ["achievements","dbAchievements"]);
-  const achList = Array.isArray(achAll) ? achAll : (achAll?.list || []);
-  const champs = useMemo(() => {
-    let driversTitles = 0, constructors = 0;
-    for (const a of achList) {
-      if (String(a?.team_id ?? a?.team ?? a?.id) !== idStr) continue;
-      if (Number(a?.driver_championship) > 0) driversTitles += 1;
-      if (Number(a?.team_championship) > 0) constructors += 1;
-    }
-    return { driversTitles, constructors };
-  }, [achList, idStr]);
+  /* ---------- Championship history ---------- */
+  const champs = useMemo(
+    () => teamChampionshipSummary(gs,idStr),
+    [gs,idStr]
+  );
 
   /* ---------- Carreiras para "History" ---------- */
   const careerAll = getArr(gs, ["driverCareer","dbDriverCareer","career","dbCareer"]);
