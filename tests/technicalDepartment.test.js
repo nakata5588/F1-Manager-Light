@@ -9,6 +9,7 @@ import {
   technicalResearchAreaForProject,
   technicalResearchSupport,
 } from "../src/domain/technicalResearch.js";
+import { technicalDevelopmentCapacity } from "../src/domain/developmentProject.js";
 import {
   advancePitCrewTrainingDay,
   pitCrewEffectiveProfile,
@@ -79,13 +80,60 @@ test("research support area follows component and reliability objective",()=>{
   assert.equal(technicalResearchAreaForProject(gs,"aero_front","reliability"),"reliability");
 });
 
-test("pit crew Recovery and Balanced are distinct long-term training programmes",()=>{
+test("pit crew Recovery is fatigue-only while Balanced trains with almost neutral fatigue",()=>{
   const recovery=pitCrewTrainingLoadEffects(20);
   const balanced=pitCrewTrainingLoadEffects(50);
-  assert.ok(recovery.development_multiplier<balanced.development_multiplier);
-  assert.ok(recovery.fatigue_delta_per_day<balanced.fatigue_delta_per_day);
+  assert.equal(recovery.development_multiplier,0);
+  assert.equal(recovery.recovery_only,true);
+  assert.ok(recovery.fatigue_delta_per_day<0);
+  assert.ok(balanced.development_multiplier>0);
+  assert.ok(Math.abs(balanced.fatigue_delta_per_day)<=0.15);
   assert.equal(recovery.fatigue_direction,"recovers");
-  assert.equal(balanced.fatigue_direction,"recovers");
+});
+
+test("Recovery never degrades base pit-crew skill",()=>{
+  const seed={avg_time_s:6.4,consistency:82,error_rate:0.04,training_load:20,fatigue:35};
+  const projected=projectPitCrewTraining(seed,8,7);
+  assert.equal(projected.raw.avg_time_s,seed.avg_time_s);
+  assert.equal(projected.raw.consistency,seed.consistency);
+  assert.equal(projected.raw.error_rate,seed.error_rate);
+  assert.ok(projected.raw.fatigue<seed.fatigue);
+  assert.ok(projected.effective.avg_time_s<pitCrewEffectiveProfile(seed).avg_time_s);
+  assert.ok(projected.effective.consistency>pitCrewEffectiveProfile(seed).consistency);
+  assert.ok(projected.effective.error_rate<pitCrewEffectiveProfile(seed).error_rate);
+});
+
+test("development project slots are concurrent capacity, not a seasonal allowance",()=>{
+  const gs={
+    activeYear:1980,
+    team:{team_id:"FERRARI"},
+    hq:{facilityLevels:{
+      aero_dept_level:10,
+      wind_tunnel_level:10,
+      _chassis_shop_level:10,
+      manufacturing_leve:10,
+    }},
+    facilities:[],
+  };
+  const completed=Array.from({length:8},(_,i)=>({id:"done_"+i,status:"completed",engineers:3}));
+  const twoActive=[
+    {id:"a",status:"active",engineers:3},
+    {id:"b",status:"paused",engineers:2},
+  ];
+  const capacity=technicalDevelopmentCapacity(gs,"FERRARI",{
+    engineeringSupport:100,
+    projects:[...completed,...twoActive],
+  });
+  assert.equal(capacity.max_projects,3);
+  assert.equal(capacity.active_projects,2);
+  assert.equal(capacity.project_slot_available,true);
+
+  const full=technicalDevelopmentCapacity(gs,"FERRARI",{
+    engineeringSupport:100,
+    projects:[...completed,...twoActive,{id:"c",status:"active",engineers:2}],
+  });
+  assert.equal(full.active_projects,3);
+  assert.equal(full.project_slot_available,false);
 });
 
 test("maximum pit crew training improves raw skill faster but creates race-day fatigue",()=>{
