@@ -526,6 +526,7 @@ export default function RaceWeekend(){
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
+  const pushToast=useGame((s)=>s.pushToast);
   const [busy,setBusy]=useState(false);
   const [activeWindow,setActiveWindow]=useState("overview");
   const [liveTimingMode,setLiveTimingMode]=useState("overall");
@@ -695,7 +696,19 @@ export default function RaceWeekend(){
   const perform=async(fn)=>{
     if(busy)return;
     setBusy(true);
-    try{await fn();}finally{setBusy(false);}
+    try{
+      await fn();
+    }catch(error){
+      console.error("[RaceWeekend] action failed:",error);
+      pushToast?.({
+        title:"Race Weekend action failed",
+        description:"The previous race state was kept. You can retry the action.",
+        type:"error",
+        ttl:4200,
+      });
+    }finally{
+      setBusy(false);
+    }
   };
 
   const advanceSession=()=>perform(async()=>{
