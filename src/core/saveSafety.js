@@ -2,6 +2,7 @@
 import { hashSeed } from "./random.js";
 import { normalizePhysicalPartState } from "../domain/partUnits.js";
 import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
+import { normalizeRaceWeekendGrid } from "../domain/raceWeekendCompatibility.js";
 
 export const SAVE_SCHEMA_VERSION = 2;
 export const MIN_SUPPORTED_SAVE_SCHEMA_VERSION = 0;
@@ -193,6 +194,12 @@ export function migrateGameState(input) {
   };
 
   state = normalizeStandingsState(state);
+  if (state?.raceWeekendState) {
+    state = {
+      ...state,
+      raceWeekendState: normalizeRaceWeekendGrid(state.raceWeekendState),
+    };
+  }
   return synchronizeDriverRelationships(state,{source:"save_backfill_neutral"});
 }
 
