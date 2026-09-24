@@ -285,6 +285,11 @@ export default function LoadGame() {
 
       if (typeof loadFromKey === "function" && SAVE_PREFIXES.some((p) => save.key.startsWith(p))) {
         loadedOk = Boolean(await Promise.resolve(loadFromKey(save.key)));
+        // Imported files can still be loaded directly when localStorage could
+        // not persist them (for example because the browser quota is full).
+        if (!loadedOk && typeof loadGame === "function" && save.raw) {
+          loadedOk = Boolean(await Promise.resolve(loadGame(save.raw)));
+        }
       } else if (typeof loadGameFromSlot === "function") {
         loadedOk = Boolean(await Promise.resolve(loadGameFromSlot(save.key)));
       } else if (typeof loadGame === "function") {
