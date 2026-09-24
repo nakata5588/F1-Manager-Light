@@ -135,15 +135,20 @@ function evictOldSaves(minKeep = 3) {
     return removed;
   } catch { return 0; }
 }
-function setItemQuotaSafe(key, value) {
+function setItemQuotaSafe(key, value, { evictManualSaves = true } = {}) {
   try {
     localStorage.setItem(key, value);
     return true;
   } catch (e) {
     if (!isQuotaError(e)) throw e;
+    // Background/rolling autosaves must never delete the user's manual saves.
+    if (!evictManualSaves) return false;
     evictOldSaves(2);
     try { localStorage.setItem(key, value); return true; } catch { return false; }
   }
+}
+function setRollingSnapshot(value) {
+  return setRollingSnapshot( value, { evictManualSaves: false });
 }
 
 function hydrateLoadedGameState(saved) {
@@ -192,14 +197,10 @@ function checkpointRaceWeekendState(gs) {
     const phase=String(gs?.raceWeekendState?.phase||"");
     if(!phase||phase==="completed"||gs?.settings?.autosave===false)return false;
     const light=makeLightSnapshot(gs);
-    const ok=setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
-    if(ok){
-      // Secondary recovery payload. The rolling Continue snapshot remains the
-      // primary recovery source, while this provides a timestamped checkpoint
-      // for diagnostics/future recovery UI.
-      setItemQuotaSafe("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now(),reason:"race_weekend_checkpoint"}));
-    }
-    return ok;
+    // One rolling recovery snapshot is enough. A second full copy used to
+    // double localStorage pressure during live weekends and could trigger
+    // eviction of manual saves.
+    return setRollingSnapshot(JSON.stringify(light));
   } catch (error) {
     console.warn("race weekend checkpoint failed:",error);
     return false;
@@ -1400,7 +1401,7 @@ export const useGame = create((set, get) => ({
       const light = makeLightSnapshot(state);
       // SAVE_KEY is the rolling "Continue" snapshot. It must not create a
       // visible/manual save slot every time a new career starts or autosaves.
-      return setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
+      return setRollingSnapshot( JSON.stringify(light));
     } catch (e) {
       console.error("saveLocal() failed:", e);
       return false;
@@ -1497,7 +1498,7 @@ export const useGame = create((set, get) => ({
         if (persisted) {
           localStorage.setItem(LAST_SAVE_KEY, key);
           // Keep Continue in sync with the most recently saved career.
-          continueSnapshotOk = setItemQuotaSafe(SAVE_KEY, JSON.stringify(light));
+          continueSnapshotOk = setRollingSnapshot( JSON.stringify(light));
           set({ currentSaveKey: key });
         } else {
           errorMessage = "Browser storage is full. The save was not written.";
@@ -1545,7 +1546,7 @@ export const useGame = create((set, get) => ({
           localStorage.setItem(LAST_SAVE_KEY, key);
           // Loading a manual/imported save must also become the active Continue
           // snapshot, otherwise Continue can reopen a different career.
-          setItemQuotaSafe(SAVE_KEY, JSON.stringify(makeLightSnapshot(gs)));
+          setRollingSnapshot( JSON.stringify(makeLightSnapshot(gs)));
         } catch {}
         return gs;
       }
@@ -1623,7 +1624,7 @@ export const useGame = create((set, get) => ({
       if(next?.settings?.autosave!==false){
         const light=makeLightSnapshot(next);
         localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+        setRollingSnapshot(JSON.stringify(light));
       }
     } catch {}
     return next?.raceWeekendState||null;
@@ -1641,7 +1642,7 @@ export const useGame = create((set, get) => ({
       if(next?.settings?.autosave!==false){
         const light=makeLightSnapshot(next);
         localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+        setRollingSnapshot(JSON.stringify(light));
       }
     } catch {}
     return next?.raceWeekendState||null;
@@ -1722,7 +1723,7 @@ export const useGame = create((set, get) => ({
       if(next?.settings?.autosave!==false){
         const light=makeLightSnapshot(next);
         localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+        setRollingSnapshot(JSON.stringify(light));
       }
     } catch {}
     return next?.raceWeekendState||null;
@@ -1870,7 +1871,7 @@ export const useGame = create((set, get) => ({
       if(updated?.settings?.autosave!==false){
         const light=makeLightSnapshot(updated);
         localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setItemQuotaSafe(SAVE_KEY,JSON.stringify(light));
+        setRollingSnapshot(JSON.stringify(light));
       }
     } catch {}
 
