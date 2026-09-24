@@ -278,7 +278,7 @@ function facilityRows(gs,teamId){
 }
 
 export function technicalDevelopmentCapacity(gs,teamId,{
-  engineeringSupport=50,projects=[],
+  engineeringSupport=50,projects=[],reservedEngineers=0,
 }={}){
   const facilities=facilityRows(gs,teamId);
   const facilityAverage=(facilities.aero+facilities.wind+facilities.chassis+facilities.manufacturing)/4;
@@ -288,11 +288,15 @@ export function technicalDevelopmentCapacity(gs,teamId,{
   ));
   const occupying=(projects||[]).filter((project)=>project?.status==="active"||project?.status==="paused");
   const working=occupying.filter((project)=>project?.status==="active");
-  const usedEngineers=working.reduce((sum,project)=>sum+Math.max(0,num(project?.engineers,0)),0);
+  const projectEngineers=working.reduce((sum,project)=>sum+Math.max(0,num(project?.engineers,0)),0);
+  const reserved=Math.max(0,num(reservedEngineers,0));
+  const usedEngineers=projectEngineers+reserved;
   const maxProjects=Math.round(clamp(1+Math.floor((facilityAverage-2)/3),1,3));
   return {
     engineer_pool:engineerPool,
     used_engineers:usedEngineers,
+    project_engineers:projectEngineers,
+    reserved_engineers:reserved,
     available_engineers:Math.max(0,engineerPool-usedEngineers),
     active_projects:occupying.length,
     working_projects:working.length,

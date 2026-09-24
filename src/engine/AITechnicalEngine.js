@@ -10,6 +10,7 @@ import {
   bestDevelopedPartForSlot,
   buildDevelopmentProjection,
   developmentObjectivesForSlot,
+  technicalDevelopmentCapacity,
 } from "../domain/developmentProject.js";
 import {
   activeWorkshopJobFor,
@@ -344,8 +345,9 @@ function projectQuote(gs,teamId,state,need){
   const diminishing=Math.max(0.34,1-(incumbent/MAX_SLOT_DEVELOPMENT_STRENGTH)*0.62);
   const increment=Math.min(headroom,Math.max(0.12,rawIncrement*diminishing));
   const targetPerf=Math.min(MAX_SLOT_DEVELOPMENT_STRENGTH,incumbent+increment);
+  const engineers=Math.round(clamp(2+strength/2.5,2,6));
   return {
-    days,cost,
+    days,cost,engineers,
     perf:Number(targetPerf.toFixed(3)),
     increment:Number(increment.toFixed(3)),
     incumbent:Number(incumbent.toFixed(3)),
@@ -357,13 +359,20 @@ function activeProjects(state){return (state?.development?.projects||[]).filter(
 function activeManufacturing(state){return (state?.development?.manufacturing||[]).filter((p)=>p?.status==="active");}
 
 function planningReviewIntervalDays(gs,teamId){
-  return Math.round(clamp(38-engineeringStrength(gs,teamId)*2,18,36));
+  // Reviews are intentionally shorter than a normal design cycle so capable
+  // teams can fill more than one concurrent project slot when resources allow.
+  return Math.round(clamp(22-engineeringStrength(gs,teamId)*1.1,10,18));
 }
 function initialPlanningDelayDays(gs,teamId){
   return 10+(stableHash(`${teamId}|${yearOf(gs)}|first-review`)%9);
 }
-function seasonProjectLimit(gs,teamId){
-  return Math.round(clamp(2+Math.floor(engineeringStrength(gs,teamId)/3),3,5));
+function aiCurrentCarCapacity(gs,teamId,state){
+  const scoped=scopedState(gs,teamId,state);
+  const engineeringSupport=clamp(45+engineeringStrength(gs,teamId)*5,50,95);
+  return technicalDevelopmentCapacity(scoped,teamId,{
+    engineeringSupport,
+    projects:state?.development?.projects||[],
+  });
 }
 function inferredInitialBudget(gs,state){
   const year=yearOf(gs);
@@ -1098,7 +1107,9 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   const planning=state?.planning||{};
   const technology=!force?technologyPlanningCandidate(normalized,teamId,state):null;
   const need=chooseNeed(normalized,teamId,state);
-  const quote=need?projectQuote(normalized,teamId,state,need):null;
+  const capacity=aiCurrentCarCapacity(normalized,teamId,state);
+  const rawQuote=need?projectQuote(normalized,teamId,state,need):null;
+  const quote=rawQuote?{...rawQuote,engineers:Math.max(0,Math.min(rawQuote.engineers,Math.floor(capacity.available_engineers)))}:null;
   const manufacturing=need&&quote
     ?estimatedManufacturingCommitment(normalized,teamId,state,need,quote)
     :{qty:2,unit_cost:0,cost:0,days:0};
@@ -1111,7 +1122,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   const budget=num(state?.budget,0);
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
   const projects=seasonProjectsStarted(normalized,state);
-  const limit=seasonProjectLimit(normalized,teamId);
   const reviewInterval=planningReviewIntervalDays(normalized,teamId);
   const nextReview=str(planning?.next_review_date).slice(0,10)||today;
   const gapThreshold=planningGapThreshold(normalized,teamId);
@@ -1148,7 +1158,10 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     total_commitment:totalCommitment,
     budget_after_commitment:budget-totalCommitment,
     season_projects:projects,
-    season_limit:limit,
+    concurrent_projects:capacity.active_projects,
+    project_slots:capacity.max_projects,
+    engineers_used:capacity.used_engineers,
+    engineers_available:capacity.available_engineers,
     review_interval_days:reviewInterval,
     next_review_date:nextReview,
     gap_threshold:gapThreshold,
@@ -1159,14 +1172,8 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     delivery_days:deliveryDays,
   };
 
-  if(activeProjects(state).length||activeManufacturing(state).length||activeTechnologyProjects(state).length){
-    return {...base,action:"hold",reason:"technical_capacity_busy"};
-  }
   if(!force&&today<nextReview){
     return {...base,action:"hold",reason:"review_not_due"};
-  }
-  if(!force&&projects>=limit){
-    return {...base,action:"hold",reason:"season_capacity_reached"};
   }
   if(!force&&remaining===0){
     return {...base,action:"hold",reason:"season_complete"};
@@ -1189,6 +1196,9 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
       quote:technology.quote,
       manufacturing:{qty:0,unit_cost:0,cost:0,days:0},
     };
+  }
+  if(!capacity.project_slot_available||capacity.available_engineers<1||num(quote?.engineers,0)<1){
+    return {...base,action:"hold",reason:"technical_capacity_busy"};
   }
   if(!need){
     return {...base,action:"hold",reason:"no_legal_component"};
@@ -1295,6 +1305,7 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
     started_at:today,
     finishes_at:addDaysISO(today,quote.days),
     duration_days:quote.days,
+    engineers:quote.engineers,
     cost:quote.cost,
     perf_delta:quote.increment,
     base_design_perf:quote.incumbent,
@@ -1315,10 +1326,7 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
   };
   const record=planningDecisionRecord(today,"develop",assessment.reason,assessment);
   const history=[...(state?.planning?.decision_history||[]),record].slice(-40);
-  const nextReview=addDaysISO(
-    today,
-    Number(quote.days||0)+Number(manufacturing.days||0)+assessment.review_interval_days
-  );
+  const nextReview=addDaysISO(today,assessment.review_interval_days);
   const developmentWithProject={
     ...(state.development||{}),
     projects:[...(state.development?.projects||[]),project],
@@ -1478,7 +1486,7 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
   state=queueManufacturing(next,teamId,state,today);
   next=replaceTeamState(next,teamId,state);
 
-  if(allowPlanning&&!activeProjects(state).length&&!activeManufacturing(state).length){
+  if(allowPlanning){
     next=planAITechnicalProject(next,teamId);
   }
   return next;

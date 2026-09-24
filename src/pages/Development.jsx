@@ -49,6 +49,15 @@ import {
   technologyAdoptionQuote,
   technologyProjectsForTeam,
 } from "@/domain/technologyAdoption.js";
+import {
+  NEXT_SEASON_PHASES,
+  normalizeNextSeasonCarProgramme,
+  nextSeasonProgrammeQuote,
+  pauseNextSeasonCarProgramme,
+  resumeNextSeasonCarProgramme,
+  setNextSeasonCarEngineers,
+  startNextSeasonCarProgramme,
+} from "@/domain/nextSeasonCar.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -206,13 +215,16 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
   const research = normalizeTechnicalResearch(dev.research);
   const researchOutput=technicalResearchDailyOutput(gameState);
+  const nextSeasonCar=normalizeNextSeasonCarProgramme(dev.nextSeasonCar,{activeYear});
+  const nextSeasonReservedEngineers=nextSeasonCar.status==="active"?Number(nextSeasonCar.engineers||0):0;
 
-  const validTabs = ["projects","parts","manufacturing","research","pit_crew"];
+  const validTabs = ["projects","next_season","parts","manufacturing","research","pit_crew"];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
     type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0, researchSupport:0,
   });
+  const [nextSeasonDraftEngineers,setNextSeasonDraftEngineers]=useState(4);
 
   useEffect(() => {
     if (validTabs.includes(initialTab) && initialTab !== tab) setTab(initialTab);
@@ -285,7 +297,24 @@ export default function Development({ embedded = false, initialTab = "projects",
   const capacity=technicalDevelopmentCapacity(gameState,teamId,{
     engineeringSupport,
     projects,
+    reservedEngineers:nextSeasonReservedEngineers,
   });
+  const nextSeasonBaseCapacity=technicalDevelopmentCapacity(gameState,teamId,{
+    engineeringSupport,
+    projects,
+    reservedEngineers:0,
+  });
+  const nextSeasonDraftMax=Math.max(1,Number(nextSeasonBaseCapacity.available_engineers||1));
+  const nextSeasonQuote=nextSeasonProgrammeQuote(gameState,{
+    teamId,
+    engineers:Math.min(nextSeasonDraftEngineers,nextSeasonDraftMax),
+  });
+  const canStartNextSeason=Boolean(
+    currentDateISO &&
+    nextSeasonCar.status==="not_started" &&
+    nextSeasonDraftEngineers<=nextSeasonBaseCapacity.available_engineers &&
+    budget>=nextSeasonQuote.launch_cost
+  );
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
   const nextDesignVersion=parts.filter((part)=>String(part?.slot)===String(draft.type)).length+1;
   const automaticProjectName=`${componentLabel(gameState,draft.type)} · ${objective?.label||"Balanced Package"} · P${nextDesignVersion}`;
@@ -450,6 +479,33 @@ export default function Development({ embedded = false, initialTab = "projects",
     setGameState({development:{...dev,projects,parts,partUnits,manufacturing,research:next}});
   };
 
+  const startNextSeasonProgramme=()=>{
+    if(!canStartNextSeason)return;
+    const next=startNextSeasonCarProgramme(gameState,{
+      teamId,
+      engineers:nextSeasonDraftEngineers,
+      engineeringSupport,
+    });
+    if(next!==gameState)setGameState(next);
+  };
+
+  const updateNextSeasonEngineers=(value)=>{
+    const requested=Math.max(1,Math.min(nextSeasonDraftMax,Number(value)||1));
+    const next=setNextSeasonCarEngineers(gameState,{
+      teamId,
+      engineers:requested,
+      engineeringSupport,
+    });
+    if(next!==gameState)setGameState(next);
+  };
+
+  const toggleNextSeasonPause=()=>{
+    const next=nextSeasonCar.status==="paused"
+      ?resumeNextSeasonCarProgramme(gameState,{teamId,engineeringSupport})
+      :pauseNextSeasonCarProgramme(gameState);
+    if(next!==gameState)setGameState(next);
+  };
+
   const setPitCrewTrainingLoad=(load)=>{
     const pitCrews={...(gameState?.raceStrategyWorld?.pitCrews||{})};
     pitCrews[teamId]={...rawPitCrew,training_load:Math.max(0,Math.min(100,Number(load)||0))};
@@ -487,7 +543,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         <div>
           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Technical Department</div>
           <h1 className="text-2xl md:text-3xl font-semibold">Technical Development</h1>
-          <p className="text-sm text-slate-400">Current-car design briefs, technology R&D, manufacturing and race operations.</p>
+          <p className="text-sm text-slate-400">Current-car development, next-season engineering, technology R&D, manufacturing and race operations.</p>
         </div>
         <div className="flex-1" />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -497,7 +553,7 @@ export default function Development({ embedded = false, initialTab = "projects",
           <Mini label="Work Rate" value={moraleWorkRate.label}/>
           <Mini label="Engineers Free" value={capacity.available_engineers+"/"+capacity.engineer_pool}/>
         </div>
-        <Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>
+        {(showCreate||tab==="projects")&&<Button onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
       </div>}
 
       {showCreate && (
@@ -647,6 +703,7 @@ export default function Development({ embedded = false, initialTab = "projects",
         <div className="flex flex-wrap gap-2">
           {[
             ["projects","Current Car"],
+            ["next_season","Next Season Car"],
             ["manufacturing","Manufacturing"],
             ["parts","Blueprints"],
             ["research","Research / Technology"],
@@ -661,8 +718,7 @@ export default function Development({ embedded = false, initialTab = "projects",
           <Mini label="Wind Tunnel" value={"Lv "+levelOf("wind_tunnel_level")}/>
           <Mini label="Manufacturing" value={"Lv "+levelOf("manufacturing_leve")}/>
         </div>
-        <Button size="sm" variant="outline" disabled>Next Season Car · Stage 7</Button>
-        {embedded && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
+        {embedded && (showCreate||tab==="projects") && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
       </div>}
 
       {!showCreate && tab==="projects" && (
@@ -784,6 +840,111 @@ export default function Development({ embedded = false, initialTab = "projects",
               {!(physicalState?.garage?.serviceJobs||[]).length&&<tr><td colSpan={5} className="px-3 py-5 text-center text-slate-400">No workshop jobs.</td></tr>}</tbody>
             </table>
           </CardContent></Card>
+        </div>
+      )}
+
+      {!showCreate && tab==="next_season" && (
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Strategic Technical Programme</div>
+                  <div className="font-semibold">Next Season Car · {nextSeasonCar.targetSeason}</div>
+                </div>
+                <InfoPopover title="Next Season Car">
+                  This is the technical programme for the following season. It does not use a Current Car Project Slot, but allocated engineers are shared with the current-car development department. Progress is driven by the game clock.
+                </InfoPopover>
+              </div>
+              <div className="lg:flex-1"/>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <Mini label="Target" value={String(nextSeasonCar.targetSeason)}/>
+                <Mini label="Status" value={nice(nextSeasonCar.status)}/>
+                <Mini label="Phase" value={nice(nextSeasonCar.phase)}/>
+                <Mini label="Progress" value={Number(nextSeasonCar.overall_progress||0).toFixed(1)+"%"}/>
+                <Mini label="Engineers" value={String(nextSeasonCar.engineers||0)}/>
+              </div>
+            </div>
+          </CardContent></Card>
+
+          {nextSeasonCar.status==="not_started" ? (
+            <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
+              <div>
+                <div className="font-semibold">Launch {nextSeasonCar.targetSeason} programme</div>
+                <div className="text-sm text-slate-400 mt-1">Choose the engineering commitment. These engineers remain unavailable for Current Car projects while the programme is active.</div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-end">
+                <div className="lg:col-span-2 rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                  <div className="flex items-center justify-between text-sm"><span>Engineering allocation</span><strong>{nextSeasonDraftEngineers} engineers</strong></div>
+                  <input
+                    className="w-full mt-3"
+                    type="range"
+                    min="1"
+                    max={nextSeasonDraftMax}
+                    step="1"
+                    value={Math.min(nextSeasonDraftEngineers,nextSeasonDraftMax)}
+                    onChange={(e)=>setNextSeasonDraftEngineers(Number(e.target.value))}
+                  />
+                  <div className="mt-2 text-xs text-slate-500">{nextSeasonBaseCapacity.available_engineers} engineers currently available · Current Car slots remain {capacity.active_projects}/{capacity.max_projects}.</div>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 space-y-2">
+                  <Mini label="Programme launch" value={fmtMoney(nextSeasonQuote.launch_cost)}/>
+                  <Button className="w-full" disabled={!canStartNextSeason} onClick={startNextSeasonProgramme}>Start Programme</Button>
+                  {!canStartNextSeason&&budget<nextSeasonQuote.launch_cost?<div className="text-[11px] text-rose-300">Insufficient budget.</div>:null}
+                </div>
+              </div>
+            </CardContent></Card>
+          ) : (
+            <>
+              <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">Technical programme progress</div>
+                    <div className="text-xs text-slate-500 mt-1">Current phase: {nice(nextSeasonCar.phase)} · {Number(nextSeasonCar.phase_progress||0).toFixed(1)}% phase progress</div>
+                  </div>
+                  {nextSeasonCar.status!=="completed"&&<Button size="sm" variant="outline" onClick={toggleNextSeasonPause}>{nextSeasonCar.status==="paused"?"Resume":"Pause"}</Button>}
+                </div>
+                <div className="h-2 rounded bg-white/10 overflow-hidden"><div className="h-full bg-cyan-300/70" style={{width:Number(nextSeasonCar.overall_progress||0)+"%"}}/></div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                  {NEXT_SEASON_PHASES.map((phase)=>{
+                    const current=phase.id===nextSeasonCar.phase;
+                    const phaseOrder=NEXT_SEASON_PHASES.findIndex((row)=>row.id===phase.id);
+                    const currentOrder=NEXT_SEASON_PHASES.findIndex((row)=>row.id===nextSeasonCar.phase);
+                    const complete=nextSeasonCar.status==="completed"||phaseOrder<currentOrder;
+                    return <div key={phase.id} className={"rounded-lg border p-3 "+(current?"border-cyan-300/40 bg-cyan-300/[0.08]":complete?"border-emerald-400/20 bg-emerald-500/[0.05]":"border-white/10 bg-[#0d0f15]")}>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">{complete?"Complete":current?"Current":"Upcoming"}</div>
+                      <div className="font-semibold mt-1">{phase.label}</div>
+                      <div className="text-[11px] text-slate-500 mt-1">{phase.description}</div>
+                    </div>;
+                  })}
+                </div>
+              </CardContent></Card>
+
+              <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-center">
+                  <div className="lg:col-span-2">
+                    <div className="flex items-center justify-between text-sm"><span>Allocated engineers</span><strong>{nextSeasonCar.engineers||0}/{nextSeasonBaseCapacity.available_engineers}</strong></div>
+                    <input
+                      className="w-full mt-3"
+                      type="range"
+                      min="1"
+                      max={nextSeasonDraftMax}
+                      step="1"
+                      disabled={nextSeasonCar.status==="completed"}
+                      value={Math.min(Math.max(1,Number(nextSeasonCar.engineers||1)),nextSeasonDraftMax)}
+                      onChange={(e)=>updateNextSeasonEngineers(e.target.value)}
+                    />
+                    <div className="text-xs text-slate-500 mt-2">Next Season Car does not consume a Project Slot. It consumes engineers from the same technical pool as Current Car projects.</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Mini label="Launch cost" value={fmtMoney(nextSeasonCar.launch_cost)}/>
+                    <Mini label="Started" value={nextSeasonCar.started_at||"—"}/>
+                  </div>
+                </div>
+                {nextSeasonCar.status==="completed"?<div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-sm text-emerald-200">Technical package complete. Season-transition materialisation will convert this programme into the new Current Car baseline in the later Stage 7 rollover step.</div>:null}
+              </CardContent></Card>
+            </>
+          )}
         </div>
       )}
 
