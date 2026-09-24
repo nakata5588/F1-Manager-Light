@@ -8,6 +8,7 @@ import {
   swapRaceDriverRoles,
 } from "../src/domain/driverContracts.js";
 import { contractRoleLabel, driverRoleSlot } from "../src/domain/contractRoles.js";
+import { driverRelationship } from "../src/domain/driverRelationships.js";
 
 function fixture(){
   return {
@@ -102,6 +103,10 @@ test("promoting Test Driver into occupied Second seat swaps atomically",()=>{
   assert.equal(next.driverRelationships.relations["D4|teammate|D1"].active,true);
   assert.equal(next.driverRelationships.relations["D4|teammate|D2"].active,false);
   assert.ok(next.driverRelationships.relations["D4|teammate|D2"].rivalry>0);
+  assert.ok(driverRelationship(next,"D4","team","T1").satisfaction>50);
+  assert.ok(driverRelationship(next,"D4","manager","player_manager").satisfaction>50);
+  assert.ok(driverRelationship(next,"D2","team","T1").satisfaction<50);
+  assert.equal(driverRelationship(next,"D4","team","T1").current_role,"Second Driver");
 });
 
 test("promotion into a vacant race seat changes role without terminating the contract",()=>{
