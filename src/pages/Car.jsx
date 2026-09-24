@@ -564,6 +564,20 @@ export default function Car(){
     const vals=eligibleComponentSlots.map((slot)=>componentConditionForCar(carState,car,slot));
     return vals.reduce((a,b)=>a+b,0)/Math.max(1,vals.length);
   }).reduce((a,b)=>a+b,0)/raceCars.length:0;
+  const visibleCharacteristicMetrics=CHARACTERISTIC_METRICS.filter(([key])=>
+    characteristicGrid.some((row)=>row?.[key]!=null)
+  );
+  const changeAnalysisSort=(key)=>setAnalysisSort((current)=>({
+    key,
+    dir:current.key===key&&current.dir==="desc"?"asc":"desc",
+  }));
+  const selectAnalysisMode=(mode)=>{
+    setAnalysisMode(mode);
+    const metrics=mode==="performance"?PERFORMANCE_METRICS:visibleCharacteristicMetrics;
+    if(!metrics.some(([key])=>key===analysisSort.key)){
+      setAnalysisSort({key:metrics[0]?.[0]||"overall",dir:"desc"});
+    }
+  };
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-5 space-y-4">
     <div className="rounded-xl border border-white/10 bg-[#12141c] px-4 py-3 flex flex-col xl:flex-row xl:items-center gap-3">
@@ -735,25 +749,19 @@ export default function Car(){
           const active=car.id===selectedCar?.id;
           return <button key={car.id} onClick={()=>setView("analysis",{car:car.id})} className={"rounded-lg border px-3 py-2 flex items-center gap-3 text-left "+(active?"border-cyan-300/30 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.03] hover:bg-white/[0.05]")}><DriverPortrait driver={d||{display_name:"Car"}} size="h-10 w-10"/><div className="min-w-0 flex-1"><div className="font-semibold">{car.label}</div><div className="text-xs text-slate-500 truncate">{d?.display_name||d?.name||"No driver assigned"}</div></div>{active?<span className="text-[10px] uppercase tracking-wide text-cyan-300">Selected</span>:null}</button>;
         })}</div>
-        <div className="lg:max-w-[430px] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-500">Historical starting specification is TEAM + YEAR, so Car 1 and Car 2 can begin identical. Physical units, wear, accidents, upgrades and setup make them diverge during the save.</div>
+        <div className="lg:max-w-[430px] rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-500">Click any metric heading to sort the whole grid. Car 1 and Car 2 may start from the same TEAM + YEAR baseline, then diverge through upgrades, wear, accidents and setup.</div>
       </div></Panel>
-      <Panel title="Grid Analysis" action={<div className="flex gap-1"><button onClick={()=>setAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>setAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
-        {analysisMode==="performance"?<div className="max-h-[68vh] overflow-auto"><table className="min-w-full text-sm"><thead className="bg-[#171a23] text-slate-400"><tr><th className="px-4 py-2.5 text-left">Performance</th><th className="px-4 py-2.5 text-right">{selectedCar?.label||"Selected"}</th><th className="px-4 py-2.5 text-right">Grid Average</th><th className="px-4 py-2.5 text-right">Delta</th><th className="px-4 py-2.5 text-right">Rank</th></tr></thead><tbody>{PERFORMANCE_METRICS.map(([key,label])=>{
-          const value=Number(selectedPerf?.[key]||0); const avg=metricAverage(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id); const delta=value-avg; const rank=metricRank(carGrid,teamId,selectedPerf,key,selectedCar?.driver_id);
-          return <tr key={key} className="border-t border-white/10"><td className="px-4 py-3 font-medium">{label}</td><td className="px-4 py-3 text-right font-semibold">{value.toFixed(1)}</td><td className="px-4 py-3 text-right text-slate-400">{avg.toFixed(1)}</td><td className={"px-4 py-3 text-right font-medium "+(delta>=0?"text-emerald-300":"text-amber-300")}>{(delta>=0?"+":"")+delta.toFixed(1)}</td><td className={"px-4 py-3 text-right font-semibold "+(rank&&rank<=3?"text-cyan-300":"")}>{rank?"#"+rank:"—"}</td></tr>;
-        })}</tbody></table></div>:<div className="max-h-[68vh] overflow-auto">
-          <table className="min-w-[1080px] w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-[#171a23] text-slate-400"><tr><th className="px-3 py-2 text-left">Team / Car</th>{CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key,label])=><th key={key} className="px-3 py-2 text-right whitespace-nowrap">{label}</th>)}</tr></thead>
-            <tbody>{characteristicGrid.map((row,index)=>{
-              const isSelected=String(row.team_id)===teamId&&String(row.driver_id||"")===String(selectedCar?.driver_id||"");
-              const driver=driverById.get(String(row.driver_id||""));
-              return <tr key={String(row.team_id)+"-"+String(row.driver_id||index)} className={"border-t border-white/10 "+(isSelected?"bg-cyan-300/[0.08]":"")}>
-                <td className="px-3 py-2"><div className="font-medium">{row.team_name||row.team_id} · Car {row.car_slot||1}</div><div className="text-[10px] text-slate-500">{driver?.display_name||driver?.name||row.driver_id||"Team baseline"}</div></td>
-                {CHARACTERISTIC_METRICS.filter(([key])=>selectedCharacteristics?.values?.[key]!=null).map(([key])=>{const value=row?.[key]; const selectedValue=Number(selectedCharacteristics?.values?.[key]||0); const cls=isSelected?"font-semibold text-cyan-200":Number(value)>selectedValue?"text-emerald-300":"text-slate-300"; return <td key={key} className={"px-3 py-2 text-right tabular-nums "+cls}>{value==null?"—":Number(value).toFixed(1)}</td>;})}
-              </tr>;
-            })}</tbody>
-          </table>
-        </div>}
+      <Panel title="Grid Analysis" action={<div className="flex gap-1"><button onClick={()=>selectAnalysisMode("characteristics")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="characteristics"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Characteristics</button><button onClick={()=>selectAnalysisMode("performance")} className={"px-3 py-1.5 rounded text-xs font-semibold "+(analysisMode==="performance"?"bg-slate-100 text-slate-950":"bg-white/5 text-slate-400")}>Performance</button></div>}>
+        <SortableAnalysisTable
+          rows={analysisMode==="performance"?carGrid:characteristicGrid}
+          metrics={analysisMode==="performance"?PERFORMANCE_METRICS:visibleCharacteristicMetrics}
+          sortKey={analysisSort.key}
+          sortDir={analysisSort.dir}
+          onSort={changeAnalysisSort}
+          teamId={teamId}
+          driverId={selectedCar?.driver_id}
+          driverById={driverById}
+        />
       </Panel>
     </div>}
 
