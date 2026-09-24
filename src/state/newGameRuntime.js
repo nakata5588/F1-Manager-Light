@@ -1,3 +1,5 @@
+import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
+
 // src/state/newGameRuntime.js
 // New Game isolation boundary.
 // Historical/database seed data may cross into a fresh career. Simulated Save
@@ -64,6 +66,7 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     driverAttrLog: {},
     driverMentalStateLog: {},
     driverReputationLog: {},
+    driverRelationships: { version: 1, relations: {}, log: [] },
     driverAttributes: initialDriverConditions,
     driverAvailability: {},
     medicalHistory: [],
@@ -107,11 +110,12 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
 }
 
 export function buildFreshCareerState(source,runtimePatch={}){
-  return {
+  const fresh={
     ...copyStaticWorld(source||{}),
     ...freshCareerRuntimeState({
       initialDriverConditions:runtimePatch?.driverAttributes||{},
     }),
     ...runtimePatch,
   };
+  return synchronizeDriverRelationships(fresh,{source:"career_start_neutral"});
 }
