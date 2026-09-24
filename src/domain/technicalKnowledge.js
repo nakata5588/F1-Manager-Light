@@ -242,6 +242,22 @@ export function technicalKnowledgeSnapshot(gs,{teamId=null,development=null}={})
   return normalizeTechnicalKnowledge(dev?.technicalKnowledge,{gs,teamId});
 }
 
+export function technicalLearningContext(gs,{teamId=null}={}){
+  const id=teamIdOf(gs,teamId);
+  const staff=technicalStaffQuality(gs,id);
+  const facilities=facilitySnapshot(gs,id);
+  const multiplier=clamp(
+    0.72+staff/250+facilities.average/50,
+    0.80,1.25
+  );
+  return {
+    team_id:id,
+    staff_quality:staff,
+    facility_average:facilities.average,
+    multiplier:round(multiplier,3),
+  };
+}
+
 function diminishingKnowledgeGain(level,rawGain){
   const current=clamp(level,0,100);
   const factor=clamp(1-current/125,0.22,0.88);
@@ -262,11 +278,13 @@ export function applyTechnicalKnowledgeGains(gs,gains=[],{
 
   const applied=[];
   const areas={...ledger.areas};
+  const learning=technicalLearningContext(gs,{teamId});
   for(const gain of gains||[]){
     const area=str(gain?.area);
     if(!AREA_IDS.has(area))continue;
-    const raw=Math.max(0,num(gain?.gain,0));
-    if(raw<=0)continue;
+    const baseRaw=Math.max(0,num(gain?.gain,0));
+    if(baseRaw<=0)continue;
+    const raw=baseRaw*learning.multiplier;
     const current=areas[area];
     const delta=diminishingKnowledgeGain(current.level,raw);
     if(delta<=0)continue;
@@ -287,6 +305,7 @@ export function applyTechnicalKnowledgeGains(gs,gains=[],{
       event_id:event||null,
       date:dateOnly(dateISO||gs?.currentDateISO)||null,
       source,
+      learning_multiplier:learning.multiplier,
       gains:applied,
     },
   ].slice(-160);
