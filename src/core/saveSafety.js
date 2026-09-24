@@ -18,6 +18,51 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeStandingsRows(value, idKey) {
+  if (Array.isArray(value)) return value;
+  if (!isRecord(value)) return [];
+
+  for (const key of ["rows", "items", "table", "entries", "standings", "classification"]) {
+    if (Array.isArray(value[key])) return value[key];
+  }
+
+  return Object.entries(value).flatMap(([key, row]) => {
+    if (!isRecord(row)) return [];
+    const hasIdentity =
+      row.id != null ||
+      row.driver_id != null ||
+      row.team_id != null ||
+      row.constructor_id != null;
+    return hasIdentity || !idKey ? [row] : [{ ...row, [idKey]: key }];
+  });
+}
+
+function normalizeStandingsState(state) {
+  const standings = isRecord(state?.standings) ? state.standings : {};
+  const drivers = normalizeStandingsRows(
+    standings.drivers ?? standings.driverStandings ?? standings.driver_standings ?? [],
+    "driver_id"
+  );
+  const teams = normalizeStandingsRows(
+    standings.teams ??
+      standings.constructors ??
+      standings.teamStandings ??
+      standings.constructorStandings ??
+      standings.team_standings ??
+      [],
+    "team_id"
+  );
+
+  return {
+    ...state,
+    standings: {
+      ...standings,
+      drivers,
+      teams,
+    },
+  };
+}
+
 function teamIdentity(state) {
   const team = state?.team || {};
   return String(team.team_id ?? team.id ?? team.team_name ?? team.name ?? "no-team");
@@ -147,6 +192,7 @@ export function migrateGameState(input) {
     migrations: Array.isArray(state?.saveMeta?.migrations) ? state.saveMeta.migrations : [],
   };
 
+  state = normalizeStandingsState(state);
   return synchronizeDriverRelationships(state,{source:"save_backfill_neutral"});
 }
 
