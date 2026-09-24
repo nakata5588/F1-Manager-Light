@@ -89,9 +89,13 @@ test("manager gameplay modifiers only apply to the player team",()=>{
 
   assert.equal(player.active,true);
   assert.ok(player.contractAcceptanceDelta>0);
+  assert.ok(player.relationshipPositiveMultiplier>1);
+  assert.ok(player.relationshipNegativeMultiplier<1);
   assert.ok(player.technicalTimeMultiplier<1);
   assert.equal(ai.active,false);
   assert.equal(ai.contractAcceptanceDelta,0);
+  assert.equal(ai.relationshipPositiveMultiplier,1);
+  assert.equal(ai.relationshipNegativeMultiplier,1);
   assert.equal(ai.technicalTimeMultiplier,1);
 });
 
