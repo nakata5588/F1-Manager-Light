@@ -102,8 +102,9 @@ test("season titles give explicit Team Reputation bonuses",()=>{
     },
   };
   const next=applySeasonTeamReputation(gs,1980);
-  assert.ok(teamReputation(next,"T1")>60);
+  assert.ok(teamReputation(next,"T1")>=68);
   const log=next.teamReputationLog.T1.at(-1);
+  assert.equal(log.delta,8);
   assert.ok(log.reasons.some((row)=>row.key==="constructors_title"));
   assert.ok(log.reasons.some((row)=>row.key==="drivers_title"));
 });
@@ -116,4 +117,27 @@ test("Team Reputation is distinct from Operational Morale",()=>{
   };
   assert.equal(teamReputation(gs,"T1"),72);
   assert.equal(gs.teamOperationalState.T1.morale,18);
+});
+
+
+test("historical reputation baseline does not double-count mirrored runtime history",()=>{
+  const history=[
+    {year:1978,series_division:"F1",team_id:"T1",driver_id:"D1",wins:3,podiums:7},
+    {year:1978,series_division:"F1",team_id:"T1",driver_id:"D2",wins:2,podiums:5},
+  ];
+  const achievements=[
+    {year:1978,team_id:"T1",driver_id:"D1",driver_championship:1},
+  ];
+  const once=teamReputation({
+    activeYear:1980,
+    dbDriverHistory:history,
+    dbAchievements:achievements,
+  },"T1");
+  const mirrored=teamReputation({
+    activeYear:1980,
+    dbDriverHistory:history,
+    driverHistory:history,
+    dbAchievements:achievements,
+  },"T1");
+  assert.equal(mirrored,once);
 });
