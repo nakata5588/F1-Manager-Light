@@ -62,7 +62,7 @@ function result({d1Retired=false,d1Reason=null,d1Position=1}={}){
       {driver_id:"D4",team_id:"T2",grid:4},
     ],
     classification:[
-      {driver_id:"D1",team_id:"T1",position:d1Position,retired:d1Retired,status:d1Retired?"DNF":"Finished",retirement_reason:d1Reason},
+      {driver_id:"D1",team_id:"T1",position:d1Position,retired:d1Retired,status:d1Retired?"DNF":"Finished",retirement_reason:d1Reason,best_lap_ms:81234,fastest_lap:true},
       {driver_id:"D3",team_id:"T2",position:d1Position===1?2:1,retired:false,status:"Finished"},
       {driver_id:"D2",team_id:"T1",position:3,retired:false,status:"Finished"},
       {driver_id:"D4",team_id:"T2",position:4,retired:false,status:"Finished"},
@@ -74,6 +74,8 @@ test("performance score rewards beating car expectation and team-mate",()=>{
   const evaluation=evaluateDriverRacePerformance(baseState(),result(),"D1");
   assert.ok(evaluation.score>70,"a dominant weekend in the best car should still score as a good performance");
   assert.equal(evaluation.finish_position,1);
+  assert.equal(evaluation.best_lap_ms,81234);
+  assert.equal(evaluation.fastest_lap,true);
   assert.ok(evaluation.factors.some((row)=>row.key==="result_vs_car"&&row.value>0));
   assert.ok(evaluation.factors.some((row)=>row.key==="qualifying_vs_teammate"&&row.value>0));
   assert.ok(evaluation.expectation_delta>0);
@@ -190,4 +192,6 @@ test("existing save Form rows backfill teammate deltas from stored race results"
   assert.equal(entry.teammate_driver_id,"D2");
   assert.equal(entry.teammate_qualifying_delta,2);
   assert.equal(entry.teammate_race_delta,2);
+  assert.equal(entry.best_lap_ms,81234);
+  assert.equal(entry.fastest_lap,true);
 });
