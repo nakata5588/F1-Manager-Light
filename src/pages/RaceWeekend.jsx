@@ -1621,13 +1621,13 @@ export default function RaceWeekend(){
                   const compound=liveDriver?.tyre?.compound||"—";
                   const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
                   const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
-                  return <div className={"grid h-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-lg border p-2 lg:grid-cols-[auto_minmax(225px,1fr)_minmax(0,1.25fr)_auto] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.85fr)_minmax(250px,1fr)_minmax(330px,auto)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
-                      <div className="mt-1 text-[10px] leading-snug text-cyan-300/90"><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
+                      <div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
                     </div>
 
                     <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] lg:col-span-1">
@@ -1638,7 +1638,7 @@ export default function RaceWeekend(){
                       <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
                     </div>
 
-                    <div className="col-span-2 flex min-w-0 items-center justify-end gap-1.5 lg:col-span-1">
+                    <div className="col-span-2 flex min-w-0 flex-nowrap items-center justify-end gap-1.5 lg:col-span-1">
                       {liveDriver?.retired
                         ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
                         :<>
@@ -1654,7 +1654,11 @@ export default function RaceWeekend(){
                             <option value="">Stay out</option>
                             {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                           </select>
-                          {pending.length?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>:null}
+                          <div className="w-[78px] shrink-0">
+                            {pending.length
+                              ?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="w-full rounded-md border border-amber-400/30 bg-amber-500/10 px-1.5 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>
+                              :<span aria-hidden="true" className="block w-full px-1.5 py-1.5 text-[10px] opacity-0">Cancel Order</span>}
+                          </div>
                         </>}
                     </div>
                   </div>;
