@@ -122,6 +122,118 @@ test("imported saves unwrap legacy standings row containers", () => {
   ]);
 });
 
+test("legacy Race Weekend collections normalize before entering the UI", () => {
+  const imported = {
+    meta: { version: GAME_VERSION },
+    gameState: {
+      activeYear: 1980,
+      currentDateISO: "1980-05-18",
+      team: { team_id: "t_williams" },
+      saveMeta: createNewSaveMeta({ year: 1980, teamId: "t_williams", seed: "legacy-rw-shapes" }),
+      raceWeekendState: {
+        phase: "race",
+        entrants: {
+          d_1: { driver_id: "d_1", team_id: "t_williams", status: "confirmed" },
+          d_2: { driver_id: "d_2", team_id: "t_brabham", status: "confirmed" },
+        },
+        sessions: {
+          grid: { type: "grid", status: "completed" },
+          race: { type: "race", status: "pending" },
+        },
+        qualifying: {
+          classification: {
+            d_1: { driver_id: "d_1", position: 1 },
+            d_2: { driver_id: "d_2", position: 2 },
+          },
+        },
+        startingGrid: {
+          generated_at: "1980-05-17",
+          rows: {
+            d_1: { driver_id: "d_1", team_id: "t_williams", grid: 1 },
+            d_2: { driver_id: "d_2", team_id: "t_brabham", grid: 2 },
+          },
+        },
+        grid: {
+          d_1: { driver_id: "d_1", team_id: "t_williams", grid: 1 },
+          d_2: { driver_id: "d_2", team_id: "t_brabham", grid: 2 },
+        },
+        live_race: {
+          classification: {
+            d_1: { driver_id: "d_1", position: 1 },
+            d_2: { driver_id: "d_2", position: 2 },
+          },
+          events: {
+            incident_1: { lap: 4, type: "incident", message: "Legacy incident" },
+          },
+        },
+      },
+    },
+  };
+
+  const restored = extractGameStateFromStoredSave(imported);
+  const weekend = restored.raceWeekendState;
+
+  assert.ok(Array.isArray(weekend.entrants));
+  assert.ok(Array.isArray(weekend.sessions));
+  assert.ok(Array.isArray(weekend.qualifying.classification));
+  assert.ok(Array.isArray(weekend.startingGrid.rows));
+  assert.ok(Array.isArray(weekend.grid));
+  assert.ok(Array.isArray(weekend.live_race.classification));
+  assert.ok(Array.isArray(weekend.live_race.events));
+  assert.equal(weekend.startingGrid.generated_at, "1980-05-17");
+  assert.equal(weekend.startingGrid.rows[0].driver_id, "d_1");
+  assert.equal(weekend.sessions.find((row)=>row.id==="grid")?.type, "grid");
+});
+
+test("legacy array-shaped startingGrid is upgraded to the current rows container", () => {
+  const restored = migrateGameState({
+    activeYear: 1980,
+    currentDateISO: "1980-05-18",
+    team: { team_id: "t_williams" },
+    raceWeekendState: {
+      phase: "grid_ready",
+      startingGrid: [
+        { driver_id: "d_1", team_id: "t_williams", grid: 1 },
+        { driver_id: "d_2", team_id: "t_brabham", grid: 2 },
+      ],
+      grid: null,
+    },
+  });
+
+  assert.deepEqual(restored.raceWeekendState.startingGrid.rows, [
+    { driver_id: "d_1", team_id: "t_williams", grid: 1 },
+    { driver_id: "d_2", team_id: "t_brabham", grid: 2 },
+  ]);
+  assert.deepEqual(restored.raceWeekendState.grid, restored.raceWeekendState.startingGrid.rows);
+});
+
+test("current Race Weekend collection shapes remain unchanged by save normalization", () => {
+  const raceWeekendState = {
+    phase: "race",
+    entrants: [{ driver_id: "d_1", team_id: "t_1", status: "confirmed" }],
+    sessions: [{ id: "race", type: "race", status: "pending" }],
+    qualifying: { classification: [{ driver_id: "d_1", position: 1 }] },
+    startingGrid: {
+      generated_at: "1980-05-17",
+      rows: [{ driver_id: "d_1", team_id: "t_1", grid: 1 }],
+    },
+    grid: [{ driver_id: "d_1", team_id: "t_1", grid: 1 }],
+    live_race: {
+      classification: [{ driver_id: "d_1", position: 1 }],
+      events: [{ lap: 1, type: "start_ready", message: "Ready" }],
+    },
+  };
+  const restored = migrateGameState({
+    activeYear: 1980,
+    currentDateISO: "1980-05-18",
+    team: { team_id: "t_1" },
+    saveMeta: createNewSaveMeta({ year: 1980, teamId: "t_1", seed: "current-rw-shape" }),
+    raceWeekendState,
+  });
+
+  assert.deepEqual(restored.raceWeekendState, raceWeekendState);
+});
+
 test("v1 saves migrate shared design inventory into deterministic physical units", () => {
   const legacyV1 = {
     activeYear:1980,
