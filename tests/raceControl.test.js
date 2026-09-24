@@ -91,7 +91,7 @@ test("RW5.2D1 green dry track rubbers in instead of starting near maximum grip",
   }))};
   const dry={state:"SUNNY",starting_track_wetness:0,starting_rubber_level:8,segments:[{from_lap:1,to_lap:30,state:"SUNNY"}]};
   const timeline=buildTrackWeatherTimeline(state,dry,{...track,laps:30});
-  assert.ok(timeline[0].grip_index<95,"a green track should not begin at ~98–100% grip");
+  assert.ok(timeline[0].grip_index>=50&&timeline[0].grip_index<=65,"a green track should begin around the 50–60 grip-index range");
   assert.ok(timeline.at(-1).rubber_level>timeline[0].rubber_level,"dry traffic should lay rubber down");
   assert.ok(timeline.at(-1).grip_index>timeline[0].grip_index,"rubbering-in should improve dry grip");
 });
@@ -128,6 +128,28 @@ test("RW5.2D1 drying removes water lap by lap and restores grip",()=>{
   assert.equal(timeline.at(-1).rain_intensity,0);
 });
 
+
+test("RW5.2D3 rain intensity ramps into a shower instead of jumping straight to the state target",()=>{
+  const weather={
+    state:"SUNNY",
+    avg_temp_c:25,
+    starting_air_temp_c:25,
+    starting_track_temp_c:34,
+    starting_track_wetness:0,
+    starting_rubber_level:18,
+    wind_profile:"medium",
+    segments:[
+      {from_lap:1,to_lap:4,state:"SUNNY"},
+      {from_lap:5,to_lap:14,state:"LIGHT_RAIN"},
+    ],
+  };
+  const timeline=buildTrackWeatherTimeline(gs(),weather,{...track,laps:14});
+  assert.equal(timeline[3].rain_intensity,0);
+  assert.ok(timeline[4].rain_intensity>0.05&&timeline[4].rain_intensity<0.30);
+  assert.ok(timeline[5].rain_intensity>timeline[4].rain_intensity);
+  assert.ok(timeline[8].rain_intensity>timeline[5].rain_intensity);
+  assert.ok(timeline[8].rain_intensity<0.46);
+});
 
 test("RW5.2D2 track temperature evolves during a dry session instead of remaining fixed",()=>{
   const weather={
