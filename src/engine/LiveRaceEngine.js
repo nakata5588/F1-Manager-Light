@@ -690,7 +690,7 @@ export function createLiveRaceState(gs,{gp={}}={}){
   };
 }
 
-export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId}={}){
+export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder,teammateId}={}){
   const weekend=gs?.raceWeekendState, live=weekend?.live_race;
   if(!weekend||weekend.phase!=="race"||live?.status!=="running"||!driverId)return gs;
   const did=String(driverId), teamId=teamForDriver(gs,did), playerTeam=String(gs?.team?.team_id??gs?.team?.id??"");
@@ -702,6 +702,20 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId}={}){
     const valid=new Set(tyresForTeam(gs,teamId).map((row)=>String(row?.tyre_id??row?.id??"")));
     if(!valid.has(String(tyreId)))return gs;
     command={type:"pit",tyre_id:String(tyreId),effective_lap:effectiveLap};
+  }else if(type==="team_order"&&String(teamOrder)==="yield"&&teammateId){
+    const mateId=String(teammateId);
+    if(mateId===did||teamForDriver(gs,mateId)!==teamId)return gs;
+    const rows=Array.isArray(live?.classification)?live.classification:[];
+    const current=rows.find((row)=>String(row?.driver_id??"")===did);
+    const mate=rows.find((row)=>String(row?.driver_id??"")===mateId);
+    if(!current||!mate||current?.retired||mate?.retired)return gs;
+    const currentPos=Number(current?.position),matePos=Number(mate?.position);
+    const gapMs=Number(mate?.gap_to_previous_ms??mate?.interval_ms);
+    // "Let team-mate through" is only a valid live order when the team-mate is
+    // immediately behind and close enough for the instruction to make sense.
+    if(!Number.isFinite(currentPos)||!Number.isFinite(matePos)||matePos!==currentPos+1)return gs;
+    if(Number.isFinite(gapMs)&&gapMs>3500)return gs;
+    command={type:"team_order",team_order:"yield",teammate_id:mateId,effective_lap:effectiveLap};
   }
   if(!command)return gs;
   const existing=weekend?.race_strategy?.live_commands?.[did]||[];
@@ -710,7 +724,9 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId}={}){
   const driverName=driverDisplayName(gs,did);
   const commandMessage=command.type==="pace"
     ?`${driverName} was told to ${paceInstruction(command.pace_mode)} from lap ${effectiveLap}.`
-    :`${driverName} was told to pit next lap for ${tyreDisplayName(gs,did,command.tyre_id)} tyres.`;
+    :command.type==="pit"
+      ?`${driverName} was told to pit next lap for ${tyreDisplayName(gs,did,command.tyre_id)} tyres.`
+      :`${driverName} was told to let ${driverDisplayName(gs,command.teammate_id)} through from lap ${effectiveLap}.`;
   return {
     ...gs,
     raceWeekendState:{
