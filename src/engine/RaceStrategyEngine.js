@@ -823,6 +823,17 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       }
       const pace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
       const forcedPit=commandsThisLap.find((command)=>command?.type==="pit");
+      const teamOrder=commandsThisLap.find((command)=>command?.type==="team_order"&&command?.team_order==="yield");
+      const teamOrderPenalty=teamOrder?2.4:0;
+      if(teamOrder){
+        strategyDecisions.push({
+          lap,
+          action:"team_order",
+          order:"yield",
+          teammate_id:String(teamOrder.teammate_id||""),
+          time_cost_s:teamOrderPenalty,
+        });
+      }
       const control=raceControlAtLap(strategyState?.race_control_plan,lap);
       const state=stateAtLap(weather,lap);
       const trackWeather=strategyState?.race_control_plan?.weather_timeline?.[Math.max(0,lap-1)]||null;
@@ -957,7 +968,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const controlDelta=control.type==="SAFETY_CAR"?Math.max(12,18-gridIndex*0.30):control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
       const noise=(rng.next()-0.5)*(control.type==="GREEN"?0.62:0.20);
       const lapSeconds=(track.reference_lap_ms/1000)+perfPenalty+gripDelta+wearPenalty+warmupPenalty+
-        tyreWeatherPenalty(tyre,tyreState)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+noise;
+        tyreWeatherPenalty(tyre,tyreState)+tempLapPenalty+pace.lap_delta_s+fuelDelta+gridTraffic+controlDelta+teamOrderPenalty+noise;
       const lapMs=Math.max(30000,Math.round(lapSeconds*1000));
       lapTimes.push(lapMs);
       totalMs+=lapMs;
