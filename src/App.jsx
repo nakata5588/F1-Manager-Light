@@ -38,6 +38,7 @@ import RaceWeekend from "./pages/RaceWeekend.jsx";
 import DriverProfilePage from "./pages/DriverProfilePage.jsx";
 import TeamProfilePage from "./pages/TeamProfilePage.jsx";
 import StaffProfilePage from "./pages/StaffProfilePage.jsx";
+import ManagerProfile from "./pages/ManagerProfile.jsx";
 
 import DebugToolbar from "@/components/dev/DebugToolbar";
 
@@ -122,6 +123,7 @@ export default function App() {
 
         <Route element={<HubLayout />}>
           <Route path="/Home" element={<Home />} />
+          <Route path="/ManagerProfile" element={<ManagerProfile />} />
           <Route path="/Inbox" element={<Inbox />} />
           <Route path="/Drivers" element={<Drivers />} />
           <Route path="/drivers/:driverId" element={<DriverProfilePage />} />
