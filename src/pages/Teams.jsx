@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { teamReputation, teamReputationLabel } from "../domain/teamReputation.js";
+import { contractActiveForYear } from "../domain/liveContracts.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -41,7 +42,7 @@ export default function Teams(){
       const tid=teamIdOf(row); if(tid) teamIds.add(tid);
     }
     for(const c of contracts){
-      if(Number(pick(c,["year","season_year"],NaN))===y){
+      if(contractActiveForYear(c,y)){
         const tid=teamIdOf(c); if(tid) teamIds.add(tid);
       }
     }
@@ -59,8 +60,10 @@ export default function Teams(){
     const seasonById=new Map(seasonRows.map((r)=>[teamIdOf(r),r]));
     return source.map(t=>{
       const id=teamIdOf(t);
-      const driverCount=contracts.filter(c=>Number(pick(c,["year","season_year"],NaN))===Number(year)&&teamIdOf(c)===id&&String(pick(c,["role","position"],"")).toLowerCase().includes("driver")).length;
-      const principal=staffContracts.find(c=>Number(pick(c,["year","season_year"],NaN))===Number(year)&&teamIdOf(c)===id&&/principal|owner/i.test(String(pick(c,["role","position"],""))));
+      const driverCount=contracts.filter(c=>contractActiveForYear(c,y)&&teamIdOf(c)===id&&String(pick(c,["role","position"],"")).toLowerCase().includes("driver")).length;
+      const assignedStaff=staffContracts.filter(c=>contractActiveForYear(c,y)&&teamIdOf(c)===id);
+      const principal=assignedStaff.find(c=>/principal|owner/i.test(String(pick(c,["role","position"],""))));
+      const staffRoles=assignedStaff.map((row)=>String(pick(row,["role","position"],"Staff")).replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase()));
       const brand=brandById.get(id)||{};
       const seasonRec=seasonById.get(id)||{};
       return {
@@ -78,6 +81,8 @@ export default function Teams(){
             teamIdOf(r)===id
           ).length,
         principal:pick(principal,["staff_name","name"],"—"),
+        staffCount:assignedStaff.length,
+        staffRoles,
         reputation:y===currentYear?teamReputation(gs,id):null,
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
@@ -101,7 +106,7 @@ export default function Teams(){
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50"><tr>
           <th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Country / Base</th>
-          <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
+          <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-left">Staff assignments</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
         </tr></thead>
         <tbody>{filtered.map(t=><tr key={t.id} className="border-t hover:bg-gray-50">
           <td className="px-4 py-2">
@@ -111,6 +116,10 @@ export default function Teams(){
           </td>
           <td className="px-4 py-2">{flagFromCountry(t.country,t.code)} {t.country||"—"}</td>
           <td className="px-4 py-2">{t.principal}</td>
+          <td className="px-4 py-2">
+            <div className="font-medium">{t.staffCount}</div>
+            <div className="max-w-[280px] truncate text-xs text-gray-500" title={(t.staffRoles||[]).join(", ")}>{(t.staffRoles||[]).join(" · ")||"—"}</div>
+          </td>
           <td className="px-4 py-2 text-right">{t.drivers}</td>
           <td className="px-4 py-2 text-right">
             {t.reputation!=null?(
@@ -121,7 +130,7 @@ export default function Teams(){
           </td>
           <td className="px-4 py-2 text-right">{t.founded}</td>
         </tr>)}
-        {!filtered.length&&<tr><td colSpan={6} className="px-4 py-6 text-center text-gray-500">No teams found for {year}.</td></tr>}</tbody>
+        {!filtered.length&&<tr><td colSpan={7} className="px-4 py-6 text-center text-gray-500">No teams found for {year}.</td></tr>}</tbody>
       </table>
     </div>
   </div>;
