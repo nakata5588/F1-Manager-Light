@@ -2315,6 +2315,67 @@ function AttributesTab({
     return `${diff>0?"+":""}${fmtMoney(diff)}`;
   };
 
+  const compactCompareSections=[
+    {
+      label:"Pace & Racecraft",
+      metrics:[
+        ["Pace","pace",attrs?.pace,comparisonAttrs?.pace,false],
+        ["Qualifying","qualifying",attrs?.qualifying,comparisonAttrs?.qualifying,false],
+        ["Start & Launch","start_launch",attrs?.start_launch,comparisonAttrs?.start_launch,false],
+        ["Racecraft","racecraft",attrs?.racecraft,comparisonAttrs?.racecraft,false],
+        ["Overtaking","derived_overtaking",derived?.overtaking?.value,comparisonDerived?.overtaking?.value,false],
+        ["Defending","derived_defending",derived?.defending?.value,comparisonDerived?.defending?.value,false],
+      ],
+    },
+    {
+      label:"Control & Management",
+      metrics:[
+        ["Race Intelligence","race_intelligence",attrs?.race_intelligence,comparisonAttrs?.race_intelligence,false],
+        ["Pressure Handling","pressure_handling",attrs?.pressure_handling,comparisonAttrs?.pressure_handling,false],
+        ["Consistency","consistency",attrs?.consistency,comparisonAttrs?.consistency,false],
+        ["Wet Skill","wet_skill",attrs?.wet_skill,comparisonAttrs?.wet_skill,false],
+        ["Adaptability","adaptability",attrs?.adaptability,comparisonAttrs?.adaptability,false],
+        ["Tyre Management","tire_management",attrs?.tire_management,comparisonAttrs?.tire_management,false],
+        ["Strategy","derived_strategy",derived?.strategy_intelligence?.value,comparisonDerived?.strategy_intelligence?.value,false],
+      ],
+    },
+    {
+      label:"Technical & Mental",
+      metrics:[
+        ["ERS / Fuel","ers_fuel_management",attrs?.ers_fuel_management,comparisonAttrs?.ers_fuel_management,false],
+        ["Technical Feedback","technical_feedback",attrs?.technical_feedback,comparisonAttrs?.technical_feedback,false],
+        ["Development","car_development_impact",attrs?.car_development_impact,comparisonAttrs?.car_development_impact,false],
+        ["Mentality","mentality",attrs?.mentality,comparisonAttrs?.mentality,false],
+        ["Leadership","leadership",attrs?.leadership,comparisonAttrs?.leadership,false],
+        ["Team Player","team_player",attrs?.team_player,comparisonAttrs?.team_player,false],
+        ["Crash Likelihood","crash_likelihood",attrs?.crash_likelihood,comparisonAttrs?.crash_likelihood,true],
+      ],
+    },
+  ];
+
+  const compareBar=(field,left,right,inverse=false)=>{
+    const leftShown=shownValue(knowledge,field,left,{kind:"attribute"});
+    const rightShown=shownValue(comparisonKnowledge,field,right,{kind:"attribute"});
+    if(leftShown?.sortValue==null||rightShown?.sortValue==null){
+      return <div className="h-1.5 flex-1 rounded-full bg-white/10"/>;
+    }
+    const raw=(Number(leftShown.sortValue)-Number(rightShown.sortValue))*(inverse?-1:1);
+    if(Math.abs(raw)<0.05){
+      return <div className="relative h-1.5 flex-1 rounded-full bg-white/10"><span className="absolute left-1/2 top-0 h-1.5 w-px bg-slate-500"/></div>;
+    }
+    const width=Math.min(50,Math.max(3,Math.abs(raw)*2.5));
+    const leftBetter=raw>0;
+    return (
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+        <span className="absolute left-1/2 top-0 h-1.5 w-px bg-slate-600"/>
+        <span
+          className={`absolute top-0 h-1.5 rounded-full ${leftBetter?"bg-emerald-400":"bg-rose-400"}`}
+          style={leftBetter?{right:"50%",width:`${width}%`}:{left:"50%",width:`${width}%`}}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
@@ -2420,32 +2481,26 @@ function AttributesTab({
           </div>
 
           {compareMode==="performance" ? (
-            <div className="mt-4 grid grid-cols-[minmax(110px,1fr)_90px_90px_72px] gap-x-3 text-sm">
-              <div className="pb-2 text-xs uppercase tracking-wide text-slate-500">Metric</div>
-              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">{currentName}</div>
-              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">{comparisonName}</div>
-              <div className="pb-2 text-right text-xs uppercase tracking-wide text-slate-500">Δ</div>
-
-              {[
-                ["Overall","current_ability",attrs.current_ability,comparisonAttrs?.current_ability,"ability",false],
-                ["Potential","potential_ability",attrs.potential_ability,comparisonAttrs?.potential_ability,"potential",false],
-                ["Pace","pace",attrs.pace,comparisonAttrs?.pace,"attribute",false],
-                ["Qualifying","qualifying",attrs.qualifying,comparisonAttrs?.qualifying,"attribute",false],
-                ["Racecraft","racecraft",attrs.racecraft,comparisonAttrs?.racecraft,"attribute",false],
-                ["Consistency","consistency",attrs.consistency,comparisonAttrs?.consistency,"attribute",false],
-                ["Wet Skill","wet_skill",attrs.wet_skill,comparisonAttrs?.wet_skill,"attribute",false],
-                ["Tyre Management","tire_management",attrs.tire_management,comparisonAttrs?.tire_management,"attribute",false],
-                ["Overtaking","derived_overtaking",derived.overtaking?.value,comparisonDerived.overtaking?.value,"attribute",false],
-                ["Defending","derived_defending",derived.defending?.value,comparisonDerived.defending?.value,"attribute",false],
-                ["Strategy","derived_strategy",derived.strategy_intelligence?.value,comparisonDerived.strategy_intelligence?.value,"attribute",false],
-              ].map(([label,field,left,right,kind,inverse])=>(
-                <div key={field} className="contents">
-                  <div className="border-t border-white/10 py-2 text-slate-400">{label}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind,inverse})}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind,inverse})}</div>
-                  <div className="border-t border-white/10 py-2 text-right">{differenceFor(field,left,right,{kind,inverse})}</div>
+            <div className="mt-3 grid gap-2 lg:grid-cols-3">
+              {compactCompareSections.map((section)=>(
+                <div key={section.label} className="rounded-lg border border-white/10 bg-[#11141c] p-2.5">
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{section.label}</div>
+                  <div className="space-y-0.5">
+                    {section.metrics.map(([label,field,left,right,inverse])=>(
+                      <div key={field} className="grid grid-cols-[minmax(88px,1fr)_34px_minmax(52px,.9fr)_34px] items-center gap-1.5 rounded px-1 py-1 text-[11px] hover:bg-white/[0.025]">
+                        <span className="truncate text-slate-400" title={label}>{label}</span>
+                        <span className="text-right">{renderComparisonValue("left",knowledge,field,left,comparisonKnowledge,right,{kind:"attribute",inverse})}</span>
+                        {compareBar(field,left,right,inverse)}
+                        <span className="text-right">{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute",inverse})}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
+              <div className="lg:col-span-3 flex flex-wrap items-center justify-between gap-2 px-1 pt-1 text-[10px] text-slate-500">
+                <span>{currentName} left · {comparisonName} right</span>
+                <span>Green = stronger · Red = weaker · lower Crash Likelihood is better</span>
+              </div>
             </div>
           ) : (
             <div className="mt-4">
@@ -2479,7 +2534,7 @@ function AttributesTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+      <div className={`${comparisonDriver&&compareMode==="performance"?"hidden":""} grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6`}>
         {groups.map((group)=>{
           const rawGroupScore=driverAttributeGroupScore(attrs,group.key);
           const shownGroup=shownValue(knowledge,`group_${group.key}`,rawGroupScore,{kind:"attribute"});
@@ -2549,7 +2604,7 @@ function AttributesTab({
         })}
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3">
+      <div className={`${comparisonDriver&&compareMode==="performance"?"hidden":""} rounded-xl border border-white/10 bg-[#12141c] p-3`}>
         <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Race Behaviour & Derived Ratings</div>
         <p className="text-xs text-slate-500">These ratings combine existing attributes; they are not separate database attributes.</p>
 
