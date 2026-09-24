@@ -94,6 +94,16 @@ export function DriverQuickView({entity,onClose}){
     snapshot?.rating?.potential_ability,
     {kind:"potential"}
   );
+  const reputation=presentDriverKnowledgeValue(
+    knowledge,
+    "reputation",
+    snapshot?.reputation,
+    {kind:"attribute"}
+  );
+  const marketValue=Number(unbox(snapshot?.rating?.market_value??driver?.market_value));
+  const marketValueLabel=knowledge?.exactAbility&&Number.isFinite(marketValue)&&marketValue>0
+    ?fmtMoney(marketValue)
+    :"Scout required";
   const condition=snapshot?.condition||{};
   const form=snapshot?.form||{};
   const name=pick(driver,["display_name","name","driver_name"],id);
@@ -121,11 +131,13 @@ export function DriverQuickView({entity,onClose}){
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
           <Metric label="Overall" value={overall.label}/>
           <Metric label="Potential" value={potential.label}/>
+          <Metric label="Reputation" value={reputation.label}/>
           <Metric label="Form" value={form?.score!=null?`${Number(form.score).toFixed(1)} · ${form.label}`:"—"} tone={formTone}/>
           <Metric label="Championship" value={snapshot?.season?.championshipPosition?`P${snapshot.season.championshipPosition}`:"—"}/>
+          <Metric label="Market Value" value={marketValueLabel}/>
         </div>
 
         <div className="mt-4 rounded-xl border border-white/10 bg-[#11141c] p-4">
