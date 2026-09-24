@@ -2,14 +2,13 @@
 // RW4.3 — persistent weekend meteorology, forecast uncertainty and track evolution.
 
 import { rngFor } from "../core/random.js";
+import { evolveSessionSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const staffId=(r)=>String(r?.staff_id??r?.person_id??r?.id??"");
 const teamId=(r)=>String(r?.team_id??r?.team??r?.constructor_id??"");
 const lower=(v)=>String(v??"").toLowerCase();
-
-const RAIN={SUNNY:0,CLOUDY:0,WINDY:0,WETTING:0.28,LIGHT_RAIN:0.46,HEAVY_RAIN:0.80,STORM:1,DRYING:0.08};
 
 function kindOf(s){
   const t=lower(s?.type??s?.id);
@@ -104,27 +103,6 @@ function segments(rng,state){
   ];
   return [{from_pct:0,to_pct:1,state}];
 }
-function wetTarget(state){
-  return {SUNNY:0,CLOUDY:0,WINDY:0,DRYING:0.16,WETTING:0.42,LIGHT_RAIN:0.60,HEAVY_RAIN:0.88,STORM:1}[String(state)]??0;
-}
-function evolveTrack(prevWet,prevRubber,state,kind,gapDays){
-  let start=num(prevWet,0);
-  if(gapDays>0&&!/RAIN|STORM|WETTING/.test(state))start*=Math.pow(0.32,gapDays);
-  const target=wetTarget(state);
-  const rate=target>start?0.72:0.46;
-  const end=clamp(start+(target-start)*rate,0,1);
-  let rubber=Math.max(0,num(prevRubber,12)-Math.max(start,end)*22);
-  if(kind==="practice"&&end<0.20)rubber+=8;
-  else if(kind==="qualifying"&&end<0.20)rubber+=10;
-  else if(kind==="race"&&end<0.20)rubber+=16;
-  rubber=clamp(rubber,0,100);
-  return {
-    start_wetness:Number(start.toFixed(3)),
-    end_wetness:Number(end.toFixed(3)),
-    rubber_level:Number(rubber.toFixed(1)),
-    grip_index:Number(clamp(88+rubber*0.10-end*28,45,100).toFixed(1)),
-  };
-}
 function trackTemp(air,state){
   const d=state==="SUNNY"?12:state==="CLOUDY"?6:state==="WINDY"?5:/RAIN|STORM|WETTING/.test(state)?1:4;
   return Number((air+d).toFixed(1));
@@ -140,12 +118,35 @@ function actualSession(gs,gp,s,index,previous){
   const state=nextState(rng,previous?.state,rainChance,stormChance,p?.wind_profile);
   const air=Number((num(p?.avg_temp,22)+(rng.next()-0.5)*5.5+(state==="SUNNY"?1.5:/RAIN|STORM/.test(state)?-2:0)).toFixed(1));
   const gap=previous?dayGap(previous.dateISO,isoOf(s,gp)):0;
-  const track=evolveTrack(previous?.track?.end_wetness,previous?.track?.rubber_level,state,kindOf(s),gap);
+  const sessionTrackTemp=trackTemp(air,state);
+  const confirmedCars=(gs?.raceEntryState?.entries||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id).length;
+  const carsOnTrack=confirmedCars||Math.max(12,(gs?.teams||[]).length*2||20);
+  const priorSurface=previous?.track
+    ?{
+      track_wetness:num(previous.track.end_wetness,0),
+      rubber_level:num(previous.track.end_rubber_level,previous.track.rubber_level??12),
+      grip_index:num(previous.track.end_grip_index,previous.track.grip_index??88),
+    }
+    :initialiseTrackSurface({
+      state,
+      startingWetness:rainIntensityForState(state)*0.30,
+      rubberLevel:12,
+    });
+  const track=evolveSessionSurface(priorSurface,{
+    state,
+    kind:kindOf(s),
+    gapDays:gap,
+    carsOnTrack,
+    trackTempC:sessionTrackTemp,
+    windProfile:p?.wind_profile||"medium",
+    drainage:0.5,
+  });
   return {
     id:key,kind:kindOf(s),label:s?.label||key,dateISO:isoOf(s,gp),state,
     segments:segments(rng,state),
-    air_temp_c:air,track_temp_c:trackTemp(air,state),
-    rain_intensity:Number(num(RAIN[state],0).toFixed(2)),
+    air_temp_c:air,track_temp_c:sessionTrackTemp,
+    rain_intensity:Number(track.rain_intensity.toFixed(2)),
+    rain_band:track.rain_band,
     rain_chance_profile_pct:rainChance,storm_chance_profile_pct:stormChance,
     wind_profile:p?.wind_profile||"medium",track,
   };
