@@ -20,6 +20,7 @@ import {
 import { driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
+import { applyAcceptedContractRelationship, applyFailedRenewalRelationship } from "../domain/driverTeamManagerDynamics.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -818,6 +819,16 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     }
   }
 
+  nextState=applyAcceptedContractRelationship(nextState,{
+    driverId:negotiation.driver_id,
+    teamId:negotiation.team_id,
+    role:negotiation.offer?.role,
+    kind,
+    salary:negotiation.offer?.salary,
+    expectedSalary:negotiation.expected_salary,
+    contractUntil:contractEndYear(contract,Number(nextState?.activeYear)),
+  });
+
   return synchronizeDriverRelationships({
     ...nextState,
     driverNegotiations:negotiations,
@@ -876,11 +887,20 @@ function rejectNegotiation(gs,negotiation,reason="Offer rejected"){
     body:negotiation.driver_name+"'s representatives have rejected the current proposal.",
     driver_id:negotiation.driver_id,
   }]:[];
-  return {
+  const next={
     ...gs,
     driverNegotiations:driverNegotiations(gs).map((n)=>n.id===negotiation.id?rejected:n),
     inbox:[...messages,...(gs?.inbox||[])],
   };
+  if(String(negotiation?.kind||"")==="renewal"){
+    return applyFailedRenewalRelationship(next,{
+      driverId:negotiation.driver_id,
+      teamId:negotiation.team_id,
+      role:negotiation.offer?.role,
+      reason,
+    });
+  }
+  return next;
 }
 
 export function acceptCounterOffer(gs,negotiationId){

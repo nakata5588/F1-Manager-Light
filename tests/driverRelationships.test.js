@@ -37,12 +37,15 @@ test("D6.3A seeds neutral team, teammate, manager and staff relationships",()=>{
   assert.equal(team.satisfaction,50);
   assert.equal(team.status,"neutral");
   assert.equal(team.active,true);
+  assert.equal(team.expected_role,"Main Driver");
+  assert.equal(team.current_role,"Main Driver");
 
   assert.ok(driverRelationship(next,"D1","teammate","D2"));
   assert.ok(driverRelationship(next,"D2","teammate","D1"));
   assert.equal(driverRelationship(next,"D1","teammate","D3"),null);
 
   assert.ok(driverRelationship(next,"D1","manager","player_manager"));
+  assert.equal(driverRelationship(next,"D1","manager","player_manager").expected_role,"Main Driver");
   assert.equal(driverRelationship(next,"D4","manager","player_manager"),null);
 
   assert.ok(driverRelationship(next,"D1","team_principal","P1"));

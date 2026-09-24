@@ -18,6 +18,7 @@ import {
 } from "./liveContracts.js";
 import { applyTeammateRoleStatusChange } from "./driverTeammateDynamics.js";
 import { synchronizeTeamTeammateRelationships } from "./relationshipEvents.js";
+import { applyDriverReleaseRelationship, applyDriverRoleTeamRelationship } from "./driverTeamManagerDynamics.js";
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 
@@ -201,7 +202,7 @@ export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}
       }]
     : [];
 
-  return {
+  const next={
     ...gs,
     contracts:nextContracts,
     team:{...(gs?.team||{}),budget:Number(gs?.team?.budget??oldBalance)-cost},
@@ -232,6 +233,11 @@ export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}
       team_id:userTeamId,
     },...(gs?.inbox||[])],
   };
+  return applyDriverReleaseRelationship(next,{
+    driverId,
+    teamId:userTeamId,
+    reason:"Released by team",
+  });
 }
 
 export function extendDriverContract(gs,driverId,offer){
@@ -372,6 +378,21 @@ function applyRoleAssignments(gs,assignments){
     contracts:source.map((row)=>contractUpdates.get(row)||row),
   };
   next=applyRoleEffects(next,changes);
+
+  // D6.3C: the same hierarchy decision also changes how the driver views
+  // the Team and, for the player team, the Manager responsible for it.
+  for(const assignment of assignments){
+    const contract=assignment?.contract;
+    const fromSlot=assignment?.fromSlot||driverRoleSlot(contract);
+    const toSlot=assignment?.toSlot;
+    if(!contract||!fromSlot||!toSlot||fromSlot===toSlot)continue;
+    next=applyDriverRoleTeamRelationship(next,{
+      driverId:driverIdOf(contract),
+      teamId:teamIdOf(contract),
+      fromRole:driverRoleLabelForSlot(fromSlot),
+      toRole:driverRoleLabelForSlot(toSlot),
+    });
+  }
 
   // D6.3B: hierarchy changes also alter teammate dynamics. A reciprocal slot
   // swap is recorded once for the pair; a promotion/demotion into a vacant

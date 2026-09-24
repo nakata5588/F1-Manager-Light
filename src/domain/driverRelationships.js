@@ -120,6 +120,7 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
   const container=normalizeContainer(gs);
   const dateISO=text(gs?.currentDateISO).slice(0,10)||null;
   const raceByTeam=raceDriversByTeam(gs);
+  const currentContracts=new Map(activeDriverContracts(gs).map((contract)=>[driverIdOf(contract),contract]));
   const userTeamId=text(gs?.team?.team_id??gs?.team?.id);
 
   for(const [key,record] of Object.entries(container.relations)){
@@ -145,8 +146,30 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
   };
 
   for(const [driverId,teamId] of driverTeams){
+    const contract=currentContracts.get(driverId)||null;
+    const roleLabel=text(contract?.role??contract?.position??contract?.contract_role);
+    const roleSlot=roleOf(contract)||null;
+    const contractUntil=contract?.contract_until_year??contract?.contract_until??contract?.end_year??null;
+    const attachContractContext=(targetType,targetId)=>{
+      const key=relationshipKey(driverId,targetType,targetId);
+      const record=container.relations[key];
+      if(!record)return;
+      container.relations[key]={
+        ...record,
+        current_role:roleLabel||(record?.current_role??null),
+        current_role_slot:roleSlot||(record?.current_role_slot??null),
+        expected_role:(record?.expected_role??roleLabel)||null,
+        expected_role_slot:(record?.expected_role_slot??roleSlot)||null,
+        contract_until:record?.contract_until??contractUntil,
+      };
+    };
+
     add(driverId,"team",teamId,teamId);
-    if(userTeamId&&teamId===userTeamId)add(driverId,"manager","player_manager",teamId);
+    attachContractContext("team",teamId);
+    if(userTeamId&&teamId===userTeamId){
+      add(driverId,"manager","player_manager",teamId);
+      attachContractContext("manager","player_manager");
+    }
   }
 
   for(const [teamId,driverIds] of raceByTeam){
