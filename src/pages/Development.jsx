@@ -594,10 +594,10 @@ export default function Development({ embedded = false, initialTab = "projects",
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Design objective</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
+                  {objectiveOptions.length?objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
                     <div className="font-semibold text-sm">{row.label}</div>
                     <div className="text-[11px] text-slate-500 mt-1">{row.description}</div>
-                  </button>)}
+                  </button>):<div className="sm:col-span-2 rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">Normal current-car development is not permitted for this component under the {activeYear} rules.</div>}
                 </div>
               </div>
 
@@ -727,8 +727,8 @@ export default function Development({ embedded = false, initialTab = "projects",
               <div><div className="flex justify-between text-sm"><span>Progress</span><strong>{Math.round(progress*100)}%</strong></div><div className="h-2 mt-1 bg-white/10 rounded overflow-hidden"><div className="h-full bg-slate-200" style={{width:`${progress*100}%`}}/></div></div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
                 <Mini label="Engineers" value={p.engineers}/>
-                <Mini label="CFD" value={`${p.cfd_hours||0}h`}/>
-                <Mini label="WT" value={`${p.wt_hours||0}h`}/>
+                <Mini label="CFD" value={p.cfd_allocation?(`${p.cfd_allocation} ${p.cfd_unit||"h"}`):"—"}/>
+                <Mini label="WT" value={Number(p.wt_hours||0)>0?`${p.wt_hours}h`:"—"}/>
                 <Mini label="Risk" value={p.risk!=null?(Number(p.risk)*100).toFixed(0)+"%":"—"}/>
                 <Mini label={p.status==="completed"?"Actual strength":"Target strength"} value={(p.status==="completed"?actualStrength:targetStrength).toFixed(2)}/>
               </div>
