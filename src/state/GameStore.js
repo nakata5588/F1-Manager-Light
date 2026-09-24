@@ -1291,7 +1291,7 @@ export const useGame = create((set, get) => ({
     const teamId = getTeamId(team || {});
     const db = get().gameState;
     const startingBudget = computeStartingBudget(db, teamId, y);
-    const managerProfile = createManagerProfile(manager || {}, { year: y, team });
+    const managerProfile = manager ? createManagerProfile(manager, { year: y, team }) : null;
     const initialDriverConditions = Object.fromEntries(
       (db.drivers || []).map((d) => [String(d?.driver_id ?? d?.id ?? ""), defaultDriverCondition()]).filter(([id]) => id)
     );
@@ -1311,7 +1311,9 @@ export const useGame = create((set, get) => ({
         from: "FIA",
         tag: "FIA",
         date: `${y}-01-02`,
-        body: `${managerProfile.display_name}, welcome to the ${y} season. Difficulty set to ${difficulty}. Good luck!`,
+        body: managerProfile
+          ? `${managerProfile.display_name}, welcome to the ${y} season. Difficulty set to ${difficulty}. Good luck!`
+          : `Difficulty set to ${difficulty}. Good luck!`,
       }],
       driverAttributes: initialDriverConditions,
       finances: {
@@ -1357,7 +1359,7 @@ export const useGame = create((set, get) => ({
         is_user_controlled: true,
       };
 
-      const managerProfile = createManagerProfile(manager || {}, { year: y, team: userTeam });
+      const managerProfile = manager ? createManagerProfile(manager, { year: y, team: userTeam }) : null;
 
       let fresh = buildFreshCareerState(db, {
         currentDateISO: firstDayISO(y),
