@@ -326,10 +326,16 @@ test("Pit Now schedules the selected tyre for the next lap",()=>{
   assert.equal(pitEvent.driver_name,"Player One");
   assert.equal(pitEvent.tyre_from,"Hard");
   assert.equal(pitEvent.tyre_to,"Soft");
+  assert.ok(Number.isFinite(pitEvent.stationary_s));
+  assert.ok(Number.isFinite(pitEvent.expected_stationary_s));
+  assert.ok(Number.isFinite(pitEvent.execution_delta_s));
+  assert.ok(Number.isFinite(pitEvent.crew_error_delay_s));
+  assert.ok(Number.isFinite(pitEvent.pit_lane_loss_s));
   assert.ok(Number.isFinite(pitEvent.total_loss_s));
   assert.ok(Number.isFinite(pitEvent.position_before));
   assert.ok(Number.isFinite(pitEvent.position_after));
   assert.match(pitEvent.message,/Player One changed from Hard to Soft tyres/);
+  assert.match(pitEvent.message,/stationary/);
   assert.match(pitEvent.message,/P\d+ → P\d+/);
   assert.equal(pitEvent.message.includes("D1 pitted"),false);
   assert.equal(pitEvent.message.includes("gy_s"),false);
@@ -405,6 +411,41 @@ test("RW5.2B player driver complains when the chosen tyre mismatches track condi
   assert.ok(Number(feedback.weather_penalty_s)>0.5);
 });
 
+test("RW5.2D3.1 intermediates do not report a drying track while wetness is rising",()=>{
+  let base=fixture("rw5.2d3.1-rising-wetness-feedback");
+  base={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...base.raceWeekendState.race_strategy,
+        weather_snapshot:{
+          ...base.raceWeekendState.race_strategy.weather_snapshot,
+          state:"LIGHT_RAIN",
+          starting_track_wetness:0,
+          starting_air_temp_c:24,
+          starting_track_temp_c:32,
+          segments:[{from_lap:1,to_lap:12,state:"LIGHT_RAIN"}],
+          wet_race:true,
+        },
+        selections:{
+          ...base.raceWeekendState.race_strategy.selections,
+          D1:{...base.raceWeekendState.race_strategy.selections.D1,start_tyre_id:"gy_i",pit_plan:"no_stop"},
+        },
+      },
+    },
+  };
+  let gs=createLiveRaceState(base,{gp});
+  gs=advanceTo(gs,4);
+  const feedback=gs.raceWeekendState.live_race.events.filter((event)=>event.type==="driver_feedback"&&event.driver_id==="D1");
+  assert.equal(feedback.some((event)=>/track is drying|overheating/i.test(event.message)),false);
+  const states=gs.raceWeekendState.live_race.projected_race
+    .find((row)=>row.driver.driver_id==="D1")
+    .tyre_state_by_lap.slice(0,4);
+  assert.ok(states.some((state)=>Number(state.wetness_delta)>0));
+  assert.ok(states.some((state)=>Number(state.rain_intensity)>0));
+});
+
 test("RW5.2D3 live race reports the start and strengthening of rain",()=>{
   let base=fixture("rw5.2d3-weather-report");
   base={
@@ -469,7 +510,7 @@ test("RW5.2D3 an in-progress v2 live save upgrades its future environment withou
   loaded=advanceTo(loaded,3);
   assert.equal(loaded.raceWeekendState.live_race.version,3);
   assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.version,3);
-  assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.environment_model,"rw5.2d3");
+  assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.environment_model,"rw5.2d3.1");
   assert.ok(Number.isFinite(Number(loaded.raceWeekendState.live_race.track_state.track_temp_c)));
   assert.ok(Number.isFinite(Number(loaded.raceWeekendState.live_race.track_state.spray_index)));
 });
