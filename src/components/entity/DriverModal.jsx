@@ -2650,6 +2650,23 @@ function PerformanceHistory({ items }) {
               {Number(row?.score||0).toFixed(1)}
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+            {Number.isFinite(Number(row?.expectation_delta))&&(
+              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.expectation_delta)>0?"text-emerald-300":Number(row.expectation_delta)<0?"text-rose-300":"text-slate-400"}`}>
+                Expectation {Number(row.expectation_delta)>0?"+":""}{Number(row.expectation_delta).toFixed(1)} pos
+              </span>
+            )}
+            {Number.isFinite(Number(row?.teammate_race_delta))&&(
+              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_race_delta)>0?"text-emerald-300":Number(row.teammate_race_delta)<0?"text-rose-300":"text-slate-400"}`}>
+                Race vs teammate {Number(row.teammate_race_delta)>0?"+":""}{Number(row.teammate_race_delta).toFixed(0)}
+              </span>
+            )}
+            {Number.isFinite(Number(row?.teammate_qualifying_delta))&&(
+              <span className={`rounded border border-white/10 px-2 py-1 ${Number(row.teammate_qualifying_delta)>0?"text-emerald-300":Number(row.teammate_qualifying_delta)<0?"text-rose-300":"text-slate-400"}`}>
+                Quali vs teammate {Number(row.teammate_qualifying_delta)>0?"+":""}{Number(row.teammate_qualifying_delta).toFixed(0)}
+              </span>
+            )}
+          </div>
           {!!row?.factors?.length&&(
             <div className="mt-3 space-y-1">
               {row.factors.slice(0,4).map((factor,i)=>(
