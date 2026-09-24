@@ -37,6 +37,87 @@ function normalizeStandingsRows(value, idKey) {
   });
 }
 
+function normalizeCollectionRows(value, idKey = null) {
+  if (Array.isArray(value)) return value;
+  if (!isRecord(value)) return [];
+
+  for (const key of ["rows", "items", "entries", "table", "classification", "results", "grid"]) {
+    if (Array.isArray(value[key])) return value[key];
+    if (isRecord(value[key])) {
+      const nested = normalizeCollectionRows(value[key], idKey);
+      if (nested.length) return nested;
+    }
+  }
+
+  const looksLikeRow =
+    value.driver_id != null ||
+    value.team_id != null ||
+    value.position != null ||
+    value.grid != null ||
+    value.pos != null;
+  if (looksLikeRow) return [value];
+
+  return Object.entries(value).flatMap(([key, row]) => {
+    if (!isRecord(row)) return [];
+    const hasIdentity =
+      row.id != null ||
+      row.driver_id != null ||
+      row.team_id != null ||
+      row.constructor_id != null;
+    return hasIdentity || !idKey ? [row] : [{ ...row, [idKey]: key }];
+  });
+}
+
+function normalizeRaceWeekendState(state) {
+  const weekend = isRecord(state?.raceWeekendState) ? state.raceWeekendState : null;
+  if (!weekend) return state;
+
+  const startingGridValue =
+    isRecord(weekend.startingGrid) && weekend.startingGrid.rows != null
+      ? weekend.startingGrid.rows
+      : weekend.startingGrid ?? weekend.grid;
+  const gridRows = normalizeCollectionRows(startingGridValue);
+
+  let startingGrid = weekend.startingGrid;
+  if (weekend.startingGrid != null) {
+    if (isRecord(weekend.startingGrid) && !Array.isArray(weekend.startingGrid)) {
+      startingGrid = { ...weekend.startingGrid, rows: gridRows };
+    } else {
+      startingGrid = { rows: gridRows };
+    }
+  } else if (weekend.grid != null) {
+    startingGrid = { rows: gridRows };
+  }
+
+  const qualifying = isRecord(weekend.qualifying)
+    ? {
+        ...weekend.qualifying,
+        classification: normalizeCollectionRows(weekend.qualifying.classification),
+      }
+    : weekend.qualifying;
+
+  const liveRace = isRecord(weekend.live_race)
+    ? {
+        ...weekend.live_race,
+        classification: normalizeCollectionRows(weekend.live_race.classification),
+        events: normalizeCollectionRows(weekend.live_race.events),
+      }
+    : weekend.live_race;
+
+  return {
+    ...state,
+    raceWeekendState: {
+      ...weekend,
+      entrants: weekend.entrants == null ? weekend.entrants : normalizeCollectionRows(weekend.entrants),
+      sessions: weekend.sessions == null ? weekend.sessions : normalizeCollectionRows(weekend.sessions, "id"),
+      qualifying,
+      startingGrid,
+      grid: weekend.grid == null && weekend.startingGrid == null ? weekend.grid : gridRows,
+      live_race: liveRace,
+    },
+  };
+}
+
 function normalizeStandingsState(state) {
   const standings = isRecord(state?.standings) ? state.standings : {};
   const drivers = normalizeStandingsRows(
@@ -193,6 +274,7 @@ export function migrateGameState(input) {
   };
 
   state = normalizeStandingsState(state);
+  state = normalizeRaceWeekendState(state);
   return synchronizeDriverRelationships(state,{source:"save_backfill_neutral"});
 }
 

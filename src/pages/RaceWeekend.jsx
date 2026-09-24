@@ -19,6 +19,18 @@ const STEPS=[
   ["results","Results"],
 ];
 
+function collectionRows(value){
+  if(Array.isArray(value))return value;
+  if(!value||typeof value!=="object")return [];
+  for(const key of ["rows","items","entries","classification","results","grid"]){
+    if(value[key]!=null){
+      const nested=collectionRows(value[key]);
+      if(nested.length||Array.isArray(value[key]))return nested;
+    }
+  }
+  return Object.values(value).filter((row)=>row&&typeof row==="object"&&!Array.isArray(row));
+}
+
 function phaseIndex(phase){
   if(phase==="practice"||phase==="practice_complete")return 0;
   if(phase==="qualifying"||phase==="qualifying_wait")return 1;
@@ -601,20 +613,20 @@ export default function RaceWeekend(){
   const drivers=gs?.drivers||[];
   const teams=gs?.teams||[];
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
-  const playerEntrants=(weekend?.entrants||[]).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
-  const practiceResults=weekend?.practice?.results||[];
+  const playerEntrants=collectionRows(weekend?.entrants).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
+  const practiceResults=collectionRows(weekend?.practice?.results);
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
   const currentIndex=phaseIndex(weekend?.phase);
-  const classification=weekend?.qualifying?.classification||[];
-  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
-  const qualifyingSessions=(weekend?.sessions||[]).filter((row)=>["prequalifying","qualifying"].includes(row?.type));
+  const classification=collectionRows(weekend?.qualifying?.classification);
+  const startingGridRows=collectionRows(weekend?.startingGrid?.rows??weekend?.startingGrid??weekend?.grid);
+  const qualifyingSessions=collectionRows(weekend?.sessions).filter((row)=>["prequalifying","qualifying"].includes(row?.type));
   const activeSession=(weekend?.sessions||[]).find((row)=>String(row?.id)===String(weekend?.active_session_id||""))
     ||qualifyingSessions.find((row)=>row?.status!=="completed")
     ||null;
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
-  const liveRows=liveRace?.classification||[];
+  const liveRows=collectionRows(liveRace?.classification);
   const trackState=liveRace?.track_state||null;
   const timingSummary=liveRace?.timing_summary||null;
   const liveBestSectors=useMemo(()=>{
@@ -630,12 +642,12 @@ export default function RaceWeekend(){
   const raceControlRules=raceControlPlan?.rules||null;
   const weekendWeather=weekend?.weekend_weather||null;
   const weatherObserved=new Set(weekendWeather?.observed_sessions||[]);
-  const weatherSessionRows=(weekend?.sessions||[]).filter((session)=>weekendWeather?.sessions?.[String(session?.id||"")]);
+  const weatherSessionRows=collectionRows(weekend?.sessions).filter((session)=>weekendWeather?.sessions?.[String(session?.id||"")]);
   const activeWeather=weekendWeather?.sessions?.[String(weekend?.active_session_id||"")]||null;
   const raceWeatherRow=Object.values(weekendWeather?.sessions||{}).find((row)=>row?.kind==="race")||null;
   const completedQualifyingSessions=qualifyingSessions.filter((session)=>session.status==="completed");
   const lastCompletedQualifyingSession=completedQualifyingSessions.at(-1)||null;
-  const confirmedEntrants=(weekend?.entrants||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
+  const confirmedEntrants=collectionRows(weekend?.entrants).filter((row)=>row?.status==="confirmed"&&row?.driver_id);
   const selectedEventDriverId=String(selectedRaceEvent?.driver_id??"");
   const selectedEventDriver=selectedEventDriverId?driverObject(drivers,selectedEventDriverId):null;
   const selectedEventTeamId=selectedEventDriverId?String(
@@ -1848,7 +1860,7 @@ export default function RaceWeekend(){
       <div className="rounded-xl border border-white/10 bg-[#11161f] shadow-xl overflow-hidden">
         {(()=>{
           const rows=Array.isArray(lastResult?.classification)?lastResult.classification:[];
-          const gridByDriver=new Map((lastResult?.startingGrid||startingGridRows||[]).map((row,index)=>[
+          const gridByDriver=new Map(collectionRows(lastResult?.startingGrid??startingGridRows).map((row,index)=>[
             String(row?.driver_id??""),
             Number(row?.grid??index+1),
           ]));
