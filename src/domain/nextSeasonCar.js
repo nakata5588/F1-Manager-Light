@@ -6,6 +6,7 @@
 // slot. It does consume real engineering capacity and budget.
 
 import { technicalDevelopmentCapacity } from "./developmentProject.js";
+import { nextSeasonRegulationImpact } from "./nextSeasonRegulations.js";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -82,6 +83,7 @@ export function defaultNextSeasonCarProgramme(activeYear=1980){
     last_progress_date:null,
     completed_at:null,
     readiness:"planning",
+    regulation_impact:null,
   };
 }
 
@@ -197,6 +199,7 @@ export function startNextSeasonCarProgramme(gs,{
 
   const date=dateOnly(gs?.currentDateISO);
   let next=patchBudget(gs,quote.launch_cost,`Next Season Car — ${quote.targetSeason} programme launch`);
+  const regulationImpact=nextSeasonRegulationImpact(gs,{targetSeason:quote.targetSeason,teamId:id});
   const programme=normalizeNextSeasonCarProgramme({
     ...defaultNextSeasonCarProgramme(activeYearOf(gs)),
     targetSeason:quote.targetSeason,
@@ -207,6 +210,7 @@ export function startNextSeasonCarProgramme(gs,{
     budget_spent:quote.launch_cost,
     started_at:date,
     last_progress_date:date,
+    regulation_impact:regulationImpact,
   },{activeYear:activeYearOf(gs)});
 
   return {
