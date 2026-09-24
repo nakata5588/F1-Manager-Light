@@ -43,7 +43,7 @@
     "test:technology-adoption": "node --test tests/technologyAdoption.test.js",
     "test:development": "node --test tests/developmentProject.test.js",
     "test:development-regulations": "node --test tests/developmentRegulations.test.js",
-    "test:technical-department": "node --test tests/technicalDepartment.test.js tests/playerTechnicalLifecycle.test.js tests/nextSeasonCar.test.js tests/nextSeasonRegulations.test.js"
+    "test:technical-department": "node --test tests/technicalDepartment.test.js tests/playerTechnicalLifecycle.test.js tests/nextSeasonCar.test.js tests/nextSeasonRegulations.test.js tests/technicalKnowledge.test.js"
   },
   "keywords": [
     "f1",
