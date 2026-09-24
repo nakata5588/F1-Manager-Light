@@ -185,6 +185,26 @@ test("completed design queues timed manufacture, creates physical units and fits
   assert.notEqual(state.garage.cars[0].installedParts[slot],state.garage.cars[1].installedParts[slot]);
 });
 
+test("AI Development 2.0 projects use an objective-driven technical brief",()=>{
+  let gs=planAITechnicalProject(withTeamBudget(baseState(),"RENAULT",8_000_000),"RENAULT",{force:true});
+  let state=aiTechnicalTeamState(gs,"RENAULT");
+  const project=state.development.projects[0];
+
+  assert.ok(project.objective_id);
+  assert.ok(project.objective_label);
+  assert.ok(project.technical_projection);
+  assert.equal(project.technical_projection.objective.id,project.objective_id);
+
+  gs={...gs,currentDateISO:project.finishes_at};
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+  state=aiTechnicalTeamState(gs,"RENAULT");
+  const design=state.development.parts[0];
+
+  assert.equal(design.development_focus,project.objective_id);
+  assert.equal(design.technical_profile.objective.id,project.objective_id);
+  assert.equal(Number(design.perf),Number(project.target_design_perf));
+});
+
 test("team morale reuses the shared work-rate model for AI project duration",()=>{
   const base=withTeamBudget(baseState(),"RENAULT",8_000_000);
   const low={
