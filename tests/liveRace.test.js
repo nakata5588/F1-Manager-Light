@@ -233,6 +233,13 @@ test("RW4.6.1 each incident produces one human Race Feed event",()=>{
   assert.equal(matching.length,1,"one incident should produce one player-facing incident/control message");
   assert.doesNotMatch(matching[0].message,/\((?:low|medium|high|critical)\)/i);
   assert.doesNotMatch(matching[0].message,/\b(?:low|medium|high|critical)\b/i);
+  const incidentControlEvents=(gs.raceWeekendState.live_race.events||[]).filter((event)=>
+    event?.type==="race_control"&&event?.cause==="incident"
+  );
+  for(const event of incidentControlEvents){
+    assert.doesNotMatch(String(event?.message||""),/Race control intervention/i);
+    assert.match(String(event?.message||""),/incident|accident|collision|flag|Driver|Player/i);
+  }
 });
 
 test("pace command is lap-scoped and changes only future simulation",()=>{
