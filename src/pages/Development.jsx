@@ -215,24 +215,41 @@ export default function Development({ embedded = false, initialTab = "projects",
       if (p.status !== "active" || !p.finishes_at || p.finishes_at > currentDateISO) return p;
       changed = true;
       const partId = `part_${p.id}`;
+      const realizedProfile=p.technical_projection?realizeDevelopmentProjection(p):null;
+      const actualStrength=Number(
+        realizedProfile?.development_strength ??
+        p.target_design_perf ??
+        p.perf_delta ??
+        0
+      );
       if (!nextParts.some((x) => x.id === partId)) {
         const draftPart={
           id:partId,
           name:p.name,
           slot:p.type,
           version:`P${nextParts.filter((x)=>x.slot===p.type).length + 1}`,
-          perf:Number(p.perf_delta || 0),
+          perf:actualStrength,
           inv:0,
           in_manufacturing:0,
           prototype:true,
           created_from:p.id,
+          development_focus:p.objective_id||"balanced",
+          created_at:currentDateISO,
         };
         nextParts.push({
           ...draftPart,
-          technical_profile:derivePartTechnicalProfile(physicalState,draftPart),
+          technical_profile:realizedProfile||derivePartTechnicalProfile(physicalState,draftPart),
         });
       }
-      return {...p, status:"completed", progress:1, completed_at:currentDateISO};
+      return {
+        ...p,
+        status:"completed",
+        progress:1,
+        completed_at:currentDateISO,
+        actual_design_perf:actualStrength,
+        technical_result:realizedProfile||null,
+        result_rating:realizedProfile?.realization?.result||"legacy",
+      };
     });
 
     const nextManufacturing = manufacturing.map((job) => {
@@ -272,21 +289,55 @@ export default function Development({ embedded = false, initialTab = "projects",
   }, [currentDateISO, projects, parts, partUnits, manufacturing, research, dev, setGameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
-  const effectiveDays = effectiveProjectDays(draft, levelOf, moraleTimeFactor);
-  const cost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
+  const objectiveOptions=developmentObjectivesForSlot(gameState,draft.type);
+  const objective=objectiveOptions.find((row)=>row.id===draft.objective)||objectiveOptions[0];
+  const objectiveModifiers=objectiveProjectModifiers(gameState,draft.type,draft.objective);
+  const rawEffectiveDays = effectiveProjectDays(draft, levelOf, moraleTimeFactor);
+  const effectiveDays = Math.max(7,Math.round(rawEffectiveDays*objectiveModifiers.duration_multiplier));
+  const baseCost = projectCost({...draft, duration:effectiveDays}, levelOf("manufacturing_leve"));
+  const cost = Math.round(baseCost*objectiveModifiers.cost_multiplier);
   const baseExpectedPerf = perfDelta(draft, levelOf, parts);
-  const expectedPerf = Number((
+  const expectedIncrement = Number((
     baseExpectedPerf * Number(testDriverProfile?.performanceMultiplier || 1)
   ).toFixed(2));
+  const strengthTarget=developmentStrengthTarget(parts,draft.type,expectedIncrement);
+  const currentDesign=strengthTarget.current_part||bestDevelopedPartForSlot(parts,draft.type);
+  const technicalProjection=buildDevelopmentProjection(gameState,{
+    slot:draft.type,
+    objectiveId:draft.objective,
+    targetStrength:strengthTarget.target_strength,
+    currentPart:currentDesign,
+  });
+  const capacity=technicalDevelopmentCapacity(gameState,teamId,{
+    engineeringSupport,
+    projects,
+  });
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
+  const projectRisk=Math.max(
+    0.025,
+    (0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0))*
+      objectiveModifiers.risk_multiplier
+  );
+  const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
+  const canStartProject=Boolean(
+    draft.name.trim() &&
+    currentDateISO &&
+    budget>=cost &&
+    hasEngineerCapacity &&
+    capacity.project_slot_available &&
+    strengthTarget.increment>0
+  );
 
   const createProject = () => {
-    if (!draft.name.trim() || !currentDateISO || budget < cost) return;
-    const id = `dev_${Date.now()}`;
+    if (!canStartProject) return;
+    const sequence=String(projects.length+1).padStart(3,"0");
+    const id = `dev_${teamId||"TEAM"}_${currentDateISO}_${sequence}`;
     const project = {
       id,
       name:draft.name.trim(),
       type:draft.type,
+      objective_id:objective?.id||"balanced",
+      objective_label:objective?.label||"Balanced Package",
       phase:"design",
       status:"active",
       started_at:currentDateISO,
@@ -296,12 +347,12 @@ export default function Development({ embedded = false, initialTab = "projects",
       cfd_hours:Number(draft.cfd),
       wt_hours:Number(draft.windTunnel),
       cost,
-      perf_delta:expectedPerf,
+      perf_delta:strengthTarget.increment,
       base_perf_delta:baseExpectedPerf,
-      risk:Math.max(
-        0.03,
-        0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0)
-      ),
+      current_design_perf:strengthTarget.current_strength,
+      target_design_perf:strengthTarget.target_strength,
+      technical_projection:technicalProjection,
+      risk:projectRisk,
       test_driver_id:testDriverProfile?.driver_id||null,
       test_driver_name:testDriverProfile?.name||null,
       test_driver_feedback:testDriverProfile?.impact??null,
@@ -323,13 +374,6 @@ export default function Development({ embedded = false, initialTab = "projects",
         parts, partUnits, manufacturing, research,
       },
     });
-  };
-
-  const addHours = (project, field) => {
-    const unitCost = field === "cfd_hours" ? 3_250 : 5_500;
-    if (budget < unitCost) return;
-    applyExpense(unitCost, `Development allocation — ${project.name}`);
-    patchProject(project.id, {[field]:Number(project[field] || 0) + 5});
   };
 
   const manufacture = (part) => {
@@ -400,7 +444,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     const oldBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
     const nextBudget = oldBudget - value;
     const tx = {
-      id:`tx_dev_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      id:`tx_dev_${currentDateISO||"date"}_${String((gameState?.financeLog||[]).length+1).padStart(4,"0")}`,
       dateISO:currentDateISO,
       type:"expense",
       category:"Development",
