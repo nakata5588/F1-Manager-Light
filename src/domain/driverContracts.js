@@ -17,6 +17,7 @@ import {
   preferLiveRows,
 } from "./liveContracts.js";
 import { applyTeammateRoleStatusChange } from "./driverTeammateDynamics.js";
+import { synchronizeTeamTeammateRelationships } from "./relationshipEvents.js";
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 
@@ -384,6 +385,7 @@ function applyRoleAssignments(gs,assignments){
     const did=driverIdOf(contract);
     const tid=teamIdOf(contract);
     if(!did||!tid||!fromSlot||!toSlot||fromSlot===toSlot)continue;
+    if(!isRaceDriverSlot(fromSlot)&&!isRaceDriverSlot(toSlot))continue;
 
     let teammateId=null;
     for(let otherIndex=index+1;otherIndex<assignments.length;otherIndex++){
@@ -411,6 +413,12 @@ function applyRoleAssignments(gs,assignments){
       fromSlot,
       toSlot,
     });
+  }
+
+  const affectedTeams=[...new Set(assignments.map((assignment)=>teamIdOf(assignment?.contract)).filter(Boolean))];
+  for(const tid of affectedTeams){
+    const raceDriverIds=activeDriverContracts(next,{teamId:tid,raceOnly:true}).map(driverIdOf).filter(Boolean);
+    next=synchronizeTeamTeammateRelationships(next,{teamId:tid,driverIds:raceDriverIds});
   }
   return next;
 }
