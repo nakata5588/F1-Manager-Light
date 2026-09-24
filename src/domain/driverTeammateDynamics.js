@@ -142,6 +142,21 @@ export function applyRaceTeammateDynamics(gs,resultEntry){
       }
     }
   }
+  // Applied team orders are persisted in each driver's strategy decisions.
+  // Cancelled/future commands never reach this list, so they do not alter relationships.
+  for(const [driverId,strategy] of Object.entries(resultEntry?.raceStrategy?.strategies||{})){
+    for(const decision of strategy?.strategy_decisions||[]){
+      if(decision?.action!=="team_order"||decision?.order!=="yield"||!decision?.teammate_id)continue;
+      const row=rows.find((item)=>text(item?.driver_id)===text(driverId));
+      next=applyTeammateTeamOrder(next,{
+        yieldingDriverId:driverId,
+        beneficiaryDriverId:decision.teammate_id,
+        teamId:row?.team_id??null,
+        lap:decision?.lap??null,
+      });
+    }
+  }
+
   return next;
 }
 
