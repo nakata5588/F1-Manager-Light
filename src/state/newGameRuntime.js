@@ -93,6 +93,7 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     componentServiceLog: [],
     componentWearLog: [],
     aiTechnicalWorld: { version: 1, teams: {} },
+    regulationGovernance: { version: 1, votes: [], approved_changes: [] },
     hq: { facilityLevels: {}, upgrades: [] },
 
     academy: { drivers: [] },
