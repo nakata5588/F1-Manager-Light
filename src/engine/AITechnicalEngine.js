@@ -41,6 +41,12 @@ import {
   technologyProjectsForTeam,
 } from "../domain/technologyAdoption.js";
 import { carReadinessForDate, raceCarsForTeam } from "../domain/carAvailability.js";
+import {
+  defaultAeroAllocation,
+  developmentRegulationProfile,
+  normalizedAeroAllocation,
+  recordAeroTestingUsage,
+} from "../domain/developmentRegulations.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const str=(v)=>String(v??"");
@@ -199,7 +205,7 @@ function scopedState(gs,teamId,state){
     // will then resolve facilities using this AI TEAM's own historical rows.
     hq:{facilityLevels:{},upgrades:[]},
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
-    development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[]},
+    development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[]},
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
   };
@@ -1096,6 +1102,12 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   const manufacturing=need&&quote
     ?estimatedManufacturingCommitment(normalized,teamId,state,need,quote)
     :{qty:2,unit_cost:0,cost:0,days:0};
+  const aeroDefaults=need
+    ?defaultAeroAllocation(normalized,teamId,need.slot,state?.development)
+    :{windTunnel:0,cfd:0};
+  const aeroTesting=need
+    ?normalizedAeroAllocation(normalized,teamId,need.slot,aeroDefaults,state?.development)
+    :null;
   const budget=num(state?.budget,0);
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
   const projects=seasonProjectsStarted(normalized,state);
@@ -1130,6 +1142,7 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     need,
     quote,
     manufacturing,
+    aero_testing:aeroTesting,
     budget,
     reserve_floor:reserveFloor,
     total_commitment:totalCommitment,
@@ -1179,6 +1192,11 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   }
   if(!need){
     return {...base,action:"hold",reason:"no_legal_component"};
+  }
+  if(!force&&aeroTesting?.profile?.hard_quota&&aeroTesting?.aero_relevant&&
+    num(aeroTesting?.remaining?.wind_tunnel_hours_remaining,0)<=0&&
+    num(aeroTesting?.remaining?.cfd_mauh_remaining,0)<=0){
+    return {...base,action:"hold",reason:"aero_testing_quota_exhausted"};
   }
   if(!force&&num(need?.gap,0)<gapThreshold){
     return {...base,action:"hold",reason:"no_meaningful_competitive_gap"};
@@ -1289,6 +1307,11 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
     competitive_gap:Number(need.gap||0),
     competitive_benchmark:Number(need.benchmark||0),
     projected_manufacturing_cost:Number(manufacturing.cost||0),
+    cfd_allocation:num(assessment?.aero_testing?.cfd,0),
+    cfd_unit:assessment?.aero_testing?.profile?.cfd_unit||null,
+    wt_hours:num(assessment?.aero_testing?.wind_tunnel,0),
+    aero_testing_scheme:assessment?.aero_testing?.profile?.scheme||null,
+    aero_testing_period:assessment?.aero_testing?.profile?.period?.id||null,
   };
   const record=planningDecisionRecord(today,"develop",assessment.reason,assessment);
   const history=[...(state?.planning?.decision_history||[]),record].slice(-40);
@@ -1296,10 +1319,23 @@ export function planAITechnicalProject(gs,teamId,{force=false}={}){
     today,
     Number(quote.days||0)+Number(manufacturing.days||0)+assessment.review_interval_days
   );
+  const developmentWithProject={
+    ...(state.development||{}),
+    projects:[...(state.development?.projects||[]),project],
+  };
+  const regulationProfile=developmentRegulationProfile(next,teamId,{dateISO:today});
+  const developmentAfterAero=recordAeroTestingUsage(
+    developmentWithProject,
+    regulationProfile,
+    {
+      windTunnel:num(assessment?.aero_testing?.wind_tunnel,0),
+      cfd:num(assessment?.aero_testing?.cfd,0),
+    }
+  );
   const nextState={
     ...state,
     budget:num(state.budget,0)-quote.cost,
-    development:{...(state.development||{}),projects:[...(state.development?.projects||[]),project]},
+    development:developmentAfterAero,
     planning:{
       ...(state.planning||{}),
       last_date:today,
