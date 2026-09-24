@@ -171,6 +171,11 @@ function runSeason(gs,year){
   while(date<=end){
     next={...next,currentDateISO:date};
     next=tickAITechnicalWorld(next);
+    for(const team of AI_TEAMS){
+      const technical=aiTechnicalTeamState(next,team);
+      const active=(technical?.development?.projects||[]).filter((project)=>project?.status==="active");
+      assert.ok(active.length<=3,`${team} exceeded the global concurrent project-slot ceiling on ${date}`);
+    }
     if(raceDates.has(date)){
       next=applyAIRaceComponentWear(next,{gp:{gp_id:`${year}:${date}`},race:raceRows(next)});
     }
@@ -224,11 +229,10 @@ test("season rollover replenishes a bounded AI technical envelope without infini
   }
 });
 
-test("multi-season AI development stays capacity-limited and design strength is bounded",()=>{
+test("multi-season AI development stays concurrent-capacity-limited and design strength is bounded",()=>{
   const {gs,seasons}=SOAK_A;
   for(const season of seasons){
     for(const team of AI_TEAMS){
-      assert.ok(season.summary[team].technical_activities<=5,`${team} exceeded combined seasonal technical capacity in ${season.year}`);
       assert.ok(season.summary[team].budget>=0,`${team} went negative in ${season.year}`);
       assert.ok(season.summary[team].overall>=0&&season.summary[team].overall<=100);
       assert.ok(season.summary[team].max_design_strength<=6.001);
