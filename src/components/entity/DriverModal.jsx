@@ -48,6 +48,7 @@ import {
   startDriverNegotiation,
   startDriverRenewal,
 } from "../../engine/NegotiationEngine.js";
+import { driverRelationshipRecords } from "../../domain/driverRelationships.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -56,6 +57,7 @@ const TABS = [
   { key: "attributes",  label: "Attributes" },
   { key: "development", label: "Development" },
   { key: "form",        label: "Form" },
+  { key: "relationships", label: "Relationships" },
   { key: "career",      label: "Career" },
 ];
 
@@ -1121,6 +1123,10 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               items={profileSnapshot?.performanceHistory||[]}
               gameState={gs}
             />
+          )}
+
+          {activeTab === "relationships" && (
+            <RelationshipsTab gameState={gs} driverId={driverId} />
           )}
 
           {activeTab === "career" && (
@@ -2697,6 +2703,140 @@ function AttributesTab({
     </div>
   );
 }
+
+function RelationshipsTab({ gameState, driverId }) {
+  const records=driverRelationshipRecords(gameState,driverId)
+    .slice()
+    .sort((a,b)=>Number(b?.active===true)-Number(a?.active===true)||Number(b?.score||0)-Number(a?.score||0));
+  const drivers=[...(gameState?.drivers||[]),...(gameState?.dbDrivers||[])];
+  const teams=[...(gameState?.teams||[]),...(gameState?.dbTeams||[])];
+  const staff=[...(gameState?.staffCore||[]),...(gameState?.dbStaffCore||[])];
+
+  const nameOf=(record)=>{
+    const targetId=String(record?.target_id||"");
+    if(record?.target_type==="teammate"){
+      const row=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId);
+      return row?.display_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId;
+    }
+    if(record?.target_type==="team"){
+      const row=teams.find((item)=>String(item?.team_id??item?.id??"")===targetId);
+      return row?.team_name||row?.name||row?.short_name||targetId;
+    }
+    if(record?.target_type==="manager")return "Team Manager";
+    const row=staff.find((item)=>String(item?.staff_id??item?.person_id??item?.id??"")===targetId);
+    return row?.display_name||row?.staff_name||row?.name||[row?.first_name,row?.last_name].filter(Boolean).join(" ")||targetId;
+  };
+  const typeLabel=(value)=>({
+    teammate:"Team-mate",
+    team:"Team",
+    manager:"Manager",
+    team_principal:"Team Principal",
+    race_engineer:"Race Engineer",
+  }[String(value)]||String(value||"Relationship").replaceAll("_"," "));
+
+  const relationTone=(score)=>{
+    const value=Number(score);
+    if(value>=65)return "text-emerald-300";
+    if(value<45)return "text-rose-300";
+    return "text-slate-200";
+  };
+  const rivalryTone=(value)=>{
+    const n=Number(value)||0;
+    if(n>=60)return "text-rose-300";
+    if(n>=35)return "text-amber-300";
+    if(n>=15)return "text-sky-300";
+    return "text-slate-400";
+  };
+  const performanceRows=Array.isArray(gameState?.driverPerformanceLog?.[String(driverId)])
+    ?gameState.driverPerformanceLog[String(driverId)]
+    :[];
+  const h2hFor=(record)=>{
+    if(record?.target_type!=="teammate")return null;
+    const rows=performanceRows.filter((row)=>String(row?.teammate_driver_id??"")===String(record?.target_id??""));
+    const race=rows.map((row)=>Number(row?.teammate_race_delta)).filter(Number.isFinite);
+    const quali=rows.map((row)=>Number(row?.teammate_qualifying_delta)).filter(Number.isFinite);
+    const tally=(values)=>({
+      wins:values.filter((value)=>value>0).length,
+      losses:values.filter((value)=>value<0).length,
+      ties:values.filter((value)=>value===0).length,
+    });
+    return {race:tally(race),quali:tally(quali),races:rows.length};
+  };
+
+  const logs=(gameState?.driverRelationships?.log||[])
+    .filter((entry)=>String(entry?.driver_id??"")===String(driverId))
+    .slice(0,30);
+
+  if(!records.length){
+    return <div className="rounded-xl border border-white/10 bg-[#12141c] p-5 text-sm text-slate-400">No relationships have been established in this Save World yet.</div>;
+  }
+
+  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="space-y-3">
+      <div className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Relationship Network</div>
+        <div className="mt-1 text-sm text-slate-400">Relationships evolve from shared results, hierarchy changes, team orders and incidents. Historical links remain in the Save World after people move on.</div>
+      </div>
+      {records.map((record)=>{
+        const h2h=h2hFor(record);
+        return <div key={String(record?.driver_id)+"|"+String(record?.target_type)+"|"+String(record?.target_id)} className={"rounded-xl border p-4 "+(record?.active?"border-white/10 bg-[#12141c]":"border-white/5 bg-[#0f1117] opacity-75")}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{typeLabel(record?.target_type)}</div>
+              <div className="mt-0.5 text-lg font-semibold text-slate-100">{nameOf(record)}</div>
+              <div className="mt-1 flex flex-wrap gap-1.5 text-[10px]">
+                <span className={"rounded px-2 py-0.5 "+(record?.active?"bg-emerald-500/10 text-emerald-300":"bg-white/5 text-slate-500")}>{record?.active?"Current":"Historical"}</span>
+                <span className="rounded bg-white/5 px-2 py-0.5 capitalize text-slate-400">{record?.status||"neutral"}</span>
+                {record?.target_type==="teammate"?<span className={"rounded bg-white/5 px-2 py-0.5 capitalize "+rivalryTone(record?.rivalry)}>{record?.rivalry_status||"low"} rivalry</span>:null}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">Relationship</div>
+              <div className={"text-2xl font-bold "+relationTone(record?.score)}>{Number(record?.score??50).toFixed(0)}</div>
+            </div>
+          </div>
+          <div className={"mt-3 grid gap-2 "+(record?.target_type==="teammate"?"grid-cols-5":"grid-cols-4")}>
+            {[
+              ["Trust",record?.trust],
+              ["Respect",record?.respect],
+              ["Affinity",record?.affinity],
+              ["Satisfaction",record?.satisfaction],
+              ...(record?.target_type==="teammate"?[["Rivalry",record?.rivalry??0]]:[]),
+            ].map(([label,value])=><div key={label} className="rounded-lg border border-white/5 bg-white/[0.025] px-2 py-2">
+              <div className="text-[9px] uppercase tracking-wide text-slate-600">{label}</div>
+              <div className={"mt-0.5 font-semibold "+(label==="Rivalry"?rivalryTone(value):"text-slate-200")}>{Number(value??0).toFixed(0)}</div>
+            </div>)}
+          </div>
+          {h2h?<div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-white/5 pt-2 text-[11px] text-slate-400">
+            <span>Race H2H <strong className="text-slate-200">{h2h.race.wins}-{h2h.race.losses}</strong>{h2h.race.ties?("-"+h2h.race.ties):""}</span>
+            <span>Quali H2H <strong className="text-slate-200">{h2h.quali.wins}-{h2h.quali.losses}</strong>{h2h.quali.ties?("-"+h2h.quali.ties):""}</span>
+            <span>{h2h.races} shared GP evaluations</span>
+          </div>:null}
+        </div>;
+      })}
+    </div>
+
+    <aside className="rounded-xl border border-white/10 bg-[#12141c] p-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent Relationship Events</div>
+      <div className="mt-3 space-y-2">
+        {logs.length?logs.map((entry,index)=><div key={entry?.id||index} className="rounded-lg border border-white/5 bg-white/[0.025] p-2.5">
+          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+            <span>{entry?.dateISO||"—"}</span>
+            <span className="capitalize">{String(entry?.source||"event").replaceAll("_"," ")}</span>
+          </div>
+          <div className="mt-1 text-xs font-medium text-slate-300">{entry?.reason||"Relationship changed"}</div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {(entry?.changes||[]).map((change)=>{
+              const delta=Number(change?.delta||0);
+              return <span key={change?.field} className={"rounded px-1.5 py-0.5 text-[9px] "+(delta>0?"bg-emerald-500/10 text-emerald-300":delta<0?"bg-rose-500/10 text-rose-300":"bg-white/5 text-slate-500")}>{String(change?.field||"").replaceAll("_"," ")} {delta>0?"+":""}{delta.toFixed(1)}</span>;
+            })}
+          </div>
+        </div>):<div className="text-sm text-slate-500">No relationship-changing events recorded yet.</div>}
+      </div>
+    </aside>
+  </div>;
+}
+
 function FormTab({ form, items, gameState }) {
   const years=Array.from(new Set((items||[]).map((row)=>Number(row?.year)).filter(Number.isFinite))).sort((a,b)=>b-a);
   const [year,setYear]=useState("All");
