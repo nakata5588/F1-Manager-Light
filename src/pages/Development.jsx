@@ -764,6 +764,11 @@ export default function Development({ embedded = false, initialTab = "projects",
 
       {!showCreate && tab==="projects" && (
         <div className="grid grid-cols-1 gap-2">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Current Car</div>
+            <div className="font-semibold">Design projects for the car you are racing now</div>
+            <div className="text-sm text-slate-400 mt-1">This is the engineering pipeline: active design briefs, their progress and completed project results. Completing a project creates a blueprint — it does not create a physical spare until you manufacture it.</div>
+          </CardContent></Card>
           {projects.map((p)=>{
             const progress = projectProgress(p,currentDateISO);
             const projection=p.technical_projection||null;
@@ -827,6 +832,11 @@ export default function Development({ embedded = false, initialTab = "projects",
 
       {!showCreate && tab==="manufacturing" && (
         <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Physical Production</div>
+            <div className="font-semibold">Manufacturing & Workshop</div>
+            <div className="text-sm text-slate-400 mt-1">Manufacturing turns an approved blueprint into physical units for Car 1, Car 2 or the warehouse. Workshop jobs cover restoration, standard-component work and reserve-car construction.</div>
+          </CardContent></Card>
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
             <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right"><span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-300">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</span></td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
