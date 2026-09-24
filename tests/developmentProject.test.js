@@ -115,7 +115,8 @@ test("technical capacity is finite and active projects consume the engineering p
   });
 
   assert.ok(empty.engineer_pool>=6);
-  assert.equal(used.used_engineers,6);
-  assert.equal(used.available_engineers,empty.engineer_pool-6);
+  assert.equal(used.used_engineers,4,"paused project should release its engineers");
+  assert.equal(used.available_engineers,empty.engineer_pool-4);
+  assert.equal(used.active_projects,2,"paused project should still occupy a project slot");
   assert.ok(used.max_projects>=1&&used.max_projects<=3);
 });
