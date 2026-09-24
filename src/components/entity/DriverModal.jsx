@@ -1071,6 +1071,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               contractEnd={contractEnd}
               contractSalary={contractSalary}
               futureTransfer={futureTransfer}
+              gameState={gs}
             />
           )}
 
@@ -1384,6 +1385,7 @@ function OverviewTab({
   contractEnd,
   contractSalary,
   futureTransfer,
+  gameState,
 }) {
   const [showExpectationInfo,setShowExpectationInfo]=useState(false);
   const season=snapshot?.season||{};
@@ -1644,7 +1646,7 @@ function OverviewTab({
                   <div key={`${race?.year||"year"}-${race?.round||index}-${race?.gp_id||race?.gp_name||index}`} className="grid grid-cols-[minmax(190px,1fr)_62px_100px_62px_72px_92px] gap-2 border-b border-white/5 py-2 text-xs last:border-b-0">
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-1.5 font-medium text-slate-200">
-                        <GrandPrixFlag gameState={gs} record={race} size="sm"/>
+                        <GrandPrixFlag gameState={gameState} record={race} size="sm"/>
                         <span className="truncate">{race?.gp_name||`Round ${race?.round||"—"}`}</span>
                       </div>
                       <div className="mt-0.5 text-[9px] text-slate-600">{race?.year||""}{race?.round?` · R${race.round}`:""}</div>
