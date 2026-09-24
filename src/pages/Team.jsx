@@ -28,10 +28,10 @@ function Panel({title,action,children,className=""}){
     {children}
   </section>;
 }
-function Metric({label,value}){
-  return <div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
-    <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-    <div className="mt-0.5 font-semibold truncate">{value??"—"}</div>
+function Metric({label,value,compact=false}){
+  return <div className={"rounded-lg border border-white/10 bg-[#171a23] "+(compact?"px-2 py-1.5":"px-3 py-2")}>
+    <div className={(compact?"text-[9px]":"text-[10px]")+" uppercase tracking-wide text-slate-500"}>{label}</div>
+    <div className={(compact?"text-xs":"")+" mt-0.5 font-semibold truncate"}>{value??"—"}</div>
   </div>;
 }
 function QuickLink({to,label,sub}){
@@ -101,23 +101,23 @@ export default function Team(){
   const reputationState=gs?.teamReputationState?.[teamId]||null;
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] text-slate-100 p-4 md:p-6 space-y-4">
-    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-      <TeamLogo teamId={teamId} name={teamName} size="h-20 w-20" className="p-1"/>
-      <div>
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Team Headquarters</div>
-        <h1 className="text-3xl font-bold">{teamName}</h1>
-        <div className="text-sm text-slate-400 mt-1">{team?.team_base||team?.base||"Base unavailable"} · Season {year||"—"}</div>
+    <div className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg p-3 flex flex-wrap xl:flex-nowrap items-center gap-3">
+      <TeamLogo teamId={teamId} name={teamName} size="h-12 w-12" className="p-0.5"/>
+      <div className="min-w-[190px]">
+        <div className="text-[9px] uppercase tracking-[0.16em] text-slate-500">Team Headquarters</div>
+        <h1 className="text-xl md:text-2xl font-bold truncate">{teamName}</h1>
+        <div className="text-xs text-slate-400 truncate">{team?.team_base||team?.base||"Base unavailable"} · {year||"—"}</div>
       </div>
       <div className="flex-1"/>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 min-w-[520px]">
-        <Metric label="Constructors" value={standing?.position?`P${standing.position}`:"—"}/>
-        <Metric label="Points" value={standing?.points??0}/>
-        <Metric label="Car rank" value={myRank?`#${myRank.rank}`:"—"}/>
-        <Metric label="Reputation" value={Math.round(reputation)+" · "+teamReputationLabel(reputation)}/>
-        <Metric label="Balance" value={money(balance)}/>
-        <Metric label="Engineering" value={Math.round(engineeringSupport)+"/100"}/>
-        <Metric label="Board" value={boardConfidence==null?"—":Math.round(Number(boardConfidence)*100)+"%"}/>
-        <Metric
+      <div className="grid grid-cols-4 xl:grid-cols-8 gap-1.5 min-w-0 xl:min-w-[690px]">
+        <Metric compact label="Constructors" value={standing?.position?`P${standing.position}`:"—"}/>
+        <Metric compact label="Points" value={standing?.points??0}/>
+        <Metric compact label="Car rank" value={myRank?`#${myRank.rank}`:"—"}/>
+        <Metric compact label="Reputation" value={Math.round(reputation)+" · "+teamReputationLabel(reputation)}/>
+        <Metric compact label="Balance" value={money(balance)}/>
+        <Metric compact label="Engineering" value={Math.round(engineeringSupport)+"/100"}/>
+        <Metric compact label="Board" value={boardConfidence==null?"—":Math.round(Number(boardConfidence)*100)+"%"}/>
+        <Metric compact
           label="Rep trend"
           value={reputationState?.lastChange!=null
             ?`${Number(reputationState.lastChange)>=0?"+":""}${Number(reputationState.lastChange).toFixed(1)}`
