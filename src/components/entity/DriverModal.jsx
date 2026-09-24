@@ -966,6 +966,32 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">F1 Career</div>
+          <div className="mt-2 space-y-1 text-[11px]">
+            {shortF1Career.length?shortF1Career.map((stint,index)=>(
+              <div key={`${stint.startYear}-${stint.teamId}-${index}`} className="flex items-center gap-2 text-slate-300">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400/70"/>
+                <span className={stint.current?"font-semibold text-sky-300":""}>{stint.label}</span>
+              </div>
+            )):<div className="text-slate-600">No F1 career recorded.</div>}
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Titles</div>
+          <div className="mt-2 space-y-1.5 text-[11px]">
+            {driverTitles.length?driverTitles.map((title,index)=>(
+              <div key={`${title.year}-${title.type}-${index}`} className="flex items-center gap-2 text-slate-300">
+                {title.type==="driver"
+                  ?<Trophy size={12} className="shrink-0 text-amber-300"/>
+                  :<span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-sky-300/40 bg-sky-500/10 text-[7px] font-bold text-sky-300">C</span>}
+                <span><strong className="text-slate-200">{title.year}</strong> · {title.label}</span>
+              </div>
+            )):<div className="text-slate-600">No F1 titles.</div>}
+          </div>
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Contract</div>
           <div className="mt-2 space-y-2 text-xs text-slate-400">
             <div className="flex justify-between gap-3"><span>Team</span><strong className="max-w-[150px] truncate text-right text-slate-200">{contractTeam||"Free Agent"}</strong></div>
