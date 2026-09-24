@@ -5,10 +5,15 @@ import { Button } from "@/components/ui/button";
 import { testDriverDevelopmentProfile } from "@/domain/developmentTesting";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { pitCrewEffectiveProfile } from "@/engine/RaceStrategyEngine.js";
+import {
+  PIT_CREW_TRAINING_PRESETS,
+  pitCrewTrainingLoadEffects,
+  projectPitCrewTraining,
+} from "@/domain/pitCrewTraining.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
 import { createManufacturedPartUnits, normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
-import { activeWorkshopJobs, partManufactureQuote, partUnitRestoreQuote, queueWorkshopJob } from "@/domain/componentService.js";
+import { activeWorkshopJobs, partManufactureQuote } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 import {
   bestDevelopedPartForSlot,
@@ -29,6 +34,15 @@ import {
   normalizedAeroAllocation,
   recordAeroTestingUsage,
 } from "@/domain/developmentRegulations.js";
+import {
+  consumeTechnicalResearch,
+  normalizeTechnicalResearch,
+  setTechnicalResearchFocus,
+  technicalResearchArea,
+  technicalResearchAreaForProject,
+  technicalResearchDailyOutput,
+  technicalResearchSupport,
+} from "@/domain/technicalResearch.js";
 import {
   discoverableCarTechnologies,
   startTechnologyAdoption,
@@ -173,9 +187,12 @@ export default function Development({ embedded = false, initialTab = "projects",
   );
   const teamName=gameState?.team?.team_name||gameState?.team?.name||"My Team";
   const rawPitCrew=gameState?.raceStrategyWorld?.pitCrews?.[teamId]||{
-    avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,source:"fallback"
+    avg_time_s:6.8,consistency:70,error_rate:0.05,training_load:50,fatigue:0,source:"fallback"
   };
   const effectivePitCrew=pitCrewEffectiveProfile(rawPitCrew);
+  const pitCrewFacilityLevel=levelOf("pitcrew_training_level");
+  const pitCrewLoadEffects=pitCrewTrainingLoadEffects(rawPitCrew.training_load??50);
+  const pitCrewSevenDay=projectPitCrewTraining(rawPitCrew,pitCrewFacilityLevel,7);
   const teamMorale=teamOperationalMorale(gameState,teamId);
   const moraleWorkRate=teamWorkRateLabel(gameState,teamId);
   const moraleTimeFactor=teamWorkRateMultiplier(gameState,teamId);
@@ -187,20 +204,14 @@ export default function Development({ embedded = false, initialTab = "projects",
     ()=>aeroTestingRemaining(dev,regulationProfile),
     [dev,regulationProfile]
   );
-  const research = Array.isArray(dev.research) && dev.research.length
-    ? dev.research
-    : [
-        { id:"aero", area:"Aerodynamics", focus:25, points:0 },
-        { id:"chassis", area:"Chassis", focus:25, points:0 },
-        { id:"reliability", area:"Reliability", focus:25, points:0 },
-        { id:"powertrain", area:"Powertrain Integration", focus:25, points:0 },
-      ];
+  const research = normalizeTechnicalResearch(dev.research);
+  const researchOutput=technicalResearchDailyOutput(gameState);
 
   const validTabs = ["projects","parts","manufacturing","research","pit_crew"];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({
-    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0,
+    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0, researchSupport:0,
   });
 
   useEffect(() => {
@@ -220,12 +231,12 @@ export default function Development({ embedded = false, initialTab = "projects",
 
   useEffect(() => {
     if (!eraTypes.includes(draft.type) && eraTypes.length) {
-      setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced"}));
+      setDraft((d) => ({...d, type:eraTypes[0], objective:"balanced", researchSupport:0}));
       return;
     }
     const allowed=developmentObjectivesForSlot(gameState,draft.type,teamId);
     if(!allowed.some((objective)=>objective.id===draft.objective)){
-      setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced"}));
+      setDraft((d)=>({...d,objective:allowed[0]?.id||"balanced",researchSupport:0}));
     }
   }, [eraTypes, draft.type, draft.objective, gameState]);
 
@@ -319,6 +330,9 @@ export default function Development({ embedded = false, initialTab = "projects",
   const objectiveOptions=developmentObjectivesForSlot(gameState,draft.type,teamId);
   const objective=objectiveOptions.find((row)=>row.id===draft.objective)||objectiveOptions[0]||null;
   const objectiveModifiers=objectiveProjectModifiers(gameState,draft.type,draft.objective,teamId);
+  const researchAreaId=technicalResearchAreaForProject(gameState,draft.type,draft.objective);
+  const researchArea=technicalResearchArea(research,researchAreaId);
+  const researchSupport=technicalResearchSupport(research,researchAreaId,draft.researchSupport);
   const aeroAllocation=normalizedAeroAllocation(gameState,teamId,draft.type,{
     windTunnel:draft.windTunnel,
     cfd:draft.cfd,
@@ -333,12 +347,16 @@ export default function Development({ embedded = false, initialTab = "projects",
     windTunnel:aeroEffect.wind_tunnel_effective,
   };
   const rawEffectiveDays = effectiveProjectDays(effectiveDraft, levelOf, moraleTimeFactor);
-  const effectiveDays = Math.max(7,Math.round(rawEffectiveDays*objectiveModifiers.duration_multiplier));
+  const effectiveDays = Math.max(7,Math.round(
+    rawEffectiveDays*objectiveModifiers.duration_multiplier*researchSupport.duration_multiplier
+  ));
   const baseCost = projectCost({...effectiveDraft, duration:effectiveDays}, levelOf("manufacturing_leve"));
   const cost = Math.round(baseCost*objectiveModifiers.cost_multiplier);
   const baseExpectedPerf = perfDelta(effectiveDraft, levelOf, parts);
   const expectedIncrement = Number((
-    baseExpectedPerf * Number(testDriverProfile?.performanceMultiplier || 1)
+    baseExpectedPerf *
+    Number(testDriverProfile?.performanceMultiplier || 1) *
+    researchSupport.performance_multiplier
   ).toFixed(2));
   const strengthTarget=developmentStrengthTarget(parts,draft.type,expectedIncrement);
   const currentDesign=strengthTarget.current_part||bestDevelopedPartForSlot(parts,draft.type);
@@ -359,7 +377,8 @@ export default function Development({ embedded = false, initialTab = "projects",
   const projectRisk=Math.max(
     0.025,
     (0.22 - Number(draft.engineers) * 0.02 - Number(testDriverProfile?.riskReduction || 0))*
-      objectiveModifiers.risk_multiplier
+      objectiveModifiers.risk_multiplier -
+      researchSupport.risk_reduction
   );
   const hasEngineerCapacity=Number(draft.engineers)<=Number(capacity.available_engineers);
   const canStartProject=Boolean(
@@ -408,20 +427,32 @@ export default function Development({ embedded = false, initialTab = "projects",
       test_driver_id:testDriverProfile?.driver_id||null,
       test_driver_name:testDriverProfile?.name||null,
       test_driver_feedback:testDriverProfile?.impact??null,
+      research_area:researchSupport.area_id,
+      research_points_used:researchSupport.points_used,
+      research_support:{
+        duration_multiplier:researchSupport.duration_multiplier,
+        risk_reduction:researchSupport.risk_reduction,
+        performance_multiplier:researchSupport.performance_multiplier,
+      },
     };
 
     applyExpense(cost, `Development — ${project.name}`);
+    const nextResearch=consumeTechnicalResearch(
+      research,
+      researchSupport.area_id,
+      researchSupport.points_used
+    );
     const nextDevelopment=recordAeroTestingUsage({
       ...dev,
       projects:[...projects, project],
-      parts,partUnits,manufacturing,research,
+      parts,partUnits,manufacturing,research:nextResearch,
     },regulationProfile,{
       windTunnel:aeroAllocation.wind_tunnel,
       cfd:aeroAllocation.cfd,
     });
     setGameState({development:nextDevelopment});
     const defaults=defaultAeroAllocation(gameState,teamId,draft.type,nextDevelopment);
-    setDraft((current)=>({...current,cfd:defaults.cfd,windTunnel:defaults.windTunnel}));
+    setDraft((current)=>({...current,cfd:defaults.cfd,windTunnel:defaults.windTunnel,researchSupport:0}));
     setShowCreate(false);
   };
 
@@ -494,30 +525,13 @@ export default function Development({ embedded = false, initialTab = "projects",
     });
   };
 
-  const restoreUnit = (part, unit) => {
-    const quote=partUnitRestoreQuote(physicalState,unit?.id);
-    if(!quote||!currentDateISO||budget<Number(quote.cost||0))return;
-    const beforeJobs=(physicalState?.garage?.serviceJobs||[]).length;
-    const next=queueWorkshopJob(physicalState,quote,{
-      id:`workshop_${Date.now()}`,
-      title:`Restore ${part?.name||part?.version||unit?.id} · ${unit?.id}`,
-      startedAt:currentDateISO,
-    });
-    if((next?.garage?.serviceJobs||[]).length<=beforeJobs)return;
-    applyExpense(quote.cost,`Restoration — ${part?.name||unit?.id}`);
-    setGameState({
-      garage:next?.garage,
-      development:next?.development,
-    });
-  };
-
   const startTechnologyProject=(slot)=>{
     const next=startTechnologyAdoption(gameState,teamId,slot,{origin:"player"});
     if(next!==gameState)setGameState(next);
   };
 
   const updateResearch = (id, focus) => {
-    const next = research.map((r)=>r.id===id?{...r,focus:Number(focus)}:r);
+    const next=setTechnicalResearchFocus(research,id,focus);
     setGameState({development:{...dev,projects,parts,partUnits,manufacturing,research:next}});
   };
 
@@ -575,10 +589,13 @@ export default function Development({ embedded = false, initialTab = "projects",
         <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
           <div className="flex flex-col xl:flex-row xl:items-start gap-4">
             <div className="xl:w-[46%] space-y-4">
-              <div>
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Current Car Development</div>
-                <div className="text-lg font-semibold">Create design brief</div>
-                <div className="text-sm text-slate-400">Choose what the new specification should prioritise. Different briefs create different gains and trade-offs.</div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Current Car Development</div>
+                  <div className="text-lg font-semibold">Create design brief</div>
+                  <div className="text-sm text-slate-400">Choose the component, technical objective and resources. The preview on the right shows the expected engineering trade-off before you commit.</div>
+                </div>
+                <Button size="sm" variant="outline" onClick={()=>setShowCreate(false)}>Back to Development</Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -587,15 +604,20 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <div className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full font-medium text-slate-200">{automaticProjectName}</div>
                   <div className="mt-1 text-[10px] text-slate-500">Generated automatically from component, design objective and version.</div>
                 </div>
-                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>{const type=e.target.value;const defaults=defaultAeroAllocation(gameState,teamId,type,dev);setDraft({...draft,type,objective:"balanced",cfd:defaults.cfd,windTunnel:defaults.windTunnel});}}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
+                <label className="text-sm">Component<select className="mt-1 border border-white/10 bg-[#0d0f15] rounded px-3 py-2 w-full" value={draft.type} onChange={(e)=>{const type=e.target.value;const defaults=defaultAeroAllocation(gameState,teamId,type,dev);setDraft({...draft,type,objective:"balanced",cfd:defaults.cfd,windTunnel:defaults.windTunnel,researchSupport:0});}}>{eraTypes.map((t)=><option key={t} value={t}>{componentLabel(gameState,t)}</option>)}</select></label>
               </div>
 
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Design objective</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {objectiveOptions.length?objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
-                    <div className="font-semibold text-sm">{row.label}</div>
+                  {objectiveOptions.length?objectiveOptions.map((row)=><button key={row.id} onClick={()=>setDraft({...draft,objective:row.id,researchSupport:0})} className={"rounded-lg border p-3 text-left transition "+(draft.objective===row.id?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")}>
+                    <div className="flex items-center justify-between gap-2"><div className="font-semibold text-sm">{row.label}</div><span className="text-[9px] uppercase text-slate-500">{row.id==="balanced"?"General":"Specialist"}</span></div>
                     <div className="text-[11px] text-slate-500 mt-1">{row.description}</div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <EffectChip label="Cost" value={(Number(row.cost||1)-1)*100}/>
+                      <EffectChip label="Time" value={(Number(row.duration||1)-1)*100}/>
+                      <EffectChip label="Risk" value={(Number(row.risk||1)-1)*100}/>
+                    </div>
                   </button>):<div className="sm:col-span-2 rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-3 text-sm text-rose-200">Normal current-car development is not permitted for this component under the {activeYear} rules.</div>}
                 </div>
               </div>
@@ -616,6 +638,26 @@ export default function Development({ embedded = false, initialTab = "projects",
                   <Mini label="Wind-on remaining" value={Number(atrRemaining.wind_tunnel_hours_remaining||0).toFixed(1)+"h"}/>
                   <Mini label="CFD remaining" value={Number(atrRemaining.cfd_mauh_remaining||0).toFixed(2)+" MAUh"}/>
                 </div>:null}
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Research Support</div>
+                    <div className="font-semibold text-sm">{researchArea?.label||"Technical Research"}</div>
+                    <div className="text-[11px] text-slate-500 mt-1">Spend banked Research Points on this design. They reduce development time and risk and give a small expected-performance boost. Points are consumed when the project starts.</div>
+                  </div>
+                  <span className="rounded bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200">{Number(researchArea?.points||0).toFixed(1)} RP available</span>
+                </div>
+                <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 items-center">
+                  <input className="w-full" type="range" min="0" max={Math.min(15,Number(researchArea?.points||0))} step="0.5" value={Math.min(Number(draft.researchSupport||0),Math.min(15,Number(researchArea?.points||0)))} onChange={(e)=>setDraft({...draft,researchSupport:Number(e.target.value)})}/>
+                  <strong className="tabular-nums">{researchSupport.points_used.toFixed(1)} RP</strong>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">Time {((researchSupport.duration_multiplier-1)*100).toFixed(0)}%</span>
+                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">Risk −{(researchSupport.risk_reduction*100).toFixed(1)} pp</span>
+                  <span className="rounded bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-300">Expected gain +{((researchSupport.performance_multiplier-1)*100).toFixed(1)}%</span>
+                </div>
               </div>
 
               <div className={"grid grid-cols-2 "+(aeroAllocation.aero_relevant?"md:grid-cols-4":"md:grid-cols-2")+" gap-3"}>
@@ -674,19 +716,19 @@ export default function Development({ embedded = false, initialTab = "projects",
         </CardContent></Card>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {!showCreate && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Active Projects" value={projects.filter((p)=>p.status==="active").length}/>
         <Stat label="Completed Projects" value={projects.filter((p)=>p.status==="completed").length}/>
-        <Stat label="Designed Parts" value={parts.length}/>
+        <Stat label="Blueprints" value={parts.length}/>
         <Stat label="Manufacturing" value={manufacturing.filter((m)=>m.status==="active").length + workshop.length}/>
-      </div>
+      </div>}
 
-      <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+      {!showCreate && <div className="rounded-xl border border-white/10 bg-[#12141c] p-3 flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="flex flex-wrap gap-2">
           {[
             ["projects","Current Car"],
             ["manufacturing","Manufacturing"],
-            ["parts","Design Library"],
+            ["parts","Blueprints"],
             ["research","Research / Technology"],
             ["pit_crew","Pit Crew"],
           ].map(([key,label])=><Button key={key} size="sm" variant={tab===key?"default":"outline"} onClick={()=>changeTab(key)}>{label}</Button>)}
@@ -701,10 +743,15 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
         <Button size="sm" variant="outline" disabled>Next Season Car · Stage 7</Button>
         {embedded && <Button size="sm" onClick={()=>setShowCreate((v)=>!v)}>{showCreate ? "Close" : "New Project"}</Button>}
-      </div>
+      </div>}
 
-      {tab==="projects" && (
+      {!showCreate && tab==="projects" && (
         <div className="grid grid-cols-1 gap-2">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Current Car</div>
+            <div className="font-semibold">Design projects for the car you are racing now</div>
+            <div className="text-sm text-slate-400 mt-1">This is the engineering pipeline: active design briefs, their progress and completed project results. Completing a project creates a blueprint — it does not create a physical spare until you manufacture it.</div>
+          </CardContent></Card>
           {projects.map((p)=>{
             const progress = projectProgress(p,currentDateISO);
             const projection=p.technical_projection||null;
@@ -749,25 +796,42 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
       )}
 
-      {tab==="parts" && (
-        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
-          <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Part</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Performance</th><th className="px-3 py-2 text-right">Inventory</th><th className="px-3 py-2 text-right">Action</th></tr></thead>
-          <tbody>{parts.map((p)=>{
-            const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
-            const allUnits=partUnitsForDesign(physicalState,p.id);
-            const fitted=Math.max(0,allUnits.length-warehouse.length);
-            const worn=warehouse.filter((unit)=>Number(unit?.condition??100)<99.5).sort((a,b)=>Number(a.condition||100)-Number(b.condition||100))[0]||null;
-            const restoreQuote=worn?partUnitRestoreQuote(physicalState,worn.id):null;
-            const manufactureQuote=partManufactureQuote(physicalState,p);
-            const technical=derivePartTechnicalProfile(physicalState,p);
-            return <tr key={p.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium"><div>{p.name}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td><td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td><td className="px-3 py-2">{p.version||"—"}</td><td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{technical.delta.weight_kg.toFixed(2)} kg · DF +{technical.delta.downforce.toFixed(3)}</div></td><td className="px-3 py-2 text-right"><div>{warehouse.length} warehouse{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {allUnits.length} physical</div></td><td className="px-3 py-2 text-right"><div className="flex justify-end gap-1"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button>{worn&&restoreQuote?<Button size="sm" className="border border-amber-400/30 !bg-amber-500/10 !text-amber-200 hover:!bg-amber-500/20" onClick={()=>restoreUnit(p,worn)} disabled={budget<Number(restoreQuote.cost||0)}>Restore {Number(worn.condition||0).toFixed(0)}% · {restoreQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(restoreQuote.cost)}</span></Button>:null}</div></td></tr>;
-          })}
-          {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a development project to create your first part.</td></tr>}</tbody>
-        </table></CardContent></Card>
+      {!showCreate && tab==="parts" && (
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Engineering Blueprints</div>
+            <div className="font-semibold">Approved designs — not physical parts</div>
+            <div className="text-sm text-slate-400 mt-1">A completed Current Car project creates a blueprint here. The blueprint stores the technical specification forever; use <strong className="text-slate-300">Build</strong> to send physical units to Manufacturing. Fitted and warehouse units are shown only as inventory references.</div>
+          </CardContent></Card>
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
+            <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Blueprint</th><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-right">Design strength</th><th className="px-3 py-2 text-right">Physical units</th><th className="px-3 py-2 text-right">Build</th></tr></thead>
+            <tbody>{parts.map((p)=>{
+              const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
+              const allUnits=partUnitsForDesign(physicalState,p.id);
+              const fitted=Math.max(0,allUnits.length-warehouse.length);
+              const manufactureQuote=partManufactureQuote(physicalState,p);
+              const technical=derivePartTechnicalProfile(physicalState,p);
+              return <tr key={p.id} className="border-t border-white/10">
+                <td className="px-3 py-2 font-medium"><div>{p.name}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td>
+                <td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td>
+                <td className="px-3 py-2">{p.version||"—"}</td>
+                <td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{p.development_focus?nice(p.development_focus):"Balanced"}</div></td>
+                <td className="px-3 py-2 text-right"><div>{allUnits.length} total{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {warehouse.length} warehouse</div></td>
+                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Build · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
+              </tr>;
+            })}
+            {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a Current Car design project to create your first blueprint.</td></tr>}</tbody>
+          </table></CardContent></Card>
+        </div>
       )}
 
-      {tab==="manufacturing" && (
+      {!showCreate && tab==="manufacturing" && (
         <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Physical Production</div>
+            <div className="font-semibold">Manufacturing & Workshop</div>
+            <div className="text-sm text-slate-400 mt-1">Manufacturing turns an approved blueprint into physical units for Car 1, Car 2 or the warehouse. Workshop jobs cover restoration, standard-component work and reserve-car construction.</div>
+          </CardContent></Card>
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-0 overflow-x-auto"><table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300"><tr><th className="px-3 py-2 text-left">Batch</th><th className="px-3 py-2 text-left">Started</th><th className="px-3 py-2 text-left">ETA</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Cost</th><th className="px-3 py-2 text-left">Status</th></tr></thead>
             <tbody>{manufacturing.map((m)=><tr key={m.id} className="border-t border-white/10"><td className="px-3 py-2 font-medium">{m.title}</td><td className="px-3 py-2">{m.started_at}</td><td className="px-3 py-2">{m.finishes_at}</td><td className="px-3 py-2 text-right">{m.qty}</td><td className="px-3 py-2 text-right"><span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-300">{fmtMoney(Number(m.unit_cost||0)*Number(m.qty||1))}</span></td><td className="px-3 py-2">{nice(m.status)}</td></tr>)}
@@ -783,10 +847,52 @@ export default function Development({ embedded = false, initialTab = "projects",
         </div>
       )}
 
-      {tab==="research" && (
+      {!showCreate && tab==="research" && (
         <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+              <div className="lg:w-[44%]">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Technical Research</div>
+                <div className="text-lg font-semibold">Focus builds knowledge. Research Points support designs.</div>
+                <div className="text-sm text-slate-400 mt-1">Your technical department generates Research Points every in-game day. Focus controls where that passive research goes; the four areas always share a total of 100%.</div>
+                <div className="text-sm text-slate-400 mt-2">Research Points do <strong className="text-slate-200">not</strong> improve the car automatically. Bank them here, then spend up to 15 RP as <strong className="text-slate-200">Research Support</strong> when you create a Current Car design brief.</div>
+              </div>
+              <div className="lg:flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Mini label="Department output" value={researchOutput.total_points_per_day.toFixed(2)+" RP/day"}/>
+                <Mini label="Focus allocated" value={research.reduce((sum,row)=>sum+Number(row.focus||0),0).toFixed(0)+"%"}/>
+                <Mini label="Banked knowledge" value={research.reduce((sum,row)=>sum+Number(row.points||0),0).toFixed(1)+" RP"}/>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4 text-xs">
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">1 · Set Focus</div><div className="text-slate-500 mt-1">Prioritise the technical areas you expect to develop. Moving one slider automatically rebalances the other areas.</div></div>
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">2 · Bank RP</div><div className="text-slate-500 mt-1">Research accumulates daily. Better technical facilities increase the department's total daily output.</div></div>
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3"><div className="font-semibold">3 · Support a Design</div><div className="text-slate-500 mt-1">Spend RP in New Project to shorten development, lower risk and modestly improve the expected design gain.</div></div>
+            </div>
+          </CardContent></Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {research.map((r)=>{
+              const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100);
+              return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div><div className="font-semibold">{r.label||r.area}</div><div className="text-xs text-slate-500 mt-1">{r.description}</div></div>
+                  <div className="text-right"><div className="font-semibold tabular-nums">{Number(r.focus||0).toFixed(0)}%</div><div className="text-[10px] text-emerald-300">+{daily.toFixed(2)} RP/day</div></div>
+                </div>
+                <input className="w-full mt-4" type="range" min="0" max="100" step="5" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
+                <div className="mt-3 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Available for future projects</span>
+                  <strong className="text-cyan-200 tabular-nums">{Number(r.points||0).toFixed(1)} RP</strong>
+                </div>
+              </CardContent></Card>;
+            })}
+          </div>
+
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
-            <div><div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div><div className="text-lg font-semibold">Paddock technology opportunities</div><div className="text-sm text-slate-400 mt-1">A rival using a technology can make it researchable, but adoption only unlocks the technical area. You still need to design and manufacture a competitive physical part afterwards.</div></div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500">Technology Adoption</div>
+              <div className="text-lg font-semibold">Paddock technology opportunities</div>
+              <div className="text-sm text-slate-400 mt-1">This is separate from Research Points. If another TEAM proves an era-legal technology that we do not yet understand, we can fund an adoption programme. Completing it unlocks that component family; we must still design a blueprint and manufacture physical units afterwards.</div>
+            </div>
             {technologyOpportunities.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{technologyOpportunities.map((opportunity)=>{
               const quote=technologyAdoptionQuote(gameState,teamId,opportunity.slot);
               const active=technologyProjects.find((project)=>project.slot===opportunity.slot&&project.status==="active");
@@ -797,51 +903,107 @@ export default function Development({ embedded = false, initialTab = "projects",
             })}</div>:<div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-slate-500">No new rival technology is currently available for adoption in this era.</div>}
             {technologyProjects.filter((project)=>project.status==="completed").length?<div className="pt-2 border-t border-white/10"><div className="text-xs uppercase text-slate-500 mb-2">Adopted technology</div><div className="flex flex-wrap gap-2">{technologyProjects.filter((project)=>project.status==="completed").map((project)=><span key={project.id} className="rounded bg-emerald-500/10 text-emerald-200 px-2 py-1 text-xs">{project.label} · unlocked {project.completed_at}</span>)}</div></div>:null}
           </CardContent></Card>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {research.map((r)=><Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
-              <div className="flex justify-between"><div className="font-semibold">{r.area}</div><div className="text-sm">{r.focus||0}% focus</div></div>
-              <input className="w-full mt-3" type="range" min="0" max="100" value={r.focus||0} onChange={(e)=>updateResearch(r.id,e.target.value)}/>
-              <div className="text-xs text-slate-400 mt-2">Research points: {r.points||0}</div>
-            </CardContent></Card>)}
-          </div>
         </div>
       )}
 
-      {tab==="pit_crew" && (
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
-              <div className="text-lg font-semibold">Pit Crew Training Load</div>
-              <p className="text-sm text-slate-400 mt-1">Training improves pit-stop pace, consistency and error rate over time. Heavy training accelerates development but creates a temporary race-day fatigue penalty.</p>
+      {!showCreate && tab==="pit_crew" && (
+        <div className="space-y-3">
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+              <div className="lg:w-[48%]">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Race Operations</div>
+                <div className="text-lg font-semibold">Pit Crew Training</div>
+                <div className="text-sm text-slate-400 mt-1">Training Load is a long-term trade-off. More load improves the crew's underlying stop pace, consistency and error rate faster; sustained heavy work also builds fatigue, which makes the crew slower and less reliable on race day.</div>
+              </div>
+              <div className="lg:flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Training facility" value={"Lv "+pitCrewFacilityLevel}/>
+                <Mini label="Current fatigue" value={Number(rawPitCrew.fatigue||0).toFixed(0)+"/100"}/>
+                <Mini label="Development speed" value={"×"+pitCrewLoadEffects.development_multiplier.toFixed(2)}/>
+                <Mini label="Fatigue / day" value={(pitCrewLoadEffects.fatigue_delta_per_day>=0?"+":"")+pitCrewLoadEffects.fatigue_delta_per_day.toFixed(2)}/>
+              </div>
             </div>
-            <input className="w-full" type="range" min="0" max="100" step="5" value={Number(rawPitCrew.training_load??50)} onChange={(e)=>setPitCrewTrainingLoad(e.target.value)}/>
-            <div className="flex items-center justify-between text-sm"><span className="text-slate-400">Current load</span><strong>{Math.round(Number(rawPitCrew.training_load??50))}%</strong></div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {[["Recovery",20],["Balanced",50],["Intensive",80],["Maximum",100]].map(([label,value])=><Button key={label} size="sm" variant={Number(rawPitCrew.training_load??50)===value?"default":"outline"} onClick={()=>setPitCrewTrainingLoad(value)}>{label}</Button>)}
-            </div>
-            <div className="text-xs text-slate-500">Suggestion: taper the load before a race weekend if you want to avoid the race-day penalty from very high training intensity.</div>
           </CardContent></Card>
 
-          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4">
-            <div className="font-semibold mb-3">Pit Crew Performance</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Mini label="Base stop" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
-              <Mini label="Race-day stop" value={Number(effectivePitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
-              <Mini label="Consistency" value={Number(effectivePitCrew.consistency??70).toFixed(1)+"%"}/>
-              <Mini label="Error rate" value={(Number(effectivePitCrew.error_rate??0.05)*100).toFixed(1)+"%"}/>
-            </div>
-            <div className="mt-4 rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
-              <div className="font-medium">How it works</div>
-              <div className="text-slate-400 mt-1">Daily training progression is affected by the Pit Crew Training facility. Loads above 60% improve the crew faster but temporarily add stop-time and error risk on race day. This is now the same crew profile used by the race-strategy pit-stop simulation.</div>
-            </div>
-          </CardContent></Card>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+            <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-5"><CardContent className="p-4 space-y-4">
+              <div>
+                <div className="flex items-center justify-between"><div className="font-semibold">Training Load</div><strong>{Math.round(Number(rawPitCrew.training_load??50))}%</strong></div>
+                <input className="w-full mt-3" type="range" min="0" max="100" step="5" value={Number(rawPitCrew.training_load??50)} onChange={(e)=>setPitCrewTrainingLoad(e.target.value)}/>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {PIT_CREW_TRAINING_PRESETS.map((preset)=>{
+                  const effects=pitCrewTrainingLoadEffects(preset.load);
+                  const active=Number(rawPitCrew.training_load??50)===preset.load;
+                  return <button key={preset.id} onClick={()=>setPitCrewTrainingLoad(preset.load)} className={"rounded-lg border p-3 text-left transition "+(active?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-[#0d0f15] hover:bg-white/[0.04]")}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-semibold text-sm">{preset.label}</span><span className="text-xs">{preset.load}%</span></div>
+                    <div className="text-[11px] text-slate-500 mt-1">{preset.description}</div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-200">Training ×{effects.development_multiplier.toFixed(2)}</span>
+                      <span className={"rounded px-1.5 py-0.5 text-[10px] "+(effects.fatigue_delta_per_day>0?"bg-rose-500/10 text-rose-300":"bg-emerald-500/10 text-emerald-300")}>Fatigue {(effects.fatigue_delta_per_day>=0?"+":"")+effects.fatigue_delta_per_day.toFixed(2)}/day</span>
+                    </div>
+                  </button>;
+                })}
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 text-xs text-slate-400">
+                <strong className="text-slate-200">Recovery vs Balanced:</strong> they no longer represent the same thing. Recovery sacrifices development speed to remove fatigue quickly; Balanced gives more skill growth while still slowly recovering fatigue. Intensive and Maximum improve raw ability faster, but can leave a tired crew for the next race.
+              </div>
+            </CardContent></Card>
+
+            <Card className="!bg-[#12141c] !border-white/10 !text-slate-100 xl:col-span-7"><CardContent className="p-4 space-y-4">
+              <div>
+                <div className="font-semibold">Pit Crew Performance</div>
+                <div className="text-xs text-slate-500 mt-1">Base values are permanent crew skill. Race-day values include current fatigue and are the values used by the pit-stop simulation.</div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Base stop skill" value={Number(rawPitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+                <Mini label="Race-day stop" value={Number(effectivePitCrew.avg_time_s??6.8).toFixed(2)+"s"}/>
+                <Mini label="Race-day consistency" value={Number(effectivePitCrew.consistency??70).toFixed(1)+"%"}/>
+                <Mini label="Race-day error rate" value={(Number(effectivePitCrew.error_rate??0.05)*100).toFixed(1)+"%"}/>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="flex items-center justify-between gap-3"><div><div className="text-xs uppercase tracking-wide text-slate-500">7-day forecast at current load</div><div className="font-semibold text-sm">{Math.round(Number(rawPitCrew.training_load??50))}% Training Load</div></div><span className="text-xs text-slate-500">Facility Lv {pitCrewFacilityLevel}</span></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                  <ForecastMini label="Race-day stop" current={Number(effectivePitCrew.avg_time_s??6.8)} future={Number(pitCrewSevenDay.effective.avg_time_s??6.8)} suffix="s" lowerBetter/>
+                  <ForecastMini label="Consistency" current={Number(effectivePitCrew.consistency??70)} future={Number(pitCrewSevenDay.effective.consistency??70)} suffix="%"/>
+                  <ForecastMini label="Error rate" current={Number(effectivePitCrew.error_rate??0.05)*100} future={Number(pitCrewSevenDay.effective.error_rate??0.05)*100} suffix="%" lowerBetter/>
+                  <ForecastMini label="Fatigue" current={Number(rawPitCrew.fatigue||0)} future={Number(pitCrewSevenDay.raw.fatigue||0)} suffix="/100" lowerBetter/>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm">
+                <div className="font-medium">Race Weekend connection</div>
+                <div className="text-slate-400 mt-1">Every pit stop now reads this same crew profile. <strong className="text-slate-300">Average stop skill</strong> sets the baseline stationary time, <strong className="text-slate-300">Consistency</strong> controls stop-to-stop time variance, and <strong className="text-slate-300">Error rate</strong> controls the chance of a slow operational mistake. Fatigue worsens all three on race day.</div>
+              </div>
+            </CardContent></Card>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+function EffectChip({label,value}){
+  const amount=Number(value||0);
+  const neutral=Math.abs(amount)<0.05;
+  const good=label==="Risk"?amount<0:amount<=0;
+  return <span className={"rounded px-1.5 py-0.5 text-[9px] "+(neutral?"bg-white/5 text-slate-500":good?"bg-emerald-500/10 text-emerald-300":"bg-amber-500/10 text-amber-300")}>{label} {amount>0?"+":""}{amount.toFixed(0)}%</span>;
+}
+function ForecastMini({label,current,future,suffix="",lowerBetter=false,digits=2}){
+  const a=Number(current||0),b=Number(future||0),delta=b-a;
+  const good=lowerBetter?delta<0:delta>0;
+  const neutral=Math.abs(delta)<Math.pow(10,-digits);
+  return <div className="rounded-lg border border-white/10 p-2">
+    <div className="text-[10px] text-slate-500">{label}</div>
+    <div className="mt-1 flex items-center gap-1 text-sm tabular-nums">
+      <span className="text-slate-500">{a.toFixed(digits)}{suffix}</span>
+      <span className="text-slate-600">→</span>
+      <strong className={neutral?"text-slate-200":good?"text-emerald-300":"text-rose-300"}>{b.toFixed(digits)}{suffix}</strong>
+    </div>
+  </div>;
+}
 function TechCompare({label,current,proposed,suffix="",digits=2,lowerBetter=false}){
   const a=Number(current||0),b=Number(proposed||0),delta=b-a;
   const good=lowerBetter?delta<0:delta>0;
