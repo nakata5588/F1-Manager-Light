@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
-import { pointAtTrackProgress, resolveTrackLayout, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, visualTrackProgress } from "../src/domain/trackLayout.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -90,3 +90,17 @@ for(const layout of TRACK_LAYOUT_ASSETS){
     }
   });
 }
+
+
+test("RW6.2.1 auto-fit viewBox crops unused geometry space while keeping marker padding",()=>{
+  const viewBox=trackGeometryViewBox({points:[[100,200],[900,200],[900,800],[100,800]]});
+  assert.deepEqual(viewBox,[56,156,888,688]);
+  const [x,y,width,height]=viewBox;
+  assert.ok(x<100&&y<200);
+  assert.ok(x+width>900&&y+height>800);
+  assert.ok(width<1000&&height<1000,"auto-fit should be tighter than the legacy 1000x1000 viewBox");
+});
+
+test("RW6.2.1 auto-fit keeps a safe fallback for missing geometry",()=>{
+  assert.deepEqual(trackGeometryViewBox(null),[0,0,1000,1000]);
+});
