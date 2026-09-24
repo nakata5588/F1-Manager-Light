@@ -6,6 +6,7 @@ import { driverCondition } from "../domain/driverRating.js";
 import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
+import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvironmentEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -68,6 +69,8 @@ export function buildTrackWeatherTimeline(gs,weather,track){
   const confirmedCars=(gs?.raceEntryState?.entries||[]).filter((row)=>row?.status==="confirmed"&&row?.driver_id).length;
   const carsOnTrack=confirmedCars||Math.max(12,(gs?.teams||[]).length*2||20);
   const drainage=clamp(num(track?.drainage_rating??track?.drainage,0.5),0,1);
+  const windProfile=weather?.wind_profile||"medium";
+  const baseAirTemp=num(weather?.starting_air_temp_c,weather?.avg_temp_c??22);
   let surface=initialiseTrackSurface({
     state:firstState,
     startingWetness:Number.isFinite(Number(weather?.starting_track_wetness))
@@ -75,22 +78,40 @@ export function buildTrackWeatherTimeline(gs,weather,track){
       :rainIntensityForState(firstState)*0.55,
     rubberLevel:clamp(num(weather?.starting_rubber_level??weather?.rubber_level,12),0,100),
   });
+  let environment=initialiseTrackEnvironment({
+    state:firstState,
+    baseAirTempC:baseAirTemp,
+    airTempC:num(weather?.starting_air_temp_c,weather?.avg_temp_c??baseAirTemp),
+    trackTempC:num(weather?.starting_track_temp_c,weather?.track_temp_c??NaN),
+    wetness:surface.track_wetness,
+    rainIntensity:surface.rain_intensity,
+    carsOnTrack,
+    windProfile,
+    sessionProgress:0,
+  });
   const laps=Math.max(1,Number(track?.laps)||1);
   for(let lap=1;lap<=laps;lap++){
     const state=weatherStateAtLap(weather,lap);
     const beforeWetness=surface.track_wetness;
+    const progress=laps<=1?1:(lap-1)/(laps-1);
     surface=evolveTrackSurface(surface,{
       state,
       carsOnTrack,
-      trackTempC:num(weather?.track_temp_c,26),
-      windProfile:weather?.wind_profile||"medium",
+      trackTempC:environment.track_temp_c,
+      windProfile,
       drainage,
     });
     const intensity=surface.rain_intensity;
+    environment=evolveTrackEnvironment(environment,{
+      state,
+      baseAirTempC:baseAirTemp,
+      wetness:surface.track_wetness,
+      rainIntensity:intensity,
+      carsOnTrack,
+      windProfile,
+      sessionProgress:progress,
+    });
     const row=weatherRow(gs,state);
-    // Visibility remains intentionally simple until RW5.2D2; D1 only makes the
-    // surface physics authoritative for water, rubber and grip.
-    const visibility=clamp(1-intensity*0.46-(state==="STORM"?0.12:0),0.32,1);
     out.push({
       lap,state,
       rain_intensity:Number(intensity.toFixed(2)),
@@ -99,7 +120,12 @@ export function buildTrackWeatherTimeline(gs,weather,track){
       wetness_delta:Number((surface.track_wetness-beforeWetness).toFixed(3)),
       rubber_level:Number(surface.rubber_level.toFixed(1)),
       grip_index:Number(surface.grip_index.toFixed(1)),
-      visibility_index:Number((visibility*100).toFixed(1)),
+      air_temp_c:Number(environment.air_temp_c.toFixed(1)),
+      track_temp_c:Number(environment.track_temp_c.toFixed(1)),
+      spray_index:Number(environment.spray_index.toFixed(3)),
+      spray_band:environment.spray_band,
+      visibility_index:Number(environment.visibility_index.toFixed(1)),
+      visibility_band:environment.visibility_band,
       crash_risk_multiplier:Number(num(row?.crash_risk_ppm,{SUNNY:1,CLOUDY:1,WINDY:1.2,LIGHT_RAIN:1.6,HEAVY_RAIN:2.4,STORM:3.2}[state]||1).toFixed(2)),
       dnf_risk_multiplier:Number(num(row?.dnf_risk_ppm,1).toFixed(2)),
       safety_car_chance_pct:num(row?.safety_car_chance_pct,0),
