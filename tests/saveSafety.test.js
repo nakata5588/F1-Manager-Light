@@ -122,6 +122,64 @@ test("imported saves unwrap legacy standings row containers", () => {
   ]);
 });
 
+test("imported saves normalize object-shaped Race Weekend starting grids", () => {
+  const imported = {
+    meta: { version: GAME_VERSION },
+    gameState: {
+      activeYear: 1980,
+      currentDateISO: "1980-05-18",
+      team: { team_id: "t_williams", team_name: "Williams" },
+      saveMeta: createNewSaveMeta({ year: 1980, teamId: "t_williams", seed: "object-grid" }),
+      raceWeekendState: {
+        phase: "grid_ready",
+        gp_id: "monaco",
+        startingGrid: {
+          status: "final",
+          rows: {
+            d_0178: { grid: 1, team_id: "t_williams" },
+            d_0137: { grid: 2, team_id: "t_brabham" },
+          },
+        },
+        grid: {
+          d_0178: { grid: 1, team_id: "t_williams" },
+          d_0137: { grid: 2, team_id: "t_brabham" },
+        },
+      },
+    },
+  };
+
+  const restored = extractGameStateFromStoredSave(imported);
+  const weekend = restored.raceWeekendState;
+
+  assert.ok(Array.isArray(weekend.startingGrid.rows));
+  assert.ok(Array.isArray(weekend.grid));
+  assert.deepEqual(weekend.startingGrid.rows, [
+    { driver_id: "d_0178", grid: 1, team_id: "t_williams" },
+    { driver_id: "d_0137", grid: 2, team_id: "t_brabham" },
+  ]);
+  assert.deepEqual(weekend.grid, weekend.startingGrid.rows);
+  assert.equal(weekend.startingGrid.status, "final");
+});
+
+test("legacy array-shaped startingGrid is upgraded to the current persisted shape", () => {
+  const rows = [
+    { driver_id: "d_0178", grid: 1, team_id: "t_williams" },
+    { driver_id: "d_0137", grid: 2, team_id: "t_brabham" },
+  ];
+  const restored = migrateGameState({
+    activeYear: 1980,
+    currentDateISO: "1980-05-18",
+    team: { team_id: "t_williams" },
+    raceWeekendState: {
+      phase: "grid_ready",
+      startingGrid: rows,
+    },
+  });
+
+  assert.deepEqual(restored.raceWeekendState.startingGrid.rows, rows);
+  assert.deepEqual(restored.raceWeekendState.grid, rows);
+});
+
 test("v1 saves migrate shared design inventory into deterministic physical units", () => {
   const legacyV1 = {
     activeYear:1980,
