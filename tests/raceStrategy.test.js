@@ -12,6 +12,11 @@ import {
   tyresForTeam,
   tyreConditionEffects,
 } from "../src/engine/RaceStrategyEngine.js";
+import {
+  aiTyreCrossoverDecision,
+  tyreCrossoverProfile,
+  tyreWeatherPenaltyForWetness,
+} from "../src/engine/TyreCrossoverEngine.js";
 
 const tyres=[
   {tyre_id:"gy_h",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Hard",category:"dry",grip_index:74,wear_rate:0.015,warmup_time_s:2.8},
@@ -430,4 +435,67 @@ test("RW4.5 AI does not routinely run a severely worn tyre down to ten percent b
   assert.ok(degradationStop.tyre_condition>9,"AI reaction should happen before the old near-10% emergency threshold");
   assert.ok(Number.isFinite(degradationStop.estimated_pit_loss_s));
   assert.ok(Number.isFinite(degradationStop.projected_stay_out_loss_s));
+});
+
+
+test("RW5.2D3 AI drivers use individual slick-to-intermediate crossover points",()=>{
+  const ratings=[
+    {driver_id:"d_f1",race_intelligence:74,adaptability:74,aggression:50},
+    {driver_id:"d_f2",race_intelligence:72,adaptability:70,aggression:50},
+    {driver_id:"d_w1",race_intelligence:78,adaptability:72,aggression:50},
+    {driver_id:"d_w2",race_intelligence:70,adaptability:72,aggression:50},
+  ];
+  const rows=ratings.map((rating)=>({
+    id:rating.driver_id,
+    profile:tyreCrossoverProfile({driverId:rating.driver_id,teamId:rating.driver_id.startsWith("d_f")?"t_ferrari":"t_williams",rating}),
+    rating,
+  }));
+  assert.ok(rows.every((row)=>row.profile.slick_to_inter>=0.20&&row.profile.slick_to_inter<=0.30));
+  assert.ok(rows.every((row)=>row.profile.inter_to_wet>=0.66&&row.profile.inter_to_wet<=0.78));
+  const unique=new Set(rows.map((row)=>row.profile.slick_to_inter.toFixed(3)));
+  assert.ok(unique.size>=3,"the field should not share one wetness threshold");
+
+  const ordered=rows.slice().sort((a,b)=>a.profile.slick_to_inter-b.profile.slick_to_inter);
+  const early=ordered[0],late=ordered.at(-1);
+  const wetness=(early.profile.slick_to_inter+late.profile.slick_to_inter)/2;
+  const earlyDecision=aiTyreCrossoverDecision({
+    driverId:early.id,teamId:early.id.startsWith("d_f")?"t_ferrari":"t_williams",rating:early.rating,
+    currentCategory:"dry",wetness,wetnessDelta:0,rainIntensity:0,lap:12,totalLaps:40,
+  });
+  const lateDecision=aiTyreCrossoverDecision({
+    driverId:late.id,teamId:late.id.startsWith("d_f")?"t_ferrari":"t_williams",rating:late.rating,
+    currentCategory:"dry",wetness,wetnessDelta:0,rainIntensity:0,lap:12,totalLaps:40,
+  });
+  assert.equal(earlyDecision.should_pit,true);
+  assert.equal(lateDecision.should_pit,false);
+});
+
+test("RW5.2D3 crossover hysteresis blocks an immediate intermediate-to-wet correction",()=>{
+  const rating={race_intelligence:72,adaptability:72,aggression:50};
+  const tooSoon=aiTyreCrossoverDecision({
+    driverId:"d_f1",teamId:"t_ferrari",rating,
+    currentCategory:"intermediate",wetness:0.82,wetnessDelta:0.02,rainIntensity:0.70,
+    lap:12,totalLaps:40,lastPitLap:10,
+  });
+  assert.equal(tooSoon.should_pit,false);
+  assert.equal(tooSoon.target_category,"wet");
+  assert.equal(tooSoon.cooldown_active,true);
+
+  const later=aiTyreCrossoverDecision({
+    driverId:"d_f1",teamId:"t_ferrari",rating,
+    currentCategory:"intermediate",wetness:0.82,wetnessDelta:0.02,rainIntensity:0.70,
+    lap:14,totalLaps:40,lastPitLap:10,
+  });
+  assert.equal(later.should_pit,true);
+  assert.equal(later.target_category,"wet");
+});
+
+test("RW5.2D3 tyre weather cost changes progressively with surface water",()=>{
+  const slickDamp=tyreWeatherPenaltyForWetness("dry",0.15);
+  const slickInter=tyreWeatherPenaltyForWetness("dry",0.28);
+  const slickWet=tyreWeatherPenaltyForWetness("dry",0.60);
+  assert.ok(slickDamp<slickInter);
+  assert.ok(slickInter<slickWet);
+  assert.ok(tyreWeatherPenaltyForWetness("intermediate",0.40)<slickWet);
+  assert.ok(tyreWeatherPenaltyForWetness("wet",0.05)>tyreWeatherPenaltyForWetness("wet",0.75));
 });
