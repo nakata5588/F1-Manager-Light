@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { aggregateHistoricalConstructors } from "../domain/championshipHistory.js";
 
 const str=(v)=>(v==null?"":String(v));
 const firstArray=(...items)=>items.find(Array.isArray)||[];
@@ -99,7 +100,6 @@ function aggregateCareerResults(results,year,driversById,teamsById){
 function aggregateHistorical(history,year,driversById,teamsById){
   const rows=history.filter((r)=>Number(r?.year)===Number(year));
   const driverMap=new Map();
-  const teamMap=new Map();
 
   for(const row of rows){
     const did=str(row?.driver_id);
@@ -130,20 +130,6 @@ function aggregateHistorical(history,year,driversById,teamsById){
     d._teams.push({id:tid,name:row?.team_name||teamName(dbTeam,tid||"—"),starts,points:num(row?.points,0)});
     driverMap.set(did,d);
 
-    if(tid){
-      const t=teamMap.get(tid)||{
-        id:tid,name:row?.team_name||teamName(dbTeam,tid),points:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,races:0,
-        team:dbTeam||{team_id:tid,team_name:row?.team_name||tid},
-      };
-      t.points+=num(row?.points,0);
-      t.wins+=num(row?.wins,0);
-      t.podiums+=num(row?.podiums,0);
-      t.fastestLaps+=num(row?.fastest_laps,0);
-      t.poles+=num(row?.poles,0);
-      t.dnfs+=num(row?.dnf,0);
-      t.races=Math.max(t.races,num(row?.races??row?.starts,0));
-      teamMap.set(tid,t);
-    }
   }
 
   const drivers=[...driverMap.values()].map((row)=>{
@@ -158,10 +144,10 @@ function aggregateHistorical(history,year,driversById,teamsById){
     };
   }).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
 
-  const teams=[...teamMap.values()].map((row)=>({
+  const teams=aggregateHistoricalConstructors(history,year,teamsById).map((row)=>({
     ...row,
-    pointsPerRace:row.races?Number((row.points/row.races).toFixed(2)):0,
-  })).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
+    team:teamsById.get(row.id)||{team_id:row.id,team_name:row.name},
+  }));
   return {drivers,teams};
 }
 
