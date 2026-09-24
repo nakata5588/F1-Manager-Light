@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { useEventStore } from "../state/EventStore.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { GrandPrixFlag } from "../components/entity/GrandPrixFlag.jsx";
 import { activeDriverContracts, driverContractsOf, driverLineupSlots, driverIdOf } from "../domain/driverContracts.js";
 import { activeStaffContracts } from "../domain/liveContracts.js";
 import { driverRoleLabelForSlot } from "../domain/contractRoles.js";
@@ -240,7 +241,10 @@ export default function Home(){
       <Panel title="Up next" className="xl:col-span-5" action={<SmallLink to="/CalendarPage">Calendar ›</SmallLink>}>
         {data.nextRace?<div className="p-5 bg-gradient-to-br from-[#171a23] to-[#101219]">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Next Grand Prix</div>
-          <div className="mt-2 text-3xl font-bold">{data.nextRace.title}</div>
+          <div className="mt-2 flex items-center gap-2 text-3xl font-bold">
+            <GrandPrixFlag gameState={gameState} gp={data.nextRace?.meta?.gp} record={data.nextRace} size="lg"/>
+            <span>{data.nextRace.title}</span>
+          </div>
           <div className="mt-1 text-sm text-slate-400">{data.nextRace.subtitle||"Race weekend"}</div>
           <div className="mt-6 flex flex-wrap gap-2">
             <span className="rounded bg-white/10 px-3 py-1.5 text-sm">{data.nextRace.date}</span>
@@ -267,7 +271,10 @@ export default function Home(){
             <div className="flex items-start gap-3">
               <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${event.priority==="high"?"bg-rose-400":"bg-slate-400"}`}/>
               <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{event.title}</div>
+                <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                  {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
+                  <span className="truncate">{event.title}</span>
+                </div>
                 <div className="text-xs text-slate-500 mt-0.5">{event.date} · {String(event.type).replaceAll("_"," ")}</div>
               </div>
             </div>
