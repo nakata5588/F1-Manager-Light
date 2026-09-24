@@ -147,7 +147,7 @@ export function createManagerProfile(input={},context={}){
 
   return {
     profile_version:1,
-    manager_id:text(input?.manager_id)||"manager_player",
+    manager_id:text(input?.manager_id)||"player_manager",
     first_name:firstName,
     last_name:lastName,
     display_name:displayName,
@@ -192,9 +192,6 @@ export function createManagerProfile(input={},context={}){
         status:"active",
       }],
     achievements:Array.isArray(input?.achievements)?input.achievements:[],
-    relationships:input?.relationships&&typeof input.relationships==="object"
-      ?input.relationships
-      :{drivers:{},staff:{},board:{},principals:{}},
     development:{
       xp:Number(input?.development?.xp||0),
       level:Number(input?.development?.level||1),
