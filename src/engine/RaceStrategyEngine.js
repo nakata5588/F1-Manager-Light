@@ -329,8 +329,11 @@ export function buildRaceWeatherSnapshot(gs,gp={},track=raceTrackProfile(gs,gp))
       wind_profile:weekendRace.wind_profile||"medium",
       wet_race:segments.some((s)=>/RAIN|STORM|WETTING/.test(String(s.state)))||num(weekendRace?.track?.start_wetness,0)>=0.18,
       starting_track_wetness:num(weekendRace?.track?.start_wetness,0),
-      starting_grip_index:num(weekendRace?.track?.grip_index,88),
-      rubber_level:num(weekendRace?.track?.rubber_level,0),
+      starting_grip_index:num(weekendRace?.track?.start_grip_index,weekendRace?.track?.grip_index??88),
+      starting_rubber_level:num(weekendRace?.track?.start_rubber_level,weekendRace?.track?.rubber_level??12),
+      rubber_level:num(weekendRace?.track?.start_rubber_level,weekendRace?.track?.rubber_level??12),
+      rain_intensity:num(weekendRace?.rain_intensity,0),
+      rain_band:weekendRace?.rain_band||null,
       segments,
     };
   }
