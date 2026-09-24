@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, Search, Info, Trophy, Medal
+  Handshake, FileText, Coffee, Search, Info, Trophy
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -1041,12 +1041,37 @@ function KV({ label, value, className = "" }) {
 
 /* ======================== Tabs ======================== */
 
-function ProfileMetric({ label, value, tone = "", cardTone = "", title = "" }) {
+function ProfileMetric({ label, value, tone = "", cardTone = "", title = "", compact = false }) {
   return (
-    <div title={title||undefined} className={`rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 ${cardTone}`}>
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`mt-0.5 text-sm font-semibold ${tone}`}>{displayValue(value)}</div>
+    <div
+      title={title||undefined}
+      className={`rounded-lg border border-white/10 bg-[#171a23] ${compact?"px-2 py-1.5":"px-3 py-2"} ${cardTone}`}
+    >
+      <div className={`${compact?"text-[9px]":"text-[10px]"} uppercase tracking-wide text-slate-500`}>{label}</div>
+      <div className={`${compact?"mt-0 text-[13px]":"mt-0.5 text-sm"} font-semibold ${tone}`}>{displayValue(value)}</div>
     </div>
+  );
+}
+
+function ChampionshipMedal({ position }) {
+  const isSilver=Number(position)===2;
+  const medalClass=isSilver
+    ?"border-slate-200/70 bg-gradient-to-br from-slate-100 via-slate-300 to-slate-500 text-slate-800"
+    :"border-orange-300/70 bg-gradient-to-br from-orange-200 via-orange-400 to-amber-700 text-amber-950";
+  const ribbonClass=isSilver
+    ?"from-slate-200 via-slate-500 to-slate-200"
+    :"from-orange-200 via-orange-500 to-orange-200";
+  return (
+    <span
+      className="relative inline-flex h-5 w-4 shrink-0 items-end justify-center"
+      aria-label={isSilver?"Championship runner-up":"Championship third place"}
+      title={isSilver?"Championship runner-up":"Championship third place"}
+    >
+      <span className={`absolute top-0 h-2.5 w-3 bg-gradient-to-r ${ribbonClass}`} style={{clipPath:"polygon(0 0,42% 0,50% 100%,58% 0,100% 0,72% 100%,28% 100%)"}}/>
+      <span className={`relative z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full border text-[8px] font-black leading-none shadow-sm ${medalClass}`}>
+        {position}
+      </span>
+    </span>
   );
 }
 
