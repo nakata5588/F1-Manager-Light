@@ -377,27 +377,38 @@ export default function Track2DView({
   }
 
   const orderPanelClass=orderExpanded
-    ?"xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]"
-    :"xl:grid-cols-[minmax(0,1fr)_200px] 2xl:grid-cols-[minmax(0,1fr)_210px]";
+    ?"xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]"
+    :"xl:grid-cols-[172px_minmax(0,1fr)] 2xl:grid-cols-[184px_minmax(0,1fr)]";
 
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#0b1017] px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <Map className="h-4 w-4 text-slate-400"/>
-        <div className="min-w-0">
-          <h4 className="truncate text-sm font-semibold">{layout.label} · Race View</h4>
-          <div className="text-[9px] text-slate-600">Live positions are visual; race physics remain engine-owned.</div>
-        </div>
+    <div className="flex min-h-10 items-center gap-2 overflow-x-auto border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Map className="h-3.5 w-3.5 text-slate-500"/>
+        <h4 className="whitespace-nowrap text-[12px] font-semibold">{layout.label} · Race View</h4>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-        <span className={`rounded border px-2 py-1 ${resolutionTone(resolved.resolution)}`} title={layout.source_label||""}>{trackLayoutResolutionLabel(resolved.resolution)}</span>
-        {layout.historical_status!=="verified"?<span className="inline-flex items-center gap-1 rounded border border-amber-500/20 bg-amber-500/[0.07] px-2 py-1 text-amber-200"><TriangleAlert className="h-3 w-3"/>Provisional</span>:null}
-        <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-semibold ${controlTone(currentControl)}`}><Flag className="h-3 w-3"/>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
+      <div className="h-4 w-px shrink-0 bg-white/10"/>
+      <div className="flex shrink-0 items-center gap-1 text-[9px]">
+        <span className="rounded bg-white/[0.05] px-1.5 py-1 font-black text-slate-100">L{Number(currentLap)||0}<span className="text-slate-500">/{Number(totalLaps)||0}</span></span>
+        {Number(currentSector)>0?<span className="rounded bg-sky-500/10 px-1.5 py-1 font-bold text-sky-300">S{currentSector}</span>:null}
+        <span className="rounded bg-white/[0.04] px-1.5 py-1 font-semibold text-slate-300" title={forecast?.message||""}>{String(lastWeather||"SUNNY").replaceAll("_"," ")}</span>
+        <span className="rounded bg-sky-500/[0.08] px-1.5 py-1 text-sky-300" title="Rain intensity"><CloudRain className="mr-1 inline h-3 w-3"/>{Math.round(Number(trackState?.rain_intensity||0)*100)}%</span>
+        <span className="rounded bg-cyan-500/[0.08] px-1.5 py-1 text-cyan-300" title="Track wetness"><Droplets className="mr-1 inline h-3 w-3"/>{Math.round(Number(trackState?.track_wetness||0)*100)}%</span>
+        <span className="rounded bg-white/[0.04] px-1.5 py-1 text-slate-300" title="Grip index">GRIP {Number(trackState?.grip_index??100).toFixed(0)}</span>
+        <span className="rounded bg-white/[0.04] px-1.5 py-1 text-slate-300" title="Visibility">VIS {Number(trackState?.visibility_index??100).toFixed(0)}%</span>
+        <span className="rounded bg-white/[0.04] px-1.5 py-1 text-slate-300" title="Track / air temperature">{Number.isFinite(Number(trackState?.track_temp_c))?Number(trackState.track_temp_c).toFixed(1)+"°":"—"}<span className="text-slate-600"> / {Number.isFinite(Number(trackState?.air_temp_c))?Number(trackState.air_temp_c).toFixed(1)+"°":"—"}</span></span>
+        <span className="rounded bg-fuchsia-500/[0.08] px-1.5 py-1 font-mono text-fuchsia-300" title={timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"Fastest lap"}>{formatLapTime(timingSummary?.fastest_lap_ms)}</span>
+      </div>
+      <div className="flex-1"/>
+      <div className="flex shrink-0 items-center gap-1 text-[9px]">
+        <span className={`rounded border px-1.5 py-1 ${resolutionTone(resolved.resolution)}`} title={layout.source_label||""}>{resolved.fallback?"Provisional":"Layout"}</span>
+        {layout.historical_status!=="verified"?<span className="inline-flex items-center rounded border border-amber-500/20 bg-amber-500/[0.07] px-1.5 py-1 text-amber-200"><TriangleAlert className="mr-1 h-3 w-3"/>PROV</span>:null}
+        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-1 font-bold ${controlTone(currentControl)}`}><Flag className="h-3 w-3"/>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
       </div>
     </div>
+    <div className="h-0.5 bg-white/[0.04]"><div className="h-full bg-sky-300/80 transition-all" style={{width:`${progressPct}%`}}/></div>
 
     <div className={`grid ${orderPanelClass}`}>
-      <div className="relative min-h-[510px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[555px] xl:min-h-[600px] 2xl:min-h-[640px]">
+      <div className="relative order-1 min-h-[500px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[545px] xl:order-2 xl:min-h-[590px] 2xl:min-h-[625px]">
         {displayGeometry?<svg className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={animatedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
@@ -531,35 +542,7 @@ export default function Track2DView({
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05080d]/75 to-transparent"/>
 
-        <div className="absolute left-3 top-3 z-20 w-[min(420px,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-white/15 bg-[#0a0f16]/90 shadow-xl backdrop-blur-xl">
-          <div className="flex items-start justify-between gap-2 border-b border-white/10 px-3 py-2">
-            <div>
-              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Live Race Control</div>
-              <div className="mt-0.5 flex items-baseline gap-2">
-                <div className="text-lg font-black">L{Number(currentLap)||0}<span className="text-slate-500">/{Number(totalLaps)||0}</span></div>
-                {Number(currentSector)>0?<div className="text-sm font-bold text-amber-300">S{currentSector}</div>:null}
-                <div className="text-xs text-slate-400">{String(lastWeather||"SUNNY").replaceAll("_"," ")}</div>
-              </div>
-            </div>
-            <div className={`rounded-md border px-2 py-1 text-[10px] font-bold ${controlTone(currentControl)}`}>{String(currentControl||"GREEN").replaceAll("_"," ")}</div>
-          </div>
-          <div className="h-1 bg-white/10"><div className="h-full bg-slate-100 transition-all" style={{width:`${progressPct}%`}}/></div>
-          <div className="grid grid-cols-3 gap-1 p-2 sm:grid-cols-6">
-            <Stat label="Rain" value={`${Math.round(Number(trackState?.rain_intensity||0)*100)}%`} tone="text-sky-300" icon={<CloudRain className="h-3 w-3"/>}/>
-            <Stat label="Wet" value={`${Math.round(Number(trackState?.track_wetness||0)*100)}%`} tone="text-cyan-300" icon={<Droplets className="h-3 w-3"/>}/>
-            <Stat label="Grip" value={`${Number(trackState?.grip_index??100).toFixed(0)}`} icon={<Gauge className="h-3 w-3"/>}/>
-            <Stat label="Visibility" value={`${Number(trackState?.visibility_index??100).toFixed(0)}%`} icon={<Activity className="h-3 w-3"/>}/>
-            <Stat label="Track" value={Number.isFinite(Number(trackState?.track_temp_c))?`${Number(trackState.track_temp_c).toFixed(1)}°`:"—"} sub={Number.isFinite(Number(trackState?.air_temp_c))?`Air ${Number(trackState.air_temp_c).toFixed(1)}°`:null} icon={<Thermometer className="h-3 w-3"/>}/>
-            <Stat label="Fastest" value={formatLapTime(timingSummary?.fastest_lap_ms)} sub={timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):null} tone="text-fuchsia-300" icon={<Timer className="h-3 w-3"/>}/>
-          </div>
-          {forecast?.message?<div className="border-t border-white/10 px-3 py-1.5 text-[10px] leading-snug text-sky-200"><span className="font-bold">Team forecast:</span> {forecast.message}</div>:null}
-          {(raceStatus==="red_flag"||raceStatus==="finished")?<div className="flex gap-2 border-t border-white/10 p-2">
-            {raceStatus==="red_flag"&&onRestartRace?<button type="button" disabled={busy} onClick={onRestartRace} className="rounded-md bg-red-600 px-3 py-1.5 text-[10px] font-bold text-white disabled:opacity-50">{busy?"Restarting…":"Restart Race"}</button>:null}
-            {raceStatus==="finished"&&onConfirmResults?<button type="button" disabled={busy} onClick={onConfirmResults} className="rounded-md bg-emerald-400 px-3 py-1.5 text-[10px] font-bold text-slate-950 disabled:opacity-50">Confirm Results</button>:null}
-          </div>:null}
-        </div>
-
-        <div className="absolute bottom-3 left-3 z-20 w-[min(470px,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-white/15 bg-[#0a0f16]/88 shadow-xl backdrop-blur-xl">
+        <div className="absolute bottom-3 left-3 z-20 w-[min(420px,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-white/15 bg-[#0a0f16]/88 shadow-xl backdrop-blur-xl">
           <button type="button" onClick={()=>setFeedExpanded((value)=>!value)} className="flex w-full items-center justify-between gap-3 border-b border-white/10 px-3 py-2 text-left">
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race Feed</div>
@@ -581,11 +564,11 @@ export default function Track2DView({
         {!geometry?<div className="absolute bottom-3 right-3 rounded bg-black/70 px-2 py-1 text-[10px] text-slate-400">Static layout only · centerline pending</div>:null}
       </div>
 
-      <aside className="border-t border-white/10 bg-[#0c1118] xl:border-l xl:border-t-0">
+      <aside className="order-2 border-t border-white/10 bg-[#070a0f] xl:order-1 xl:border-r xl:border-t-0">
         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-2">
           <div>
-            <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Track Order</div>
-            <div className="text-[8px] text-slate-600">Select · auto zoom</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-200">Live Order</div>
+            <div className="text-[7px] uppercase tracking-[0.12em] text-slate-600">Select driver · follow</div>
           </div>
           <button type="button" onClick={()=>setOrderExpanded((value)=>!value)} title={orderExpanded?"Compact Track Order":"Expand Track Order"} className="rounded-md border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 hover:bg-white/[0.08] hover:text-slate-100">
             {orderExpanded?<Minimize2 className="h-3.5 w-3.5"/>:<Maximize2 className="h-3.5 w-3.5"/>}
@@ -601,7 +584,7 @@ export default function Track2DView({
           ].map(([id,label])=><button type="button" key={id} onClick={()=>setOrderMode(id)} className={`flex-1 rounded px-1.5 py-1 text-[9px] font-semibold ${orderMode===id?"bg-slate-100 text-slate-950":"bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]"}`}>{label}</button>)}
         </div>:null}
 
-        <div className="max-h-[555px] overflow-y-auto p-1 2xl:max-h-[595px]">
+        <div className="max-h-[545px] overflow-y-auto p-0.5 2xl:max-h-[580px]">
           {activeRows.map((row,index)=>{
             const did=String(row?.driver_id||"");
             const tid=String(row?.team_id||"");
@@ -612,20 +595,21 @@ export default function Track2DView({
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`mb-0.5 flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[9px] transition ${selected?"border-white/35 bg-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,.05)]":mine?"border-amber-300/15 bg-amber-500/[0.06]":"border-transparent bg-white/[0.025] hover:bg-white/[0.06]"}`}
+              className={`mb-px flex w-full items-center gap-1 border-l-[3px] px-1 py-[4px] text-left text-[9px] transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              style={{borderLeftColor:row?.retired?"#7f1d1d":color}}
             >
-              <span className="w-5 shrink-0 text-right text-[10px] font-black text-slate-200">P{row?.position??index+1}</span>
-              <span className="h-2 w-2 shrink-0 rounded-full border border-white/40" style={{backgroundColor:row?.retired?"#7f1d1d":color}}/>
+              <span className="w-6 shrink-0 text-right text-[10px] font-black italic text-slate-100">{row?.position??index+1}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1">
-                  {mine?<span className="text-amber-300">●</span>:null}
-                  <span className="truncate font-semibold text-slate-100">{orderExpanded?driverName(drivers,did):driverSurname(drivers,did)}</span>
+                  {mine?<span title="Your Team" className="text-[7px] text-amber-300">◆</span>:null}
+                  <span className="truncate font-black tracking-[0.03em] text-slate-100">{orderExpanded?driverName(drivers,did):shortDriverName(drivers,did)}</span>
                 </span>
-                {orderExpanded?<span className="mt-0.5 block truncate text-[9px] text-slate-500">{teamName(teams,tid)}</span>:null}
+                {orderExpanded?<span className="block truncate text-[8px] text-slate-600">{teamName(teams,tid)}</span>:null}
               </span>
+              {!orderExpanded?<MiniTyreIcon compound={row?.tyre?.compound} size={13}/>:null}
               {orderExpanded&&orderMode==="tyres"
-                ?<span className="flex shrink-0 items-center gap-1 font-mono text-[8px] text-slate-400"><MiniTyreIcon compound={row?.tyre?.compound} size={16}/>{row?.tyre?.age_laps??"—"}L</span>
-                :<span className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":"text-slate-400"}`}>{orderModeValue(row,index,orderExpanded?orderMode:"order")}</span>}
+                ?<span className="flex shrink-0 items-center gap-1 font-mono text-[8px] text-slate-400"><MiniTyreIcon compound={row?.tyre?.compound} size={15}/>{row?.tyre?.age_laps??"—"}L</span>
+                :<span className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"text-slate-100":"text-slate-400"}`}>{orderModeValue(row,index,orderExpanded?orderMode:"order")}</span>}
               {orderExpanded?<ChevronRight className="h-3 w-3 shrink-0 text-slate-600"/>:null}
             </button>;
           })}

@@ -6,10 +6,11 @@ import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
+import { RACE_PLAYBACK_SPEEDS, racePlaybackCanRun, racePlaybackDelayMs } from "../domain/racePlayback.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
-import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
+import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Pause, Play, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const STEPS=[
   ["practice","Practice"],
@@ -608,6 +609,8 @@ export default function RaceWeekend(){
   const [liveTimingMode,setLiveTimingMode]=useState("overall");
   const [selectedLiveDriverId,setSelectedLiveDriverId]=useState("");
   const [selectedRaceEvent,setSelectedRaceEvent]=useState(null);
+  const [racePlaying,setRacePlaying]=useState(false);
+  const [racePlaybackSpeed,setRacePlaybackSpeed]=useState(1);
   const lastAutoPopupKey=useRef(null);
 
   const weekend=gs?.raceWeekendState;
@@ -695,6 +698,26 @@ export default function RaceWeekend(){
     });
   },[Boolean(liveRace),liveRows.length,playerTeamId]);
   useEffect(()=>{
+    if(!liveRace||weekend?.phase!=="race"||!racePlaybackCanRun(liveRace)){
+      if(racePlaying)setRacePlaying(false);
+      return undefined;
+    }
+    if(!racePlaying||busy)return undefined;
+    const timer=window.setTimeout(()=>{
+      perform(()=>advanceLiveRaceSector(1));
+    },racePlaybackDelayMs(racePlaybackSpeed));
+    return ()=>window.clearTimeout(timer);
+  },[
+    racePlaying,
+    racePlaybackSpeed,
+    busy,
+    weekend?.phase,
+    liveRace?.status,
+    liveRace?.current_lap,
+    liveRace?.current_sector,
+    liveRace?.total_laps,
+  ]);
+  useEffect(()=>{
     if(!liveRace)return;
     const currentLap=Number(liveRace?.current_lap)||0;
     const important=batchRaceEvents(liveRace?.events||[],playerTeamId,currentLap);
@@ -769,7 +792,7 @@ export default function RaceWeekend(){
   ];
 
   if(!weekend){
-    return <div className="min-h-[calc(100vh-3.5rem)] bg-[#080b11] p-6 text-slate-100">
+    return <div className="min-h-[calc(100vh-2.5rem)] bg-[#080b11] p-6 text-slate-100">
       <div className="rounded-xl border border-white/10 bg-[#11161f] p-5">
         <h2 className="text-lg font-semibold">Race Weekend</h2>
         <p className="text-sm text-slate-400 mt-1">No active race weekend. Advance the calendar to the next Grand Prix weekend.</p>
@@ -803,7 +826,7 @@ export default function RaceWeekend(){
     await continueWeekend();
   });
 
-  return <div className="min-h-[calc(100vh-3.5rem)] bg-[#080b11] p-2 md:p-3 text-slate-100 grid gap-2 content-start">
+  return <div className="min-h-[calc(100vh-2.5rem)] bg-[#080b11] p-2 md:p-3 text-slate-100 grid gap-2 content-start">
     {!((activeWindow==="live"||activeWindow==="detailed_timing")&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
       <div className="grid grid-cols-5 gap-1">
         {STEPS.map(([id,label],index)=>{
@@ -820,7 +843,7 @@ export default function RaceWeekend(){
       </div>
     </div>}
 
-    <nav className="sticky top-14 z-40 -mx-2 md:-mx-3 px-2 md:px-3 border-y border-white/10 bg-[#080b11]/95 backdrop-blur">
+    <nav className="sticky top-10 z-40 -mx-2 md:-mx-3 px-2 md:px-3 border-y border-white/10 bg-[#080b11]/95 backdrop-blur">
       <div className="flex items-center justify-between gap-2 py-1">
         <div className="flex min-w-0 gap-1 overflow-x-auto">
           {windowTabs.map((tab)=>(
@@ -843,10 +866,28 @@ export default function RaceWeekend(){
           ))}
         </div>
         {weekend.phase==="race"&&liveRace?.status==="running"?<div className="flex shrink-0 items-center gap-1">
-          <button disabled={busy} className="rounded-md border border-sky-400/25 bg-sky-400/[0.08] px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 hover:bg-sky-400/[0.14] disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRaceSector(1))}>+1 Sector</button>
-          <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(1))}>+1 Lap</button>
-          <button disabled={busy} className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(5))}>+5 Laps</button>
-          <button disabled={busy} className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1))}>Run to Finish</button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={()=>setRacePlaying((value)=>!value)}
+            title={racePlaying?"Pause live race":"Play live race"}
+            className={"inline-flex h-7 w-8 items-center justify-center rounded-md border text-[11px] font-bold transition disabled:opacity-40 "+(racePlaying?"border-sky-300/40 bg-sky-400/15 text-sky-200":"border-white/15 bg-white/[0.05] text-slate-200 hover:bg-white/10")}
+          >
+            {racePlaying?<Pause className="h-3.5 w-3.5 fill-current"/>:<Play className="h-3.5 w-3.5 fill-current"/>}
+          </button>
+          <div className="flex items-center rounded-md border border-white/10 bg-black/20 p-0.5">
+            {RACE_PLAYBACK_SPEEDS.map((speed)=><button
+              type="button"
+              key={speed}
+              onClick={()=>setRacePlaybackSpeed(speed)}
+              title={speed+"× playback speed"}
+              className={"rounded px-1.5 py-1 text-[9px] font-bold transition "+(racePlaybackSpeed===speed?"bg-slate-100 text-slate-950":"text-slate-500 hover:bg-white/[0.08] hover:text-slate-200")}
+            >{speed}×</button>)}
+          </div>
+          <div className="mx-0.5 h-5 w-px bg-white/10"/>
+          <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
+          <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
+          <button disabled={busy} className="rounded-md bg-slate-100 px-2 py-1.5 text-[9px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1));}}>Finish</button>
         </div>:null}
       </div>
     </nav>
