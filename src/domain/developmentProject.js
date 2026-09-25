@@ -5,6 +5,7 @@
 import { carComponentDefinition } from "./carComponents.js";
 import { componentDevelopmentRule } from "./developmentRegulations.js";
 import { componentTechnicalBaseline, derivePartTechnicalProfile } from "./carPartPerformance.js";
+import { partDesignOperational } from "./partUnits.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -105,6 +106,7 @@ export function developmentObjective(gs,slot,id,teamId=null){
 
 export function bestDevelopedPartForSlot(parts,slot){
   return (Array.isArray(parts)?parts:[])
+    .filter((part)=>partDesignOperational(part))
     .filter((part)=>String(part?.slot)===String(slot))
     .sort((a,b)=>num(b?.perf,0)-num(a?.perf,0)||
       String(b?.created_at??b?.id??"").localeCompare(String(a?.created_at??a?.id??"")))[0]||null;
