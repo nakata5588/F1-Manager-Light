@@ -1362,6 +1362,9 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   const freshPlan=createRaceControlPlan(hazardSimulation.gameState,{gp,race:hazardSimulation.race,weather:hazardSimulation.weather,track:hazardSimulation.track});
   let plan=mergeRaceControlHistory(planBefore,freshPlan,currentLap,currentSector||3);
+  // Race Control recalculation owns future hazards, but completed pit repairs are
+  // observed Save World history and must never be discarded by a fresh plan.
+  plan=appendPitRepairRecords(plan,planBefore?.damage_repairs||[]);
   working={
     ...hazardSimulation.gameState,
     raceWeekendState:{
