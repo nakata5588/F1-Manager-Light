@@ -8,7 +8,7 @@ import {
   Droplets,
   Flag,
   Gauge,
-  Map,
+  Map as MapIcon,
   Maximize2,
   Minimize2,
   Thermometer,
@@ -447,7 +447,7 @@ export default function Track2DView({
     globalSectorMs:playbackBaseSectorMs,
     currentControl,
   }),[activeRows,currentSector,playbackSpeed,playbackBaseSectorMs,currentControl]);
-  const visualByDriver=useMemo(()=>new globalThis.Map(visualModel.map((row)=>[String(row.driver_id),row])),[visualModel]);
+  const visualByDriver=useMemo(()=>new Map(visualModel.map((row)=>[String(row.driver_id),row])),[visualModel]);
   const averageSpeedKmh=raceAverageSpeedKmh(lapLengthKm,referenceLapMs);
 
   useEffect(()=>{
@@ -494,7 +494,7 @@ export default function Track2DView({
 
   if(!layout){
     return <div className="flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 text-sm text-slate-500">
-      <div className="text-center"><Map className="mx-auto mb-2 h-6 w-6"/>No 2D circuit asset is available for this track yet.</div>
+      <div className="text-center"><MapIcon className="mx-auto mb-2 h-6 w-6"/>No 2D circuit asset is available for this track yet.</div>
     </div>;
   }
 
@@ -505,7 +505,7 @@ export default function Track2DView({
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
     <div className="flex min-h-10 items-center gap-2 border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
       <div className="flex min-w-0 items-center gap-1.5">
-        <Map className="h-3.5 w-3.5 shrink-0 text-slate-500"/>
+        <MapIcon className="h-3.5 w-3.5 shrink-0 text-slate-500"/>
         <h4 className="truncate text-[12px] font-semibold">{layout.label} · Race View</h4>
       </div>
       <div className="flex-1"/>
