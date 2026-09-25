@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  applyRedFlagRestartGrid,
   completeRedFlagRestart,
   createRedFlagSuspension,
   legacyRedFlagLifecycle,
@@ -64,6 +65,48 @@ test("RW5.2D4.4 suspension snapshots classification and environment deterministi
   assert.equal(lifecycle.classification_snapshot[0].position,1);
   assert.equal(lifecycle.track_snapshot.standing_water_index,91);
   assert.equal(lifecycle.suspension_period.race_control_score,84.2);
+});
+
+test("Track 2.0 Red Flag at race start restores the qualifying/start grid",()=>{
+  const lifecycle=createRedFlagSuspension({
+    year:1980,
+    rules:{restart_style:"era_restart"},
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:3,grid_position:1,status:"RUNNING"},
+      {driver_id:"D2",team_id:"T2",position:1,grid_position:2,status:"RUNNING"},
+      {driver_id:"D3",team_id:"T3",position:2,grid_position:3,status:"RUNNING"},
+    ],
+    lap:1,
+    sector:1,
+  });
+
+  assert.equal(lifecycle.restart_grid_source,"starting_grid");
+  assert.deepEqual(lifecycle.restart_grid.map((row)=>row.driver_id),["D1","D2","D3"]);
+  const restored=applyRedFlagRestartGrid([
+    {driver_id:"D1",position:3},
+    {driver_id:"D2",position:1},
+    {driver_id:"D3",position:2},
+  ],lifecycle);
+  assert.deepEqual(restored.map((row)=>row.driver_id),["D1","D2","D3"]);
+  assert.deepEqual(restored.map((row)=>row.position),[1,2,3]);
+});
+
+test("Track 2.0 mid-race Red Flag freezes the running order for the standing restart",()=>{
+  const lifecycle=createRedFlagSuspension({
+    year:1980,
+    rules:{restart_style:"era_restart"},
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:2,grid_position:1,status:"RUNNING"},
+      {driver_id:"D2",team_id:"T2",position:3,grid_position:2,status:"RUNNING"},
+      {driver_id:"D3",team_id:"T3",position:1,grid_position:3,status:"RUNNING"},
+    ],
+    lap:18,
+    sector:2,
+  });
+
+  assert.equal(lifecycle.restart_grid_source,"suspension_order");
+  assert.deepEqual(lifecycle.restart_grid.map((row)=>row.driver_id),["D3","D1","D2"]);
+  assert.deepEqual(lifecycle.restart_grid.map((row)=>row.restart_position),[1,2,3]);
 });
 
 test("RW5.2D4.4 restart lifecycle is explicitly suspended -> pending -> resumed",()=>{
