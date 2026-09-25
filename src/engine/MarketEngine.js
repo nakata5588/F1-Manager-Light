@@ -15,6 +15,7 @@ import {
   startDriverNegotiation,
   startDriverRenewal,
 } from "./NegotiationEngine.js";
+import { relationshipRenewalRetentionDelta } from "../domain/driverRelationshipConsequences.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr,rng){return rng.pick(arr);}
@@ -73,6 +74,7 @@ function renewalRetentionChance(gs,contract){
   if(isRaceDriverContract(contract))chance+=0.10;
   if(isReserveDriverContract(contract))chance-=0.05;
   if(isTestDriverContract(contract))chance-=0.08;
+  chance+=relationshipRenewalRetentionDelta(gs,driverId,{teamId:teamIdOf(contract)});
   return Math.max(0.15,Math.min(0.90,chance));
 }
 
