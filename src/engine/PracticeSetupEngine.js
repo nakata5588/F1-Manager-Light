@@ -6,6 +6,7 @@ import { applyPracticeComponentWear, practiceWearSummary } from "../domain/compo
 import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
+import { resolveStaffId } from "../domain/staffRoles.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const round1=(n)=>Math.round(Number(n||0)*10)/10;
@@ -193,7 +194,7 @@ function staffRating(gs,id){
 export function teamEngineeringSupport(gs,teamId){
   const rows=activeStaffContracts(gs,teamId);
   const scored=rows.map((contract)=>{
-    const rating=staffRating(gs,staffIdOf(contract));
+    const rating=staffRating(gs,resolveStaffId(gs,contract));
     const role=String(contract?.role??contract?.position??"").toLowerCase();
     const relevance=/engineer|technical|designer/.test(role)?1
       :/strateg/.test(role)?0.80
