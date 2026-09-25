@@ -1958,7 +1958,8 @@ function queueManufacturing(gs,teamId,state,today){
   const quote=partManufactureQuote(scoped,candidate);
   const qty=2;
   const cost=num(quote?.cost,0)*qty;
-  if(num(state?.budget,0)<cost)return state;
+  const reserveFloor=planningReserveFloor(gs,teamId,state);
+  if(num(state?.budget,0)<cost+reserveFloor)return state;
   const batch=`ai_mfg_${safeId(teamId)}_${safeId(candidate.id)}`;
   const job={
     id:batch,part_id:candidate.id,title:`${candidate.name} batch`,qty,
@@ -2032,8 +2033,11 @@ export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){
   const completed=completeDesigns(next,teamId,state,today);
   state=completed.state;
   state=completeManufacturing(next,teamId,state,today);
-  state=queueManufacturing(next,teamId,state,today);
+
+  // Strategic future commitments are evaluated before discretionary Current Car
+  // manufacturing, so physical rebuild costs cannot starve the Next Season launch.
   state=processAITechnicalStrategy(next,teamId,state);
+  state=queueManufacturing(next,teamId,state,today);
   next=replaceTeamState(next,teamId,state);
 
   if(allowPlanning){
