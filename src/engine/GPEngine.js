@@ -20,6 +20,7 @@ import { applyRaceTeamReputation } from "../domain/teamReputation.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
 import { applyRaceDriverRivalries } from "../domain/driverRivalries.js";
+import { damageFromIncident, mergeDamageStates } from "./CarDamageEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -160,7 +161,12 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
   const livePlan=gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
 
   for(const row of timedRace){
-    const plannedIncident=incidentForDriver(livePlan,row?.driver?.driver_id);
+    const driverId=String(row?.driver?.driver_id??row?.driver_id??"");
+    const plannedIncidents=(livePlan?.incidents||[])
+      .filter((incident)=>String(incident?.driver_id??"")===driverId)
+      .slice()
+      .sort((a,b)=>Number(a?.lap||0)-Number(b?.lap||0));
+    const plannedIncident=incidentForDriver(livePlan,driverId);
     if(plannedIncident){
       const raceLaps=Math.max(1,Number(row?.race_laps)||60);
       const incidentLap=Math.max(1,Math.min(raceLaps-1,Number(plannedIncident.lap)||1));
@@ -183,7 +189,28 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
       continue;
     }
     if(livePlan){
-      finishers.push({...row,status:"Finished",retired:false,retirement_reason:null});
+      const damageIncidents=plannedIncidents.filter((incident)=>incident?.retirement===false&&incident?.damage);
+      const damageState=mergeDamageStates(damageIncidents.map((incident)=>incident.damage));
+      const raceLaps=Math.max(1,Number(row?.race_laps)||60);
+      const damageLossMs=damageIncidents.reduce((sum,incident)=>{
+        const remaining=Math.max(0,raceLaps-Math.max(1,Number(incident?.lap)||1));
+        return sum+remaining*1000*Math.max(0,Number(incident?.damage?.pace_loss_s_per_lap)||0);
+      },0);
+      finishers.push({
+        ...row,
+        status:"Finished",
+        retired:false,
+        retirement_reason:null,
+        incident_kind:damageIncidents.at(-1)?.kind??null,
+        incident_reason:damageIncidents.at(-1)?.reason??null,
+        incident_lap:damageIncidents.at(-1)?.lap??null,
+        damage_state:damageState?.damaged_components?.length?damageState:null,
+        damage_severity:damageState?.damaged_components?.length?damageState.severity:"none",
+        damaged_components:damageState?.damaged_components||[],
+        total_time_ms:Number.isFinite(Number(row?.total_time_ms))
+          ?Number(row.total_time_ms)+damageLossMs
+          :row?.total_time_ms,
+      });
       continue;
     }
     const driver=row.driver||{};
@@ -213,13 +240,51 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     const reliability=/accident|collision/i.test(reason)
       ?null
       :carReliabilityProfile(gs,resolveDriverTeamId(gs,driver),driver?.driver_id);
+    const crashDamage=incident
+      ?damageFromIncident({
+        kind:String(reason).toLowerCase(),
+        severityScore:incident.score,
+        componentRolls:Array.from({length:6},()=>rng.next()),
+        impactRoll:rng.next(),
+        retirementRoll:rng.next(),
+      })
+      :null;
+
+    if(incident&&crashDamage&&!crashDamage.retirement_required){
+      const remainingLaps=Math.max(0,raceLaps-lapsCompleted);
+      const damageLossMs=remainingLaps*1000*Math.max(0,Number(crashDamage.pace_loss_s_per_lap)||0);
+      finishers.push({
+        ...row,
+        status:"Finished",
+        retired:false,
+        retirement_reason:null,
+        incident_kind:String(reason).toLowerCase(),
+        incident_reason:reason,
+        incident_severity:incident.label,
+        incident_severity_score:incident.score,
+        incident_lap:lapsCompleted,
+        damage_state:crashDamage,
+        damage_severity:crashDamage.severity,
+        damaged_components:crashDamage.damaged_components,
+        total_time_ms:Number.isFinite(Number(row?.total_time_ms))
+          ?Number(row.total_time_ms)+damageLossMs
+          :row?.total_time_ms,
+      });
+      continue;
+    }
+
     retirees.push({
       ...row,
       status:"DNF",
       retired:true,
       retirement_reason:reason,
+      incident_kind:incident?String(reason).toLowerCase():null,
+      incident_reason:incident?reason:null,
       incident_severity:incident?.label??null,
       incident_severity_score:incident?.score??null,
+      damage_state:crashDamage,
+      damage_severity:crashDamage?.severity??null,
+      damaged_components:crashDamage?.damaged_components||[],
       reliability_pct:reliability?.reliability_pct??null,
       reliability_source:reliability?.source??null,
       laps_completed:lapsCompleted,
@@ -230,8 +295,33 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     });
   }
 
+  finishers.sort((a,b)=>
+    Number(a?.total_time_ms??Infinity)-Number(b?.total_time_ms??Infinity)
+    ||Number(a?.pos??999)-Number(b?.pos??999)
+  );
+  const winnerTime=Number(finishers[0]?.total_time_ms);
+  let previousTime=winnerTime;
+  const positionedFinishers=finishers.map((row,index)=>{
+    const total=Number(row?.total_time_ms);
+    const gapToWinner=Number.isFinite(total)&&Number.isFinite(winnerTime)?Math.max(0,total-winnerTime):row?.gap_to_winner_ms;
+    const gapToPrevious=index===0
+      ?0
+      :Number.isFinite(total)&&Number.isFinite(previousTime)
+        ?Math.max(0,total-previousTime)
+        :row?.gap_to_previous_ms;
+    if(Number.isFinite(total))previousTime=total;
+    return {
+      ...row,
+      pos:index+1,
+      gap_to_winner_ms:gapToWinner,
+      gap_to_previous_ms:gapToPrevious,
+    };
+  });
   retirees.sort((a,b)=>Number(b.laps_completed||0)-Number(a.laps_completed||0));
-  return [...finishers,...retirees].map((row,index)=>({...row,pos:index+1}));
+  return [
+    ...positionedFinishers,
+    ...retirees.map((row,index)=>({...row,pos:positionedFinishers.length+index+1})),
+  ];
 }
 
 function buildRaceTiming(race, ratings, roundIndex, gs, rng) {
@@ -806,6 +896,12 @@ export async function runRaceWeekend(gs, {
     incident_severity: row.incident_severity ?? null,
     incident_severity_score: row.incident_severity_score ?? null,
     incident_with_driver_id: row.incident_with_driver_id ?? null,
+    incident_kind:row.incident_kind??null,
+    incident_reason:row.incident_reason??null,
+    damage_state:row.damage_state?structuredClone(row.damage_state):null,
+    damage_severity:row.damage_severity??row.damage_state?.severity??"none",
+    damaged_components:Array.isArray(row.damaged_components)?[...row.damaged_components]:[],
+    damage_pace_loss_s_per_lap:Number(row?.damage_state?.pace_loss_s_per_lap||0),
     pit_stops: Array.isArray(row.pit_stops) ? row.pit_stops.map((stop)=>({...stop})) : [],
     stints: Array.isArray(row.stints) ? row.stints.map((stint)=>({...stint})) : [],
     tyre_supplier: row.tyre_supplier ?? null,
