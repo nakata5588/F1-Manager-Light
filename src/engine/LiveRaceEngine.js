@@ -1947,10 +1947,13 @@ export function fastForwardLiveRaceRestart(gs){
   const required=Math.max(1,Number(result?.monitor?.required_safe_checks)||1);
   const streak=Math.max(0,Number(result?.monitor?.safe_streak)||0);
   const message=result.authorized
-    ?`Race Control fast-forwarded ${checks} condition checks. Restart window available (${Number(result?.observation?.score??result?.monitor?.latest_score??0).toFixed(0)}/100).`
-    :`Race Control fast-forwarded ${checks} condition checks, but no safe restart window is available yet. Safe checks ${streak}/${required}.`;
-
-  return {
+    ?`Race Control fast-forwarded the suspension until conditions improved. Restart window available (${Number(result?.observation?.score??result?.monitor?.latest_score??0).toFixed(0)}/100).`
+    :`Race Control could not establish a safe restart window. Safe checks ${streak}/${required}.`;
+  const priorEvents=(live.events||[]).filter((event)=>!(
+    event?.type==="red_flag_restart_fast_forward"&&
+    Number(event?.red_flag_sequence||0)===Number(lifecycle.sequence||1)
+  ));
+  const nextState={
     ...gs,
     raceWeekendState:{
       ...weekend,
@@ -1959,8 +1962,9 @@ export function fastForwardLiveRaceRestart(gs){
         track_state:observed||live?.track_state||null,
         last_weather:observed?.state||live?.last_weather||null,
         red_flag_lifecycle:lifecycle,
-        events:[...(live.events||[]),{
-          event_key:`red_flag_restart_fast_forward:${lifecycle.sequence||1}:${result.monitor.check_count}`,
+        events:[...priorEvents,{
+          event_key:`red_flag_restart_fast_forward:${lifecycle.sequence||1}`,
+          red_flag_sequence:Number(lifecycle.sequence||1),
           lap:Number(live.current_lap),
           sector:Number(live.current_sector)||1,
           type:"red_flag_restart_fast_forward",
@@ -1973,12 +1977,14 @@ export function fastForwardLiveRaceRestart(gs){
           safe_streak:streak,
           required_safe_checks:required,
           checks_advanced:checks,
+          generated_recovery_checks:Number(result?.generated_recovery_checks||0),
           exhausted:Boolean(result.exhausted),
           message,
         }],
       },
     },
   };
+  return result.authorized?applyAutomaticRedFlagWork(nextState):nextState;
 }
 
 export function prepareLiveRaceRestart(gs){
