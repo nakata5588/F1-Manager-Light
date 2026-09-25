@@ -16,7 +16,7 @@ import {
   startDriverRenewal,
 } from "./NegotiationEngine.js";
 import { relationshipRenewalRetentionDelta } from "../domain/driverRelationshipConsequences.js";
-import { rankAiRecruitmentCandidates } from "../domain/aiDriverLineup.js";
+import { aiLineupUpgradeOpportunity, rankAiRecruitmentCandidates } from "../domain/aiDriverLineup.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr,rng){return rng.pick(arr);}
@@ -167,6 +167,48 @@ export function applyMarketTick(gs){
           },
           origin:"ai",
         });
+      }
+
+      // D7.1B: a full race line-up is not automatically a good line-up.
+      // Once vacancies are handled, AI teams may pursue one materially better
+      // free agent to upgrade the Second/Main hierarchy. Contracted-driver
+      // poaching remains deliberately reserved for D7.4 Transfer Intelligence.
+      const hasActiveUpgrade=driverNegotiations(next).some((n)=>
+        isNegotiationActive(n)&&
+        String(n.team_id)===tid&&
+        Boolean(n?.lineup_upgrade?.target_driver_id)
+      );
+      if(!hasActiveUpgrade){
+        const upgradePool=f1EligibleDrivers.filter((driver)=>{
+          const did=driverIdOf(driver);
+          return !driverNegotiations(next).some((n)=>
+            isNegotiationActive(n)&&
+            String(n.team_id)===tid&&
+            String(n.driver_id)===did
+          );
+        });
+        const opportunity=aiLineupUpgradeOpportunity(next,upgradePool,tid,{
+          activeOfferCount:(driverId)=>activeOfferCount(next,driverId),
+        });
+        if(opportunity){
+          next=startDriverNegotiation(next,{
+            driverId:opportunity.driver_id,
+            teamId:tid,
+            teamName:team?.team_name||team?.name||tid,
+            offer:{
+              salary:opportunity.salary,
+              years:opportunity.years,
+              role:opportunity.offered_role,
+            },
+            origin:"ai",
+            lineupUpgrade:{
+              targetDriverId:opportunity.target_driver_id,
+              upgradeGap:opportunity.upgrade_gap,
+              candidateScore:opportunity.candidate_score,
+              targetScore:opportunity.second_score,
+            },
+          });
+        }
       }
     }
 
