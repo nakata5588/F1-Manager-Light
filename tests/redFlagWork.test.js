@@ -179,6 +179,9 @@ test("RW5.3B.1 player can repair persistent accident damage during a Red Flag",(
   const event=next.raceWeekendState.live_race.events.at(-1);
   assert.equal(event.type,"red_flag_work");
   assert.equal(event.work_type,"damage_repair");
+
+  const duplicate=applyRedFlagDamageRepair(next,{driverId:"D1"});
+  assert.equal(duplicate,next,"repair is idempotent within the same Red Flag");
 });
 
 test("RW5.3B.1 repair action is blocked once the restart procedure locks work",()=>{
