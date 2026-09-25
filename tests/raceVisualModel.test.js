@@ -64,6 +64,13 @@ test("RW6.7A individual motion stays synchronized while showing relative pace",(
   assert.ok(slowMid<baselineMid);
 });
 
+test("Track 2.0A relative pace bias stays subtle enough to avoid visual surges",()=>{
+  for(const individualDurationMs of [17000,24000,29000,32000,38000,50000]){
+    const mid=visualMotionProgress(0.5,{individualDurationMs,globalDurationMs:30000});
+    assert.ok(Math.abs(mid-0.5)<=0.066);
+  }
+});
+
 test("RW6.7A motion curve remains monotonic for extreme but valid pace ratios",()=>{
   for(const individualDurationMs of [17000,50000]){
     let previous=0;
