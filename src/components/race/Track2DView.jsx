@@ -357,7 +357,7 @@ function AnimatedMarker({
       fill="#020617"
       stroke={selected?"#f8fafc":secondaryColor}
       strokeWidth={selected?2.4:mine?2:1.5}
-      opacity={retired?.78:1}
+      opacity={retired?0.78:1}
     />
     <circle
       cx={point.x}
@@ -366,7 +366,7 @@ function AnimatedMarker({
       fill={retired?"#7f1d1d":color}
       stroke="rgba(2,6,23,.72)"
       strokeWidth=".9"
-      opacity={retired?.78:1}
+      opacity={retired?0.78:1}
     />
     <text
       x={point.x}
