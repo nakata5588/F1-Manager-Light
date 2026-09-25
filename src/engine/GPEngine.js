@@ -20,6 +20,7 @@ import { applyRaceTeamReputation } from "../domain/teamReputation.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
 import { applyRaceDriverRivalries } from "../domain/driverRivalries.js";
+import { applyRaceRelationshipConsequences } from "../domain/driverRelationshipConsequences.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -998,6 +999,10 @@ export async function runRaceWeekend(gs, {
       },
     });
   }
+
+  // D6.3F: persistent relationships now have bounded consequences through
+  // temporary Mental State. No base ability or raw car pace is modified.
+  afterWear=applyRaceRelationshipConsequences(afterWear,evaluatedResultEntry);
 
   const reserveReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="reserve_replacement");
   const emergencyReplacements=(raceEntryState.entries||[]).filter((entry)=>entry.entry_type==="emergency_substitute");
