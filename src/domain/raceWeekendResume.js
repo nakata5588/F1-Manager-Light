@@ -7,10 +7,14 @@ export function liveRaceIsInProgress(liveRace) {
 export function normalizeRaceWeekendResumeState(weekend) {
   if (!weekend || typeof weekend !== "object") return weekend ?? null;
   if (!liveRaceIsInProgress(weekend.live_race)) return weekend;
-  if (String(weekend.phase || "") === "race") return weekend;
+  if (
+    String(weekend.phase || "") === "race" &&
+    String(weekend.active_session_id || "") === "race"
+  ) return weekend;
   return {
     ...weekend,
     phase: "race",
+    active_session_id: "race",
   };
 }
 
