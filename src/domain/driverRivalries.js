@@ -41,6 +41,7 @@ function normalizeContainer(gs){
 function basePair(driverA,driverB,{year=null,dateISO=null}={}){
   const [a,b]=[text(driverA),text(driverB)].sort();
   return {
+    pair_key:[a,b].join("|"),
     driver_a_id:a,
     driver_b_id:b,
     rivalry:0,
@@ -96,8 +97,10 @@ export function applyDriverRivalryEvent(gs,{
   const year=num(gs?.activeYear??String(dateISO||"").slice(0,4),null);
   const before=container.pairs[key]||basePair(aid,bid,{year,dateISO});
   const respectDeltas=orderedPairDeltas(before,aid,bid,respectDeltaA,respectDeltaB);
+  const respectBeforeA=num(before?.respect_a_to_b,50);
+  const respectBeforeB=num(before?.respect_b_to_a,50);
 
-  const next={...before};
+  const next={...before,pair_key:key};
   const changes=[];
 
   const rivalryBefore=num(before?.rivalry,0);
@@ -144,8 +147,12 @@ export function applyDriverRivalryEvent(gs,{
     rivalry_before:rivalryBefore,
     rivalry_after:next.rivalry,
     rivalry_delta:Number((next.rivalry-rivalryBefore).toFixed(2)),
-    respect_delta_a:next.driver_a_id===aid?Number(respectDeltaA)||0:Number(respectDeltaB)||0,
-    respect_delta_b:next.driver_b_id===bid?Number(respectDeltaB)||0:Number(respectDeltaA)||0,
+    respect_before_a:respectBeforeA,
+    respect_after_a:num(next?.respect_a_to_b,respectBeforeA),
+    respect_delta_a:Number((num(next?.respect_a_to_b,respectBeforeA)-respectBeforeA).toFixed(2)),
+    respect_before_b:respectBeforeB,
+    respect_after_b:num(next?.respect_b_to_a,respectBeforeB),
+    respect_delta_b:Number((num(next?.respect_b_to_a,respectBeforeB)-respectBeforeB).toFixed(2)),
     meta:meta&&typeof meta==="object"?{...meta}:null,
   };
   container.log=[logEntry,...container.log].slice(0,500);
@@ -186,7 +193,8 @@ export function driverRivalryEventLogForDriver(gs,driverId){
     .map((entry)=>{
       const isA=text(entry.driver_a_id)===did;
       const respectDelta=isA?Number(entry?.respect_delta_a||0):Number(entry?.respect_delta_b||0);
-      const respectBefore=null;
+      const respectBefore=isA?num(entry?.respect_before_a,null):num(entry?.respect_before_b,null);
+      const respectAfter=isA?num(entry?.respect_after_a,null):num(entry?.respect_after_b,null);
       return {
         id:entry.id,
         dateISO:entry.dateISO,
@@ -197,7 +205,7 @@ export function driverRivalryEventLogForDriver(gs,driverId){
         reason:entry.reason,
         changes:[
           ...(Math.abs(Number(entry?.rivalry_delta||0))>0.0001?[{field:"rivalry",delta:Number(entry.rivalry_delta),before:entry.rivalry_before,after:entry.rivalry_after}]:[]),
-          ...(Math.abs(respectDelta)>0.0001?[{field:"respect",delta:respectDelta,before:respectBefore,after:null}]:[]),
+          ...(Math.abs(respectDelta)>0.0001?[{field:"respect",delta:respectDelta,before:respectBefore,after:respectAfter}]:[]),
         ],
         meta:entry.meta||null,
       };
@@ -319,13 +327,16 @@ export function applyRaceDriverRivalries(gs,resultEntry,{standings=null}={}){
 
   // Only adjacent contenders in the top four can receive the title-fight
   // trigger. This avoids calling ordinary midfield proximity a rivalry.
+  if(leaderPoints<=0)return next;
   for(let i=1;i<Math.min(4,standingRows.length);i++){
     const ahead=standingRows[i-1],behind=standingRows[i];
     const aid=text(ahead?.driver_id??ahead?.id),bid=text(behind?.driver_id??behind?.id);
     const key=rivalryPairKey(aid,bid);
     if(!key||!aid||!bid||!round||round<2)continue;
-    const gap=Math.abs(num(ahead?.points,0)-num(behind?.points,0));
-    if(gap>closePointsThreshold)continue;
+    const aheadPoints=num(ahead?.points,0);
+    const behindPoints=num(behind?.points,0);
+    const gap=Math.abs(aheadPoints-behindPoints);
+    if(behindPoints<Math.max(1,leaderPoints*0.55)||gap>closePointsThreshold)continue;
 
     const lateBonus=seasonProgress>=0.6?0.5:0;
     next=applyDriverRivalryEvent(next,{
@@ -341,8 +352,8 @@ export function applyRaceDriverRivalries(gs,resultEntry,{standings=null}={}){
         year,round,gp_id:gpId,
         a_position:ahead?.position??i,
         b_position:behind?.position??i+1,
-        a_points:num(ahead?.points,0),
-        b_points:num(behind?.points,0),
+        a_points:aheadPoints,
+        b_points:behindPoints,
         points_gap:Number(gap.toFixed(2)),
         season_progress:Number(seasonProgress.toFixed(3)),
       },
