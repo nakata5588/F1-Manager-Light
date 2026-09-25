@@ -6,6 +6,7 @@
 
 import { redFlagWorkPolicyForYear } from "./RedFlagLifecycleEngine.js";
 import { RED_FLAG_REPAIR_EFFECTIVENESS, repairDamageState } from "./CarDamageEngine.js";
+import { PIT_PLANS, RACE_PACE_MODES } from "./RaceStrategyEngine.js";
 
 const idOf=(row)=>String(row?.tyre_id??row?.id??"");
 
@@ -384,6 +385,106 @@ export function applyRedFlagDamageRepair(gs,{driverId}={}){
     .find((candidate)=>String(candidate?.driver_id??"")===did);
   if(!row||row?.retired||String(row?.team_id??"")!==playerTeamId(gs))return gs;
   return applyDamageRepair(gs,{row,source:"player"});
+}
+
+export function applyRedFlagRestartStrategy(gs,{
+  driverId,
+  paceMode=null,
+  pitPlan=null,
+  nextTyreId=null,
+  plannedStopLap=null,
+}={}){
+  if(!validSuspension(gs))return gs;
+  const weekend=gs.raceWeekendState;
+  const live=weekend.live_race;
+  const lifecycle=live.red_flag_lifecycle;
+  const did=String(driverId||"");
+  const row=(live.classification||[]).find((candidate)=>String(candidate?.driver_id??"")===did);
+  if(!row||row?.retired||String(row?.team_id??"")!==playerTeamId(gs))return gs;
+
+  const existingStrategy=weekend?.race_strategy||{};
+  const current=existingStrategy?.selections?.[did]||{
+    driver_id:did,
+    team_id:String(row?.team_id??""),
+    pace_mode:"balanced",
+    pit_plan:"adaptive",
+  };
+  const next={...current};
+  if(paceMode&&Object.hasOwn(RACE_PACE_MODES,String(paceMode)))next.pace_mode=String(paceMode);
+  if(pitPlan&&Object.hasOwn(PIT_PLANS,String(pitPlan)))next.pit_plan=String(pitPlan);
+  if(nextTyreId&&tyreAvailableForTeam(gs,row.team_id,nextTyreId))next.next_tyre_id=String(nextTyreId);
+  if(plannedStopLap!==null&&plannedStopLap!==undefined){
+    const total=Math.max(3,Number(live?.total_laps)||3);
+    next.planned_stop_lap=Math.max(
+      Math.min(total-1,Math.max(2,Number(live?.current_lap||1)+1)),
+      Math.min(total-1,Math.round(Number(plannedStopLap)||Math.round(total/2)))
+    );
+  }
+
+  const effectiveLap=Math.max(1,Number(live?.current_lap)||1);
+  const existingCommands=existingStrategy?.live_commands?.[did]||[];
+  const filtered=existingCommands.filter((command)=>!(
+    command?.type==="pace"&&
+    command?.source==="red_flag_restart"&&
+    Number(command?.red_flag_sequence||0)===Number(lifecycle?.sequence||1)
+  ));
+  if(Object.hasOwn(RACE_PACE_MODES,String(next.pace_mode||""))){
+    filtered.push({
+      type:"pace",
+      pace_mode:String(next.pace_mode),
+      effective_lap:effectiveLap,
+      source:"red_flag_restart",
+      red_flag_sequence:Number(lifecycle?.sequence||1),
+    });
+  }
+
+  const workLog=[
+    ...(Array.isArray(lifecycle?.work_log)?lifecycle.work_log:[])
+      .filter((entry)=>!(
+        entry?.type==="restart_strategy"&&
+        String(entry?.driver_id??"")===did
+      )),
+    {
+      type:"restart_strategy",
+      source:"player",
+      driver_id:did,
+      team_id:String(row?.team_id??""),
+      pace_mode:next.pace_mode,
+      pit_plan:next.pit_plan,
+      next_tyre_id:next.next_tyre_id??null,
+      planned_stop_lap:next.planned_stop_lap??null,
+    },
+  ];
+
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      race_strategy:{
+        ...existingStrategy,
+        selections:{
+          ...(existingStrategy?.selections||{}),
+          [did]:next,
+        },
+        live_commands:{
+          ...(existingStrategy?.live_commands||{}),
+          [did]:filtered,
+        },
+      },
+      live_race:{
+        ...live,
+        classification:(live.classification||[]).map((candidate)=>
+          String(candidate?.driver_id??"")===did
+            ?{...candidate,current_pace:String(next.pace_mode||candidate?.current_pace||"balanced"),next_pace:String(next.pace_mode||candidate?.next_pace||"balanced")}
+            :candidate
+        ),
+        red_flag_lifecycle:{
+          ...lifecycle,
+          work_log:workLog,
+        },
+      },
+    },
+  };
 }
 
 export function applyAutomaticRedFlagWork(gs){
