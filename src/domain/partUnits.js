@@ -245,6 +245,7 @@ export function createManufacturedPartUnits(gs,{designId,qty=1,batchId=null,manu
       design_id:design.id,
       slot:design.slot||"",
       status:"active",
+      season_year:Number(gs?.activeYear)||Number(String(manufacturedAt||"").slice(0,4))||null,
       condition:100,
       manufactured_at:manufacturedAt||null,
       source:"manufactured",
