@@ -7,7 +7,8 @@
 // Research, completed development work, staff and facilities.
 
 import { carComponentDefinition } from "./carComponents.js";
-import { activeStaffContracts, staffIdOf } from "./liveContracts.js";
+import { activeStaffContracts } from "./liveContracts.js";
+import { resolveStaffId } from "./staffRoles.js";
 import { nextSeasonRegulationImpact } from "./nextSeasonRegulations.js";
 
 const str=(v)=>String(v??"");
@@ -96,7 +97,7 @@ function technicalStaffQuality(gs,teamId){
     const relevance=/technical|designer|engineer|aero/.test(role)?1
       :/strateg/.test(role)?0.72
         :/principal|owner/.test(role)?0.35:0.50;
-    const rating=staffRating(gs,staffIdOf(contract));
+    const rating=staffRating(gs,resolveStaffId(gs,contract));
     const quality=
       num(rating?.technical,50)*0.42+
       num(rating?.innovation,50)*0.24+

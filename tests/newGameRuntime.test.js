@@ -20,6 +20,7 @@ test("fresh career runtime clears driver form, development and team morale state
     driverMentalStateLog: { D1: [{ source: "old-race" }] },
     driverReputationLog: { D1: [{ delta: 1.2 }] },
     driverRelationships: { version:1, relations: { "D1|team|OLD": { driver_id:"D1", target_type:"team", target_id:"OLD", trust:10 } }, log:[{old:true}] },
+    driverStaffAssignments: { version:1, assignments:{ "D1|race_engineer":{driver_id:"D1",staff_id:"OLD_E",team_id:"OLD",role:"race_engineer",active:true} }, history:[{staff_id:"OLD_E"}] },
     teamOperationalState: { T1: { morale: 22 } },
     teamMoraleLog: { T1: [{ delta: -5 }] },
     teamReputationState: { T1: { reputation: 81 } },
@@ -42,6 +43,7 @@ test("fresh career runtime clears driver form, development and team morale state
   assert.deepEqual(next.driverMentalStateLog, {});
   assert.deepEqual(next.driverReputationLog, {});
   assert.deepEqual(next.driverRelationships, { version:2, relations:{}, log:[] });
+  assert.deepEqual(next.driverStaffAssignments, { version:1, assignments:{}, history:[] });
   assert.deepEqual(next.teamOperationalState, {});
   assert.deepEqual(next.teamMoraleLog, {});
   assert.deepEqual(next.teamReputationState, {});
@@ -71,6 +73,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
     driverMentalStateLog: { D1: [{ source: "old-race" }] },
     driverReputationLog: { D1: [{ delta: -0.8 }] },
     driverRelationships: { version:1, relations: { "D1|team|OLD": { driver_id:"D1", target_type:"team", target_id:"OLD", trust:10 } }, log:[] },
+    driverStaffAssignments: { version:1, assignments:{ "D1|race_engineer":{driver_id:"D1",staff_id:"OLD_E",team_id:"OLD",role:"race_engineer",active:true} }, history:[] },
     driverAttributes: { D1: { fatigue: 88, confidence: 12 } },
     development: {
       projects: [{ id: "OLD_PROJECT" }],
@@ -125,6 +128,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.ok(fresh.driverRelationships.relations["D1|team|T1"]);
   assert.equal(fresh.driverRelationships.relations["D1|team|T1"].trust,50);
   assert.equal(fresh.driverRelationships.relations["D1|team|OLD"],undefined);
+  assert.deepEqual(fresh.driverStaffAssignments, { version:1, assignments:{}, history:[] });
   assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [], aeroTestingUsage: [], technicalKnowledge: null, nextSeasonCar: null });
   assert.deepEqual(fresh.technicalUnlocks, {});
   assert.deepEqual(fresh.technologyDiscoverySeen, {});
