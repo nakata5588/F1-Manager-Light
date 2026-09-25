@@ -77,7 +77,16 @@ test("RW5.2D4.4 restart lifecycle is explicitly suspended -> pending -> resumed"
   const cannotSkip=completeRedFlagRestart(suspended,{lap:10,sector:2});
   assert.equal(cannotSkip.phase,"suspended");
 
-  const pending=prepareRedFlagRestart(suspended);
+  const authorized={
+    ...suspended,
+    restart_monitor:{
+      ...suspended.restart_monitor,
+      restart_authorized:true,
+      safe_streak:suspended.restart_monitor.required_safe_checks,
+      recommended_control:"GREEN",
+    },
+  };
+  const pending=prepareRedFlagRestart(authorized);
   assert.equal(pending.phase,"restart_pending");
   assert.equal(pending.restart_prepared,true);
   assert.equal(pending.restart_authorized,true);
@@ -136,7 +145,16 @@ test("RW5.2D4.5 preparing a restart closes the Red Flag work window",()=>{
   const suspended=createRedFlagSuspension({year:2026,lap:8,sector:1});
   assert.equal(suspended.work_locked,false);
   assert.equal(suspended.work_policy.id,"restricted_accident_work");
-  const pending=prepareRedFlagRestart(suspended);
+  const authorized={
+    ...suspended,
+    restart_monitor:{
+      ...suspended.restart_monitor,
+      restart_authorized:true,
+      safe_streak:suspended.restart_monitor.required_safe_checks,
+      recommended_control:"GREEN",
+    },
+  };
+  const pending=prepareRedFlagRestart(authorized);
   assert.equal(pending.phase,"restart_pending");
   assert.equal(pending.work_locked,true);
 });
