@@ -17,7 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackLayoutResolutionLabel, visualTrackProgress } from "../../domain/trackLayout.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -180,6 +180,16 @@ function eventTone(event){
   return "border-white/10 bg-black/25";
 }
 
+function incidentMarkerTone(event){
+  const control=String(event?.control_type||"").toUpperCase();
+  const type=String(event?.type||"").toLowerCase();
+  const message=String(event?.display_text||event?.message||"").toLowerCase();
+  if(control==="RED_FLAG"||type==="incident"||/dnf|retir|collision|crash/.test(message))return {fill:"#ef4444",stroke:"#fecaca",label:"!"};
+  if(control.includes("YELLOW"))return {fill:"#f59e0b",stroke:"#fde68a",label:"!"};
+  if(type.includes("weather"))return {fill:"#0ea5e9",stroke:"#bae6fd",label:"W"};
+  return {fill:"#64748b",stroke:"#e2e8f0",label:"•"};
+}
+
 function orderModeValue(row,index,mode){
   if(row?.retired)return "DNF";
   if(mode==="timing")return formatLapTime(row?.last_lap_ms);
@@ -322,6 +332,7 @@ export default function Track2DView({
 }){
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const layout=resolved.layout;
+  const intelligence=useMemo(()=>trackIntelligenceProfile(layout),[layout]);
   const geometry=resolved.geometry;
   const displayGeometry=useMemo(()=>orientTrackGeometry(geometry),[geometry]);
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
@@ -331,6 +342,7 @@ export default function Track2DView({
   const [orderMode,setOrderMode]=useState("order");
   const [feedExpanded,setFeedExpanded]=useState(false);
   const [cameraMode,setCameraMode]=useState("fit");
+  const [showTrackIntel,setShowTrackIntel]=useState(true);
 
   useEffect(()=>setCameraMode("fit"),[trackId,year]);
 
@@ -348,6 +360,14 @@ export default function Track2DView({
     onSelectDriver?.(String(driverId||""));
   };
   const visibleEvents=(events||[]).slice(0,feedExpanded?10:3);
+  const trackIntelEvents=(events||[]).filter((event)=>{
+    const progress=raceEventTrackProgress(event,intelligence);
+    if(progress==null)return false;
+    const control=String(event?.control_type||"").toUpperCase();
+    const type=String(event?.type||"").toLowerCase();
+    const message=String(event?.display_text||event?.message||"").toLowerCase();
+    return type==="incident"||type==="race_control"||control.includes("YELLOW")||control==="RED_FLAG"||/dnf|retir|collision|crash/.test(message);
+  }).slice(0,8);
   const progressPct=Math.max(0,Math.min(100,(((Math.max(0,Number(currentLap||0)-1))+(Number(currentSector||0)/3))/Math.max(1,Number(totalLaps||1)))*100));
 
   if(!layout){
@@ -385,7 +405,94 @@ export default function Track2DView({
             return <>
               <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
               <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".74"/>
+              {showTrackIntel&&Number(currentSector)>0?(()=>{
+                const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
+                const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:42});
+                return <polyline
+                  points={segment.map((point)=>point.join(",")).join(" ")}
+                  fill="none"
+                  stroke={String(currentControl||"").includes("YELLOW")?"#f59e0b":"#38bdf8"}
+                  strokeWidth="22"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity=".23"
+                />;
+              })():null}
               <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
+              {showTrackIntel&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
+                points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
+                fill="none"
+                stroke="#22c55e"
+                strokeWidth="8"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                strokeDasharray="10 5"
+                opacity=".78"
+              />:null}
+              {showTrackIntel&&intelligence.pit_entry_progress!=null?(()=>{
+                const line=trackMarkerSegment(displayGeometry,intelligence.pit_entry_progress,{length:28});
+                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="#22c55e" strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill="#86efac">PIT IN</text></g>:null;
+              })():null}
+              {showTrackIntel&&intelligence.pit_exit_progress!=null?(()=>{
+                const line=trackMarkerSegment(displayGeometry,intelligence.pit_exit_progress,{length:28});
+                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="#22c55e" strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill="#86efac">PIT OUT</text></g>:null;
+              })():null}
+              {showTrackIntel?(()=>{
+                const markers=[
+                  {progress:intelligence.start_finish_progress,label:"S/F",kind:"start"},
+                  {progress:intelligence.sector_boundaries[0],label:"S2",kind:"sector"},
+                  {progress:intelligence.sector_boundaries[1],label:"S3",kind:"sector"},
+                ];
+                return markers.map((marker)=>{
+                  const line=trackMarkerSegment(displayGeometry,marker.progress,{length:marker.kind==="start"?48:38});
+                  if(!line)return null;
+                  const current=marker.kind==="sector"&&Number(currentSector)===Number(marker.label.slice(1));
+                  return <g key={marker.label}>
+                    <line
+                      x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+                      stroke={marker.kind==="start"?"#f8fafc":current?"#38bdf8":"#94a3b8"}
+                      strokeWidth={marker.kind==="start"?5:3}
+                      strokeDasharray={marker.kind==="start"?"5 4":"none"}
+                      opacity={marker.kind==="start"?0.95:0.85}
+                    />
+                    <circle cx={line.center.x} cy={line.center.y} r={marker.kind==="start"?13:11} fill="#05080d" stroke={marker.kind==="start"?"#f8fafc":current?"#38bdf8":"#64748b"} strokeWidth="2"/>
+                    <text x={line.center.x} y={line.center.y+3.2} textAnchor="middle" fontSize={marker.kind==="start"?"7.5":"8"} fontWeight="900" fill={marker.kind==="start"?"#f8fafc":current?"#7dd3fc":"#cbd5e1"}>{marker.label}</text>
+                  </g>;
+                });
+              })():null}
+              {showTrackIntel?[1,2,3].map((sector)=>{
+                const sectorProgress=raceEventTrackProgress({sector,sector_progress:.5},intelligence);
+                const point=pointAtTrackProgress(displayGeometry,sectorProgress);
+                if(!point)return null;
+                const active=Number(currentSector)===sector;
+                return <g key={`sector-label-${sector}`} opacity={active?1:.62}>
+                  <circle cx={point.x} cy={point.y} r={active?12:9} fill={active?"#0c4a6e":"#0f172a"} stroke={active?"#38bdf8":"#475569"} strokeWidth="1.5"/>
+                  <text x={point.x} y={point.y+3} textAnchor="middle" fontSize={active?"8.5":"7.5"} fontWeight="900" fill={active?"#e0f2fe":"#94a3b8"}>S{sector}</text>
+                </g>;
+              }):null}
+              {showTrackIntel?trackIntelEvents.map((event,index)=>{
+                const progress=raceEventTrackProgress(event,intelligence);
+                const base=pointAtTrackProgress(displayGeometry,progress);
+                if(!base)return null;
+                const tone=incidentMarkerTone(event);
+                const angle=(index%4)*(Math.PI/2);
+                const offset=(index%3)*7;
+                const x=base.x+Math.cos(angle)*offset;
+                const y=base.y+Math.sin(angle)*offset;
+                return <g
+                  key={event?.event_key||event?.id||`track-event-${index}`}
+                  role="button"
+                  tabIndex="0"
+                  className="cursor-pointer outline-none"
+                  onClick={()=>onSelectEvent?.(event)}
+                  onKeyDown={(keyboardEvent)=>{if(keyboardEvent.key==="Enter"||keyboardEvent.key===" "){keyboardEvent.preventDefault();onSelectEvent?.(event);}}}
+                >
+                  <title>{event?.display_text||event?.message||"Race event"}</title>
+                  <circle cx={x} cy={y} r="13" fill="#020617" stroke={tone.stroke} strokeWidth="2.5"/>
+                  <circle cx={x} cy={y} r="9" fill={tone.fill} opacity=".95"/>
+                  <text x={x} y={y+3.5} textAnchor="middle" fontSize="9" fontWeight="900" fill="#fff">{tone.label}</text>
+                </g>;
+              }):null}
             </>;
           })()}
           {activeRows.map((row,index)=>{
@@ -410,11 +517,18 @@ export default function Track2DView({
         </svg>:null}
 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05080d]/85 to-transparent"/>
-        {cameraMode==="follow"?<button
-          type="button"
-          onClick={()=>setCameraMode("fit")}
-          className="absolute right-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
-        ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>:null}
+        <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-1.5">
+          <button
+            type="button"
+            onClick={()=>setShowTrackIntel((value)=>!value)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[9px] font-semibold shadow-lg backdrop-blur ${showTrackIntel?"border-sky-400/30 bg-sky-500/15 text-sky-200":"border-white/15 bg-[#0a0f16]/90 text-slate-400 hover:bg-white/[0.10]"}`}
+          ><Flag className="h-3.5 w-3.5"/>Track intel</button>
+          {cameraMode==="follow"?<button
+            type="button"
+            onClick={()=>setCameraMode("fit")}
+            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
+          ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>:null}
+        </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05080d]/75 to-transparent"/>
 
         <div className="absolute left-3 top-3 z-20 w-[min(420px,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-white/15 bg-[#0a0f16]/90 shadow-xl backdrop-blur-xl">
@@ -558,5 +672,6 @@ export default function Track2DView({
       teams={teams}
       playerTeamId={playerTeamId}
     />
+    {showTrackIntel?<div className="border-t border-white/10 bg-[#080c12] px-3 py-1.5 text-[9px] text-slate-600">Track intelligence: {intelligence.status.replaceAll("_"," ")}. Start/sector positions use layout metadata when available, otherwise provisional centerline thirds. Incident markers use exact track progress when available, otherwise the reported race sector. Pit geometry appears only when supplied by the layout.</div>:null}
   </section>;
 }

@@ -184,15 +184,19 @@ export function orientTrackGeometry(geometry,{landscape=true,threshold=1.12}={})
 
   const cx=(minX+maxX)/2;
   const cy=(minY+maxY)/2;
-  const rotated=points.map((point)=>{
+  const rotatePoint=(point)=>{
     const x=Number(point?.[0]||0);
     const y=Number(point?.[1]||0);
     return [
       Number((cx-(y-cy)).toFixed(3)),
       Number((cy+(x-cx)).toFixed(3)),
     ];
-  });
-  return {...geometry,points:rotated,display_rotation_deg:90};
+  };
+  const rotated=points.map(rotatePoint);
+  const pitLanePoints=Array.isArray(geometry?.pit_lane_points)
+    ?geometry.pit_lane_points.map(rotatePoint)
+    :geometry?.pit_lane_points;
+  return {...geometry,points:rotated,pit_lane_points:pitLanePoints,display_rotation_deg:90};
 }
 
 export function focusTrackViewBox(fullViewBox,point,{zoom=2.35,minWidth=190,minHeight=150}={}){
@@ -217,4 +221,102 @@ export function focusTrackViewBox(fullViewBox,point,{zoom=2.35,minWidth=190,minH
     Number(targetWidth.toFixed(2)),
     Number(targetHeight.toFixed(2)),
   ];
+}
+
+
+export function trackMarkerSegment(geometry,progress,{length=34,sampleDelta=0.006}={}){
+  const center=pointAtTrackProgress(geometry,progress);
+  const before=pointAtTrackProgress(geometry,(Number(progress)||0)-Math.max(0.0005,Number(sampleDelta)||0.006));
+  const after=pointAtTrackProgress(geometry,(Number(progress)||0)+Math.max(0.0005,Number(sampleDelta)||0.006));
+  if(!center||!before||!after)return null;
+
+  const dx=Number(after.x)-Number(before.x);
+  const dy=Number(after.y)-Number(before.y);
+  const mag=Math.hypot(dx,dy)||1;
+  const nx=-dy/mag;
+  const ny=dx/mag;
+  const half=Math.max(4,Number(length)||34)/2;
+  return {
+    center,
+    x1:Number((center.x+nx*half).toFixed(3)),
+    y1:Number((center.y+ny*half).toFixed(3)),
+    x2:Number((center.x-nx*half).toFixed(3)),
+    y2:Number((center.y-ny*half).toFixed(3)),
+  };
+}
+
+export function raceEventTrackProgress(event,profile=null){
+  const explicit=Number(event?.track_progress);
+  if(Number.isFinite(explicit))return ((explicit%1)+1)%1;
+  const rawSector=Number(event?.sector)||Number(event?.incident_sector)||0;
+  if(!Number.isFinite(rawSector)||rawSector<1)return null;
+  const sector=Math.max(1,Math.min(3,rawSector));
+  const localOffset=Number.isFinite(Number(event?.sector_progress))
+    ?Math.max(0,Math.min(1,Number(event.sector_progress)))
+    :0.5;
+
+  const intelligence=profile||trackIntelligenceProfile(null);
+  const start=Number(intelligence?.start_finish_progress)||0;
+  const boundaryValues=Array.isArray(intelligence?.sector_boundaries)&&intelligence.sector_boundaries.length===2
+    ?intelligence.sector_boundaries.map(Number)
+    :[1/3,2/3];
+  const unwrap=(value,minimum)=>{
+    let next=Number(value);
+    while(next<=minimum)next+=1;
+    return next;
+  };
+  const first=unwrap(boundaryValues[0],start);
+  const second=unwrap(boundaryValues[1],first);
+  const end=start+1;
+  const ranges=[[start,first],[first,second],[second,end]];
+  const [from,to]=ranges[sector-1];
+  const progress=from+(to-from)*localOffset;
+  return ((progress%1)+1)%1;
+}
+
+
+export function trackIntelligenceProfile(layout){
+  const normalize=(value,fallback)=>{
+    const number=Number(value);
+    if(!Number.isFinite(number))return fallback;
+    return ((number%1)+1)%1;
+  };
+  const startFinish=normalize(layout?.start_finish_progress,0);
+  let boundaries=Array.isArray(layout?.sector_boundaries)
+    ?layout.sector_boundaries.slice(0,2).map((value)=>normalize(value,null)).filter((value)=>value!=null)
+    :[];
+  if(boundaries.length!==2)boundaries=[1/3,2/3];
+  return {
+    start_finish_progress:startFinish,
+    sector_boundaries:boundaries,
+    pit_entry_progress:Number.isFinite(Number(layout?.pit_entry_progress))?normalize(layout.pit_entry_progress,null):null,
+    pit_exit_progress:Number.isFinite(Number(layout?.pit_exit_progress))?normalize(layout.pit_exit_progress,null):null,
+    status:String(layout?.track_intelligence_status||"derived_provisional"),
+  };
+}
+
+
+export function trackSectorPolylinePoints(geometry,sector,profile=null,{samples=36}={}){
+  const intelligence=profile||trackIntelligenceProfile(null);
+  const start=Number(intelligence?.start_finish_progress)||0;
+  const boundaries=Array.isArray(intelligence?.sector_boundaries)&&intelligence.sector_boundaries.length===2
+    ?intelligence.sector_boundaries.map(Number)
+    :[1/3,2/3];
+  const unwrap=(value,minimum)=>{
+    let next=Number(value);
+    while(next<=minimum)next+=1;
+    return next;
+  };
+  const first=unwrap(boundaries[0],start);
+  const second=unwrap(boundaries[1],first);
+  const ranges=[[start,first],[first,second],[second,start+1]];
+  const index=Math.max(0,Math.min(2,(Number(sector)||1)-1));
+  const [from,to]=ranges[index];
+  const count=Math.max(4,Math.round(Number(samples)||36));
+  return Array.from({length:count+1},(_,sampleIndex)=>{
+    const ratio=sampleIndex/count;
+    const progress=from+(to-from)*ratio;
+    const point=pointAtTrackProgress(geometry,progress);
+    return point?[point.x,point.y]:null;
+  }).filter(Boolean);
 }
