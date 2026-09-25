@@ -149,6 +149,7 @@ function seasonSummary(gs,year){
     const projects=(state?.development?.projects||[]).filter(row=>Number(String(row?.started_at||"").slice(0,4))===year);
     const technologyProjects=(state?.technology_projects||[]).filter(row=>Number(String(row?.started_at||"").slice(0,4))===year);
     const strengths=(state?.development?.parts||[]).map(part=>Number(part?.perf||0));
+    const programme=state?.development?.nextSeasonCar||{};
     return [team,{
       budget:Number(state?.budget||0),
       projects:projects.length,
@@ -158,6 +159,18 @@ function seasonSummary(gs,year){
       units:(state?.development?.partUnits||[]).length,
       max_design_strength:strengths.length?Math.max(...strengths):0,
       overall:teamCarPerformance(gs,team).overall,
+      strategy_id:state?.development?.technicalStrategy?.id||"balanced",
+      strategy_reviews:(state?.strategy_planning?.history||[]).length,
+      strategy_history:(state?.strategy_planning?.history||[]).map((row)=>({
+        date:row?.date||null,
+        strategy_id:row?.strategy_id||"balanced",
+        reason:row?.reason||null,
+      })),
+      next_season_status:programme?.status||"not_started",
+      next_season_progress:Number(programme?.overall_progress||0),
+      next_season_engineers:Number(programme?.engineers||0),
+      next_season_target:Number(programme?.targetSeason||year+1),
+      next_season_history:(state?.next_season_history||[]).length,
     }];
   }));
 }
@@ -175,6 +188,15 @@ function runSeason(gs,year){
       const technical=aiTechnicalTeamState(next,team);
       const active=(technical?.development?.projects||[]).filter((project)=>project?.status==="active");
       assert.ok(active.length<=3,`${team} exceeded the global concurrent project-slot ceiling on ${date}`);
+
+      const currentEngineers=active.reduce((sum,project)=>sum+Number(project?.engineers||0),0);
+      const futureEngineers=technical?.development?.nextSeasonCar?.status==="active"
+        ?Number(technical?.development?.nextSeasonCar?.engineers||0)
+        :0;
+      assert.ok(
+        currentEngineers+futureEngineers<=16,
+        `${team} exceeded the global shared engineer-pool ceiling on ${date}`
+      );
     }
     if(raceDates.has(date)){
       next=applyAIRaceComponentWear(next,{gp:{gp_id:`${year}:${date}`},race:raceRows(next)});
@@ -284,4 +306,78 @@ test("five-season technical soak is deterministic and does not freeze the whole 
     }
   }
   assert.ok(teamsWithDevelopment.size>=2,"technical development should not collapse to a single AI team");
+});
+
+
+test("AI teams launch meaningful next-season programmes and do not all use the same strategy",()=>{
+  const {seasons}=SOAK_A;
+  let seasonsWithStrategyDiversity=0;
+  for(const season of seasons){
+    const summaries=AI_TEAMS.map((team)=>season.summary[team]);
+    const strategies=new Set(summaries.map((row)=>row.strategy_id));
+    if(strategies.size>=2)seasonsWithStrategyDiversity+=1;
+
+    const launched=summaries.filter((row)=>row.next_season_status!=="not_started");
+    assert.ok(launched.length>=3,`at least three teams should commit to the next car in ${season.year}`);
+    for(const row of launched){
+      assert.ok(row.next_season_progress>0&&row.next_season_progress<=100);
+      assert.ok(row.strategy_reviews>=1);
+    }
+  }
+  assert.ok(seasonsWithStrategyDiversity>=4,"AI strategic behaviour should remain differentiated across seasons");
+});
+
+test("front and lower-grid AI teams shift focus at different points in the season",()=>{
+  const season=SOAK_A.seasons.find((row)=>row.year===1980);
+  const ferrari=season.summary.FERRARI;
+  const ats=season.summary.ATS;
+  const futureIds=new Set(["next_season_priority","future_first"]);
+
+  assert.ok(
+    ferrari.strategy_history.some((row)=>["current_car_push","balanced"].includes(row.strategy_id)),
+    "front-running Ferrari should preserve a current-season phase before its late future shift"
+  );
+  assert.ok(
+    ats.strategy_history.some((row)=>futureIds.has(row.strategy_id)),
+    "lower-grid ATS should enter a future-focused strategy during the season"
+  );
+
+  const ferrariFuture=ferrari.strategy_history.find((row)=>futureIds.has(row.strategy_id));
+  const atsFuture=ats.strategy_history.find((row)=>futureIds.has(row.strategy_id));
+  assert.ok(atsFuture,"ATS should have a future-focused review");
+  if(ferrariFuture){
+    assert.ok(
+      String(atsFuture.date)<=String(ferrariFuture.date),
+      "a lower-grid team should not switch to the future later than the front-running reference"
+    );
+  }
+  assert.ok(ats.next_season_progress>=ferrari.next_season_progress-5);
+});
+
+test("AI next-season programmes are archived once per rollover and retained for later Stage 7.7 materialisation",()=>{
+  const {gs}=SOAK_A;
+  for(const team of AI_TEAMS){
+    const state=aiTechnicalTeamState(gs,team);
+    assert.ok(state.next_season_history.length>=5,`${team} should retain prior next-car packages across rollovers`);
+    const targets=state.next_season_history.map((row)=>Number(row.target_season));
+    assert.equal(new Set(targets).size,targets.length,`${team} must archive each target season only once`);
+    for(const row of state.next_season_history){
+      assert.ok(row.technical_package,`${team} archived package ${row.target_season} should preserve its technical package`);
+      assert.ok(row.progress>=0&&row.progress<=100);
+    }
+  }
+});
+
+test("multi-season AI next-car strategy remains deterministic",()=>{
+  for(let i=0;i<SOAK_A.seasons.length;i+=1){
+    const a=SOAK_A.seasons[i];
+    const b=SOAK_B.seasons[i];
+    assert.equal(a.year,b.year);
+    for(const team of AI_TEAMS){
+      assert.equal(a.summary[team].strategy_id,b.summary[team].strategy_id);
+      assert.equal(a.summary[team].next_season_status,b.summary[team].next_season_status);
+      assert.equal(a.summary[team].next_season_progress,b.summary[team].next_season_progress);
+      assert.equal(a.summary[team].next_season_engineers,b.summary[team].next_season_engineers);
+    }
+  }
 });
