@@ -16,6 +16,14 @@ export function partDesignIdOfUnit(unit){
   return str(unit?.design_id??unit?.part_id??"");
 }
 
+export function partDesignOperational(part){
+  return Boolean(part&&part?.status!=="legacy"&&part?.legal_for_season!==false);
+}
+
+export function partUnitOperational(unit){
+  return Boolean(unit&&unit?.status!=="retired");
+}
+
 export function partUnits(gs){
   return Array.isArray(gs?.development?.partUnits)?gs.development.partUnits:[];
 }
@@ -55,6 +63,8 @@ export function partUnitsForDesign(gs,designId){
 }
 
 export function warehousePartUnitsForDesign(gs,designId){
+  const design=partDesignById(gs,designId);
+  if(!partDesignOperational(design))return [];
   const installed=installedPartUnitIds(gs);
   const workshopUnits=new Set(
     (gs?.garage?.serviceJobs||[])
@@ -62,6 +72,7 @@ export function warehousePartUnitsForDesign(gs,designId){
       .map((job)=>str(job.unit_id))
   );
   return partUnitsForDesign(gs,designId)
+    .filter((unit)=>partUnitOperational(unit))
     .filter((unit)=>!installed.has(str(unit?.id))&&!workshopUnits.has(str(unit?.id)))
     .slice()
     .sort((a,b)=>
@@ -123,6 +134,7 @@ function deriveDesignInventories(parts,units,cars,serviceJobs=[]){
   );
   const counts=new Map();
   for(const unit of units){
+    if(!partUnitOperational(unit))continue;
     if(installed.has(str(unit?.id))||unavailable.has(str(unit?.id)))continue;
     const did=partDesignIdOfUnit(unit);
     counts.set(did,(counts.get(did)||0)+1);
@@ -215,7 +227,7 @@ export function normalizePhysicalPartState(input){
 export function createManufacturedPartUnits(gs,{designId,qty=1,batchId=null,manufacturedAt=null}={}){
   const normalized=normalizePhysicalPartState(gs);
   const design=partDesignById(normalized,designId);
-  if(!design)return normalized;
+  if(!partDesignOperational(design))return normalized;
 
   const existing=partUnits(normalized).map((unit)=>({...unit}));
   const used=new Set(existing.map((unit)=>str(unit?.id)));
@@ -232,6 +244,7 @@ export function createManufacturedPartUnits(gs,{designId,qty=1,batchId=null,manu
       id,
       design_id:design.id,
       slot:design.slot||"",
+      status:"active",
       condition:100,
       manufactured_at:manufacturedAt||null,
       source:"manufactured",
@@ -256,7 +269,9 @@ export function fitPhysicalPartUnit(gs,{carId,slot,designId,unitId=null}={}){
 
   let unit=unitId?partUnitById(normalized,unitId):null;
   if(!unit&&designId)unit=warehousePartUnitsForDesign(normalized,designId)[0]||null;
-  if(!unit)return normalized;
+  if(!unit||!partUnitOperational(unit))return normalized;
+  const design=partDesignById(normalized,partDesignIdOfUnit(unit));
+  if(!partDesignOperational(design))return normalized;
   if(str(unit?.slot)!==str(slot))return normalized;
 
   // A unit can only be fitted to one car at a time.
