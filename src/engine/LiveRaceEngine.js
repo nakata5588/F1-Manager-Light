@@ -1,6 +1,6 @@
 // src/engine/LiveRaceEngine.js
 import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffects } from "./RaceStrategyEngine.js";
-import { createRaceControlPlan, incidentForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
+import { createRaceControlPlan, incidentForDriver, incidentsForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 
@@ -14,6 +14,13 @@ function pointOrdinal(lap,sector=3){
 }
 function incidentOrdinal(incident){
   return pointOrdinal(incident?.lap,incident?.sector??1);
+}
+function nonRetirementIncidentLossMs(plan,driverId,{throughOrdinal=Infinity,lap=null}={}){
+  return incidentsForDriver(plan,driverId)
+    .filter((incident)=>incident?.retirement===false)
+    .filter((incident)=>incidentOrdinal(incident)<=throughOrdinal)
+    .filter((incident)=>lap===null||Number(incident?.lap)===Number(lap))
+    .reduce((sum,incident)=>sum+Math.max(0,num(incident?.time_loss_s,0))*1000,0);
 }
 function livePointOrdinal(live){
   const lap=Number(live?.current_lap)||0;
@@ -51,6 +58,9 @@ function articleFor(word){
 function incidentNoun(incident){
   const kind=String(incident?.kind||"").toLowerCase();
   const reason=String(incident?.reason||"").toLowerCase();
+  if(kind.includes("aquaplaning_spin"))return "aquaplaning spin";
+  if(kind.includes("aquaplaning_loss_of_control"))return "aquaplaning loss of control";
+  if(kind.includes("aquaplaning_accident"))return "aquaplaning accident";
   if(kind==="collision"||reason.includes("collision"))return "collision";
   if(kind==="accident"||reason.includes("accident"))return "accident";
   return "incident";
@@ -70,6 +80,13 @@ export function formatRaceIncidentMessage({controlType=null,driverName="Driver",
   if(kind==="mechanical"){
     const lowerReason=reason.toLowerCase();
     return `${prefix}${driverName} stops with ${articleFor(lowerReason)} ${lowerReason} problem.`;
+  }
+  if(kind.startsWith("aquaplaning_")){
+    const loss=Number(incident?.time_loss_s)||0;
+    const suffix=incident?.retirement===false&&loss>0?` Loses about ${loss.toFixed(1)}s.`:"";
+    if(kind==="aquaplaning_spin")return `${prefix}${driverName} aquaplanes and spins.${suffix}`;
+    if(kind==="aquaplaning_loss_of_control")return `${prefix}${driverName} aquaplanes and loses control.${suffix}`;
+    if(kind==="aquaplaning_accident")return `${prefix}${driverName} aquaplanes into an accident.${suffix}`;
   }
   const noun=incidentNoun(incident);
   const severity=String(incident?.severity||"medium").toLowerCase();
@@ -623,8 +640,15 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       ?Math.max(1,Math.min(3,Number(incident?.sector)||1))
       :Math.max(1,Math.min(3,Number(sector)||3));
     const completedLap=pointSector>=3?pointLap:Math.max(0,pointLap-1);
-    const lastLapMs=completedLap>0?num(row?.lap_times_ms?.[completedLap-1],null):null;
-    const previousLapMs=completedLap>1?num(row?.lap_times_ms?.[completedLap-2],null):null;
+    const pointOrd=pointOrdinal(pointLap,pointSector);
+    const lastBaseMs=completedLap>0?num(row?.lap_times_ms?.[completedLap-1],null):null;
+    const previousBaseMs=completedLap>1?num(row?.lap_times_ms?.[completedLap-2],null):null;
+    const lastLapMs=Number.isFinite(Number(lastBaseMs))
+      ?Number(lastBaseMs)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd,lap:completedLap})
+      :null;
+    const previousLapMs=Number.isFinite(Number(previousBaseMs))
+      ?Number(previousBaseMs)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd,lap:completedLap-1})
+      :null;
     const lastLapDeltaMs=Number.isFinite(Number(lastLapMs))&&Number.isFinite(Number(previousLapMs))
       ?Number(lastLapMs)-Number(previousLapMs)
       :null;
@@ -645,7 +669,7 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       current_lap:pointLap,
       current_sector:pointSector,
       laps_completed:completedLap,
-      elapsed_ms:cumulativeAtPoint(row,pointLap,pointSector),
+      elapsed_ms:cumulativeAtPoint(row,pointLap,pointSector)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd}),
       last_lap_ms:lastLapMs,
       previous_lap_ms:previousLapMs,
       last_lap_delta_ms:lastLapDeltaMs,
@@ -1296,6 +1320,7 @@ export function finalizedLiveRaceRows(gs){
       return {
         ...row,
         pos:Number(visible?.position??row?.pos??index+1),
+        total_time_ms:Number.isFinite(Number(visible?.elapsed_ms))?Number(visible.elapsed_ms):row?.total_time_ms,
         retired,
         status:retired?"DNF":"Finished",
         retirement_reason:retired?(visible?.retirement_reason||"Retired"):null,
