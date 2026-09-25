@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
-import { countryNameFor, flagFromCountry } from "./EntityVisuals.jsx";
+import { countryNameFor, DriverPortrait, flagFromCountry } from "./EntityVisuals.jsx";
 import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { teamChampionshipSummary } from "../../domain/championshipHistory.js";
@@ -234,18 +234,11 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
       data-entity="driver"
       data-id={d.driver_id ?? d.id}
     >
-      {d.portrait_path ? (
-        <img
-          src={d.portrait_path}
-          alt={d.display_name || d.name}
-          className="h-12 w-12 rounded object-cover"
-          onError={(e) => (e.currentTarget.style.display = "none")}
-        />
-      ) : (
-        <div className="h-12 w-12 rounded bg-white/10 flex items-center justify-center text-sm font-semibold text-slate-200">
-          {(d.display_name || d.name || "?").slice(0, 2).toUpperCase()}
-        </div>
-      )}
+      <DriverPortrait
+        driver={d}
+        size="h-12 w-12"
+        className="!rounded"
+      />
       <div className="min-w-0">
         {d.prefered_number != null && <div className="text-xs text-slate-500 leading-tight">#{d.prefered_number}</div>}
         <div className="text-sm font-semibold leading-tight truncate">{d.display_name || d.name}</div>
