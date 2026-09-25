@@ -594,7 +594,16 @@ test("RW5.3B.2B direct +Lap mode persists the same repair into the causal damage
     guard+=1;
   }
 
-  assert.ok(repair,"coarse +Lap must persist the repair once pit service is crossed");
+  assert.ok(repair,`coarse +Lap must persist the repair once pit service is crossed: ${JSON.stringify({
+    lap:gs?.raceWeekendState?.live_race?.current_lap,
+    sector:gs?.raceWeekendState?.live_race?.current_sector,
+    status:gs?.raceWeekendState?.live_race?.status,
+    commands:gs?.raceWeekendState?.race_strategy?.live_commands?.D1||[],
+    pit_history:gs?.raceWeekendState?.live_race?.pit_history||[],
+    repairs:gs?.raceWeekendState?.race_strategy?.race_control_plan?.damage_repairs||[],
+    projected_pits:(gs?.raceWeekendState?.live_race?.projected_race||[])
+      .find((row)=>String(row?.driver?.driver_id||"")==="D1")?.pit_stops||[],
+  })}`);
   assert.equal(repair.free_service,false);
   assert.ok(repair.repaired_components.includes("front_wing"));
   assert.ok(repair.pace_loss_after_s_per_lap<repair.pace_loss_before_s_per_lap);
