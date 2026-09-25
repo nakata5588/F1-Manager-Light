@@ -9,6 +9,7 @@ import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } fro
 import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvironmentEngine.js";
 import { evaluateRaceability } from "./RaceabilityEngine.js";
 import { aquaplaningOutcome, aquaplaningRiskForDriver, standingWaterForConditions } from "./StandingWaterEngine.js";
+import { incidentRaceControlAssessment, weatherRaceControlAssessment } from "./RaceControlPolicyEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -35,7 +36,9 @@ export function raceControlRulesForYear(yearInput){
     virtual_safety_car:false,
     red_flag:true,
     restart_style:"era_restart",
-    notes:"Local yellows and race stoppages are available; no modern routine Safety Car system is applied.",
+    safety_car_mode:"not_standardized",
+    weather_response_mode:"direct_stoppage_if_unraceable",
+    notes:"Local yellows and race stoppages are available; no modern routine Safety Car or VSC system is applied.",
   };
   if(year<=2014)return {
     era_id:"safety_car_era",
@@ -45,6 +48,8 @@ export function raceControlRulesForYear(yearInput){
     virtual_safety_car:false,
     red_flag:true,
     restart_style:"rolling_restart",
+    safety_car_mode:"standard",
+    weather_response_mode:"safety_car_or_red_flag",
     notes:"Safety Car and red flags are available; VSC is not yet part of race control.",
   };
   return {
@@ -55,7 +60,9 @@ export function raceControlRulesForYear(yearInput){
     virtual_safety_car:true,
     red_flag:true,
     restart_style:"modern_restart",
-    notes:"Local yellows, VSC, Safety Car and red flags can be used according to incident severity.",
+    safety_car_mode:"standard",
+    weather_response_mode:"safety_car_or_red_flag",
+    notes:"Local yellows, VSC, Safety Car and red flags can be used according to incident severity; VSC remains a local incident mechanism rather than a general weather response.",
   };
 }
 
@@ -355,23 +362,12 @@ function severity(rng,type,state){
   const score=clamp(0.08+rng.next()*0.84+weatherBoost+collisionBoost,0.05,1);
   return {score:Number(score.toFixed(3)),label:score>=0.94?"critical":score>=0.78?"high":score>=0.50?"medium":"low"};
 }
-function responseForIncident(rules,incident,weatherLap,rng){
-  const severity=String(incident?.severity||"medium");
-  const weatherRed=clamp(num(weatherLap.red_flag_chance_pct,0)/100,0,0.35);
-  const eraRedBoost=!rules.safety_car
-    ?severity==="critical"?0.34:severity==="high"?0.10:0
-    :severity==="critical"?0.16:severity==="high"?0.03:0;
-  if(
-    rules.red_flag&&
-    (["high","critical"].includes(severity)||weatherLap.state==="STORM")&&
-    rng.chance(clamp(weatherRed+eraRedBoost,0,0.55))
-  ){
-    return "RED_FLAG";
-  }
-  if(rules.safety_car&&["high","critical"].includes(severity))return "SAFETY_CAR";
-  if(rules.virtual_safety_car&&severity==="medium"&&rng.chance(0.55))return "VSC";
-  if(rules.safety_car&&severity==="medium"&&rng.chance(0.48))return "SAFETY_CAR";
-  return "LOCAL_YELLOW";
+function responseForIncident(rules,incident,weatherLap){
+  return incidentRaceControlAssessment({
+    rules,
+    incident,
+    weatherRow:weatherLap,
+  }).action;
 }
 function durationFor(response,rng,laps){
   if(response==="RED_FLAG")return 1;
@@ -458,7 +454,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     };
     incidents.push(incident);
     if(kind!=="mechanical"){
-      const response=responseForIncident(rules,incident,weatherLap,rng);
+      const response=responseForIncident(rules,incident,weatherLap);
       const duration=durationFor(response,rng,timeline.length);
       periods.push({
         type:response,
@@ -483,7 +479,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     incidents.push(aq);
     const weatherLap=timeline[Math.max(0,Number(aq.lap)-1)]||{state:"SUNNY",red_flag_chance_pct:0};
     const arng=rngFor(gs,`${year}-${gpId}-rw5.2d4.2-aquaplaning-control-${aq.driver_id}-${aq.lap}`);
-    const response=responseForIncident(rules,aq,weatherLap,arng);
+    const response=responseForIncident(rules,aq,weatherLap);
     const duration=durationFor(response,arng,timeline.length);
     periods.push({
       type:response,
@@ -497,30 +493,44 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     });
   }
 
-  // Extreme weather can force race control action even without a crash.
-  for(const row of timeline){
-    if(!["HEAVY_RAIN","STORM"].includes(String(row.state)))continue;
-    const key=`${row.state}-${row.lap}`;
-    const wrng=rngFor(gs,`${year}-${gpId}-rw4.2-weather-control-${key}`);
-    const redChance=clamp(num(row.red_flag_chance_pct,0)/100,0,0.35);
-    const scChance=clamp(num(row.safety_car_chance_pct,0)/100,0,0.55);
-    let type=null;
-    if(rules.red_flag&&wrng.chance(redChance))type="RED_FLAG";
-    else if(rules.safety_car&&wrng.chance(scChance))type="SAFETY_CAR";
-    else if(rules.virtual_safety_car&&wrng.chance(scChance*0.5))type="VSC";
-    if(type){
-      const duration=durationFor(type,wrng,timeline.length);
-      periods.push({
-        type,
-        from_lap:row.lap,
-        from_sector:1,
-        to_lap:Math.min(timeline.length,row.lap+duration-1),
-        to_sector:3,
-        cause:"weather",
-        priority:type==="RED_FLAG"?0:type==="SAFETY_CAR"?1:2,
-      });
-      break;
-    }
+  // D4.3: weather intervention is based on the composite environment rather
+  // than legacy per-weather-state probability fields. The available mechanism
+  // is then constrained by the era.
+  const weatherAssessments=[];
+  for(let index=0;index<timeline.length;index++){
+    const row=timeline[index];
+    const assessment=weatherRaceControlAssessment({
+      rules,
+      row,
+      recentRows:timeline.slice(Math.max(0,index-2),index),
+    });
+    weatherAssessments.push({
+      lap:row.lap,
+      action:assessment.action,
+      score:assessment.score,
+      severity:assessment.severity,
+      severe_signals:assessment.severe_signals,
+      dominant_factors:assessment.dominant_factors,
+    });
+    if(assessment.action==="GREEN")continue;
+
+    const type=assessment.action;
+    const wrng=rngFor(gs,`${year}-${gpId}-rw5.2d4.3-weather-control-${row.lap}`);
+    const duration=durationFor(type,wrng,timeline.length);
+    periods.push({
+      type,
+      from_lap:row.lap,
+      from_sector:1,
+      to_lap:Math.min(timeline.length,row.lap+duration-1),
+      to_sector:3,
+      cause:"weather",
+      race_control_score:assessment.score,
+      race_control_severity:assessment.severity,
+      race_control_signals:assessment.severe_signals,
+      race_control_factors:assessment.dominant_factors,
+      priority:type==="RED_FLAG"?0:1,
+    });
+    break;
   }
 
   return {
@@ -529,7 +539,9 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     raceability_model:"rw5.2d4.1",
     standing_water_model:"rw5.2d4.2",
     aquaplaning_model:"rw5.2d4.2",
+    race_control_policy_model:"rw5.2d4.3",
     rules,
+    weather_assessments:weatherAssessments,
     incidents:incidents.sort((a,b)=>a.lap-b.lap||Number(a?.sector??1)-Number(b?.sector??1)),
     periods:mergePeriods(periods,timeline.length),
     weather_timeline:timeline,
