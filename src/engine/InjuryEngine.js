@@ -239,8 +239,9 @@ export function applyRaceHealthOutcomes(gs,{
   let changed=false;
 
   for(const row of race||[]){
-    if(!row?.retired)continue;
-    const reason=String(row?.retirement_reason||"").toLowerCase();
+    const reason=String(
+      row?.retirement_reason??row?.incident_reason??row?.incident_kind??""
+    ).toLowerCase();
     if(!/accident|collision/.test(reason))continue;
     const driverId=String(row?.driver?.driver_id??row?.driver?.id??"");
     if(!driverId)continue;
@@ -254,11 +255,13 @@ export function applyRaceHealthOutcomes(gs,{
     }
 
     const probabilities=healthOutcomeProbabilities(next,row,{year});
-    const fatalityProbability=forceFatalityProbability==null
-      ? probabilities.fatalityProbability
-      : clamp(forceFatalityProbability,0,1);
+    const fatalityProbability=row?.retired
+      ?forceFatalityProbability==null
+        ? probabilities.fatalityProbability
+        : clamp(forceFatalityProbability,0,1)
+      :0;
     const injuryProbability=forceInjuryProbability==null
-      ? probabilities.injuryProbability
+      ? probabilities.injuryProbability*(row?.retired?1:0.55)
       : clamp(forceInjuryProbability,0,1);
 
     const fatalityEnabled=next?.settings?.gameplay?.enableFatalities!==false;
