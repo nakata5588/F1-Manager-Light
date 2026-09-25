@@ -56,6 +56,7 @@ function fixture(){
         status:"red_flag",
         current_lap:6,
         current_sector:2,
+        total_laps:12,
         current_control:"RED_FLAG",
         classification,
         events:[],
