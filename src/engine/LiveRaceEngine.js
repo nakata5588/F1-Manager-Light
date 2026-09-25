@@ -731,6 +731,9 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       damage_incident_sector:latestDamageIncident?.sector??null,
       incident_kind:retired?incident?.kind??null:latestDamageIncident?.kind??null,
       incident_reason:retired?incident?.reason??null:latestDamageIncident?.reason??null,
+      incident_severity:retired?incident?.severity??null:latestDamageIncident?.severity??null,
+      incident_severity_score:retired?incident?.severity_score??null:latestDamageIncident?.severity_score??null,
+      incident_with_driver_id:retired?incident?.other_driver_id??null:latestDamageIncident?.other_driver_id??null,
     };
     visibleRow.expected_future_pit_loss_s=expectedFuturePitLoss(
       gs,strategyState,visibleRow,Math.max(0,completedLap),totalLaps,plan,playerForecast
@@ -1605,6 +1608,9 @@ export function finalizedLiveRaceRows(gs){
         incident_sector:incidentSector,
         incident_kind:visible?.incident_kind??row?.incident_kind??null,
         incident_reason:visible?.incident_reason??row?.incident_reason??null,
+        incident_severity:visible?.incident_severity??row?.incident_severity??null,
+        incident_severity_score:visible?.incident_severity_score??row?.incident_severity_score??null,
+        incident_with_driver_id:visible?.incident_with_driver_id??row?.incident_with_driver_id??null,
         damage_state:visible?.damage_state?structuredClone(visible.damage_state):null,
         damage_severity:visible?.damage_severity??"none",
         damaged_components:Array.isArray(visible?.damaged_components)?[...visible.damaged_components]:[],
