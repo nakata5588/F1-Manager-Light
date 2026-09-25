@@ -194,3 +194,16 @@ test("RW6.4 sector overlay samples each profile-aware sector independently",()=>
   assert.deepEqual(second[0],[100,0]);
   assert.deepEqual(second.at(-1),[0,100]);
 });
+
+
+test("RW6.6B arc-length interpolation keeps visual speed stable across uneven points",()=>{
+  const geometry={points:[[0,0],[10,0],[110,0],[110,110]]};
+  const p25=pointAtTrackProgress(geometry,.25);
+  const p50=pointAtTrackProgress(geometry,.5);
+  // Total closed-loop length is 110 + 110 + sqrt(110^2+110^2).
+  // Both samples must be based on travelled distance, not point index.
+  assert.ok(p25.x>80&&p25.x<100);
+  assert.ok(Math.abs(p25.y)<1e-9);
+  assert.ok(p50.x>109);
+  assert.ok(p50.y>70&&p50.y<100);
+});

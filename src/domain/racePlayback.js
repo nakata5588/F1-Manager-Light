@@ -1,8 +1,9 @@
 export const RACE_PLAYBACK_SPEEDS=[1,2,4,8];
 
-export function racePlaybackDelayMs(speed){
+export function racePlaybackDelayMs(speed,baseSectorMs=30000){
   const normalized=RACE_PLAYBACK_SPEEDS.includes(Number(speed))?Number(speed):1;
-  return Math.max(900,Math.round(9000/normalized));
+  const base=Number.isFinite(Number(baseSectorMs))&&Number(baseSectorMs)>0?Number(baseSectorMs):30000;
+  return Math.max(700,Math.round(base/normalized));
 }
 
 export function racePlaybackCanRun(liveRace){
@@ -14,10 +15,40 @@ export function racePlaybackCanRun(liveRace){
 }
 
 
-export function raceMotionDurationMs(speed){
+export function raceMotionDurationMs(speed,baseSectorMs=30000){
   const normalized=RACE_PLAYBACK_SPEEDS.includes(Number(speed))?Number(speed):1;
-  const delay=racePlaybackDelayMs(normalized);
+  const delay=racePlaybackDelayMs(normalized,baseSectorMs);
   return Math.max(300,delay+Math.round(80/Math.sqrt(normalized)));
+}
+
+export function raceReferenceSectorMs(rows,currentSector,{fallbackLapMs=90000}={}){
+  const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
+  const field=`sector_${sector}_ms`;
+  const values=(Array.isArray(rows)?rows:[])
+    .filter((row)=>!row?.retired)
+    .map((row)=>Number(row?.[field]))
+    .filter((value)=>Number.isFinite(value)&&value>=8000&&value<=90000)
+    .sort((a,b)=>a-b);
+  if(values.length){
+    const middle=Math.floor(values.length/2);
+    return values.length%2?values[middle]:Math.round((values[middle-1]+values[middle])/2);
+  }
+  const lapValues=(Array.isArray(rows)?rows:[])
+    .filter((row)=>!row?.retired)
+    .map((row)=>Number(row?.last_lap_ms||row?.recent_pace_ms||row?.best_lap_ms))
+    .filter((value)=>Number.isFinite(value)&&value>=30000&&value<=300000)
+    .sort((a,b)=>a-b);
+  const referenceLap=lapValues.length
+    ?lapValues[Math.floor(lapValues.length/2)]
+    :Math.max(30000,Number(fallbackLapMs)||90000);
+  return Math.round(referenceLap/3);
+}
+
+export function raceAverageSpeedKmh(lapLengthKm,lapMs){
+  const km=Number(lapLengthKm);
+  const ms=Number(lapMs);
+  if(!Number.isFinite(km)||km<=0||!Number.isFinite(ms)||ms<=0)return null;
+  return km/(ms/3600000);
 }
 
 export function unwrapTrackProgress(reference,target){

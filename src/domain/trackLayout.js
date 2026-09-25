@@ -112,19 +112,47 @@ export function trackLayoutResolutionLabel(resolution){
   }[String(resolution||"")]||"Layout";
 }
 
-export function pointAtTrackProgress(geometry,progress){
+const trackArcCache=new WeakMap();
+
+function trackArcMetrics(geometry){
+  if(!geometry||typeof geometry!=="object")return null;
+  const cached=trackArcCache.get(geometry);
+  if(cached)return cached;
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   if(!points.length)return null;
+  const segments=[];
+  let total=0;
+  for(let index=0;index<points.length;index++){
+    const a=points[index];
+    const b=points[(index+1)%points.length];
+    const ax=Number(a?.[0]||0),ay=Number(a?.[1]||0);
+    const bx=Number(b?.[0]||0),by=Number(b?.[1]||0);
+    const length=Math.hypot(bx-ax,by-ay);
+    segments.push({index,start:total,length,ax,ay,bx,by});
+    total+=length;
+  }
+  const metrics={segments,total};
+  trackArcCache.set(geometry,metrics);
+  return metrics;
+}
+
+export function pointAtTrackProgress(geometry,progress){
+  const metrics=trackArcMetrics(geometry);
+  if(!metrics||!metrics.segments.length||metrics.total<=0)return null;
   const raw=Number(progress);
   const wrapped=((Number.isFinite(raw)?raw:0)%1+1)%1;
-  const scaled=wrapped*points.length;
-  const index=Math.floor(scaled)%points.length;
-  const next=(index+1)%points.length;
-  const t=scaled-Math.floor(scaled);
-  const a=points[index],b=points[next];
+  const target=wrapped*metrics.total;
+  let segment=metrics.segments.at(-1);
+  for(const candidate of metrics.segments){
+    if(target<=candidate.start+candidate.length){
+      segment=candidate;
+      break;
+    }
+  }
+  const local=segment.length>0?Math.max(0,Math.min(1,(target-segment.start)/segment.length)):0;
   return {
-    x:Number(a?.[0]||0)+(Number(b?.[0]||0)-Number(a?.[0]||0))*t,
-    y:Number(a?.[1]||0)+(Number(b?.[1]||0)-Number(a?.[1]||0))*t,
+    x:segment.ax+(segment.bx-segment.ax)*local,
+    y:segment.ay+(segment.by-segment.ay)*local,
   };
 }
 

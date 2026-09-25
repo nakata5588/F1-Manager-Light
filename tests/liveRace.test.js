@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
-import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -916,11 +916,12 @@ test("RW4.4 advanced timing remains deterministic after save/load",()=>{
 });
 
 
-test("RW6.5 playback speed ladder is bounded and progressively faster",()=>{
+test("RW6.5 playback speed ladder is bounded and mathematically scales real sector time",()=>{
   assert.deepEqual(RACE_PLAYBACK_SPEEDS,[1,2,4,8]);
-  const delays=RACE_PLAYBACK_SPEEDS.map(racePlaybackDelayMs);
-  assert.deepEqual(delays,[9000,4500,2250,1125]);
-  assert.equal(racePlaybackDelayMs(999),9000);
+  const baseSectorMs=31200;
+  const delays=RACE_PLAYBACK_SPEEDS.map((speed)=>racePlaybackDelayMs(speed,baseSectorMs));
+  assert.deepEqual(delays,[31200,15600,7800,3900]);
+  assert.equal(racePlaybackDelayMs(999,baseSectorMs),31200);
 });
 
 test("RW6.5 autoplay only runs while the live race is in running state",()=>{
@@ -932,9 +933,10 @@ test("RW6.5 autoplay only runs while the live race is in running state",()=>{
 
 
 test("RW6.6 motion duration bridges playback ticks without long idle gaps",()=>{
+  const baseSectorMs=28750;
   for(const speed of RACE_PLAYBACK_SPEEDS){
-    const delay=racePlaybackDelayMs(speed);
-    const motion=raceMotionDurationMs(speed);
+    const delay=racePlaybackDelayMs(speed,baseSectorMs);
+    const motion=raceMotionDurationMs(speed,baseSectorMs);
     assert.ok(motion>=delay,`motion should cover the full ${speed}x playback interval`);
     assert.ok(motion-delay<=100,`motion should not lag far behind at ${speed}x`);
   }
@@ -989,4 +991,35 @@ test("RW6.6A neutralised races keep retired cars visible for recovery",()=>{
     assert.equal(retiredCarVisibleOnTrack(row,{currentLap:7,currentSector:3,currentControl:control}),true);
   }
   assert.equal(retiredCarVisibleOnTrack({retired:false},{currentLap:7,currentSector:3,currentControl:"GREEN"}),true);
+});
+
+
+test("RW6.6B uses simulated sector timing as the 1x clock",()=>{
+  const rows=[
+    {sector_2_ms:30100,last_lap_ms:91000},
+    {sector_2_ms:30500,last_lap_ms:92000},
+    {sector_2_ms:30900,last_lap_ms:93000},
+    {sector_2_ms:45000,last_lap_ms:130000,retired:true},
+  ];
+  assert.equal(raceReferenceSectorMs(rows,2),30500);
+  assert.equal(racePlaybackDelayMs(1,raceReferenceSectorMs(rows,2)),30500);
+  assert.equal(racePlaybackDelayMs(2,raceReferenceSectorMs(rows,2)),15250);
+  assert.equal(racePlaybackDelayMs(4,raceReferenceSectorMs(rows,2)),7625);
+  assert.equal(racePlaybackDelayMs(8,raceReferenceSectorMs(rows,2)),3813);
+});
+
+test("RW6.6B falls back to observed lap pace when current sector timing is unavailable",()=>{
+  const rows=[
+    {last_lap_ms:90000},
+    {last_lap_ms:93000},
+    {last_lap_ms:96000},
+  ];
+  assert.equal(raceReferenceSectorMs(rows,3),31000);
+  assert.equal(raceReferenceSectorMs([],1,{fallbackLapMs:99000}),33000);
+});
+
+test("RW6.6B average speed is derived from circuit length and simulated lap time",()=>{
+  assert.ok(Math.abs(raceAverageSpeedKmh(4.325,90000)-173)<1e-9);
+  assert.equal(raceAverageSpeedKmh(null,90000),null);
+  assert.equal(raceAverageSpeedKmh(4.325,0),null);
 });
