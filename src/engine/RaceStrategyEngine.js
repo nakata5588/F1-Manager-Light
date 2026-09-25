@@ -827,6 +827,32 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           activePaceMode=String(command.pace_mode);
         }
       }
+
+      // D4.5: a tyre fitted during a Red Flag is service work, not a pit stop.
+      // It therefore resets the tyre/stint state without adding stationary or
+      // pit-lane time and without increasing pit_count.
+      for(const command of commandsThisLap.filter((row)=>row?.type==="red_flag_tyre")){
+        const replacement=tyreById(options,command?.tyre_id);
+        if(!replacement)continue;
+        if(lap>stintStart){
+          stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
+        }
+        strategyDecisions.push({
+          lap,
+          action:"red_flag_tyre_change",
+          tyre_from:tyreId(tyre),
+          tyre_to:tyreId(replacement),
+          red_flag_sequence:Number(command?.red_flag_sequence)||null,
+          time_cost_s:0,
+        });
+        tyre=replacement;
+        condition=100;
+        stintStart=lap;
+        stintLap=0;
+        tempSum=0;
+        tempCount=0;
+      }
+
       const pace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
       const forcedPit=commandsThisLap.find((command)=>command?.type==="pit");
       const teamOrder=commandsThisLap.find((command)=>command?.type==="team_order"&&command?.team_order==="yield");
@@ -895,7 +921,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       // automatic strategy still operates (important for non-live/autosim races).
       // Weather mismatch always affects lap time and can generate driver feedback.
       const playerTyreAuthority=!isAi&&liveCommands.some((command)=>
-        command?.type==="pit"&&Number(command?.effective_lap||0)<=lap
+        ["pit","red_flag_tyre"].includes(String(command?.type||""))&&
+        Number(command?.effective_lap||0)<=lap
       );
       const interactivePlayer=!isAi&&Boolean(working?.raceWeekendState?.live_race);
       let stopReason=null;
