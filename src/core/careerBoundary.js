@@ -7,6 +7,7 @@
 
 import { seasonStartMentalState } from "../domain/driverMentalState.js";
 import { applySeasonTeamReputation } from "../domain/teamReputation.js";
+import { materializeNextSeasonTechnicalWorld } from "../domain/nextSeasonMaterialization.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -306,6 +307,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
   // Close the previous season before clearing live standings. Team Reputation
   // receives title and final expectation effects while the final table exists.
   const seasonReviewedState=applySeasonTeamReputation(state,previousYear);
+  const technicalSeasonState=materializeNextSeasonTechnicalWorld(seasonReviewedState,targetYear);
 
   const calendar=materializeCalendar(state,targetYear);
 
@@ -403,7 +405,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
   },...(state.inbox||[])];
 
   return {
-    ...state,
+    ...technicalSeasonState,
     activeYear:targetYear,
     currentDateISO:`${targetYear}-01-01`,
     currentRound:0,
@@ -424,7 +426,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     teamBrands:(state.teamBrands||[]).map((r)=>({...r,year:targetYear})),
     teamEngines:(state.teamEngines||[]).map((r)=>({...r,year:targetYear})),
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),
-    carStats:(state.carStats||[]).map((r)=>({...r,year:targetYear})),
+    carStats:technicalSeasonState.carStats,
     driverAttributes:nextDriverAttributes,
     teamReputationState:{...(seasonReviewedState?.teamReputationState||{})},
     teamReputationLog:{...(seasonReviewedState?.teamReputationLog||{})},
