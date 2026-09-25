@@ -561,8 +561,23 @@ export function mergeRaceControlHistory(previous,fresh,currentLap,currentSector=
   const ordinal=Number(currentLap)>0?pointOrdinal(currentLap,currentSector):0;
   const incidentOrdinal=(row)=>pointOrdinal(row?.lap,row?.sector??1);
   const historicalIncidents=(previous.incidents||[]).filter((row)=>incidentOrdinal(row)<=ordinal);
-  const historicalIds=new Set(historicalIncidents.map((row)=>String(row.driver_id)));
-  const futureIncidents=(fresh.incidents||[]).filter((row)=>incidentOrdinal(row)>ordinal&&!historicalIds.has(String(row.driver_id)));
+  const historicalRetirementIds=new Set(
+    historicalIncidents
+      .filter((row)=>row?.retirement!==false)
+      .map((row)=>String(row.driver_id))
+  );
+  const historicalNonRetirementIds=new Set(
+    historicalIncidents
+      .filter((row)=>row?.retirement===false)
+      .map((row)=>String(row.driver_id))
+  );
+  const futureIncidents=(fresh.incidents||[]).filter((row)=>{
+    if(incidentOrdinal(row)<=ordinal)return false;
+    const did=String(row?.driver_id);
+    return row?.retirement===false
+      ?!historicalNonRetirementIds.has(did)
+      :!historicalRetirementIds.has(did);
+  });
   const historicalPeriods=(previous.periods||[]).filter((row)=>periodStartOrdinal(row)<=ordinal);
   const futurePeriods=(fresh.periods||[]).filter((row)=>periodStartOrdinal(row)>ordinal);
   return {
