@@ -262,7 +262,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     ?nextSeasonPhilosophyId
     :(nextSeasonCar.technical_philosophy?.id||"balanced");
   const nextSeasonTechnicalPackage=useMemo(
-    ()=>nextSeasonCar.technical_package||buildNextSeasonTechnicalPackage(gameState,{
+    ()=>Number(nextSeasonCar.technical_package?.version||0)>=2?nextSeasonCar.technical_package:buildNextSeasonTechnicalPackage(gameState,{
       teamId,
       knowledgeCarryover:nextSeasonKnowledge,
       programme:{
@@ -1039,7 +1039,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <div className="text-xl font-semibold tabular-nums">{nextSeasonTechnicalPackage.overall.projected.toFixed(1)} <span className="text-sm text-slate-500">± {nextSeasonTechnicalPackage.overall.uncertainty.toFixed(1)}</span></div>
               </div>
               <div className="md:flex-1"/>
-              <div className="text-[11px] text-slate-500 max-w-xl">Integration and Validation are intentionally not applied yet. Stage 7.4B will test whether these individually strong areas work together and whether the projected values survive validation.</div>
+              <div className="text-[11px] text-slate-500 max-w-xl">{nextSeasonTechnicalPackage.design.locked?"Design baseline locked at 60%. Later Research cannot rewrite completed Design.":"Design remains live until 60%, when its baseline is locked for Integration."}</div>
             </div>
           </CardContent></Card>
 
@@ -1138,7 +1138,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                     <Mini label="Started" value={nextSeasonCar.started_at||"—"}/>
                   </div>
                 </div>
-                {nextSeasonCar.status==="completed"?<div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-sm text-emerald-200">Technical package complete. Season-transition materialisation will convert this programme into the new Current Car baseline in the later Stage 7 rollover step.</div>:null}
+                {nextSeasonCar.status==="completed"?<div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-sm text-emerald-200">Technical package validated. It remains separate from the current car; Stage 7.7 will materialise it into the following-season baseline.</div>:null}
               </CardContent></Card>
             </>
           )}
