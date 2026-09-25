@@ -109,7 +109,7 @@ test("Track 2.0 Red Flag fast-forward finds the first sustained safe restart win
   assert.ok(Number(result.observation.timeline_index)>=4);
 });
 
-test("Track 2.0 Red Flag fast-forward stops when the weather timeline remains unsafe",()=>{
+test("Track 2.0 Red Flag fast-forward keeps waiting after an unsafe race timeline until weather recovers",()=>{
   const timeline=[extreme(1),extreme(2),extreme(3)];
   const monitor=createRestartMonitor({
     year:1980,
@@ -126,9 +126,13 @@ test("Track 2.0 Red Flag fast-forward stops when the weather timeline remains un
     currentLap:1,
   });
 
-  assert.equal(result.authorized,false);
-  assert.equal(result.exhausted,true);
-  assert.ok(result.checks_advanced<=timeline.length+3);
+  assert.equal(result.authorized,true);
+  assert.equal(result.exhausted,false);
+  assert.equal(result.monitor.restart_authorized,true);
+  assert.equal(result.monitor.safe_streak,2);
+  assert.ok(result.generated_recovery_checks>=2);
+  assert.equal(result.observation.track_state.restart_recovery_generated,true);
+  assert.equal(result.observation.lap,1,"race distance remains frozen while wall-clock weather improves");
 });
 
 test("RW5.2D4.6 one unsafe observation resets the safe streak",()=>{
