@@ -7,6 +7,7 @@
 import {
   createManufacturedPartUnits,
   normalizePhysicalPartState,
+  partDesignOperational,
 } from "./partUnits.js";
 import { derivePartTechnicalProfile } from "./carPartPerformance.js";
 import { realizeDevelopmentProjection } from "./developmentProject.js";
@@ -58,10 +59,13 @@ function completeDevelopmentProjects(state,today){
         id:partId,
         name:project?.name||partId,
         slot:project?.type,
-        version:`P${parts.filter((part)=>str(part?.slot)===str(project?.type)).length+1}`,
+        version:`P${parts.filter((part)=>partDesignOperational(part)&&str(part?.slot)===str(project?.type)).length+1}`,
         perf:actualStrength,
         inv:0,
         in_manufacturing:0,
+        status:"current",
+        legal_for_season:true,
+        season_year:Number(state?.activeYear)||Number(completionDate.slice(0,4))||null,
         prototype:true,
         created_from:project?.id,
         development_focus:project?.objective_id||"balanced",
