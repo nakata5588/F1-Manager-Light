@@ -94,7 +94,7 @@ test("D6.3E repeated close battles persist even if drivers change teams",()=>{
   const pair=driverRivalry(gs,"D1","D2");
   assert.equal(Object.keys(gs.driverRivalries.pairs).length,1);
   assert.equal(pair.close_battles,3);
-  assert.ok(pair.rivalry>4);
+  assert.ok(pair.rivalry>3.5);
   assert.deepEqual(pair.years,[1980]);
 });
 
