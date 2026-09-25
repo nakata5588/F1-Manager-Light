@@ -268,11 +268,25 @@ export function setNextSeasonCarEngineers(gs,{
   const requested=Math.max(1,Math.floor(num(engineers,programme.engineers||1)));
   if(requested>baseCapacity.available_engineers)return gs;
 
+  const updatedProgramme={...programme,engineers:requested};
+  const knowledgeCarryover=programme.knowledge_carryover||nextSeasonKnowledgeCarryover(gs,{
+    teamId:id,
+    targetSeason:programme.targetSeason,
+    regulationImpact:programme.regulation_impact||null,
+    development:dev,
+  });
   return {
     ...gs,
     development:{
       ...dev,
-      nextSeasonCar:{...programme,engineers:requested},
+      nextSeasonCar:{
+        ...updatedProgramme,
+        technical_package:buildNextSeasonTechnicalPackage(gs,{
+          programme:updatedProgramme,
+          teamId:id,
+          knowledgeCarryover,
+        }),
+      },
     },
   };
 }
