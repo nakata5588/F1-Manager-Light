@@ -649,7 +649,14 @@ test("RW5.2D4.4 red flag requires explicit restart preparation before resuming",
   assert.equal(prepared.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
   assert.equal(prepared.raceWeekendState.live_race.red_flag_lifecycle.race_progress_frozen,true);
 
-  const resumed=resumeLiveRace(prepared);
+  const stored=prepareGameStateForSave(prepared);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"D4.4 suspended save"},gameState:stored});
+  assert.equal(loaded.raceWeekendState.live_race.status,"red_flag");
+  assert.equal(loaded.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
+  assert.equal(loaded.raceWeekendState.live_race.current_lap,5);
+  assert.equal(loaded.raceWeekendState.live_race.current_sector,2);
+
+  const resumed=resumeLiveRace(loaded);
   assert.equal(resumed.raceWeekendState.live_race.status,"running");
   assert.equal(resumed.raceWeekendState.live_race.current_lap,5);
   assert.equal(resumed.raceWeekendState.live_race.current_sector,2);
