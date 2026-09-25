@@ -11,6 +11,7 @@ import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure 
 import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { rngFor } from "../core/random.js";
 import { teamOrderComplianceProfile } from "../domain/driverRelationshipConsequences.js";
+import { liveSectorTimesForLap } from "../domain/liveSectorPace.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -295,6 +296,58 @@ function gridForWeekend(gs){
     penalty_places:Number(row?.penalty_places??0),
   })).filter((row)=>row.driver);
 }
+function startingGridLiveClassification(gs){
+  const strategy=gs?.raceWeekendState?.race_strategy||{};
+  return gridForWeekend(gs).map((entry,index)=>{
+    const did=idOf(entry?.driver);
+    const teamId=teamForDriver(gs,did);
+    const selection=strategy?.selections?.[did]||{};
+    const tyreId=String(selection?.start_tyre_id||"");
+    const tyreRow=tyresForTeam(gs,teamId).find((row)=>String(row?.tyre_id??row?.id??"")===tyreId)||null;
+    const pace=String(selection?.pace_mode||"balanced");
+    return {
+      driver_id:did,
+      team_id:teamId,
+      position:index+1,
+      grid_position:Number(entry?.pos)||index+1,
+      position_gain:0,
+      current_lap:0,
+      current_sector:0,
+      laps_completed:0,
+      elapsed_ms:0,
+      gap_to_leader_ms:index===0?0:null,
+      gap_to_previous_ms:index===0?0:null,
+      interval_ms:index===0?0:null,
+      last_lap_ms:null,
+      previous_lap_ms:null,
+      best_lap_ms:null,
+      sector_1_ms:null,
+      sector_2_ms:null,
+      sector_3_ms:null,
+      tyre:{
+        tyre_id:tyreId||null,
+        compound:tyreRow?.compound_name||tyreRow?.name||null,
+        category:tyreRow?.category||null,
+        condition:100,
+        temperature_c:null,
+        age_laps:0,
+        stint_number:1,
+        source:"starting_grid",
+      },
+      pit_stops:[],
+      pit_count:0,
+      current_pace:pace,
+      next_pace:pace,
+      pit_window:null,
+      retired:false,
+      status:"RUNNING",
+      projected_finish_position:null,
+      projected_finish_best:null,
+      projected_finish_worst:null,
+      projection_source:"starting_grid",
+    };
+  });
+}
 function cumulativeAtLap(row,lap){
   return (row?.lap_times_ms||[]).slice(0,Math.max(0,lap)).reduce((sum,v)=>sum+num(v),0)
     +(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=lap).reduce((sum,stop)=>sum+num(stop?.total_loss_s)*1000,0);
@@ -337,27 +390,6 @@ function tyreStateAtLap(row,lap){
     source:"legacy_fallback",
   };
 }
-function stableHash(value){
-  let hash=2166136261;
-  for(const ch of String(value??"")){
-    hash^=ch.charCodeAt(0);
-    hash=Math.imul(hash,16777619)>>>0;
-  }
-  return hash>>>0;
-}
-function sectorTimesForLap(lapMs,driverId,lap){
-  const total=Number(lapMs);
-  if(!Number.isFinite(total)||total<=0)return {sector_1_ms:null,sector_2_ms:null,sector_3_ms:null};
-  const hash=stableHash(driverId+"-"+lap);
-  const jitter1=((hash&1023)/1023-0.5)*0.026;
-  const jitter2=(((hash>>>10)&1023)/1023-0.5)*0.026;
-  const share1=0.327+jitter1;
-  const share2=0.337+jitter2;
-  const s1=Math.max(1,Math.round(total*share1));
-  const s2=Math.max(1,Math.round(total*share2));
-  const s3=Math.max(1,total-s1-s2);
-  return {sector_1_ms:s1,sector_2_ms:s2,sector_3_ms:s3};
-}
 function cumulativeAtPoint(row,lap,sector=3){
   const l=Math.max(1,Number(lap)||1);
   const s=Math.max(1,Math.min(3,Number(sector)||1));
@@ -368,7 +400,7 @@ function cumulativeAtPoint(row,lap,sector=3){
     .filter((stop)=>Number(stop?.lap)<=l)
     .reduce((sum,stop)=>sum+num(stop?.total_loss_s)*1000,0);
   const lapMs=num(row?.lap_times_ms?.[l-1],0);
-  const sectors=sectorTimesForLap(lapMs,idOf(row?.driver||row),l);
+  const sectors=liveSectorTimesForLap(lapMs,idOf(row?.driver||row),l);
   const partial=s>=1?num(sectors.sector_1_ms,0):0;
   const partial2=s>=2?num(sectors.sector_2_ms,0):0;
   return base+pitLoss+partial+partial2;
@@ -396,7 +428,7 @@ function tyreStateAtPoint(row,lap,sector=3){
 }
 function sectorDisplayForPoint(row,lap,sector=3){
   const lapMs=num(row?.lap_times_ms?.[Math.max(0,Number(lap)-1)],null);
-  const sectors=sectorTimesForLap(lapMs,idOf(row?.driver||row),lap);
+  const sectors=liveSectorTimesForLap(lapMs,idOf(row?.driver||row),lap);
   return {
     sector_1_ms:Number(sector)>=1?sectors.sector_1_ms:null,
     sector_2_ms:Number(sector)>=2?sectors.sector_2_ms:null,
@@ -1144,7 +1176,7 @@ export function createLiveRaceState(gs,{gp={}}={}){
       race_strategy:{...preliminary.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
         version:4,status:"running",current_lap:0,current_sector:0,completed_laps:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
-        classification:[],pit_states:{},pit_history:[],pit_clock_ms:0,events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
+        classification:startingGridLiveClassification(preliminary.gameState),pit_states:{},pit_history:[],pit_clock_ms:0,events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
         last_weather:null,current_control:"GREEN",track_state:plan.weather_timeline?.[0]||null,started_at:gs?.currentDateISO||null,
       },
     },
