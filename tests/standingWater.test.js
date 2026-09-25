@@ -8,7 +8,7 @@ import {
   standingWaterForConditions,
 } from "../src/engine/StandingWaterEngine.js";
 import { evaluateRaceability } from "../src/engine/RaceabilityEngine.js";
-import { buildTrackWeatherTimeline, incidentForDriver, incidentsForDriver } from "../src/engine/RaceControlEngine.js";
+import { buildTrackWeatherTimeline, incidentForDriver, incidentsForDriver, mergeRaceControlHistory } from "../src/engine/RaceControlEngine.js";
 import { formatRaceIncidentMessage } from "../src/engine/LiveRaceEngine.js";
 
 test("RW5.2D4.2 a damp/wet surface does not automatically mean standing water",()=>{
@@ -176,4 +176,28 @@ test("RW5.2D4.2 standing water contributes to composite raceability without beco
   });
   assert.ok(pools.index<noPools.index);
   assert.ok(noPools.index-pools.index<15);
+});
+
+
+test("RW5.2D4.2 observed spin does not block a later retirement for the same driver",()=>{
+  const previous={
+    incidents:[
+      {driver_id:"D1",lap:3,sector:1,kind:"aquaplaning_spin",retirement:false,time_loss_s:8},
+    ],
+    periods:[],
+    weather_timeline:Array.from({length:12},(_,index)=>({lap:index+1})),
+  };
+  const fresh={
+    incidents:[
+      {driver_id:"D1",lap:3,sector:1,kind:"aquaplaning_spin",retirement:false,time_loss_s:8},
+      {driver_id:"D1",lap:9,sector:2,kind:"accident",reason:"Accident"},
+    ],
+    periods:[],
+    weather_timeline:Array.from({length:12},(_,index)=>({lap:index+1})),
+  };
+  const merged=mergeRaceControlHistory(previous,fresh,4,3);
+  assert.equal(merged.incidents.length,2);
+  assert.equal(merged.incidents[0].retirement,false);
+  assert.equal(merged.incidents[1].lap,9);
+  assert.notEqual(merged.incidents[1].retirement,false);
 });
