@@ -33,7 +33,7 @@ test("historical resolver prefers latest portrait at or before the active year",
   assert.equal(resolvePortraitSet(set, 2000), "/portraits/drivers/history/1990/d_test.png");
 });
 
-test("historical resolver uses nearest future portrait before the first known era image", () => {
+test("historical resolver keeps the timeless default before the first dated override", () => {
   const set = {
     default: "/portraits/drivers/d_test.webp",
     history: [
@@ -42,7 +42,7 @@ test("historical resolver uses nearest future portrait before the first known er
     ],
   };
 
-  assert.equal(resolvePortraitSet(set, 1975), "/portraits/drivers/history/1976/d_test.jpg");
+  assert.equal(resolvePortraitSet(set, 1975), "/portraits/drivers/d_test.webp");
 });
 
 test("timeless default is used when a driver has no historical variants", () => {
