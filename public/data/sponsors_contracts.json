@@ -162,7 +162,7 @@
   {
     "year": 1980,
     "team_id": "t_0005",
-    "team_name": "Team Lotus",
+    "team_name": "Lotus",
     "sponsor_id": "sp_0007",
     "sponsor_name": "Essex",
     "tier": "major",
@@ -202,7 +202,7 @@
   {
     "year": 1980,
     "team_id": "t_0005",
-    "team_name": "Team Lotus",
+    "team_name": "Lotus",
     "sponsor_id": "sp_0023",
     "sponsor_name": "John Player Special",
     "tier": "secondary",
@@ -1631,8 +1631,8 @@
   },
   {
     "year": 2025,
-    "team_id": null,
-    "team_name": null,
+    "team_id": "",
+    "team_name": "",
     "sponsor_id": null,
     "sponsor_name": null,
     "tier": null,

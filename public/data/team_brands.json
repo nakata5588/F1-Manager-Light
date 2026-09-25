@@ -1748,7 +1748,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1773,7 +1773,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1798,7 +1798,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1823,7 +1823,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1848,7 +1848,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1873,7 +1873,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1898,7 +1898,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1923,7 +1923,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1948,7 +1948,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1973,7 +1973,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,
@@ -1998,7 +1998,7 @@
       "shareType": "array"
     },
     "year": null,
-    "team_name": null,
+    "team_name": "",
     "team_official_name": null,
     "short_name": null,
     "primary_color": null,

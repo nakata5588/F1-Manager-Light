@@ -410,7 +410,7 @@
       "ref": "E17",
       "shareType": "array"
     },
-    "team_name": null,
+    "team_name": "",
     "starts": 9,
     "wins": 0,
     "podiums": 1,
@@ -1904,7 +1904,7 @@
       "ref": "E73",
       "shareType": "array"
     },
-    "team_name": null,
+    "team_name": "",
     "starts": 11,
     "wins": 2,
     "podiums": 2,
