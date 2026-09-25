@@ -4,6 +4,7 @@ import { createRaceControlPlan, incidentForDriver, incidentsForDriver, mergeRace
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
+import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -1241,7 +1242,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     });
   }
 
-  return {
+  const nextState={
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
@@ -1266,6 +1267,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
       },
     },
   };
+  return upcomingRed?applyAutomaticRedFlagWork(nextState):nextState;
 }
 
 export function advanceLiveRaceSector(gs,{gp={},sectors=1}={}){
