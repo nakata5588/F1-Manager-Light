@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
+import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
@@ -76,6 +77,54 @@ function fixture(seed="rw4-live"){
   const rows=drivers.map((d,i)=>({grid:i+1,driver_id:d.driver_id,team_id:d.team_id,qualifying_position:i+1,best_time_ms:90000+i*100}));
   gs.raceWeekendState={phase:"race",roundIndex:0,startingGrid:{status:"final",rows},grid:rows,race_strategy:built.state};
   return gs;
+}
+
+function withVisibleDamage(gs,{driverId="D1",damage}={}){
+  const live=gs?.raceWeekendState?.live_race;
+  const lap=Math.max(1,Number(live?.current_lap)||1);
+  const sector=Math.max(1,Math.min(3,Number(live?.current_sector)||1));
+  const ordinal=(lap-1)*3+sector;
+  const incident={
+    driver_id:String(driverId),
+    lap,
+    sector,
+    retirement:false,
+    kind:"collision",
+    reason:"Collision",
+    severity:"medium",
+    damage_ordinal:ordinal,
+    damage,
+    time_loss_s:0,
+  };
+  const plan=gs?.raceWeekendState?.race_strategy?.race_control_plan||{};
+  const incidents=[
+    ...(plan?.incidents||[]).filter((row)=>String(row?.driver_id||"")!==String(driverId)),
+    incident,
+  ];
+  const classification=(live?.classification||[]).map((row)=>
+    String(row?.driver_id||"")===String(driverId)
+      ?{
+        ...row,
+        damage_state:damage,
+        damage_severity:damage.severity,
+        damaged_components:[...(damage.damaged_components||[])],
+        damage_pace_loss_s_per_lap:Number(damage.pace_loss_s_per_lap||0),
+        damage_incident_lap:lap,
+        damage_incident_sector:sector,
+      }
+      :row
+  );
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:{...plan,incidents},
+      },
+      live_race:{...live,classification},
+    },
+  };
 }
 
 test("RW4.6.1 race-control incident messages use natural language instead of internal severity enums",()=>{
@@ -406,6 +455,132 @@ test("RW5.3B.2A live pit state unfolds loss progressively and survives save/load
   const stop=projected.pit_stops.find((row)=>row.lap===3);
   assert.ok(stop);
   assert.equal(completed.loss_total_ms,Math.round(Number(stop.total_loss_s)*1000));
+});
+
+test("RW5.3B.2B repair-only pit service preserves tyres and repairs damage only after PIT_BOX work",()=>{
+  let gs=createLiveRaceState(fixture("rw5.3b.2b-repair-only"),{gp});
+  for(let step=0;step<5;step+=1)gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  assert.equal(gs.raceWeekendState.live_race.current_lap,2);
+  assert.equal(gs.raceWeekendState.live_race.current_sector,2);
+
+  const damage=damageStateFromComponents({front_wing:70,floor:45});
+  gs=withVisibleDamage(gs,{damage});
+  gs=issueLiveRaceCommand(gs,{
+    driverId:"D1",
+    type:"pit",
+    tyreChange:false,
+    repairDamage:true,
+  });
+  const command=gs.raceWeekendState.race_strategy.live_commands.D1.at(-1);
+  assert.equal(command.tyre_change,false);
+  assert.deepEqual(command.repair_components,["front_wing","floor"]);
+
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  let live=gs.raceWeekendState.live_race;
+  const state=live.pit_states.D1;
+  const tyreBefore=structuredClone(live.classification.find((row)=>row.driver_id==="D1").tyre);
+  assert.ok(state?.active);
+  assert.equal(state.service.tyre_change,false);
+  assert.equal(state.service.damage_repair,true);
+  assert.ok(state.service.repair.repaired_components.includes("front_wing"));
+  assert.ok(state.stationary_total_ms>0);
+
+  gs=advanceLivePitClock(gs,{deltaMs:12000});
+  live=gs.raceWeekendState.live_race;
+  assert.equal(live.pit_states.D1.phase,"pit_box");
+  assert.equal(live.pit_states.D1.service.completed,false);
+  assert.equal(
+    (gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[]).some((row)=>row.source==="normal_pit_repair"),
+    false,
+    "repair must not affect damage before service completes"
+  );
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW5 repair pit"},gameState:stored});
+  assert.deepEqual(loaded.raceWeekendState.live_race.pit_states.D1,gs.raceWeekendState.live_race.pit_states.D1);
+
+  const completedA=advanceLivePitClock(gs,{deltaMs:60000});
+  const completedB=advanceLivePitClock(loaded,{deltaMs:60000});
+  assert.deepEqual(
+    completedA.raceWeekendState.race_strategy.race_control_plan.damage_repairs,
+    completedB.raceWeekendState.race_strategy.race_control_plan.damage_repairs
+  );
+
+  const repair=completedA.raceWeekendState.race_strategy.race_control_plan.damage_repairs
+    .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1");
+  assert.ok(repair);
+  assert.equal(repair.free_service,false);
+  assert.ok(repair.repaired_components.includes("front_wing"));
+  assert.ok(repair.pace_loss_after_s_per_lap<repair.pace_loss_before_s_per_lap);
+
+  const afterRow=completedA.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1");
+  assert.equal(afterRow.tyre.tyre_id,tyreBefore.tyre_id);
+  assert.equal(afterRow.tyre.condition,tyreBefore.condition);
+  assert.equal(afterRow.tyre.age_laps,tyreBefore.age_laps);
+  assert.ok(Number(afterRow.damage_pace_loss_s_per_lap)<Number(damage.pace_loss_s_per_lap));
+  assert.ok(completedA.raceWeekendState.live_race.events.some((event)=>
+    event.type==="pit_service"&&event.work_type==="damage_repair"&&event.driver_id==="D1"
+  ));
+});
+
+test("RW5.3B.2B tyres plus repair share one scheduled stationary window",()=>{
+  let gs=createLiveRaceState(fixture("rw5.3b.2b-combined"),{gp});
+  for(let step=0;step<5;step+=1)gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  const damage=damageStateFromComponents({front_wing:62});
+  gs=withVisibleDamage(gs,{damage});
+
+  gs=issueLiveRaceCommand(gs,{
+    driverId:"D1",
+    type:"pit",
+    tyreId:"gy_s",
+    repairDamage:true,
+  });
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+
+  const state=gs.raceWeekendState.live_race.pit_states.D1;
+  assert.equal(state.service.tyre_change,true);
+  assert.equal(state.service.damage_repair,true);
+  const tyreTask=state.service.tasks.find((task)=>task.type==="tyres");
+  const repairTask=state.service.tasks.find((task)=>task.component==="front_wing");
+  assert.ok(tyreTask&&repairTask);
+  assert.ok(repairTask.start_s<tyreTask.end_s);
+  assert.ok(
+    Number(state.service.total_stationary_s)<Number(tyreTask.duration_s)+Number(repairTask.duration_s),
+    "combined service should overlap independent work"
+  );
+
+  gs=advanceLivePitClock(gs,{deltaMs:60000});
+  const row=gs.raceWeekendState.live_race.classification.find((item)=>item.driver_id==="D1");
+  assert.equal(row.tyre.tyre_id,"gy_s");
+  assert.equal(row.damage_state,null);
+});
+
+test("RW5.3B.2B direct +Lap mode persists the same repair into the causal damage timeline",()=>{
+  let gs=createLiveRaceState(fixture("rw5.3b.2b-direct"),{gp});
+  for(let step=0;step<5;step+=1)gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  const damage=damageStateFromComponents({front_wing:68,floor:30});
+  gs=withVisibleDamage(gs,{damage});
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreChange:false,repairDamage:true});
+
+  // Coarse mode crosses the entire scheduled stop in one advance. This is
+  // intentionally different from sector playback, which exposes PIT_ENTRY and
+  // the live service phases separately.
+  gs=advanceLiveRace(gs,{gp,laps:2});
+  let repair=(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
+    .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1");
+
+  gs=advanceLiveRace(gs,{gp,laps:1});
+  repair=repair||(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
+    .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1");
+  const row=gs.raceWeekendState.live_race.classification.find((item)=>item.driver_id==="D1");
+  assert.ok(repair);
+  assert.ok(Number(row.damage_pace_loss_s_per_lap)<Number(damage.pace_loss_s_per_lap));
+  assert.equal(
+    (gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
+      .filter((item)=>item.pit_stop_key===repair.pit_stop_key).length,
+    1,
+    "recalculation must not duplicate a completed pit repair"
+  );
 });
 
 test("Pit Now schedules the selected tyre for the next lap",()=>{
