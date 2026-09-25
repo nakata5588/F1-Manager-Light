@@ -10,6 +10,8 @@ import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { raceControlAtLap } from "./RaceControlEngine.js";
+import { incidentDamageStateThrough } from "./CarDamageEngine.js";
+import { buildPitServiceSchedule } from "./PitServiceEngine.js";
 import { raceForecastForTeam, raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { aiTyreCrossoverDecision, tyreWeatherPenaltyForWetness } from "./TyreCrossoverEngine.js";
 import {
@@ -955,17 +957,27 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       }
 
       if(stopReason){
-        stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
+        const requestedTyreChange=forcedPit
+          ?forcedPit?.tyre_change!==false
+          :true;
+        if(requestedTyreChange){
+          stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
+        }
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
-        const nextTyre=commandedTyre||choosePitTyre(
-          options,
-          tyre,
-          strategy,
-          tyreState,
-          stopReason,
-          stopReason==="weather"?crossover.target_category:null
+        const nextTyre=!requestedTyreChange
+          ?tyre
+          :commandedTyre||choosePitTyre(
+            options,
+            tyre,
+            strategy,
+            tyreState,
+            stopReason,
+            stopReason==="weather"?crossover.target_category:null
+          );
+        const refuel=rules.refuelling_allowed&&(
+          forcedPit?.refuel===true||
+          hasFuelTarget&&lap>=Number(nextFuelTarget)
         );
-        const refuel=rules.refuelling_allowed&&hasFuelTarget&&lap>=Number(nextFuelTarget);
         const errorChance=clamp(
           num(crew.effective_error_chance,crew.error_rate??0.05),
           0.005,
@@ -978,8 +990,41 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         const serviceVariation=(rng.next()+rng.next()-1)*executionVariance;
         const expectedService=Math.max(2,num(crew.avg_time_s,6.8));
         const serviceTime=Math.max(2,expectedService+serviceVariation);
-        const expectedStationary=Math.max(expectedService,fuelDelay);
-        const stationary=Math.max(serviceTime,fuelDelay)+errorDelay;
+        const repairOrdinal=Math.max(0,(lap-1)*3);
+        const damageState=forcedPit?.repair_damage_snapshot
+          ?structuredClone(forcedPit.repair_damage_snapshot)
+          :incidentDamageStateThrough(
+            strategyState?.race_control_plan?.incidents||[],
+            did,
+            repairOrdinal,
+            strategyState?.race_control_plan?.damage_repairs||[]
+          );
+        const requestedRepairs=Array.isArray(forcedPit?.repair_components)
+          ?forcedPit.repair_components
+          :[];
+        const crewFactor=clamp(expectedService/6.8,0.82,1.20);
+        const expectedSchedule=buildPitServiceSchedule({
+          year:Number(working?.activeYear)||1980,
+          tyreChange:requestedTyreChange,
+          tyreServiceS:expectedService,
+          refuel,
+          fuelServiceS:fuelDelay,
+          damageState,
+          repairComponents:requestedRepairs,
+          crewFactor,
+        });
+        const actualSchedule=buildPitServiceSchedule({
+          year:Number(working?.activeYear)||1980,
+          tyreChange:requestedTyreChange,
+          tyreServiceS:serviceTime,
+          refuel,
+          fuelServiceS:fuelDelay,
+          damageState,
+          repairComponents:requestedRepairs,
+          crewFactor,
+        });
+        const expectedStationary=Math.max(0,Number(expectedSchedule.total_stationary_s)||0);
+        const stationary=Math.max(0,Number(actualSchedule.total_stationary_s)||0)+errorDelay;
         const pitLaneMultiplier=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
         const pitLaneLoss=track.pit_lane_loss_s*pitLaneMultiplier;
         const loss=pitLaneLoss+stationary;
@@ -989,6 +1034,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           reason:stopReason,
           tyre_from:tyreId(tyre),
           tyre_to:tyreId(nextTyre),
+          tyre_changed:Boolean(requestedTyreChange),
           stationary_s:Number(stationary.toFixed(2)),
           expected_stationary_s:Number(expectedStationary.toFixed(2)),
           execution_delta_s:Number((stationary-expectedStationary).toFixed(2)),
@@ -998,13 +1044,21 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           error,
           refuelled:refuel,
           race_control:control.type,
+          service:{
+            ...actualSchedule,
+            expected_total_stationary_s:Number(expectedSchedule.total_stationary_s||0),
+            repair_ordinal:repairOrdinal,
+          },
         });
         if(refuel)refuelCount+=1;
-        tyre=nextTyre||tyre;
-        condition=100;
-        stintStart=lap;
-        stintLap=0;
-        tempSum=0;tempCount=0;
+        if(requestedTyreChange){
+          tyre=nextTyre||tyre;
+          condition=100;
+          stintStart=lap;
+          stintLap=0;
+          tempSum=0;
+          tempCount=0;
+        }
         hasStopped=true;
       }
 
