@@ -8,6 +8,7 @@ import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { hydrateDriverPortraitRows, resolveDriverPortrait } from "@/domain/driverPortraits";
 import { historicalAssetCandidates } from "@/domain/historicalAssets";
+import { withVisualAssetOverride, withoutVisualAssetOverride } from "@/domain/visualAssetOverrides";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
@@ -500,6 +501,7 @@ export const useGame = create((set, get) => ({
     team: null,
     manager: null,
     standings: { drivers: [], teams: [] },
+    visualAssetOverrides: { drivers: {}, staff: {}, teams: {} },
 
     // Inbox e fila
     inbox: [],
@@ -540,6 +542,20 @@ export const useGame = create((set, get) => ({
   dismissToast: (id) => set((s) => ({ uiToasts: (s.uiToasts || []).filter((t) => t.id !== id) })),
 
   setGameState: (partial) => set((s) => ({ gameState: { ...s.gameState, ...partial } })),
+
+  setVisualAssetOverride: (input) => set((s) => ({
+    gameState: {
+      ...s.gameState,
+      visualAssetOverrides: withVisualAssetOverride(s.gameState?.visualAssetOverrides, input),
+    },
+  })),
+
+  clearVisualAssetOverride: (input) => set((s) => ({
+    gameState: {
+      ...s.gameState,
+      visualAssetOverrides: withoutVisualAssetOverride(s.gameState?.visualAssetOverrides, input),
+    },
+  })),
 
   updateSettings: (next) => {
     set((state) => ({
