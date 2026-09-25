@@ -957,9 +957,14 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       }
 
       if(stopReason){
-        stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
+        const requestedTyreChange=forcedPit
+          ?forcedPit?.tyre_change!==false
+          :true;
+        if(requestedTyreChange){
+          stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
+        }
         const commandedTyre=forcedPit?.tyre_id?tyreById(options,forcedPit.tyre_id):null;
-        const nextTyre=forcedPit?.tyre_change===false
+        const nextTyre=!requestedTyreChange
           ?tyre
           :commandedTyre||choosePitTyre(
             options,
@@ -969,9 +974,6 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
             stopReason,
             stopReason==="weather"?crossover.target_category:null
           );
-        const requestedTyreChange=forcedPit
-          ?forcedPit?.tyre_change!==false
-          :true;
         const refuel=rules.refuelling_allowed&&(
           forcedPit?.refuel===true||
           hasFuelTarget&&lap>=Number(nextFuelTarget)
@@ -1030,7 +1032,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           reason:stopReason,
           tyre_from:tyreId(tyre),
           tyre_to:tyreId(nextTyre),
-          tyre_changed:Boolean(requestedTyreChange&&String(tyreId(tyre))!==String(tyreId(nextTyre))),
+          tyre_changed:Boolean(requestedTyreChange),
           stationary_s:Number(stationary.toFixed(2)),
           expected_stationary_s:Number(expectedStationary.toFixed(2)),
           execution_delta_s:Number((stationary-expectedStationary).toFixed(2)),
@@ -1047,11 +1049,14 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           },
         });
         if(refuel)refuelCount+=1;
-        tyre=nextTyre||tyre;
-        condition=100;
-        stintStart=lap;
-        stintLap=0;
-        tempSum=0;tempCount=0;
+        if(requestedTyreChange){
+          tyre=nextTyre||tyre;
+          condition=100;
+          stintStart=lap;
+          stintLap=0;
+          tempSum=0;
+          tempCount=0;
+        }
         hasStopped=true;
       }
 
