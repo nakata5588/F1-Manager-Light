@@ -7,7 +7,7 @@ import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
 import { normalPitRepairRecord } from "./PitServiceEngine.js";
-import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
+import { assessRestartConditions, createRestartMonitor, fastForwardRestartConditions, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
 import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { rngFor } from "../core/random.js";
 import { teamOrderComplianceProfile } from "../domain/driverRelationshipConsequences.js";
@@ -1903,6 +1903,77 @@ export function assessLiveRaceRestart(gs){
           restart_action:String(result.observation.action),
           safe_streak:streak,
           required_safe_checks:required,
+          message,
+        }],
+      },
+    },
+  };
+}
+
+export function fastForwardLiveRaceRestart(gs){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||live?.status!=="red_flag")return gs;
+  const plan=weekend?.race_strategy?.race_control_plan||{};
+  const rules=plan?.rules||{};
+  const current=live?.red_flag_lifecycle||legacyRedFlagLifecycle({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    live,
+  });
+  if(!current||String(current?.phase)!=="suspended")return gs;
+
+  const monitor=current?.restart_monitor||createRestartMonitor({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    triggerTrackState:live?.track_state||current?.track_snapshot||null,
+  });
+  const result=fastForwardRestartConditions({
+    monitor,
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    timeline:plan?.weather_timeline||[],
+    currentLap:Number(live?.current_lap)||1,
+  });
+  const observed=result?.observation?.track_state||live?.track_state||null;
+  const lifecycle={
+    ...current,
+    restart_monitor:result.monitor,
+    track_snapshot:observed||current?.track_snapshot||null,
+  };
+  const checks=Math.max(0,Number(result?.checks_advanced)||0);
+  const required=Math.max(1,Number(result?.monitor?.required_safe_checks)||1);
+  const streak=Math.max(0,Number(result?.monitor?.safe_streak)||0);
+  const message=result.authorized
+    ?`Race Control fast-forwarded ${checks} condition checks. Restart window available (${Number(result?.observation?.score??result?.monitor?.latest_score??0).toFixed(0)}/100).`
+    :`Race Control fast-forwarded ${checks} condition checks, but no safe restart window is available yet. Safe checks ${streak}/${required}.`;
+
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:{
+        ...live,
+        track_state:observed||live?.track_state||null,
+        last_weather:observed?.state||live?.last_weather||null,
+        red_flag_lifecycle:lifecycle,
+        events:[...(live.events||[]),{
+          event_key:`red_flag_restart_fast_forward:${lifecycle.sequence||1}:${result.monitor.check_count}`,
+          lap:Number(live.current_lap),
+          sector:Number(live.current_sector)||1,
+          type:"red_flag_restart_fast_forward",
+          control_type:"RED_FLAG",
+          lifecycle_phase:"suspended",
+          restart_safe:Boolean(result.safe),
+          restart_authorized:Boolean(result.authorized),
+          restart_score:Number(result?.observation?.score??result?.monitor?.latest_score??100),
+          restart_action:String(result?.observation?.action??result?.monitor?.latest_action??"RED_FLAG"),
+          safe_streak:streak,
+          required_safe_checks:required,
+          checks_advanced:checks,
+          exhausted:Boolean(result.exhausted),
           message,
         }],
       },
