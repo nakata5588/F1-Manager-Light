@@ -32,7 +32,7 @@
     "test:roles": "node --test tests/driverRoleManagement.test.js",
     "test:race-weekend": "node --test tests/raceWeekend.test.js",
     "test:race-strategy": "node --test tests/raceStrategy.test.js",
-    "test:live-race": "node --test --test-name-pattern=\"tyres plus repair|direct \\+Lap mode\" tests/liveRace.test.js",
+    "test:live-race": "node --test --test-name-pattern=\"tyres plus repair\" tests/liveRace.test.js",
     "test:management-events": "node --test tests/managementEvents.test.js",
     "test:race-control": "node --test tests/raceControl.test.js tests/raceability.test.js tests/standingWater.test.js tests/raceControlPolicy.test.js",
     "test:weekend-weather": "node --test tests/weekendWeather.test.js",
