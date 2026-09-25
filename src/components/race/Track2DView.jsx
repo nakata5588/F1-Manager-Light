@@ -19,6 +19,7 @@ import {
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
 import { raceAverageSpeedKmh, raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
+import { buildRaceVisualModel, interpolateVisualGap, visualMotionProgress } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -199,7 +200,7 @@ function orderModeValue(row,index,mode){
   return index===0?"LEAD":formatInterval(row?.gap_to_leader_ms);
 }
 
-function useSmoothTrackProgress(target,{duration=700,running=false,onFrame=null}={}){
+function useSmoothTrackProgress(target,{duration=700,individualDuration=null,running=false,onFrame=null}={}){
   const normalizedTarget=Number(target)||0;
   const currentRef=useRef(normalizedTarget);
   const targetRef=useRef(normalizedTarget);
@@ -236,7 +237,11 @@ function useSmoothTrackProgress(target,{duration=700,running=false,onFrame=null}
     const motionDuration=Math.max(1,Number(duration)||700);
     const tick=(now)=>{
       const t=Math.min(1,(now-started)/motionDuration);
-      const value=from+(to-from)*t;
+      const visualT=visualMotionProgress(t,{
+        individualDurationMs:individualDuration??motionDuration,
+        globalDurationMs:motionDuration,
+      });
+      const value=from+(to-from)*visualT;
       currentRef.current=value;
       setDisplay(value);
       onFrameRef.current?.(value);
@@ -244,9 +249,59 @@ function useSmoothTrackProgress(target,{duration=700,running=false,onFrame=null}
     };
     frameRef.current=requestAnimationFrame(tick);
     return ()=>{if(frameRef.current)cancelAnimationFrame(frameRef.current);};
-  },[normalizedTarget,running,duration]);
+  },[normalizedTarget,running,duration,individualDuration]);
 
   return display;
+}
+
+function useSmoothNumber(target,{duration=700,running=false}={}){
+  const normalized=target==null?NaN:Number(target);
+  const valid=Number.isFinite(normalized);
+  const currentRef=useRef(valid?normalized:null);
+  const targetRef=useRef(valid?normalized:null);
+  const frameRef=useRef(null);
+  const [display,setDisplay]=useState(valid?normalized:null);
+
+  useEffect(()=>{
+    if(frameRef.current)cancelAnimationFrame(frameRef.current);
+    const next=target==null?NaN:Number(target);
+    if(!Number.isFinite(next)){
+      currentRef.current=null;
+      targetRef.current=null;
+      setDisplay(null);
+      return undefined;
+    }
+    const from=currentRef.current==null?next:Number(currentRef.current);
+    const previousTarget=targetRef.current;
+    const changed=previousTarget==null||!Number.isFinite(Number(previousTarget))||Math.abs(next-Number(previousTarget))>0.001;
+    targetRef.current=next;
+
+    if(!running||!changed){
+      currentRef.current=next;
+      setDisplay(next);
+      return undefined;
+    }
+
+    const started=performance.now();
+    const motionDuration=Math.max(1,Number(duration)||700);
+    const tick=(now)=>{
+      const t=Math.min(1,(now-started)/motionDuration);
+      const value=interpolateVisualGap(from,next,t);
+      currentRef.current=value;
+      setDisplay(value);
+      if(t<1)frameRef.current=requestAnimationFrame(tick);
+    };
+    frameRef.current=requestAnimationFrame(tick);
+    return ()=>{if(frameRef.current)cancelAnimationFrame(frameRef.current);};
+  },[target,running,duration]);
+
+  return display;
+}
+
+function AnimatedGapValue({target,leader=false,retired=false,running=false,duration=700,className=""}){
+  const display=useSmoothNumber(target,{duration,running});
+  const text=retired?"DNF":leader?"LEAD":formatInterval(display);
+  return <span className={className}>{text}</span>;
 }
 
 function AnimatedMarker({
@@ -261,10 +316,12 @@ function AnimatedMarker({
   onSelect,
   motionRunning=false,
   motionDuration=700,
+  individualMotionDuration=null,
   onVisualProgress=null,
 }){
   const display=useSmoothTrackProgress(progress,{
     duration:motionDuration,
+    individualDuration:individualMotionDuration,
     running:motionRunning,
     onFrame:onVisualProgress,
   });
@@ -374,7 +431,7 @@ export default function Track2DView({
   const geometry=resolved.geometry;
   const displayGeometry=useMemo(()=>orientTrackGeometry(geometry),[geometry]);
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
-  const activeRows=(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
+  const activeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
   const [orderExpanded,setOrderExpanded]=useState(false);
   const [orderMode,setOrderMode]=useState("order");
@@ -384,6 +441,13 @@ export default function Track2DView({
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
   const motionDuration=raceMotionDurationMs(playbackSpeed,playbackBaseSectorMs);
+  const visualModel=useMemo(()=>buildRaceVisualModel(activeRows,{
+    currentSector:Math.max(1,Number(currentSector)||1),
+    playbackSpeed,
+    globalSectorMs:playbackBaseSectorMs,
+    currentControl,
+  }),[activeRows,currentSector,playbackSpeed,playbackBaseSectorMs,currentControl]);
+  const visualByDriver=useMemo(()=>new Map(visualModel.map((row)=>[String(row.driver_id),row])),[visualModel]);
   const averageSpeedKmh=raceAverageSpeedKmh(lapLengthKm,referenceLapMs);
 
   useEffect(()=>{
@@ -560,6 +624,7 @@ export default function Track2DView({
             const visibleOnTrack=retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl});
             if(!visibleOnTrack)return null;
             const progress=visualTrackProgress(row,{currentLap,currentSector,referenceLapMs,index});
+            const visualRow=visualByDriver.get(did);
             return <AnimatedMarker
               key={did||index}
               geometry={displayGeometry}
@@ -572,6 +637,7 @@ export default function Track2DView({
               retired={Boolean(row?.retired)}
               motionRunning={Boolean(playbackRunning)}
               motionDuration={motionDuration}
+              individualMotionDuration={visualRow?.motion_duration_ms??motionDuration}
               onVisualProgress={selected?followSelectedVisualProgress:null}
               title={`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`}
             />;
@@ -660,7 +726,16 @@ export default function Track2DView({
               {!orderExpanded?<MiniTyreIcon compound={row?.tyre?.compound} size={13}/>:null}
               {orderExpanded&&orderMode==="tyres"
                 ?<span className="flex shrink-0 items-center gap-1 font-mono text-[8px] text-slate-400"><MiniTyreIcon compound={row?.tyre?.compound} size={15}/>{row?.tyre?.age_laps??"—"}L</span>
-                :<span className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"text-slate-100":"text-slate-400"}`}>{orderModeValue(row,index,orderExpanded?orderMode:"order")}</span>}
+                :(!orderExpanded||orderMode==="order")
+                  ?<AnimatedGapValue
+                    target={row?.gap_to_leader_ms}
+                    leader={index===0}
+                    retired={Boolean(row?.retired)}
+                    running={Boolean(playbackRunning)}
+                    duration={motionDuration}
+                    className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"text-slate-100":"text-slate-400"}`}
+                  />
+                  :<span className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":"text-slate-400"}`}>{orderModeValue(row,index,orderMode)}</span>}
               {orderExpanded?<ChevronRight className="h-3 w-3 shrink-0 text-slate-600"/>:null}
             </button>;
           })}
@@ -672,8 +747,8 @@ export default function Track2DView({
             {orderMode==="order"?<>
               <Stat label="Grid" value={`P${selectedRow?.grid_position??"—"}`}/>
               <Stat label="Net" value={Number(selectedRow?.position_gain)>0?`+${selectedRow.position_gain}`:String(selectedRow?.position_gain??0)}/>
-              <Stat label="Interval" value={selectedRow?.retired?"DNF":Number(selectedRow?.position)===1?"LEAD":formatInterval(selectedRow?.interval_ms)}/>
-              <Stat label="Leader" value={selectedRow?.retired?"DNF":Number(selectedRow?.position)===1?"—":formatInterval(selectedRow?.gap_to_leader_ms)}/>
+              <Stat label="Interval" value={<AnimatedGapValue target={selectedRow?.interval_ms} leader={Number(selectedRow?.position)===1} retired={Boolean(selectedRow?.retired)} running={Boolean(playbackRunning)} duration={motionDuration}/>}/>
+              <Stat label="Leader" value={selectedRow?.retired?"DNF":Number(selectedRow?.position)===1?"—":<AnimatedGapValue target={selectedRow?.gap_to_leader_ms} running={Boolean(playbackRunning)} duration={motionDuration}/>}/>
             </>:null}
             {orderMode==="timing"?<>
               <Stat label="S1" value={formatLapTime(selectedRow?.sector_1_ms)}/>
@@ -739,7 +814,7 @@ export default function Track2DView({
           </div>
           {selectedRow?<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
             <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
-            <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><span>{selectedRow.retired?"DNF":Number(selectedRow.position)===1?"LEAD":formatInterval(selectedRow.gap_to_leader_ms)}</span></div>
+            <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><AnimatedGapValue target={selectedRow?.gap_to_leader_ms} leader={Number(selectedRow.position)===1} retired={Boolean(selectedRow.retired)} running={Boolean(playbackRunning)} duration={motionDuration}/></div>
             <div className="mt-1 flex items-center gap-1"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={15}/><span className="text-[8px] text-slate-400">{selectedRow?.tyre?.compound||"—"} · {Number.isFinite(Number(selectedRow?.tyre?.condition))?Number(selectedRow.tyre.condition).toFixed(0)+"%":"—"}</span></div>
           </div>:null}
         </div>
