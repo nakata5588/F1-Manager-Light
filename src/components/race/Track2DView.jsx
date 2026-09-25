@@ -391,7 +391,7 @@ export default function Track2DView({
     setCameraMode("fit");
   },[trackId,year]);
 
-  const resolvedSelectedId=String(selectedDriverId||activeRows.find((row)=>String(row?.team_id||"")===String(playerTeamId||""))?.driver_id||activeRows[0]?.driver_id||"");
+  const resolvedSelectedId=String(selectedDriverId||"");
   const selectedRow=activeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||null;
   const selectedIndex=Math.max(0,activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId));
   const selectedVisibleOnTrack=selectedRow?retiredCarVisibleOnTrack(selectedRow,{currentLap,currentSector,currentControl}):false;
@@ -699,7 +699,6 @@ export default function Track2DView({
           </div>
         </div>:null}
       </aside>
-    </div>
 
       <aside className="order-3 border-t border-white/10 bg-[#080c12] xl:border-l xl:border-t-0">
         <div className="border-b border-white/10 px-2.5 py-2">
@@ -745,5 +744,6 @@ export default function Track2DView({
           </div>:null}
         </div>
       </aside>
+    </div>
   </section>;
 }
