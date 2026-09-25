@@ -635,7 +635,6 @@ export const useGame = create((set, get) => ({
       updated = refreshDriverAvailability(updated, updated.currentDateISO);
       updated = processWorkshopJobs(updated);
       updated = processPlayerTechnicalLifecycle(updated);
-      updated = advanceNextSeasonCarDay(updated);
       updated = processTechnologyAdoption(updated);
       updated = tickAITechnicalWorld(updated);
       updated = processTechnologyDiscoveryNews(updated);
@@ -653,6 +652,7 @@ export const useGame = create((set, get) => ({
     // Keep single-day advance behavior aligned with "advance until break".
     try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
+    updated = advanceNextSeasonCarDay(updated);
     try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
@@ -1840,7 +1840,6 @@ export const useGame = create((set, get) => ({
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
       updated=processWorkshopJobs(updated);
       updated=processPlayerTechnicalLifecycle(updated);
-      updated=advanceNextSeasonCarDay(updated);
       updated=processTechnologyAdoption(updated);
       updated=tickAITechnicalWorld(updated);
       updated=processTechnologyDiscoveryNews(updated);
@@ -1854,6 +1853,7 @@ export const useGame = create((set, get) => ({
 
     try { const mod=await import("@/engine/RuleEngine"); if(typeof mod.applyRulesTick==="function") updated=mod.applyRulesTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/ProgressionEngine"); if(typeof mod.applyProgressionTick==="function") updated=mod.applyProgressionTick(updated)||updated; } catch {}
+    updated=advanceNextSeasonCarDay(updated);
     try { const mod=await import("@/engine/EconomyEngine"); if(typeof mod.applyEconomyTick==="function") updated=mod.applyEconomyTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/MarketEngine"); if(typeof mod.applyMarketTick==="function") updated=mod.applyMarketTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/NegotiationEngine"); if(typeof mod.processDriverNegotiations==="function") updated=mod.processDriverNegotiations(updated)||updated; } catch {}
