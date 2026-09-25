@@ -53,6 +53,7 @@ import { driverRivalryEventLogForDriver, driverRivalryRecords } from "../../doma
 import { driverRelationshipConsequenceProfile } from "../../domain/driverRelationshipConsequences.js";
 import { formatRelationshipYears, historicalDriverRelationshipRecords } from "../../domain/driverRelationshipHistory.js";
 import { managerDisplayName } from "../../domain/managerProfile.js";
+import { historicalRaceStarted, historicalResultDisplay, historicalResultInfo } from "../../domain/historicalRaceStatus.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -62,6 +63,7 @@ const TABS = [
   { key: "development", label: "Development" },
   { key: "form",        label: "Form" },
   { key: "relationships", label: "Relationships" },
+  { key: "races",       label: "Races" },
   { key: "career",      label: "Career" },
 ];
 
@@ -211,6 +213,8 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   const [compareDriverId, setCompareDriverId] = useState("");
   const [compareQuery, setCompareQuery] = useState("");
   const [compareMode, setCompareMode] = useState("performance");
+  const [raceArchiveRows, setRaceArchiveRows] = useState([]);
+  const [raceArchiveLoading, setRaceArchiveLoading] = useState(false);
 
   const driversList = useMemo(() => {
     const merged = new Map();
@@ -423,6 +427,153 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     const rows=[...merged.values()].map(({ __priority, ...row }) => row);
     return applyResultChampionshipPositions(rows,generatedHistoryRaw);
   }, [careerRaw, generatedHistoryRaw, driver?.driver_id, driver?.id, entity.id, driverIdentityName, teamsList, careerStartYear]);
+
+  const historicalRaceDecades = useMemo(() => {
+    const decades = new Set();
+    for (const row of careerAll || []) {
+      const year = Number(unbox(row?.year));
+      if (!Number.isFinite(year)) continue;
+      if (Number.isFinite(careerStartYear) && year >= careerStartYear) continue;
+      decades.add(Math.floor(year / 10) * 10);
+    }
+    return [...decades].sort((a,b)=>a-b);
+  }, [careerAll, careerStartYear]);
+  const historicalRaceDecadeKey = historicalRaceDecades.join("|");
+
+  useEffect(() => {
+    if (activeTab !== "races") return undefined;
+    let cancelled = false;
+
+    if (!historicalRaceDecades.length) {
+      setRaceArchiveRows([]);
+      setRaceArchiveLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    setRaceArchiveRows([]);
+    setRaceArchiveLoading(true);
+
+    const load = async () => {
+      try {
+        const chunks = await Promise.all(historicalRaceDecades.map(async (decade) => {
+          const res = await fetch(`/data/race_results_archive_${decade}s.json`, { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const rows = await res.json();
+          return Array.isArray(rows) ? rows : [];
+        }));
+        return chunks.flat();
+      } catch (error) {
+        // Compatibility fallback for workspaces generated before decade files
+        // were introduced.
+        try {
+          const res = await fetch("/data/race_results_archive.json", { cache: "no-store" });
+          if (!res.ok) throw error;
+          const rows = await res.json();
+          const wanted = new Set(historicalRaceDecades);
+          return Array.isArray(rows)
+            ? rows.filter((event) => wanted.has(Math.floor(Number(event?.year) / 10) * 10))
+            : [];
+        } catch (fallbackError) {
+          console.warn("[Driver Races] historical archive unavailable:", fallbackError);
+          return [];
+        }
+      }
+    };
+
+    load()
+      .then((rows) => { if (!cancelled) setRaceArchiveRows(rows); })
+      .finally(() => { if (!cancelled) setRaceArchiveLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [activeTab, historicalRaceDecadeKey, idNorm]);
+
+  const driverRaceRows = useMemo(() => {
+    const rows = [];
+
+    for (const event of raceArchiveRows || []) {
+      const year = Number(event?.year);
+      if (!Number.isFinite(year)) continue;
+      if (Number.isFinite(careerStartYear) && year >= careerStartYear) continue;
+      const classification = toArraySafe(event?.classification);
+      const raceRow = classification.find((row) => sameDriver(row?.driver_id ?? row?.id, idNorm));
+      if (!raceRow) continue;
+      const gridRow = toArraySafe(event?.startingGrid).find((row) => sameDriver(row?.driver_id ?? row?.id, idNorm));
+      rows.push({
+        ...raceRow,
+        __historical: true,
+        __key: event?.key || `hist-${year}-${event?.round||0}`,
+        year,
+        round: Number(event?.round ?? 0) || null,
+        gp_id: event?.gp_id ?? null,
+        gp_name: event?.name ?? event?.gp_name ?? `Round ${event?.round||"—"}`,
+        dateISO: event?.dateISO ?? null,
+        grid: raceRow?.grid ?? gridRow?.grid ?? null,
+      });
+    }
+
+    for (const event of results || []) {
+      const year = Number(event?.year);
+      if (!Number.isFinite(year) || year < careerStartYear || year > gameYear) continue;
+      const classification = toArraySafe(event?.classification);
+      const raceRow = classification.find((row) => sameDriver(row?.driver_id ?? row?.id, idNorm));
+      if (!raceRow) continue;
+      const gridRow = toArraySafe(event?.startingGrid).find((row) => sameDriver(row?.driver_id ?? row?.id, idNorm));
+      rows.push({
+        ...raceRow,
+        __historical: false,
+        __key: event?.key || `save-${year}-${event?.round||0}`,
+        year,
+        round: Number(event?.round ?? event?.round_number ?? 0) || null,
+        gp_id: event?.gp_id ?? null,
+        gp_name: event?.name ?? event?.gp_name ?? `Round ${event?.round||"—"}`,
+        dateISO: event?.dateISO ?? event?.date ?? null,
+        grid: raceRow?.grid ?? gridRow?.grid ?? null,
+      });
+    }
+
+    return rows.sort((a,b) =>
+      Number(b.year)-Number(a.year) ||
+      Number(b.round||0)-Number(a.round||0) ||
+      String(b.__key||"").localeCompare(String(a.__key||""))
+    );
+  }, [raceArchiveRows, results, careerStartYear, gameYear, idNorm]);
+
+  const driverRaceStats = useMemo(() => {
+    const stats = {
+      entries: driverRaceRows.length,
+      starts: 0,
+      wins: 0,
+      podiums: 0,
+      poles: 0,
+      fastest_laps: 0,
+      dnf: 0,
+      dsq: 0,
+      excluded: 0,
+      dnq: 0,
+      nc: 0,
+      withdrawn: 0,
+      points: 0,
+    };
+    for (const row of driverRaceRows) {
+      const info = historicalResultInfo(row);
+      const started = historicalRaceStarted(row);
+      const position = Number(row?.position ?? row?.pos);
+      if (started) stats.starts += 1;
+      if (info.key === "finished" && position === 1) stats.wins += 1;
+      if (info.key === "finished" && position >= 1 && position <= 3) stats.podiums += 1;
+      if (Number(row?.grid) === 1) stats.poles += 1;
+      if (started && row?.fastest_lap) stats.fastest_laps += 1;
+      if (info.key === "dnf") stats.dnf += 1;
+      if (info.key === "dsq") stats.dsq += 1;
+      if (info.key === "excluded") stats.excluded += 1;
+      if (info.key === "dnq") stats.dnq += 1;
+      if (info.key === "nc") stats.nc += 1;
+      if (info.key === "withdrawn") stats.withdrawn += 1;
+      if (Number.isFinite(Number(row?.points))) stats.points += Number(row.points);
+    }
+    stats.points = Number(stats.points.toFixed(3));
+    return stats;
+  }, [driverRaceRows]);
 
   // ==== Filtros (tabs Statistics/Career) ====
   const seriesOptions = useMemo(() => {
@@ -1131,6 +1282,16 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
 
           {activeTab === "relationships" && (
             <RelationshipsTab gameState={gs} driverId={driverId} />
+          )}
+
+          {activeTab === "races" && (
+            <DriverRacesTab
+              rows={driverRaceRows}
+              stats={driverRaceStats}
+              loading={raceArchiveLoading}
+              gameState={gs}
+              teams={teamsList}
+            />
           )}
 
           {activeTab === "career" && (
@@ -2035,6 +2196,132 @@ function ContractTab({ team, start, end, salary, role }) {
         <KV label="Start"  value={fmtStartEnd(start)} />
         <KV label="End"    value={fmtStartEnd(end)} />
         <KV label="Salary" value={fmtMoney(salary)} />
+      </div>
+    </div>
+  );
+}
+
+function DriverRacesTab({ rows = [], stats = null, loading = false, gameState, teams = [] }) {
+  const [seasonFilter, setSeasonFilter] = useState("ALL");
+  const seasons = useMemo(
+    () => [...new Set((rows || []).map((row)=>Number(row?.year)).filter(Number.isFinite))].sort((a,b)=>b-a),
+    [rows]
+  );
+  const filteredRows = useMemo(
+    () => seasonFilter==="ALL" ? rows : rows.filter((row)=>Number(row?.year)===Number(seasonFilter)),
+    [rows,seasonFilter]
+  );
+
+  useEffect(() => {
+    if (seasonFilter!=="ALL" && !seasons.includes(Number(seasonFilter))) setSeasonFilter("ALL");
+  }, [seasons,seasonFilter]);
+
+  const teamName=(row)=>{
+    if(row?.team_name)return displayValue(row.team_name);
+    const id=String(unbox(row?.team_id??""));
+    const team=(teams||[]).find((item)=>String(unbox(item?.team_id??item?.id??""))===id);
+    return displayValue(team?.team_name??team?.name??id,"—");
+  };
+  const statusTone=(key)=>
+    key==="dnf"?"text-rose-300":
+    key==="finished"?"text-emerald-300":
+    key==="dsq"||key==="excluded"||key==="dnq"?"text-amber-300":
+    "text-slate-300";
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Race Record</div>
+            <div className="mt-1 text-xs text-slate-400">Historical races before the career start, then Save World results from the player's timeline.</div>
+          </div>
+          <select
+            aria-label="Race season"
+            className="rounded-md border border-white/10 bg-[#191c26] px-3 py-1.5 text-sm text-slate-100"
+            value={seasonFilter}
+            onChange={(e)=>setSeasonFilter(e.target.value)}
+          >
+            <option value="ALL">All seasons</option>
+            {seasons.map((year)=><option key={year} value={year}>{year}</option>)}
+          </select>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:grid-cols-7">
+          <ProfileMetric label="Entries" value={stats?.entries??0} compact />
+          <ProfileMetric label="Starts" value={stats?.starts??0} compact />
+          <ProfileMetric label="Wins" value={stats?.wins??0} tone="text-emerald-300" compact />
+          <ProfileMetric label="Podiums" value={stats?.podiums??0} tone="text-amber-300" compact />
+          <ProfileMetric label="Poles" value={stats?.poles??0} tone="text-violet-300" compact />
+          <ProfileMetric label="Fastest Laps" value={stats?.fastest_laps??0} tone="text-cyan-300" compact />
+          <ProfileMetric label="Points" value={stats?.points??0} tone="text-sky-300" compact />
+          <ProfileMetric label="DNF" value={stats?.dnf??0} tone={(stats?.dnf??0)?"text-rose-300":""} compact />
+          <ProfileMetric label="DSQ" value={stats?.dsq??0} tone={(stats?.dsq??0)?"text-amber-300":""} compact />
+          <ProfileMetric label="EXC" value={stats?.excluded??0} tone={(stats?.excluded??0)?"text-amber-300":""} compact />
+          <ProfileMetric label="DNQ" value={stats?.dnq??0} tone={(stats?.dnq??0)?"text-amber-300":""} compact />
+          <ProfileMetric label="NC" value={stats?.nc??0} tone={(stats?.nc??0)?"text-slate-300":""} compact />
+          <ProfileMetric label="WD" value={stats?.withdrawn??0} tone={(stats?.withdrawn??0)?"text-slate-300":""} compact />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#12141c]">
+        <table className="min-w-[920px] w-full text-xs">
+          <thead className="bg-[#171a23] text-[10px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2 text-left">Year</th>
+              <th className="px-3 py-2 text-left">Rnd</th>
+              <th className="px-3 py-2 text-left">Grand Prix</th>
+              <th className="px-3 py-2 text-left">Team</th>
+              <th className="px-3 py-2 text-right">Grid</th>
+              <th className="px-3 py-2 text-right">Result</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-right">Pts</th>
+              <th className="px-3 py-2 text-right">FL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRows.map((row,index)=>{
+              const info=historicalResultInfo(row);
+              const result=historicalResultDisplay(row);
+              const tid=String(unbox(row?.team_id??""));
+              const name=teamName(row);
+              return (
+                <tr key={`${row?.__key||row?.year||"race"}-${index}`} className="border-t border-white/10 hover:bg-white/[0.03]">
+                  <td className="px-3 py-2">{row?.year??"—"}</td>
+                  <td className="px-3 py-2">{row?.round??"—"}</td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-slate-200">
+                      <GrandPrixFlag gameState={gameState} record={row} size="sm"/>
+                      <span>{row?.gp_name||"Grand Prix"}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className="inline-flex items-center gap-2">
+                      <TeamLogo teamId={tid} name={name} size="h-5 w-5"/>
+                      <span>{name}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">{Number(row?.grid)>0?row.grid:"—"}</td>
+                  <td className={`px-3 py-2 text-right font-semibold ${statusTone(info.key)}`}>{result}</td>
+                  <td className={`px-3 py-2 ${statusTone(info.key)}`}>{info.label}</td>
+                  <td className="px-3 py-2 text-right">{Number.isFinite(Number(row?.points))?Number(row.points):"—"}</td>
+                  <td className={`px-3 py-2 text-right ${row?.fastest_lap?"text-fuchsia-300 font-semibold":"text-slate-500"}`}>{row?.fastest_lap?"★":"—"}</td>
+                </tr>
+              );
+            })}
+            {!filteredRows.length&&(
+              <tr>
+                <td colSpan={9} className="px-3 py-5 text-center text-slate-500">
+                  {loading?"Loading historical race record…":"No race results available for this driver yet."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-[11px] text-slate-500">
+        DNF = retired · DSQ = disqualified · EXC = excluded · DNQ = failed to qualify · NC = not classified · WD = withdrew.
       </div>
     </div>
   );
