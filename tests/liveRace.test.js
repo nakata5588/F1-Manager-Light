@@ -6,6 +6,7 @@ import { damageStateFromComponents, incidentDamageStateThrough } from "../src/en
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
+import { liveSectorShares, liveSectorTimesForLap } from "../src/domain/liveSectorPace.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -208,6 +209,37 @@ test("high-risk crash events carry medical concern into the observed Race Feed",
   assert.equal(event.medical_concern,true);
   assert.ok(Number(event.injury_probability)>0);
   assert.match(event.message,/might be injured/i);
+});
+
+test("Track 2.0A live sector pace keeps driver sector character stable between laps",()=>{
+  const a=liveSectorShares("D1",5);
+  const b=liveSectorShares("D1",6);
+  const cShares=liveSectorShares("D2",5);
+  const sum=(row)=>row.sector_1_share+row.sector_2_share+row.sector_3_share;
+
+  assert.ok(Math.abs(sum(a)-1)<1e-9);
+  assert.ok(Math.abs(sum(b)-1)<1e-9);
+  assert.ok(Math.abs(a.sector_1_share-b.sector_1_share)<0.001);
+  assert.ok(Math.abs(a.sector_2_share-b.sector_2_share)<0.001);
+  assert.notDeepEqual(a,cShares);
+
+  const lapA=liveSectorTimesForLap(90_000,"D1",5);
+  const lapB=liveSectorTimesForLap(90_000,"D1",6);
+  assert.equal(lapA.sector_1_ms+lapA.sector_2_ms+lapA.sector_3_ms,90_000);
+  assert.equal(lapB.sector_1_ms+lapB.sector_2_ms+lapB.sector_3_ms,90_000);
+  assert.ok(Math.abs(lapA.sector_1_ms-lapB.sector_1_ms)<100);
+  assert.ok(Math.abs(lapA.sector_2_ms-lapB.sector_2_ms)<100);
+});
+
+test("Track 2.0A live race is visible on the grid before the first Play sector",()=>{
+  const gs=createLiveRaceState(fixture("track-grid-start"),{gp});
+  const live=gs.raceWeekendState.live_race;
+  assert.equal(live.current_lap,0);
+  assert.equal(live.current_sector,0);
+  assert.equal(live.classification.length,4);
+  assert.deepEqual(live.classification.map((row)=>row.position),[1,2,3,4]);
+  assert.deepEqual(live.classification.map((row)=>row.grid_position),[1,2,3,4]);
+  assert.ok(live.classification.every((row)=>row.status==="RUNNING"&&!row.retired));
 });
 
 test("RW5.1 live race advances through S1, S2 and S3 before completing a lap",()=>{
