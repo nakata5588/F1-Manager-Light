@@ -5,7 +5,7 @@ import { driverMarketEvaluation, compareDriverMarketValue, driverOverallPresenta
 import { driverLineupSlots, expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { contractRoleLabel, isReserveDriverContract } from "../src/domain/contractRoles.js";
-import { aiDriverRecruitmentFit, aiDriverLineupScore } from "../src/domain/aiDriverLineup.js";
+import { aiDriverLineupScore, aiDriverRecruitmentFit, aiLineupUpgradeOpportunity, aiTeamDriverFinancialProfile } from "../src/domain/aiDriverLineup.js";
 import { isNegotiationActive, processDriverNegotiations, startDriverNegotiation } from "../src/engine/NegotiationEngine.js";
 
 function marketState(){
@@ -17,6 +17,11 @@ function marketState(){
       {team_id:"T1",team_name:"Player Team"},
       {team_id:"T2",team_name:"AI Team Two"},
       {team_id:"T3",team_name:"AI Team Three"},
+    ],
+    teamBrands:[
+      {year:1980,team_id:"T1",team_name:"Player Team",starting_budget:8_000_000},
+      {year:1980,team_id:"T2",team_name:"AI Team Two",starting_budget:10_000_000},
+      {year:1980,team_id:"T3",team_name:"AI Team Three",starting_budget:6_000_000},
     ],
     drivers:[
       {driver_id:"P1",display_name:"Player One",status:"eligible",canHireF1:true},
@@ -363,4 +368,173 @@ test("D7.1A close ratings do not cause automatic hierarchy churn",()=>{
   assert.equal(lineup.main?.driver_id,"A1");
   assert.equal(lineup.second?.driver_id,"A2");
   assert.equal(lineup.reserve?.driver_id,"CLOSE");
+});
+
+
+test("D7.1B full AI line-up still identifies a materially better free-agent upgrade",()=>{
+  const gs=marketState();
+  gs.contracts.push({
+    year:1980,team_id:"T2",driver_id:"RLOW",driver_name:"Reserve Low",
+    role:"Reserve Driver",salary:120_000,status:"active",
+  });
+  gs.drivers.push(
+    {driver_id:"RLOW",display_name:"Reserve Low",status:"eligible",canHireF1:true},
+    {driver_id:"STAR2",display_name:"Elite Free Agent",status:"eligible",canHireF1:true}
+  );
+  gs.driverRatings.push(
+    {driver_id:"RLOW",current_ability:52,reputation:45},
+    {
+      driver_id:"STAR2",current_ability:90,pace:91,racecraft:90,
+      consistency:88,reputation:91,mentality:90,team_player:78,
+    }
+  );
+
+  const finance=aiTeamDriverFinancialProfile(gs,"T2");
+  assert.equal(finance.starting_budget,10_000_000);
+  assert.equal(finance.driver_payroll_limit,4_000_000);
+
+  const opportunity=aiLineupUpgradeOpportunity(gs,gs.drivers,"T2");
+  assert.ok(opportunity);
+  assert.equal(opportunity.driver_id,"STAR2");
+  assert.equal(opportunity.target_driver_id,"A2");
+  assert.ok(opportunity.upgrade_gap>=8);
+  assert.equal(opportunity.offered_role,"Main Driver");
+  assert.ok(opportunity.salary<=finance.driver_payroll_limit);
+});
+
+test("D7.1B market opens an upgrade negotiation even when Main Second and Reserve are occupied",()=>{
+  const gs=marketState();
+  gs.contracts.push({
+    year:1980,team_id:"T2",driver_id:"RLOW",driver_name:"Reserve Low",
+    role:"Reserve Driver",salary:120_000,status:"active",
+  });
+  gs.drivers.push(
+    {driver_id:"RLOW",display_name:"Reserve Low",status:"eligible",canHireF1:true},
+    {driver_id:"STAR2",display_name:"Elite Free Agent",status:"eligible",canHireF1:true}
+  );
+  gs.driverRatings.push(
+    {driver_id:"RLOW",current_ability:52,reputation:45},
+    {
+      driver_id:"STAR2",current_ability:90,pace:91,racecraft:90,
+      consistency:88,reputation:91,mentality:90,team_player:78,
+    }
+  );
+
+  const next=applyMarketTick(gs);
+  const upgrade=(next.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    Boolean(n?.lineup_upgrade?.target_driver_id)
+  );
+  assert.ok(upgrade,"AI should actively pursue a clear free-agent race-seat upgrade");
+  assert.equal(upgrade.driver_id,"STAR2");
+  assert.equal(upgrade.lineup_upgrade.target_driver_id,"A2");
+  assert.ok(["Main Driver","Second Driver"].includes(upgrade.offer.role));
+});
+
+test("D7.1B accepted elite upgrade restructures a full AI line-up atomically",()=>{
+  let gs=marketState();
+  gs.contracts=gs.contracts.map((row)=>
+    row.team_id==="T2"?{...row,salary:row.driver_id==="A1"?650_000:500_000}:row
+  );
+  gs.contracts.push({
+    year:1980,team_id:"T2",driver_id:"RLOW",driver_name:"Reserve Low",
+    role:"Reserve Driver",salary:120_000,status:"active",
+  });
+  gs.drivers.push(
+    {driver_id:"RLOW",display_name:"Reserve Low",status:"eligible",canHireF1:true},
+    {driver_id:"STAR2",display_name:"Elite Free Agent",status:"eligible",canHireF1:true}
+  );
+  gs.driverRatings.push(
+    {driver_id:"RLOW",current_ability:52,reputation:45},
+    {
+      driver_id:"STAR2",current_ability:90,pace:91,racecraft:90,
+      consistency:88,reputation:91,mentality:90,team_player:78,
+    }
+  );
+
+  gs=applyMarketTick(gs);
+  const upgrade=(gs.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    n.driver_id==="STAR2" &&
+    Boolean(n?.lineup_upgrade?.target_driver_id)
+  );
+  assert.ok(upgrade);
+
+  const resolved=processDriverNegotiations(
+    {...gs,currentDateISO:upgrade.response_date},
+    {forceOutcomeById:{[upgrade.id]:"accepted"}}
+  );
+  const lineup=driverLineupSlots(resolved,"T2");
+
+  assert.equal(lineup.main?.driver_id,"STAR2");
+  assert.equal(lineup.second?.driver_id,"A1");
+  assert.equal(lineup.reserve?.driver_id,"A2");
+  const oldReserve=(resolved.contracts||[]).find((row)=>
+    row.team_id==="T2"&&row.driver_id==="RLOW"
+  );
+  assert.equal(oldReserve.status,"released");
+  assert.equal(oldReserve.termination_reason,"ai_lineup_upgrade_reserve_replacement");
+});
+
+test("D7.1B low-budget AI team does not chase an unaffordable elite free agent",()=>{
+  const gs=marketState();
+  gs.teamBrands=gs.teamBrands.map((row)=>
+    row.team_id==="T2"?{...row,starting_budget:1_500_000}:row
+  );
+  gs.contracts=gs.contracts.map((row)=>
+    row.team_id==="T2"?{...row,salary:350_000}:row
+  );
+  gs.drivers.push({driver_id:"STAR3",display_name:"Very Expensive Star",status:"eligible",canHireF1:true});
+  gs.driverRatings.push({
+    driver_id:"STAR3",current_ability:96,pace:97,racecraft:96,
+    consistency:95,reputation:98,mentality:95,team_player:80,
+  });
+
+  const opportunity=aiLineupUpgradeOpportunity(gs,gs.drivers,"T2");
+  assert.equal(opportunity?.driver_id==="STAR3",false);
+});
+
+
+test("D7.1B 1980 Alfa-like lineup actively considers a Lauda-level free agent",()=>{
+  const gs=marketState();
+  gs.teamBrands=gs.teamBrands.map((row)=>
+    row.team_id==="T2"?{...row,starting_budget:10_000_000}:row
+  );
+  gs.driverRatings=gs.driverRatings.map((row)=>{
+    if(row.driver_id==="A1")return {...row,current_ability:69.4,pace:69.4,reputation:66};
+    if(row.driver_id==="A2")return {...row,current_ability:74.2,pace:74.2,reputation:75};
+    return row;
+  });
+  gs.contracts=gs.contracts.map((row)=>{
+    if(row.team_id!=="T2")return row;
+    if(row.driver_id==="A1")return {...row,salary:350_000};
+    if(row.driver_id==="A2")return {...row,salary:400_000};
+    return row;
+  });
+  gs.drivers.push({
+    driver_id:"LAUDA_LEVEL",
+    display_name:"Lauda-level Free Agent",
+    status:"eligible",
+    canHireF1:true,
+  });
+  gs.driverRatings.push({
+    driver_id:"LAUDA_LEVEL",
+    current_ability:83.9,
+    pace:76.2,
+    racecraft:87.4,
+    consistency:89.4,
+    reputation:90,
+    mentality:92,
+    pressure_handling:92,
+    team_player:85.2,
+  });
+
+  const opportunity=aiLineupUpgradeOpportunity(gs,gs.drivers,"T2");
+  assert.ok(opportunity,"a wealthy team should see the clear free-agent upgrade");
+  assert.equal(opportunity.driver_id,"LAUDA_LEVEL");
+  assert.equal(opportunity.target_driver_id,"A2");
+  assert.ok(opportunity.upgrade_gap>=8);
+  assert.ok(opportunity.financial_profile.driver_payroll+opportunity.salary<=opportunity.financial_profile.driver_payroll_limit);
 });

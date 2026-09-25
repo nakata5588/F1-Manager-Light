@@ -10,12 +10,14 @@ import {
   changeDriverContractRole,
   driverIdOf,
   driverLineupSlots,
+  expectedDriverSalary,
   swapRaceDriverRoles,
 } from "./driverContracts.js";
 import { driverRoleSlot } from "./contractRoles.js";
-import { driverDecisionTraits } from "./driverDecisionModel.js";
+import { driverContractDecision, driverDecisionTraits } from "./driverDecisionModel.js";
 import { driverFormSnapshot } from "./driverForm.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
+import { teamReputation } from "./teamReputation.js";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const round2=(value)=>Math.round(Number(value||0)*100)/100;
@@ -48,6 +50,217 @@ function roleRank(slot){
 function finite(value,fallback=null){
   const n=Number(value);
   return Number.isFinite(n)?n:fallback;
+}
+
+
+function unbox(value){
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unbox(value.result);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unbox(value.value);
+  }
+  return value;
+}
+
+function teamIdOfBrand(row){
+  return text(unbox(row?.team_id??row?.constructor_id??row?.team));
+}
+
+function teamBrandForYear(gs,teamId){
+  const rows=(Array.isArray(gs?.teamBrands)&&gs.teamBrands.length)
+    ?gs.teamBrands
+    :(Array.isArray(gs?.dbTeamBrands)?gs.dbTeamBrands:[]);
+  const year=Number(gs?.activeYear);
+  const exact=rows.find((row)=>teamIdOfBrand(row)===text(teamId)&&Number(unbox(row?.year??row?.season_year))===year);
+  if(exact)return exact;
+  return rows.find((row)=>teamIdOfBrand(row)===text(teamId))||null;
+}
+
+export function aiTeamDriverFinancialProfile(gs,teamId){
+  const tid=text(teamId);
+  const brand=teamBrandForYear(gs,tid);
+  const rawBudget=finite(unbox(
+    brand?.starting_budget??brand?.start_budget??brand?.budget_start
+  ),null);
+  const fallbackBudget=finite(
+    (gs?.teams||[]).find((row)=>text(row?.team_id??row?.id)===tid)?.budget,
+    5_000_000
+  );
+  const startingBudget=Math.max(1_500_000,rawBudget??fallbackBudget??5_000_000);
+  const contracts=activeDriverContracts(gs,{teamId:tid});
+  const payroll=contracts.reduce((sum,row)=>sum+Math.max(0,finite(unbox(row?.salary??row?.salary_yearly),0)),0);
+
+  // Driver payroll is intentionally a strategic envelope rather than a full
+  // AI accounting system. It lets wealthy teams pursue upgrades without giving
+  // them unlimited salary commitments before the dedicated AI finance model.
+  const payrollLimit=Math.max(900_000,startingBudget*0.40);
+  return {
+    team_id:tid,
+    starting_budget:Math.round(startingBudget),
+    driver_payroll:Math.round(payroll),
+    driver_payroll_limit:Math.round(payrollLimit),
+    available_driver_budget:Math.round(Math.max(0,payrollLimit-payroll)),
+  };
+}
+
+export function aiLineupUpgradeOpportunity(gs,drivers,teamId,{activeOfferCount=()=>0}={}){
+  const tid=text(teamId);
+  const lineup=driverLineupSlots(gs,tid);
+  if(!lineup.main||!lineup.second)return null;
+
+  const activeIds=new Set(activeDriverContracts(gs).map(driverIdOf));
+  const mainScore=aiDriverLineupScore(gs,driverIdOf(lineup.main)).score;
+  const secondScore=aiDriverLineupScore(gs,driverIdOf(lineup.second)).score;
+  const finance=aiTeamDriverFinancialProfile(gs,tid);
+  const reputation=teamReputation(gs,tid);
+
+  const options=[];
+  for(const driver of drivers||[]){
+    const did=driverIdOf(driver);
+    if(!did||activeIds.has(did))continue;
+
+    const score=aiDriverLineupScore(gs,did).score;
+    const gap=score-secondScore;
+    if(gap<8)continue;
+
+    const role=score>=mainScore+4?"Main Driver":"Second Driver";
+    const salary=Math.max(75_000,Math.round(expectedDriverSalary(gs,did,{role})/5_000)*5_000);
+    if(finance.driver_payroll+salary>finance.driver_payroll_limit)continue;
+
+    const decision=driverContractDecision(gs,{
+      driverId:did,
+      teamId:tid,
+      kind:"new_contract",
+      offer:{salary,years:2,role},
+    });
+    if(Number(decision?.acceptance_probability||0)<0.38)continue;
+
+    const offerCount=Math.max(0,Number(activeOfferCount(did)||0));
+    const value=
+      gap*4+
+      Number(decision?.interest_score||0)*0.42+
+      Math.max(0,Number(reputation||50)-45)*0.20-
+      offerCount*12;
+
+    options.push({
+      driver,
+      driver_id:did,
+      target_driver_id:driverIdOf(lineup.second),
+      target_role:"Second Driver",
+      offered_role:role,
+      candidate_score:round2(score),
+      main_score:round2(mainScore),
+      second_score:round2(secondScore),
+      upgrade_gap:round2(gap),
+      salary,
+      years:2,
+      interest_score:Number(decision?.interest_score||0),
+      acceptance_probability:Number(decision?.acceptance_probability||0),
+      team_reputation:round2(reputation),
+      financial_profile:finance,
+      active_offer_count:offerCount,
+      value:round2(value),
+    });
+  }
+
+  return options.sort((a,b)=>
+    b.value-a.value||
+    b.upgrade_gap-a.upgrade_gap||
+    a.active_offer_count-b.active_offer_count||
+    a.driver_id.localeCompare(b.driver_id)
+  )[0]||null;
+}
+
+function markAiContractReleased(gs,contract,reason){
+  const today=String(gs?.currentDateISO||"").slice(0,10)||null;
+  return {
+    ...gs,
+    contracts:(Array.isArray(gs?.contracts)?gs.contracts:[]).map((row)=>
+      row===contract?{
+        ...row,
+        status:"released",
+        released_at:today,
+        termination_reason:reason,
+        termination_cost:0,
+      }:row
+    ),
+  };
+}
+
+export function prepareAiLineupUpgradeSigning(gs,{
+  teamId,
+  targetDriverId,
+  offeredRole,
+}={}){
+  const tid=text(teamId);
+  const targetId=text(targetDriverId);
+  const lineup=driverLineupSlots(gs,tid);
+  if(!tid||!targetId||!lineup.main||!lineup.second){
+    return {state:gs,prepared:false,reason:"lineup_incomplete"};
+  }
+  if(driverIdOf(lineup.second)!==targetId){
+    return {state:gs,prepared:false,reason:"upgrade_target_changed"};
+  }
+
+  let next=gs;
+  const displacedSecond=lineup.second;
+  const reserve=lineup.reserve;
+  const secondScore=aiDriverLineupScore(next,targetId).score;
+  const reserveScore=reserve?aiDriverLineupScore(next,driverIdOf(reserve)).score:null;
+
+  if(reserve){
+    if(Number(reserveScore)>=Number(secondScore)+2){
+      next=markAiContractReleased(next,displacedSecond,"ai_lineup_upgrade");
+    }else{
+      next=markAiContractReleased(next,reserve,"ai_lineup_upgrade_reserve_replacement");
+      next=changeDriverContractRole(next,{
+        driverId:targetId,
+        targetRole:"Reserve Driver",
+        teamId:tid,
+        swapIfOccupied:false,
+      });
+    }
+  }else{
+    next=changeDriverContractRole(next,{
+      driverId:targetId,
+      targetRole:"Reserve Driver",
+      teamId:tid,
+      swapIfOccupied:false,
+    });
+  }
+
+  if(String(offeredRole)==="Main Driver"){
+    const after=driverLineupSlots(next,tid);
+    if(!after.main||after.second){
+      return {state:gs,prepared:false,reason:"unable_to_free_second_role"};
+    }
+    next=changeDriverContractRole(next,{
+      driverId:driverIdOf(after.main),
+      targetRole:"Second Driver",
+      teamId:tid,
+      swapIfOccupied:false,
+    });
+  }
+
+  const freed=driverLineupSlots(next,tid);
+  const expectedSlot=String(offeredRole)==="Main Driver"?"main":"second";
+  if(freed[expectedSlot]){
+    return {state:gs,prepared:false,reason:"upgrade_role_not_freed"};
+  }
+
+  next=appendLineupLog(next,{
+    team_id:tid,
+    driver_id:null,
+    displaced_driver_id:targetId,
+    from_role:"Second Driver",
+    to_role:driverLineupSlots(next,tid).reserve&&driverIdOf(driverLineupSlots(next,tid).reserve)===targetId
+      ?"Reserve Driver"
+      :"Released",
+    reason:"ai_lineup_upgrade_prepared",
+    candidate_score:null,
+    displaced_score:round2(secondScore),
+  });
+
+  return {state:next,prepared:true,reason:"ready"};
 }
 
 export function aiDriverLineupScore(gs,driverOrId){

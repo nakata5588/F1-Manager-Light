@@ -4,6 +4,7 @@ import {
   activeDriverContract,
   contractEndYear,
   driverIdOf,
+  driverLineupSlots,
   expectedDriverSalary,
   extendDriverContract,
   makeDriverContract,
@@ -21,7 +22,7 @@ import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
 import { applyAcceptedContractRelationship, applyFailedRenewalRelationship } from "../domain/driverTeamManagerDynamics.js";
 import { driverContractDecision } from "../domain/driverDecisionModel.js";
-import { rebalanceAiDriverLineup } from "../domain/aiDriverLineup.js";
+import { prepareAiLineupUpgradeSigning, rebalanceAiDriverLineup } from "../domain/aiDriverLineup.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -277,6 +278,7 @@ export function startDriverNegotiation(gs,{
   origin="player",
   renewal=false,
   approvedTransferApproach=null,
+  lineupUpgrade=null,
 }={}){
   if(!gs)return gs;
   const did=String(driverId||"");
@@ -289,6 +291,15 @@ export function startDriverNegotiation(gs,{
   }
 
   const role=normalizedRoleLabel(offer?.role||existingContract?.role||"Reserve Driver");
+  const upgradeTargetId=String(lineupUpgrade?.targetDriverId||"");
+  const currentLineup=upgradeTargetId?driverLineupSlots(gs,tid):null;
+  const lineupUpgradeValid=
+    !renewal &&
+    origin==="ai" &&
+    !existingContract &&
+    upgradeTargetId &&
+    String(driverIdOf(currentLineup?.second||{}))===upgradeTargetId &&
+    ["Main Driver","Second Driver"].includes(role);
   const approvedTransferValid=
     approvedTransferApproach &&
     String(approvedTransferApproach?.status||"")==="accepted" &&
@@ -298,20 +309,22 @@ export function startDriverNegotiation(gs,{
     teamIdOf(existingContract)===String(approvedTransferApproach?.seller_team_id||"");
   const eligibility=renewal
     ?{canNegotiate:true,kind:"renewal",roles:[role],contract:existingContract,buyout:null}
-    :(approvedTransferValid
-      ?{
-        canNegotiate:true,
-        kind:"transfer",
-        roles:availableContractRoles(gs,tid),
-        contract:existingContract,
-        buyout:{
-          allowed:true,
-          fee:Number(approvedTransferApproach?.approved_fee||approvedTransferApproach?.offer_fee||0),
-          type:"negotiated_team_fee",
-          sellerTeamId:String(approvedTransferApproach?.seller_team_id||""),
-        },
-      }
-      :driverNegotiationEligibility(gs,{driverId:did,teamId:tid}));
+    :(lineupUpgradeValid
+      ?{canNegotiate:true,kind:"new_contract",roles:[role],contract:null,buyout:null,reason:"ai_lineup_upgrade"}
+      :(approvedTransferValid
+        ?{
+          canNegotiate:true,
+          kind:"transfer",
+          roles:availableContractRoles(gs,tid),
+          contract:existingContract,
+          buyout:{
+            allowed:true,
+            fee:Number(approvedTransferApproach?.approved_fee||approvedTransferApproach?.offer_fee||0),
+            type:"negotiated_team_fee",
+            sellerTeamId:String(approvedTransferApproach?.seller_team_id||""),
+          },
+        }
+        :driverNegotiationEligibility(gs,{driverId:did,teamId:tid})));
   if(!eligibility.canNegotiate||!eligibility.roles.includes(role))return gs;
   const kind=renewal?"renewal":(eligibility.kind||"new_contract");
 
@@ -365,6 +378,13 @@ export function startDriverNegotiation(gs,{
     buyout_fee:kind==="transfer"?Number(eligibility?.buyout?.fee||0):0,
     buyout_type:kind==="transfer"?(eligibility?.buyout?.type||"compensation"):null,
     market_evaluation:driverMarketEvaluation(gs,driver),
+    lineup_upgrade:lineupUpgradeValid?{
+      target_driver_id:upgradeTargetId,
+      offered_role:role,
+      upgrade_gap:Number(lineupUpgrade?.upgradeGap||0),
+      candidate_score:Number(lineupUpgrade?.candidateScore||0),
+      target_score:Number(lineupUpgrade?.targetScore||0),
+    }:null,
   };
 
   const messages=[];
@@ -728,6 +748,25 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
   }
   const driver=driverFor(gs,negotiation.driver_id);
   if(!driver)return gs;
+
+  let nextState=gs;
+  if(
+    !renewal &&
+    !transfer &&
+    negotiation.origin==="ai" &&
+    negotiation?.lineup_upgrade?.target_driver_id
+  ){
+    const prepared=prepareAiLineupUpgradeSigning(gs,{
+      teamId:negotiation.team_id,
+      targetDriverId:negotiation.lineup_upgrade.target_driver_id,
+      offeredRole:negotiation.offer?.role,
+    });
+    if(!prepared.prepared){
+      return rejectNegotiation(gs,negotiation,"AI line-up changed before the upgrade signing could be completed.");
+    }
+    nextState=prepared.state;
+  }
+
   const resolvedAt=dateOnly(gs?.currentDateISO);
   const accepted={
     ...negotiation,
@@ -735,10 +774,9 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     resolved_at:resolvedAt,
     accepted_counter:Boolean(fromCounter),
   };
-  let nextState=gs;
   let contract=null;
   if(renewal){
-    nextState=extendDriverContract(gs,negotiation.driver_id,negotiation.offer);
+    nextState=extendDriverContract(nextState,negotiation.driver_id,negotiation.offer);
     contract=activeDriverContract(nextState,negotiation.driver_id);
     if(contract){
       nextState={
@@ -753,7 +791,7 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     }
   }else{
     if(transfer){
-      nextState=applyTransferSettlement(gs,negotiation,currentContract);
+      nextState=applyTransferSettlement(nextState,negotiation,currentContract);
     }
     contract=makeDriverContract({
       gs:nextState,
