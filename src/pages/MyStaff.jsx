@@ -134,7 +134,7 @@ export default function MyStaff(){
       <div className="grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((staff)=><button key={"structure_"+staff.id+"_"+staff.role} type="button" data-entity="staff" data-id={staff.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-left hover:bg-white/5">
-            <StaffPortrait staff={staff.core||{staff_name:staff.name}} size="h-8 w-8"/>
+            <StaffPortrait staff={{...(staff.core||{}),staff_name:staff.name}} size="h-8 w-8"/>
             <span className="min-w-0">
               <span className="block text-[9px] uppercase tracking-wide text-slate-500">{staff.role}</span>
               <span className="block truncate text-xs font-semibold text-slate-200">{staff.name}</span>
