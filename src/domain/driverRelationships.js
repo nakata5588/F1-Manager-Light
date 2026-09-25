@@ -1,7 +1,8 @@
 // src/domain/driverRelationships.js
 import { activeDriverContracts, driverIdOf, teamIdOf } from "./driverContracts.js";
-import { activeStaffContracts, staffIdOf } from "./liveContracts.js";
+import { activeStaffContracts } from "./liveContracts.js";
 import { driverRaceEngineerAssignment, synchronizeDriverStaffAssignments } from "./driverStaffAssignments.js";
+import { resolveStaffId, staffContractRole } from "./staffRoles.js";
 
 export const DRIVER_RELATIONSHIP_VERSION=2;
 export const NEUTRAL_RELATIONSHIP_SCORE=50;
@@ -185,8 +186,8 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
   const staffByTeam=new Map();
   for(const contract of activeStaffContracts(state)){
     const teamId=text(contract?.team_id??contract?.constructor_id??contract?.team??contract?.constructor);
-    const staffId=staffIdOf(contract);
-    const role=roleOf(contract);
+    const staffId=resolveStaffId(state,contract);
+    const role=staffContractRole(contract);
     if(!teamId||!staffId||!role)continue;
     if(!staffByTeam.has(teamId))staffByTeam.set(teamId,[]);
     staffByTeam.get(teamId).push({staffId,role});
