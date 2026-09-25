@@ -169,7 +169,7 @@ export function technicalStrategySnapshot(gs,{
     projects:projectRows,
     reservedEngineers:0,
   });
-  const actualNext=(programme?.status==="active"||programme?.status==="paused")
+  const actualNext=programme?.status==="active"
     ?Math.max(0,Math.floor(num(programme?.engineers,0)))
     :0;
   const targetNext=Math.max(
