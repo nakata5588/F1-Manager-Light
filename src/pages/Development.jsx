@@ -230,6 +230,15 @@ export default function Development({ embedded = false, initialTab = "projects",
   const research = normalizeTechnicalResearch(dev.research);
   const researchOutput=technicalResearchDailyOutput(gameState);
   const nextSeasonCar=normalizeNextSeasonCarProgramme(dev.nextSeasonCar,{activeYear});
+  const validTabs = ["projects","next_season","parts","manufacturing","research","pit_crew"];
+  const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
+  const [showCreate, setShowCreate] = useState(false);
+  const [draft, setDraft] = useState({
+    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0, researchSupport:0,
+  });
+  const [nextSeasonDraftEngineers,setNextSeasonDraftEngineers]=useState(4);
+  const [nextSeasonPhilosophyId,setNextSeasonPhilosophyId]=useState("balanced");
+
   const calculatedNextSeasonImpact=useMemo(
     ()=>nextSeasonRegulationImpact(gameState,{targetSeason:nextSeasonCar.targetSeason,teamId}),
     [gameState,nextSeasonCar.targetSeason,teamId,activeYear]
@@ -267,15 +276,6 @@ export default function Development({ embedded = false, initialTab = "projects",
     }),
     [gameState,teamId,nextSeasonCar,nextSeasonKnowledge,nextSeasonDraftEngineers,nextSeasonSelectedPhilosophy]
   );
-
-  const validTabs = ["projects","next_season","parts","manufacturing","research","pit_crew"];
-  const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
-  const [showCreate, setShowCreate] = useState(false);
-  const [draft, setDraft] = useState({
-    type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0, researchSupport:0,
-  });
-  const [nextSeasonDraftEngineers,setNextSeasonDraftEngineers]=useState(4);
-  const [nextSeasonPhilosophyId,setNextSeasonPhilosophyId]=useState("balanced");
 
   useEffect(() => {
     if (validTabs.includes(initialTab) && initialTab !== tab) setTab(initialTab);
