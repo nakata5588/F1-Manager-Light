@@ -64,6 +64,36 @@ function formatGap(ms) {
   return `+${(n / 1000).toFixed(3)}`;
 }
 
+function rowsWithCalculatedGaps(rows) {
+  const sorted = (rows || [])
+    .slice()
+    .sort((a, b) => (Number(a?.position) || Infinity) - (Number(b?.position) || Infinity));
+
+  const winner = sorted.find((row) => Number(row?.position) === 1);
+  const winnerTime = numberOrNull(winner?.total_time_ms);
+
+  return sorted.map((row, index) => {
+    const totalTime = numberOrNull(row?.total_time_ms);
+    const previousTime = index > 0 ? numberOrNull(sorted[index - 1]?.total_time_ms) : null;
+    const calculatedToWinner =
+      totalTime != null && winnerTime != null && totalTime >= winnerTime
+        ? totalTime - winnerTime
+        : numberOrNull(row?.gap_to_winner_ms);
+    const calculatedGap =
+      index === 0
+        ? 0
+        : totalTime != null && previousTime != null && totalTime >= previousTime
+          ? totalTime - previousTime
+          : numberOrNull(row?.gap_to_previous_ms);
+
+    return {
+      ...row,
+      __toWinnerMs: calculatedToWinner,
+      __gapMs: calculatedGap,
+    };
+  });
+}
+
 function resolveTeamIdForYear(contracts, year, driverId) {
   for (const c of contracts || []) {
     const y = Number(pick(c, ["year", "season_year"], NaN));
@@ -289,9 +319,6 @@ export default function ResultsPage() {
   const [historicalLoading, setHistoricalLoading] = useState(false);
   const [decadeFilter, setDecadeFilter] = useState(currentDecade);
   const [yearFilter, setYearFilter] = useState(Number.isFinite(Number(activeYear)) ? String(Number(activeYear)) : "");
-  const [driverFilter, setDriverFilter] = useState("ALL");
-  const [teamFilter, setTeamFilter] = useState("ALL");
-  const [gpFilter, setGpFilter] = useState("ALL");
   const [selectedKey, setSelectedKey] = useState(null);
 
   const careerResults = useMemo(() => (
@@ -342,9 +369,6 @@ export default function ResultsPage() {
     const year = Number(activeYear);
     setDecadeFilter(Math.floor(year / 10) * 10);
     setYearFilter(String(year));
-    setDriverFilter("ALL");
-    setTeamFilter("ALL");
-    setGpFilter("ALL");
     setSelectedKey(null);
   }, [activeYear]);
 
@@ -472,9 +496,6 @@ export default function ResultsPage() {
         : yearOptions[0];
     if (!yearOptions.includes(Number(yearFilter))) {
       setYearFilter(String(preferred));
-      setDriverFilter("ALL");
-      setTeamFilter("ALL");
-      setGpFilter("ALL");
       setSelectedKey(null);
     }
   }, [yearOptions, activeYear, decadeFilter, yearFilter]);
@@ -484,48 +505,7 @@ export default function ResultsPage() {
     [results, yearFilter]
   );
 
-  const gpOptions = useMemo(() => {
-    const map = new Map();
-    for (const r of yearScopedResults) {
-      const key = String(r.gp_id ?? r.name ?? r.gp_name ?? "");
-      if (key) map.set(key, r.name ?? r.gp_name ?? key);
-    }
-    return [["ALL","All Grands Prix"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
-  }, [yearScopedResults]);
-
-  const driverOptions = useMemo(() => {
-    const map = new Map();
-    for (const r of yearScopedResults) {
-      for (const row of r.classification || []) {
-        const id = rowDriverKey(row);
-        if (!id) continue;
-        const label = row?.driver_name || resolveDriverName(driversDb,id);
-        if (!map.has(id) || map.get(id) === id) map.set(id, label || id);
-      }
-    }
-    return [["ALL","All Drivers"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
-  }, [yearScopedResults, driversDb]);
-
-  const teamOptions = useMemo(() => {
-    const map = new Map();
-    for (const r of yearScopedResults) {
-      for (const row of r.classification || []) {
-        const id = rowTeamKey(row);
-        if (!id) continue;
-        const label = row?.team_name || resolveTeamNameById(teamsDb,id);
-        if (!map.has(id) || map.get(id) === id) map.set(id, label || id);
-      }
-    }
-    return [["ALL","All Teams"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
-  }, [yearScopedResults, teamsDb]);
-
-  const filteredResults = useMemo(() => yearScopedResults.filter((r) => {
-    const gpKey = String(r.gp_id ?? r.name ?? r.gp_name ?? "");
-    if (gpFilter !== "ALL" && gpKey !== gpFilter) return false;
-    if (driverFilter !== "ALL" && !(r.classification || []).some((row) => rowDriverKey(row) === String(driverFilter))) return false;
-    if (teamFilter !== "ALL" && !(r.classification || []).some((row) => rowTeamKey(row) === String(teamFilter))) return false;
-    return true;
-  }), [yearScopedResults, driverFilter, teamFilter, gpFilter]);
+  const filteredResults = yearScopedResults;
 
   useEffect(() => {
     if (!filteredResults.length) {
@@ -556,10 +536,15 @@ export default function ResultsPage() {
     ])
   ), [selected]);
 
+  const selectedRows = useMemo(
+    () => rowsWithCalculatedGaps(selected?.classification || []),
+    [selected]
+  );
+
   const selectedSummary = useMemo(() => {
     const rows = selected?.classification || [];
     const winner = rows.find((row) => Number(row?.position) === 1 && !row?.retired) || rows[0] || null;
-    const fastest = rows.find((row) => row?.fastest_lap) || null;
+    const fastest = selected?.historical ? null : rows.find((row) => row?.fastest_lap) || null;
     const pole = [...selectedQualifying.entries()].find(([, row]) => Number(row.position) === 1)?.[0] || null;
     const poleRow = pole ? rows.find((row) => rowDriverKey(row) === String(pole)) : null;
     return {
@@ -581,16 +566,13 @@ export default function ResultsPage() {
           Arquivo histórico anterior ao início da carreira + resultados simulados da tua carreira. O arquivo histórico é carregado por década para manter a página rápida.
         </p>
 
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
           <select
             aria-label="Decade"
             className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm"
             value={decadeFilter ?? ""}
             onChange={(e)=>{
               setDecadeFilter(Number(e.target.value));
-              setDriverFilter("ALL");
-              setTeamFilter("ALL");
-              setGpFilter("ALL");
               setSelectedKey(null);
             }}
           >
@@ -602,22 +584,10 @@ export default function ResultsPage() {
             value={yearFilter}
             onChange={(e)=>{
               setYearFilter(e.target.value);
-              setDriverFilter("ALL");
-              setTeamFilter("ALL");
-              setGpFilter("ALL");
               setSelectedKey(null);
             }}
           >
             {yearOptions.map((y)=><option key={y} value={y}>{y}</option>)}
-          </select>
-          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={driverFilter} onChange={(e)=>setDriverFilter(e.target.value)}>
-            {driverOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
-          </select>
-          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={teamFilter} onChange={(e)=>setTeamFilter(e.target.value)}>
-            {teamOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
-          </select>
-          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={gpFilter} onChange={(e)=>setGpFilter(e.target.value)}>
-            {gpOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
           </select>
         </div>
 
@@ -701,7 +671,6 @@ export default function ResultsPage() {
                   <th className="px-3 py-2 text-left">Status</th>
                   <th className="px-3 py-2 text-right">Laps</th>
                   <th className="px-3 py-2 text-right">Stops</th>
-                  <th className="px-3 py-2 text-left">Strategy</th>
                   <th className="px-3 py-2 text-right">Time</th>
                   <th className="px-3 py-2 text-right">To Winner</th>
                   <th className="px-3 py-2 text-right">Gap</th>
@@ -710,10 +679,7 @@ export default function ResultsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(selected.classification || [])
-                  .slice()
-                  .sort((a, b) => (Number(a.position) || Infinity) - (Number(b.position) || Infinity))
-                  .map((row, idx) => {
+                {selectedRows.map((row, idx) => {
                     const did = rowDriverKey(row);
                     const name = row?.driver_name || resolveDriverName(driversDb, did);
                     const tid = row.team_id || resolveTeamIdForYear(contractsDb, selected.year ?? activeYear, did);
@@ -725,8 +691,6 @@ export default function ResultsPage() {
                     const grid = selectedGrid.get(did) ?? null;
                     const positionsGained = resultInfo.key==="finished" && Number.isFinite(grid) && Number.isFinite(position) ? grid - position : null;
                     const stops = Array.isArray(row?.pit_stops) ? row.pit_stops.length : Number(row?.strategy_summary?.pit_count || 0);
-                    const strategy = row?.strategy_summary || {};
-                    const tyres = Array.isArray(strategy?.used_tyres) ? strategy.used_tyres.filter(Boolean).join(" → ") : "";
                     const points = Number.isFinite(Number(row.points))
                       ? Number(row.points)
                       : selected?.historical
@@ -758,15 +722,11 @@ export default function ResultsPage() {
                         </td>
                         <td className="px-3 py-2 text-right">{row.laps_completed ?? row.race_laps ?? "—"}</td>
                         <td className="px-3 py-2 text-right">{stops}</td>
-                        <td className="px-3 py-2 min-w-[180px]">
-                          <div className="text-xs">{strategy.pit_plan ? String(strategy.pit_plan).replaceAll("_"," ") : "—"}</div>
-                          <div className="text-[10px] text-slate-500">{tyres || (row.start_tyre_id ? `${row.start_tyre_id} → ${row.finish_tyre_id || "—"}` : "")}</div>
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{retired ? "—" : formatRaceTime(row.total_time_ms)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_winner_ms)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.gap_to_previous_ms)}</td>
-                        <td className={`px-3 py-2 text-right tabular-nums ${row.fastest_lap ? "font-semibold text-purple-300" : ""}`}>
-                          {formatLapTime(row.best_lap_ms)}{row.fastest_lap ? " FL" : ""}
+                        <td className="px-3 py-2 text-right tabular-nums">{formatRaceTime(row.total_time_ms)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.__toWinnerMs)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatGap(row.__gapMs)}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${!selected?.historical && row.fastest_lap ? "font-semibold text-purple-300" : ""}`}>
+                          {selected?.historical ? "—" : <>{formatLapTime(row.best_lap_ms)}{row.fastest_lap ? " FL" : ""}</>}
                         </td>
                         <td className="px-3 py-2 text-right font-semibold">{points}</td>
                       </tr>
@@ -774,7 +734,7 @@ export default function ResultsPage() {
                   })}
                 {!selected.classification?.length && (
                   <tr>
-                    <td className="px-3 py-3 text-slate-400" colSpan={14}>Sem classificação nesta corrida.</td>
+                    <td className="px-3 py-3 text-slate-400" colSpan={13}>Sem classificação nesta corrida.</td>
                   </tr>
                 )}
               </tbody>
