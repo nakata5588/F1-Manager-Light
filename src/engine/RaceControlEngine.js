@@ -575,7 +575,7 @@ export function mergeRaceControlHistory(previous,fresh,currentLap,currentSector=
     if(incidentOrdinal(row)<=ordinal)return false;
     const did=String(row?.driver_id);
     return row?.retirement===false
-      ?!historicalNonRetirementIds.has(did)
+      ?!historicalRetirementIds.has(did)&&!historicalNonRetirementIds.has(did)
       :!historicalRetirementIds.has(did);
   });
   const historicalPeriods=(previous.periods||[]).filter((row)=>periodStartOrdinal(row)<=ordinal);
