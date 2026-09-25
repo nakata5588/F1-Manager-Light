@@ -13,6 +13,7 @@ import {
 } from "../src/core/saveSafety.js";
 import { runRaceWeekend } from "../src/engine/GPEngine.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
+import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot, sessionRecoveryMatchesState } from "../src/domain/sessionRecovery.js";
 
 test("seeded RNG is deterministic and entropy-key scoped", () => {
   const a = createRng("1980-monaco-race");
@@ -511,4 +512,67 @@ test("market news is deterministic for the same save seed and game date", () => 
   assert.ok(first, "Expected at least one deterministic seed to produce a market news item.");
   const second = applyMarketTick(fixture);
   assert.deepEqual(first, second);
+});
+
+
+test("tab session recovery overrides a stale qualifying rolling save during refresh", () => {
+  const base={
+    activeYear:1980,
+    currentDateISO:"1980-05-17",
+    currentRound:4,
+    team:{team_id:"t_1",team_name:"Lotus"},
+    saveMeta:createNewSaveMeta({year:1980,teamId:"t_1",seed:"same-career"}),
+    raceWeekendState:{
+      gp_id:"argentina",
+      phase:"qualifying",
+      active_session_id:"qualifying_2",
+      live_race:null,
+    },
+  };
+  const live={
+    ...base,
+    currentDateISO:"1980-05-18",
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      phase:"race",
+      active_session_id:"race",
+      live_race:{
+        status:"running",
+        current_lap:8,
+        current_sector:2,
+        classification:[{driver_id:"d_1",position:1}],
+        events:[{lap:8,sector:2,type:"command",message:"Push"}],
+      },
+    },
+  };
+
+  const journal=buildSessionRecoverySnapshot(live);
+  assert.equal(sessionRecoveryMatchesState(base,journal),true);
+
+  const recovered=applySessionRecoverySnapshot(base,journal);
+  assert.equal(recovered.currentDateISO,"1980-05-18");
+  assert.equal(recovered.currentRound,4);
+  assert.equal(recovered.team.team_id,"t_1");
+  assert.equal(recovered.raceWeekendState.phase,"race");
+  assert.equal(recovered.raceWeekendState.live_race.status,"running");
+  assert.equal(recovered.raceWeekendState.live_race.current_lap,8);
+  assert.equal(recovered.raceWeekendState.live_race.current_sector,2);
+});
+
+test("tab session recovery never crosses into a different career", () => {
+  const current={
+    activeYear:1980,
+    team:{team_id:"t_1"},
+    saveMeta:createNewSaveMeta({year:1980,teamId:"t_1",seed:"career-a"}),
+    raceWeekendState:{phase:"qualifying"},
+  };
+  const other={
+    ...current,
+    saveMeta:createNewSaveMeta({year:1980,teamId:"t_1",seed:"career-b"}),
+    raceWeekendState:{phase:"race",live_race:{status:"running",current_lap:12,current_sector:1}},
+  };
+  const journal=buildSessionRecoverySnapshot(other);
+
+  assert.equal(sessionRecoveryMatchesState(current,journal),false);
+  assert.equal(applySessionRecoverySnapshot(current,journal),current);
 });
