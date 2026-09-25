@@ -5,7 +5,7 @@ import { driverMarketEvaluation, compareDriverMarketValue, driverOverallPresenta
 import { activeDriverContracts, driverLineupSlots, expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { contractRoleLabel, isReserveDriverContract } from "../src/domain/contractRoles.js";
-import { aiDriverLineupScore, aiDriverRecruitmentFit, aiLineupUpgradeOpportunity, aiTeamDriverFinancialProfile } from "../src/domain/aiDriverLineup.js";
+import { aiDriverLineupScore, aiDriverRecruitmentFit, aiLineupUpgradeOpportunity, aiTeamDriverFinancialProfile, reconcileAiDriverRoleUniqueness } from "../src/domain/aiDriverLineup.js";
 import { isNegotiationActive, processDriverNegotiations, startDriverNegotiation } from "../src/engine/NegotiationEngine.js";
 
 function marketState(){
@@ -673,4 +673,35 @@ test("D7.1C batches same-day AI signings into one linked Driver Market round-up"
     new Set(digests[0].market_events.map((e)=>e.driver_id)),
     new Set(["NEWS1","NEWS2"])
   );
+});
+
+
+test("D7.1C hard invariant reconciles every explicit AI role to one active contract",()=>{
+  const gs=marketState();
+  const extras=[
+    ["M2","Duplicate Main","Main Driver",61],
+    ["S2","Duplicate Second","Second Driver",60],
+    ["R3","Reserve One","Reserve Driver",58],
+    ["R4","Reserve Two","Reserve Driver",56],
+    ["T3","Test One","Test Driver",54],
+    ["T4","Test Two","Test Driver",52],
+  ];
+  for(const [id,name,role,ability] of extras){
+    gs.drivers.push({driver_id:id,display_name:name,status:"eligible",canHireF1:true});
+    gs.driverRatings.push({driver_id:id,current_ability:ability,reputation:ability});
+    gs.contracts.push({
+      year:1980,team_id:"T2",driver_id:id,driver_name:name,
+      role,salary:150_000,status:"active",contract_until_year:1980,
+    });
+  }
+
+  const reconciled=reconcileAiDriverRoleUniqueness(gs,"T2");
+  const active=activeDriverContracts(reconciled,{teamId:"T2"});
+  for(const role of ["Main Driver","Second Driver","Reserve Driver","Test Driver"]){
+    assert.equal(
+      active.filter((contract)=>contractRoleLabel(contract)===role).length,
+      1,
+      role+" must have exactly one active contract"
+    );
+  }
 });
