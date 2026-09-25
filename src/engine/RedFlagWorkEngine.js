@@ -224,6 +224,13 @@ function applyDamageRepair(gs,{row,source="player"}={}){
   const sequence=Math.max(1,Number(lifecycle?.sequence)||1);
   const lap=Math.max(1,Number(live?.current_lap)||1);
   const sector=Math.max(1,Math.min(3,Number(live?.current_sector)||1));
+  const plan=weekend?.race_strategy?.race_control_plan||{};
+  const alreadyRepaired=(plan?.damage_repairs||[]).some((entry)=>
+    String(entry?.driver_id??"")===did&&
+    Number(entry?.red_flag_sequence||0)===sequence
+  );
+  if(alreadyRepaired)return gs;
+
   const before=row.damage_state;
   const after=repairDamageState(before,{
     effectiveness:RED_FLAG_REPAIR_EFFECTIVENESS,
@@ -254,7 +261,6 @@ function applyDamageRepair(gs,{row,source="player"}={}){
     free_service:true,
   };
 
-  const plan=weekend?.race_strategy?.race_control_plan||{};
   const repairs=[
     ...(Array.isArray(plan?.damage_repairs)?plan.damage_repairs:[])
       .filter((entry)=>!(
