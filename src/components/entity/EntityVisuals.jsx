@@ -1,4 +1,6 @@
 import React from "react";
+import { useGame } from "../../state/GameStore.js";
+import { historicalAssetCandidates } from "../../domain/historicalAssets.js";
 
 const ISO3_TO_2 = Object.freeze({
   ARG:"AR", AUS:"AU", AUT:"AT", BEL:"BE", BRA:"BR", CAN:"CA", CHI:"CL", CHL:"CL",
@@ -137,19 +139,46 @@ export function CountryFlag({country="",code="",className="",title=null,size="md
   );
 }
 
-export function DriverPortrait({ driver, size = "h-8 w-8", className = "" }) {
-  const name = driver?.display_name || driver?.name || driver?.driver_name || "Driver";
-  const src = driver?.portrait_path || driver?.portrait || null;
-  const [failedSrc, setFailedSrc] = React.useState(null);
-  const initials = name.split(/\\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0,2).toUpperCase();
+function useActiveVisualYear(){
+  return useGame((state)=>Number(state?.gameState?.activeYear??state?.gameState?.seasonYear)||1980);
+}
 
-  if (src && failedSrc !== src) {
+function useHistoricalImageCandidates(type,aliases,activeYear,fallbacks=[]){
+  const aliasKey=(Array.isArray(aliases)?aliases:[aliases]).map((value)=>String(value??"")).join("|");
+  const fallbackKey=(Array.isArray(fallbacks)?fallbacks:[fallbacks]).map((value)=>String(value??"")).join("|");
+  const candidates=React.useMemo(
+    ()=>historicalAssetCandidates(type,aliases,activeYear,fallbacks),
+    [type,aliasKey,activeYear,fallbackKey]
+  );
+  const signature=candidates.join("|");
+  const [failedIndex,setFailedIndex]=React.useState(0);
+  React.useEffect(()=>setFailedIndex(0),[signature]);
+  return {
+    src:candidates[failedIndex]||null,
+    fail:()=>setFailedIndex((index)=>index+1),
+  };
+}
+
+export function DriverPortrait({ driver, size = "h-8 w-8", className = "" }) {
+  const activeYear=useActiveVisualYear();
+  const name = driver?.display_name || driver?.name || driver?.driver_name ||
+    [driver?.first_name,driver?.last_name].filter(Boolean).join(" ") || "Driver";
+  const driverId=driver?.driver_id??driver?.id??driver?.driverId??driver?.code??"";
+  const image=useHistoricalImageCandidates(
+    "drivers",
+    [driverId,name,driver?.driver_name],
+    activeYear,
+    [driver?.portrait_path,driver?.portrait]
+  );
+  const initials = name.split(/\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0,2).toUpperCase();
+
+  if (image.src) {
     return (
       <img
-        src={src}
+        src={image.src}
         alt={name}
         className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
-        onError={() => setFailedSrc(src)}
+        onError={image.fail}
       />
     );
   }
@@ -162,16 +191,23 @@ export function DriverPortrait({ driver, size = "h-8 w-8", className = "" }) {
 }
 
 export function StaffPortrait({ staff, size = "h-8 w-8", className = "" }) {
+  const activeYear=useActiveVisualYear();
   const name = staff?.display_name || staff?.staff_name || staff?.name ||
     [staff?.first_name, staff?.last_name].filter(Boolean).join(" ") || "Staff";
-  const src = staff?.portrait_path || staff?.portrait || staff?.photo || null;
-  if (src) {
+  const staffId=staff?.staff_id??staff?.person_id??staff?.id??"";
+  const image=useHistoricalImageCandidates(
+    "staff",
+    [staffId,name],
+    activeYear,
+    [staff?.portrait_path,staff?.portrait,staff?.photo]
+  );
+  if (image.src) {
     return (
       <img
-        src={src}
+        src={image.src}
         alt={name}
         className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
-        onError={(e) => { e.currentTarget.style.display = "none"; }}
+        onError={image.fail}
       />
     );
   }
@@ -184,15 +220,25 @@ export function StaffPortrait({ staff, size = "h-8 w-8", className = "" }) {
 }
 
 export function TeamLogo({ teamId, name = "Team", size = "h-8 w-8", className = "" }) {
-  if (!teamId) {
+  const activeYear=useActiveVisualYear();
+  const id=String(teamId||"");
+  const image=useHistoricalImageCandidates(
+    "teams",
+    [id,name],
+    activeYear,
+    id?[`/logos/teams/${id.toLowerCase()}.png`]:[]
+  );
+
+  if (!image.src) {
     return <div className={`${size} rounded bg-gray-100 ${className}`} />;
   }
+
   return (
     <img
-      src={`/logos/teams/${String(teamId).toLowerCase()}.png`}
+      src={image.src}
       alt={name}
       className={`${size} object-contain rounded bg-white ${className}`}
-      onError={(e) => { e.currentTarget.style.display = "none"; }}
+      onError={image.fail}
     />
   );
 }

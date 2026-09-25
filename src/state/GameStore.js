@@ -7,6 +7,7 @@ import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { hydrateDriverPortraitRows, resolveDriverPortrait } from "@/domain/driverPortraits";
+import { historicalAssetCandidates } from "@/domain/historicalAssets";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
@@ -1261,27 +1262,48 @@ export const useGame = create((set, get) => ({
     return brandName ?? teamFallback;
   },
 
-  getTeamLogoCandidates: (team) => {
+  getTeamLogoCandidates: (team, yearOverride = null, brand = null) => {
     const st = get().gameState;
     const id = getTeamId(team);
-    const year = st.activeYear || 1980;
+    const parsedYear = Number(yearOverride);
+    const year = Number.isFinite(parsedYear) ? parsedYear : (Number(st.activeYear) || 1980);
+    const aliases = [
+      id,
+      team?.short_name,
+      team?.team_name,
+      team?.name,
+      brand?.short_name,
+      brand?.team_name,
+      brand?.name,
+    ];
 
+    // Generated manifest first: O(1) alias lookup + tiny timeline binary search.
+    const generated = historicalAssetCandidates("teams", aliases, year, []);
+
+    // Keep the historical DB logo index and legacy filenames as fallbacks.
     const viaIndex = (st.dbLogosIndex || []).filter((r) => {
       const tid = String(pick(r, ["team_id","id"]));
       const from = Number(pick(r, ["year_from","from"], -Infinity));
       const to   = Number(pick(r, ["year_to","to"], Infinity));
       return tid === String(id) && year >= from && year <= (isNaN(to) ? Infinity : to);
-    }).map((r) => String(pick(r, ["path_rel","path","logo_path"])).replace(/^\/+/, "")).filter(Boolean);
+    }).map((r) => String(pick(r, ["path_rel","path","logo_path"]))
+      .replace(/^\/+/, "")
+      .replace(/^public\//, ""))
+      .filter(Boolean);
 
-    const short = (team.short_name || team.team_name || team.name || "")
+    const short = (team?.short_name || team?.team_name || team?.name || "")
       .toString()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "");
-    const cands = [...viaIndex, `logos/teams/${id}.png`];
-    if (short && short !== id.toLowerCase()) cands.push(`logos/teams/${short}.png`);
+    const legacy = [...viaIndex, `logos/teams/${id}.png`];
+    if (short && short !== String(id).toLowerCase()) legacy.push(`logos/teams/${short}.png`);
+
     const base = (import.meta?.env?.BASE_URL ?? "/").replace(/\/+$/, "");
-    return Array.from(new Set(cands.filter(Boolean)))
+    const legacyUrls = legacy
+      .filter(Boolean)
       .map((rel) => `${base}/${String(rel).replace(/^\/+/, "")}`);
+
+    return Array.from(new Set([...generated, ...legacyUrls].filter(Boolean)));
   },
 
   /** ===================== NEW GAME ===================== */

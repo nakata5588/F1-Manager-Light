@@ -9,7 +9,7 @@ import { driverContractsOf, driverIdOf, teamIdOf } from "../../domain/driverCont
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 import { entityProfilePath } from "../../domain/entityRoutes.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
-import { DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
+import { DriverPortrait, StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v.text??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -290,13 +290,12 @@ export function StaffQuickView({entity,onClose}){
     .filter(([key,value])=>!["staff_id","staff_name","year"].includes(key)&&Number.isFinite(Number(value)))
     .sort((a,b)=>Number(b[1])-Number(a[1]));
   const overall=skills.length?Math.round(skills.reduce((sum,[,value])=>sum+Number(value),0)/skills.length):null;
-  const initials=String(name||"?").split(/\s+/).filter(Boolean).map((part)=>part[0]).join("").slice(0,2).toUpperCase();
 
   return (
     <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("staff",id))}>
       <div className="p-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-white/10 bg-[#151923] text-xl font-semibold">{initials||"?"}</div>
+          <StaffPortrait staff={staff||{staff_id:id,staff_name:name}} size="h-20 w-20" className="!rounded-xl"/>
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Staff Quick View</div>
             <div className="mt-1 truncate text-2xl font-semibold">{name}</div>
