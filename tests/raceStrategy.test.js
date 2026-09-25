@@ -12,6 +12,7 @@ import {
   tyresForTeam,
   tyreConditionEffects,
 } from "../src/engine/RaceStrategyEngine.js";
+import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import {
   aiTyreCrossoverDecision,
   tyreCrossoverProfile,
@@ -545,4 +546,61 @@ test("RW5.2D4.5 red-flag tyre command changes stint with zero pit-stop loss",()=
 
   // Red Flag service must never be represented as an ordinary pit stop.
   assert.equal(row.pit_stops.some((stop)=>Number(stop.lap)===5&&String(stop.reason).includes("red_flag")),false);
+});
+
+
+test("RW5.3B.2C AI never repairs damage before the incident is observable",()=>{
+  const gs0=fixture({
+    trackLayoutByYear:[{track_id:"monaco",year_from:1973,year_to:1985,lap_length_km:3.34,laps:30,pit_lane_loss_s:12}],
+    coreTracks:[{track_id:"monaco",track_name:"Monaco",tyre_wear:20,overtaking_difficulty:88,lap_length_km:3.34,pit_lane_loss_s:12}],
+  });
+  const base=withStrategy(gs0);
+  const damage=damageStateFromComponents({front_wing:75});
+  const strategy=base.raceWeekendState.race_strategy;
+  const ferrari={...strategy.selections.d_f1,pit_plan:"one_stop",planned_stop_lap:15};
+  const raceGs={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...strategy,
+        selections:{...strategy.selections,d_f1:ferrari},
+        race_control_plan:{
+          incidents:[{
+            driver_id:"d_f1",
+            lap:5,
+            sector:3,
+            damage_ordinal:15,
+            retirement:false,
+            kind:"collision",
+            reason:"Collision",
+            severity:"medium",
+            damage,
+            time_loss_s:0,
+          }],
+          damage_repairs:[],
+          periods:[],
+          weather_timeline:[],
+        },
+      },
+    },
+  };
+
+  const simulated=simulateManagedRace(raceGs,{
+    gp,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+  });
+  const ai=simulated.race.find((row)=>row.driver.driver_id==="d_f1");
+  const repairStops=(ai?.pit_stops||[]).filter((stop)=>stop?.service?.repair?.repaired_components?.length);
+  assert.ok(repairStops.length>=1,"AI should eventually repair worthwhile observed damage");
+  assert.ok(repairStops.every((stop)=>Number(stop.lap)>=6),"future incident data must not trigger an early repair");
+
+  const decision=(ai?.strategy_decisions||[]).find((row)=>row.action==="pit_repair");
+  assert.ok(decision);
+  assert.ok(Number(decision.lap)>=6);
+  assert.ok(decision.repair_components.includes("front_wing"));
+  assert.ok(Number.isFinite(decision.projected_damage_loss_s));
+  assert.ok(Number.isFinite(decision.repair_cost_s));
 });
