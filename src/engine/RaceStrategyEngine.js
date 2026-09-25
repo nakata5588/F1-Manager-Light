@@ -991,12 +991,14 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         const expectedService=Math.max(2,num(crew.avg_time_s,6.8));
         const serviceTime=Math.max(2,expectedService+serviceVariation);
         const repairOrdinal=Math.max(0,(lap-1)*3);
-        const damageState=incidentDamageStateThrough(
-          strategyState?.race_control_plan?.incidents||[],
-          did,
-          repairOrdinal,
-          strategyState?.race_control_plan?.damage_repairs||[]
-        );
+        const damageState=forcedPit?.repair_damage_snapshot
+          ?structuredClone(forcedPit.repair_damage_snapshot)
+          :incidentDamageStateThrough(
+            strategyState?.race_control_plan?.incidents||[],
+            did,
+            repairOrdinal,
+            strategyState?.race_control_plan?.damage_repairs||[]
+          );
         const requestedRepairs=Array.isArray(forcedPit?.repair_components)
           ?forcedPit.repair_components
           :[];
