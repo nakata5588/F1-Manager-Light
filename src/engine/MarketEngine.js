@@ -147,7 +147,7 @@ export function applyMarketTick(gs){
         }
       }
 
-      const targetRoles=availableContractRoles(next,tid)
+      const targetRoles=availableContractRoles(next,tid,{respectPending:false})
         .filter((role)=>["Main Driver","Second Driver","Reserve Driver"].includes(role));
 
       for(const role of targetRoles){

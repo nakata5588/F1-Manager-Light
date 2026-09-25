@@ -12,6 +12,8 @@ import {
   driverLineupSlots,
   expectedDriverSalary,
   swapRaceDriverRoles,
+  teamIdOf,
+  terminationCost,
 } from "./driverContracts.js";
 import { driverRoleSlot } from "./contractRoles.js";
 import { driverContractDecision, driverDecisionTraits } from "./driverDecisionModel.js";
@@ -170,8 +172,40 @@ export function aiLineupUpgradeOpportunity(gs,drivers,teamId,{activeOfferCount=(
   )[0]||null;
 }
 
+function strictRoleSlot(contract){
+  const role=String(contract?.role??contract?.position??contract?.contract_role??"")
+    .trim().toLowerCase().replace(/[\s-]+/g,"_");
+  if(/(^|_)(reserve|reserva)(_|$)/.test(role))return "reserve";
+  if(/(^|_)(test|tester)(_|$)/.test(role))return "test";
+  if(/second|driver_?2|segundo/.test(role))return "second";
+  if(/main|first|lead|driver_?1|titular/.test(role))return "main";
+  return null;
+}
+
+function roleOccupant(gs,teamId,role,{excludeDriverId=null}={}){
+  const slot=driverRoleSlot(role);
+  if(!slot)return null;
+  return activeDriverContracts(gs,{teamId:text(teamId)}).find((contract)=>
+    driverRoleSlot(contract)===slot &&
+    driverIdOf(contract)!==text(excludeDriverId)
+  )||null;
+}
+
 function markAiContractReleased(gs,contract,reason){
+  if(!contract)return gs;
   const today=String(gs?.currentDateISO||"").slice(0,10)||null;
+  const cost=terminationCost(gs,contract);
+  const tid=teamIdOf(contract);
+  const did=driverIdOf(contract);
+  const financeEntry={
+    id:"ai_driver_termination:"+tid+":"+did+":"+today,
+    date:today,
+    team_id:tid,
+    driver_id:did,
+    type:"driver_termination",
+    amount:-cost,
+    reason,
+  };
   return {
     ...gs,
     contracts:(Array.isArray(gs?.contracts)?gs.contracts:[]).map((row)=>
@@ -180,10 +214,154 @@ function markAiContractReleased(gs,contract,reason){
         status:"released",
         released_at:today,
         termination_reason:reason,
-        termination_cost:0,
+        termination_cost:cost,
       }:row
     ),
+    aiTeamFinanceLog:[
+      financeEntry,
+      ...(Array.isArray(gs?.aiTeamFinanceLog)?gs.aiTeamFinanceLog:[])
+        .filter((row)=>row?.id!==financeEntry.id),
+    ].slice(0,500),
   };
+}
+
+export function aiRoleConflictDecision(gs,{
+  teamId,
+  candidateId,
+  role,
+  salary=0,
+}={}){
+  const tid=text(teamId);
+  const cid=text(candidateId);
+  const slot=driverRoleSlot(role);
+  const incumbent=roleOccupant(gs,tid,role,{excludeDriverId:cid});
+  if(!slot||!incumbent){
+    return {
+      conflict:false,
+      replace:true,
+      team_id:tid,
+      slot,
+      incumbent:null,
+      termination_cost:0,
+      reason:"role_vacant",
+    };
+  }
+
+  const candidateScore=aiDriverLineupScore(gs,cid).score;
+  const incumbentId=driverIdOf(incumbent);
+  const incumbentScore=aiDriverLineupScore(gs,incumbentId).score;
+  const gap=round2(candidateScore-incumbentScore);
+  const finance=aiTeamDriverFinancialProfile(gs,tid);
+  const incumbentSalary=Math.max(0,finite(unbox(incumbent?.salary??incumbent?.salary_yearly),0));
+  const newSalary=Math.max(0,Number(salary)||0);
+  const exitCost=terminationCost(gs,incumbent);
+  const projectedPayroll=finance.driver_payroll-incumbentSalary+newSalary;
+  const minGap=(slot==="main"||slot==="second")?4:3;
+  const baseExitShare=(slot==="main"||slot==="second")?0.12:0.07;
+  const exitBudget=
+    finance.starting_budget*baseExitShare+
+    Math.max(0,gap-minGap)*finance.starting_budget*0.012;
+  const payrollFits=projectedPayroll<=finance.driver_payroll_limit;
+  const exitFits=exitCost<=Math.max(125_000,exitBudget);
+  const replace=gap>=minGap&&payrollFits&&exitFits;
+
+  return {
+    conflict:true,
+    replace,
+    team_id:tid,
+    slot,
+    incumbent,
+    incumbent_driver_id:incumbentId,
+    candidate_driver_id:cid,
+    candidate_score:round2(candidateScore),
+    incumbent_score:round2(incumbentScore),
+    score_gap:gap,
+    termination_cost:exitCost,
+    projected_payroll:Math.round(projectedPayroll),
+    payroll_limit:finance.driver_payroll_limit,
+    payroll_fits:payrollFits,
+    exit_cost_fits:exitFits,
+    reason:replace
+      ?"candidate_materially_better_and_affordable"
+      :(gap<minGap
+        ?"incumbent_quality_close"
+        :(!payrollFits?"replacement_payroll_too_high":"termination_cost_too_high")),
+  };
+}
+
+export function prepareAiRoleSigning(gs,{
+  teamId,
+  candidateId,
+  role,
+  salary=0,
+}={}){
+  const decision=aiRoleConflictDecision(gs,{teamId,candidateId,role,salary});
+  if(!decision.conflict){
+    return {state:gs,prepared:true,decision};
+  }
+  if(!decision.replace){
+    return {state:gs,prepared:false,decision};
+  }
+
+  let next=markAiContractReleased(
+    gs,
+    decision.incumbent,
+    "ai_competing_offer_replacement"
+  );
+  next=appendLineupLog(next,{
+    team_id:text(teamId),
+    driver_id:text(candidateId),
+    displaced_driver_id:decision.incumbent_driver_id,
+    from_role:null,
+    to_role:roleLabel(decision.slot),
+    reason:"ai_competing_offer_replacement",
+    candidate_score:decision.candidate_score,
+    displaced_score:decision.incumbent_score,
+    termination_cost:decision.termination_cost,
+  });
+  return {state:next,prepared:true,decision};
+}
+
+export function reconcileAiDriverRoleUniqueness(gs,teamId){
+  const tid=text(teamId);
+  if(!tid)return gs;
+  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
+  if(tid===playerTeamId)return gs;
+
+  let next=gs;
+  for(const slot of ["main","second","reserve","test"]){
+    const contracts=activeDriverContracts(next,{teamId:tid})
+      .filter((contract)=>strictRoleSlot(contract)===slot);
+    if(contracts.length<=1)continue;
+
+    const ranked=contracts.slice().sort((a,b)=>{
+      const scoreDiff=
+        aiDriverLineupScore(next,driverIdOf(b)).score-
+        aiDriverLineupScore(next,driverIdOf(a)).score;
+      if(Math.abs(scoreDiff)>0.001)return scoreDiff;
+      const aStart=Number(unbox(a?.contract_start_year??a?.year))||0;
+      const bStart=Number(unbox(b?.contract_start_year??b?.year))||0;
+      if(aStart!==bStart)return aStart-bStart;
+      return driverIdOf(a).localeCompare(driverIdOf(b));
+    });
+    const keep=ranked[0];
+    for(const duplicate of ranked.slice(1)){
+      const cost=terminationCost(next,duplicate);
+      next=markAiContractReleased(next,duplicate,"ai_role_invariant_repair");
+      next=appendLineupLog(next,{
+        team_id:tid,
+        driver_id:driverIdOf(keep),
+        displaced_driver_id:driverIdOf(duplicate),
+        from_role:roleLabel(slot),
+        to_role:roleLabel(slot),
+        reason:"ai_role_invariant_repair",
+        candidate_score:aiDriverLineupScore(next,driverIdOf(keep)).score,
+        displaced_score:aiDriverLineupScore(next,driverIdOf(duplicate)).score,
+        termination_cost:cost,
+      });
+    }
+  }
+  return next;
 }
 
 export function prepareAiLineupUpgradeSigning(gs,{

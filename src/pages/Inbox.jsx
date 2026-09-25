@@ -303,9 +303,33 @@ export default function Inbox() {
                   {active.deadline ? <span className="text-xs text-amber-300">Deadline {String(active.deadline).slice(0, 10)}</span> : null}
                 </div>
 
-                <div className="max-w-4xl whitespace-pre-wrap text-[15px] leading-7 text-slate-200">
-                  {active.body || "No additional details were included in this message."}
-                </div>
+                {(() => {
+                  const events=Array.isArray(active.market_events)&&active.market_events.length
+                    ?active.market_events
+                    :(active.market_event?[active.market_event]:[]);
+                  if(events.length){
+                    return <div className="max-w-4xl space-y-2 text-[15px] leading-7 text-slate-200">
+                      {events.map((event,index)=>{
+                        const verb=event?.kind==="renewal"
+                          ?"renews with"
+                          :(event?.kind==="transfer"?"transfers to":"signs with");
+                        return <div key={(event?.negotiation_id||event?.driver_id||"event")+"_"+index} className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+                          <Link to={"/drivers/"+event.driver_id} className="font-semibold text-sky-300 hover:text-sky-200 hover:underline">
+                            {event.driver_name||event.driver_id}
+                          </Link>
+                          <span className="text-slate-400"> {" "+verb+" "} </span>
+                          <Link to={"/teams/"+event.team_id} className="font-semibold text-sky-300 hover:text-sky-200 hover:underline">
+                            {event.team_name||event.team_id}
+                          </Link>
+                          {event.role?<span className="text-slate-400"> {" as "+event.role}</span>:null}
+                        </div>;
+                      })}
+                    </div>;
+                  }
+                  return <div className="max-w-4xl whitespace-pre-wrap text-[15px] leading-7 text-slate-200">
+                    {active.body || "No additional details were included in this message."}
+                  </div>;
+                })()}
 
                 <div className="mt-8 pt-5 border-t border-white/10 flex flex-wrap gap-2">
                   {(active.actions?.length ? active.actions : active.actionRoute ? [{ label: "Open related page", route: active.actionRoute }] : []).map((action, index) => (
