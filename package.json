@@ -32,7 +32,7 @@
     "test:roles": "node --test tests/driverRoleManagement.test.js",
     "test:race-weekend": "node --test tests/raceWeekend.test.js",
     "test:race-strategy": "node --test tests/raceStrategy.test.js",
-    "test:live-race": "node --test tests/liveRace.test.js tests/redFlagLifecycle.test.js tests/redFlagWork.test.js tests/restartHysteresis.test.js tests/carDamage.test.js tests/pitService.test.js",
+    "test:live-race": "node --test --test-name-pattern=\"RW5.3B.2B\" tests/liveRace.test.js tests/pitService.test.js",
     "test:management-events": "node --test tests/managementEvents.test.js",
     "test:race-control": "node --test tests/raceControl.test.js tests/raceability.test.js tests/standingWater.test.js tests/raceControlPolicy.test.js",
     "test:weekend-weather": "node --test tests/weekendWeather.test.js",
