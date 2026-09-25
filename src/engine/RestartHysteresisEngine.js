@@ -155,9 +155,10 @@ export function fastForwardRestartConditions({
   let working=monitor||createRestartMonitor({year,rules,cause});
   const rows=Array.isArray(timeline)?timeline:[];
   const required=Math.max(1,Number(working?.required_safe_checks)||1);
+  const hasExplicitMax=maxChecks!==null&&maxChecks!==undefined&&Number.isFinite(Number(maxChecks));
   const limit=Math.max(1,Math.min(
     512,
-    Number.isFinite(Number(maxChecks))
+    hasExplicitMax
       ?Math.round(Number(maxChecks))
       :Math.max(4,rows.length+required+2)
   ));
