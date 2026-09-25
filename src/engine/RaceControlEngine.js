@@ -10,7 +10,7 @@ import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvir
 import { evaluateRaceability } from "./RaceabilityEngine.js";
 import { aquaplaningOutcome, aquaplaningRiskForDriver, standingWaterForConditions } from "./StandingWaterEngine.js";
 import { incidentRaceControlAssessment, weatherRaceControlAssessment } from "./RaceControlPolicyEngine.js";
-import { redFlagClockPolicyForYear, redFlagHoldingAreaForYear } from "./RedFlagLifecycleEngine.js";
+import { redFlagClockPolicyForYear, redFlagHoldingAreaForYear, redFlagWorkPolicyForYear } from "./RedFlagLifecycleEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -39,6 +39,7 @@ export function raceControlRulesForYear(yearInput){
     restart_style:"era_restart",
     red_flag_holding_area:redFlagHoldingAreaForYear(year),
     red_flag_clock_policy:redFlagClockPolicyForYear(year),
+    red_flag_work_policy:redFlagWorkPolicyForYear(year),
     safety_car_mode:"not_standardized",
     weather_response_mode:"direct_stoppage_if_unraceable",
     notes:"Local yellows and race stoppages are available; no modern routine Safety Car or VSC system is applied.",
@@ -53,6 +54,7 @@ export function raceControlRulesForYear(yearInput){
     restart_style:"rolling_restart",
     red_flag_holding_area:redFlagHoldingAreaForYear(year),
     red_flag_clock_policy:redFlagClockPolicyForYear(year),
+    red_flag_work_policy:redFlagWorkPolicyForYear(year),
     safety_car_mode:"standard",
     weather_response_mode:"safety_car_or_red_flag",
     notes:"Safety Car and red flags are available; VSC is not yet part of race control.",
@@ -67,6 +69,7 @@ export function raceControlRulesForYear(yearInput){
     restart_style:"modern_restart",
     red_flag_holding_area:redFlagHoldingAreaForYear(year),
     red_flag_clock_policy:redFlagClockPolicyForYear(year),
+    red_flag_work_policy:redFlagWorkPolicyForYear(year),
     safety_car_mode:"standard",
     weather_response_mode:"safety_car_or_red_flag",
     notes:"Local yellows, VSC, Safety Car and red flags can be used according to incident severity; VSC remains a local incident mechanism rather than a general weather response.",
