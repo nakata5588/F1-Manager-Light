@@ -8,6 +8,7 @@
 import { technicalDevelopmentCapacity } from "./developmentProject.js";
 import { nextSeasonRegulationImpact } from "./nextSeasonRegulations.js";
 import { nextSeasonKnowledgeCarryover, technicalKnowledgeSnapshot } from "./technicalKnowledge.js";
+import { buildNextSeasonTechnicalPackage, nextSeasonTechnicalPhilosophy } from "./nextSeasonTechnicalPackage.js";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -87,6 +88,8 @@ export function defaultNextSeasonCarProgramme(activeYear=1980){
     regulation_impact:null,
     knowledge_at_launch:null,
     knowledge_carryover:null,
+    technical_philosophy:nextSeasonTechnicalPhilosophy("balanced"),
+    technical_package:null,
   };
 }
 
@@ -119,6 +122,8 @@ export function normalizeNextSeasonCarProgramme(input,{activeYear=1980}={}){
     last_progress_date:dateOnly(source.last_progress_date)||null,
     completed_at:dateOnly(source.completed_at)||null,
     readiness:overall>=100?"ready":str(source.readiness||"planning"),
+    technical_philosophy:nextSeasonTechnicalPhilosophy(source?.technical_philosophy?.id??source?.technical_philosophy_id??"balanced"),
+    technical_package:source?.technical_package&&typeof source.technical_package==="object"?source.technical_package:null,
   };
 }
 
@@ -182,6 +187,7 @@ export function startNextSeasonCarProgramme(gs,{
   teamId=null,
   engineers=4,
   engineeringSupport=50,
+  philosophyId="balanced",
 }={}){
   if(!gs||typeof gs!=="object")return gs;
   const id=str(teamId??gs?.team?.team_id??gs?.team?.id);
@@ -209,7 +215,8 @@ export function startNextSeasonCarProgramme(gs,{
     targetSeason:quote.targetSeason,
     regulationImpact,
   });
-  const programme=normalizeNextSeasonCarProgramme({
+  const philosophy=nextSeasonTechnicalPhilosophy(philosophyId);
+  let programme=normalizeNextSeasonCarProgramme({
     ...defaultNextSeasonCarProgramme(activeYearOf(gs)),
     targetSeason:quote.targetSeason,
     status:"active",
@@ -222,7 +229,16 @@ export function startNextSeasonCarProgramme(gs,{
     regulation_impact:regulationImpact,
     knowledge_at_launch:knowledgeAtLaunch,
     knowledge_carryover:knowledgeCarryover,
+    technical_philosophy:philosophy,
   },{activeYear:activeYearOf(gs)});
+  programme={
+    ...programme,
+    technical_package:buildNextSeasonTechnicalPackage(gs,{
+      programme,
+      teamId:id,
+      knowledgeCarryover,
+    }),
+  };
 
   return {
     ...next,
@@ -307,21 +323,31 @@ export function advanceNextSeasonCarDay(gs,{teamId=null}={}){
     development:dev,
   });
 
+  const progressedProgramme={
+    ...programme,
+    status:completed?"completed":"active",
+    phase:phase.id,
+    phase_progress:phase.phase_progress,
+    overall_progress:Number(overall.toFixed(2)),
+    last_progress_date:today,
+    completed_at:completed?today:null,
+    readiness:completed?"ready":"developing",
+    engineers:completed?0:programme.engineers,
+    knowledge_carryover:knowledgeCarryover,
+  };
+  const technicalPackage=buildNextSeasonTechnicalPackage(gs,{
+    programme:progressedProgramme,
+    teamId:id,
+    knowledgeCarryover,
+  });
+
   return {
     ...gs,
     development:{
       ...dev,
       nextSeasonCar:{
-        ...programme,
-        status:completed?"completed":"active",
-        phase:phase.id,
-        phase_progress:phase.phase_progress,
-        overall_progress:Number(overall.toFixed(2)),
-        last_progress_date:today,
-        completed_at:completed?today:null,
-        readiness:completed?"ready":"developing",
-        engineers:completed?0:programme.engineers,
-        knowledge_carryover:knowledgeCarryover,
+        ...progressedProgramme,
+        technical_package:technicalPackage,
       },
     },
   };
