@@ -46,6 +46,8 @@ public/assets/generated/
 # Derived lightweight runtime indexes
 public/data/team_seasons.json
 public/data/driver_f1_history.json
+public/data/race_results_archive.json
+public/data/race_results_archive_*.json
 
 # Generated Season Packs
 public/data/seasons/

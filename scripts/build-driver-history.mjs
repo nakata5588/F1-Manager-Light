@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { historicalResultInfo } from "../src/domain/historicalRaceStatus.js";
 
 const root=process.cwd();
 const dataDir=path.join(root,"public","data");
@@ -110,13 +111,7 @@ function fastestLap(row){
   const raw=first(row,["fastest_lap","fastestLap"],false);
   return raw===true || String(raw).toLowerCase()==="true";
 }
-function isDnf(row){
-  if(row?.retired===true)return true;
-  const status=String(first(row,["status","statusText","status_text","positionText","result_status"],"")).toLowerCase();
-  if(!status)return false;
-  if(status==="finished" || /^\+\d+\s+laps?$/.test(status))return false;
-  return /(dnf|retir|accident|collision|engine|gearbox|transmission|electrical|hydraulic|suspension|brakes|puncture|fire|oil|fuel|overheat|spun|damage|mechanical|not classified|did not finish)/.test(status);
-}
+
 
 const byKey=new Map();
 for(const row of Array.isArray(rows)?rows:[]){
@@ -140,6 +135,11 @@ for(const row of Array.isArray(rows)?rows:[]){
       poles:0,
       fastest_laps:0,
       dnf:0,
+      dsq:0,
+      excluded:0,
+      dnq:0,
+      not_classified:0,
+      withdrawn:0,
       classified_finishes:0,
       finish_position_sum:0,
       best_finish:null,
@@ -154,18 +154,26 @@ for(const row of Array.isArray(rows)?rows:[]){
   const pos=finishPosition(row);
   const grid=gridPosition(row);
   const round=num(first(row,["round","race_round","round_number"],NaN),NaN);
-  const retired=isDnf(row);
+  const statusInfo=historicalResultInfo(row);
+  const retired=statusInfo.isDnf;
   if(Number.isFinite(round)){
     rec.first_round=rec.first_round==null?round:Math.min(rec.first_round,round);
     rec.last_round=rec.last_round==null?round:Math.max(rec.last_round,round);
   }
-  rec.starts+=1;
-  rec.races+=1;
-  if(pos===1&&!retired)rec.wins+=1;
-  if(Number.isFinite(pos)&&pos>=1&&pos<=3&&!retired)rec.podiums+=1;
+  if(statusInfo.started){
+    rec.starts+=1;
+    rec.races+=1;
+  }
+  if(pos===1&&!retired&&statusInfo.started)rec.wins+=1;
+  if(Number.isFinite(pos)&&pos>=1&&pos<=3&&!retired&&statusInfo.started)rec.podiums+=1;
   if(grid===1)rec.poles+=1;
-  if(fastestLap(row))rec.fastest_laps+=1;
-  if(retired)rec.dnf+=1;
+  if(fastestLap(row)&&statusInfo.started)rec.fastest_laps+=1;
+  if(statusInfo.key==="dnf")rec.dnf+=1;
+  if(statusInfo.key==="dsq")rec.dsq+=1;
+  if(statusInfo.key==="excluded")rec.excluded+=1;
+  if(statusInfo.key==="dnq")rec.dnq+=1;
+  if(statusInfo.key==="nc")rec.not_classified+=1;
+  if(statusInfo.key==="withdrawn")rec.withdrawn+=1;
   if(Number.isFinite(pos)&&pos>0){
     rec.classified_finishes+=1;
     rec.finish_position_sum+=pos;
