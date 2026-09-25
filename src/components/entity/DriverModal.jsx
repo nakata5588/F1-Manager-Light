@@ -49,6 +49,7 @@ import {
   startDriverRenewal,
 } from "../../engine/NegotiationEngine.js";
 import { driverRelationshipRecords } from "../../domain/driverRelationships.js";
+import { driverRivalryEventLogForDriver, driverRivalryRecords } from "../../domain/driverRivalries.js";
 import { formatRelationshipYears, historicalDriverRelationshipRecords } from "../../domain/driverRelationshipHistory.js";
 import { managerDisplayName } from "../../domain/managerProfile.js";
 
@@ -2728,6 +2729,7 @@ function RelationshipsTab({ gameState, driverId }) {
     driverId,
     driverName:subjectName,
   });
+  const rivalries=driverRivalryRecords(gameState,driverId);
 
   const yearsForRecord=(record)=>{
     const values=new Set(
@@ -2789,7 +2791,7 @@ function RelationshipsTab({ gameState, driverId }) {
   const managerName=managerDisplayName(manager);
   const targetMeta=(record)=>{
     const targetId=String(record?.target_id||"");
-    if(record?.target_type==="teammate"){
+    if(record?.target_type==="teammate"||record?.target_type==="rival"){
       const matched=drivers.find((item)=>String(item?.driver_id??item?.id??"")===targetId)
         ||drivers.find((item)=>String(item?.display_name||item?.name||"").toLowerCase()===String(record?.target_name||"").toLowerCase())
         ||null;
@@ -2829,6 +2831,7 @@ function RelationshipsTab({ gameState, driverId }) {
   };
   const typeLabel=(value)=>({
     teammate:"Team-mate",
+    rival:"Rival",
     team:"Team",
     manager:"Manager",
     team_principal:"Team Principal",
@@ -2892,16 +2895,57 @@ function RelationshipsTab({ gameState, driverId }) {
     return {race:tally(race),quali:tally(quali),races:rows.length};
   };
 
-  const logs=(gameState?.driverRelationships?.log||[])
-    .filter((entry)=>String(entry?.driver_id??"")===String(driverId))
+  const logs=[
+    ...(gameState?.driverRelationships?.log||[])
+      .filter((entry)=>String(entry?.driver_id??"")===String(driverId)),
+    ...driverRivalryEventLogForDriver(gameState,driverId),
+  ]
+    .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")))
     .slice(0,12);
 
-  if(!allRecords.length){
+  if(!allRecords.length&&!rivalries.length){
     return <div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-sm text-slate-400">No relationships have been established for this driver yet.</div>;
   }
 
   return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
     <div className="space-y-2">
+      {rivalries.length?<section className="rounded-lg border border-white/10 bg-[#12141c] p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Global Driver Rivalries</div>
+            <div className="mt-0.5 text-[10px] text-slate-600">Persists across teams · separate from team-mate tension.</div>
+          </div>
+          <span className="text-[10px] text-slate-500">{rivalries.filter((row)=>row.active).length} active</span>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {rivalries.map((rivalry)=>{
+            const target=targetMeta(rivalry);
+            const openTarget=target.entity?()=>openEntity({...target.entity,tab:"overview"}):null;
+            const yearsLabel=formatRelationshipYears(rivalry?.years||[]);
+            const counters=[
+              Number(rivalry?.close_battles||0)>0?`${Number(rivalry.close_battles)} close battle${Number(rivalry.close_battles)===1?"":"s"}`:null,
+              Number(rivalry?.collisions||0)>0?`${Number(rivalry.collisions)} collision${Number(rivalry.collisions)===1?"":"s"}`:null,
+              Number(rivalry?.championship_battles||0)>0?`${Number(rivalry.championship_battles)} title-fight event${Number(rivalry.championship_battles)===1?"":"s"}`:null,
+            ].filter(Boolean);
+            return <div key={rivalry.pair_key||String(rivalry.driver_a_id)+"|"+String(rivalry.driver_b_id)} className="flex min-w-0 items-center gap-2.5 rounded-md border border-white/5 bg-[#0f1117] px-2.5 py-2">
+              {openTarget?<button type="button" onClick={openTarget} className="shrink-0 rounded-full hover:ring-2 hover:ring-sky-400/30">{target.visual}</button>:<div className="shrink-0">{target.visual}</div>}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  {openTarget?<button type="button" onClick={openTarget} className="truncate text-sm font-semibold text-slate-100 hover:text-sky-300 hover:underline">{target.name}</button>:<strong className="truncate text-sm text-slate-100">{target.name}</strong>}
+                  <span className={"rounded px-1.5 py-0.5 text-[9px] capitalize "+(rivalry.active?"bg-rose-500/10 text-rose-300":"bg-white/5 text-slate-500")}>{rivalry.status||"emerging"}</span>
+                  {yearsLabel?<span className="text-[9px] text-slate-600">{yearsLabel}</span>:null}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]">
+                  <span className={rivalryTone(rivalry.rivalry)}>Rivalry <strong>{Number(rivalry?.rivalry||0).toFixed(0)}</strong></span>
+                  <span className="text-emerald-300">Respect <strong>{Number(rivalry?.respect??50).toFixed(0)}</strong></span>
+                  {counters.length?<span className="text-slate-600">{counters.join(" · ")}</span>:null}
+                </div>
+              </div>
+            </div>;
+          })}
+        </div>
+      </section>:null}
+
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-[#12141c] px-3 py-2">
         <div className="flex items-center gap-1">
           {[["all","All"],["active","Active"],["inactive","Inactive"]].map(([key,label])=><button
