@@ -64,6 +64,32 @@ function DatabaseBinder() {
   return null;
 }
 
+function SessionPersistenceBinder() {
+  const saveLocal = useGame((s) => s.saveLocal);
+
+  useEffect(() => {
+    const persist = () => {
+      try { saveLocal(); } catch (error) {
+        console.warn("[Session] rolling checkpoint failed:", error);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") persist();
+    };
+
+    window.addEventListener("pagehide", persist);
+    window.addEventListener("beforeunload", persist);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", persist);
+      window.removeEventListener("beforeunload", persist);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [saveLocal]);
+
+  return null;
+}
+
 function ThemeBinder() {
   const uiTheme = useGame((s) => s.gameState?.settings?.uiTheme);
   useEffect(() => {
@@ -107,6 +133,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <SessionPersistenceBinder />
       <DatabaseBinder />
       <ThemeBinder />
       <EntityModalRoot />
