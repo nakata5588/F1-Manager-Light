@@ -31,12 +31,14 @@ export function evaluateRaceability({
   gripIndex=100,
   rainIntensity=0,
   wetnessDelta=0,
+  standingWaterIndex=0,
 }={}){
   const wet=clamp(wetness,0,1);
   const spray=clamp(sprayIndex,0,1);
   const visibility=clamp(num(visibilityIndex,100)/100,0,1);
   const grip=clamp(num(gripIndex,100)/100,0,1);
   const rain=clamp(rainIntensity,0,1);
+  const standingWater=clamp(num(standingWaterIndex,0)/100,0,1);
 
   // Small amounts of water are normal crossover conditions. The water hazard
   // ramps progressively once the track is meaningfully wet.
@@ -46,6 +48,7 @@ export function evaluateRaceability({
   const gripLoss=hazardCurve(1-grip,1.30);
   const rainfallLoad=hazardCurve(rain,1.20);
   const worseningLoad=clamp(Math.max(0,num(wetnessDelta,0))/0.04,0,1);
+  const standingWaterLoad=hazardCurve(standingWater,1.20);
 
   // Interactions capture why combinations matter more than isolated readings:
   // a wet/low-grip surface and high spray/poor visibility compound risk.
@@ -54,13 +57,14 @@ export function evaluateRaceability({
   const rainWater=Math.sqrt(rainfallLoad*waterLoad);
 
   const hazard=clamp(
-    waterLoad*0.18+
-    sprayLoad*0.19+
+    waterLoad*0.14+
+    standingWaterLoad*0.10+
+    sprayLoad*0.18+
     visibilityLoad*0.20+
-    gripLoss*0.17+
-    rainfallLoad*0.09+
-    waterGrip*0.07+
-    sprayVisibility*0.06+
+    gripLoss*0.16+
+    rainfallLoad*0.07+
+    waterGrip*0.065+
+    sprayVisibility*0.055+
     rainWater*0.025+
     worseningLoad*0.015,
     0,1
@@ -74,16 +78,18 @@ export function evaluateRaceability({
     grip_loss:round(gripLoss,3),
     rain:round(rainfallLoad,3),
     worsening:round(worseningLoad,3),
+    standing_water:round(standingWaterLoad,3),
     water_grip:round(waterGrip,3),
     spray_visibility:round(sprayVisibility,3),
     rain_water:round(rainWater,3),
   };
   const dominantFactors=Object.entries({
-    wetness:factors.wetness*0.18,
-    spray:factors.spray*0.19,
+    wetness:factors.wetness*0.14,
+    standing_water:factors.standing_water*0.10,
+    spray:factors.spray*0.18,
     visibility:factors.visibility*0.20,
-    grip:factors.grip_loss*0.17,
-    rain:factors.rain*0.09,
+    grip:factors.grip_loss*0.16,
+    rain:factors.rain*0.07,
   })
     .filter(([,value])=>value>0.005)
     .sort((a,b)=>b[1]-a[1])
