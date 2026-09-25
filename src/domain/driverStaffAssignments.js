@@ -73,22 +73,30 @@ export function synchronizeDriverStaffAssignments(gs,{source="staff_assignment_s
     if(!engineers.length)continue;
     const validIds=currentEngineerIds(engineersByTeam,teamId);
     const reserved=new Set();
+    const shared=engineers.length<drivers.length;
 
-    // Preserve explicit/current one-to-one assignments when the engineer is
-    // still contracted to the same team.
+    // Preserve valid assignments, but rebalance a formerly shared engineer
+    // when enough Race Engineers exist for dedicated one-to-one pairings.
     for(const driver of drivers){
       const key=assignmentKey(driver.driverId);
       const existing=container.assignments[key];
-      if(existing?.active!==false&&existing?.team_id===teamId&&validIds.has(text(existing?.staff_id))){
+      const existingStaffId=text(existing?.staff_id);
+      const valid=existing?.active!==false&&existing?.team_id===teamId&&validIds.has(existingStaffId);
+      const duplicateDedicated=!shared&&reserved.has(existingStaffId);
+      if(valid&&!duplicateDedicated){
         currentKeys.add(key);
-        reserved.add(text(existing.staff_id));
-        container.assignments[key]={...existing,active:true,updated_at:dateISO};
+        reserved.add(existingStaffId);
+        container.assignments[key]={
+          ...existing,
+          assignment_mode:shared?"shared":"dedicated",
+          active:true,
+          updated_at:dateISO,
+        };
       }
     }
 
     const unassigned=drivers.filter((driver)=>!currentKeys.has(assignmentKey(driver.driverId)));
     const unused=engineers.filter((engineer)=>!reserved.has(engineer.staffId));
-    const shared=engineers.length<drivers.length;
 
     unassigned.forEach((driver,index)=>{
       const engineer=unused[index]||engineers[index%engineers.length];
