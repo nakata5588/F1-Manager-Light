@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
-import { raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
+import { raceAverageSpeedKmh, raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -362,6 +362,8 @@ export default function Track2DView({
   onSelectEvent=null,
   playbackRunning=false,
   playbackSpeed=1,
+  playbackBaseSectorMs=30000,
+  lapLengthKm=null,
   busy=false,
   onRestartRace=null,
   onConfirmResults=null,
@@ -381,7 +383,8 @@ export default function Track2DView({
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
-  const motionDuration=raceMotionDurationMs(playbackSpeed);
+  const motionDuration=raceMotionDurationMs(playbackSpeed,playbackBaseSectorMs);
+  const averageSpeedKmh=raceAverageSpeedKmh(lapLengthKm,referenceLapMs);
 
   useEffect(()=>{
     followViewBoxRef.current=null;
@@ -432,26 +435,14 @@ export default function Track2DView({
   }
 
   const orderPanelClass=orderExpanded
-    ?"xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]"
-    :"xl:grid-cols-[172px_minmax(0,1fr)] 2xl:grid-cols-[184px_minmax(0,1fr)]";
+    ?"xl:grid-cols-[300px_minmax(0,1fr)_188px] 2xl:grid-cols-[320px_minmax(0,1fr)_198px]"
+    :"xl:grid-cols-[172px_minmax(0,1fr)_188px] 2xl:grid-cols-[184px_minmax(0,1fr)_198px]";
 
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
-    <div className="flex min-h-10 items-center gap-2 overflow-x-auto border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
-      <div className="flex shrink-0 items-center gap-1.5">
-        <Map className="h-3.5 w-3.5 text-slate-500"/>
-        <h4 className="whitespace-nowrap text-[12px] font-semibold">{layout.label} · Race View</h4>
-      </div>
-      <div className="h-4 w-px shrink-0 bg-white/10"/>
-      <div className="flex shrink-0 items-center gap-1 text-[9px]">
-        <span className="rounded bg-white/[0.05] px-1.5 py-1 font-black text-slate-100">L{Number(currentLap)||0}<span className="text-slate-500">/{Number(totalLaps)||0}</span></span>
-        {Number(currentSector)>0?<span className="rounded bg-sky-500/10 px-1.5 py-1 font-bold text-sky-300">S{currentSector}</span>:null}
-        <span className="rounded bg-white/[0.04] px-1.5 py-1 font-semibold text-slate-300" title={forecast?.message||""}>{String(lastWeather||"SUNNY").replaceAll("_"," ")}</span>
-        <span className="rounded bg-sky-500/[0.08] px-1.5 py-1 text-sky-300" title="Rain intensity"><CloudRain className="mr-1 inline h-3 w-3"/>{Math.round(Number(trackState?.rain_intensity||0)*100)}%</span>
-        <span className="rounded bg-cyan-500/[0.08] px-1.5 py-1 text-cyan-300" title="Track wetness"><Droplets className="mr-1 inline h-3 w-3"/>{Math.round(Number(trackState?.track_wetness||0)*100)}%</span>
-        <span className="rounded bg-white/[0.04] px-1.5 py-1 text-slate-300" title="Grip index">GRIP {Number(trackState?.grip_index??100).toFixed(0)}</span>
-        <span className="rounded bg-white/[0.04] px-1.5 py-1 text-slate-300" title="Visibility">VIS {Number(trackState?.visibility_index??100).toFixed(0)}%</span>
-        <span className="rounded bg-white/[0.04] px-1.5 py-1 text-slate-300" title="Track / air temperature">{Number.isFinite(Number(trackState?.track_temp_c))?Number(trackState.track_temp_c).toFixed(1)+"°":"—"}<span className="text-slate-600"> / {Number.isFinite(Number(trackState?.air_temp_c))?Number(trackState.air_temp_c).toFixed(1)+"°":"—"}</span></span>
-        <span className="rounded bg-fuchsia-500/[0.08] px-1.5 py-1 font-mono text-fuchsia-300" title={timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"Fastest lap"}>{formatLapTime(timingSummary?.fastest_lap_ms)}</span>
+    <div className="flex min-h-10 items-center gap-2 border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Map className="h-3.5 w-3.5 shrink-0 text-slate-500"/>
+        <h4 className="truncate text-[12px] font-semibold">{layout.label} · Race View</h4>
       </div>
       <div className="flex-1"/>
       <div className="flex shrink-0 items-center gap-1 text-[9px]">
@@ -463,7 +454,7 @@ export default function Track2DView({
     <div className="h-0.5 bg-white/[0.04]"><div className="h-full bg-sky-300/80 transition-all" style={{width:`${progressPct}%`}}/></div>
 
     <div className={`grid ${orderPanelClass}`}>
-      <div className="relative order-1 min-h-[500px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[545px] xl:order-2 xl:min-h-[590px] 2xl:min-h-[625px]">
+      <div className="relative order-1 min-h-[470px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[510px] xl:order-2 xl:min-h-[540px] 2xl:min-h-[570px]">
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
@@ -627,8 +618,8 @@ export default function Track2DView({
       <aside className="order-2 border-t border-white/10 bg-[#070a0f] xl:order-1 xl:border-r xl:border-t-0">
         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-2">
           <div>
-            <div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-200">Live Order</div>
-            <div className="text-[7px] uppercase tracking-[0.12em] text-slate-600">Select driver · follow</div>
+            <div className="text-[16px] font-black tracking-tight text-slate-100">L{Number(currentLap)||0}<span className="text-[10px] text-slate-500">/{Number(totalLaps)||0}</span></div>
+            <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-sky-300">Sector {Math.max(1,Number(currentSector)||1)} · {playbackRunning?`${playbackSpeed}× LIVE`:"PAUSED"}</div>
           </div>
           <button type="button" onClick={()=>setOrderExpanded((value)=>!value)} title={orderExpanded?"Compact Track Order":"Expand Track Order"} className="rounded-md border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 hover:bg-white/[0.08] hover:text-slate-100">
             {orderExpanded?<Minimize2 className="h-3.5 w-3.5"/>:<Maximize2 className="h-3.5 w-3.5"/>}
@@ -710,12 +701,49 @@ export default function Track2DView({
       </aside>
     </div>
 
-    <DriverInspector
-      row={selectedRow}
-      drivers={drivers}
-      teams={teams}
-      playerTeamId={playerTeamId}
-    />
-    {showTrackIntel?<div className="border-t border-white/10 bg-[#080c12] px-3 py-1.5 text-[9px] text-slate-600">Track intelligence: {intelligence.status.replaceAll("_"," ")}. Start/sector positions use layout metadata when available, otherwise provisional centerline thirds. Incident markers use exact track progress when available, otherwise the reported race sector. Pit geometry appears only when supplied by the layout.</div>:null}
+      <aside className="order-3 border-t border-white/10 bg-[#080c12] xl:border-l xl:border-t-0">
+        <div className="border-b border-white/10 px-2.5 py-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">Race Conditions</div>
+          <div className="mt-1 text-sm font-black text-slate-100">{String(lastWeather||"SUNNY").replaceAll("_"," ")}</div>
+          {forecast?.message?<div className="mt-0.5 text-[8px] leading-snug text-sky-300/75">{forecast.message}</div>:null}
+        </div>
+        <div className="grid grid-cols-2 gap-px bg-white/[0.06]">
+          <div className="bg-[#0b1017] p-2">
+            <div className="flex items-center gap-1 text-[8px] uppercase text-slate-500"><CloudRain className="h-3 w-3"/>Rain</div>
+            <div className="mt-0.5 text-sm font-black text-sky-300">{Math.round(Number(trackState?.rain_intensity||0)*100)}%</div>
+          </div>
+          <div className="bg-[#0b1017] p-2">
+            <div className="flex items-center gap-1 text-[8px] uppercase text-slate-500"><Droplets className="h-3 w-3"/>Wet</div>
+            <div className="mt-0.5 text-sm font-black text-cyan-300">{Math.round(Number(trackState?.track_wetness||0)*100)}%</div>
+          </div>
+          <div className="bg-[#0b1017] p-2">
+            <div className="text-[8px] uppercase text-slate-500">Grip</div>
+            <div className="mt-0.5 text-sm font-black text-slate-100">{Number(trackState?.grip_index??100).toFixed(0)}</div>
+          </div>
+          <div className="bg-[#0b1017] p-2">
+            <div className="text-[8px] uppercase text-slate-500">Visibility</div>
+            <div className="mt-0.5 text-sm font-black text-slate-100">{Number(trackState?.visibility_index??100).toFixed(0)}%</div>
+          </div>
+        </div>
+        <div className="grid gap-1.5 p-2.5 text-[9px]">
+          <div className="flex items-center justify-between gap-2 rounded bg-white/[0.035] px-2 py-1.5"><span className="text-slate-500">Track</span><span className="font-bold text-slate-200">{Number.isFinite(Number(trackState?.track_temp_c))?Number(trackState.track_temp_c).toFixed(1)+"°C":"—"}</span></div>
+          <div className="flex items-center justify-between gap-2 rounded bg-white/[0.035] px-2 py-1.5"><span className="text-slate-500">Air</span><span className="font-bold text-slate-200">{Number.isFinite(Number(trackState?.air_temp_c))?Number(trackState.air_temp_c).toFixed(1)+"°C":"—"}</span></div>
+          <div className="rounded border border-fuchsia-400/10 bg-fuchsia-500/[0.05] px-2 py-1.5">
+            <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-fuchsia-300/70">Fastest Lap</div>
+            <div className="mt-0.5 font-mono text-[12px] font-black text-fuchsia-300">{formatLapTime(timingSummary?.fastest_lap_ms)}</div>
+            <div className="truncate text-[8px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
+          </div>
+          <div className="rounded border border-sky-400/10 bg-sky-500/[0.04] px-2 py-1.5">
+            <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-sky-300/70">Live Pace</div>
+            <div className="mt-0.5 text-[11px] font-black text-sky-200">{Math.round(Number(playbackBaseSectorMs||0)/100)/10}s / sector</div>
+            <div className="text-[8px] text-slate-500">1× real time{Number.isFinite(Number(averageSpeedKmh))?` · ~${Math.round(averageSpeedKmh)} km/h avg`:""}</div>
+          </div>
+          {selectedRow?<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
+            <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
+            <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><span>{selectedRow.retired?"DNF":Number(selectedRow.position)===1?"LEAD":formatInterval(selectedRow.gap_to_leader_ms)}</span></div>
+            <div className="mt-1 flex items-center gap-1"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={15}/><span className="text-[8px] text-slate-400">{selectedRow?.tyre?.compound||"—"} · {Number.isFinite(Number(selectedRow?.tyre?.condition))?Number(selectedRow.tyre.condition).toFixed(0)+"%":"—"}</span></div>
+          </div>:null}
+        </div>
+      </aside>
   </section>;
 }
