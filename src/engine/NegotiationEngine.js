@@ -21,6 +21,7 @@ import { driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
 import { applyAcceptedContractRelationship, applyFailedRenewalRelationship } from "../domain/driverTeamManagerDynamics.js";
+import { relationshipRenewalAcceptanceDelta } from "../domain/driverRelationshipConsequences.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -996,7 +997,11 @@ export function processDriverNegotiations(gs,{forceOutcomeById={},forceTransferO
     }
 
     const forced=forceOutcomeById?.[negotiation.id];
-    const chance=contractAcceptanceChance(next,negotiation.driver_id,negotiation.offer,{renewal,teamId:negotiation.team_id});
+    const baseChance=contractAcceptanceChance(next,negotiation.driver_id,negotiation.offer,{renewal,teamId:negotiation.team_id});
+    const relationshipDelta=renewal
+      ?relationshipRenewalAcceptanceDelta(next,negotiation.driver_id,{teamId:negotiation.team_id})
+      :0;
+    const chance=Math.max(0.05,Math.min(0.95,baseChance+relationshipDelta));
     const rng=rngFor(next,"negotiation-response:"+negotiation.id+":"+negotiation.round);
     const roll=rng.next();
     let outcome=forced||null;

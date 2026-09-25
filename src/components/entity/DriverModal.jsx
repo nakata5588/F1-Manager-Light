@@ -50,6 +50,7 @@ import {
 } from "../../engine/NegotiationEngine.js";
 import { driverRelationshipRecords } from "../../domain/driverRelationships.js";
 import { driverRivalryEventLogForDriver, driverRivalryRecords } from "../../domain/driverRivalries.js";
+import { driverRelationshipConsequenceProfile } from "../../domain/driverRelationshipConsequences.js";
 import { formatRelationshipYears, historicalDriverRelationshipRecords } from "../../domain/driverRelationshipHistory.js";
 import { managerDisplayName } from "../../domain/managerProfile.js";
 
@@ -2730,6 +2731,12 @@ function RelationshipsTab({ gameState, driverId }) {
     driverName:subjectName,
   });
   const rivalries=driverRivalryRecords(gameState,driverId);
+  const activeTeamId=liveRecords.find((record)=>record?.active&&record?.target_type==="team")?.target_id||null;
+  const activeTeammateId=liveRecords.find((record)=>record?.active&&record?.target_type==="teammate")?.target_id||null;
+  const consequenceProfile=driverRelationshipConsequenceProfile(gameState,driverId,{
+    teamId:activeTeamId,
+    teammateId:activeTeammateId,
+  });
   const visibleRivalries=rivalries.filter((row)=>
     row?.active||
     Number(row?.collisions||0)>0||
@@ -3037,7 +3044,21 @@ function RelationshipsTab({ gameState, driverId }) {
       }):<div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-xs text-slate-500">No relationships match the selected filters.</div>}
     </div>
 
-    <aside className="rounded-lg border border-white/10 bg-[#12141c] p-3">
+    <aside className="space-y-3">
+      <div className="rounded-lg border border-white/10 bg-[#12141c] p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Gameplay Consequences</div>
+        <div className="mt-1 text-[10px] leading-4 text-slate-600">Relationships affect temporary state and cooperation, never base ability or raw car pace.</div>
+        <div className="mt-2 space-y-1.5 text-[10px]">
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-500">Team climate</span><strong className={relationTone(consequenceProfile?.climate?.score)}>{Number(consequenceProfile?.climate?.score??50).toFixed(0)} · {consequenceProfile?.climate?.label||"Stable"}</strong></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-500">Race morale</span><strong className={Number(consequenceProfile?.race_morale_delta||0)>0?"text-emerald-300":Number(consequenceProfile?.race_morale_delta||0)<0?"text-rose-300":"text-slate-400"}>{Number(consequenceProfile?.race_morale_delta||0)>=0?"+":""}{Number(consequenceProfile?.race_morale_delta||0).toFixed(2)} / GP</strong></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-500">Engineer setup</span><strong className={consequenceProfile?.engineer?.known?(Number(consequenceProfile.engineer.multiplier)>=1?"text-emerald-300":"text-rose-300"):"text-slate-500"}>{consequenceProfile?.engineer?.known?`×${Number(consequenceProfile.engineer.multiplier).toFixed(2)}`:"No data"}</strong></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-500">Renewal acceptance</span><strong className={Number(consequenceProfile?.renewal_acceptance_delta||0)>0?"text-emerald-300":Number(consequenceProfile?.renewal_acceptance_delta||0)<0?"text-rose-300":"text-slate-400"}>{Number(consequenceProfile?.renewal_acceptance_delta||0)>=0?"+":""}{(Number(consequenceProfile?.renewal_acceptance_delta||0)*100).toFixed(0)} pp</strong></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-500">Team-order cooperation</span><strong className={consequenceProfile?.team_order?.at_risk?"text-amber-300":"text-slate-300"}>{consequenceProfile?.team_order?`${Math.round(Number(consequenceProfile.team_order.probability||1)*100)}% · ${consequenceProfile.team_order.label}`:"—"}</strong></div>
+          {consequenceProfile?.strongest_rival?<div className="flex items-center justify-between gap-3"><span className="text-slate-500">Rival pressure</span><strong className="text-amber-300">±{Number(consequenceProfile?.rival_confidence_swing||0).toFixed(2)} Confidence</strong></div>:null}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-[#12141c] p-3">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Recent Events</div>
       <div className="mt-2 space-y-1.5">
         {logs.length?logs.map((entry,index)=>{
@@ -3058,6 +3079,7 @@ function RelationshipsTab({ gameState, driverId }) {
             </div>
           </div>;
         }):<div className="text-xs text-slate-500">No relationship-changing events yet.</div>}
+      </div>
       </div>
     </aside>
   </div>;

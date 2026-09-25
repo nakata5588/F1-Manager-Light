@@ -4,6 +4,7 @@ import { teamCarPerformance } from "../domain/carPerformance.js";
 import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
 import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
+import { raceEngineerPreparationProfile } from "../domain/driverRelationshipConsequences.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
 import { resolveStaffId } from "../domain/staffRoles.js";
@@ -310,6 +311,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
 
     const rating=ratingFor(gs,driverId);
     const engineering=teamEngineeringSupport(gs,teamId);
+    const engineerRelationship=raceEngineerPreparationProfile(gs,driverId,{teamId});
     const programme=String(teamId)===playerTeamId
       ?practiceProgramme(selections?.[driverId]||"balanced")
       :aiProgrammeFor(gs,teamId,driverId,engineering);
@@ -325,7 +327,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       adaptability*0.20+
       consistency*0.12+
       engineering*0.30
-    )*fatigueEfficiency*weatherLearning);
+    )*fatigueEfficiency*weatherLearning*engineerRelationship.multiplier);
 
     const rng=rngFor(gs,`${weekend.key}-practice-setup-${driverId}`);
     const initial={};
@@ -387,6 +389,9 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
       programme_id:programme.id,
       programme_label:programme.label,
       engineering_support:engineering,
+      engineer_relationship_score:engineerRelationship.score,
+      engineer_relationship_multiplier:engineerRelationship.multiplier,
+      engineer_relationship_label:engineerRelationship.label,
       learning_rate:round1(learning),
       setup_knowledge:knowledge,
       setup_quality:quality,
