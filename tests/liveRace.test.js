@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
+import { damageStateFromComponents, incidentDamageStateThrough } from "../src/engine/CarDamageEngine.js";
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
@@ -562,17 +562,48 @@ test("RW5.3B.2B direct +Lap mode persists the same repair into the causal damage
   gs=withVisibleDamage(gs,{damage});
   gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreChange:false,repairDamage:true});
 
-  // Coarse mode crosses the entire scheduled stop in one advance. This is
-  // intentionally different from sector playback, which exposes PIT_ENTRY and
-  // the live service phases separately.
-  gs=advanceLiveRace(gs,{gp,laps:2});
-  let repair=(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
-    .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1");
+  // Coarse +Lap advances may legitimately stop at an intervening Red Flag.
+  // Keep advancing the normal race lifecycle until the ordered pit service has
+  // actually been crossed; Race Control must never make the repair disappear.
+  let repair=null;
+  let guard=0;
+  while(!repair&&guard<8){
+    if(gs?.raceWeekendState?.live_race?.status==="red_flag"){
+      gs=resolveRedFlag(gs);
+    }else{
+      gs=advanceLiveRace(gs,{gp,laps:1});
+    }
+    repair=(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
+      .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1")||null;
+    guard+=1;
+  }
 
-  gs=advanceLiveRace(gs,{gp,laps:1});
-  repair=repair||(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
-    .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1");
-  assert.ok(repair,"coarse +Lap must persist a completed normal pit repair record");
+  assert.ok(repair,"coarse +Lap must persist the repair once pit service is crossed");
+  assert.equal(repair.free_service,false);
+  assert.ok(repair.repaired_components.includes("front_wing"));
+  assert.ok(repair.pace_loss_after_s_per_lap<repair.pace_loss_before_s_per_lap);
+
+  const plan=gs.raceWeekendState.race_strategy.race_control_plan;
+  const causalDamage=incidentDamageStateThrough(
+    plan.incidents||[],
+    "D1",
+    Number(repair.repair_ordinal),
+    plan.damage_repairs||[]
+  );
+  assert.ok(
+    Number(causalDamage?.pace_loss_s_per_lap||0)<Number(damage.pace_loss_s_per_lap),
+    "repair must reduce damage from its causal completion point"
+  );
+
+  // Recalculation after the completed stop must preserve exactly one record.
+  if(gs?.raceWeekendState?.live_race?.status==="red_flag")gs=resolveRedFlag(gs);
+  if(gs?.raceWeekendState?.live_race?.status==="running")gs=advanceLiveRace(gs,{gp,laps:1});
+  assert.equal(
+    (gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
+      .filter((item)=>item.pit_stop_key===repair.pit_stop_key).length,
+    1,
+    "recalculation must not duplicate a completed pit repair"
+  );
 });
 
 test("Pit Now schedules the selected tyre for the next lap",()=>{
