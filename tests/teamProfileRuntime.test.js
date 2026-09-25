@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { canonicalTeamId, canonicalTeamName, mergeCanonicalTeamRows } from "../src/domain/teamIdentity.js";
+import { canonicalTeamId, canonicalTeamIdentity, canonicalTeamName, mergeCanonicalTeamRows } from "../src/domain/teamIdentity.js";
 
 test("Team Profile initializes display name before historical logo candidates", async()=>{
   const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
