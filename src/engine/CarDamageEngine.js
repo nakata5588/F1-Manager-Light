@@ -183,15 +183,37 @@ export function damagePenaltyMsBetweenOrdinals(incidents=[],driverId,fromOrdinal
   const end=Number(toOrdinal)||0;
   if(end<=start)return 0;
   const did=String(driverId??"");
-  let total=0;
-  for(const incident of incidents||[]){
-    if(String(incident?.driver_id??"")!==did||!incident?.damage)continue;
-    const incidentOrd=Number(incident?.damage_ordinal??0);
-    const overlapStart=Math.max(start,incidentOrd);
-    if(end<=overlapStart)continue;
-    const sectorFractions=(end-overlapStart)/3;
-    total+=sectorFractions*1000*Math.max(0,Number(incident.damage.pace_loss_s_per_lap)||0);
+  const relevant=(incidents||[])
+    .filter((incident)=>String(incident?.driver_id??"")===did&&incident?.damage)
+    .map((incident)=>({
+      ...incident,
+      ordinal:Number(incident?.damage_ordinal??0),
+    }))
+    .sort((a,b)=>a.ordinal-b.ordinal);
+
+  const active=[];
+  for(const incident of relevant){
+    if(incident.ordinal<=start)active.push(incident.damage);
   }
+
+  let cursor=start;
+  let total=0;
+  const addSegment=(segmentEnd)=>{
+    if(segmentEnd<=cursor)return;
+    const pace=active.length
+      ?Math.max(0,Number(mergeDamageStates(active).pace_loss_s_per_lap)||0)
+      :0;
+    total+=((segmentEnd-cursor)/3)*1000*pace;
+    cursor=segmentEnd;
+  };
+
+  for(const incident of relevant){
+    if(incident.ordinal<=start)continue;
+    if(incident.ordinal>=end)break;
+    addSegment(incident.ordinal);
+    active.push(incident.damage);
+  }
+  addSegment(end);
   return total;
 }
 
