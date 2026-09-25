@@ -69,6 +69,9 @@ test("next-season programme uses engineers but never consumes a Current Car proj
   assert.ok(started.development.nextSeasonCar.knowledge_at_launch);
   assert.ok(started.development.nextSeasonCar.knowledge_carryover);
   assert.equal(started.development.nextSeasonCar.knowledge_carryover.targetSeason,1981);
+  assert.equal(started.development.nextSeasonCar.technical_philosophy.id,"balanced");
+  assert.ok(started.development.nextSeasonCar.technical_package);
+  assert.equal(started.development.nextSeasonCar.technical_package.stage_scope.materialized_to_car_stats,false);
   assert.equal(after.active_projects,before.active_projects);
   assert.equal(after.max_projects,before.max_projects);
   assert.equal(after.reserved_engineers,4);
@@ -151,4 +154,9 @@ test("next-season programme persists through normal save preparation",()=>{
     saved.development.nextSeasonCar.overall_progress,
     gs.development.nextSeasonCar.overall_progress
   );
+  assert.equal(
+    saved.development.nextSeasonCar.technical_package.overall.projected,
+    gs.development.nextSeasonCar.technical_package.overall.projected
+  );
+  assert.equal(saved.development.nextSeasonCar.technical_philosophy.id,"balanced");
 });
