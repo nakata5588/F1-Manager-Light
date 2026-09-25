@@ -20,6 +20,14 @@ test("Team Lotus historical duplicate resolves to canonical Lotus identity",()=>
   assert.equal(canonicalTeamName("Lotus F1"),"Lotus F1");
   assert.equal(canonicalTeamName("Lotus-Ford"),"Lotus-Ford");
 
+  const wrapped=canonicalTeamIdentity({
+    team_id:{formula:"=LOOKUP()",result:"t_0040"},
+    team_name:{formula:"=LOOKUP()",result:"Team Lotus"},
+  });
+  assert.equal(wrapped.team_id.result,"t_0005");
+  assert.equal(wrapped.team_name.result,"Lotus");
+  assert.equal(wrapped.team_id.formula,"=LOOKUP()");
+
   const merged=mergeCanonicalTeamRows([
     {team_id:"t_0005",team_name:"Lotus",short_name:"LOT",founded_year:1952},
     {team_id:"t_0040",team_name:"Team Lotus",short_name:"Team",team_base:"United Kingdom"},
