@@ -19,6 +19,7 @@ import { applyRaceTeamMorale } from "../domain/teamMorale.js";
 import { applyRaceTeamReputation } from "../domain/teamReputation.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
+import { applyRaceDriverRivalries } from "../domain/driverRivalries.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -870,6 +871,11 @@ export async function runRaceWeekend(gs, {
   // D6.3B: teammate results, qualifying comparisons and teammate contact
   // evolve the persistent relationship graph after each completed GP.
   Object.assign(next,applyRaceTeammateDynamics(next,evaluatedResultEntry));
+
+  // D6.3E: global Driver ↔ Driver rivalries are independent of team membership.
+  // Collisions, genuinely close finishes and close title fights can build a
+  // persistent rivalry while Respect evolves separately.
+  Object.assign(next,applyRaceDriverRivalries(next,evaluatedResultEntry,{standings:driverStandings}));
 
   next.results = [
     ...(Array.isArray(gs.results) ? gs.results.filter((r) => r?.key !== resultKey) : []),
