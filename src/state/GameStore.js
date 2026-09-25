@@ -7,7 +7,7 @@ import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { hydrateDriverPortraitRows, resolveDriverPortrait } from "@/domain/driverPortraits";
-import { historicalAssetCandidates } from "@/domain/historicalAssets";
+import { historicalAssetCandidatesWithOverrides } from "@/domain/historicalAssets";
 import { withVisualAssetOverride, withoutVisualAssetOverride } from "@/domain/visualAssetOverrides";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
@@ -1296,7 +1296,7 @@ export const useGame = create((set, get) => ({
     ];
 
     // Generated manifest first: O(1) alias lookup + tiny timeline binary search.
-    const generated = historicalAssetCandidates("teams", aliases, year, []);
+    const generated = historicalAssetCandidatesWithOverrides("teams", aliases, year, st.visualAssetOverrides, id, []);
 
     // Keep the historical DB logo index and legacy filenames as fallbacks.
     const viaIndex = (st.dbLogosIndex || []).filter((r) => {
