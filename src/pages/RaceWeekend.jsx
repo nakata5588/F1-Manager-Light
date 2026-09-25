@@ -649,13 +649,14 @@ export default function RaceWeekend(){
   });
   const trackState=liveRace?.track_state||null;
   const timingSummary=liveRace?.timing_summary||null;
-  const raceViewEvents=useMemo(()=>collectionRows(liveRace?.events).slice(-40).reverse().map((event)=>({
+  const allRaceEvents=useMemo(()=>collectionRows(liveRace?.events).slice().reverse().map((event)=>({
     ...event,
     display_text:liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[]),
   })),[liveRace?.events,drivers,gs?.tyres,gs?.dbTyres]);
+  const raceViewEvents=useMemo(()=>allRaceEvents.slice(0,40),[allRaceEvents]);
   const raceFeedGroups=useMemo(()=>{
     const byLap=new Map();
-    for(const event of raceViewEvents){
+    for(const event of allRaceEvents){
       const lap=Math.max(0,Number(event?.lap)||0);
       if(!byLap.has(lap))byLap.set(lap,[]);
       byLap.get(lap).push(event);
@@ -663,7 +664,7 @@ export default function RaceWeekend(){
     return [...byLap.entries()]
       .sort((a,b)=>b[0]-a[0])
       .map(([lap,events])=>({lap,events}));
-  },[raceViewEvents]);
+  },[allRaceEvents]);
   const liveBestSectors=useMemo(()=>{
     const values=(key)=>liveRows.map((row)=>Number(row?.[key])).filter((value)=>Number.isFinite(value)&&value>0);
     const s1=values("sector_1_ms"),s2=values("sector_2_ms"),s3=values("sector_3_ms");
@@ -1733,7 +1734,7 @@ export default function RaceWeekend(){
               </div>
               <div className="text-right text-[10px] text-slate-500">
                 <div>L{liveRace.current_lap||0}/{liveRace.total_laps||0}{Number(liveRace.current_sector)>0?` · S${liveRace.current_sector}`:""}</div>
-                <div>{raceViewEvents.length} recorded events</div>
+                <div>{allRaceEvents.length} recorded events</div>
               </div>
             </div>
             <div className="max-h-[72vh] overflow-y-auto p-3">
