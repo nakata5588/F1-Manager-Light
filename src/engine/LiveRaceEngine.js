@@ -1302,6 +1302,22 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   let live=weekend?.live_race;
   if(!live||live.status!=="running")return working;
 
+  const reconciledHistoricalPlan=appendPitRepairRecords(
+    weekend?.race_strategy?.race_control_plan||{},
+    completedPitRepairRecordsFromLive(working,live)
+  );
+  if(reconciledHistoricalPlan!==weekend?.race_strategy?.race_control_plan){
+    working={
+      ...working,
+      raceWeekendState:{
+        ...weekend,
+        race_strategy:{...weekend.race_strategy,race_control_plan:reconciledHistoricalPlan},
+      },
+    };
+    weekend=working.raceWeekendState;
+    live=weekend.live_race;
+  }
+
   if(Object.values(live?.pit_states||{}).some((state)=>state?.active)){
     live=advancePitLifecycleOnLiveState(working,live,0,{settle:true,emitPhaseEvents:false});
     const repairedPlan=appendPitRepairRecords(
@@ -1669,6 +1685,14 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   );
   classification=pitLifecycle.classification;
   events=pitLifecycle.events;
+  plan=appendPitRepairRecords(
+    plan,
+    completedPitRepairRecordsFromLive(working,{
+      ...live,
+      pit_states:pitLifecycle.pit_states,
+      pit_history:pitLifecycle.pit_history,
+    })
+  );
 
   const activeRows=classification.filter((row)=>!row.retired);
   const fastest=classification
