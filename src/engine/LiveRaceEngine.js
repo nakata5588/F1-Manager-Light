@@ -918,7 +918,10 @@ function materializePitStarts(gs,live,race,classification,events,{currentOrdinal
       });
       if(!state)return;
       knownKeys.add(key);
-      if(progressive&&startOrdinal===Number(targetOrdinal)){
+      if(startOrdinal===Number(targetOrdinal)){
+        // Reaching the pit-entry point is not the same as completing service.
+        // This applies to both sector playback and coarse +Lap advancement:
+        // the stop remains active until time/track progress moves beyond entry.
         pitStates[did]=state;
         nextRows=nextRows.map((row)=>
           String(row?.driver_id||"")===did?{...row,pit_state:state,in_pit:true}:row
