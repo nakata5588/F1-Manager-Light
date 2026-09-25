@@ -5,7 +5,9 @@ import {
   damageFromIncident,
   damagePenaltyMsBetweenOrdinals,
   damageStateFromComponents,
+  damageStateThroughTimeline,
   mergeDamageStates,
+  repairDamageState,
 } from "../src/engine/CarDamageEngine.js";
 import { createRaceControlPlan } from "../src/engine/RaceControlEngine.js";
 import { finalizedLiveRaceRows } from "../src/engine/LiveRaceEngine.js";
@@ -219,4 +221,59 @@ test("RW5.3A.1 era calibration can raise conditional DNF probability without cha
   });
   assert.equal(retired.retirement_required,true);
   assert.deepEqual(retired.components,damage.components);
+});
+
+
+test("RW5.3B.1 Red Flag repair removes replaceable aero damage and reduces residual pace loss",()=>{
+  const damaged=damageStateFromComponents({
+    front_wing:72,
+    floor:50,
+    suspension:28,
+  });
+  const repaired=repairDamageState(damaged);
+
+  assert.equal(repaired.components.front_wing.damage_pct,0);
+  assert.ok(repaired.components.floor.damage_pct>0);
+  assert.ok(repaired.components.floor.damage_pct<damaged.components.floor.damage_pct);
+  assert.ok(repaired.components.suspension.damage_pct<damaged.components.suspension.damage_pct);
+  assert.ok(repaired.pace_loss_s_per_lap<damaged.pace_loss_s_per_lap);
+});
+
+test("RW5.3B.1 repair changes only future damage penalty, never the already-driven segment",()=>{
+  const damage=damageStateFromComponents({front_wing:70,floor:45});
+  const incidents=[{
+    driver_id:"D1",
+    damage_ordinal:3,
+    damage,
+  }];
+  const repairs=[{
+    driver_id:"D1",
+    repair_ordinal:6,
+    source:"red_flag_repair",
+  }];
+
+  const beforeRepair=damagePenaltyMsBetweenOrdinals(incidents,"D1",3,6,repairs);
+  const afterRepair=damagePenaltyMsBetweenOrdinals(incidents,"D1",6,9,repairs);
+  const noRepairAfter=damagePenaltyMsBetweenOrdinals(incidents,"D1",6,9,[]);
+
+  assert.ok(beforeRepair>0);
+  assert.ok(afterRepair>0);
+  assert.ok(afterRepair<noRepairAfter);
+});
+
+test("RW5.3B.1 later contact accumulates onto residual post-repair damage",()=>{
+  const first=damageStateFromComponents({front_wing:65,floor:40});
+  const second=damageStateFromComponents({suspension:35});
+  const incidents=[
+    {driver_id:"D1",damage_ordinal:3,damage:first},
+    {driver_id:"D1",damage_ordinal:9,damage:second},
+  ];
+  const repairs=[{driver_id:"D1",repair_ordinal:6,source:"red_flag_repair"}];
+
+  const afterRepair=damageStateThroughTimeline(incidents,repairs,"D1",6);
+  const afterSecond=damageStateThroughTimeline(incidents,repairs,"D1",9);
+
+  assert.equal(afterRepair.components.front_wing.damage_pct,0);
+  assert.ok(afterSecond.components.suspension.damage_pct>afterRepair.components.suspension.damage_pct);
+  assert.ok(afterSecond.pace_loss_s_per_lap>afterRepair.pace_loss_s_per_lap);
 });
