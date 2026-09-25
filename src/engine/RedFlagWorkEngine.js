@@ -34,7 +34,7 @@ function allTyres(gs){
 function tyresForTeamLocal(gs,teamId){
   const year=Number(gs?.activeYear)||1980;
   const tid=String(teamId||"");
-  return allTyres(gs).filter((row)=>{
+  const active=allTyres(gs).filter((row)=>{
     const from=Number(row?.year_from??row?.year??year);
     const to=Number(row?.year_to??row?.year??year);
     if(Number.isFinite(from)&&year<from)return false;
@@ -43,6 +43,11 @@ function tyresForTeamLocal(gs,teamId){
     if(rowTeam&&rowTeam!==tid)return false;
     return true;
   });
+  const supplier=gs?.raceStrategyWorld?.teamSuppliers?.[tid]||null;
+  const matching=supplier
+    ?active.filter((row)=>String(row?.supplier||"")===String(supplier))
+    :[];
+  return matching.length?matching:active;
 }
 
 function tyreAvailableForTeam(gs,teamId,tyreId){
