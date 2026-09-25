@@ -56,8 +56,11 @@ export function visualMotionProgress(t,{individualDurationMs=null,globalDuration
   const individual=finite(individualDurationMs);
   const global=finite(globalDurationMs);
   if(individual==null||global==null||individual<=0||global<=0)return progress;
-  const paceRatio=clamp(individual/global,0.55,1.65);
-  const bias=clamp((1-paceRatio)*0.9,-0.22,0.22);
+  // Relative pace should be visible without making cars surge and then
+  // visibly brake inside every sector. Authoritative gap changes still define
+  // the end point; this only adds a small, smooth pace character in between.
+  const paceRatio=clamp(individual/global,0.82,1.18);
+  const bias=clamp((1-paceRatio)*0.35,-0.065,0.065);
   return clamp(progress+(bias*4*progress*(1-progress)),0,1);
 }
 
