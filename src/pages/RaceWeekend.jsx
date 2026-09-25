@@ -649,10 +649,22 @@ export default function RaceWeekend(){
   });
   const trackState=liveRace?.track_state||null;
   const timingSummary=liveRace?.timing_summary||null;
-  const raceViewEvents=useMemo(()=>collectionRows(liveRace?.events).slice(-40).reverse().map((event)=>({
+  const allRaceEvents=useMemo(()=>collectionRows(liveRace?.events).slice().reverse().map((event)=>({
     ...event,
     display_text:liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[]),
   })),[liveRace?.events,drivers,gs?.tyres,gs?.dbTyres]);
+  const raceViewEvents=useMemo(()=>allRaceEvents.slice(0,40),[allRaceEvents]);
+  const raceFeedGroups=useMemo(()=>{
+    const byLap=new Map();
+    for(const event of allRaceEvents){
+      const lap=Math.max(0,Number(event?.lap)||0);
+      if(!byLap.has(lap))byLap.set(lap,[]);
+      byLap.get(lap).push(event);
+    }
+    return [...byLap.entries()]
+      .sort((a,b)=>b[0]-a[0])
+      .map(([lap,events])=>({lap,events}));
+  },[allRaceEvents]);
   const liveBestSectors=useMemo(()=>{
     const values=(key)=>liveRows.map((row)=>Number(row?.[key])).filter((value)=>Number.isFinite(value)&&value>0);
     const s1=values("sector_1_ms"),s2=values("sector_2_ms"),s3=values("sector_3_ms");
@@ -835,6 +847,7 @@ export default function RaceWeekend(){
     {id:"grid",label:"Starting Grid",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&startingGridRows.length>0},
     {id:"live",label:"Live Timing",enabled:String(weekend?.phase)==="race"},
     {id:"detailed_timing",label:"Detailed Timing",enabled:String(weekend?.phase)==="race"&&Boolean(liveRace)},
+    {id:"race_feed",label:"Race Feed",enabled:String(weekend?.phase)==="race"&&Boolean(liveRace)},
     {id:"classification",label:"Results",enabled:Boolean(lastResult)||terminalWeekend},
   ];
 
@@ -872,9 +885,22 @@ export default function RaceWeekend(){
   const continueRaceWeekend=()=>perform(async()=>{
     await continueWeekend();
   });
+  const toggleRacePlayback=()=>{
+    if(racePlaying){
+      setRacePlaying(false);
+      return;
+    }
+    setRaceAutoPaused(false);
+    setRacePlaying(true);
+    // At race start the cars are already rendered on the grid. Advance the
+    // first sector immediately so one Play click produces visible motion.
+    if(Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0){
+      perform(()=>advanceLiveRaceSector(1));
+    }
+  };
 
   return <div className="min-h-[calc(100vh-2.5rem)] bg-[#080b11] p-2 md:p-3 text-slate-100 grid gap-2 content-start">
-    {!((activeWindow==="live"||activeWindow==="detailed_timing")&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
+    {!((activeWindow==="live"||activeWindow==="detailed_timing"||activeWindow==="race_feed")&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
       <div className="grid grid-cols-5 gap-1">
         {STEPS.map(([id,label],index)=>{
           const state=index<currentIndex?"complete":index===currentIndex?"active":"upcoming";
@@ -916,15 +942,7 @@ export default function RaceWeekend(){
           <button
             type="button"
             disabled={busy}
-            onClick={()=>{
-              if(racePlaying){
-                setRacePlaying(false);
-                return;
-              }
-              setRaceAutoPaused(false);
-              setRacePlaying(true);
-              perform(()=>advanceLiveRaceSector(1));
-            }}
+            onClick={toggleRacePlayback}
             title={racePlaying?"Pause live race":"Play live race"}
             className={"inline-flex h-7 w-8 items-center justify-center rounded-md border text-[11px] font-bold transition disabled:opacity-40 "+(racePlaying?"border-sky-300/40 bg-sky-400/15 text-sky-200":"border-white/15 bg-white/[0.05] text-slate-200 hover:bg-white/10")}
           >
@@ -1706,6 +1724,56 @@ export default function RaceWeekend(){
           </div>
         )}
 
+        {activeWindow==="race_feed"&&weekend.phase==="race"&&liveRace&&(
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1017] px-4 py-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race History</div>
+                <h3 className="mt-0.5 text-base font-semibold">Race Feed</h3>
+                <div className="text-[10px] text-slate-500">Chronological race-control, incident, pit, weather and team-command history grouped by lap.</div>
+              </div>
+              <div className="text-right text-[10px] text-slate-500">
+                <div>L{liveRace.current_lap||0}/{liveRace.total_laps||0}{Number(liveRace.current_sector)>0?` · S${liveRace.current_sector}`:""}</div>
+                <div>{allRaceEvents.length} recorded events</div>
+              </div>
+            </div>
+            <div className="max-h-[72vh] overflow-y-auto p-3">
+              <div className="grid gap-3">
+                {raceFeedGroups.map((group)=>(
+                  <section key={group.lap} className="overflow-hidden rounded-lg border border-white/10 bg-[#0c1118]">
+                    <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.025] px-3 py-2">
+                      <div className="text-[11px] font-black tracking-wide text-slate-200">{group.lap>0?`LAP ${group.lap}`:"PRE-RACE"}</div>
+                      <div className="text-[9px] uppercase tracking-[0.12em] text-slate-600">{group.events.length} event{group.events.length===1?"":"s"}</div>
+                    </div>
+                    <div className="divide-y divide-white/[0.06]">
+                      {group.events.map((event,index)=>{
+                        const did=String(event?.driver_id||"");
+                        const tid=String(event?.team_id??liveRows.find((row)=>String(row?.driver_id||"")===did)?.team_id??"");
+                        return <button
+                          type="button"
+                          key={event?.event_key||event?.id||`${group.lap}-${index}`}
+                          onClick={()=>openRaceEvent(event)}
+                          className="grid w-full grid-cols-[48px_24px_minmax(0,1fr)] items-start gap-2 px-3 py-2.5 text-left hover:bg-white/[0.045]"
+                        >
+                          <div className="font-mono text-[9px] text-slate-500">{Number(event?.sector)>0?`S${event.sector}`:"—"}</div>
+                          <div className="mt-0.5 text-sky-300">{raceEventIcon(event,"h-4 w-4")}</div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.10em] text-slate-500">
+                              <span>{raceEventLabel(event)}</span>
+                              {did?<><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/><span className="normal-case tracking-normal text-slate-400">{driverName(drivers,did)}</span></>:null}
+                            </div>
+                            <div className="mt-0.5 text-[11px] leading-relaxed text-slate-200">{event?.display_text||liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</div>
+                          </div>
+                        </button>;
+                      })}
+                    </div>
+                  </section>
+                ))}
+                {!raceFeedGroups.length?<div className="rounded-lg border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-600">No race events recorded yet.</div>:null}
+              </div>
+            </div>
+          </div>
+        )}
         {activeWindow==="detailed_timing"&&weekend.phase==="race"&&liveRace&&(
           <div className="overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1017] px-4 py-3">
