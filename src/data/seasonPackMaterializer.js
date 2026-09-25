@@ -13,6 +13,7 @@ import {
   openingStateRowsForYear,
   openingTeamId,
 } from "../domain/driverOpeningState.js";
+import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -295,10 +296,10 @@ export function materializeSeasonPack(globalData,yearInput){
   }
 
   const managerialTeamId=(rawId)=>{
-    const id=String(rawId||"");
+    const id=canonicalTeamId(String(rawId||""));
     if(!id||/^\[object/i.test(id))return "";
     const row=teamMaster.get(id);
-    const name=String(pick(row||{},["team_name","name","short_name"],"")).trim();
+    const name=canonicalTeamName(String(pick(row||{},["team_name","name","short_name"],"")).trim());
     if(!name)return id;
 
     if(/^team lotus$/i.test(name) && masterNameToId.has("lotus")) return masterNameToId.get("lotus");

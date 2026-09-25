@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { canonicalTeamId, canonicalTeamName } from "../src/domain/teamIdentity.js";
 
 const root = process.cwd();
 const source = path.join(root, "public", "data", "race_results.json");
@@ -74,14 +75,19 @@ for(const d of drivers){
 }
 
 function resolveTeam(row){
-  const canonicalDirect=String(unwrap(firstOwn(row,["team_id","constructor_id"]))??"");
-  if(canonicalDirect)return canonicalDirect;
+  const directRaw=String(unwrap(firstOwn(row,["team_id","constructor_id"]))??"");
+  const canonicalDirect=canonicalTeamId(directRaw);
+  if(canonicalDirect&&teamNameToId.has(canon(canonicalTeamName(
+    teams.find((t)=>canonicalTeamId(unwrap(t.team_id??t.id))===canonicalDirect)?.team_name||""
+  ))))return canonicalDirect;
+  if(canonicalDirect&&directRaw)return canonicalDirect;
 
   const numericConstructorId=Number(unwrap(firstOwn(row,["constructorId"])));
   const refName=Number.isFinite(numericConstructorId) ? constructorNumericToName.get(numericConstructorId) : "";
-  const name=unwrap(firstOwn(row,["team_name","constructor_name","constructorName","constructor","team"])) || refName;
+  const rawName=unwrap(firstOwn(row,["team_name","constructor_name","constructorName","constructor","team"])) || refName;
+  const name=canonicalTeamName(rawName);
   const mapped=teamNameToId.get(canon(name));
-  if(mapped)return mapped;
+  if(mapped)return canonicalTeamId(mapped);
 
   if(Number.isFinite(numericConstructorId)) return "archive_constructor_" + numericConstructorId;
   const key=canon(name);
@@ -103,7 +109,7 @@ for(const r of Array.isArray(rows) ? rows : []) {
   const team_id=resolveTeam(r);
   const numericConstructorId=Number(unwrap(firstOwn(r,["constructorId"])));
   const refName=Number.isFinite(numericConstructorId)?constructorNumericToName.get(numericConstructorId):"";
-  const team_name=String(unwrap(firstOwn(r,["team_name","constructor_name","constructorName","constructor","team"]))??refName??"");
+  const team_name=canonicalTeamName(String(unwrap(firstOwn(r,["team_name","constructor_name","constructorName","constructor","team"]))??refName??""));
   const driver_id=resolveDriver(r);
   const roundRaw=Number(unwrap(firstOwn(r,["round","raceRound","roundNumber"])));
   const raceDate=String(unwrap(firstOwn(r,["race_date","date","dateISO"]))??"");

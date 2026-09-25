@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ExcelJS from "exceljs";
+import { canonicalTeamIdentity, mergeCanonicalTeamRows } from "../src/domain/teamIdentity.js";
 
 const ROOT = process.cwd();
 const SRC_XLSX = process.env.DB_XLSX || path.join(ROOT, "data", "f1_db.xlsx");
@@ -736,7 +737,15 @@ async function main() {
       continue;
     }
 
-    const rows = await processSheet(ws, cfg);
+    let rows = await processSheet(ws, cfg);
+
+    // Canonicalise exact historical aliases before any downstream builders
+    // consume the exported JSON. "Team Lotus" (t_0040) is the same works
+    // team as canonical "Lotus" (t_0005); modern Lotus F1 and engine-suffixed
+    // constructor names are intentionally untouched.
+    rows = rows.map(canonicalTeamIdentity);
+    if (sheetName === "teams") rows = mergeCanonicalTeamRows(rows);
+
     fs.writeFileSync(outPath, JSON.stringify(rows, null, 2), "utf8");
     results.push({ outName, count: rows.length });
     console.log(`[convert-excel] Wrote ${outName} (${rows.length} rows)`);
