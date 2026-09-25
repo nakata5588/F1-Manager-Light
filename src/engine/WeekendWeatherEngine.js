@@ -4,6 +4,7 @@
 import { rngFor } from "../core/random.js";
 import { evolveSessionSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 import { evolveSessionEnvironment } from "./TrackEnvironmentEngine.js";
+import { resolveStaffId } from "../domain/staffRoles.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -64,7 +65,7 @@ function opsLevel(gs,tid){
 export function forecastAccuracyForTeam(gs,tid){
   const year=Number(gs?.activeYear)||1980;
   const scored=activeStaff(gs,tid).map(c=>{
-    const r=staffRating(gs,staffId(c));
+    const r=staffRating(gs,resolveStaffId(gs,c));
     const role=lower(c?.role??c?.position);
     const w=/strateg|engineer|technical/.test(role)?1:/principal/.test(role)?0.45:0.60;
     return {w,score:num(r?.data_analysis,50)*0.58+num(r?.communication,50)*0.24+num(r?.technical,50)*0.18};
