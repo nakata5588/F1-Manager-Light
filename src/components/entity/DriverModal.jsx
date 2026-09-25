@@ -890,7 +890,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     <div className={`flex bg-[#090b10] text-slate-100 ${pageMode ? "min-h-[calc(100vh-5rem)] rounded-2xl border border-white/10 shadow-xl" : "h-[92vh]"}`}>
       <aside className="w-[360px] shrink-0 border-r border-white/10 bg-[#11141c] p-5 overflow-y-auto">
         <div className="flex items-center gap-3">
-          <DriverPortrait driver={driver} size="h-36 w-36" className="!rounded-xl"/>
+          <DriverPortrait driver={driver} size="h-36 w-36" className="!rounded-xl" editable/>
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Driver</div>
             <div className="text-xl font-semibold leading-tight truncate">{driverName}</div>

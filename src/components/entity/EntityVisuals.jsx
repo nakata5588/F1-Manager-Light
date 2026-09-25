@@ -1,6 +1,9 @@
 import React from "react";
+import { Camera, LoaderCircle } from "lucide-react";
 import { useGame } from "../../state/GameStore.js";
-import { historicalAssetCandidates } from "../../domain/historicalAssets.js";
+import { historicalAssetCandidatesFromSet, historicalAssetSet, mergeHistoricalAssetSets } from "../../domain/historicalAssets.js";
+import { visualAssetOverrideSet } from "../../domain/visualAssetOverrides.js";
+import { optimizeVisualAssetFile, visualUploadSizeLabel } from "../../domain/visualAssetUpload.js";
 
 const ISO3_TO_2 = Object.freeze({
   ARG:"AR", AUS:"AU", AUT:"AT", BEL:"BE", BRA:"BR", CAN:"CA", CHI:"CL", CHL:"CL",
@@ -143,50 +146,136 @@ function useActiveVisualYear(){
   return useGame((state)=>Number(state?.gameState?.activeYear??state?.gameState?.seasonYear)||1980);
 }
 
-function useHistoricalImageCandidates(type,aliases,activeYear,fallbacks=[]){
-  const aliasKey=(Array.isArray(aliases)?aliases:[aliases]).map((value)=>String(value??"")).join("|");
-  const fallbackKey=(Array.isArray(fallbacks)?fallbacks:[fallbacks]).map((value)=>String(value??"")).join("|");
-  const candidates=React.useMemo(
-    ()=>historicalAssetCandidates(type,aliases,activeYear,fallbacks),
-    [type,aliasKey,activeYear,fallbackKey]
+function compactVisualDependency(values){
+  return (Array.isArray(values)?values:[values]).map((value)=>{
+    const text=String(value??"");
+    return `${text.length}:${text.slice(0,32)}:${text.slice(-16)}`;
+  }).join("|");
+}
+
+function useHistoricalImageCandidates(type,entityId,aliases,activeYear,fallbacks=[]){
+  const overrideSet=useGame((state)=>
+    visualAssetOverrideSet(state?.gameState?.visualAssetOverrides,type,entityId)
   );
-  const signature=candidates.join("|");
+  const aliasKey=compactVisualDependency(aliases);
+  const fallbackKey=compactVisualDependency(fallbacks);
+  const candidates=React.useMemo(()=>{
+    const merged=mergeHistoricalAssetSets(historicalAssetSet(type,aliases),overrideSet);
+    return historicalAssetCandidatesFromSet(merged,activeYear,fallbacks);
+  },[type,entityId,aliasKey,activeYear,fallbackKey,overrideSet]);
   const [failedIndex,setFailedIndex]=React.useState(0);
-  React.useEffect(()=>setFailedIndex(0),[signature]);
+  React.useEffect(()=>setFailedIndex(0),[candidates]);
   return {
     src:candidates[failedIndex]||null,
     fail:()=>setFailedIndex((index)=>index+1),
   };
 }
 
-export function DriverPortrait({ driver, size = "h-8 w-8", className = "" }) {
+function UploadableVisual({children,editable=false,type,entityId,activeYear,label="image"}){
+  const inputRef=React.useRef(null);
+  const [busy,setBusy]=React.useState(false);
+  const setVisualAssetOverride=useGame((state)=>state.setVisualAssetOverride);
+  const pushToast=useGame((state)=>state.pushToast);
+
+  const onSelect=async(event)=>{
+    const file=event.target.files?.[0]||null;
+    event.target.value="";
+    if(!file||!entityId||!Number.isInteger(Number(activeYear)))return;
+    setBusy(true);
+    try{
+      const optimized=await optimizeVisualAssetFile(file);
+      setVisualAssetOverride?.({
+        type,
+        entityId:String(entityId),
+        year:Number(activeYear),
+        path:optimized.dataUrl,
+      });
+      pushToast?.({
+        title:"Image updated",
+        description:`${label} updated from ${activeYear} · ${optimized.width}×${optimized.height} · ${visualUploadSizeLabel(optimized.bytes)}`,
+        type:"success",
+        ttl:3000,
+      });
+    }catch(error){
+      pushToast?.({
+        title:"Image upload failed",
+        description:String(error?.message||error||"Could not process this image."),
+        type:"error",
+        ttl:4500,
+      });
+    }finally{
+      setBusy(false);
+    }
+  };
+
+  if(!editable||!entityId)return children;
+
+  return (
+    <span className="group relative inline-flex shrink-0">
+      <button
+        type="button"
+        onClick={()=>inputRef.current?.click()}
+        disabled={busy}
+        className="relative inline-flex rounded-xl p-0 text-left outline-none ring-sky-400/60 transition focus-visible:ring-2"
+        title={`Click to upload ${label} from ${activeYear}`}
+        aria-label={`Upload ${label} from ${activeYear}`}
+      >
+        {children}
+        <span className="pointer-events-none absolute inset-0 flex items-end justify-center rounded-[inherit] bg-black/0 pb-1.5 opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100 group-focus-within:bg-black/25 group-focus-within:opacity-100">
+          <span className="inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold text-white shadow">
+            {busy?<LoaderCircle size={12} className="animate-spin"/>:<Camera size={12}/>}
+            {busy?"Processing":"Change"}
+          </span>
+        </span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={onSelect}
+      />
+    </span>
+  );
+}
+
+export function DriverPortrait({ driver, size = "h-8 w-8", className = "", editable = false }) {
   const activeYear=useActiveVisualYear();
   const name = driver?.display_name || driver?.name || driver?.driver_name ||
     [driver?.first_name,driver?.last_name].filter(Boolean).join(" ") || "Driver";
   const driverId=driver?.driver_id??driver?.id??driver?.driverId??driver?.code??"";
   const image=useHistoricalImageCandidates(
     "drivers",
+    driverId,
     [driverId,name,driver?.driver_name],
     activeYear,
     [driver?.portrait_path,driver?.portrait]
   );
   const initials = name.split(/\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0,2).toUpperCase();
 
-  if (image.src) {
-    return (
-      <img
-        src={image.src}
-        alt={name}
-        className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
-        onError={image.fail}
-      />
-    );
-  }
-
-  return (
+  const visual=image.src?(
+    <img
+      src={image.src}
+      alt={name}
+      className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
+      onError={image.fail}
+    />
+  ):(
     <div className={`${size} rounded-full bg-gray-100 ring-1 ring-black/10 flex items-center justify-center text-[10px] font-semibold ${className}`}>
       {initials || "?"}
     </div>
+  );
+
+  return (
+    <UploadableVisual
+      editable={editable}
+      type="drivers"
+      entityId={driverId}
+      activeYear={activeYear}
+      label={`${name} portrait`}
+    >
+      {visual}
+    </UploadableVisual>
   );
 }
 
@@ -197,6 +286,7 @@ export function StaffPortrait({ staff, size = "h-8 w-8", className = "" }) {
   const staffId=staff?.staff_id??staff?.person_id??staff?.id??"";
   const image=useHistoricalImageCandidates(
     "staff",
+    staffId,
     [staffId,name],
     activeYear,
     [staff?.portrait_path,staff?.portrait,staff?.photo]
@@ -219,26 +309,48 @@ export function StaffPortrait({ staff, size = "h-8 w-8", className = "" }) {
   );
 }
 
-export function TeamLogo({ teamId, name = "Team", size = "h-8 w-8", className = "" }) {
+export function TeamLogo({
+  teamId,
+  name = "Team",
+  size = "h-8 w-8",
+  className = "",
+  fallbacks = [],
+  editable = false,
+}) {
   const activeYear=useActiveVisualYear();
   const id=String(teamId||"");
+  const legacyFallbacks=[
+    ...(Array.isArray(fallbacks)?fallbacks:[fallbacks]),
+    ...(id?[`/logos/teams/${id.toLowerCase()}.png`]:[]),
+  ];
   const image=useHistoricalImageCandidates(
     "teams",
+    id,
     [id,name],
     activeYear,
-    id?[`/logos/teams/${id.toLowerCase()}.png`]:[]
+    legacyFallbacks
   );
 
-  if (!image.src) {
-    return <div className={`${size} rounded bg-gray-100 ${className}`} />;
-  }
-
-  return (
+  const visual=image.src?(
     <img
       src={image.src}
       alt={name}
       className={`${size} object-contain rounded bg-white ${className}`}
       onError={image.fail}
     />
+  ):(
+    <div className={`${size} rounded bg-gray-100 ${className}`} />
+  );
+
+  return (
+    <UploadableVisual
+      editable={editable}
+      type="teams"
+      entityId={id}
+      activeYear={activeYear}
+      label={`${name} logo`}
+    >
+      {visual}
+    </UploadableVisual>
   );
 }

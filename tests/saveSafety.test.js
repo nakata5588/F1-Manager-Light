@@ -402,6 +402,41 @@ function raceFixture(seed = "race-regression") {
   };
 }
 
+
+
+test("uploaded visual assets survive save preparation and reload", () => {
+  const dataUrl="data:image/webp;base64,UPLOAD";
+  const state={
+    activeYear:1980,
+    currentDateISO:"1980-05-18",
+    currentRound:5,
+    team:{team_id:"t_0001",team_name:"Williams"},
+    standings:{drivers:[],teams:[]},
+    saveMeta:createNewSaveMeta({year:1980,teamId:"t_0001",seed:"visual-upload"}),
+    visualAssetOverrides:{
+      drivers:{
+        d_0117:{
+          default:"",
+          history:[{year:1980,path:dataUrl}],
+        },
+      },
+      staff:{},
+      teams:{},
+    },
+  };
+
+  const prepared=prepareGameStateForSave(state);
+  const restored=extractGameStateFromStoredSave({
+    meta:{version:GAME_VERSION},
+    gameState:prepared,
+  });
+
+  assert.equal(
+    restored.visualAssetOverrides.drivers.d_0117.history[0].path,
+    dataUrl
+  );
+});
+
 test("GP gameplay output is reproducible for the same save seed and entropy key", async () => {
   const gp = { gp_id: "monaco", gp_name: "Monaco Grand Prix", year: 1980 };
   const first = await runRaceWeekend(raceFixture(), { roundIndex: 4, gp });

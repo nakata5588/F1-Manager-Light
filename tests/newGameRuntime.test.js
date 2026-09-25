@@ -188,3 +188,25 @@ test("fresh career boundary rehydrates live and DB driver portraits", () => {
   assert.equal(fresh.drivers[0].portrait_path,"/portraits/drivers/d_0117.webp");
   assert.equal(fresh.dbDrivers[0].portrait_path,"/portraits/drivers/d_0178.webp");
 });
+
+
+test("fresh career never inherits uploaded visual overrides from a previous career", () => {
+  const fresh=buildFreshCareerState({
+    activeYear:1980,
+    drivers:[{driver_id:"d_0117",display_name:"Alain Prost"}],
+    visualAssetOverrides:{
+      drivers:{
+        d_0117:{
+          history:[{year:1980,path:"data:image/webp;base64,OLDCAREER"}],
+        },
+      },
+      teams:{},
+      staff:{},
+    },
+  },{
+    activeYear:1980,
+    currentDateISO:"1980-01-01",
+  });
+
+  assert.deepEqual(fresh.visualAssetOverrides,{drivers:{},staff:{},teams:{}});
+});

@@ -4,11 +4,10 @@ import { X } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
-import { countryNameFor, DriverPortrait, flagFromCountry } from "./EntityVisuals.jsx";
+import { countryNameFor, DriverPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { teamChampionshipSummary } from "../../domain/championshipHistory.js";
-import { historicalAssetCandidates } from "../../domain/historicalAssets.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -90,22 +89,6 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   // Must be initialized before logoCandidates: the historical asset alias
   // resolver uses the display name during render.
   const name = team?.team_name || team?.name || brand?.team_official_name || brand?.official_name || brand?.team_name || "Team";
-
-  /* ---------- Logos ---------- */
-  const logoCandidates = useMemo(() => historicalAssetCandidates(
-    "teams",
-    [idStr, team?.short_name, team?.team_name, team?.name, name],
-    year,
-    [
-      brand?.logo_path,
-      team?.logo_path,
-      team?.logo_data_url,
-      idStr?`/logos/${idStr}.png`:"",
-      idStr?`/logos/${idStr}.svg`:"",
-      idStr?`/logos/teams/${idStr}.png`:"",
-      idStr?`/logos/teams/${idStr}.svg`:"",
-    ]
-  ), [idStr, year, name, team?.short_name, team?.team_name, team?.name, team?.logo_path, team?.logo_data_url, brand?.logo_path]);
 
   /* ---------- Team Engines (fonte única para Engine Supplier/Power) ---------- */
   const teamEngines = getArr(gs, ["teamEngines","dbTeamEngines","team_engines","db_team_engines"]);
@@ -262,25 +245,14 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
       {/* HEADER */}
       <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* logo com fallback chain */}
-          {logoCandidates.length > 0 && (
-            <img
-              src={logoCandidates[0]}
-              alt={name}
-              className="h-10 w-10 object-contain rounded bg-white"
-              onError={(e) => {
-                const img = e.currentTarget;
-                const next = (img.dataset.next ? JSON.parse(img.dataset.next) : logoCandidates).slice(1);
-                if (next.length) {
-                  img.src = next[0];
-                  img.dataset.next = JSON.stringify(next);
-                } else {
-                  img.style.display = "none";
-                }
-              }}
-              data-next={JSON.stringify(logoCandidates)}
-            />
-          )}
+          <TeamLogo
+            teamId={idStr}
+            name={name}
+            size="h-12 w-12"
+            className="p-1 !rounded-lg"
+            fallbacks={[brand?.logo_path,team?.logo_path,team?.logo_data_url]}
+            editable
+          />
           <div>
             <div className="text-2xl font-extrabold leading-tight">{name}</div>
             <div className="flex items-center gap-3 text-sm text-slate-400">
