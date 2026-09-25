@@ -6,7 +6,7 @@ import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
-import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayMs } from "../domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs } from "../domain/racePlayback.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
@@ -617,6 +617,7 @@ export default function RaceWeekend(){
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const playerEntrants=collectionRows(weekend?.entrants).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
   const playerDriverIds=playerEntrants.map((row)=>String(row?.driver_id||"")).filter(Boolean);
+  const selectedPlayerEntry=playerEntrants.find((row)=>String(row?.driver_id||"")===String(selectedLiveDriverId||""))||null;
   const practiceResults=collectionRows(weekend?.practice?.results);
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
   const currentIndex=phaseIndex(weekend?.phase);
@@ -632,6 +633,9 @@ export default function RaceWeekend(){
   const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
   const liveRows=collectionRows(liveRace?.classification);
+  const playbackSectorMs=raceReferenceSectorMs(liveRows,liveRace?.current_sector,{
+    fallbackLapMs:raceStrategy?.track_snapshot?.reference_lap_ms||90000,
+  });
   const trackState=liveRace?.track_state||null;
   const timingSummary=liveRace?.timing_summary||null;
   const raceViewEvents=useMemo(()=>collectionRows(liveRace?.events).slice(-40).reverse().map((event)=>({
@@ -703,11 +707,10 @@ export default function RaceWeekend(){
       return;
     }
     setSelectedLiveDriverId((current)=>{
-      if(current&&liveRows.some((row)=>String(row?.driver_id??"")===String(current)))return current;
-      const own=liveRows.find((row)=>String(row?.team_id??"")===playerTeamId);
-      return String(own?.driver_id??liveRows[0]?.driver_id??"");
+      if(!current)return "";
+      return liveRows.some((row)=>String(row?.driver_id??"")===String(current))?current:"";
     });
-  },[Boolean(liveRace),liveRows.length,playerTeamId]);
+  },[Boolean(liveRace),liveRows.length]);
   useEffect(()=>{
     if(!liveRace||weekend?.phase!=="race"||!racePlaybackCanRun(liveRace)){
       if(racePlaying)setRacePlaying(false);
@@ -716,7 +719,7 @@ export default function RaceWeekend(){
     if(!racePlaying||busy)return undefined;
     const timer=window.setTimeout(()=>{
       perform(()=>advanceLiveRaceSector(1));
-    },racePlaybackDelayMs(racePlaybackSpeed));
+    },racePlaybackDelayMs(racePlaybackSpeed,playbackSectorMs));
     return ()=>window.clearTimeout(timer);
   },[
     racePlaying,
@@ -727,6 +730,7 @@ export default function RaceWeekend(){
     liveRace?.current_lap,
     liveRace?.current_sector,
     liveRace?.total_laps,
+    playbackSectorMs,
   ]);
   useEffect(()=>{
     if(!liveRace)return;
@@ -1456,7 +1460,7 @@ export default function RaceWeekend(){
 
 
         {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
-          <div className="rounded-xl border border-white/10 bg-[#11161f] pb-44 text-slate-100 shadow-xl overflow-hidden xl:pb-24">
+          <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
             <div className="border-b border-white/10 bg-[#0b1017] p-2 md:p-3">
               <Track2DView
                 trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
@@ -1481,6 +1485,8 @@ export default function RaceWeekend(){
                 onSelectEvent={(event)=>openRaceEvent(event)}
                 playbackRunning={racePlaying}
                 playbackSpeed={racePlaybackSpeed}
+                playbackBaseSectorMs={playbackSectorMs}
+                lapLengthKm={raceStrategy?.track_snapshot?.lap_length_km||practiceTrackInputs.lap_length_km||null}
                 busy={busy}
                 onRestartRace={()=>perform(resumeLiveRace)}
                 onConfirmResults={()=>perform(runRace)}
@@ -1555,9 +1561,9 @@ export default function RaceWeekend(){
               </div>:null}
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[44vh] overflow-y-auto border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl xl:max-h-none xl:overflow-visible">
-              <div className="mx-auto grid max-w-[1800px] gap-2 xl:grid-cols-2">
-                {playerEntrants.map((entry)=>{
+            {selectedPlayerEntry?<div className="fixed bottom-3 left-1/2 z-50 w-[min(980px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-xl border border-white/15 bg-[#0b0f16]/96 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+              <div className="grid gap-2">
+                {playerEntrants.filter((entry)=>String(entry?.driver_id||"")===String(selectedLiveDriverId||"")).map((entry)=>{
                   const did=String(entry.driver_id);
                   const driver=driverObject(drivers,did);
                   const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
@@ -1578,7 +1584,8 @@ export default function RaceWeekend(){
                     !pending.some((command)=>command?.type==="team_order")
                   );
                   const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
-                  return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  return <div className={"relative grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 pr-9 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                    <button type="button" onClick={()=>setSelectedLiveDriverId("")} title="Close driver controls" className="absolute right-2 top-2 rounded border border-white/10 bg-black/25 p-1 text-slate-500 hover:bg-white/[0.08] hover:text-slate-200"><X className="h-3.5 w-3.5"/></button>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
@@ -1623,7 +1630,7 @@ export default function RaceWeekend(){
                   </div>;
                 })}
               </div>
-            </div>
+            </div>:null}
           </div>
         )}
 
