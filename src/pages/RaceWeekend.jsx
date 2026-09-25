@@ -605,9 +605,9 @@ export default function RaceWeekend(){
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
   const repairRedFlagDamage=useGame((s)=>s.repairRaceWeekendRedFlagDamage);
+  const setRedFlagStrategy=useGame((s)=>s.setRaceWeekendRedFlagStrategy);
   const fastForwardLiveRaceRestart=useGame((s)=>s.fastForwardRaceWeekendLiveRaceRestart);
-  const prepareLiveRaceRestart=useGame((s)=>s.prepareRaceWeekendLiveRaceRestart);
-  const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
+  const restartLiveRace=useGame((s)=>s.restartRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
   const pushToast=useGame((s)=>s.pushToast);
@@ -643,6 +643,9 @@ export default function RaceWeekend(){
   const hasActivePitStop=Object.values(liveRace?.pit_states||{}).some((state)=>state?.active);
   const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
+  const restartGridRows=collectionRows(redFlagLifecycle?.restart_grid)
+    .slice()
+    .sort((a,b)=>Number(a?.restart_position??999)-Number(b?.restart_position??999));
   const liveRows=collectionRows(liveRace?.classification);
   const playbackSectorMs=raceReferenceSectorMs(liveRows,liveRace?.current_sector,{
     fallbackLapMs:raceStrategy?.track_snapshot?.reference_lap_ms||90000,
@@ -1538,7 +1541,7 @@ export default function RaceWeekend(){
                 playbackBaseSectorMs={playbackSectorMs}
                 lapLengthKm={raceStrategy?.track_snapshot?.lap_length_km||practiceTrackInputs.lap_length_km||null}
                 busy={busy}
-                onRestartRace={()=>perform(resumeLiveRace)}
+                onRestartRace={()=>perform(restartLiveRace)}
                 onConfirmResults={()=>perform(runRace)}
               />
               {liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
