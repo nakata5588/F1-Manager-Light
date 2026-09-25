@@ -6,6 +6,7 @@ import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
+import { normalPitRepairRecord } from "./PitServiceEngine.js";
 import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
 import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { rngFor } from "../core/random.js";
@@ -688,6 +689,90 @@ function pitServiceTyreState(gs,row,state){
     source:"live_pit_service",
   };
 }
+function pitServiceDamageState(row,state){
+  const after=state?.service?.repair?.damage_after;
+  if(!after)return row;
+  const damaged=Array.isArray(after?.damaged_components)?after.damaged_components:[];
+  return {
+    ...row,
+    damage_state:damaged.length?structuredClone(after):null,
+    damage_severity:damaged.length?after.severity:"none",
+    damaged_components:[...damaged],
+    damage_pace_loss_s_per_lap:Number(after?.pace_loss_s_per_lap||0),
+  };
+}
+function pitRepairRecordForState(gs,state){
+  if(!state?.service?.damage_repair||!state?.service?.repair?.repaired_components?.length)return null;
+  return normalPitRepairRecord({
+    driverId:state.driver_id,
+    teamId:teamForDriver(gs,state.driver_id),
+    service:state.service,
+    lap:Math.max(1,Number(state?.entry_lap)||1),
+    sector:Math.max(1,Math.min(3,Number(state?.entry_sector)||3)),
+    stopKey:state.stop_key,
+  });
+}
+function appendPitRepairRecords(plan,records=[]){
+  const current=Array.isArray(plan?.damage_repairs)?plan.damage_repairs:[];
+  const next=[...current];
+  const keys=new Set(current.map((row)=>String(row?.pit_stop_key||"")).filter(Boolean));
+  for(const record of records||[]){
+    if(!record)continue;
+    const key=String(record?.pit_stop_key||"");
+    if(key&&keys.has(key))continue;
+    const duplicate=!key&&next.some((row)=>
+      String(row?.driver_id||"")===String(record?.driver_id||"")&&
+      Number(row?.repair_ordinal||0)===Number(record?.repair_ordinal||0)&&
+      String(row?.source||"")===String(record?.source||"")
+    );
+    if(duplicate)continue;
+    next.push(record);
+    if(key)keys.add(key);
+  }
+  return {...(plan||{}),damage_repairs:next};
+}
+function completedPitRepairRecordsFromLive(gs,live){
+  const states=[
+    ...(Array.isArray(live?.pit_history)?live.pit_history:[]),
+    ...Object.values(live?.pit_states||{}),
+  ];
+  return states
+    .filter((state)=>state?.service?.completed&&state?.service?.damage_repair)
+    .map((state)=>pitRepairRecordForState(gs,state))
+    .filter(Boolean);
+}
+function completedPitRepairRecordsForInterval(gs,race,{currentOrdinal,targetOrdinal,progressive=true}={}){
+  const records=[];
+  for(const row of race||[]){
+    const did=idOf(row?.driver||row);
+    const stops=Array.isArray(row?.pit_stops)?row.pit_stops:[];
+    stops.forEach((stop,index)=>{
+      if(!stop?.service?.repair?.repaired_components?.length)return;
+      const stopLap=Math.max(1,Number(stop?.lap)||1);
+      const entryLap=stopLap<=1?1:stopLap-1;
+      const entrySector=stopLap<=1?1:3;
+      const startOrdinal=pointOrdinal(entryLap,entrySector);
+      if(!(startOrdinal>Number(currentOrdinal||0)&&startOrdinal<=Number(targetOrdinal||0)))return;
+      if(progressive&&startOrdinal===Number(targetOrdinal||0))return;
+      const key=livePitStopKey(did,stop,index+1);
+      const service={
+        ...(stop?.service||{}),
+        damage_repair:true,
+        repair:structuredClone(stop.service.repair),
+        completed:true,
+      };
+      records.push(normalPitRepairRecord({
+        driverId:did,
+        teamId:teamForDriver(gs,did),
+        service,
+        lap:entryLap,
+        sector:entrySector,
+        stopKey:key,
+      }));
+    });
+  }
+  return records.filter(Boolean);
+}
 function advancePitLifecycleOnLiveState(gs,live,deltaMs,{settle=false,emitPhaseEvents=true}={}){
   const currentStates={...(live?.pit_states||{})};
   if(!Object.values(currentStates).some((state)=>state?.active))return live;
@@ -711,12 +796,36 @@ function advancePitLifecycleOnLiveState(gs,live,deltaMs,{settle=false,emitPhaseE
         pit_state:next,
         in_pit:!next.completed,
       };
-      if(next?.service?.completed&&!current?.service?.completed&&next?.service?.tyre_change){
+      const serviceJustCompleted=Boolean(next?.service?.completed&&!current?.service?.completed);
+      if(serviceJustCompleted&&next?.service?.tyre_change){
         patched={...patched,tyre:pitServiceTyreState(gs,patched,next)};
+      }
+      if(serviceJustCompleted&&next?.service?.damage_repair){
+        patched=pitServiceDamageState(patched,next);
       }
       return patched;
     });
 
+    const serviceJustCompleted=Boolean(next?.service?.completed&&!current?.service?.completed);
+    if(emitPhaseEvents&&serviceJustCompleted&&next?.service?.damage_repair){
+      const repair=next.service.repair||{};
+      const repaired=(repair.repaired_components||[]).map((component)=>String(component).replaceAll("_"," "));
+      const recovered=Math.max(0,Number(repair.pace_loss_before_s_per_lap||0)-Number(repair.pace_loss_after_s_per_lap||0));
+      pushUniqueEvent(events,{
+        event_key:`pit_service:repair:${next.stop_key}`,
+        lap:Number(live?.current_lap)||0,
+        sector:Number(live?.current_sector)||0,
+        type:"pit_service",
+        work_type:"damage_repair",
+        driver_id:String(did),
+        driver_name:driverDisplayName(gs,did),
+        repaired_components:[...(repair.repaired_components||[])],
+        repair_duration_s:Number(repair.duration_s||0),
+        pace_loss_before_s_per_lap:Number(repair.pace_loss_before_s_per_lap||0),
+        pace_loss_after_s_per_lap:Number(repair.pace_loss_after_s_per_lap||0),
+        message:`${driverDisplayName(gs,did)} completed pit repairs to ${repaired.join(", ")}${recovered>0?` (~${recovered.toFixed(2)}s/lap recovered)`:""}.`,
+      });
+    }
     if(emitPhaseEvents&&String(next?.phase||"")!==String(current?.phase||"")&&!next.completed){
       pushUniqueEvent(events,{
         event_key:`pit_phase:${next.stop_key}:${next.phase}`,
@@ -809,7 +918,10 @@ function materializePitStarts(gs,live,race,classification,events,{currentOrdinal
       });
       if(!state)return;
       knownKeys.add(key);
-      if(progressive&&startOrdinal===Number(targetOrdinal)){
+      if(startOrdinal===Number(targetOrdinal)){
+        // Reaching the pit-entry point is not the same as completing service.
+        // This applies to both sector playback and coarse +Lap advancement:
+        // the stop remains active until time/track progress moves beyond entry.
         pitStates[did]=state;
         nextRows=nextRows.map((row)=>
           String(row?.driver_id||"")===did?{...row,pit_state:state,in_pit:true}:row
@@ -1039,7 +1151,7 @@ export function createLiveRaceState(gs,{gp={}}={}){
   };
 }
 
-export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder,teammateId}={}){
+export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,tyreChange=true,repairDamage=false,repairComponents=null,refuel=false,teamOrder,teammateId}={}){
   const weekend=gs?.raceWeekendState, live=weekend?.live_race;
   if(!weekend||weekend.phase!=="race"||live?.status!=="running"||!driverId)return gs;
   const did=String(driverId), teamId=teamForDriver(gs,did), playerTeam=String(gs?.team?.team_id??gs?.team?.id??"");
@@ -1048,9 +1160,29 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder
   let command=null;
   if(type==="pace"&&Object.hasOwn(RACE_PACE_MODES,String(paceMode)))command={type:"pace",pace_mode:String(paceMode),effective_lap:effectiveLap};
   else if(type==="pit"){
+    const current=(live?.classification||[]).find((row)=>String(row?.driver_id||"")===did);
+    if(!current||current?.retired)return gs;
+    const visibleDamage=new Set((current?.damage_state?.damaged_components||[]).map(String));
+    const requestedRepairs=(Array.isArray(repairComponents)?repairComponents:repairDamage?[...visibleDamage]:[])
+      .map(String)
+      .filter((component)=>visibleDamage.has(component));
+    const wantsTyres=tyreChange!==false;
     const valid=new Set(tyresForTeam(gs,teamId).map((row)=>String(row?.tyre_id??row?.id??"")));
-    if(!valid.has(String(tyreId)))return gs;
-    command={type:"pit",tyre_id:String(tyreId),effective_lap:effectiveLap};
+    if(wantsTyres&&!valid.has(String(tyreId)))return gs;
+    const refuelAllowed=Boolean(weekend?.race_strategy?.rules_snapshot?.refuelling_allowed);
+    const wantsRefuel=Boolean(refuel&&refuelAllowed);
+    if(!wantsTyres&&!requestedRepairs.length&&!wantsRefuel)return gs;
+    command={
+      type:"pit",
+      tyre_id:wantsTyres?String(tyreId):null,
+      tyre_change:wantsTyres,
+      repair_components:requestedRepairs,
+      repair_damage_snapshot:requestedRepairs.length&&current?.damage_state
+        ?structuredClone(current.damage_state)
+        :null,
+      refuel:wantsRefuel,
+      effective_lap:effectiveLap,
+    };
   }else if(type==="team_order"&&String(teamOrder)==="yield"&&teammateId){
     const mateId=String(teammateId);
     if(mateId===did||teamForDriver(gs,mateId)!==teamId)return gs;
@@ -1105,7 +1237,13 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder
   const commandMessage=command.type==="pace"
     ?`${driverName} was told to ${paceInstruction(command.pace_mode)} from lap ${effectiveLap}.`
     :command.type==="pit"
-      ?`${driverName} was told to pit next lap for ${tyreDisplayName(gs,did,command.tyre_id)} tyres.`
+      ?(()=>{
+        const actions=[];
+        if(command.tyre_change)actions.push(`${tyreDisplayName(gs,did,command.tyre_id)} tyres`);
+        if(command.repair_components?.length)actions.push(`repairs: ${command.repair_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")}`);
+        if(command.refuel)actions.push("refuelling");
+        return `${driverName} was told to pit next lap for ${actions.join(" + ")}.`;
+      })()
       :`${driverName} was told to let ${driverDisplayName(gs,command.teammate_id)} through from lap ${effectiveLap}.`;
   return {
     ...gs,
@@ -1142,7 +1280,7 @@ export function cancelLiveRaceCommand(gs,{driverId,type=null}={}){
   const nextCommands=existing.filter((row)=>row!==target);
   const driverName=driverDisplayName(gs,did);
   const orderLabel=target.type==="pit"
-    ?`pit order for ${tyreDisplayName(gs,did,target.tyre_id)} tyres`
+    ?"pit service order"
     :target.type==="team_order"
       ?`team order to let ${driverDisplayName(gs,target.teammate_id)} through`
       :`${paceInstruction(target.pace_mode)} pace order`;
@@ -1170,9 +1308,36 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   let live=weekend?.live_race;
   if(!live||live.status!=="running")return working;
 
+  const reconciledHistoricalPlan=appendPitRepairRecords(
+    weekend?.race_strategy?.race_control_plan||{},
+    completedPitRepairRecordsFromLive(working,live)
+  );
+  if(reconciledHistoricalPlan!==weekend?.race_strategy?.race_control_plan){
+    working={
+      ...working,
+      raceWeekendState:{
+        ...weekend,
+        race_strategy:{...weekend.race_strategy,race_control_plan:reconciledHistoricalPlan},
+      },
+    };
+    weekend=working.raceWeekendState;
+    live=weekend.live_race;
+  }
+
   if(Object.values(live?.pit_states||{}).some((state)=>state?.active)){
     live=advancePitLifecycleOnLiveState(working,live,0,{settle:true,emitPhaseEvents:false});
-    working={...working,raceWeekendState:{...working.raceWeekendState,live_race:live}};
+    const repairedPlan=appendPitRepairRecords(
+      working?.raceWeekendState?.race_strategy?.race_control_plan||{},
+      completedPitRepairRecordsFromLive(working,live)
+    );
+    working={
+      ...working,
+      raceWeekendState:{
+        ...working.raceWeekendState,
+        race_strategy:{...working.raceWeekendState.race_strategy,race_control_plan:repairedPlan},
+        live_race:live,
+      },
+    };
     weekend=working.raceWeekendState;
   }
 
@@ -1196,7 +1361,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   // Recalculate only future hazards. Observed sectors are locked in the Save World.
   const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   const freshPlan=createRaceControlPlan(hazardSimulation.gameState,{gp,race:hazardSimulation.race,weather:hazardSimulation.weather,track:hazardSimulation.track});
-  const plan=mergeRaceControlHistory(planBefore,freshPlan,currentLap,currentSector||3);
+  let plan=mergeRaceControlHistory(planBefore,freshPlan,currentLap,currentSector||3);
   working={
     ...hazardSimulation.gameState,
     raceWeekendState:{
@@ -1217,6 +1382,21 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
 
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
+  plan=appendPitRepairRecords(
+    plan,
+    completedPitRepairRecordsForInterval(working,simulation.race,{
+      currentOrdinal,
+      targetOrdinal,
+      progressive:sectors!==null&&sectors!==undefined,
+    })
+  );
+  working={
+    ...working,
+    raceWeekendState:{
+      ...working.raceWeekendState,
+      race_strategy:{...working.raceWeekendState.race_strategy,race_control_plan:plan},
+    },
+  };
   let classification=visibleClassification(
     working,
     simulation.race,
@@ -1445,9 +1625,22 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
           pit_lane_loss_s:Number(stop.pit_lane_loss_s),
           total_loss_s:Number(stop.total_loss_s),
           crew_error:Boolean(stop.error),
+          service:stop?.service?structuredClone(stop.service):null,
+          tyre_changed:stop?.tyre_changed!==false,
+          repaired_components:[...(stop?.service?.repair?.repaired_components||[])],
+          repair_duration_s:Number(stop?.service?.repair?.duration_s||0),
           position_before:positionBefore,
           position_after:positionAfter,
-          message:`${driverName} changed from ${previousTyre} to ${nextTyre} tyres (${Number(stop.stationary_s).toFixed(1)}s stationary, ${Number(stop.total_loss_s).toFixed(1)}s total loss${positionText}${stop.error?`, crew delay +${Number(stop.crew_error_delay_s||0).toFixed(1)}s`:""}).`,
+          message:(()=>{
+            const actions=[];
+            if(stop?.tyre_changed!==false)actions.push(`changed from ${previousTyre} to ${nextTyre} tyres`);
+            else actions.push("kept the current tyres");
+            if(stop?.service?.repair?.repaired_components?.length){
+              actions.push(`repaired ${stop.service.repair.repaired_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")}`);
+            }
+            if(stop?.refuelled)actions.push("refuelled");
+            return `${driverName} ${actions.join(" and ")} (${Number(stop.stationary_s).toFixed(1)}s stationary, ${Number(stop.total_loss_s).toFixed(1)}s total loss${positionText}${stop.error?`, crew delay +${Number(stop.crew_error_delay_s||0).toFixed(1)}s`:""}).`;
+          })(),
         });
       }
     }
@@ -1498,6 +1691,14 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   );
   classification=pitLifecycle.classification;
   events=pitLifecycle.events;
+  plan=appendPitRepairRecords(
+    plan,
+    completedPitRepairRecordsFromLive(working,{
+      ...live,
+      pit_states:pitLifecycle.pit_states,
+      pit_history:pitLifecycle.pit_history,
+    })
+  );
 
   const activeRows=classification.filter((row)=>!row.retired);
   const fastest=classification
@@ -1551,6 +1752,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
+      race_strategy:{...working.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
         ...live,
         version:4,
@@ -1584,10 +1786,15 @@ export function advanceLivePitClock(gs,{deltaMs=250}={}){
   if(!weekend||weekend.phase!=="race"||live?.status!=="running")return gs;
   if(!Object.values(live?.pit_states||{}).some((state)=>state?.active))return gs;
   const nextLive=advancePitLifecycleOnLiveState(gs,live,Math.max(1,Math.round(Number(deltaMs)||250)));
+  const nextPlan=appendPitRepairRecords(
+    weekend?.race_strategy?.race_control_plan||{},
+    completedPitRepairRecordsFromLive(gs,nextLive)
+  );
   return {
     ...gs,
     raceWeekendState:{
       ...weekend,
+      race_strategy:{...weekend.race_strategy,race_control_plan:nextPlan},
       live_race:nextLive,
     },
   };
