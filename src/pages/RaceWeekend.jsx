@@ -804,7 +804,7 @@ export default function RaceWeekend(){
   });
 
   return <div className="min-h-[calc(100vh-3.5rem)] bg-[#080b11] p-2 md:p-3 text-slate-100 grid gap-2 content-start">
-    {!(activeWindow==="live"&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
+    {!((activeWindow==="live"||activeWindow==="detailed_timing")&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
       <div className="grid grid-cols-5 gap-1">
         {STEPS.map(([id,label],index)=>{
           const state=index<currentIndex?"complete":index===currentIndex?"active":"upcoming";
