@@ -26,7 +26,9 @@ import {
   fitPhysicalPartUnit,
   normalizePhysicalPartState,
   partDesignById,
+  partDesignOperational,
   partUnitById,
+  partUnitOperational,
   removePhysicalPartUnit,
   updatePhysicalPartUnitCondition,
   warehousePartUnitsForDesign,
@@ -249,10 +251,13 @@ function componentBaseline(gs,teamId,slot){
 const MAX_SLOT_DEVELOPMENT_STRENGTH=6.0;
 
 function completedDesignCount(state,slot){
-  return (state?.development?.parts||[]).filter((part)=>str(part?.slot)===str(slot)).length;
+  return (state?.development?.parts||[])
+    .filter((part)=>partDesignOperational(part))
+    .filter((part)=>str(part?.slot)===str(slot)).length;
 }
 function bestDesignStrength(state,slot){
   return (state?.development?.parts||[])
+    .filter((part)=>partDesignOperational(part))
     .filter((part)=>str(part?.slot)===str(slot))
     .reduce((best,part)=>Math.max(best,num(part?.perf,0)),0);
 }
@@ -281,10 +286,11 @@ function installedSlotDevelopmentBonus(gs,teamId,slot){
     const ref=car?.installedParts?.[slot];
     if(!ref)return 0;
     const unit=partUnitById(local,ref);
+    if(unit&&!partUnitOperational(unit))return 0;
     const design=unit
       ?partDesignById(local,unit.design_id)
       :partDesignById(local,ref);
-    if(!design)return 0;
+    if(!partDesignOperational(design))return 0;
     const condition=unit?clamp(unit?.condition??100)/100:1;
     return num(design?.perf,0)*Math.max(0.55,condition);
   });
@@ -1898,8 +1904,9 @@ function completeDesigns(gs,teamId,state,today){
         id:designId,name:project.name,slot:project.type,
         version:`AI-${completedDesignCount(state,project.type)+1}`,
         perf:num(project.target_design_perf,project.perf_delta),inv:0,in_manufacturing:0,
+        status:"current",legal_for_season:true,season_year:yearOf(gs),
         prototype:true,created_from:project.id,ai_team_id:str(teamId),
-        development_focus:project.objective_id||"balanced",
+        development_focus:project.objective_id||"balanced",created_at:today,
       };
       parts.push({
         ...draft,
@@ -1940,7 +1947,10 @@ function queueManufacturing(gs,teamId,state,today){
   if(activeManufacturing(state).length)return state;
   const parts=state?.development?.parts||[];
   const candidate=parts.slice().reverse().find((part)=>{
-    const units=(state?.development?.partUnits||[]).filter((u)=>str(u?.design_id)===str(part?.id));
+    if(!partDesignOperational(part))return false;
+    const units=(state?.development?.partUnits||[])
+      .filter((u)=>partUnitOperational(u))
+      .filter((u)=>str(u?.design_id)===str(part?.id));
     return units.length<2&&num(part?.in_manufacturing,0)<=0;
   });
   if(!candidate)return state;
