@@ -13,6 +13,7 @@ import { raceControlAtLap } from "./RaceControlEngine.js";
 import { incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { buildPitServiceSchedule } from "./PitServiceEngine.js";
 import { aiPitRepairDecision } from "./AIPitRepairEngine.js";
+import { applyPitTrafficModel } from "./PitTrafficEngine.js";
 import { raceForecastForTeam, raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { aiTyreCrossoverDecision, tyreWeatherPenaltyForWetness } from "./TyreCrossoverEngine.js";
 import {
@@ -1207,6 +1208,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     raceRows.push({
       pos:0,
       driver,
+      team_id:tid,
       performance:basePerf,
       total_time_ms:totalMs,
       gap_to_winner_ms:0,
@@ -1249,6 +1251,13 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       },
     });
   }
+
+  const trafficAdjustedRows=applyPitTrafficModel(raceRows,{
+    year:Number(working?.activeYear)||1980,
+    pitCrews:working?.raceStrategyWorld?.pitCrews||{},
+  });
+  raceRows.length=0;
+  raceRows.push(...trafficAdjustedRows);
 
   raceRows.sort((a,b)=>Number(a.total_time_ms)-Number(b.total_time_ms)||String(idOf(a.driver)).localeCompare(String(idOf(b.driver))));
   let previousGap=0;

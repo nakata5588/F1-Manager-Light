@@ -14,27 +14,34 @@ const clamp=(value,min=0,max=Infinity)=>Math.max(min,Math.min(max,num(value,min)
 export const LIVE_PIT_PHASES=Object.freeze([
   "pit_entry",
   "pit_lane",
+  "pit_queue",
   "pit_box",
+  "pit_release",
   "pit_exit",
   "rejoin",
 ]);
 
 function phaseDurationsMs(stop){
-  const laneMs=Math.max(0,Math.round(num(stop?.pit_lane_loss_s,0)*1000));
+  const baseLaneMs=Math.max(0,Math.round(num(stop?.pit_lane_loss_s,0)*1000));
+  const trafficMs=Math.max(0,Math.round(num(stop?.pit_lane_traffic_loss_s,0)*1000));
+  const queueMs=Math.max(0,Math.round(num(stop?.queue_delay_s,0)*1000));
   const stationaryMs=Math.max(0,Math.round(num(stop?.stationary_s,0)*1000));
+  const releaseMs=Math.max(0,Math.round(num(stop?.release_delay_s,0)*1000));
 
-  // These are shares of the already-authoritative pit-loss budget, not SVG
-  // distances and not a second pit-loss model. The split only controls when
-  // the known loss becomes visible during Live Race.
-  const entry=Math.round(laneMs*0.15);
-  const lane=Math.round(laneMs*0.38);
-  const exit=Math.round(laneMs*0.32);
-  const rejoin=Math.max(0,laneMs-entry-lane-exit);
+  // These are shares of already-authoritative timing, never SVG distances.
+  // RW5.3C keeps queue and release holds explicit while lane traffic is
+  // experienced during the pit-lane phase.
+  const entry=Math.round(baseLaneMs*0.15);
+  const lane=Math.round(baseLaneMs*0.38)+trafficMs;
+  const exit=Math.round(baseLaneMs*0.32);
+  const rejoin=Math.max(0,baseLaneMs-entry-(lane-trafficMs)-exit);
 
   return [
     {phase:"pit_entry",duration_ms:entry,loss_ms:entry},
     {phase:"pit_lane",duration_ms:lane,loss_ms:lane},
+    {phase:"pit_queue",duration_ms:queueMs,loss_ms:queueMs},
     {phase:"pit_box",duration_ms:stationaryMs,loss_ms:stationaryMs},
+    {phase:"pit_release",duration_ms:releaseMs,loss_ms:releaseMs},
     {phase:"pit_exit",duration_ms:exit,loss_ms:exit},
     {phase:"rejoin",duration_ms:rejoin,loss_ms:rejoin},
   ];
@@ -63,7 +70,11 @@ export function createLivePitState({
   const totalFromPhases=phases.reduce((sum,row)=>sum+Number(row.loss_ms||0),0);
   const authoritativeTotal=Math.max(0,Math.round(num(
     stop?.total_loss_s,
-    num(stop?.pit_lane_loss_s,0)+num(stop?.stationary_s,0)
+    num(stop?.pit_lane_loss_s,0)+
+      num(stop?.stationary_s,0)+
+      num(stop?.queue_delay_s,0)+
+      num(stop?.pit_lane_traffic_loss_s,0)+
+      num(stop?.release_delay_s,0)
   )*1000));
   const correction=authoritativeTotal-totalFromPhases;
   if(phases.length&&correction!==0){
@@ -93,9 +104,13 @@ export function createLivePitState({
     loss_elapsed_ms:0,
     loss_total_ms:authoritativeTotal,
     lane_elapsed_ms:0,
-    lane_total_ms:Math.max(0,Math.round(num(stop?.pit_lane_loss_s,0)*1000)),
+    lane_total_ms:Math.max(0,Math.round((num(stop?.pit_lane_loss_s,0)+num(stop?.pit_lane_traffic_loss_s,0))*1000)),
+    queue_elapsed_ms:0,
+    queue_total_ms:Math.max(0,Math.round(num(stop?.queue_delay_s,0)*1000)),
     box_elapsed_ms:0,
     stationary_total_ms:Math.max(0,Math.round(num(stop?.stationary_s,0)*1000)),
+    release_elapsed_ms:0,
+    release_total_ms:Math.max(0,Math.round(num(stop?.release_delay_s,0)*1000)),
     exit_elapsed_ms:0,
     exit_total_ms:phases
       .filter((row)=>["pit_exit","rejoin"].includes(row.phase))
@@ -116,6 +131,18 @@ export function createLivePitState({
     },
     crew_error_delay_ms:Math.max(0,Math.round(num(stop?.crew_error_delay_s,0)*1000)),
     crew_error:Boolean(stop?.error),
+    pit_traffic:{
+      model:stop?.pit_traffic_model||stop?.service?.pit_traffic?.model||null,
+      double_stack:Boolean(stop?.double_stack||stop?.service?.pit_traffic?.double_stack),
+      box_queue_position:Number(stop?.box_queue_position||stop?.service?.pit_traffic?.box_queue_position||1),
+      box_occupied_delay_ms:Math.max(0,Math.round(num(stop?.box_occupied_delay_s,0)*1000)),
+      crew_prep_delay_ms:Math.max(0,Math.round(num(stop?.crew_prep_delay_s,0)*1000)),
+      pit_lane_traffic_loss_ms:Math.max(0,Math.round(num(stop?.pit_lane_traffic_loss_s,0)*1000)),
+      release_delay_ms:Math.max(0,Math.round(num(stop?.release_delay_s,0)*1000)),
+      pit_lane_conflict_count:Math.max(0,Math.round(num(stop?.pit_lane_conflict_count,0))),
+      release_conflict_count:Math.max(0,Math.round(num(stop?.release_conflict_count,0))),
+      release_hold:Boolean(stop?.release_hold),
+    },
     race_control:String(stop?.race_control||"GREEN"),
     reason:stop?.reason??null,
     position_before:Number.isFinite(Number(positionBefore))?Number(positionBefore):null,
@@ -136,10 +163,18 @@ function withDerivedPhaseClocks(state){
     .filter((row)=>lanePhases.has(row.phase))
     .reduce((sum,row)=>sum+Number(row.duration_ms||0),0)
     +(lanePhases.has(phase)?elapsed:0);
+  const queueElapsed=completedBefore
+    .filter((row)=>row.phase==="pit_queue")
+    .reduce((sum,row)=>sum+Number(row.duration_ms||0),0)
+    +(phase==="pit_queue"?elapsed:0);
   const boxElapsed=completedBefore
     .filter((row)=>row.phase==="pit_box")
     .reduce((sum,row)=>sum+Number(row.duration_ms||0),0)
     +(phase==="pit_box"?elapsed:0);
+  const releaseElapsed=completedBefore
+    .filter((row)=>row.phase==="pit_release")
+    .reduce((sum,row)=>sum+Number(row.duration_ms||0),0)
+    +(phase==="pit_release"?elapsed:0);
   const exitElapsed=completedBefore
     .filter((row)=>exitPhases.has(row.phase))
     .reduce((sum,row)=>sum+Number(row.duration_ms||0),0)
@@ -151,7 +186,9 @@ function withDerivedPhaseClocks(state){
   return {
     ...state,
     lane_elapsed_ms:Math.min(Number(state?.lane_total_ms)||0,laneElapsed),
+    queue_elapsed_ms:Math.min(Number(state?.queue_total_ms)||0,queueElapsed),
     box_elapsed_ms:Math.min(Number(state?.stationary_total_ms)||0,boxElapsed),
+    release_elapsed_ms:Math.min(Number(state?.release_total_ms)||0,releaseElapsed),
     exit_elapsed_ms:Math.min(Number(state?.exit_total_ms)||0,exitElapsed),
     service:{...(state?.service||{}),completed:serviceCompleted},
   };

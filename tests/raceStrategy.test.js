@@ -604,3 +604,47 @@ test("RW5.3B.2C AI never repairs damage before the incident is observable",()=>{
   assert.ok(Number.isFinite(decision.projected_damage_loss_s));
   assert.ok(Number.isFinite(decision.repair_cost_s));
 });
+
+
+test("RW5.3C RaceStrategy applies double-stack delay when both team cars pit together",()=>{
+  let seeded=fixture();
+  const leadRating=seeded.driverRatings.find((row)=>row.driver_id==="d_w1");
+  seeded={
+    ...seeded,
+    driverRatings:seeded.driverRatings.map((row)=>
+      row.driver_id==="d_w2"?{...leadRating,driver_id:"d_w2"}:row
+    ),
+  };
+  const base=withStrategy(seeded);
+  const liveCommands={
+    d_w1:[{type:"pit",tyre_id:"gy_s",tyre_change:true,effective_lap:5}],
+    d_w2:[{type:"pit",tyre_id:"gy_s",tyre_change:true,effective_lap:5}],
+  };
+  const raceGs={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      live_race:{status:"running",current_lap:4,current_sector:3,total_laps:30},
+      race_strategy:{
+        ...base.raceWeekendState.race_strategy,
+        live_commands:liveCommands,
+      },
+    },
+  };
+
+  const simulated=simulateManagedRace(raceGs,{
+    gp,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+  });
+  const teamRows=simulated.race.filter((row)=>String(row.team_id)==="t_williams");
+  const stops=teamRows.map((row)=>row.pit_stops.find((stop)=>Number(stop.lap)===5)).filter(Boolean);
+  assert.equal(stops.length,2);
+  assert.equal(stops.filter((stop)=>stop.double_stack).length,1);
+  const queued=stops.find((stop)=>stop.double_stack);
+  assert.ok(Number(queued.queue_delay_s)>0);
+  assert.ok(Number(queued.total_loss_s)>Number(queued.base_total_loss_s));
+  assert.equal(queued.pit_traffic_model,"rw5.3c");
+  assert.equal(queued.service.pit_traffic.double_stack,true);
+});
