@@ -592,6 +592,7 @@ export default function RaceWeekend(){
   const startLiveRace=useGame((s)=>s.startRaceWeekendLiveRace);
   const advanceLiveRace=useGame((s)=>s.advanceRaceWeekendLiveRace);
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
+  const advanceLivePitClock=useGame((s)=>s.advanceRaceWeekendLivePitClock);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
@@ -631,6 +632,7 @@ export default function RaceWeekend(){
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
+  const hasActivePitStop=Object.values(liveRace?.pit_states||{}).some((state)=>state?.active);
   const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
   const liveRows=collectionRows(liveRace?.classification);
@@ -712,6 +714,27 @@ export default function RaceWeekend(){
       return liveRows.some((row)=>String(row?.driver_id??"")===String(current))?current:"";
     });
   },[Boolean(liveRace),liveRows.length]);
+  useEffect(()=>{
+    if(
+      !liveRace||
+      weekend?.phase!=="race"||
+      !racePlaying||
+      !hasActivePitStop||
+      String(liveRace?.status||"")!=="running"
+    )return undefined;
+    const tickMs=250;
+    const timer=window.setInterval(()=>{
+      advanceLivePitClock(Math.max(1,Math.round(tickMs*racePlaybackSpeed)));
+    },tickMs);
+    return ()=>window.clearInterval(timer);
+  },[
+    racePlaying,
+    racePlaybackSpeed,
+    weekend?.phase,
+    liveRace?.status,
+    hasActivePitStop,
+    advanceLivePitClock,
+  ]);
   useEffect(()=>{
     if(!liveRace||weekend?.phase!=="race"||!racePlaybackCanRun(liveRace)){
       if(racePlaying)setRacePlaying(false);
