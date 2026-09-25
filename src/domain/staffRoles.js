@@ -7,6 +7,29 @@ import {
 } from "./liveContracts.js";
 
 const text=(value)=>String(value??"").trim();
+const normalizeName=(value)=>text(value)
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g,"")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g," ")
+  .trim();
+
+export function resolveStaffId(gs,row){
+  const direct=staffIdOf(row);
+  if(direct)return direct;
+  const name=normalizeName(row?.staff_name??row?.display_name??row?.name??row?.person_name);
+  if(!name)return "";
+  const core=[
+    ...(Array.isArray(gs?.staffCore)?gs.staffCore:[]),
+    ...(Array.isArray(gs?.dbStaffCore)?gs.dbStaffCore:[]),
+  ];
+  const matched=core.find((staff)=>normalizeName(staff?.staff_name??staff?.display_name??staff?.name)===name);
+  return matched?staffIdOf(matched):"";
+}
+
+export function staffNameKey(value){
+  return normalizeName(value);
+}
 
 export function canonicalStaffRole(value){
   const raw=text(value).toLowerCase().replace(/[\s-]+/g,"_");
@@ -123,7 +146,7 @@ export function teamStaffStructure(gs,teamId){
   return activeStaffContracts(gs,{teamId:tid})
     .map((contract)=>({
       ...contract,
-      staff_id:staffIdOf(contract),
+      staff_id:resolveStaffId(gs,contract),
       team_id:teamIdOfContract(contract),
       canonical_role:staffContractRole(contract),
       role_label:staffRoleLabel(staffContractRole(contract)),
