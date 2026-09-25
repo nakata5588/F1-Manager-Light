@@ -103,8 +103,8 @@ export function createLivePitState({
     phases,
     service:{
       ...(stop?.service||{}),
-      tyre_change:stop?.tyre_changed===false
-        ?false
+      tyre_change:typeof stop?.tyre_changed==="boolean"
+        ?Boolean(stop.tyre_changed)
         :String(stop?.tyre_from||"")!==String(stop?.tyre_to||""),
       tyre_from:stop?.tyre_from??null,
       tyre_to:stop?.tyre_to??null,
