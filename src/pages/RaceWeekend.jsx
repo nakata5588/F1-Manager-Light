@@ -600,6 +600,7 @@ export default function RaceWeekend(){
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
+  const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
   const prepareLiveRaceRestart=useGame((s)=>s.prepareRaceWeekendLiveRaceRestart);
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
@@ -1474,30 +1475,56 @@ export default function RaceWeekend(){
                 onRestartRace={()=>perform(resumeLiveRace)}
                 onConfirmResults={()=>perform(runRace)}
               />
-              {liveRace?.status==="red_flag"?<div className="mt-2 flex flex-col gap-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg md:flex-row md:items-center md:justify-between">
-                <div className="flex min-w-0 items-start gap-2">
-                  <Flag className="mt-0.5 h-5 w-5 shrink-0 fill-current text-red-300"/>
-                  <div className="min-w-0">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-red-200">Race suspended</div>
-                    <div className="mt-0.5 text-[11px] text-red-100/80">
-                      Lap {liveRace?.current_lap||0} · Sector {liveRace?.current_sector||1}
-                      {redFlagLifecycle?.holding_area?` · Cars held at ${String(redFlagLifecycle.holding_area).replaceAll("_"," ")}`:""}
-                    </div>
-                    <div className="mt-0.5 text-[10px] text-red-200/60">
-                      {redFlagLifecycle?.phase==="restart_pending"
-                        ?`Restart procedure prepared · ${String(redFlagLifecycle?.restart_style||"era rules").replaceAll("_"," ")}`
-                        :"Track progress is frozen. Prepare the restart before racing can resume."}
+              {liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <Flag className="mt-0.5 h-5 w-5 shrink-0 fill-current text-red-300"/>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-200">Race suspended</div>
+                      <div className="mt-0.5 text-[11px] text-red-100/80">
+                        Lap {liveRace?.current_lap||0} · Sector {liveRace?.current_sector||1}
+                        {redFlagLifecycle?.holding_area?` · Cars held at ${String(redFlagLifecycle.holding_area).replaceAll("_"," ")}`:""}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-red-200/60">
+                        {redFlagLifecycle?.phase==="restart_pending"
+                          ?`Restart procedure prepared · work window closed · ${String(redFlagLifecycle?.restart_style||"era rules").replaceAll("_"," ")}`
+                          :"Track progress is frozen. Tyre work is allowed before the restart procedure is prepared."}
+                      </div>
+                      {redFlagLifecycle?.work_policy?.notes?<div className="mt-1 text-[9px] text-red-100/45">{redFlagLifecycle.work_policy.notes}</div>:null}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={()=>perform(redFlagLifecycle?.phase==="restart_pending"?resumeLiveRace:prepareLiveRaceRestart)}
+                    className="shrink-0 rounded-md border border-red-300/35 bg-red-500/15 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25 disabled:opacity-50"
+                  >
+                    {redFlagLifecycle?.phase==="restart_pending"?"Restart race":"Prepare restart"}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={()=>perform(redFlagLifecycle?.phase==="restart_pending"?resumeLiveRace:prepareLiveRaceRestart)}
-                  className="shrink-0 rounded-md border border-red-300/35 bg-red-500/15 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25 disabled:opacity-50"
-                >
-                  {redFlagLifecycle?.phase==="restart_pending"?"Restart race":"Prepare restart"}
-                </button>
+                <div className="mt-2 grid gap-1.5 md:grid-cols-2">
+                  {playerEntrants.map((entry)=>{
+                    const did=String(entry?.driver_id||"");
+                    const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
+                    const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
+                    const workLocked=redFlagLifecycle?.phase!=="suspended"||redFlagLifecycle?.work_locked===true;
+                    return <div key={did} className="flex items-center gap-2 rounded-md border border-red-300/15 bg-black/20 px-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[10px] font-semibold text-red-50">{driverName(drivers,did)}</div>
+                        <div className="text-[9px] text-red-100/45">Current: {liveDriver?.tyre?.compound||"—"} · {Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</div>
+                      </div>
+                      <select
+                        title="Change tyres during Red Flag"
+                        disabled={busy||workLocked||Boolean(liveDriver?.retired)||redFlagLifecycle?.work_policy?.tyre_change===false}
+                        className="min-w-[135px] rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
+                        value={liveDriver?.tyre?.tyre_id||""}
+                        onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
+                      >
+                        {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                      </select>
+                    </div>;
+                  })}
+                </div>
               </div>:null}
             </div>
 
