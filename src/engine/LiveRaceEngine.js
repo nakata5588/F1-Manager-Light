@@ -658,14 +658,14 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
     const completedLap=pointSector>=3?pointLap:Math.max(0,pointLap-1);
     const pointOrd=pointOrdinal(pointLap,pointSector);
     const incidentRows=plan?.incidents||[];
-    const damageState=incidentDamageStateThrough(incidentRows,did,pointOrd);
+    const damageState=incidentDamageStateThrough(incidentRows,did,pointOrd,plan?.damage_repairs||[]);
     const lastDamageMs=completedLap>0
-      ?damagePenaltyMsBetweenOrdinals(incidentRows,did,(completedLap-1)*3,completedLap*3)
+      ?damagePenaltyMsBetweenOrdinals(incidentRows,did,(completedLap-1)*3,completedLap*3,plan?.damage_repairs||[])
       :0;
     const previousDamageMs=completedLap>1
-      ?damagePenaltyMsBetweenOrdinals(incidentRows,did,(completedLap-2)*3,(completedLap-1)*3)
+      ?damagePenaltyMsBetweenOrdinals(incidentRows,did,(completedLap-2)*3,(completedLap-1)*3,plan?.damage_repairs||[])
       :0;
-    const cumulativeDamageMs=damagePenaltyMsThroughOrdinal(incidentRows,did,pointOrd);
+    const cumulativeDamageMs=damagePenaltyMsThroughOrdinal(incidentRows,did,pointOrd,plan?.damage_repairs||[]);
     const lastBaseMs=completedLap>0?num(row?.lap_times_ms?.[completedLap-1],null):null;
     const previousBaseMs=completedLap>1?num(row?.lap_times_ms?.[completedLap-2],null):null;
     const lastLapMs=Number.isFinite(Number(lastBaseMs))
@@ -1608,7 +1608,7 @@ export function finalizedLiveRaceRows(gs){
           const ordinalEnd=lapNumber*3;
           return base
             +nonRetirementIncidentLossMs(plan,did,{throughOrdinal:ordinalEnd,lap:lapNumber})
-            +damagePenaltyMsBetweenOrdinals(plan?.incidents||[],did,(lapNumber-1)*3,ordinalEnd);
+            +damagePenaltyMsBetweenOrdinals(plan?.incidents||[],did,(lapNumber-1)*3,ordinalEnd,plan?.damage_repairs||[]);
         })
         :row?.lap_times_ms;
       const validLapTimes=Array.isArray(lapTimes)
