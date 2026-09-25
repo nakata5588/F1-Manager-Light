@@ -178,6 +178,28 @@ test("D6.3E ordinary distant midfield proximity does not create a rivalry",()=>{
   assert.equal(next.driverRivalries,undefined);
 });
 
+test("D6.3E missing timing is not treated as a zero-gap midfield battle",()=>{
+  const next=applyRaceDriverRivalries(baseState(),result({
+    classification:[
+      {driver_id:"D1",team_id:"T1",position:10,status:"Finished",retired:false,gap_to_previous_ms:null},
+      {driver_id:"D2",team_id:"T2",position:11,status:"Finished",retired:false,gap_to_previous_ms:null},
+    ],
+  }),{standings:[]});
+  assert.equal(driverRivalry(next,"D1","D2"),null);
+});
+
+test("D6.3E invalid save years never become rivalry history years",()=>{
+  const gs=baseState({activeYear:0,currentDateISO:""});
+  const next=applyDriverRivalryEvent(gs,{
+    driverA:"D1",
+    driverB:"D2",
+    rivalryDelta:20,
+    source:"test_invalid_year",
+  });
+  assert.deepEqual(driverRivalry(next,"D1","D2").years,[]);
+  assert.equal(driverRivalry(next,"D1","D2").first_year,null);
+});
+
 test("D6.3E driver perspective exposes independent respect and readable event log",()=>{
   let gs=baseState();
   gs=applyDriverRivalryEvent(gs,{
