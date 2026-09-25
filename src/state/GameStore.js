@@ -887,7 +887,7 @@ export const useGame = create((set, get) => ({
       set((s) => ({
         gameState: {
           ...s.gameState,
-          team: s.gameState.team ?? { name: "McLaren" },
+          team: s.gameState.team ?? (s.gameState?.careerMeta?.started ? null : { name: "McLaren" }),
           inbox:
             s.gameState.inbox.length > 0
               ? s.gameState.inbox
@@ -2051,3 +2051,26 @@ export const useGame = create((set, get) => ({
     return ex.length ? ex : rg;
   },
 }));
+
+function restoreRollingSessionAtStartup() {
+  try {
+    if (typeof localStorage === "undefined") return false;
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const saved = extractGameStateFromStoredSave(JSON.parse(raw));
+    if (!saved || typeof saved !== "object") return false;
+    useGame.setState({
+      gameState: hydrateLoadedGameState(saved),
+      currentSaveKey: null,
+    });
+    return true;
+  } catch (error) {
+    console.warn("startup session recovery failed:", error);
+    return false;
+  }
+}
+
+// Browser refresh must restore the active Save World before App/DatabaseBinder
+// can seed default historical state. This preserves team, in-game date and
+// in-progress Race Weekend state across refreshes.
+restoreRollingSessionAtStartup();

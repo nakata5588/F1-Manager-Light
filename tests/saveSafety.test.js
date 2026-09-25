@@ -318,6 +318,9 @@ test("save snapshots retain in-progress live Race Weekend state", () => {
     },
   });
   const loaded=extractGameStateFromStoredSave(state);
+  assert.equal(loaded.team.team_id,"t_1");
+  assert.equal(loaded.currentDateISO,"1980-05-18");
+  assert.equal(loaded.currentRound,4);
   assert.equal(loaded.raceWeekendState.phase,"race");
   assert.equal(loaded.raceWeekendState.live_race.current_lap,17);
   assert.equal(loaded.raceWeekendState.live_race.current_sector,2);
