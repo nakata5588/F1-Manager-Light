@@ -57,7 +57,9 @@ function gs(year=1980){
 const track={track_id:"t",laps:12,lap_length_km:5,pit_lane_loss_s:22};
 const dryWeather={state:"SUNNY",segments:[{from_lap:1,to_lap:12,state:"SUNNY"}]};
 const mixedWeather={state:"HEAVY_RAIN",segments:[
-
+  {from_lap:1,to_lap:4,state:"HEAVY_RAIN"},
+  {from_lap:5,to_lap:12,state:"DRYING"},
+]};
 
 test("RW5.3A.1 repairable incidents preserve the calibrated 1980 DNF target",()=>{
   const state=gs(1980);
@@ -91,9 +93,6 @@ test("RW5.3A.1 weather raises incident frequency without changing target-vs-cond
   assert.ok(incident>target);
   assert.ok(Math.abs(incident*conditional-target)<1e-12);
 });
-  {from_lap:1,to_lap:4,state:"HEAVY_RAIN"},
-  {from_lap:5,to_lap:12,state:"DRYING"},
-]};
 
 test("race control availability follows the era",()=>{
   const y1980=raceControlRulesForYear(1980);
