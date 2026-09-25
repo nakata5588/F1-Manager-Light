@@ -161,3 +161,42 @@ test("high-severity crashes can create longer moderate and serious injuries",()=
   assert.ok(severities.has("serious"),"high severity incidents should sometimes create serious injuries");
   assert.ok(Math.max(...days)>=30,"high severity incidents should sometimes sideline drivers for a month or more");
 });
+
+
+test("RW5.3A a driver can carry an injury after a non-retirement accident",()=>{
+  const gs=state("damage-finish-injury");
+  const next=applyRaceHealthOutcomes(gs,{
+    gp,
+    race:[{
+      ...incident("medium","D2"),
+      retired:false,
+      retirement_reason:null,
+      incident_kind:"collision",
+      incident_reason:"Collision",
+    }],
+    forceFatalityProbability:0,
+    forceInjuryProbability:1,
+  });
+  const injury=next.driverAvailability.D2;
+  assert.ok(injury);
+  assert.equal(injury.incidentSeverity,"medium");
+  assert.ok(["limited","injured"].includes(injury.status));
+});
+
+test("RW5.3A a non-retirement accident cannot become a post-finish fatality",()=>{
+  const gs=state("damage-finish-no-fatality");
+  const next=applyRaceHealthOutcomes(gs,{
+    gp,
+    race:[{
+      ...incident("critical","D1"),
+      retired:false,
+      retirement_reason:null,
+      incident_kind:"accident",
+      incident_reason:"Accident",
+    }],
+    forceFatalityProbability:1,
+    forceInjuryProbability:0,
+  });
+  assert.notEqual(next.driverAvailability.D1?.status,"deceased");
+  assert.notEqual(next.drivers.find((d)=>d.driver_id==="D1")?.status,"deceased");
+});
