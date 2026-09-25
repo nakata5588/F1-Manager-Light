@@ -224,7 +224,7 @@ function runSoak(){
 const SOAK_A=runSoak();
 const SOAK_B=runSoak();
 
-test("career rollover keeps simulated car baseline instead of importing future historical carStats",()=>{
+test("career rollover materialises simulated next-car package instead of importing future historical carStats",()=>{
   let gs=normalizeAITechnicalWorld(soakFixture());
   gs=runSeason(gs,1980);
   const renault1980=gs.carStats.find(row=>row.team_id==="RENAULT");
@@ -233,7 +233,8 @@ test("career rollover keeps simulated car baseline instead of importing future h
   gs=materializeNextCareerSeason(gs,1981);
   const renault1981=gs.carStats.find(row=>row.team_id==="RENAULT");
   assert.equal(renault1981.year,1981);
-  assert.equal(renault1981.chassis_spec,76);
+  assert.equal(renault1981.generation_source,"next_season_technical_package");
+  assert.ok(renault1981.chassis_spec>=0&&renault1981.chassis_spec<=100);
   assert.notEqual(renault1981.chassis_spec,99);
 });
 
