@@ -544,6 +544,7 @@ test("refresh recovery keeps an active Live Race authoritative over stale weeken
     const resumed = normalizeRaceWeekendResumeState(weekend);
 
     assert.equal(resumed.phase, "race");
+    assert.equal(resumed.active_session_id, "race");
     assert.equal(resumed.live_race, liveRace);
     assert.equal(resumed.live_race.current_lap, 17);
     assert.equal(resumed.live_race.current_sector, 2);
