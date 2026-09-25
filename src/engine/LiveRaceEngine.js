@@ -6,6 +6,7 @@ import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
+import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -644,13 +645,22 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       :Math.max(1,Math.min(3,Number(sector)||3));
     const completedLap=pointSector>=3?pointLap:Math.max(0,pointLap-1);
     const pointOrd=pointOrdinal(pointLap,pointSector);
+    const incidentRows=plan?.incidents||[];
+    const damageState=incidentDamageStateThrough(incidentRows,did,pointOrd);
+    const lastDamageMs=completedLap>0
+      ?damagePenaltyMsBetweenOrdinals(incidentRows,did,(completedLap-1)*3,completedLap*3)
+      :0;
+    const previousDamageMs=completedLap>1
+      ?damagePenaltyMsBetweenOrdinals(incidentRows,did,(completedLap-2)*3,(completedLap-1)*3)
+      :0;
+    const cumulativeDamageMs=damagePenaltyMsThroughOrdinal(incidentRows,did,pointOrd);
     const lastBaseMs=completedLap>0?num(row?.lap_times_ms?.[completedLap-1],null):null;
     const previousBaseMs=completedLap>1?num(row?.lap_times_ms?.[completedLap-2],null):null;
     const lastLapMs=Number.isFinite(Number(lastBaseMs))
-      ?Number(lastBaseMs)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd,lap:completedLap})
+      ?Number(lastBaseMs)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd,lap:completedLap})+lastDamageMs
       :null;
     const previousLapMs=Number.isFinite(Number(previousBaseMs))
-      ?Number(previousBaseMs)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd,lap:completedLap-1})
+      ?Number(previousBaseMs)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd,lap:completedLap-1})+previousDamageMs
       :null;
     const lastLapDeltaMs=Number.isFinite(Number(lastLapMs))&&Number.isFinite(Number(previousLapMs))
       ?Number(lastLapMs)-Number(previousLapMs)
@@ -672,7 +682,9 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       current_lap:pointLap,
       current_sector:pointSector,
       laps_completed:completedLap,
-      elapsed_ms:cumulativeAtPoint(row,pointLap,pointSector)+nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd}),
+      elapsed_ms:cumulativeAtPoint(row,pointLap,pointSector)
+        +nonRetirementIncidentLossMs(plan,did,{throughOrdinal:pointOrd})
+        +cumulativeDamageMs,
       last_lap_ms:lastLapMs,
       previous_lap_ms:previousLapMs,
       last_lap_delta_ms:lastLapDeltaMs,
@@ -693,6 +705,10 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       retirement_reason:retired?incident.reason:null,
       incident_lap:retired?incident.lap:null,
       incident_sector:retired?(incident?.sector??null):null,
+      damage_state:damageState?.damaged_components?.length?damageState:null,
+      damage_severity:damageState?.damaged_components?.length?damageState.severity:"none",
+      damage_pace_loss_s_per_lap:damageState?.damaged_components?.length?damageState.pace_loss_s_per_lap:0,
+      damaged_components:damageState?.damaged_components||[],
     };
     visibleRow.expected_future_pit_loss_s=expectedFuturePitLoss(
       gs,strategyState,visibleRow,Math.max(0,completedLap),totalLaps,plan,playerForecast
@@ -1053,6 +1069,10 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
           incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
           medical_concern:medical.medicalConcern,
           injury_probability:medical.injuryProbability,
+          damage:incident?.damage||null,
+          damaged_components:incident?.damage?.damaged_components||[],
+          damage_severity:incident?.damage?.severity||"none",
+          retirement:Boolean(incident?.retirement),
           message:formatRaceIncidentMessage({controlType:period.type,driverName:driver,incident,medicalConcern:medical.medicalConcern}),
         });
       }else{
@@ -1068,6 +1088,10 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
           incident_reason:String(incident.reason||incident.kind||"incident").toLowerCase(),
           medical_concern:medical.medicalConcern,
           injury_probability:medical.injuryProbability,
+          damage:incident?.damage||null,
+          damaged_components:incident?.damage?.damaged_components||[],
+          damage_severity:incident?.damage?.severity||"none",
+          retirement:Boolean(incident?.retirement),
           message:formatRaceIncidentMessage({driverName:driver,incident,medicalConcern:medical.medicalConcern}),
         });
       }
