@@ -4,7 +4,7 @@
 // D4.4 owns the state transition only:
 // RUNNING -> SUSPENDED -> RESTART_PENDING -> RUNNING
 //
-// D4.5 will own work permitted during the suspension.
+// D4.5 owns work permitted during the suspension.
 // D4.6 will decide when a restart is safe enough to authorise.
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -24,6 +24,45 @@ export function redFlagClockPolicyForYear(yearInput){
   return year>=2015
     ?"timekeeping_continues_suspension_allowance"
     :"track_progress_frozen";
+}
+
+
+export function redFlagWorkPolicyForYear(yearInput){
+  const year=Number(yearInput)||1980;
+  if(year>=2021){
+    return {
+      id:"restricted_accident_work",
+      label:"Restricted suspension work",
+      tyre_change:true,
+      genuine_accident_repair:true,
+      front_wing_adjustment:true,
+      routine_component_replacement:false,
+      refuelling:false,
+      notes:"Tyres may be changed; only genuine accident damage may be repaired and front-wing aero may be adjusted with existing parts.",
+    };
+  }
+  if(year>=1993){
+    return {
+      id:"broad_suspension_work",
+      label:"Broad suspension work",
+      tyre_change:true,
+      genuine_accident_repair:true,
+      front_wing_adjustment:true,
+      routine_component_replacement:true,
+      refuelling:false,
+      notes:"Cars may be worked on during the suspension. D4.5 models tyres now; component work waits for the damage model.",
+    };
+  }
+  return {
+    id:"historic_restart_service",
+    label:"Historic restart service",
+    tyre_change:true,
+    genuine_accident_repair:true,
+    front_wing_adjustment:true,
+    routine_component_replacement:true,
+    refuelling:false,
+    notes:"Historic stoppages and restarts used broader service procedures. D4.5 models tyre work while preserving future damage hooks.",
+  };
 }
 
 function snapshotClassification(rows=[]){
@@ -70,6 +109,9 @@ export function createRedFlagSuspension({
     holding_area:holdingArea,
     restart_style:String(rules?.restart_style||"era_restart"),
     clock_policy:clockPolicy,
+    work_policy:rules?.red_flag_work_policy||redFlagWorkPolicyForYear(year),
+    work_locked:false,
+    work_log:[],
     race_progress_frozen:true,
     overtaking_allowed:false,
     restart_authorized:false,
@@ -104,6 +146,7 @@ export function prepareRedFlagRestart(lifecycle){
   return {
     ...lifecycle,
     phase:"restart_pending",
+    work_locked:true,
     restart_prepared:true,
     restart_authorized:true,
   };
