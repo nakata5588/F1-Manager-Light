@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -136,4 +136,61 @@ test("RW6.3.1 focused viewBox zooms around the selected car and stays inside tra
 
 test("RW6.3.1 focused viewBox falls back to full view without a valid selected point",()=>{
   assert.deepEqual(focusTrackViewBox([10,20,800,500],null),[10,20,800,500]);
+});
+
+
+test("RW6.4 track intelligence defaults are explicit provisional thirds",()=>{
+  const profile=trackIntelligenceProfile({});
+  assert.equal(profile.start_finish_progress,0);
+  assert.deepEqual(profile.sector_boundaries,[1/3,2/3]);
+  assert.equal(profile.pit_entry_progress,null);
+  assert.equal(profile.pit_exit_progress,null);
+  assert.equal(profile.status,"derived_provisional");
+});
+
+test("RW6.4 track intelligence accepts verified per-layout overrides",()=>{
+  const profile=trackIntelligenceProfile({
+    start_finish_progress:.08,
+    sector_boundaries:[.31,.69],
+    pit_entry_progress:.91,
+    pit_exit_progress:.12,
+    track_intelligence_status:"verified",
+  });
+  assert.ok(Math.abs(profile.start_finish_progress-.08)<1e-9);
+  assert.ok(Math.abs(profile.sector_boundaries[0]-.31)<1e-9);
+  assert.ok(Math.abs(profile.sector_boundaries[1]-.69)<1e-9);
+  assert.ok(Math.abs(profile.pit_entry_progress-.91)<1e-9);
+  assert.ok(Math.abs(profile.pit_exit_progress-.12)<1e-9);
+  assert.equal(profile.status,"verified");
+});
+
+test("RW6.4 incident placement prefers exact track progress and otherwise uses reported sector",()=>{
+  assert.equal(raceEventTrackProgress({track_progress:.73,sector:1}),.73);
+  assert.ok(Math.abs(raceEventTrackProgress({sector:2})-.5)<1e-9);
+  const custom=trackIntelligenceProfile({start_finish_progress:.1,sector_boundaries:[.4,.75]});
+  assert.ok(Math.abs(raceEventTrackProgress({sector:1,sector_progress:.5},custom)-.25)<1e-9);
+  assert.ok(Math.abs(raceEventTrackProgress({sector:2,sector_progress:.5},custom)-.575)<1e-9);
+});
+
+test("RW6.4 marker segment crosses the centreline at the requested progress",()=>{
+  const geometry={points:[[0,0],[100,0],[100,100],[0,100]]};
+  const segment=trackMarkerSegment(geometry,.25,{length:20});
+  assert.deepEqual(segment.center,{x:100,y:0});
+  assert.ok(Math.abs((segment.x1+segment.x2)/2-segment.center.x)<1e-9);
+  assert.ok(Math.abs((segment.y1+segment.y2)/2-segment.center.y)<1e-9);
+});
+
+test("RW6.4 sector overlay samples each profile-aware sector independently",()=>{
+  const geometry={points:[[0,0],[100,0],[100,100],[0,100]]};
+  const profile=trackIntelligenceProfile({start_finish_progress:0,sector_boundaries:[.25,.75]});
+  const first=trackSectorPolylinePoints(geometry,1,profile,{samples:8});
+  const second=trackSectorPolylinePoints(geometry,2,profile,{samples:8});
+  const third=trackSectorPolylinePoints(geometry,3,profile,{samples:8});
+  assert.equal(first.length,9);
+  assert.equal(second.length,9);
+  assert.equal(third.length,9);
+  assert.deepEqual(first[0],[0,0]);
+  assert.deepEqual(first.at(-1),[100,0]);
+  assert.deepEqual(second[0],[100,0]);
+  assert.deepEqual(second.at(-1),[0,100]);
 });
