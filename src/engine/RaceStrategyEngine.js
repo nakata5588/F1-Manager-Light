@@ -12,6 +12,7 @@ import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { raceControlAtLap } from "./RaceControlEngine.js";
 import { incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { buildPitServiceSchedule } from "./PitServiceEngine.js";
+import { aiPitRepairDecision } from "./AIPitRepairEngine.js";
 import { raceForecastForTeam, raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { aiTyreCrossoverDecision, tyreWeatherPenaltyForWetness } from "./TyreCrossoverEngine.js";
 import {
@@ -817,6 +818,12 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     let accumulatedFatigueLoad=0;
     let maxTyreRiskMultiplier=1;
     const strategyDecisions=[];
+    // Projection-local repairs prevent the AI from repeatedly repairing the
+    // same observed damage inside one simulation pass. They never become Save
+    // World history until LiveRace materialises the actual pit service.
+    const simulatedDamageRepairs=[
+      ...(strategyState?.race_control_plan?.damage_repairs||[]).map((repair)=>structuredClone(repair)),
+    ];
 
     for(let lap=1;lap<=track.laps;lap++){
       const commandsThisLap=[];
@@ -907,6 +914,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const pitLossEstimate=effectivePitLoss(track,control,crew);
       const currentEffects=tyreConditionEffects(condition);
       const intelligence=clamp(num(rating?.race_intelligence,60));
+      const aggression=clamp(num(rating?.aggression,rating?.agression??50));
       const isAi=tid!==userTeam;
       const criticalTyre=condition<=14&&remaining>2;
       const severeTyre=condition<=24&&remaining>3;
@@ -940,6 +948,65 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         if(!hasStopped&&rules.mandatory_dry_compounds>1&&!hasUsedWet&&category==="dry"&&lap===plannedLap)stopReason=stopReason||"mandatory_compound";
         if(fuelStopDue)stopReason=stopReason||"fuel";
       }
+
+      const expectedService=Math.max(2,num(crew.avg_time_s,6.8));
+      const repairOrdinal=Math.max(0,(lap-1)*3);
+      const damageState=forcedPit?.repair_damage_snapshot
+        ?structuredClone(forcedPit.repair_damage_snapshot)
+        :incidentDamageStateThrough(
+          strategyState?.race_control_plan?.incidents||[],
+          did,
+          repairOrdinal,
+          simulatedDamageRepairs
+        );
+      const plannedRefuel=rules.refuelling_allowed&&(
+        forcedPit?.refuel===true||
+        hasFuelTarget&&lap>=Number(nextFuelTarget)
+      );
+      const plannedTyreChange=forcedPit
+        ?forcedPit?.tyre_change!==false
+        :Boolean(stopReason);
+      const fuelDelay=plannedRefuel?(Number(working?.activeYear)<=1983?9:6):0;
+      const crewFactor=clamp(expectedService/6.8,0.82,1.20);
+      const aiRepair=isAi&&lap>1&&remaining>1
+        ?aiPitRepairDecision({
+          year:Number(working?.activeYear)||1980,
+          damageState,
+          remainingLaps:remaining,
+          alreadyStopping:Boolean(stopReason),
+          tyreChange:plannedTyreChange,
+          tyreServiceS:expectedService,
+          refuel:plannedRefuel,
+          fuelServiceS:fuelDelay,
+          crewFactor,
+          pitLaneLossS:Number(track?.pit_lane_loss_s)||24,
+          controlType:control.type,
+          raceIntelligence:intelligence,
+          aggression,
+          trackOvertakingDifficulty:Number(track?.overtaking_difficulty)||50,
+          position:gridIndex+1,
+          fieldSize:(grid||[]).length,
+        })
+        :null;
+
+      if(!stopReason&&aiRepair?.should_repair)stopReason="damage_repair";
+
+      if(aiRepair?.should_repair){
+        strategyDecisions.push({
+          lap,
+          action:"pit_repair",
+          reason:aiRepair.reason,
+          repair_components:[...aiRepair.repair_components],
+          dedicated_stop:Boolean(aiRepair.dedicated_stop),
+          recovered_pace_s_per_lap:Number(aiRepair.recovered_pace_s_per_lap||0),
+          projected_damage_loss_s:Number(aiRepair.projected_stay_out_loss_s||0),
+          repair_cost_s:Number(aiRepair.effective_pit_cost_s||0),
+          incremental_service_s:Number(aiRepair.incremental_service_s||0),
+          decision_margin_s:Number(aiRepair.decision_margin_s||0),
+          control_type:control.type,
+        });
+      }
+
       if(stopReason){
         strategyDecisions.push({
           lap,
@@ -959,7 +1026,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       if(stopReason){
         const requestedTyreChange=forcedPit
           ?forcedPit?.tyre_change!==false
-          :true;
+          :stopReason!=="damage_repair";
         if(requestedTyreChange){
           stints.push(stintRecord(tyre,stintStart,lap-1,condition,tempSum,tempCount));
         }
@@ -974,10 +1041,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
             stopReason,
             stopReason==="weather"?crossover.target_category:null
           );
-        const refuel=rules.refuelling_allowed&&(
-          forcedPit?.refuel===true||
-          hasFuelTarget&&lap>=Number(nextFuelTarget)
-        );
+        const refuel=plannedRefuel;
         const errorChance=clamp(
           num(crew.effective_error_chance,crew.error_rate??0.05),
           0.005,
@@ -985,24 +1049,14 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         );
         const error=rng.chance(errorChance);
         const errorDelay=error?3+rng.next()*8:0;
-        const fuelDelay=refuel?(Number(working?.activeYear)<=1983?9:6):0;
         const executionVariance=num(crew.execution_variance_s,0.5);
         const serviceVariation=(rng.next()+rng.next()-1)*executionVariance;
-        const expectedService=Math.max(2,num(crew.avg_time_s,6.8));
         const serviceTime=Math.max(2,expectedService+serviceVariation);
-        const repairOrdinal=Math.max(0,(lap-1)*3);
-        const damageState=forcedPit?.repair_damage_snapshot
-          ?structuredClone(forcedPit.repair_damage_snapshot)
-          :incidentDamageStateThrough(
-            strategyState?.race_control_plan?.incidents||[],
-            did,
-            repairOrdinal,
-            strategyState?.race_control_plan?.damage_repairs||[]
-          );
         const requestedRepairs=Array.isArray(forcedPit?.repair_components)
           ?forcedPit.repair_components
-          :[];
-        const crewFactor=clamp(expectedService/6.8,0.82,1.20);
+          :aiRepair?.should_repair
+            ?aiRepair.repair_components
+            :[];
         const expectedSchedule=buildPitServiceSchedule({
           year:Number(working?.activeYear)||1980,
           tyreChange:requestedTyreChange,
@@ -1059,7 +1113,18 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
           tempSum=0;
           tempCount=0;
         }
-        hasStopped=true;
+        if(actualSchedule?.repair?.repaired_components?.length){
+          simulatedDamageRepairs.push({
+            type:"damage_repair",
+            source:"projected_normal_pit_repair",
+            driver_id:did,
+            repair_ordinal:repairOrdinal,
+            repaired_components:[...actualSchedule.repair.repaired_components],
+            effectiveness:{...(actualSchedule.repair.effectiveness||{})},
+          });
+        }
+        // A repair-only visit must not satisfy a planned tyre/refuelling stop.
+        if(requestedTyreChange||refuel)hasStopped=true;
       }
 
       if(String(tyre?.category||"dry")!=="dry")hasUsedWet=true;
