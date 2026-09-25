@@ -1174,6 +1174,9 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,tyreChang
       tyre_id:wantsTyres?String(tyreId):null,
       tyre_change:wantsTyres,
       repair_components:requestedRepairs,
+      repair_damage_snapshot:requestedRepairs.length&&current?.damage_state
+        ?structuredClone(current.damage_state)
+        :null,
       refuel:wantsRefuel,
       effective_lap:effectiveLap,
     };
