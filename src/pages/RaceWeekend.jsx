@@ -357,6 +357,7 @@ function raceEventLabel(event){
     visibility:"Poor visibility",
     drying_track:"Track drying",
   }[String(event?.report_kind||"")]||"Weather report";
+  if(event?.type==="pit_service")return "Pit repair complete";
   if(event?.type==="pit")return event?.crew_error?"Pit crew incident":"Pit stop report";
   if(event?.type==="race_control")return String(event?.control_type||"Race control").replaceAll("_"," ");
   if(event?.type==="incident")return "Race incident";
@@ -365,7 +366,7 @@ function raceEventLabel(event){
 }
 function raceEventIcon(event,className="h-5 w-5"){
   const common={className};
-  if(event?.type==="pit")return <Wrench {...common}/>;
+  if(event?.type==="pit_service"||event?.type==="pit")return <Wrench {...common}/>;
   if(event?.type==="incident"||String(event?.control_type||"")==="RED_FLAG")return <Flag {...common}/>;
   if(event?.type==="driver_feedback")return <Activity {...common}/>;
   if(event?.type==="weather_report"){
