@@ -5,6 +5,7 @@
 // dev/build. Runtime resolution is an in-memory object lookup plus a binary
 // search through the usually tiny year timeline.
 import { HISTORICAL_ASSET_MANIFEST } from "../generated/historicalAssets.js";
+import { visualAssetOverrideSet } from "./visualAssetOverrides.js";
 
 const EMPTY_SET=Object.freeze({default:"",history:Object.freeze([])});
 const TYPE_ALIASES=Object.freeze({
@@ -108,6 +109,37 @@ export function historicalAssetCandidates(type,aliases,activeYear,fallbacks=[]){
     fallbacks
   );
 }
+export function mergeHistoricalAssetSets(baseSet,overrideSet){
+  const base=baseSet&&typeof baseSet==="object"?baseSet:EMPTY_SET;
+  const override=overrideSet&&typeof overrideSet==="object"?overrideSet:null;
+  if(!override)return base;
+
+  const historyByYear=new Map();
+  for(const row of Array.isArray(base.history)?base.history:[]){
+    const year=Number(row?.year);
+    if(Number.isFinite(year)&&row?.path)historyByYear.set(year,{year,path:String(row.path)});
+  }
+  for(const row of Array.isArray(override.history)?override.history:[]){
+    const year=Number(row?.year);
+    if(Number.isFinite(year)&&row?.path)historyByYear.set(year,{year,path:String(row.path)});
+  }
+
+  return {
+    default:String(override.default||base.default||""),
+    history:[...historyByYear.values()].sort((a,b)=>a.year-b.year),
+  };
+}
+
+export function historicalAssetCandidatesWithOverrides(type,aliases,activeYear,overrides,entityId,fallbacks=[]){
+  const base=historicalAssetSet(type,aliases);
+  const override=visualAssetOverrideSet(overrides,type,entityId);
+  return historicalAssetCandidatesFromSet(
+    mergeHistoricalAssetSets(base,override),
+    activeYear,
+    fallbacks
+  );
+}
+
 
 export function resolveHistoricalAsset(type,aliases,activeYear,fallback=""){
   return historicalAssetCandidates(type,aliases,activeYear,fallback)[0]||"";
