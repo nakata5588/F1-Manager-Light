@@ -565,7 +565,8 @@ test("RW5.3B.2B direct +Lap mode persists the same repair into the causal damage
   gs=advanceLiveRace(gs,{gp,laps:1});
   let repair=(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
     .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1");
-  assert.ok(repair);
+  assert.equal(repair,undefined,"landing on PIT_ENTRY must not complete repair work early");
+  assert.ok(gs.raceWeekendState.live_race.pit_states?.D1?.active);
 
   gs=advanceLiveRace(gs,{gp,laps:1});
   repair=(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
