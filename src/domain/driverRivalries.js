@@ -8,8 +8,13 @@ export const DRIVER_RIVALRY_VERSION=1;
 
 const text=(value)=>String(value??"").trim();
 const num=(value,fb=null)=>{
+  if(value===null||value===undefined||value==="")return fb;
   const n=Number(value);
   return Number.isFinite(n)?n:fb;
+};
+const validYear=(value)=>{
+  const year=Number(value);
+  return Number.isInteger(year)&&year>=1950?year:null;
 };
 const clamp100=(value)=>Math.max(0,Math.min(100,Number(value)||0));
 
@@ -49,9 +54,9 @@ function basePair(driverA,driverB,{year=null,dateISO=null}={}){
     respect_b_to_a:50,
     status:"emerging",
     active:false,
-    first_year:Number.isFinite(Number(year))?Number(year):null,
-    last_year:Number.isFinite(Number(year))?Number(year):null,
-    years:Number.isFinite(Number(year))?[Number(year)]:[],
+    first_year:validYear(year),
+    last_year:validYear(year),
+    years:validYear(year)!==null?[validYear(year)]:[],
     first_event_date:dateISO||null,
     last_event_date:dateISO||null,
     events_count:0,
@@ -94,7 +99,7 @@ export function applyDriverRivalryEvent(gs,{
 
   const container=normalizeContainer(gs);
   const dateISO=text(gs?.currentDateISO).slice(0,10)||null;
-  const year=num(gs?.activeYear??String(dateISO||"").slice(0,4),null);
+  const year=validYear(gs?.activeYear??String(dateISO||"").slice(0,4));
   const before=container.pairs[key]||basePair(aid,bid,{year,dateISO});
   const respectDeltas=orderedPairDeltas(before,aid,bid,respectDeltaA,respectDeltaB);
   const respectBeforeA=num(before?.respect_a_to_b,50);
@@ -119,8 +124,8 @@ export function applyDriverRivalryEvent(gs,{
     changes.push({field,delta:Number((after-prior).toFixed(2)),before:prior,after:Number(after.toFixed(2))});
   }
 
-  const nextYears=new Set((Array.isArray(before?.years)?before.years:[]).map(Number).filter(Number.isFinite));
-  if(Number.isFinite(year))nextYears.add(year);
+  const nextYears=new Set((Array.isArray(before?.years)?before.years:[]).map(validYear).filter((value)=>value!==null));
+  if(year!==null)nextYears.add(year);
   next.years=[...nextYears].sort((a,b)=>a-b);
   next.first_year=next.years[0]??before?.first_year??null;
   next.last_year=next.years.at(-1)??before?.last_year??null;
