@@ -656,9 +656,12 @@ export function mergeRaceControlHistory(previous,fresh,currentLap,currentSector=
   });
   const historicalPeriods=(previous.periods||[]).filter((row)=>periodStartOrdinal(row)<=ordinal);
   const futurePeriods=(fresh.periods||[]).filter((row)=>periodStartOrdinal(row)>ordinal);
+  const historicalRepairs=(previous.damage_repairs||[])
+    .filter((row)=>Number(row?.repair_ordinal??0)<=ordinal);
   return {
     ...fresh,
     incidents:[...historicalIncidents,...futureIncidents].sort((a,b)=>incidentOrdinal(a)-incidentOrdinal(b)),
+    damage_repairs:historicalRepairs,
     periods:mergePeriods([...historicalPeriods,...futurePeriods],fresh.weather_timeline?.length||previous.weather_timeline?.length||999),
   };
 }
