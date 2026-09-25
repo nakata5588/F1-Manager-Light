@@ -499,3 +499,50 @@ test("RW5.2D3 tyre weather cost changes progressively with surface water",()=>{
   assert.ok(tyreWeatherPenaltyForWetness("intermediate",0.40)<slickWet);
   assert.ok(tyreWeatherPenaltyForWetness("wet",0.05)>tyreWeatherPenaltyForWetness("wet",0.75));
 });
+
+
+test("RW5.2D4.5 red-flag tyre command changes stint with zero pit-stop loss",()=>{
+  const base=withStrategy(fixture());
+  const did="d_w1";
+  const raceGs={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      live_race:{status:"running",current_lap:4,current_sector:3,total_laps:30},
+      race_strategy:{
+        ...base.raceWeekendState.race_strategy,
+        live_commands:{
+          ...(base.raceWeekendState.race_strategy.live_commands||{}),
+          [did]:[{
+            type:"red_flag_tyre",
+            tyre_id:"gy_s",
+            effective_lap:5,
+            red_flag_sequence:1,
+          }],
+        },
+      },
+    },
+  };
+
+  const simulated=simulateManagedRace(raceGs,{
+    gp,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+  });
+  const row=simulated.race.find((item)=>String(item?.driver?.driver_id)==did);
+  assert.ok(row);
+
+  const decision=row.strategy_decisions.find((item)=>item.action==="red_flag_tyre_change");
+  assert.ok(decision);
+  assert.equal(decision.lap,5);
+  assert.equal(decision.tyre_to,"gy_s");
+  assert.equal(decision.time_cost_s,0);
+
+  const lap5=row.tyre_state_by_lap.find((item)=>Number(item.lap)===5);
+  assert.equal(lap5.tyre_id,"gy_s");
+  assert.ok(Number(lap5.condition)>95);
+
+  // Red Flag service must never be represented as an ordinary pit stop.
+  assert.equal(row.pit_stops.some((stop)=>Number(stop.lap)===5&&String(stop.reason).includes("red_flag")),false);
+});
