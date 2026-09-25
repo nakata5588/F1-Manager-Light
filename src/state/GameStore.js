@@ -1749,6 +1749,16 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
+    const mod=await import("@/engine/RaceWeekendEngine");
+    // Re-read after the dynamic import so a simultaneous sector advance cannot
+    // be overwritten by a pit-clock tick that started from an older snapshot.
+    const gs=get().gameState;
+    const next=mod.advanceLivePitClockSession(gs,{deltaMs});
+    if(next!==gs)set({gameState:next});
+    return next?.raceWeekendState?.live_race||null;
+  },
+
   setRaceWeekendLiveCommand: async (command) => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
