@@ -605,7 +605,7 @@ export default function RaceWeekend(){
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
   const repairRedFlagDamage=useGame((s)=>s.repairRaceWeekendRedFlagDamage);
-  const assessLiveRaceRestart=useGame((s)=>s.assessRaceWeekendLiveRaceRestart);
+  const fastForwardLiveRaceRestart=useGame((s)=>s.fastForwardRaceWeekendLiveRaceRestart);
   const prepareLiveRaceRestart=useGame((s)=>s.prepareRaceWeekendLiveRaceRestart);
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
@@ -1556,7 +1556,7 @@ export default function RaceWeekend(){
                           ?`Restart procedure prepared · work window closed · ${String(redFlagLifecycle?.restart_style||"era rules").replaceAll("_"," ")}`
                           :restartMonitor?.restart_authorized
                             ?`Sustained improvement confirmed · restart available · ${restartMonitor?.recommended_control==="SAFETY_CAR"?"Safety Car":"green"} resumption`
-                            :`Track progress is frozen. Race Control requires sustained safe conditions before restart.`}
+                            :`Track progress is frozen. Fast-forward Race Control monitoring until a safe restart window is found.`}
                       </div>
                       {redFlagLifecycle?.phase==="suspended"?<div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-red-100/55">
                         <span>Safe checks: {Number(restartMonitor?.safe_streak||0)}/{Number(restartMonitor?.required_safe_checks||1)}</span>
@@ -1574,7 +1574,7 @@ export default function RaceWeekend(){
                         ?resumeLiveRace
                         :restartMonitor?.restart_authorized
                           ?prepareLiveRaceRestart
-                          :assessLiveRaceRestart
+                          :fastForwardLiveRaceRestart
                     )}
                     className="shrink-0 rounded-md border border-red-300/35 bg-red-500/15 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25 disabled:opacity-50"
                   >
@@ -1582,9 +1582,13 @@ export default function RaceWeekend(){
                       ?"Restart race"
                       :restartMonitor?.restart_authorized
                         ?"Prepare restart"
-                        :"Check conditions"}
+                        :"Fast-forward to restart window"}
                   </button>
                 </div>
+                {redFlagLifecycle?.phase==="suspended"?<div className="mt-2 rounded-md border border-red-300/15 bg-red-950/20 px-2.5 py-2 text-[9px] text-red-100/65">
+                  <span className="font-bold uppercase tracking-[0.10em] text-red-100">Restart setup</span>
+                  <span className="ml-2">Choose the restart tyres for each car now. Fast-forward only advances Race Control condition checks; race distance stays frozen.</span>
+                </div>:null}
                 <div className="mt-2 grid gap-1.5 md:grid-cols-2">
                   {playerEntrants.map((entry)=>{
                     const did=String(entry?.driver_id||"");
@@ -1613,15 +1617,18 @@ export default function RaceWeekend(){
                         >
                           Repair damage
                         </button>:null}
-                        <select
-                          title="Change tyres during Red Flag"
+                        <div className="grid gap-0.5">
+                          <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-red-100/45">Restart tyre</span>
+                          <select
+                          title="Choose restart tyres during Red Flag"
                           disabled={busy||workLocked||Boolean(liveDriver?.retired)||redFlagLifecycle?.work_policy?.tyre_change===false}
                           className="min-w-[135px] rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
                           value={liveDriver?.tyre?.tyre_id||""}
                           onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
                         >
                           {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
-                        </select>
+                          </select>
+                        </div>
                       </div>
                     </div>;
                   })}
