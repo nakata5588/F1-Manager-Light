@@ -21,6 +21,7 @@ import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
 import { applyAcceptedContractRelationship, applyFailedRenewalRelationship } from "../domain/driverTeamManagerDynamics.js";
 import { driverContractDecision } from "../domain/driverDecisionModel.js";
+import { rebalanceAiDriverLineup } from "../domain/aiDriverLineup.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -829,11 +830,24 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     contractUntil:contractEndYear(contract,Number(nextState?.activeYear)),
   });
 
-  return synchronizeDriverRelationships({
+  let finalized=synchronizeDriverRelationships({
     ...nextState,
     driverNegotiations:negotiations,
     inbox:[...messages,...(nextState?.inbox||[])],
   },{source:"contract_change_neutral"});
+
+  if(
+    !renewal &&
+    negotiation.origin==="ai" &&
+    String(negotiation.team_id)!==String(gs?.team?.team_id??gs?.team?.id??"")
+  ){
+    finalized=rebalanceAiDriverLineup(finalized,negotiation.team_id,{
+      newDriverId:negotiation.driver_id,
+      reason:"accepted_ai_contract",
+    });
+  }
+
+  return finalized;
 }
 
 function counterOffer(gs,negotiation){
