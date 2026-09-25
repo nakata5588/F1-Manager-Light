@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { driverMarketEvaluation, compareDriverMarketValue, driverOverallPresentation } from "../src/domain/driverMarketEvaluation.js";
-import { driverLineupSlots, expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
+import { activeDriverContracts, driverLineupSlots, expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { contractRoleLabel, isReserveDriverContract } from "../src/domain/contractRoles.js";
-import { aiDriverLineupScore, aiDriverRecruitmentFit, aiLineupUpgradeOpportunity, aiTeamDriverFinancialProfile } from "../src/domain/aiDriverLineup.js";
+import { aiDriverLineupScore, aiDriverRecruitmentFit, aiLineupUpgradeOpportunity, aiTeamDriverFinancialProfile, reconcileAiDriverRoleUniqueness } from "../src/domain/aiDriverLineup.js";
 import { isNegotiationActive, processDriverNegotiations, startDriverNegotiation } from "../src/engine/NegotiationEngine.js";
 
 function marketState(){
@@ -132,7 +132,7 @@ test("AI teams with complete race seats open reserve negotiations instead of sig
     c.source==="ai_negotiation" ||
     ["Main Driver","Second Driver"].includes(String(c.role_changed_from||""))
   ),"the final Reserve may be the signing or a race driver demoted by the hierarchy review");
-  assert.ok(resolved.inbox.some((msg)=>/signs with/.test(String(msg.subject||""))));
+  assert.ok(resolved.inbox.some((msg)=>/signs with/.test(String(msg.subject||""))||msg.market_digest===true));
 });
 
 test("a test driver does not satisfy the AI reserve requirement",()=>{
@@ -537,4 +537,171 @@ test("D7.1B 1980 Alfa-like lineup actively considers a Lauda-level free agent",(
   assert.equal(opportunity.target_driver_id,"A2");
   assert.ok(opportunity.upgrade_gap>=8);
   assert.ok(opportunity.financial_profile.driver_payroll+opportunity.salary<=opportunity.financial_profile.driver_payroll_limit);
+});
+
+
+test("D7.1C competing AI Reserve offers never create two active Reserve Drivers",()=>{
+  let gs=marketState();
+  gs.drivers.push(
+    {driver_id:"AA_WEAK",display_name:"First Reserve",status:"eligible",canHireF1:true},
+    {driver_id:"ZZ_STRONG",display_name:"Better Reserve",status:"eligible",canHireF1:true}
+  );
+  gs.driverRatings.push(
+    {driver_id:"AA_WEAK",current_ability:55,pace:55,reputation:50},
+    {driver_id:"ZZ_STRONG",current_ability:64,pace:64,reputation:60}
+  );
+
+  gs=startDriverNegotiation(gs,{
+    driverId:"AA_WEAK",
+    teamId:"T2",
+    teamName:"AI Team Two",
+    offer:{salary:200_000,years:1,role:"Reserve Driver"},
+    origin:"ai",
+  });
+  gs=startDriverNegotiation(gs,{
+    driverId:"ZZ_STRONG",
+    teamId:"T2",
+    teamName:"AI Team Two",
+    offer:{salary:240_000,years:1,role:"Reserve Driver"},
+    origin:"ai",
+  });
+
+  const pending=(gs.driverNegotiations||[]).filter((n)=>
+    n.team_id==="T2"&&n.offer?.role==="Reserve Driver"&&isNegotiationActive(n)
+  );
+  assert.equal(pending.length,2,"AI may have multiple offers pending for the same vacant role");
+
+  const responseDate=pending.map((n)=>n.response_date).sort().at(-1);
+  const forced=Object.fromEntries(pending.map((n)=>[n.id,"accepted"]));
+  const resolved=processDriverNegotiations(
+    {...gs,currentDateISO:responseDate},
+    {forceOutcomeById:forced}
+  );
+
+  const activeReserves=activeDriverContracts(resolved,{teamId:"T2"})
+    .filter((row)=>contractRoleLabel(row)==="Reserve Driver");
+  assert.equal(activeReserves.length,1);
+  assert.equal(activeReserves[0].driver_id,"ZZ_STRONG","the materially better accepted candidate should replace the first signing");
+
+  const weakContract=(resolved.contracts||[]).find((row)=>row.driver_id==="AA_WEAK");
+  assert.equal(weakContract.status,"released");
+  assert.equal(weakContract.termination_reason,"ai_competing_offer_replacement");
+  assert.ok(Number(weakContract.termination_cost)>0,"AI must pay a real termination cost");
+  assert.ok((resolved.aiTeamFinanceLog||[]).some((row)=>
+    row.driver_id==="AA_WEAK"&&row.type==="driver_termination"&&row.amount<0
+  ));
+});
+
+test("D7.1C AI keeps the incumbent when the later accepted candidate is not worth replacing",()=>{
+  let gs=marketState();
+  gs.drivers.push(
+    {driver_id:"AA_GOOD",display_name:"Good Reserve",status:"eligible",canHireF1:true},
+    {driver_id:"ZZ_WEAK",display_name:"Weak Reserve",status:"eligible",canHireF1:true}
+  );
+  gs.driverRatings.push(
+    {driver_id:"AA_GOOD",current_ability:64,pace:64,reputation:60},
+    {driver_id:"ZZ_WEAK",current_ability:56,pace:56,reputation:50}
+  );
+
+  gs=startDriverNegotiation(gs,{
+    driverId:"AA_GOOD",
+    teamId:"T2",
+    teamName:"AI Team Two",
+    offer:{salary:240_000,years:1,role:"Reserve Driver"},
+    origin:"ai",
+  });
+  gs=startDriverNegotiation(gs,{
+    driverId:"ZZ_WEAK",
+    teamId:"T2",
+    teamName:"AI Team Two",
+    offer:{salary:200_000,years:1,role:"Reserve Driver"},
+    origin:"ai",
+  });
+
+  const pending=(gs.driverNegotiations||[]).filter((n)=>
+    n.team_id==="T2"&&n.offer?.role==="Reserve Driver"&&isNegotiationActive(n)
+  );
+  const responseDate=pending.map((n)=>n.response_date).sort().at(-1);
+  const forced=Object.fromEntries(pending.map((n)=>[n.id,"accepted"]));
+  const resolved=processDriverNegotiations(
+    {...gs,currentDateISO:responseDate},
+    {forceOutcomeById:forced}
+  );
+
+  const activeReserves=activeDriverContracts(resolved,{teamId:"T2"})
+    .filter((row)=>contractRoleLabel(row)==="Reserve Driver");
+  assert.equal(activeReserves.length,1);
+  assert.equal(activeReserves[0].driver_id,"AA_GOOD");
+
+  const later=(resolved.driverNegotiations||[]).find((n)=>n.driver_id==="ZZ_WEAK");
+  assert.equal(later.status,"withdrawn");
+  assert.match(String(later.resolution_note||""),/retained|kept/i);
+});
+
+test("D7.1C batches same-day AI signings into one linked Driver Market round-up",()=>{
+  let gs=marketState();
+  gs.drivers.push(
+    {driver_id:"NEWS1",display_name:"News Driver One",status:"eligible",canHireF1:true},
+    {driver_id:"NEWS2",display_name:"News Driver Two",status:"eligible",canHireF1:true}
+  );
+  gs.driverRatings.push(
+    {driver_id:"NEWS1",current_ability:58,reputation:50},
+    {driver_id:"NEWS2",current_ability:57,reputation:50}
+  );
+
+  gs=startDriverNegotiation(gs,{
+    driverId:"NEWS1",teamId:"T2",teamName:"AI Team Two",
+    offer:{salary:180_000,years:1,role:"Reserve Driver"},origin:"ai",
+  });
+  gs=startDriverNegotiation(gs,{
+    driverId:"NEWS2",teamId:"T3",teamName:"AI Team Three",
+    offer:{salary:180_000,years:1,role:"Reserve Driver"},origin:"ai",
+  });
+
+  const pending=(gs.driverNegotiations||[]).filter((n)=>["NEWS1","NEWS2"].includes(n.driver_id));
+  const responseDate=pending.map((n)=>n.response_date).sort().at(-1);
+  const forced=Object.fromEntries(pending.map((n)=>[n.id,"accepted"]));
+  const resolved=processDriverNegotiations(
+    {...gs,currentDateISO:responseDate},
+    {forceOutcomeById:forced}
+  );
+
+  const digests=(resolved.inbox||[]).filter((m)=>m.market_digest===true&&m.date===responseDate);
+  assert.equal(digests.length,1);
+  assert.equal(digests[0].market_events.length,2);
+  assert.deepEqual(
+    new Set(digests[0].market_events.map((e)=>e.driver_id)),
+    new Set(["NEWS1","NEWS2"])
+  );
+});
+
+
+test("D7.1C hard invariant reconciles every explicit AI role to one active contract",()=>{
+  const gs=marketState();
+  const extras=[
+    ["M2","Duplicate Main","Main Driver",61],
+    ["S2","Duplicate Second","Second Driver",60],
+    ["R3","Reserve One","Reserve Driver",58],
+    ["R4","Reserve Two","Reserve Driver",56],
+    ["T3","Test One","Test Driver",54],
+    ["T4","Test Two","Test Driver",52],
+  ];
+  for(const [id,name,role,ability] of extras){
+    gs.drivers.push({driver_id:id,display_name:name,status:"eligible",canHireF1:true});
+    gs.driverRatings.push({driver_id:id,current_ability:ability,reputation:ability});
+    gs.contracts.push({
+      year:1980,team_id:"T2",driver_id:id,driver_name:name,
+      role,salary:150_000,status:"active",contract_until_year:1980,
+    });
+  }
+
+  const reconciled=reconcileAiDriverRoleUniqueness(gs,"T2");
+  const active=activeDriverContracts(reconciled,{teamId:"T2"});
+  for(const role of ["Main Driver","Second Driver","Reserve Driver","Test Driver"]){
+    assert.equal(
+      active.filter((contract)=>contractRoleLabel(contract)===role).length,
+      1,
+      role+" must have exactly one active contract"
+    );
+  }
 });

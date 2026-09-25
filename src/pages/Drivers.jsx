@@ -3,9 +3,9 @@ import { useGame } from "../state/GameStore.js";
 import { ageOn } from "../utils/date.js";
 import { DriverPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import ContractNegotiationModal from "../components/drivers/ContractNegotiationModal.jsx";
-import { expectedDriverSalary } from "../domain/driverContracts.js";
+import { activeDriverContracts, expectedDriverSalary } from "../domain/driverContracts.js";
 import { openingMarketLabel } from "../domain/driverOpeningState.js";
-import { contractRoleLabel, isDriverContract } from "../domain/contractRoles.js";
+import { contractRoleLabel } from "../domain/contractRoles.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import { driverKnowledgeState, presentDriverKnowledgeValue } from "../domain/driverKnowledge.js";
 import {
@@ -57,7 +57,6 @@ export default function Drivers(){
   const gs=useGame(s=>s.gameState);
   const setGameState=useGame(s=>s.setGameState);
   const drivers=Array.isArray(gs?.drivers)?gs.drivers:[];
-  const contracts=Array.isArray(gs?.contracts)?gs.contracts:[];
   const teams=Array.isArray(gs?.teams)?gs.teams:[];
   const activeYear=Number(gs?.activeYear);
   const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
@@ -122,17 +121,12 @@ export default function Drivers(){
   },[activePlayerNegotiations]);
   const contractById=useMemo(()=>{
     const m=new Map();
-    for(const c of contracts){
-      const id=idOf(c); if(!id) continue;
-      if(!isDriverContract(c)) continue;
-      const contractStatus=String(pick(c,["status"],"active")).toLowerCase();
-      if(["terminated","expired","released","bought_out","inactive","void"].includes(contractStatus)) continue;
-      const y=Number(pick(c,["year","season_year"],activeYear));
-      if(Number.isFinite(activeYear)&&Number.isFinite(y)&&y!==activeYear) continue;
-      if(!m.has(id)) m.set(id,c);
+    for(const contract of activeDriverContracts(gs)){
+      const id=idOf(contract);
+      if(id&&!m.has(id))m.set(id,contract);
     }
     return m;
-  },[contracts,activeYear]);
+  },[gs]);
 
   const rows=useMemo(()=>drivers.map(d=>{
     const id=idOf(d), contract=contractById.get(id)||null;

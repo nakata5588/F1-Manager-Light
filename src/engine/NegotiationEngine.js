@@ -22,7 +22,7 @@ import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
 import { applyAcceptedContractRelationship, applyFailedRenewalRelationship } from "../domain/driverTeamManagerDynamics.js";
 import { driverContractDecision } from "../domain/driverDecisionModel.js";
-import { prepareAiLineupUpgradeSigning, rebalanceAiDriverLineup } from "../domain/aiDriverLineup.js";
+import { prepareAiLineupUpgradeSigning, prepareAiRoleSigning, rebalanceAiDriverLineup, reconcileAiDriverRoleUniqueness } from "../domain/aiDriverLineup.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_NEGOTIATION_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -95,6 +95,64 @@ function offerQuality(gs,negotiation){
   return salary/expected+roleAttractiveness(negotiation?.offer?.role)+Math.min(0.08,(years-1)*0.025);
 }
 
+
+function collapseAiMarketContractNews(gs,today){
+  const date=dateOnly(today);
+  const inbox=rows(gs?.inbox);
+  const existingDigest=inbox.find((message)=>
+    message?.market_digest===true&&dateOnly(message?.date)===date
+  )||null;
+  const eventMessages=inbox.filter((message)=>
+    message?.market_event?.ai===true&&
+    dateOnly(message?.date)===date
+  );
+  const events=[
+    ...(Array.isArray(existingDigest?.market_events)?existingDigest.market_events:[]),
+    ...eventMessages.map((message)=>message.market_event),
+  ];
+  const seen=new Set();
+  const unique=events.filter((event)=>{
+    const key=String(event?.negotiation_id||[
+      event?.kind,event?.driver_id,event?.team_id,event?.role
+    ].join("|"));
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+  if(unique.length<2)return gs;
+
+  const body=unique.map((event)=>{
+    const verb=event?.kind==="renewal"
+      ?"renews with"
+      :(event?.kind==="transfer"?"transfers to":"signs with");
+    return [
+      event?.driver_name||event?.driver_id||"Driver",
+      verb,
+      event?.team_name||event?.team_id||"team",
+      event?.role?("as "+event.role):"",
+    ].filter(Boolean).join(" ");
+  }).join("\n");
+
+  const removedIds=new Set(eventMessages.map((message)=>message.id));
+  const remaining=inbox.filter((message)=>
+    !removedIds.has(message?.id)&&message!==existingDigest
+  );
+  const digest={
+    id:"driver_market_roundup_"+date,
+    date,
+    unread:true,
+    type:"PR",
+    from:"Paddock Reporter",
+    tag:"Contracts",
+    subject:"Driver Market Round-up — "+date,
+    body,
+    market_digest:true,
+    market_events:unique,
+    actions:[{label:"Open Driver Market",route:"/Drivers"}],
+  };
+  return {...gs,inbox:[digest,...remaining]};
+}
+
 export function driverNegotiations(gs){
   return rows(gs?.driverNegotiations);
 }
@@ -135,7 +193,7 @@ export function hasActiveNegotiationForTeamRole(gs,teamId,role){
   );
 }
 
-export function availableContractRoles(gs,teamId){
+export function availableContractRoles(gs,teamId,{respectPending=true}={}){
   const year=Number(gs?.activeYear);
   const teamContracts=(gs?.contracts||[]).filter((c)=>
     teamIdOf(c)===String(teamId)&&
@@ -164,15 +222,15 @@ export function availableContractRoles(gs,teamId){
   }
 
   const roles=[];
-  if(!main&&!hasActiveNegotiationForTeamRole(gs,teamId,"Main Driver"))roles.push("Main Driver");
-  if(!second&&!hasActiveNegotiationForTeamRole(gs,teamId,"Second Driver"))roles.push("Second Driver");
-  if(!reserve&&!hasActiveNegotiationForTeamRole(gs,teamId,"Reserve Driver"))roles.push("Reserve Driver");
-  if(!test&&!hasActiveNegotiationForTeamRole(gs,teamId,"Test Driver"))roles.push("Test Driver");
+  if(!main&&(!respectPending||!hasActiveNegotiationForTeamRole(gs,teamId,"Main Driver")))roles.push("Main Driver");
+  if(!second&&(!respectPending||!hasActiveNegotiationForTeamRole(gs,teamId,"Second Driver")))roles.push("Second Driver");
+  if(!reserve&&(!respectPending||!hasActiveNegotiationForTeamRole(gs,teamId,"Reserve Driver")))roles.push("Reserve Driver");
+  if(!test&&(!respectPending||!hasActiveNegotiationForTeamRole(gs,teamId,"Test Driver")))roles.push("Test Driver");
   return roles;
 }
 
 
-export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
+export function driverNegotiationEligibility(gs,{driverId,teamId,allowCompetingOffers=false}={}){
   const did=String(driverId||"");
   const tid=String(teamId||"");
   const driver=driverFor(gs,did);
@@ -192,7 +250,7 @@ export function driverNegotiationEligibility(gs,{driverId,teamId}={}){
     };
   }
 
-  const roles=availableContractRoles(gs,tid);
+  const roles=availableContractRoles(gs,tid,{respectPending:!allowCompetingOffers});
   const contract=activeDriverContract(gs,did);
   if(contract){
     const ownContract=teamIdOf(contract)===tid;
@@ -324,7 +382,7 @@ export function startDriverNegotiation(gs,{
             sellerTeamId:String(approvedTransferApproach?.seller_team_id||""),
           },
         }
-        :driverNegotiationEligibility(gs,{driverId:did,teamId:tid})));
+        :driverNegotiationEligibility(gs,{driverId:did,teamId:tid,allowCompetingOffers:origin==="ai"})));
   if(!eligibility.canNegotiate||!eligibility.roles.includes(role))return gs;
   const kind=renewal?"renewal":(eligibility.kind||"new_contract");
 
@@ -765,6 +823,37 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
       return rejectNegotiation(gs,negotiation,"AI line-up changed before the upgrade signing could be completed.");
     }
     nextState=prepared.state;
+  }else if(
+    !renewal &&
+    !transfer &&
+    negotiation.origin==="ai"
+  ){
+    const prepared=prepareAiRoleSigning(gs,{
+      teamId:negotiation.team_id,
+      candidateId:negotiation.driver_id,
+      role:negotiation.offer?.role,
+      salary:negotiation.offer?.salary,
+    });
+    if(!prepared.prepared){
+      const incumbentName=driverNameFor(gs,prepared?.decision?.incumbent_driver_id);
+      const reason=prepared?.decision?.reason==="incumbent_quality_close"
+        ?("Driver accepted, but "+negotiation.team_name+" retained "+incumbentName+" in the "+negotiation.offer?.role+" role.")
+        :("Driver accepted, but "+negotiation.team_name+" kept its current "+negotiation.offer?.role+" after reviewing the replacement cost.");
+      return {
+        ...gs,
+        driverNegotiations:driverNegotiations(gs).map((row)=>
+          row.id===negotiation.id?{
+            ...row,
+            driver_decision:negotiation.driver_decision,
+            status:"withdrawn",
+            resolved_at:dateOnly(gs?.currentDateISO),
+            resolution_note:reason,
+            slot_conflict_decision:prepared.decision,
+          }:row
+        ),
+      };
+    }
+    nextState=prepared.state;
   }
 
   const resolvedAt=dateOnly(gs?.currentDateISO);
@@ -838,6 +927,16 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
         :(negotiation.driver_name+" has agreed a "+negotiation.offer.years+"-year contract as "+negotiation.offer.role+" on $"+Number(negotiation.offer.salary).toLocaleString("en-US")+" per season.")),
     driver_id:negotiation.driver_id,
     team_id:negotiation.team_id,
+    market_event:playerInvolved?null:{
+      ai:true,
+      kind:renewal?"renewal":(transfer?"transfer":"signing"),
+      negotiation_id:negotiation.id,
+      driver_id:negotiation.driver_id,
+      driver_name:negotiation.driver_name,
+      team_id:negotiation.team_id,
+      team_name:negotiation.team_name,
+      role:negotiation.offer?.role||null,
+    },
   }];
 
   for(const other of negotiations){
@@ -883,6 +982,7 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
       newDriverId:negotiation.driver_id,
       reason:"accepted_ai_contract",
     });
+    finalized=reconcileAiDriverRoleUniqueness(finalized,negotiation.team_id);
   }
 
   return finalized;
@@ -1090,6 +1190,7 @@ export function processDriverNegotiations(gs,{forceOutcomeById={},forceTransferO
     }
   }
 
+  next=collapseAiMarketContractNews(next,today);
   return next;
 }
 
