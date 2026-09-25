@@ -177,58 +177,117 @@ export function mergeDamageStates(states=[]){
   return damageStateFromComponents(merged,{source:"cumulative"});
 }
 
-export function incidentDamageStateThrough(incidents=[],driverId,throughOrdinal=Infinity){
+// RW5.3B.1 — repair effectiveness is intentionally component-specific.
+// A front wing can be replaced cleanly; deeper structural/bodywork repairs
+// reduce damage materially but do not pretend the car returns to factory-new.
+export const RED_FLAG_REPAIR_EFFECTIVENESS=Object.freeze({
+  front_wing:1.00,
+  rear_wing:0.85,
+  floor:0.65,
+  suspension:0.70,
+  brakes:0.60,
+  cooling:0.65,
+});
+
+export function repairDamageState(state,{effectiveness=RED_FLAG_REPAIR_EFFECTIVENESS,source="red_flag_repair"}={}){
+  const current=state||damageStateFromComponents({},{source:"none"});
+  const raw={};
+  for(const component of COMPONENTS){
+    const before=clamp(current?.components?.[component]?.damage_pct??0);
+    const factor=Math.max(0,Math.min(1,Number(effectiveness?.[component]??0)));
+    raw[component]=before*(1-factor);
+  }
+  const repaired=damageStateFromComponents(raw,{source});
+  return {
+    ...repaired,
+    repaired_from_damage_pct:Number(current?.overall_damage_pct||0),
+    repair_effectiveness:{...effectiveness},
+  };
+}
+
+function timelineEvents(incidents=[],repairs=[],driverId){
   const did=String(driverId??"");
-  return mergeDamageStates(
-    (incidents||[])
-      .filter((incident)=>String(incident?.driver_id??"")===did)
-      .filter((incident)=>Number(incident?.damage_ordinal??0)<=Number(throughOrdinal))
-      .map((incident)=>incident?.damage)
-      .filter(Boolean)
+  const damageEvents=(incidents||[])
+    .filter((incident)=>String(incident?.driver_id??"")===did&&incident?.damage)
+    .map((incident)=>({
+      type:"damage",
+      ordinal:Number(incident?.damage_ordinal??0),
+      damage:incident.damage,
+    }));
+  const repairEvents=(repairs||[])
+    .filter((repair)=>String(repair?.driver_id??"")===did)
+    .map((repair)=>({
+      type:"repair",
+      ordinal:Number(repair?.repair_ordinal??repair?.ordinal??0),
+      repair,
+    }));
+  return [...damageEvents,...repairEvents].sort((a,b)=>
+    a.ordinal-b.ordinal||
+    (a.type==="damage"?-1:1)
   );
 }
 
-export function damagePenaltyMsBetweenOrdinals(incidents=[],driverId,fromOrdinal,toOrdinal){
+export function damageStateThroughTimeline(incidents=[],repairs=[],driverId,throughOrdinal=Infinity){
+  let state=damageStateFromComponents({},{source:"none"});
+  for(const event of timelineEvents(incidents,repairs,driverId)){
+    if(event.ordinal>Number(throughOrdinal))break;
+    state=event.type==="damage"
+      ?mergeDamageStates([state,event.damage])
+      :repairDamageState(state,{
+        effectiveness:event.repair?.effectiveness||RED_FLAG_REPAIR_EFFECTIVENESS,
+        source:event.repair?.source||"repair",
+      });
+  }
+  return state;
+}
+
+export function incidentDamageStateThrough(incidents=[],driverId,throughOrdinal=Infinity,repairs=[]){
+  return damageStateThroughTimeline(incidents,repairs,driverId,throughOrdinal);
+}
+
+export function damagePenaltyMsBetweenOrdinals(incidents=[],driverId,fromOrdinal,toOrdinal,repairs=[]){
   const start=Number(fromOrdinal)||0;
   const end=Number(toOrdinal)||0;
   if(end<=start)return 0;
-  const did=String(driverId??"");
-  const relevant=(incidents||[])
-    .filter((incident)=>String(incident?.driver_id??"")===did&&incident?.damage)
-    .map((incident)=>({
-      ...incident,
-      ordinal:Number(incident?.damage_ordinal??0),
-    }))
-    .sort((a,b)=>a.ordinal-b.ordinal);
+  const events=timelineEvents(incidents,repairs,driverId);
+  let state=damageStateFromComponents({},{source:"none"});
 
-  const active=[];
-  for(const incident of relevant){
-    if(incident.ordinal<=start)active.push(incident.damage);
+  for(const event of events){
+    if(event.ordinal>start)break;
+    state=event.type==="damage"
+      ?mergeDamageStates([state,event.damage])
+      :repairDamageState(state,{
+        effectiveness:event.repair?.effectiveness||RED_FLAG_REPAIR_EFFECTIVENESS,
+        source:event.repair?.source||"repair",
+      });
   }
 
   let cursor=start;
   let total=0;
   const addSegment=(segmentEnd)=>{
     if(segmentEnd<=cursor)return;
-    const pace=active.length
-      ?Math.max(0,Number(mergeDamageStates(active).pace_loss_s_per_lap)||0)
-      :0;
+    const pace=Math.max(0,Number(state?.pace_loss_s_per_lap)||0);
     total+=((segmentEnd-cursor)/3)*1000*pace;
     cursor=segmentEnd;
   };
 
-  for(const incident of relevant){
-    if(incident.ordinal<=start)continue;
-    if(incident.ordinal>=end)break;
-    addSegment(incident.ordinal);
-    active.push(incident.damage);
+  for(const event of events){
+    if(event.ordinal<=start)continue;
+    if(event.ordinal>=end)break;
+    addSegment(event.ordinal);
+    state=event.type==="damage"
+      ?mergeDamageStates([state,event.damage])
+      :repairDamageState(state,{
+        effectiveness:event.repair?.effectiveness||RED_FLAG_REPAIR_EFFECTIVENESS,
+        source:event.repair?.source||"repair",
+      });
   }
   addSegment(end);
   return total;
 }
 
-export function damagePenaltyMsThroughOrdinal(incidents=[],driverId,throughOrdinal){
-  return damagePenaltyMsBetweenOrdinals(incidents,driverId,0,throughOrdinal);
+export function damagePenaltyMsThroughOrdinal(incidents=[],driverId,throughOrdinal,repairs=[]){
+  return damagePenaltyMsBetweenOrdinals(incidents,driverId,0,throughOrdinal,repairs);
 }
 
 export const CAR_DAMAGE_COMPONENTS=Object.freeze([...COMPONENTS]);
