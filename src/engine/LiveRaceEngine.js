@@ -669,7 +669,15 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
     const pits=(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=pointLap);
     const best=bestLapAt(row,completedLap);
     const sectors=sectorDisplayForPoint(row,pointLap,pointSector);
-    const recentPace=completedLap>0?recentObservedPaceMs(row,completedLap):null;
+    const recentPaceBase=completedLap>0?recentObservedPaceMs(row,completedLap):null;
+    const recentPace=Number.isFinite(Number(recentPaceBase))
+      ?Number(recentPaceBase)+Math.max(0,Number(damageState?.pace_loss_s_per_lap)||0)*1000
+      :recentPaceBase;
+    const latestDamageIncident=incidentRows
+      .filter((item)=>String(item?.driver_id??"")===did&&item?.damage&&incidentOrdinal(item)<=pointOrd)
+      .slice()
+      .sort((a,b)=>incidentOrdinal(a)-incidentOrdinal(b))
+      .at(-1)||null;
     const pitWindow=pitWindowAt(strategyState,did,Math.max(0,completedLap),totalLaps,tyre);
     const currentPace=paceAtLap(strategyState,did,pointLap);
     const nextPace=nextPaceMode(strategyState,did,pointLap);
@@ -709,6 +717,10 @@ function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
       damage_severity:damageState?.damaged_components?.length?damageState.severity:"none",
       damage_pace_loss_s_per_lap:damageState?.damaged_components?.length?damageState.pace_loss_s_per_lap:0,
       damaged_components:damageState?.damaged_components||[],
+      damage_incident_lap:latestDamageIncident?.lap??null,
+      damage_incident_sector:latestDamageIncident?.sector??null,
+      incident_kind:retired?incident?.kind??null:latestDamageIncident?.kind??null,
+      incident_reason:retired?incident?.reason??null:latestDamageIncident?.reason??null,
     };
     visibleRow.expected_future_pit_loss_s=expectedFuturePitLoss(
       gs,strategyState,visibleRow,Math.max(0,completedLap),totalLaps,plan,playerForecast
@@ -1517,6 +1529,7 @@ export function liveRaceReadyToFinalize(gs){
 
 export function finalizedLiveRaceRows(gs){
   const live=gs?.raceWeekendState?.live_race;
+  const plan=gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
   if(!liveRaceReadyToFinalize(gs))return null;
   const projected=Array.isArray(live?.projected_race)?live.projected_race:[];
   const classification=Array.isArray(live?.classification)?live.classification:[];
@@ -1540,8 +1553,22 @@ export function finalizedLiveRaceRows(gs){
           ?items.filter((item)=>Number(item?.[lapKey]??0)<=completedLaps)
           :items;
       const lapTimes=Array.isArray(row?.lap_times_ms)
-        ?row.lap_times_ms.slice(0,completedLaps)
+        ?row.lap_times_ms.slice(0,completedLaps).map((value,index)=>{
+          const lapNumber=index+1;
+          const base=Number(value);
+          if(!Number.isFinite(base))return value;
+          const ordinalEnd=lapNumber*3;
+          return base
+            +nonRetirementIncidentLossMs(plan,did,{throughOrdinal:ordinalEnd,lap:lapNumber})
+            +damagePenaltyMsBetweenOrdinals(plan?.incidents||[],did,(lapNumber-1)*3,ordinalEnd);
+        })
         :row?.lap_times_ms;
+      const validLapTimes=Array.isArray(lapTimes)
+        ?lapTimes.map((value,index)=>({value:Number(value),lap:index+1})).filter((item)=>Number.isFinite(item.value)&&item.value>0)
+        :[];
+      const adjustedBest=validLapTimes.length
+        ?validLapTimes.slice().sort((a,b)=>a.value-b.value)[0]
+        :null;
       const pitStops=filterToCompletedLap(row?.pit_stops,"lap");
       const tyreStates=filterToCompletedLap(row?.tyre_state_by_lap,"lap");
       const strategyDecisions=filterToCompletedLap(row?.strategy_decisions,"lap");
@@ -1566,9 +1593,19 @@ export function finalizedLiveRaceRows(gs){
         retirement_reason:retired?(visible?.retirement_reason||"Retired"):null,
         incident_lap:incidentLap,
         incident_sector:incidentSector,
+        incident_kind:visible?.incident_kind??row?.incident_kind??null,
+        incident_reason:visible?.incident_reason??row?.incident_reason??null,
+        damage_state:visible?.damage_state?structuredClone(visible.damage_state):null,
+        damage_severity:visible?.damage_severity??"none",
+        damaged_components:Array.isArray(visible?.damaged_components)?[...visible.damaged_components]:[],
+        damage_pace_loss_s_per_lap:Number(visible?.damage_pace_loss_s_per_lap||0),
+        damage_incident_lap:visible?.damage_incident_lap??null,
+        damage_incident_sector:visible?.damage_incident_sector??null,
         laps_completed:completedLaps,
         race_laps:totalLaps,
         lap_times_ms:lapTimes,
+        best_lap_ms:adjustedBest?.value??row?.best_lap_ms,
+        best_lap_number:adjustedBest?.lap??row?.best_lap_number,
         pit_stops:pitStops,
         tyre_state_by_lap:tyreStates,
         strategy_decisions:strategyDecisions,
