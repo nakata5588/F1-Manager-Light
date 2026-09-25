@@ -10,6 +10,7 @@ import {
   technicalLearningContext,
 } from "./technicalKnowledge.js";
 import { carComponentCatalog } from "./carComponents.js";
+import { technicalStrategyAeroMultipliers } from "./technicalStrategy.js";
 
 const str=(v)=>String(v??"");
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -389,12 +390,14 @@ export function buildNextSeasonTechnicalPackage(gs,{
   const engineeringResource=clamp(35+engineers*5,40,100);
   const retainedAverage=num(carry?.retained_average,50);
   const applicableAreas=applicableTechnicalAreas(gs,targetSeason);
+  const aeroStrategy=technicalStrategyAeroMultipliers(gs);
 
   const resources={
     engineers,
     staff_quality:round(staffQuality,1),
     facility_quality:round(facilityQuality,1),
     engineering_resource:round(engineeringResource,1),
+    aero_strategy_multiplier:aeroStrategy.next_season_multiplier,
   };
 
   const conceptQuality=round(clamp(
@@ -422,7 +425,8 @@ export function buildNextSeasonTechnicalPackage(gs,{
     const matureConcept=clamp(retained+bias+conceptQualityAdjustment,0,100);
     const conceptProjection=retained+(matureConcept-retained)*(concept/100);
     const emphasis=Math.max(-2,Math.min(5,bias));
-    const areaDesignCapacity=designGainCapacity*(1+Math.max(0,emphasis)*0.035);
+    const areaStrategyMultiplier=area==="aero"?aeroStrategy.next_season_multiplier:1;
+    const areaDesignCapacity=designGainCapacity*(1+Math.max(0,emphasis)*0.035)*areaStrategyMultiplier;
     const projected=design>0
       ?clamp(matureConcept+areaDesignCapacity*(design/100),0,100)
       :clamp(conceptProjection,0,100);
@@ -439,6 +443,7 @@ export function buildNextSeasonTechnicalPackage(gs,{
       concept_target:round(matureConcept,1),
       concept_projected:round(conceptProjection,1),
       design_capacity:round(areaDesignCapacity,2),
+      strategy_multiplier:round(areaStrategyMultiplier,3),
       projected:round(projected,1),
       potential:round(potential,1),
       confidence,

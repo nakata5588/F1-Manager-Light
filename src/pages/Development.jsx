@@ -71,6 +71,12 @@ import {
   NEXT_SEASON_TECHNICAL_PHILOSOPHIES,
   buildNextSeasonTechnicalPackage,
 } from "@/domain/nextSeasonTechnicalPackage.js";
+import {
+  TECHNICAL_STRATEGY_PRESETS,
+  setTechnicalStrategy,
+  technicalStrategyAeroMultipliers,
+  technicalStrategySnapshot,
+} from "@/domain/technicalStrategy.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -320,10 +326,11 @@ export default function Development({ embedded = false, initialTab = "projects",
     windTunnel:aeroAllocation.wind_tunnel,
     cfd:aeroAllocation.cfd,
   });
+  const technicalAeroStrategy=technicalStrategyAeroMultipliers(gameState);
   const effectiveDraft={
     ...draft,
-    cfd:aeroEffect.cfd_effective,
-    windTunnel:aeroEffect.wind_tunnel_effective,
+    cfd:aeroEffect.cfd_effective*technicalAeroStrategy.current_car_multiplier,
+    windTunnel:aeroEffect.wind_tunnel_effective*technicalAeroStrategy.current_car_multiplier,
   };
   const rawEffectiveDays = effectiveProjectDays(effectiveDraft, levelOf, moraleTimeFactor);
   const effectiveDays = Math.max(7,Math.round(
@@ -357,6 +364,12 @@ export default function Development({ embedded = false, initialTab = "projects",
     reservedEngineers:0,
   });
   const nextSeasonDraftMax=Math.max(1,Number(nextSeasonBaseCapacity.available_engineers||1));
+  const technicalStrategy=technicalStrategySnapshot(gameState,{
+    teamId,
+    engineeringSupport,
+    projects,
+    nextSeasonCar,
+  });
   const nextSeasonQuote=nextSeasonProgrammeQuote(gameState,{
     teamId,
     engineers:Math.min(nextSeasonDraftEngineers,nextSeasonDraftMax),
@@ -414,6 +427,8 @@ export default function Development({ embedded = false, initialTab = "projects",
       aero_testing_period:regulationProfile.period?.id||null,
       atr_coefficient:regulationProfile.coefficient,
       component_development_rule:componentRule.rule,
+      technical_strategy_id:technicalStrategy.strategy.id,
+      aero_strategy_multiplier:technicalAeroStrategy.current_car_multiplier,
       cost,
       perf_delta:strengthTarget.increment,
       base_perf_delta:baseExpectedPerf,
@@ -557,6 +572,29 @@ export default function Development({ embedded = false, initialTab = "projects",
     const next=nextSeasonCar.status==="paused"
       ?resumeNextSeasonCarProgramme(gameState,{teamId,engineeringSupport})
       :pauseNextSeasonCarProgramme(gameState);
+    if(next!==gameState)setGameState(next);
+  };
+
+  const applyTechnicalStrategy=(strategyId)=>{
+    let next=setTechnicalStrategy(gameState,{strategyId,dateISO:currentDateISO});
+    const nextProgramme=normalizeNextSeasonCarProgramme(next?.development?.nextSeasonCar,{activeYear});
+    const snapshot=technicalStrategySnapshot(next,{
+      teamId,
+      engineeringSupport,
+      projects:next?.development?.projects||projects,
+      nextSeasonCar:nextProgramme,
+    });
+    if(nextProgramme.status==="active"||nextProgramme.status==="paused"){
+      if(snapshot.engineers.feasible_next_season>=1){
+        next=setNextSeasonCarEngineers(next,{
+          teamId,
+          engineers:snapshot.engineers.feasible_next_season,
+          engineeringSupport,
+        });
+      }
+    }else if(nextProgramme.status==="not_started"){
+      setNextSeasonDraftEngineers(Math.max(1,snapshot.engineers.feasible_next_season||1));
+    }
     if(next!==gameState)setGameState(next);
   };
 
@@ -919,6 +957,66 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <Mini label="Engineers" value={String(nextSeasonCar.engineers||0)}/>
               </div>
             </div>
+          </CardContent></Card>
+
+          <Card className="!bg-[#11141b] !border-white/10 !text-slate-100"><CardContent className="p-3 space-y-3">
+            <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+              <div className="min-w-[230px]">
+                <div className="flex items-center gap-2">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Season Technical Strategy</div>
+                    <div className="font-semibold text-sm">{technicalStrategy.strategy.label}</div>
+                  </div>
+                  <InfoPopover title="Current Car vs Next Season">
+                    Strategy redistributes the same technical effort. Engineers are shared directly. Research trades spendable Current Car RP against persistent future Technical Knowledge. Aero priority changes how effectively the aero department supports Current Car testing versus the Next Season Design package. Balanced preserves the previous 1.00× baseline.
+                  </InfoPopover>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">{technicalStrategy.strategy.description}</div>
+              </div>
+              <div className="xl:flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
+                {TECHNICAL_STRATEGY_PRESETS.map((row)=>{
+                  const active=technicalStrategy.strategy.id===row.id;
+                  return <button key={row.id} onClick={()=>applyTechnicalStrategy(row.id)} className={"rounded-lg border px-3 py-2 text-left transition "+(
+                    active?"border-fuchsia-400/30 bg-fuchsia-500/[0.08]":"border-white/10 bg-[#0d0f15] hover:bg-white/[0.04]"
+                  )}>
+                    <div className="text-xs font-semibold">{row.label}</div>
+                    <div className="mt-1 text-[10px] text-slate-500">{row.current_car_share}% current · {row.next_season_share}% next</div>
+                  </button>;
+                })}
+              </div>
+            </div>
+
+            <div className="h-2 rounded-full overflow-hidden flex bg-white/5">
+              <div className="h-full bg-sky-400/70" style={{width:technicalStrategy.shares.current_car+"%"}}/>
+              <div className="h-full bg-fuchsia-400/70" style={{width:technicalStrategy.shares.next_season+"%"}}/>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-sky-400/15 bg-sky-500/[0.04] p-2">
+                <div className="text-[9px] uppercase text-sky-300/70">Engineers</div>
+                <div className="text-sm font-semibold">{technicalStrategy.engineers.current_projects} current · {technicalStrategy.engineers.next_season} next</div>
+                <div className="text-[10px] text-slate-500">Target next: {technicalStrategy.engineers.target_next_season} · Free: {technicalStrategy.engineers.free}</div>
+              </div>
+              <div className="rounded-lg border border-cyan-400/15 bg-cyan-500/[0.04] p-2">
+                <div className="text-[9px] uppercase text-cyan-300/70">Current Research</div>
+                <div className="text-sm font-semibold">×{technicalStrategy.research.current_car_multiplier.toFixed(2)} RP</div>
+                <div className="text-[10px] text-slate-500">Spendable Current Car research</div>
+              </div>
+              <div className="rounded-lg border border-fuchsia-400/15 bg-fuchsia-500/[0.04] p-2">
+                <div className="text-[9px] uppercase text-fuchsia-300/70">Future Knowledge</div>
+                <div className="text-sm font-semibold">×{technicalStrategy.research.next_season_multiplier.toFixed(2)}</div>
+                <div className="text-[10px] text-slate-500">Persistent knowledge learning</div>
+              </div>
+              <div className="rounded-lg border border-amber-400/15 bg-amber-500/[0.04] p-2">
+                <div className="text-[9px] uppercase text-amber-300/70">Aero Support</div>
+                <div className="text-sm font-semibold">×{technicalStrategy.aero.current_car_multiplier.toFixed(2)} / ×{technicalStrategy.aero.next_season_multiplier.toFixed(2)}</div>
+                <div className="text-[10px] text-slate-500">Current / Next Season</div>
+              </div>
+            </div>
+
+            {technicalStrategy.engineers.blocked_engineers>0?<div className="rounded-lg border border-amber-400/20 bg-amber-500/[0.05] px-3 py-2 text-[11px] text-amber-200">
+              {technicalStrategy.engineers.blocked_engineers} target engineer(s) cannot move to the Next Season Car while existing Current Car projects remain committed.
+            </div>:null}
           </CardContent></Card>
 
           <Card className="!bg-[#10131b] !border-white/10 !text-slate-100"><CardContent className="p-3 space-y-3">
@@ -1308,17 +1406,18 @@ export default function Development({ embedded = false, initialTab = "projects",
                 </InfoPopover>
               </div>
               <div className="lg:flex-1"/>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Mini label="Output" value={researchOutput.total_points_per_day.toFixed(2)+" RP/day"}/>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Mini label="Output" value={(researchOutput.total_points_per_day*technicalStrategy.research.current_car_multiplier).toFixed(2)+" RP/day"}/>
                 <Mini label="Focus" value={research.reduce((sum,row)=>sum+Number(row.focus||0),0).toFixed(0)+"%"}/>
                 <Mini label="Banked" value={research.reduce((sum,row)=>sum+Number(row.points||0),0).toFixed(1)+" RP"}/>
+                <Mini label="Future learning" value={"×"+technicalStrategy.research.next_season_multiplier.toFixed(2)}/>
               </div>
             </div>
           </CardContent></Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {research.map((r)=>{
-              const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100);
+              const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100)*technicalStrategy.research.current_car_multiplier;
               return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2"><div className="font-semibold">{r.label||r.area}</div><InfoPopover title={r.label||r.area}>{r.description} Focus controls this area's share of daily RP generation; banked RP can support matching development projects.</InfoPopover></div>

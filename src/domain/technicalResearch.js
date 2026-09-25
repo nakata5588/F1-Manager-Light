@@ -8,6 +8,7 @@
 
 import { carComponentDefinition } from "./carComponents.js";
 import { applyTechnicalKnowledgeGains, researchKnowledgeGains } from "./technicalKnowledge.js";
+import { technicalStrategyResearchMultipliers } from "./technicalStrategy.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const str=(v)=>String(v??"");
@@ -138,13 +139,15 @@ export function advanceTechnicalResearch(gs,dateISO){
   if(str(dev?.lastResearchDate)===str(dateISO))return gs;
   const rows=normalizeTechnicalResearch(dev?.research);
   const output=technicalResearchDailyOutput(gs);
-  const generated={};
+  const strategy=technicalStrategyResearchMultipliers(gs);
+  const generatedKnowledge={};
   const research=rows.map((row)=>{
-    const gain=output.total_points_per_day*(row.focus/100);
-    generated[row.id]=round(gain,4);
+    const baseGain=output.total_points_per_day*(row.focus/100);
+    const currentGain=baseGain*strategy.current_car_multiplier;
+    generatedKnowledge[row.id]=round(baseGain*strategy.next_season_multiplier,4);
     return {
       ...row,
-      points:round(row.points+gain,3),
+      points:round(row.points+currentGain,3),
     };
   });
   let next={
@@ -157,7 +160,7 @@ export function advanceTechnicalResearch(gs,dateISO){
   };
   next=applyTechnicalKnowledgeGains(
     next,
-    researchKnowledgeGains(generated),
+    researchKnowledgeGains(generatedKnowledge),
     {
       dateISO,
       eventId:`research_${dateISO}`,

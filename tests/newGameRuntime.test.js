@@ -129,7 +129,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.equal(fresh.driverRelationships.relations["D1|team|T1"].trust,50);
   assert.equal(fresh.driverRelationships.relations["D1|team|OLD"],undefined);
   assert.deepEqual(fresh.driverStaffAssignments, { version:1, assignments:{}, history:[] });
-  assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [], aeroTestingUsage: [], technicalKnowledge: null, nextSeasonCar: null });
+  assert.deepEqual(fresh.development, { projects: [], parts: [], partUnits: [], manufacturing: [], research: [], technologyProjects: [], aeroTestingUsage: [], technicalKnowledge: null, technicalStrategy: null, nextSeasonCar: null });
   assert.deepEqual(fresh.technicalUnlocks, {});
   assert.deepEqual(fresh.technologyDiscoverySeen, {});
   assert.deepEqual(fresh.garage, { cars: [], serviceJobs: [], baseComponentStock: {}, reserveCarBuilt: false });
