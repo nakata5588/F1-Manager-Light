@@ -595,6 +595,7 @@ export default function RaceWeekend(){
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
+  const repairRedFlagDamage=useGame((s)=>s.repairRaceWeekendRedFlagDamage);
   const assessLiveRaceRestart=useGame((s)=>s.assessRaceWeekendLiveRaceRestart);
   const prepareLiveRaceRestart=useGame((s)=>s.prepareRaceWeekendLiveRaceRestart);
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
@@ -1541,20 +1542,38 @@ export default function RaceWeekend(){
                     const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
                     const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
                     const workLocked=redFlagLifecycle?.phase!=="suspended"||redFlagLifecycle?.work_locked===true;
+                    const damageComponents=liveDriver?.damage_state?.damaged_components||[];
+                    const damagePace=Number(liveDriver?.damage_state?.pace_loss_s_per_lap||0);
+                    const canRepair=Boolean(
+                      damageComponents.length&&
+                      redFlagLifecycle?.work_policy?.genuine_accident_repair!==false
+                    );
                     return <div key={did} className="flex items-center gap-2 rounded-md border border-red-300/15 bg-black/20 px-2 py-1.5">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[10px] font-semibold text-red-50">{driverName(drivers,did)}</div>
                         <div className="text-[9px] text-red-100/45">Current: {liveDriver?.tyre?.compound||"—"} · {Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</div>
+                        {damageComponents.length?<div className="mt-0.5 truncate text-[9px] text-amber-200/80">Damage: {damageComponents.map((item)=>String(item).replaceAll("_"," ")).join(", ")}{damagePace>0?` · +${damagePace.toFixed(2)}s/lap`:""}</div>:null}
                       </div>
-                      <select
-                        title="Change tyres during Red Flag"
-                        disabled={busy||workLocked||Boolean(liveDriver?.retired)||redFlagLifecycle?.work_policy?.tyre_change===false}
-                        className="min-w-[135px] rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
-                        value={liveDriver?.tyre?.tyre_id||""}
-                        onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
-                      >
-                        {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
-                      </select>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {canRepair?<button
+                          type="button"
+                          title="Repair accident damage during Red Flag"
+                          disabled={busy||workLocked||Boolean(liveDriver?.retired)}
+                          onClick={()=>perform(()=>repairRedFlagDamage({driverId:did}))}
+                          className="rounded-md border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.08em] text-amber-100 hover:bg-amber-500/20 disabled:opacity-40"
+                        >
+                          Repair damage
+                        </button>:null}
+                        <select
+                          title="Change tyres during Red Flag"
+                          disabled={busy||workLocked||Boolean(liveDriver?.retired)||redFlagLifecycle?.work_policy?.tyre_change===false}
+                          className="min-w-[135px] rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
+                          value={liveDriver?.tyre?.tyre_id||""}
+                          onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
+                        >
+                          {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                        </select>
+                      </div>
                     </div>;
                   })}
                 </div>
