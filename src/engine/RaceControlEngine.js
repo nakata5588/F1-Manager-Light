@@ -11,6 +11,7 @@ import { evaluateRaceability } from "./RaceabilityEngine.js";
 import { aquaplaningOutcome, aquaplaningRiskForDriver, standingWaterForConditions } from "./StandingWaterEngine.js";
 import { incidentRaceControlAssessment, weatherRaceControlAssessment } from "./RaceControlPolicyEngine.js";
 import { redFlagClockPolicyForYear, redFlagHoldingAreaForYear, redFlagWorkPolicyForYear } from "./RedFlagLifecycleEngine.js";
+import { damageFromIncident } from "./CarDamageEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -449,6 +450,18 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
         if(otherDriverId===driverId)otherDriverId=null;
       }
     }
+    const damageRng=kind==="mechanical"
+      ?null
+      :rngFor(gs,`${year}-${gpId}-rw5.3a-damage-${driverId}-${lap}-${sector}-${kind}`);
+    const damage=damageRng
+      ?damageFromIncident({
+        kind,
+        severityScore:sev.score,
+        componentRolls:Array.from({length:6},()=>damageRng.next()),
+        impactRoll:damageRng.next(),
+        retirementRoll:damageRng.next(),
+      })
+      :null;
     const incident={
       driver_id:driverId,
       other_driver_id:otherDriverId,
@@ -461,6 +474,9 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
       weather_state:weatherLap.state,
       reliability_pct:reliability?.reliability_pct??null,
       reliability_source:reliability?.source??null,
+      damage_ordinal:pointOrdinal(lap,sector),
+      damage,
+      retirement:kind==="mechanical"?true:Boolean(damage?.retirement_required),
     };
     incidents.push(incident);
     if(kind!=="mechanical"){
@@ -486,19 +502,36 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
   for(const row of race||[]){
     const aq=aquaplaningIncidentForDriver(gs,row,timeline,track||{},{year,gpId});
     if(!aq)continue;
-    incidents.push(aq);
-    const weatherLap=timeline[Math.max(0,Number(aq.lap)-1)]||{state:"SUNNY",red_flag_chance_pct:0};
-    const arng=rngFor(gs,`${year}-${gpId}-rw5.2d4.2-aquaplaning-control-${aq.driver_id}-${aq.lap}`);
-    const response=responseForIncident(rules,aq,weatherLap);
+    const damageRng=rngFor(
+      gs,
+      `${year}-${gpId}-rw5.3a-damage-${aq.driver_id}-${aq.lap}-${aq.sector}-${aq.kind}`
+    );
+    const damage=damageFromIncident({
+      kind:aq.kind,
+      severityScore:aq.severity_score,
+      componentRolls:Array.from({length:6},()=>damageRng.next()),
+      impactRoll:damageRng.next(),
+      retirementRoll:damageRng.next(),
+    });
+    const enriched={
+      ...aq,
+      damage_ordinal:pointOrdinal(aq.lap,aq.sector),
+      damage,
+      retirement:Boolean(aq.retirement||damage?.retirement_required),
+    };
+    incidents.push(enriched);
+    const weatherLap=timeline[Math.max(0,Number(enriched.lap)-1)]||{state:"SUNNY",red_flag_chance_pct:0};
+    const arng=rngFor(gs,`${year}-${gpId}-rw5.2d4.2-aquaplaning-control-${enriched.driver_id}-${enriched.lap}`);
+    const response=responseForIncident(rules,enriched,weatherLap);
     const duration=durationFor(response,arng,timeline.length);
     periods.push({
       type:response,
-      from_lap:aq.lap,
-      from_sector:aq.sector,
-      to_lap:Math.min(timeline.length,aq.lap+duration-1),
+      from_lap:enriched.lap,
+      from_sector:enriched.sector,
+      to_lap:Math.min(timeline.length,enriched.lap+duration-1),
       to_sector:3,
       cause:"aquaplaning",
-      driver_id:aq.driver_id,
+      driver_id:enriched.driver_id,
       priority:response==="RED_FLAG"?0:response==="SAFETY_CAR"?1:response==="VSC"?2:3,
     });
   }
@@ -550,6 +583,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     standing_water_model:"rw5.2d4.2",
     aquaplaning_model:"rw5.2d4.2",
     race_control_policy_model:"rw5.2d4.3",
+    damage_model:"rw5.3a",
     rules,
     weather_assessments:weatherAssessments,
     incidents:incidents.sort((a,b)=>a.lap-b.lap||Number(a?.sector??1)-Number(b?.sector??1)),
