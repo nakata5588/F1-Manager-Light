@@ -290,7 +290,6 @@ export function StaffQuickView({entity,onClose}){
     .filter(([key,value])=>!["staff_id","staff_name","year"].includes(key)&&Number.isFinite(Number(value)))
     .sort((a,b)=>Number(b[1])-Number(a[1]));
   const overall=skills.length?Math.round(skills.reduce((sum,[,value])=>sum+Number(value),0)/skills.length):null;
-  const initials=String(name||"?").split(/\s+/).filter(Boolean).map((part)=>part[0]).join("").slice(0,2).toUpperCase();
 
   return (
     <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("staff",id))}>
