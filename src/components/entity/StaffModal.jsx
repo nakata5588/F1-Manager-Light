@@ -48,6 +48,8 @@ export default function StaffModal({entity,onClose,pageMode=false}){
     const merged=new Map();
     for(const row of [...dbContracts,...contracts]){
       if(resolveStaffId(gs,row)!==id)continue;
+      const rowYear=Number(row?.year??row?.season_year);
+      if(Number.isFinite(year)&&Number.isFinite(rowYear)&&rowYear>year)continue;
       const key=[
         String(row?.team_id??row?.team??""),
         String(row?.role??row?.position??""),
