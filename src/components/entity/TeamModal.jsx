@@ -87,6 +87,9 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   const teamBrands = getArr(gs, ["teamBrands","dbTeamBrands"]);
   const brand = useMemo(() => teamBrands.find(b => String(b.team_id) === idStr && Number(b.year) === Number(year)), [teamBrands, idStr, year]);
   const team = useMemo(() => teams.find(t => String(t.team_id ?? t.id ?? t.team) === idStr), [teams, idStr]);
+  // Must be initialized before logoCandidates: the historical asset alias
+  // resolver uses the display name during render.
+  const name = team?.team_name || team?.name || brand?.team_official_name || brand?.official_name || brand?.team_name || "Team";
 
   /* ---------- Logos ---------- */
   const logoCandidates = useMemo(() => historicalAssetCandidates(
@@ -209,7 +212,6 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   }
 
   /* ---------- Header meta ---------- */
-  const name         = team?.team_name || team?.name || brand?.team_official_name || brand?.official_name || brand?.team_name || "Team";
   const countryCode  = team?.country_code || brand?.country_code || "";
   const country      = countryNameFor(team?.country_name || team?.country || brand?.country_name || brand?.country || "", countryCode);
   const flag         = flagFromCountry(country, countryCode);
