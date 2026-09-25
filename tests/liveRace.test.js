@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
+import { RACE_PLAYBACK_SPEEDS, racePlaybackCanRun, racePlaybackDelayMs } from "../src/domain/racePlayback.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -862,4 +863,19 @@ test("RW4.4 advanced timing remains deterministic after save/load",()=>{
     loaded.raceWeekendState.live_race.timing_summary,
     gs.raceWeekendState.live_race.timing_summary
   );
+});
+
+
+test("RW6.5 playback speed ladder is bounded and progressively faster",()=>{
+  assert.deepEqual(RACE_PLAYBACK_SPEEDS,[1,2,4,8]);
+  const delays=RACE_PLAYBACK_SPEEDS.map(racePlaybackDelayMs);
+  assert.deepEqual(delays,[2200,1100,550,275]);
+  assert.equal(racePlaybackDelayMs(999),2200);
+});
+
+test("RW6.5 autoplay only runs while the live race is in running state",()=>{
+  assert.equal(racePlaybackCanRun({status:"running",current_lap:10,total_laps:20}),true);
+  assert.equal(racePlaybackCanRun({status:"red_flag",current_lap:10,total_laps:20}),false);
+  assert.equal(racePlaybackCanRun({status:"finished",current_lap:20,total_laps:20}),false);
+  assert.equal(racePlaybackCanRun(null),false);
 });
