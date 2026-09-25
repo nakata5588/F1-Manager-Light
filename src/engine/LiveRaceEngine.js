@@ -1148,7 +1148,7 @@ export function createLiveRaceState(gs,{gp={}}={}){
   };
 }
 
-export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder,teammateId}={}){
+export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,tyreChange=true,repairDamage=false,repairComponents=null,refuel=false,teamOrder,teammateId}={}){
   const weekend=gs?.raceWeekendState, live=weekend?.live_race;
   if(!weekend||weekend.phase!=="race"||live?.status!=="running"||!driverId)return gs;
   const did=String(driverId), teamId=teamForDriver(gs,did), playerTeam=String(gs?.team?.team_id??gs?.team?.id??"");
@@ -1157,9 +1157,26 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder
   let command=null;
   if(type==="pace"&&Object.hasOwn(RACE_PACE_MODES,String(paceMode)))command={type:"pace",pace_mode:String(paceMode),effective_lap:effectiveLap};
   else if(type==="pit"){
+    const current=(live?.classification||[]).find((row)=>String(row?.driver_id||"")===did);
+    if(!current||current?.retired)return gs;
+    const visibleDamage=new Set((current?.damage_state?.damaged_components||[]).map(String));
+    const requestedRepairs=(Array.isArray(repairComponents)?repairComponents:repairDamage?[...visibleDamage]:[])
+      .map(String)
+      .filter((component)=>visibleDamage.has(component));
+    const wantsTyres=tyreChange!==false;
     const valid=new Set(tyresForTeam(gs,teamId).map((row)=>String(row?.tyre_id??row?.id??"")));
-    if(!valid.has(String(tyreId)))return gs;
-    command={type:"pit",tyre_id:String(tyreId),effective_lap:effectiveLap};
+    if(wantsTyres&&!valid.has(String(tyreId)))return gs;
+    const refuelAllowed=Boolean(weekend?.race_strategy?.rules_snapshot?.refuelling_allowed);
+    const wantsRefuel=Boolean(refuel&&refuelAllowed);
+    if(!wantsTyres&&!requestedRepairs.length&&!wantsRefuel)return gs;
+    command={
+      type:"pit",
+      tyre_id:wantsTyres?String(tyreId):null,
+      tyre_change:wantsTyres,
+      repair_components:requestedRepairs,
+      refuel:wantsRefuel,
+      effective_lap:effectiveLap,
+    };
   }else if(type==="team_order"&&String(teamOrder)==="yield"&&teammateId){
     const mateId=String(teammateId);
     if(mateId===did||teamForDriver(gs,mateId)!==teamId)return gs;
@@ -1214,7 +1231,13 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder
   const commandMessage=command.type==="pace"
     ?`${driverName} was told to ${paceInstruction(command.pace_mode)} from lap ${effectiveLap}.`
     :command.type==="pit"
-      ?`${driverName} was told to pit next lap for ${tyreDisplayName(gs,did,command.tyre_id)} tyres.`
+      ?(()=>{
+        const actions=[];
+        if(command.tyre_change)actions.push(`${tyreDisplayName(gs,did,command.tyre_id)} tyres`);
+        if(command.repair_components?.length)actions.push(`repairs: ${command.repair_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")}`);
+        if(command.refuel)actions.push("refuelling");
+        return `${driverName} was told to pit next lap for ${actions.join(" + ")}.`;
+      })()
       :`${driverName} was told to let ${driverDisplayName(gs,command.teammate_id)} through from lap ${effectiveLap}.`;
   return {
     ...gs,
@@ -1251,7 +1274,7 @@ export function cancelLiveRaceCommand(gs,{driverId,type=null}={}){
   const nextCommands=existing.filter((row)=>row!==target);
   const driverName=driverDisplayName(gs,did);
   const orderLabel=target.type==="pit"
-    ?`pit order for ${tyreDisplayName(gs,did,target.tyre_id)} tyres`
+    ?"pit service order"
     :target.type==="team_order"
       ?`team order to let ${driverDisplayName(gs,target.teammate_id)} through`
       :`${paceInstruction(target.pace_mode)} pace order`;
