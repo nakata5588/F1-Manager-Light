@@ -4,10 +4,12 @@ import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.js
 import { teamReputation, teamReputationLabel } from "../domain/teamReputation.js";
 import { contractActiveForYear } from "../domain/liveContracts.js";
 import { canonicalStaffRole, resolveStaffId, staffRoleLabel } from "../domain/staffRoles.js";
+import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
-const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","id","team","constructor"],""));
+const rawTeamIdOf=(o)=>String(pick(o,["team_id","constructor_id","id","team","constructor"],""));
+const teamIdOf=(o)=>canonicalTeamId(rawTeamIdOf(o));
 
 export default function Teams(){
   const gs=useGame(s=>s.gameState);
@@ -48,7 +50,7 @@ export default function Teams(){
       }
     }
 
-    const source=teamIds.size
+    const sourceRaw=teamIds.size
       ? teams.filter((t)=>teamIds.has(teamIdOf(t)))
       : teams.filter((t)=>{
           const founded=Number(pick(t,["founded_year","first_year","start_year"],NaN));
@@ -56,6 +58,18 @@ export default function Teams(){
           const ended=endedRaw==null||endedRaw===""?Infinity:Number(endedRaw);
           return Number.isFinite(founded)&&y>=founded&&y<=ended;
         });
+
+    // Old saves/generated datasets may still contain the pre-canonical
+    // t_0040 "Team Lotus" duplicate. Collapse aliases by canonical ID and
+    // prefer the genuinely canonical master row when both are present.
+    const sourceById=new Map();
+    for(const team of sourceRaw){
+      const id=teamIdOf(team);
+      const rawId=rawTeamIdOf(team);
+      const prev=sourceById.get(id);
+      if(!prev||rawId===id)sourceById.set(id,team);
+    }
+    const source=[...sourceById.values()];
 
     const brandById=new Map(brandRows.map((b)=>[teamIdOf(b),b]));
     const seasonById=new Map(seasonRows.map((r)=>[teamIdOf(r),r]));
@@ -75,7 +89,7 @@ export default function Teams(){
       const seasonRec=seasonById.get(id)||{};
       return {
         id,
-        name:pick(brand,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id))),
+        name:canonicalTeamName(pick(brand,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id)))),
         shortName:pick(brand,["short_name"],pick(t,["short_name"],"")),
         country:pick(t,["team_base","country","base"],""),
         code:pick(t,["country_code"],""),
