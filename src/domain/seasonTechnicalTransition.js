@@ -25,6 +25,7 @@ function archiveDesigns(parts,targetYear){
     }
     return {
       ...part,
+      season_year:Number.isFinite(Number(part?.season_year))?Number(part.season_year):previous,
       status:"legacy",
       legal_for_season:false,
       legacy_after_season:previous,
@@ -41,6 +42,7 @@ function retireUnits(units,targetYear){
     if(unit?.status==="retired")return unit;
     return {
       ...unit,
+      season_year:Number.isFinite(Number(unit?.season_year))?Number(unit.season_year):Number(targetYear)-1,
       status:"retired",
       retired_at:unit?.retired_at||date,
       retirement_reason:unit?.retirement_reason||"season_rollover",
@@ -150,7 +152,7 @@ export function transitionPhysicalTechnicalScope(globalState,scope,{
       season:target,
       applied_at:rolloverDate(target),
       blueprints_archived:(dev?.parts||[]).length,
-      units_retired:(dev?.partUnits||[]).filter((unit)=>unit?.status!=="retired").length,
+      units_retired:(dev?.partUnits||[]).length,
     },
   };
 }
