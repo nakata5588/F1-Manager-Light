@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
-import { RACE_PLAYBACK_SPEEDS, racePlaybackCanRun, racePlaybackDelayMs } from "../src/domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -908,4 +908,28 @@ test("RW6.5 autoplay only runs while the live race is in running state",()=>{
   assert.equal(racePlaybackCanRun({status:"red_flag",current_lap:10,total_laps:20}),false);
   assert.equal(racePlaybackCanRun({status:"finished",current_lap:20,total_laps:20}),false);
   assert.equal(racePlaybackCanRun(null),false);
+});
+
+
+test("RW6.6 motion duration bridges playback ticks without long idle gaps",()=>{
+  for(const speed of RACE_PLAYBACK_SPEEDS){
+    const delay=racePlaybackDelayMs(speed);
+    const motion=raceMotionDurationMs(speed);
+    assert.ok(motion>=delay,`motion should cover the full ${speed}x playback interval`);
+    assert.ok(motion-delay<=100,`motion should not lag far behind at ${speed}x`);
+  }
+});
+
+test("RW6.6 track progress unwrap crosses start-finish in the forward direction",()=>{
+  assert.ok(Math.abs(unwrapTrackProgress(.92,.08)-1.08)<1e-9);
+  assert.ok(Math.abs(unwrapTrackProgress(1.08,.34)-1.34)<1e-9);
+});
+
+test("RW6.6 track progress preserves small backwards corrections for live gaps",()=>{
+  assert.ok(Math.abs(unwrapTrackProgress(.52,.49)-.49)<1e-9);
+});
+
+test("RW6.6 invalid visual targets keep the last usable progress",()=>{
+  assert.equal(unwrapTrackProgress(.42,Number.NaN),.42);
+  assert.equal(unwrapTrackProgress(Number.NaN,.31),.31);
 });
