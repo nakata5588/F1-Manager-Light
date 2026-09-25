@@ -37,7 +37,7 @@
     "test:weekend-weather": "node --test tests/weekendWeather.test.js",
     "test:management-depth": "node --test tests/managementDepth.test.js",
     "test:opening-state": "node --test tests/openingState.test.js",
-    "test:entities": "node --test tests/entityRoutes.test.js tests/historicalAssets.test.js",
+    "test:entities": "node --test tests/entityRoutes.test.js tests/historicalAssets.test.js tests/teamProfileRuntime.test.js",
     "test:ai-technical": "node --test tests/aiTechnical.test.js",
     "test:ai-technical-soak": "node --test tests/aiTechnicalSoak.test.js",
     "test:technology-adoption": "node --test tests/technologyAdoption.test.js",
