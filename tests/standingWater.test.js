@@ -201,3 +201,25 @@ test("RW5.2D4.2 observed spin does not block a later retirement for the same dri
   assert.equal(merged.incidents[1].lap,9);
   assert.notEqual(merged.incidents[1].retirement,false);
 });
+
+
+test("RW5.2D4.2 a historical retirement blocks all later incidents for that driver",()=>{
+  const previous={
+    incidents:[
+      {driver_id:"D1",lap:4,sector:2,kind:"accident",reason:"Accident"},
+    ],
+    periods:[],
+    weather_timeline:Array.from({length:12},(_,index)=>({lap:index+1})),
+  };
+  const fresh={
+    incidents:[
+      {driver_id:"D1",lap:4,sector:2,kind:"accident",reason:"Accident"},
+      {driver_id:"D1",lap:8,sector:1,kind:"aquaplaning_spin",retirement:false,time_loss_s:6},
+    ],
+    periods:[],
+    weather_timeline:Array.from({length:12},(_,index)=>({lap:index+1})),
+  };
+  const merged=mergeRaceControlHistory(previous,fresh,5,3);
+  assert.equal(merged.incidents.length,1);
+  assert.equal(merged.incidents[0].lap,4);
+});
