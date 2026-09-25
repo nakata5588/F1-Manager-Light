@@ -1776,6 +1776,15 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  repairRaceWeekendRedFlagDamage: async (command={}) => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.setRedFlagDamageRepair(gs,command);
+    set({gameState:next});
+    checkpointRaceWeekendState(next);
+    return next?.raceWeekendState?.live_race||null;
+  },
+
   assessRaceWeekendLiveRaceRestart: async () => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
