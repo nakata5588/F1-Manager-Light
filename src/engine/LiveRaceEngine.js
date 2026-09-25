@@ -1304,7 +1304,18 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
 
   if(Object.values(live?.pit_states||{}).some((state)=>state?.active)){
     live=advancePitLifecycleOnLiveState(working,live,0,{settle:true,emitPhaseEvents:false});
-    working={...working,raceWeekendState:{...working.raceWeekendState,live_race:live}};
+    const repairedPlan=appendPitRepairRecords(
+      working?.raceWeekendState?.race_strategy?.race_control_plan||{},
+      completedPitRepairRecordsFromLive(working,live)
+    );
+    working={
+      ...working,
+      raceWeekendState:{
+        ...working.raceWeekendState,
+        race_strategy:{...working.raceWeekendState.race_strategy,race_control_plan:repairedPlan},
+        live_race:live,
+      },
+    };
     weekend=working.raceWeekendState;
   }
 
@@ -1328,7 +1339,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   // Recalculate only future hazards. Observed sectors are locked in the Save World.
   const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   const freshPlan=createRaceControlPlan(hazardSimulation.gameState,{gp,race:hazardSimulation.race,weather:hazardSimulation.weather,track:hazardSimulation.track});
-  const plan=mergeRaceControlHistory(planBefore,freshPlan,currentLap,currentSector||3);
+  let plan=mergeRaceControlHistory(planBefore,freshPlan,currentLap,currentSector||3);
   working={
     ...hazardSimulation.gameState,
     raceWeekendState:{
@@ -1349,6 +1360,21 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
 
   const simulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
   working=simulation.gameState;
+  plan=appendPitRepairRecords(
+    plan,
+    completedPitRepairRecordsForInterval(working,simulation.race,{
+      currentOrdinal,
+      targetOrdinal,
+      progressive:sectors!==null&&sectors!==undefined,
+    })
+  );
+  working={
+    ...working,
+    raceWeekendState:{
+      ...working.raceWeekendState,
+      race_strategy:{...working.raceWeekendState.race_strategy,race_control_plan:plan},
+    },
+  };
   let classification=visibleClassification(
     working,
     simulation.race,
@@ -1577,9 +1603,22 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
           pit_lane_loss_s:Number(stop.pit_lane_loss_s),
           total_loss_s:Number(stop.total_loss_s),
           crew_error:Boolean(stop.error),
+          service:stop?.service?structuredClone(stop.service):null,
+          tyre_changed:stop?.tyre_changed!==false,
+          repaired_components:[...(stop?.service?.repair?.repaired_components||[])],
+          repair_duration_s:Number(stop?.service?.repair?.duration_s||0),
           position_before:positionBefore,
           position_after:positionAfter,
-          message:`${driverName} changed from ${previousTyre} to ${nextTyre} tyres (${Number(stop.stationary_s).toFixed(1)}s stationary, ${Number(stop.total_loss_s).toFixed(1)}s total loss${positionText}${stop.error?`, crew delay +${Number(stop.crew_error_delay_s||0).toFixed(1)}s`:""}).`,
+          message:(()=>{
+            const actions=[];
+            if(stop?.tyre_changed!==false)actions.push(`changed from ${previousTyre} to ${nextTyre} tyres`);
+            else actions.push("kept the current tyres");
+            if(stop?.service?.repair?.repaired_components?.length){
+              actions.push(`repaired ${stop.service.repair.repaired_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")}`);
+            }
+            if(stop?.refuelled)actions.push("refuelled");
+            return `${driverName} ${actions.join(" and ")} (${Number(stop.stationary_s).toFixed(1)}s stationary, ${Number(stop.total_loss_s).toFixed(1)}s total loss${positionText}${stop.error?`, crew delay +${Number(stop.crew_error_delay_s||0).toFixed(1)}s`:""}).`;
+          })(),
         });
       }
     }
@@ -1683,6 +1722,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     ...working,
     raceWeekendState:{
       ...working.raceWeekendState,
+      race_strategy:{...working.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
         ...live,
         version:4,
@@ -1716,10 +1756,15 @@ export function advanceLivePitClock(gs,{deltaMs=250}={}){
   if(!weekend||weekend.phase!=="race"||live?.status!=="running")return gs;
   if(!Object.values(live?.pit_states||{}).some((state)=>state?.active))return gs;
   const nextLive=advancePitLifecycleOnLiveState(gs,live,Math.max(1,Math.round(Number(deltaMs)||250)));
+  const nextPlan=appendPitRepairRecords(
+    weekend?.race_strategy?.race_control_plan||{},
+    completedPitRepairRecordsFromLive(gs,nextLive)
+  );
   return {
     ...gs,
     raceWeekendState:{
       ...weekend,
+      race_strategy:{...weekend.race_strategy,race_control_plan:nextPlan},
       live_race:nextLive,
     },
   };
