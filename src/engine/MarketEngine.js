@@ -6,7 +6,7 @@ import {
 } from "../domain/driverContracts.js";
 import { rngFor } from "../core/random.js";
 import { contractRoleLabel, isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../domain/contractRoles.js";
-import { compareDriverMarketValue, driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
+import { driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 import { f1HireEligibility } from "../domain/driverEligibility.js";
 import {
   availableContractRoles,
@@ -16,6 +16,7 @@ import {
   startDriverRenewal,
 } from "./NegotiationEngine.js";
 import { relationshipRenewalRetentionDelta } from "../domain/driverRelationshipConsequences.js";
+import { rankAiRecruitmentCandidates } from "../domain/aiDriverLineup.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr,rng){return rng.pick(arr);}
@@ -44,7 +45,7 @@ function activeOfferCount(gs,driverId){
   ).length;
 }
 
-function candidateForTeam(gs,drivers,teamId){
+function candidateForTeam(gs,drivers,teamId,role){
   const activeDriverIds=new Set(
     (gs?.contracts||[])
       .filter((c)=>isDriverContract(c)&&contractActiveForYear(c,Number(gs?.activeYear)))
@@ -57,13 +58,12 @@ function candidateForTeam(gs,drivers,teamId){
       isNegotiationActive(n)&&
       String(n.team_id)===String(teamId)&&
       String(n.driver_id)===driverIdOf(d)
-    ))
-    .sort((a,b)=>{
-      const offerDiff=activeOfferCount(gs,driverIdOf(a))-activeOfferCount(gs,driverIdOf(b));
-      if(offerDiff!==0)return offerDiff;
-      return compareDriverMarketValue(gs,a,b);
-    });
-  return candidates[0]||null;
+    ));
+
+  const ranked=rankAiRecruitmentCandidates(gs,candidates,teamId,role,{
+    activeOfferCount:(driverId)=>activeOfferCount(gs,driverId),
+  });
+  return ranked[0]?.driver||null;
 }
 
 function renewalRetentionChance(gs,contract){
@@ -151,7 +151,7 @@ export function applyMarketTick(gs){
         .filter((role)=>["Main Driver","Second Driver","Reserve Driver"].includes(role));
 
       for(const role of targetRoles){
-        const driver=candidateForTeam(next,f1EligibleDrivers,tid);
+        const driver=candidateForTeam(next,f1EligibleDrivers,tid,role);
         if(!driver)break;
         const did=driverIdOf(driver);
         const expected=expectedDriverSalary(next,did,{role});

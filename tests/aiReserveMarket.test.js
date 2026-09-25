@@ -2,10 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { driverMarketEvaluation, compareDriverMarketValue, driverOverallPresentation } from "../src/domain/driverMarketEvaluation.js";
-import { expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
+import { driverLineupSlots, expectedDriverSalary, reserveSeatCount } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { contractRoleLabel, isReserveDriverContract } from "../src/domain/contractRoles.js";
-import { isNegotiationActive, processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
+import { aiDriverRecruitmentFit, aiDriverLineupScore } from "../src/domain/aiDriverLineup.js";
+import { isNegotiationActive, processDriverNegotiations, startDriverNegotiation } from "../src/engine/NegotiationEngine.js";
 
 function marketState(){
   return {
@@ -122,7 +123,10 @@ test("AI teams with complete race seats open reserve negotiations instead of sig
   assert.equal(reserveSeatCount(resolved,"T3"),1);
   const reserves=(resolved.contracts||[]).filter((c)=>isReserveDriverContract(c));
   assert.equal(reserves.length,2);
-  assert.ok(reserves.every((c)=>c.source==="ai_negotiation"));
+  assert.ok(reserves.every((c)=>
+    c.source==="ai_negotiation" ||
+    ["Main Driver","Second Driver"].includes(String(c.role_changed_from||""))
+  ),"the final Reserve may be the signing or a race driver demoted by the hierarchy review");
   assert.ok(resolved.inbox.some((msg)=>/signs with/.test(String(msg.subject||""))));
 });
 
@@ -257,4 +261,106 @@ test("player receives a contract-expiry reminder instead of an automatic renewal
   assert.match(String(reminder.body||""),/Player One/);
   assert.match(String(reminder.body||""),/Player Two/);
   assert.ok((reminder.actions||[]).some((action)=>action.route==="/MyDrivers"));
+});
+
+
+test("D7.1A AI does not prefer an obvious star for a vacant Reserve role when proper reserve candidates exist",()=>{
+  const gs=marketState();
+  gs.drivers.push({driver_id:"STAR",display_name:"Elite Free Agent",status:"eligible",canHireF1:true});
+  gs.driverRatings.push({
+    driver_id:"STAR",
+    current_ability:92,
+    pace:93,
+    racecraft:92,
+    consistency:90,
+    reputation:94,
+    mentality:90,
+    team_player:72,
+  });
+
+  const fit=aiDriverRecruitmentFit(gs,"STAR","T2","Reserve Driver");
+  assert.equal(fit.overqualified_for_role,true);
+  assert.ok(["Main Driver","Second Driver"].includes(fit.recommended_role));
+
+  const pending=applyMarketTick(gs);
+  const t2Reserve=(pending.driverNegotiations||[]).find((n)=>
+    n.origin==="ai" &&
+    String(n.team_id)==="T2" &&
+    n.offer?.role==="Reserve Driver" &&
+    isNegotiationActive(n)
+  );
+  assert.ok(t2Reserve);
+  assert.notEqual(t2Reserve.driver_id,"STAR","an elite free agent should not be the normal Reserve choice");
+});
+
+test("D7.1A accepted elite AI reserve signing automatically rebalances the race hierarchy",()=>{
+  const gs=marketState();
+  gs.drivers.push({driver_id:"STAR",display_name:"Elite Signing",status:"eligible",canHireF1:true});
+  gs.driverRatings.push({
+    driver_id:"STAR",
+    current_ability:92,
+    pace:93,
+    racecraft:92,
+    consistency:90,
+    reputation:94,
+    mentality:90,
+    team_player:72,
+  });
+
+  const submitted=startDriverNegotiation(gs,{
+    driverId:"STAR",
+    teamId:"T2",
+    teamName:"AI Team Two",
+    offer:{salary:1_800_000,years:2,role:"Reserve Driver"},
+    origin:"ai",
+  });
+  const negotiation=(submitted.driverNegotiations||[]).find((n)=>n.driver_id==="STAR");
+  assert.ok(negotiation);
+
+  const resolved=processDriverNegotiations(
+    {...submitted,currentDateISO:negotiation.response_date},
+    {forceOutcomeById:{[negotiation.id]:"accepted"}}
+  );
+  const lineup=driverLineupSlots(resolved,"T2");
+
+  assert.equal(lineup.main?.driver_id,"STAR","clear best driver should become Main Driver");
+  assert.equal(lineup.second?.driver_id,"A1","previous stronger race driver should remain in a race seat");
+  assert.equal(lineup.reserve?.driver_id,"A2","weaker former Second Driver should move to Reserve");
+  assert.ok((resolved.aiDriverLineupLog||[]).some((row)=>
+    row.team_id==="T2"&&row.driver_id==="STAR"
+  ));
+  assert.ok(aiDriverLineupScore(resolved,"STAR").score>aiDriverLineupScore(resolved,"A1").score);
+});
+
+test("D7.1A close ratings do not cause automatic hierarchy churn",()=>{
+  const gs=marketState();
+  gs.drivers.push({driver_id:"CLOSE",display_name:"Close Reserve",status:"eligible",canHireF1:true});
+  gs.driverRatings.push({
+    driver_id:"CLOSE",
+    current_ability:67,
+    pace:67,
+    racecraft:67,
+    consistency:67,
+    reputation:62,
+  });
+
+  const submitted=startDriverNegotiation(gs,{
+    driverId:"CLOSE",
+    teamId:"T2",
+    teamName:"AI Team Two",
+    offer:{salary:500_000,years:1,role:"Reserve Driver"},
+    origin:"ai",
+  });
+  const negotiation=(submitted.driverNegotiations||[]).find((n)=>n.driver_id==="CLOSE");
+  assert.ok(negotiation);
+
+  const resolved=processDriverNegotiations(
+    {...submitted,currentDateISO:negotiation.response_date},
+    {forceOutcomeById:{[negotiation.id]:"accepted"}}
+  );
+  const lineup=driverLineupSlots(resolved,"T2");
+
+  assert.equal(lineup.main?.driver_id,"A1");
+  assert.equal(lineup.second?.driver_id,"A2");
+  assert.equal(lineup.reserve?.driver_id,"CLOSE");
 });
