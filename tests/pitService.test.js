@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
+import { applyPitTrafficModel } from "../src/engine/PitTrafficEngine.js";
+import { createLivePitState, settleLivePitState } from "../src/engine/LivePitStopEngine.js";
 import {
   buildPitServiceSchedule,
   normalPitRepairRecord,
@@ -105,4 +107,122 @@ test("RW5.3B.2B repair record is causal and tied to one pit stop",()=>{
   assert.equal(record.free_service,false);
   assert.deepEqual(record.repaired_components,["front_wing"]);
   assert.ok(record.pace_loss_after_s_per_lap<record.pace_loss_before_s_per_lap);
+});
+
+
+test("RW5.3C same-team same-lap stops create a real double-stack queue",()=>{
+  const rows=[
+    {
+      driver:{driver_id:"D1",team_id:"T1"},
+      team_id:"T1",
+      total_time_ms:180000,
+      lap_times_ms:[90000,90000],
+      pit_stops:[{lap:2,stationary_s:6,pit_lane_loss_s:20,total_loss_s:26}],
+      strategy_summary:{},
+    },
+    {
+      driver:{driver_id:"D2",team_id:"T1"},
+      team_id:"T1",
+      total_time_ms:181000,
+      lap_times_ms:[90500,90500],
+      pit_stops:[{lap:2,stationary_s:6.4,pit_lane_loss_s:20,total_loss_s:26.4}],
+      strategy_summary:{},
+    },
+  ];
+  const adjusted=applyPitTrafficModel(rows,{
+    year:1980,
+    pitCrews:{T1:{consistency:80,fatigue:0}},
+  });
+  const first=adjusted[0].pit_stops[0];
+  const second=adjusted[1].pit_stops[0];
+
+  assert.equal(first.double_stack,false);
+  assert.equal(first.queue_delay_s,0);
+  assert.equal(second.double_stack,true);
+  assert.ok(second.box_occupied_delay_s>0);
+  assert.ok(second.crew_prep_delay_s>0);
+  assert.equal(
+    Number(second.total_loss_s.toFixed(2)),
+    Number((second.base_total_loss_s+second.pit_traffic_loss_s).toFixed(2))
+  );
+  assert.ok(adjusted[1].total_time_ms>rows[1].total_time_ms);
+  assert.equal(adjusted[1].strategy_summary.double_stack_count,1);
+});
+
+test("RW5.3C different teams share pit-lane traffic without sharing a pit box",()=>{
+  const rows=[
+    {
+      driver:{driver_id:"D1",team_id:"T1"},team_id:"T1",total_time_ms:180000,
+      lap_times_ms:[90000,90000],
+      pit_stops:[{lap:2,stationary_s:6,pit_lane_loss_s:20,total_loss_s:26}],
+      strategy_summary:{},
+    },
+    {
+      driver:{driver_id:"D3",team_id:"T2"},team_id:"T2",total_time_ms:180000,
+      lap_times_ms:[90000,90000],
+      pit_stops:[{lap:2,stationary_s:6,pit_lane_loss_s:20,total_loss_s:26}],
+      strategy_summary:{},
+    },
+  ];
+  const adjusted=applyPitTrafficModel(rows,{year:1980,pitCrews:{}});
+  for(const row of adjusted){
+    const stop=row.pit_stops[0];
+    assert.equal(stop.queue_delay_s,0);
+    assert.equal(stop.double_stack,false);
+    assert.ok(stop.pit_lane_traffic_loss_s>0);
+    assert.equal(stop.pit_lane_conflict_count,1);
+  }
+});
+
+test("RW5.3C release conflicts become a hold only in the configured later-era policy",()=>{
+  const rows=[
+    {
+      driver:{driver_id:"D1",team_id:"T1"},team_id:"T1",total_time_ms:180000,
+      lap_times_ms:[90000,90000],
+      pit_stops:[{lap:2,stationary_s:6,pit_lane_loss_s:20,total_loss_s:26}],
+      strategy_summary:{},
+    },
+    {
+      driver:{driver_id:"D3",team_id:"T2"},team_id:"T2",total_time_ms:193000,
+      lap_times_ms:[96500,96500],
+      pit_stops:[{lap:2,stationary_s:6,pit_lane_loss_s:20,total_loss_s:26}],
+      strategy_summary:{},
+    },
+  ];
+  const classic=applyPitTrafficModel(rows,{year:1980,pitCrews:{}});
+  const later=applyPitTrafficModel(rows,{year:2000,pitCrews:{}});
+  assert.equal(classic[0].pit_stops[0].release_delay_s,0);
+  assert.equal(classic[0].pit_stops[0].release_hold,false);
+  assert.ok(later[0].pit_stops[0].release_delay_s>0);
+  assert.equal(later[0].pit_stops[0].release_hold,true);
+});
+
+test("RW5.3C live pit state exposes queue and release phases while preserving exact loss",()=>{
+  const stop={
+    lap:5,
+    tyre_from:"hard",
+    tyre_to:"soft",
+    tyre_changed:true,
+    pit_lane_loss_s:20,
+    stationary_s:6,
+    queue_delay_s:4,
+    pit_lane_traffic_loss_s:0.5,
+    release_delay_s:0.55,
+    total_loss_s:31.05,
+    double_stack:true,
+    box_queue_position:2,
+    pit_traffic_model:"rw5.3c",
+  };
+  let state=createLivePitState({driverId:"D1",stop,sequence:1,entryLap:4,entrySector:3});
+  assert.ok(state.phases.some((phase)=>phase.phase==="pit_queue"&&phase.duration_ms===4000));
+  assert.ok(state.phases.some((phase)=>phase.phase==="pit_release"&&phase.duration_ms===550));
+  assert.equal(state.pit_traffic.double_stack,true);
+  assert.equal(state.queue_total_ms,4000);
+  assert.equal(state.release_total_ms,550);
+
+  state=settleLivePitState(state);
+  assert.equal(state.completed,true);
+  assert.equal(state.loss_elapsed_ms,31050);
+  assert.equal(state.loss_elapsed_ms,state.loss_total_ms);
+  assert.equal(state.service.completed,true);
 });
