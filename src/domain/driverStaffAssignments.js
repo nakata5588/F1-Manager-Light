@@ -2,7 +2,7 @@
 import { activeDriverContracts, driverIdOf, teamIdOf } from "./driverContracts.js";
 import { driverRoleSlot } from "./contractRoles.js";
 import { activeStaffContracts, staffIdOf, teamIdOfContract } from "./liveContracts.js";
-import { raceEngineerEraCoverage, staffContractRole } from "./staffRoles.js";
+import { raceEngineerEraCoverage, resolveStaffId, staffContractRole } from "./staffRoles.js";
 
 export const DRIVER_STAFF_ASSIGNMENT_VERSION=1;
 const text=(value)=>String(value??"").trim();
@@ -47,7 +47,7 @@ function activeRaceEngineersByTeam(gs){
   for(const contract of activeStaffContracts(gs)){
     if(staffContractRole(contract)!=="race_engineer")continue;
     const teamId=teamIdOfContract(contract);
-    const staffId=staffIdOf(contract);
+    const staffId=resolveStaffId(gs,contract);
     if(!teamId||!staffId)continue;
     if(!grouped.has(teamId))grouped.set(teamId,[]);
     grouped.get(teamId).push({staffId,teamId,contract});
