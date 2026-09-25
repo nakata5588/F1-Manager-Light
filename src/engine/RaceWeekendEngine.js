@@ -5,7 +5,7 @@ import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, resumeLiveRace } from "./LiveRaceEngine.js";
-import { applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
+import { applyRedFlagDamageRepair, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
@@ -312,6 +312,10 @@ export function cancelLiveRaceOrder(gs,command={}){
 
 export function setRedFlagTyreWork(gs,command={}){
   return applyRedFlagTyreChange(gs,command);
+}
+
+export function setRedFlagDamageRepair(gs,command={}){
+  return applyRedFlagDamageRepair(gs,command);
 }
 
 export function assessLiveRaceRestartSession(gs){
