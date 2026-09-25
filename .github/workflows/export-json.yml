@@ -59,6 +59,9 @@ jobs:
       - name: Test driver progression and fatigue
         run: npm run test:drivers
 
+      - name: Test Drivers cross-system integration
+        run: npm run test:driver-integration
+
       - name: Test driver simulation core
         run: npm run test:simulation
 
