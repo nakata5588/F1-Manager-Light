@@ -4,7 +4,7 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
-import { advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, resumeLiveRace } from "./LiveRaceEngine.js";
+import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, resumeLiveRace } from "./LiveRaceEngine.js";
 import { applyRedFlagDamageRepair, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
@@ -300,6 +300,10 @@ export function advanceLiveRaceSession(gs,{gp,laps=1}={}){
 
 export function advanceLiveRaceSectorSession(gs,{gp,sectors=1}={}){
   return advanceLiveRaceSector(gs,{gp,sectors});
+}
+
+export function advanceLivePitClockSession(gs,{deltaMs=250}={}){
+  return advanceLivePitClock(gs,{deltaMs});
 }
 
 export function setLiveRaceCommand(gs,command={}){
