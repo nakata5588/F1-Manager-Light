@@ -4,7 +4,7 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
-import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, resumeLiveRace } from "./LiveRaceEngine.js";
+import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, resumeLiveRace } from "./LiveRaceEngine.js";
 import { applyRedFlagDamageRepair, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
@@ -324,6 +324,10 @@ export function setRedFlagDamageRepair(gs,command={}){
 
 export function assessLiveRaceRestartSession(gs){
   return assessLiveRaceRestart(gs);
+}
+
+export function fastForwardLiveRaceRestartSession(gs){
+  return fastForwardLiveRaceRestart(gs);
 }
 
 export function prepareLiveRaceRestartSession(gs){
