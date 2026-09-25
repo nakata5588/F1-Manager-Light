@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, racePlaybackCanRun, racePlaybackDelayMs } from "../src/domain/racePlayback.js";
 
@@ -18,12 +18,13 @@ function advanceTo(gs,target){
   let next=gs;
   let guard=0;
   while(Number(next?.raceWeekendState?.live_race?.current_lap||0)<target&&guard<20){
-    if(next?.raceWeekendState?.live_race?.status==="red_flag")next=resumeLiveRace(next);
+    if(next?.raceWeekendState?.live_race?.status==="red_flag"){ next=prepareLiveRaceRestart(next); next=resumeLiveRace(next); }
     const current=Number(next?.raceWeekendState?.live_race?.current_lap||0);
     next=advanceLiveRace(next,{gp,laps:Math.max(1,target-current)});
     guard+=1;
   }
   if(next?.raceWeekendState?.live_race?.status==="red_flag"){
+    next=prepareLiveRaceRestart(next);
     next=resumeLiveRace(next);
     if(Number(next?.raceWeekendState?.live_race?.current_lap||0)>=Number(next?.raceWeekendState?.live_race?.total_laps||Infinity)){
       next=advanceLiveRace(next,{gp,laps:1});
@@ -617,9 +618,10 @@ test("RW4.11 Race Feed history is not truncated after 100 observed events",()=>{
   assert.equal(loaded.raceWeekendState.live_race.events[0].event_key,"history:0");
 });
 
-test("red flag state can be resumed without rebuilding the race",()=>{
+test("RW5.2D4.4 red flag requires explicit restart preparation before resuming",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   const plan=gs.raceWeekendState.race_strategy.race_control_plan;
+  const beforeRows=gs.raceWeekendState.live_race.classification;
   gs={
     ...gs,
     raceWeekendState:{
@@ -628,16 +630,44 @@ test("red flag state can be resumed without rebuilding the race",()=>{
         ...gs.raceWeekendState.live_race,
         status:"red_flag",
         current_lap:5,
+        current_sector:2,
         current_control:"RED_FLAG",
-        red_flag_period:{type:"RED_FLAG",from_lap:5,to_lap:5,cause:"incident"},
+        red_flag_period:{type:"RED_FLAG",from_lap:5,from_sector:2,to_lap:5,cause:"incident"},
       },
     },
   };
-  const resumed=resumeLiveRace(gs);
+
+  const blocked=advanceLiveRaceSector(gs,{gp,sectors:1});
+  assert.equal(blocked.raceWeekendState.live_race.current_lap,5);
+  assert.equal(blocked.raceWeekendState.live_race.current_sector,2);
+
+  const premature=resumeLiveRace(gs);
+  assert.equal(premature.raceWeekendState.live_race.status,"red_flag");
+
+  const prepared=prepareLiveRaceRestart(gs);
+  assert.equal(prepared.raceWeekendState.live_race.status,"red_flag");
+  assert.equal(prepared.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
+  assert.equal(prepared.raceWeekendState.live_race.red_flag_lifecycle.race_progress_frozen,true);
+
+  const stored=prepareGameStateForSave(prepared);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"D4.4 suspended save"},gameState:stored});
+  assert.equal(loaded.raceWeekendState.live_race.status,"red_flag");
+  assert.equal(loaded.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
+  assert.equal(loaded.raceWeekendState.live_race.current_lap,5);
+  assert.equal(loaded.raceWeekendState.live_race.current_sector,2);
+
+  const resumed=resumeLiveRace(loaded);
   assert.equal(resumed.raceWeekendState.live_race.status,"running");
   assert.equal(resumed.raceWeekendState.live_race.current_lap,5);
-  assert.equal(resumed.raceWeekendState.race_strategy.race_control_plan,plan);
+  assert.equal(resumed.raceWeekendState.live_race.current_sector,2);
+  assert.deepEqual(resumed.raceWeekendState.race_strategy.race_control_plan,plan);
+  assert.equal(resumed.raceWeekendState.live_race.red_flag_lifecycle,null);
+  assert.equal(resumed.raceWeekendState.live_race.red_flag_history.length,1);
+  assert.equal(resumed.raceWeekendState.live_race.red_flag_history[0].phase,"resumed");
   assert.equal(resumed.raceWeekendState.live_race.events.at(-1).type,"restart");
+
+  // A restart is a lifecycle transition, not a rebuild of the classification.
+  assert.deepEqual(resumed.raceWeekendState.live_race.classification,beforeRows);
 });
 
 

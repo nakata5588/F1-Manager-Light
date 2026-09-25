@@ -3,6 +3,7 @@ import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffect
 import { createRaceControlPlan, incidentForDriver, incidentsForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
+import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -1211,6 +1212,35 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     sector:targetSector,
   };
   const completedLaps=targetSector>=3?target:Math.max(0,target-1);
+  const existingRedHistory=Array.isArray(live?.red_flag_history)?live.red_flag_history:[];
+  const redFlagLifecycle=upcomingRed
+    ?createRedFlagSuspension({
+      year:Number(working?.activeYear)||1980,
+      rules:plan?.rules||{},
+      period:upcomingRed,
+      classification,
+      lap:target,
+      sector:targetSector,
+      trackState,
+      sequence:existingRedHistory.length+1,
+    })
+    :live?.red_flag_lifecycle||null;
+
+  if(upcomingRed){
+    const holding=String(redFlagLifecycle?.holding_area||"starting_grid").replaceAll("_"," ");
+    pushUniqueEvent(events,{
+      event_key:`red_flag_suspension:${target}:${targetSector}:${redFlagLifecycle?.sequence||1}`,
+      lap:target,
+      sector:targetSector,
+      type:"red_flag_suspension",
+      control_type:"RED_FLAG",
+      cause:upcomingRed?.cause||"race_control",
+      lifecycle_phase:"suspended",
+      holding_area:redFlagLifecycle?.holding_area||null,
+      message:`Race suspended. Cars must return slowly to the ${holding}; track progress is frozen.`,
+    });
+  }
+
   return {
     ...working,
     raceWeekendState:{
@@ -1228,6 +1258,8 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
         current_control:currentControl.type,
         track_state:trackState,
         red_flag_period:upcomingRed||null,
+        red_flag_lifecycle:redFlagLifecycle,
+        red_flag_history:existingRedHistory,
         projected_race:simulation.race,
         projected_summary:simulation.summary,
         events,
@@ -1240,11 +1272,56 @@ export function advanceLiveRaceSector(gs,{gp={},sectors=1}={}){
   return advanceLiveRace(gs,{gp,sectors});
 }
 
+export function prepareLiveRaceRestart(gs){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||live?.status!=="red_flag")return gs;
+  const rules=weekend?.race_strategy?.race_control_plan?.rules||{};
+  const current=live?.red_flag_lifecycle||legacyRedFlagLifecycle({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    live,
+  });
+  if(!current||String(current?.phase)!=="suspended")return gs;
+  const lifecycle=prepareRedFlagRestart(current);
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:{
+        ...live,
+        red_flag_lifecycle:lifecycle,
+        events:[...(live.events||[]),{
+          event_key:`red_flag_restart_pending:${Number(live.current_lap)}:${Number(live.current_sector)||1}:${lifecycle.sequence||1}`,
+          lap:Number(live.current_lap),
+          sector:Number(live.current_sector)||1,
+          type:"red_flag_restart_pending",
+          control_type:"RED_FLAG",
+          lifecycle_phase:"restart_pending",
+          message:`Restart procedure prepared under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
+        }],
+      },
+    },
+  };
+}
+
 export function resumeLiveRace(gs){
   const weekend=gs?.raceWeekendState;
   const live=weekend?.live_race;
   if(!weekend||live?.status!=="red_flag")return gs;
   const rules=weekend?.race_strategy?.race_control_plan?.rules||{};
+  const current=live?.red_flag_lifecycle||legacyRedFlagLifecycle({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    live,
+  });
+  if(!current||String(current?.phase)!=="restart_pending"||current?.restart_authorized!==true)return gs;
+  const completed=completeRedFlagRestart(current,{
+    lap:Number(live.current_lap),
+    sector:Number(live.current_sector)||1,
+  });
+  if(String(completed?.phase)!=="resumed")return gs;
+  const history=[...(Array.isArray(live?.red_flag_history)?live.red_flag_history:[]),completed];
   return {
     ...gs,
     raceWeekendState:{
@@ -1254,10 +1331,15 @@ export function resumeLiveRace(gs){
         status:"running",
         current_control:"GREEN",
         red_flag_period:null,
+        red_flag_lifecycle:null,
+        red_flag_history:history,
         events:[...(live.events||[]),{
+          event_key:`red_flag_restart:${Number(live.current_lap)}:${Number(live.current_sector)||1}:${completed.sequence||1}`,
           lap:Number(live.current_lap),
           sector:Number(live.current_sector)||1,
           type:"restart",
+          lifecycle_phase:"resumed",
+          restart_style:completed.restart_style,
           message:`Race restarting under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
         }],
       },

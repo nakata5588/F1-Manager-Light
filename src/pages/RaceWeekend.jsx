@@ -600,6 +600,7 @@ export default function RaceWeekend(){
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
+  const prepareLiveRaceRestart=useGame((s)=>s.prepareRaceWeekendLiveRaceRestart);
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
   const advance=useGame((s)=>s.advanceOneDayUntilBreak);
@@ -630,6 +631,7 @@ export default function RaceWeekend(){
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
+  const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
   const liveRows=collectionRows(liveRace?.classification);
   const trackState=liveRace?.track_state||null;
   const timingSummary=liveRace?.timing_summary||null;
@@ -1462,6 +1464,31 @@ export default function RaceWeekend(){
                 onRestartRace={()=>perform(resumeLiveRace)}
                 onConfirmResults={()=>perform(runRace)}
               />
+              {liveRace?.status==="red_flag"?<div className="mt-2 flex flex-col gap-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-start gap-2">
+                  <Flag className="mt-0.5 h-5 w-5 shrink-0 fill-current text-red-300"/>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-red-200">Race suspended</div>
+                    <div className="mt-0.5 text-[11px] text-red-100/80">
+                      Lap {liveRace?.current_lap||0} · Sector {liveRace?.current_sector||1}
+                      {redFlagLifecycle?.holding_area?` · Cars held at ${String(redFlagLifecycle.holding_area).replaceAll("_"," ")}`:""}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-red-200/60">
+                      {redFlagLifecycle?.phase==="restart_pending"
+                        ?`Restart procedure prepared · ${String(redFlagLifecycle?.restart_style||"era rules").replaceAll("_"," ")}`
+                        :"Track progress is frozen. Prepare the restart before racing can resume."}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={()=>perform(redFlagLifecycle?.phase==="restart_pending"?resumeLiveRace:prepareLiveRaceRestart)}
+                  className="shrink-0 rounded-md border border-red-300/35 bg-red-500/15 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25 disabled:opacity-50"
+                >
+                  {redFlagLifecycle?.phase==="restart_pending"?"Restart race":"Prepare restart"}
+                </button>
+              </div>:null}
             </div>
 
             <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[44vh] overflow-y-auto border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl xl:max-h-none xl:overflow-visible">
