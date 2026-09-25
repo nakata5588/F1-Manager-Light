@@ -1758,6 +1758,17 @@ export default function RaceWeekend(){
                           {teamName(teams,row.team_id)}
                         </div>
                         {row.retired?<div className="mt-0.5 text-[9px] font-semibold text-red-300">DNF · L{row.incident_lap} · {row.retirement_reason||"Retired"}</div>:null}
+                        {!row.retired&&Array.isArray(row.damaged_components)&&row.damaged_components.length?<div
+                          title={`${row.damaged_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")} · estimated +${Number(row.damage_pace_loss_s_per_lap||0).toFixed(2)}s/lap`}
+                          className={"mt-0.5 text-[9px] font-semibold "+(
+                            row.damage_severity==="critical"?"text-red-300":
+                            row.damage_severity==="major"?"text-orange-300":
+                            row.damage_severity==="moderate"?"text-amber-300":
+                            "text-yellow-200/80"
+                          )}
+                        >
+                          DMG · {String(row.damage_severity||"minor").toUpperCase()} · +{Number(row.damage_pace_loss_s_per_lap||0).toFixed(2)}s/lap
+                        </div>:null}
                       </td>
 
                       {liveTimingMode==="overall"&&<>
