@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   aiTechnicalPlanningAssessment,
+  aiTechnicalStrategyAssessment,
   aiTechnicalTeamState,
   applyAIRaceComponentWear,
   normalizeAITechnicalWorld,
@@ -650,4 +651,113 @@ test("old AI technical saves gain planning guardrails without losing their live 
   assert.equal(next.planning.season_year,1980);
   assert.ok(next.planning.next_review_date>"1980-04-01");
   assert.equal(next.garage.cars.length,state.garage.cars.length);
+});
+
+
+test("AI teams choose distinct season strategies from competitive position without hidden randomness",()=>{
+  let gs={...baseState(),currentDateISO:"1980-05-15"};
+  gs=normalizeAITechnicalWorld(gs);
+
+  const williams=aiTechnicalStrategyAssessment(gs,"WILLIAMS");
+  const renault=aiTechnicalStrategyAssessment(gs,"RENAULT");
+
+  assert.equal(williams.strategy_id,"current_car_push");
+  assert.equal(renault.strategy_id,"next_season_priority");
+  assert.equal(williams.competitive.source,"technical_rank");
+  assert.equal(renault.competitive.source,"technical_rank");
+});
+
+test("AI strategy review launches a real Next Season Car and does not rewrite the current car baseline",()=>{
+  let gs={...baseState(),currentDateISO:"1980-05-15"};
+  const baseline=structuredClone(gs.carStats);
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+
+  const state=aiTechnicalTeamState(gs,"RENAULT");
+  const programme=state.development.nextSeasonCar;
+  assert.equal(state.development.technicalStrategy.id,"next_season_priority");
+  assert.ok(state.strategy_planning.history.length>=1);
+  assert.equal(programme.targetSeason,1981);
+  assert.equal(programme.status,"active");
+  assert.ok(programme.engineers>=1);
+  assert.equal(programme.overall_progress,0);
+  assert.deepEqual(gs.carStats,baseline);
+  assert.ok(state.finance_log.some((row)=>row.category==="Next Season Car"));
+});
+
+test("AI Next Season Car catches up deterministically across larger game-date jumps",()=>{
+  let gs={...baseState(),currentDateISO:"1980-05-15"};
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+  let previous=0;
+
+  for(const date of ["1980-06-15","1980-07-15","1980-08-15","1980-09-15","1980-10-01"]){
+    gs={...gs,currentDateISO:date};
+    gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+    const programme=aiTechnicalTeamState(gs,"RENAULT").development.nextSeasonCar;
+    assert.ok(programme.overall_progress>=previous);
+    assert.ok(programme.overall_progress<=100);
+    previous=programme.overall_progress;
+  }
+
+  const state=aiTechnicalTeamState(gs,"RENAULT");
+  assert.equal(state.development.nextSeasonCar.status,"completed");
+  assert.equal(state.development.nextSeasonCar.readiness,"validated");
+  assert.equal(state.development.nextSeasonCar.overall_progress,100);
+  assert.ok(state.development.technicalKnowledge);
+  assert.ok(Object.values(state.development.technicalKnowledge.areas).some((row)=>Number(row.research_xp||0)>0));
+});
+
+test("AI strategy reviews are periodic rather than flipping every game day",()=>{
+  let gs={...baseState(),currentDateISO:"1980-05-15"};
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+  const first=aiTechnicalTeamState(gs,"RENAULT");
+  const historyCount=first.strategy_planning.history.length;
+  const nextReview=first.strategy_planning.next_review_date;
+
+  gs={...gs,currentDateISO:"1980-05-16"};
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+  const second=aiTechnicalTeamState(gs,"RENAULT");
+
+  assert.equal(second.strategy_planning.history.length,historyCount);
+  assert.equal(second.strategy_planning.next_review_date,nextReview);
+  assert.equal(second.development.technicalStrategy.id,first.development.technicalStrategy.id);
+});
+
+test("Next Season engineer reservation constrains new AI Current Car projects",()=>{
+  let gs={...baseState(),currentDateISO:"1980-05-15"};
+  gs=tickAITechnicalTeam(gs,"RENAULT",{allowPlanning:false});
+  const before=aiTechnicalTeamState(gs,"RENAULT");
+  const reserved=before.development.nextSeasonCar.engineers;
+  const assessment=aiTechnicalPlanningAssessment(gs,"RENAULT",{force:true});
+  const pool=assessment.engineers_used+assessment.engineers_available;
+
+  assert.ok(reserved>=1);
+  assert.ok(assessment.engineers_used>=reserved);
+
+  gs=planAITechnicalProject(gs,"RENAULT",{force:true});
+  const after=aiTechnicalTeamState(gs,"RENAULT");
+  const currentEngineers=after.development.projects
+    .filter((row)=>row.status==="active")
+    .reduce((sum,row)=>sum+Number(row.engineers||0),0);
+  assert.ok(currentEngineers+Number(after.development.nextSeasonCar.engineers||0)<=pool);
+  assert.equal(after.development.projects.at(-1).technical_strategy_id,after.development.technicalStrategy.id);
+});
+
+test("AI accumulated Research is consumed by subsequent Current Car design briefs",()=>{
+  let gs={...baseState(),currentDateISO:"1980-05-15"};
+  gs=tickAITechnicalTeam(gs,"WILLIAMS",{allowPlanning:false});
+  gs={...gs,currentDateISO:"1980-06-15"};
+  gs=tickAITechnicalTeam(gs,"WILLIAMS",{allowPlanning:false});
+
+  const bankBefore=aiTechnicalTeamState(gs,"WILLIAMS").development.research
+    .reduce((sum,row)=>sum+Number(row.points||0),0);
+  assert.ok(bankBefore>0);
+
+  gs=planAITechnicalProject(gs,"WILLIAMS",{force:true});
+  const state=aiTechnicalTeamState(gs,"WILLIAMS");
+  const project=state.development.projects.at(-1);
+  const bankAfter=state.development.research.reduce((sum,row)=>sum+Number(row.points||0),0);
+
+  assert.ok(Number(project.research_points_used||0)>0);
+  assert.ok(bankAfter<bankBefore);
+  assert.equal(project.technical_strategy_id,state.development.technicalStrategy.id);
 });
