@@ -48,6 +48,7 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     historySeasons: [],
 
     standings: { drivers: [], teams: [] },
+    visualAssetOverrides: { drivers: {}, staff: {}, teams: {} },
     inbox: [],
     eventsQueue: [],
 
