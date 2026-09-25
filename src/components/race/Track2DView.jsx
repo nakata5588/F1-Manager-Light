@@ -4,12 +4,10 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  CircleGauge,
   CloudRain,
   Droplets,
   Flag,
   Gauge,
-  ListFilter,
   Map,
   Maximize2,
   Minimize2,
@@ -196,7 +194,7 @@ function Stat({label,value,tone="text-slate-100",icon=null,sub=null}){
   </div>;
 }
 
-function DriverInspector({row,drivers,teams,playerTeamId,onClose}){
+function DriverInspector({row,drivers,teams,playerTeamId}){
   if(!row)return null;
   const did=String(row?.driver_id||"");
   const tid=String(row?.team_id||"");
@@ -229,10 +227,9 @@ function DriverInspector({row,drivers,teams,playerTeamId,onClose}){
         <Stat label="Best" value={formatLapTime(row?.best_lap_ms)} tone="text-emerald-300"/>
         <Stat label="Tyre" value={row?.tyre?.compound||"—"} sub={`${row?.tyre?.age_laps??"—"}L · ${Number.isFinite(Number(row?.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}`} />
         <Stat label="Temp" value={Number.isFinite(Number(row?.tyre?.temperature_c))?`${Number(row.tyre.temperature_c).toFixed(0)}°C`:"—"} icon={<Thermometer className="h-3 w-3"/>}/>
-        <Stat label="Strategy" value={paceLabel(row?.current_pace)} sub={pitWindowLabel(row?.pit_window)} icon={<CircleGauge className="h-3 w-3"/>}/>
+        <Stat label="Strategy" value={paceLabel(row?.current_pace)} sub={pitWindowLabel(row?.pit_window)} icon={<Gauge className="h-3 w-3"/>}/>
         <Stat label="Projection" value={projection} sub={projectionRange||(`${Number(row?.projection_confidence_pct||0).toFixed(0)}% confidence`)} tone="text-violet-200"/>
       </div>
-      <button type="button" onClick={onClose} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-slate-400 hover:bg-white/[0.08] hover:text-slate-200">Close</button>
     </div>
   </div>;
 }
@@ -474,7 +471,6 @@ export default function Track2DView({
       drivers={drivers}
       teams={teams}
       playerTeamId={playerTeamId}
-      onClose={()=>onSelectDriver?.("")}
     />
   </section>;
 }
