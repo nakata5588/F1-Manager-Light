@@ -33,7 +33,7 @@
     "test:race-strategy": "node --test tests/raceStrategy.test.js",
     "test:live-race": "node --test tests/liveRace.test.js",
     "test:management-events": "node --test tests/managementEvents.test.js",
-    "test:race-control": "node --test tests/raceControl.test.js tests/raceability.test.js",
+    "test:race-control": "node --test tests/raceControl.test.js tests/raceability.test.js tests/standingWater.test.js",
     "test:weekend-weather": "node --test tests/weekendWeather.test.js",
     "test:management-depth": "node --test tests/managementDepth.test.js",
     "test:opening-state": "node --test tests/openingState.test.js",
