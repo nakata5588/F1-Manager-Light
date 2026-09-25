@@ -9,7 +9,7 @@ import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/dri
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
-import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
+import { Activity, Car, ChevronDown, ChevronUp, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const STEPS=[
   ["practice","Practice"],
