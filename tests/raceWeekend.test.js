@@ -15,6 +15,7 @@ import {
 import { PRACTICE_PROGRAMMES, teamEngineeringSupport, trackSetupProfile } from "../src/engine/PracticeSetupEngine.js";
 import { conditionModifier, practiceWeekendImpact } from "../src/domain/driverPerformance.js";
 import { normalizePhysicalPartState, partUnitById } from "../src/domain/partUnits.js";
+import { normalizeRaceWeekendResumeState, raceWindowForWeekend } from "../src/domain/raceWeekendResume.js";
 
 const gp={
   gp_id:"monaco",
@@ -523,4 +524,46 @@ test("RW4.3 weekend weather persists across Practice and Qualifying and refreshe
   gs=continueRaceWeekendSession(gs);
   assert.equal(gs.raceWeekendState.phase,"grid_ready");
   assert.ok(gs.raceWeekendState.weekend_weather.forecast.race);
+});
+
+
+test("refresh recovery keeps an active Live Race authoritative over stale weekend phases", () => {
+  for (const stalePhase of ["practice", "practice_complete", "qualifying", "qualifying_wait", "grid_ready"]) {
+    const liveRace = {
+      status: "running",
+      current_lap: 17,
+      current_sector: 2,
+      classification: [{ driver_id: "D1", position: 1 }],
+    };
+    const weekend = {
+      phase: stalePhase,
+      active_session_id: "qualifying_2",
+      live_race: liveRace,
+    };
+
+    const resumed = normalizeRaceWeekendResumeState(weekend);
+
+    assert.equal(resumed.phase, "race");
+    assert.equal(resumed.live_race, liveRace);
+    assert.equal(resumed.live_race.current_lap, 17);
+    assert.equal(resumed.live_race.current_sector, 2);
+    assert.equal(raceWindowForWeekend(resumed), "live");
+    assert.equal(raceWindowForWeekend(weekend), "live");
+  }
+});
+
+test("refresh recovery does not reopen a finished Live Race over Results", () => {
+  const weekend = {
+    phase: "results",
+    live_race: {
+      status: "finished",
+      current_lap: 76,
+      current_sector: 3,
+    },
+  };
+
+  const resumed = normalizeRaceWeekendResumeState(weekend);
+
+  assert.equal(resumed, weekend);
+  assert.equal(raceWindowForWeekend(resumed), "classification");
 });
