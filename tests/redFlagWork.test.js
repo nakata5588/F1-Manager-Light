@@ -5,6 +5,7 @@ import { createRedFlagSuspension, prepareRedFlagRestart } from "../src/engine/Re
 import {
   applyAutomaticRedFlagWork,
   applyRedFlagDamageRepair,
+  applyRedFlagRestartStrategy,
   applyRedFlagTyreChange,
   redFlagWorkCapability,
 } from "../src/engine/RedFlagWorkEngine.js";
@@ -87,6 +88,33 @@ test("RW5.2D4.5 player tyre work is free service and persists as a race command"
   assert.equal(work.tyre_from_id,"gy_h");
   assert.equal(work.tyre_to_id,"gy_w");
   assert.equal(next.raceWeekendState.live_race.events.at(-1).type,"red_flag_work");
+});
+
+test("Track 2.0 player can change restart pace, pit plan and next tyre during a Red Flag",()=>{
+  const gs=fixture();
+  const next=applyRedFlagRestartStrategy(gs,{
+    driverId:"D1",
+    paceMode:"attack",
+    pitPlan:"one_stop",
+    nextTyreId:"gy_w",
+    plannedStopLap:9,
+  });
+
+  const strategy=next.raceWeekendState.race_strategy.selections.D1;
+  assert.equal(strategy.pace_mode,"attack");
+  assert.equal(strategy.pit_plan,"one_stop");
+  assert.equal(strategy.next_tyre_id,"gy_w");
+  assert.equal(strategy.planned_stop_lap,9);
+
+  const pace=next.raceWeekendState.race_strategy.live_commands.D1
+    .find((command)=>command.type==="pace"&&command.source==="red_flag_restart");
+  assert.ok(pace);
+  assert.equal(pace.effective_lap,6);
+  assert.equal(pace.pace_mode,"attack");
+
+  const row=next.raceWeekendState.live_race.classification.find((item)=>item.driver_id==="D1");
+  assert.equal(row.current_pace,"attack");
+  assert.equal(next.raceWeekendState.live_race.red_flag_lifecycle.work_log.at(-1).type,"restart_strategy");
 });
 
 test("RW5.2D4.5 engine rejects a tyre from another team supplier",()=>{
