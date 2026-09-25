@@ -71,8 +71,7 @@ function pushUnique(out,seen,value){
   out.push(path);
 }
 
-export function historicalAssetCandidates(type,aliases,activeYear,fallbacks=[]){
-  const set=historicalAssetSet(type,aliases);
+export function historicalAssetCandidatesFromSet(set,activeYear,fallbacks=[]){
   const history=Array.isArray(set?.history)?set.history:[];
   const out=[];
   const seen=new Set();
@@ -100,6 +99,14 @@ export function historicalAssetCandidates(type,aliases,activeYear,fallbacks=[]){
   for(const fallback of fallbackRows)pushUnique(out,seen,fallback);
 
   return out;
+}
+
+export function historicalAssetCandidates(type,aliases,activeYear,fallbacks=[]){
+  return historicalAssetCandidatesFromSet(
+    historicalAssetSet(type,aliases),
+    activeYear,
+    fallbacks
+  );
 }
 
 export function resolveHistoricalAsset(type,aliases,activeYear,fallback=""){
