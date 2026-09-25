@@ -74,6 +74,7 @@ export function raceEventRequiresPause(event,{playerTeamId="",playerDriverIds=[]
   const playerDrivers=new Set((playerDriverIds||[]).map(String));
   if(type==="incident"||type==="weather_report")return true;
   if(type==="driver_feedback")return playerDrivers.has(String(event?.driver_id||""));
+  if(type==="pit_service")return playerDrivers.has(String(event?.driver_id||""));
   if(type==="pit")return Boolean(event?.crew_error)||String(event?.team_id||"")===String(playerTeamId||"");
   if(type==="race_control"&&(event?.cause==="incident"||["RED_FLAG","SAFETY_CAR","VSC"].includes(control)))return true;
   return /dnf|retir|collision|crash|engine|gearbox|brake|puncture/i.test(message);
