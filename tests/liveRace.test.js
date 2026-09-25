@@ -567,6 +567,12 @@ test("RW5.3B.2B direct +Lap mode persists the same repair into the causal damage
   // actually been crossed; Race Control must never make the repair disappear.
   let repair=null;
   let guard=0;
+  console.log("B2B_DIRECT_INIT",JSON.stringify({
+    lap:gs.raceWeekendState.live_race.current_lap,
+    sector:gs.raceWeekendState.live_race.current_sector,
+    status:gs.raceWeekendState.live_race.status,
+    commands:gs.raceWeekendState.race_strategy.live_commands?.D1||[],
+  }));
   while(!repair&&guard<8){
     if(gs?.raceWeekendState?.live_race?.status==="red_flag"){
       gs=resolveRedFlag(gs);
@@ -575,6 +581,16 @@ test("RW5.3B.2B direct +Lap mode persists the same repair into the causal damage
     }
     repair=(gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[])
       .find((row)=>row.source==="normal_pit_repair"&&row.driver_id==="D1")||null;
+    console.log("B2B_DIRECT_STEP",guard,JSON.stringify({
+      lap:gs.raceWeekendState.live_race.current_lap,
+      sector:gs.raceWeekendState.live_race.current_sector,
+      status:gs.raceWeekendState.live_race.status,
+      pit_states:gs.raceWeekendState.live_race.pit_states,
+      pit_history:gs.raceWeekendState.live_race.pit_history,
+      repairs:gs.raceWeekendState.race_strategy.race_control_plan.damage_repairs||[],
+      projected_pits:(gs.raceWeekendState.live_race.projected_race||[])
+        .find((row)=>String(row?.driver?.driver_id||"")==="D1")?.pit_stops||[],
+    }));
     guard+=1;
   }
 
