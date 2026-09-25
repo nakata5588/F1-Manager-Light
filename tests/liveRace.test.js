@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { damageStateFromComponents, incidentDamageStateThrough } from "../src/engine/CarDamageEngine.js";
-import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 import { liveSectorShares, liveSectorTimesForLap } from "../src/domain/liveSectorPace.js";
@@ -1024,6 +1024,70 @@ test("RW5.2D4.4 red flag requires explicit restart preparation before resuming",
   assert.deepEqual(resumed.raceWeekendState.live_race.classification,beforeRows);
 });
 
+
+test("Track 2.0 Red Flag fast-forward reaches a weather restart window in one action",()=>{
+  let gs=createLiveRaceState(fixture("track-red-fast-forward"),{gp});
+  const unsafe=(lap)=>({
+    lap,
+    raceability_index:18,
+    raceability_hazard_index:82,
+    standing_water_index:92,
+    visibility_index:28,
+    spray_index:0.98,
+    grip_index:24,
+    rain_intensity:0.84,
+    wetness_delta:0.03,
+    raceability_band:"CRITICAL",
+    state:"HEAVY_RAIN",
+  });
+  const safe=(lap)=>({
+    lap,
+    raceability_index:80,
+    raceability_hazard_index:20,
+    standing_water_index:10,
+    visibility_index:90,
+    spray_index:0.10,
+    grip_index:82,
+    rain_intensity:0.10,
+    wetness_delta:-0.01,
+    raceability_band:"GOOD",
+    state:"LIGHT_RAIN",
+  });
+  const timeline=[unsafe(1),unsafe(2),safe(3),safe(4),safe(5)];
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:{
+          ...gs.raceWeekendState.race_strategy.race_control_plan,
+          weather_timeline:timeline,
+        },
+      },
+      live_race:{
+        ...gs.raceWeekendState.live_race,
+        status:"red_flag",
+        current_lap:1,
+        current_sector:2,
+        current_control:"RED_FLAG",
+        track_state:unsafe(1),
+        red_flag_period:{type:"RED_FLAG",from_lap:1,from_sector:2,to_lap:1,cause:"weather"},
+      },
+    },
+  };
+
+  const next=fastForwardLiveRaceRestart(gs);
+  const live=next.raceWeekendState.live_race;
+  assert.equal(live.status,"red_flag");
+  assert.equal(live.current_lap,1);
+  assert.equal(live.current_sector,2);
+  assert.equal(live.red_flag_lifecycle.restart_monitor.restart_authorized,true);
+  assert.equal(live.red_flag_lifecycle.restart_monitor.safe_streak,2);
+  assert.equal(live.events.at(-1).type,"red_flag_restart_fast_forward");
+  assert.ok(Number(live.events.at(-1).checks_advanced)>=3);
+  assert.equal(live.track_state.state,"LIGHT_RAIN");
+});
 
 test("finalized live rows preserve exactly the retirements visible to the player",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
