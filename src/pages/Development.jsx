@@ -166,6 +166,7 @@ function perfDelta(draft, levelOf, existingParts = []) {
   const bestExisting = Math.max(
     0,
     ...existingParts
+      .filter((p) => partDesignOperational(p))
       .filter((p) => String(p.slot) === String(draft.type))
       .map((p) => Number(p.perf || 0))
       .filter(Number.isFinite)
@@ -381,7 +382,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     budget>=nextSeasonQuote.launch_cost
   );
   const relevantFacility = PART_PROFILES[draft.type]?.label || "Technical facilities";
-  const nextDesignVersion=parts.filter((part)=>String(part?.slot)===String(draft.type)).length+1;
+  const nextDesignVersion=parts.filter((part)=>partDesignOperational(part)&&String(part?.slot)===String(draft.type)).length+1;
   const automaticProjectName=`${componentLabel(gameState,draft.type)} · ${objective?.label||"Balanced Package"} · P${nextDesignVersion}`;
   const projectRiskBeforeManager=Math.max(
     0.025,
