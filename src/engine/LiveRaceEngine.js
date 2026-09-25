@@ -5,6 +5,7 @@ import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
+import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
 import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
 import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { rngFor } from "../core/random.js";
@@ -637,6 +638,203 @@ function pitRejoinEstimate(active,row,pitLossSeconds){
   };
 }
 
+
+function repositionLiveClassification(rows){
+  const active=(rows||[]).filter((row)=>!row?.retired)
+    .slice()
+    .sort((a,b)=>num(a?.elapsed_ms)-num(b?.elapsed_ms)||String(a?.driver_id||"").localeCompare(String(b?.driver_id||"")));
+  const retired=(rows||[]).filter((row)=>row?.retired);
+  const leaderElapsed=active.length?num(active[0]?.elapsed_ms):0;
+  let previousElapsed=null;
+  const positioned=active.map((row,index)=>{
+    const position=index+1;
+    const elapsed=num(row?.elapsed_ms);
+    const gap=Math.max(0,elapsed-leaderElapsed);
+    const interval=previousElapsed==null?0:Math.max(0,elapsed-previousElapsed);
+    previousElapsed=elapsed;
+    return {
+      ...row,
+      position,
+      gap_to_leader_ms:gap,
+      gap_to_previous_ms:interval,
+      interval_ms:interval,
+      position_gain:Number.isFinite(Number(row?.grid_position))?Number(row.grid_position)-position:row?.position_gain??0,
+    };
+  });
+  return [
+    ...positioned,
+    ...retired.map((row,index)=>({
+      ...row,
+      position:positioned.length+index+1,
+      gap_to_leader_ms:null,
+      gap_to_previous_ms:null,
+      interval_ms:null,
+    })),
+  ];
+}
+function pitServiceTyreState(gs,row,state){
+  const tyreId=String(state?.service?.tyre_to||"");
+  if(!tyreId)return row?.tyre||null;
+  const tyre=tyresForTeam(gs,String(row?.team_id||""))
+    .find((item)=>String(item?.tyre_id??item?.id??"")===tyreId);
+  return {
+    ...(row?.tyre||{}),
+    tyre_id:tyreId,
+    compound:tyre?.compound_name||tyre?.name||tyreId,
+    category:tyre?.category||row?.tyre?.category||null,
+    condition:100,
+    age_laps:0,
+    stint_number:Math.max(1,Number(row?.tyre?.stint_number||1)+1),
+    source:"live_pit_service",
+  };
+}
+function advancePitLifecycleOnLiveState(gs,live,deltaMs,{settle=false,emitPhaseEvents=true}={}){
+  const currentStates={...(live?.pit_states||{})};
+  if(!Object.values(currentStates).some((state)=>state?.active))return live;
+  let classification=(live?.classification||[]).map((row)=>({...row}));
+  const history=Array.isArray(live?.pit_history)?live.pit_history.map((row)=>({...row})):[];
+  const events=[...(live?.events||[])];
+  const completedStates=[];
+
+  for(const [did,current] of Object.entries(currentStates)){
+    if(!current?.active)continue;
+    const next=settle
+      ?settleLivePitState(current)
+      :advanceLivePitState(current,Math.max(0,Number(deltaMs)||0));
+    if(!next)continue;
+    const delta=Math.max(0,Number(next?.loss_elapsed_ms||0)-Number(current?.loss_elapsed_ms||0));
+    classification=classification.map((row)=>{
+      if(String(row?.driver_id||"")!==String(did))return row;
+      let patched={
+        ...row,
+        elapsed_ms:num(row?.elapsed_ms)+delta,
+        pit_state:next,
+        in_pit:!next.completed,
+      };
+      if(next?.service?.completed&&!current?.service?.completed&&next?.service?.tyre_change){
+        patched={...patched,tyre:pitServiceTyreState(gs,patched,next)};
+      }
+      return patched;
+    });
+
+    if(emitPhaseEvents&&String(next?.phase||"")!==String(current?.phase||"")&&!next.completed){
+      pushUniqueEvent(events,{
+        event_key:`pit_phase:${next.stop_key}:${next.phase}`,
+        lap:Number(live?.current_lap)||0,
+        sector:Number(live?.current_sector)||0,
+        type:"pit_phase",
+        pit_phase:next.phase,
+        driver_id:String(did),
+        driver_name:driverDisplayName(gs,did),
+        stop_sequence:Number(next.stop_sequence)||1,
+        message:`${driverDisplayName(gs,did)} — ${String(next.phase).replaceAll("_"," ")}.`,
+      });
+    }
+
+    if(next.completed){
+      completedStates.push(next);
+      delete currentStates[did];
+    }else{
+      currentStates[did]=next;
+    }
+  }
+
+  classification=repositionLiveClassification(classification);
+  for(const completed of completedStates){
+    const row=classification.find((item)=>String(item?.driver_id||"")===String(completed.driver_id));
+    const record=completedLivePitRecord(completed,{positionAfter:row?.position??null});
+    if(record&&!history.some((item)=>String(item?.stop_key||"")===String(record.stop_key))){
+      history.push(record);
+    }
+    classification=classification.map((item)=>
+      String(item?.driver_id||"")===String(completed.driver_id)
+        ?{...item,pit_state:record,in_pit:false}
+        :item
+    );
+    if(emitPhaseEvents){
+      pushUniqueEvent(events,{
+        event_key:`pit_phase:${completed.stop_key}:completed`,
+        lap:Number(live?.current_lap)||0,
+        sector:Number(live?.current_sector)||0,
+        type:"pit_phase",
+        pit_phase:"completed",
+        driver_id:String(completed.driver_id),
+        driver_name:driverDisplayName(gs,completed.driver_id),
+        stop_sequence:Number(completed.stop_sequence)||1,
+        message:`${driverDisplayName(gs,completed.driver_id)} rejoins after pit service.`,
+      });
+    }
+  }
+
+  return {
+    ...live,
+    version:4,
+    classification,
+    pit_states:currentStates,
+    pit_history:history,
+    pit_clock_ms:Math.max(0,Number(live?.pit_clock_ms)||0)+(settle?0:Math.max(0,Number(deltaMs)||0)),
+    events,
+  };
+}
+function materializePitStarts(gs,live,race,classification,events,{currentOrdinal,targetOrdinal,progressive=true}={}){
+  const pitStates={...(live?.pit_states||{})};
+  const pitHistory=Array.isArray(live?.pit_history)?live.pit_history.map((row)=>({...row})):[];
+  const knownKeys=new Set([
+    ...Object.values(pitStates).map((state)=>String(state?.stop_key||"")),
+    ...pitHistory.map((state)=>String(state?.stop_key||"")),
+  ]);
+  let nextRows=(classification||[]).map((row)=>({...row}));
+  const nextEvents=[...(events||[])];
+
+  for(const raceRow of race||[]){
+    const did=idOf(raceRow?.driver||raceRow);
+    if(!did)continue;
+    const stops=Array.isArray(raceRow?.pit_stops)?raceRow.pit_stops:[];
+    stops.forEach((stop,index)=>{
+      const sequence=index+1;
+      const key=livePitStopKey(did,stop,sequence);
+      if(knownKeys.has(key))return;
+      const stopLap=Math.max(1,Number(stop?.lap)||1);
+      const startOrdinal=stopLap<=1?pointOrdinal(1,1):pointOrdinal(stopLap-1,3);
+      if(!(startOrdinal>Number(currentOrdinal||0)&&startOrdinal<=Number(targetOrdinal||0)))return;
+      const positionBefore=nextRows.find((row)=>String(row?.driver_id||"")===did)?.position??null;
+      let state=createLivePitState({
+        driverId:did,
+        stop,
+        sequence,
+        requestedLap:stopLap,
+        entryLap:stopLap<=1?1:stopLap-1,
+        entrySector:stopLap<=1?1:3,
+        positionBefore,
+      });
+      if(!state)return;
+      knownKeys.add(key);
+      if(progressive&&startOrdinal===Number(targetOrdinal)){
+        pitStates[did]=state;
+        nextRows=nextRows.map((row)=>
+          String(row?.driver_id||"")===did?{...row,pit_state:state,in_pit:true}:row
+        );
+        pushUniqueEvent(nextEvents,{
+          event_key:`pit_phase:${key}:pit_entry`,
+          lap:Number(state.entry_lap),
+          sector:Number(state.entry_sector),
+          type:"pit_phase",
+          pit_phase:"pit_entry",
+          driver_id:did,
+          driver_name:driverDisplayName(gs,did),
+          stop_sequence:sequence,
+          message:`${driverDisplayName(gs,did)} commits to the pit lane.`,
+        });
+      }else{
+        state=settleLivePitState(state);
+        const record=completedLivePitRecord(state,{positionAfter:positionBefore});
+        pitHistory.push(record);
+      }
+    });
+  }
+  return {pit_states:pitStates,pit_history:pitHistory,classification:nextRows,events:nextEvents};
+}
+
 function visibleClassification(gs,race,lap,plan,strategyState,sector=3){
   const gridRows=gridForWeekend(gs);
   const gridById=new Map(gridRows.map((row)=>[idOf(row?.driver),Number(row?.pos)]));
@@ -833,8 +1031,8 @@ export function createLiveRaceState(gs,{gp={}}={}){
       ...preliminary.gameState.raceWeekendState,
       race_strategy:{...preliminary.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
-        version:3,status:"running",current_lap:0,current_sector:0,completed_laps:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
-        classification:[],events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
+        version:4,status:"running",current_lap:0,current_sector:0,completed_laps:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
+        classification:[],pit_states:{},pit_history:[],pit_clock_ms:0,events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
         last_weather:null,current_control:"GREEN",track_state:plan.weather_timeline?.[0]||null,started_at:gs?.currentDateISO||null,
       },
     },
@@ -968,8 +1166,15 @@ export function cancelLiveRaceCommand(gs,{driverId,type=null}={}){
 
 export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   let working=createLiveRaceState(gs,{gp});
-  const weekend=working?.raceWeekendState, live=weekend?.live_race;
+  let weekend=working?.raceWeekendState;
+  let live=weekend?.live_race;
   if(!live||live.status!=="running")return working;
+
+  if(Object.values(live?.pit_states||{}).some((state)=>state?.active)){
+    live=advancePitLifecycleOnLiveState(working,live,0,{settle:true,emitPhaseEvents:false});
+    working={...working,raceWeekendState:{...working.raceWeekendState,live_race:live}};
+    weekend=working.raceWeekendState;
+  }
 
   const totalLaps=Math.max(1,Number(live.total_laps)||1);
   const totalOrdinal=totalLaps*3;
@@ -1055,7 +1260,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   let currentControl=raceControlAtPoint(plan,target,targetSector);
   if(currentControl.type==="RED_FLAG"&&!upcomingRed)currentControl={type:"GREEN",cause:null};
   const trackState=plan?.weather_timeline?.[Math.max(0,target-1)]||null;
-  const events=[...(live.events||[])];
+  let events=[...(live.events||[])];
 
   // Surface meaningful player position changes as race events. This stays
   // deliberately team-focused to avoid flooding the Race Feed with every pass.
@@ -1279,6 +1484,21 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
     });
   }
 
+  const pitLifecycle=materializePitStarts(
+    working,
+    live,
+    simulation.race,
+    classification,
+    events,
+    {
+      currentOrdinal,
+      targetOrdinal,
+      progressive:sectors!==null&&sectors!==undefined,
+    }
+  );
+  classification=pitLifecycle.classification;
+  events=pitLifecycle.events;
+
   const activeRows=classification.filter((row)=>!row.retired);
   const fastest=classification
     .filter((row)=>Number.isFinite(Number(row.best_lap_ms))&&Number(row.best_lap_ms)>0)
@@ -1333,7 +1553,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
       ...working.raceWeekendState,
       live_race:{
         ...live,
-        version:3,
+        version:4,
         current_lap:target,
         current_sector:targetSector,
         completed_laps:completedLaps,
@@ -1348,11 +1568,29 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
         red_flag_history:existingRedHistory,
         projected_race:simulation.race,
         projected_summary:simulation.summary,
+        pit_states:pitLifecycle.pit_states,
+        pit_history:pitLifecycle.pit_history,
+        pit_clock_ms:Math.max(0,Number(live?.pit_clock_ms)||0),
         events,
       },
     },
   };
   return upcomingRed?applyAutomaticRedFlagWork(nextState):nextState;
+}
+
+export function advanceLivePitClock(gs,{deltaMs=250}={}){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||weekend.phase!=="race"||live?.status!=="running")return gs;
+  if(!Object.values(live?.pit_states||{}).some((state)=>state?.active))return gs;
+  const nextLive=advancePitLifecycleOnLiveState(gs,live,Math.max(1,Math.round(Number(deltaMs)||250)));
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:nextLive,
+    },
+  };
 }
 
 export function advanceLiveRaceSector(gs,{gp={},sectors=1}={}){

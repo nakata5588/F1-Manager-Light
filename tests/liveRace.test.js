@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 
@@ -340,6 +340,74 @@ test("D6.3B rejects a let-through order when the team-mate is not directly behin
   assert.deepEqual(next.raceWeekendState.race_strategy.live_commands||{},before);
 });
 
+test("RW5.3B.2A live pit state unfolds loss progressively and survives save/load mid-stop",()=>{
+  let gs=createLiveRaceState(fixture("rw5.3b.2a-live-pit"),{gp});
+
+  // Reach lap 2 sector 2 so the next sector is the observable pit-entry point
+  // for a stop commanded on lap 3.
+  for(let step=0;step<5;step+=1)gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  assert.equal(gs.raceWeekendState.live_race.current_lap,2);
+  assert.equal(gs.raceWeekendState.live_race.current_sector,2);
+
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
+  assert.equal(gs.raceWeekendState.race_strategy.live_commands.D1.at(-1).effective_lap,3);
+
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  let live=gs.raceWeekendState.live_race;
+  const startingState=live.pit_states?.D1;
+  assert.ok(startingState?.active);
+  assert.equal(startingState.phase,"pit_entry");
+  assert.equal(startingState.stop_lap,3);
+  assert.equal(startingState.service.tyre_from,"gy_h");
+  assert.equal(startingState.service.tyre_to,"gy_s");
+  assert.equal(startingState.loss_elapsed_ms,0);
+  const beforeElapsed=live.classification.find((row)=>row.driver_id==="D1").elapsed_ms;
+
+  gs=advanceLivePitClock(gs,{deltaMs:5000});
+  live=gs.raceWeekendState.live_race;
+  const midState=live.pit_states?.D1;
+  assert.ok(midState?.active);
+  assert.ok(["pit_lane","pit_box"].includes(midState.phase));
+  assert.equal(midState.loss_elapsed_ms,5000);
+  const midElapsed=live.classification.find((row)=>row.driver_id==="D1").elapsed_ms;
+  assert.equal(midElapsed-beforeElapsed,5000);
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW5 live pit"},gameState:stored});
+  assert.deepEqual(loaded.raceWeekendState.live_race.pit_states.D1,midState);
+  assert.equal(
+    loaded.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1").elapsed_ms,
+    midElapsed
+  );
+
+  const continuedA=advanceLivePitClock(gs,{deltaMs:2500});
+  const continuedB=advanceLivePitClock(loaded,{deltaMs:2500});
+  assert.deepEqual(
+    continuedA.raceWeekendState.live_race.pit_states.D1,
+    continuedB.raceWeekendState.live_race.pit_states.D1
+  );
+  assert.deepEqual(
+    continuedA.raceWeekendState.live_race.classification,
+    continuedB.raceWeekendState.live_race.classification
+  );
+
+  gs=advanceLivePitClock(continuedA,{deltaMs:60000});
+  live=gs.raceWeekendState.live_race;
+  assert.equal(Boolean(live.pit_states?.D1),false);
+  const completed=live.pit_history.find((row)=>row.driver_id==="D1"&&row.stop_lap===3);
+  assert.ok(completed?.completed);
+  assert.equal(completed.phase,"completed");
+  assert.equal(completed.loss_elapsed_ms,completed.loss_total_ms);
+  const serviced=live.classification.find((row)=>row.driver_id==="D1");
+  assert.equal(serviced.tyre.tyre_id,"gy_s");
+  assert.equal(serviced.in_pit,false);
+
+  const projected=live.projected_race.find((row)=>row.driver.driver_id==="D1");
+  const stop=projected.pit_stops.find((row)=>row.lap===3);
+  assert.ok(stop);
+  assert.equal(completed.loss_total_ms,Math.round(Number(stop.total_loss_s)*1000));
+});
+
 test("Pit Now schedules the selected tyre for the next lap",()=>{
   let gs=createLiveRaceState(fixture(),{gp});
   gs=advanceTo(gs,2);
@@ -538,7 +606,7 @@ test("RW5.2D3 an in-progress v2 live save upgrades its future environment withou
   const stored=prepareGameStateForSave(gs);
   let loaded=extractGameStateFromStoredSave({meta:{name:"D3 old live save"},gameState:stored});
   loaded=advanceTo(loaded,3);
-  assert.equal(loaded.raceWeekendState.live_race.version,3);
+  assert.equal(loaded.raceWeekendState.live_race.version,4);
   assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.version,3);
   assert.equal(loaded.raceWeekendState.race_strategy.race_control_plan.environment_model,"rw5.2d3.1");
   assert.ok(Number.isFinite(Number(loaded.raceWeekendState.live_race.track_state.track_temp_c)));
