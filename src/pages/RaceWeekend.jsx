@@ -8,6 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs } from "../domain/racePlayback.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
+import { raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Pause, Play, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
@@ -487,14 +488,6 @@ function controlNoticeTone(type){
   if(type==="SAFETY_CAR"||type==="VSC")return "border-amber-400/50 bg-amber-500/15 text-amber-100";
   return "border-yellow-400/50 bg-yellow-500/15 text-yellow-100";
 }
-function raceWindowForPhase(phase,hasLive=false){
-  if(phase==="practice"||phase==="practice_complete")return "practice";
-  if(phase==="qualifying"||phase==="qualifying_wait")return "qualifying";
-  if(phase==="grid_ready")return "strategy";
-  if(phase==="race")return hasLive?"live":"grid";
-  if(phase==="results"||phase==="completed")return "classification";
-  return "overview";
-}
 function statusClass(status){
   const key=String(status||"").toUpperCase();
   if(["QUALIFIED","ADVANCED","STARTER","CONTINUES","FINISHED"].includes(key))return "bg-emerald-500/15 text-emerald-300";
@@ -702,8 +695,8 @@ export default function RaceWeekend(){
     setSelectedRaceEvent(event);
   };
   useEffect(()=>{
-    setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
-  },[weekend?.phase,Boolean(liveRace)]);
+    setActiveWindow(raceWindowForWeekend(weekend));
+  },[weekend?.phase,liveRace?.status,Boolean(liveRace)]);
   useEffect(()=>{
     if(!liveRace){
       setSelectedLiveDriverId("");
