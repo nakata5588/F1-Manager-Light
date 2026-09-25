@@ -82,8 +82,9 @@ test("D6.3A backfill preserves evolved relationships and only adds missing recor
   assert.equal(synced.driverRelationships.relations[key].trust,73);
   assert.equal(synced.driverRelationships.relations[key].affinity,64);
   assert.equal(synced.driverRelationships.relations[key].source,"gameplay_event");
-  assert.ok(driverRelationship(synced,"D1","race_engineer","E2"));
-  assert.ok(driverRelationship(synced,"D2","race_engineer","E2"));
+  assert.ok(driverRelationship(synced,"D1","race_engineer","E1")?.active);
+  assert.ok(driverRelationship(synced,"D2","race_engineer","E2")?.active);
+  assert.equal(driverRelationship(synced,"D2","race_engineer","E1")?.active,false);
 });
 
 test("D6.3A keeps former team and teammate links as inactive history",()=>{

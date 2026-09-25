@@ -4,7 +4,8 @@ import { useGame } from "@/state/GameStore";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
 import { driverIdOf, driverLineupSlots } from "@/domain/driverContracts.js";
 import { driverRoleLabelForSlot } from "@/domain/contractRoles.js";
-import { activeStaffContracts } from "@/domain/liveContracts.js";
+import { raceEngineerAssignmentStatus } from "@/domain/driverStaffAssignments.js";
+import { teamStaffStructure } from "@/domain/staffRoles.js";
 import { driverCondition, fatigueStatus } from "@/domain/driverRating.js";
 import { driverOverallPresentation } from "@/domain/driverMarketEvaluation.js";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
@@ -66,7 +67,10 @@ export default function Team(){
     };
   }),[lineup,driverById,gs]);
 
-  const staff=useMemo(()=>activeStaffContracts(gs,{teamId}),[gs,teamId]);
+  const staff=useMemo(()=>teamStaffStructure(gs,teamId),[gs,teamId]);
+  const engineerStatus=useMemo(()=>raceEngineerAssignmentStatus(gs,teamId),[gs,teamId]);
+  const leadership=staff.find((row)=>["team_principal","owner"].includes(row?.canonical_role))||null;
+  const technicalLead=staff.find((row)=>["technical_director","chief_engineer","chief_designer"].includes(row?.canonical_role))||null;
   const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,teamId),[gs,teamId]);
   const ranking=useMemo(()=>carPerformanceRanking(gs),[gs]);
   const myRank=ranking.find((row)=>String(row?.team_id)===teamId)||null;
@@ -150,10 +154,17 @@ export default function Team(){
       </Panel>
 
       <Panel title="Staff & operations" className="xl:col-span-4" action={<Link to="/MyStaff" className="text-xs text-slate-300 hover:text-white">My Staff ›</Link>}>
-        <div className="p-4 space-y-3">
-          <Metric label="Active staff contracts" value={staff.length}/>
-          <Metric label="Practice engineering support" value={Math.round(engineeringSupport)+"/100"}/>
-          <Metric label="Pit crew" value={gs?.raceStrategyWorld?.pitCrews?.[teamId]?.avg_time_s?`${gs.raceStrategyWorld.pitCrews[teamId].avg_time_s.toFixed(1)}s avg`:"Seeded from team/era data"}/>
+        <div className="p-4 space-y-2">
+          <Metric label="Leadership" value={leadership?.staff_name||leadership?.name||leadership?.role_label||"Not recorded"}/>
+          <Metric label="Technical lead" value={technicalLead?.staff_name||technicalLead?.name||technicalLead?.role_label||"Not recorded"}/>
+          <Metric label="Race Engineer coverage" value={engineerStatus.status==="not_recorded"?"Not recorded for era":engineerStatus.status==="covered"?"Complete":engineerStatus.label}/>
+          <div className="grid grid-cols-2 gap-2">
+            <Metric label="Staff contracts" value={staff.length}/>
+            <Metric label="Engineering" value={Math.round(engineeringSupport)+"/100"}/>
+          </div>
+          {engineerStatus.status!=="not_recorded"&&engineerStatus.assignments?.length?<div className="rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-[10px] text-slate-400">
+            {(engineerStatus.assignments||[]).map((assignment,index)=><span key={assignment.driver_id}>{index?" · ":""}{driverById.get(String(assignment.driver_id))?.display_name||assignment.driver_id} → {staff.find((row)=>String(row.staff_id)===String(assignment.staff_id))?.staff_name||assignment.staff_id}</span>)}
+          </div>:null}
         </div>
       </Panel>
 

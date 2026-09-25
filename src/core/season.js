@@ -1,5 +1,6 @@
 // src/core/season.js
 import { materializeNextCareerSeason } from "./careerBoundary.js";
+import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
 
 /**
  * Pure season rollover.
@@ -9,5 +10,6 @@ import { materializeNextCareerSeason } from "./careerBoundary.js";
  * (calendar/rules/safety) plus newly eligible identities may enter it.
  */
 export function rolloverSeasonPure(state, nextYear) {
-  return materializeNextCareerSeason(state, nextYear);
+  const next=materializeNextCareerSeason(state, nextYear);
+  return synchronizeDriverRelationships(next,{source:"season_rollover_staff_sync"});
 }

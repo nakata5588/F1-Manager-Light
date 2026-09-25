@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { contractActiveForYear } from "../domain/liveContracts.js";
+import { resolveStaffId, staffRoleDepartment, staffRoleLabel } from "../domain/staffRoles.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -48,21 +49,22 @@ export default function Staff(){
     // Only people with a current-season rating or contract are considered active.
     // staff_core is identity metadata and must not make every living person "active".
     const activeContracts=contracts.filter((contract)=>contractActiveForYear(contract,year));
-    const ids=new Set([...ratings.map(staffIdOf),...activeContracts.map(staffIdOf)]);
+    const ids=new Set([...ratings.map(staffIdOf),...activeContracts.map((contract)=>resolveStaffId(gs,contract))]);
     return [...ids].filter(Boolean).map(id=>{
       const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
-      const contract=activeContracts.find((row)=>staffIdOf(row)===id)||null;
+      const contract=activeContracts.find((row)=>resolveStaffId(gs,row)===id)||null;
       const primaryRole=pick(s,["role_primary"],"Staff");
       const assignedRole=contract?pick(contract,["role","position"],primaryRole):null;
       const role=assignedRole||primaryRole;
+      const roleLabel=staffRoleLabel(role);
       const tid=teamIdOf(contract);
       return {
         id,
         name:pick(s,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id)),
-        role:nice(role),
-        primaryRole:nice(primaryRole),
-        assignedRole:assignedRole?nice(assignedRole):"Free",
-        dept:department(role),
+        role:roleLabel,
+        primaryRole:staffRoleLabel(primaryRole),
+        assignedRole:assignedRole?staffRoleLabel(assignedRole):"Free",
+        dept:staffRoleDepartment(role),
         country:pick(s,["country_name","country","nationality"],"—"),
         code:pick(s,["country_code"],""),
         overall:overallOf(rating),

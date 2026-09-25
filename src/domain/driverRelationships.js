@@ -1,6 +1,8 @@
 // src/domain/driverRelationships.js
 import { activeDriverContracts, driverIdOf, teamIdOf } from "./driverContracts.js";
-import { activeStaffContracts, staffIdOf } from "./liveContracts.js";
+import { activeStaffContracts } from "./liveContracts.js";
+import { driverRaceEngineerAssignment, synchronizeDriverStaffAssignments } from "./driverStaffAssignments.js";
+import { resolveStaffId, staffContractRole } from "./staffRoles.js";
 
 export const DRIVER_RELATIONSHIP_VERSION=2;
 export const NEUTRAL_RELATIONSHIP_SCORE=50;
@@ -109,19 +111,20 @@ function normalizeContainer(gs){
 
 export function synchronizeDriverRelationships(gs,{source="relationship_foundation"}={}){
   if(!gs||typeof gs!=="object")return gs;
+  const state=synchronizeDriverStaffAssignments(gs,{source:"relationship_staff_sync"});
   const hadRelationshipState=Boolean(
-    gs?.driverRelationships &&
-    typeof gs.driverRelationships==="object" &&
-    !Array.isArray(gs.driverRelationships)
+    state?.driverRelationships &&
+    typeof state.driverRelationships==="object" &&
+    !Array.isArray(state.driverRelationships)
   );
-  const driverTeams=currentDriverTeams(gs);
-  if(!hadRelationshipState&&driverTeams.size===0)return gs;
+  const driverTeams=currentDriverTeams(state);
+  if(!hadRelationshipState&&driverTeams.size===0)return state;
 
-  const container=normalizeContainer(gs);
-  const dateISO=text(gs?.currentDateISO).slice(0,10)||null;
-  const raceByTeam=raceDriversByTeam(gs);
-  const currentContracts=new Map(activeDriverContracts(gs).map((contract)=>[driverIdOf(contract),contract]));
-  const userTeamId=text(gs?.team?.team_id??gs?.team?.id);
+  const container=normalizeContainer(state);
+  const dateISO=text(state?.currentDateISO).slice(0,10)||null;
+  const raceByTeam=raceDriversByTeam(state);
+  const currentContracts=new Map(activeDriverContracts(state).map((contract)=>[driverIdOf(contract),contract]));
+  const userTeamId=text(state?.team?.team_id??state?.team?.id);
 
   for(const [key,record] of Object.entries(container.relations)){
     if(record&&typeof record==="object")container.relations[key]={...record,active:false};
@@ -181,20 +184,21 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
   }
 
   const staffByTeam=new Map();
-  for(const contract of activeStaffContracts(gs)){
+  for(const contract of activeStaffContracts(state)){
     const teamId=text(contract?.team_id??contract?.constructor_id??contract?.team??contract?.constructor);
-    const staffId=staffIdOf(contract);
-    const role=roleOf(contract);
+    const staffId=resolveStaffId(state,contract);
+    const role=staffContractRole(contract);
     if(!teamId||!staffId||!role)continue;
     if(!staffByTeam.has(teamId))staffByTeam.set(teamId,[]);
     staffByTeam.get(teamId).push({staffId,role});
   }
 
   for(const [driverId,teamId] of driverTeams){
+    const engineer=driverRaceEngineerAssignment(state,driverId);
+    if(engineer&&text(engineer?.team_id)===teamId&&engineer?.active!==false){
+      add(driverId,"race_engineer",engineer.staff_id,teamId);
+    }
     for(const staff of staffByTeam.get(teamId)||[]){
-      if(staff.role==="race_engineer"||staff.role.includes("race_engineer")){
-        add(driverId,"race_engineer",staff.staffId,teamId);
-      }
       if(staff.role==="team_principal"||staff.role.includes("team_principal")){
         add(driverId,"team_principal",staff.staffId,teamId);
       }
@@ -217,7 +221,7 @@ export function synchronizeDriverRelationships(gs,{source="relationship_foundati
     container.relations[key]=normalized;
   }
 
-  return {...gs,driverRelationships:container};
+  return {...state,driverRelationships:container};
 }
 
 export function driverRelationshipRecords(gs,driverId){
