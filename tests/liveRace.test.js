@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
-import { RACE_PLAYBACK_SPEEDS, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, unwrapTrackProgress } from "../src/domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -919,8 +919,8 @@ test("RW4.4 advanced timing remains deterministic after save/load",()=>{
 test("RW6.5 playback speed ladder is bounded and progressively faster",()=>{
   assert.deepEqual(RACE_PLAYBACK_SPEEDS,[1,2,4,8]);
   const delays=RACE_PLAYBACK_SPEEDS.map(racePlaybackDelayMs);
-  assert.deepEqual(delays,[2200,1100,550,275]);
-  assert.equal(racePlaybackDelayMs(999),2200);
+  assert.deepEqual(delays,[9000,4500,2250,1125]);
+  assert.equal(racePlaybackDelayMs(999),9000);
 });
 
 test("RW6.5 autoplay only runs while the live race is in running state",()=>{
@@ -952,4 +952,41 @@ test("RW6.6 track progress preserves small backwards corrections for live gaps",
 test("RW6.6 invalid visual targets keep the last usable progress",()=>{
   assert.equal(unwrapTrackProgress(.42,Number.NaN),.42);
   assert.equal(unwrapTrackProgress(Number.NaN,.31),.31);
+});
+
+
+test("RW6.6A player feedback and critical popups require playback pause",()=>{
+  const context={playerTeamId:"t_player",playerDriverIds:["d_a","d_b"]};
+  assert.equal(raceEventRequiresPause({type:"driver_feedback",driver_id:"d_a"},context),true);
+  assert.equal(raceEventRequiresPause({type:"driver_feedback",driver_id:"d_other"},context),false);
+  assert.equal(raceEventRequiresPause({type:"incident",driver_id:"d_other"},context),true);
+  assert.equal(raceEventRequiresPause({type:"weather_report",report_kind:"rain_started"},context),true);
+  assert.equal(raceEventRequiresPause({type:"race_control",control_type:"SAFETY_CAR"},context),true);
+  assert.equal(raceEventRequiresPause({type:"race_control",control_type:"GREEN"},context),false);
+});
+
+test("RW6.6A event batches pause if any contained event requires attention",()=>{
+  const context={playerTeamId:"t_player",playerDriverIds:["d_a"]};
+  assert.equal(raceEventRequiresPause({
+    type:"event_batch",
+    events:[
+      {type:"position_change",driver_id:"d_other"},
+      {type:"driver_feedback",driver_id:"d_a"},
+    ],
+  },context),true);
+});
+
+test("RW6.6A retired cars stay visible through the incident then clear under green",()=>{
+  const row={retired:true,incident_lap:5,incident_sector:2};
+  assert.equal(retiredCarVisibleOnTrack(row,{currentLap:5,currentSector:2,currentControl:"GREEN"}),true);
+  assert.equal(retiredCarVisibleOnTrack(row,{currentLap:5,currentSector:3,currentControl:"GREEN"}),true);
+  assert.equal(retiredCarVisibleOnTrack(row,{currentLap:6,currentSector:1,currentControl:"GREEN"}),false);
+});
+
+test("RW6.6A neutralised races keep retired cars visible for recovery",()=>{
+  const row={retired:true,incident_lap:5,incident_sector:1};
+  for(const control of ["SAFETY_CAR","VSC","RED_FLAG"]){
+    assert.equal(retiredCarVisibleOnTrack(row,{currentLap:7,currentSector:3,currentControl:control}),true);
+  }
+  assert.equal(retiredCarVisibleOnTrack({retired:false},{currentLap:7,currentSector:3,currentControl:"GREEN"}),true);
 });

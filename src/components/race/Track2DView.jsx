@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
-import { raceMotionDurationMs, unwrapTrackProgress } from "../../domain/racePlayback.js";
+import { raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -391,7 +391,8 @@ export default function Track2DView({
   const resolvedSelectedId=String(selectedDriverId||activeRows.find((row)=>String(row?.team_id||"")===String(playerTeamId||""))?.driver_id||activeRows[0]?.driver_id||"");
   const selectedRow=activeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||null;
   const selectedIndex=Math.max(0,activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId));
-  const selectedProgress=selectedRow?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
+  const selectedVisibleOnTrack=selectedRow?retiredCarVisibleOnTrack(selectedRow,{currentLap,currentSector,currentControl}):false;
+  const selectedProgress=selectedRow&&selectedVisibleOnTrack?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
   const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
   const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
     ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:2.45,minWidth:210,minHeight:155})
@@ -565,6 +566,8 @@ export default function Track2DView({
             const tid=String(row?.team_id||"");
             const mine=tid===String(playerTeamId||"");
             const selected=did===resolvedSelectedId;
+            const visibleOnTrack=retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl});
+            if(!visibleOnTrack)return null;
             const progress=visualTrackProgress(row,{currentLap,currentSector,referenceLapMs,index});
             return <AnimatedMarker
               key={did||index}

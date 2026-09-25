@@ -6,7 +6,7 @@ import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
-import { RACE_PLAYBACK_SPEEDS, racePlaybackCanRun, racePlaybackDelayMs } from "../domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayMs } from "../domain/racePlayback.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
@@ -366,17 +366,11 @@ function raceEventIcon(event,className="h-5 w-5"){
   if(event?.type==="weather")return <CloudRain {...common}/>;
   return <CircleDot {...common}/>;
 }
-function popupWorthyRaceEvent(event,playerTeamId){
-  const type=String(event?.type||"");
-  const message=String(event?.message||"");
-  const control=String(event?.control_type||"");
-  if(type==="incident"||type==="weather_report")return true;
-  if(type==="pit")return Boolean(event?.crew_error)||String(event?.team_id||"")===String(playerTeamId||"");
-  if(type==="race_control"&&(event?.cause==="incident"||control==="RED_FLAG"))return true;
-  return /dnf|retir|collision|crash/i.test(message);
+function popupWorthyRaceEvent(event,playerTeamId,playerDriverIds=[]){
+  return raceEventRequiresPause(event,{playerTeamId,playerDriverIds});
 }
-function batchRaceEvents(events,playerTeamId,currentLap){
-  const popupEvents=(events||[]).filter((event)=>popupWorthyRaceEvent(event,playerTeamId));
+function batchRaceEvents(events,playerTeamId,currentLap,playerDriverIds=[]){
+  const popupEvents=(events||[]).filter((event)=>popupWorthyRaceEvent(event,playerTeamId,playerDriverIds));
   if(!popupEvents.length)return null;
   const latestLap=Math.max(...popupEvents.map((event)=>Number(event?.lap)||0));
   if(currentLap&&latestLap<Number(currentLap)-1)return null;
@@ -614,6 +608,7 @@ export default function RaceWeekend(){
   const [selectedRaceEvent,setSelectedRaceEvent]=useState(null);
   const [racePlaying,setRacePlaying]=useState(false);
   const [racePlaybackSpeed,setRacePlaybackSpeed]=useState(1);
+  const [raceAutoPaused,setRaceAutoPaused]=useState(false);
   const lastAutoPopupKey=useRef(null);
 
   const weekend=gs?.raceWeekendState;
@@ -621,6 +616,7 @@ export default function RaceWeekend(){
   const teams=gs?.teams||[];
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const playerEntrants=collectionRows(weekend?.entrants).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
+  const playerDriverIds=playerEntrants.map((row)=>String(row?.driver_id||"")).filter(Boolean);
   const practiceResults=collectionRows(weekend?.practice?.results);
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
   const currentIndex=phaseIndex(weekend?.phase);
@@ -688,6 +684,16 @@ export default function RaceWeekend(){
   const activeQualifyingForecast=weekendWeather?.forecast?.[String(activeSession?.id||"")]||null;
   const activeQualifyingWeather=weekendWeather?.sessions?.[String(activeSession?.id||"")]||null;
   const practiceTrackInputs=weekend?.practice?.track_profile?.inputs||{};
+  const openRaceEvent=(event,{auto=false}={})=>{
+    if(!event)return;
+    if(racePlaying){
+      setRacePlaying(false);
+      setRaceAutoPaused(true);
+    }else if(!auto){
+      setRaceAutoPaused(false);
+    }
+    setSelectedRaceEvent(event);
+  };
   useEffect(()=>{
     setActiveWindow(raceWindowForPhase(weekend?.phase,Boolean(liveRace)));
   },[weekend?.phase,Boolean(liveRace)]);
@@ -725,13 +731,13 @@ export default function RaceWeekend(){
   useEffect(()=>{
     if(!liveRace)return;
     const currentLap=Number(liveRace?.current_lap)||0;
-    const important=batchRaceEvents(liveRace?.events||[],playerTeamId,currentLap);
+    const important=batchRaceEvents(liveRace?.events||[],playerTeamId,currentLap,playerDriverIds);
     if(!important)return;
     const key=String(important?.event_key||[important?.type,important?.lap,important?.sector,important?.driver_id,important?.message].join(":"));
     if(!key||lastAutoPopupKey.current===key)return;
     lastAutoPopupKey.current=key;
-    setSelectedRaceEvent(important);
-  },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId]);
+    openRaceEvent(important,{auto:true});
+  },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
 
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
@@ -879,6 +885,7 @@ export default function RaceWeekend(){
                 setRacePlaying(false);
                 return;
               }
+              setRaceAutoPaused(false);
               setRacePlaying(true);
               perform(()=>advanceLiveRaceSector(1));
             }}
@@ -897,6 +904,7 @@ export default function RaceWeekend(){
             >{speed}×</button>)}
           </div>
           {racePlaying?<span className="hidden items-center gap-1 rounded bg-emerald-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-300 lg:inline-flex"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300"/>Live Motion</span>:null}
+          {!racePlaying&&raceAutoPaused?<span className="hidden items-center gap-1 rounded border border-amber-400/20 bg-amber-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-amber-300 lg:inline-flex"><Pause className="h-3 w-3"/>Auto-paused</span>:null}
                     <div className="mx-0.5 h-5 w-px bg-white/10"/>
           <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
           <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
@@ -1470,7 +1478,7 @@ export default function RaceWeekend(){
                 events={raceViewEvents}
                 selectedDriverId={selectedLiveDriverId}
                 onSelectDriver={setSelectedLiveDriverId}
-                onSelectEvent={setSelectedRaceEvent}
+                onSelectEvent={(event)=>openRaceEvent(event)}
                 playbackRunning={racePlaying}
                 playbackSpeed={racePlaybackSpeed}
                 busy={busy}
@@ -2273,7 +2281,7 @@ export default function RaceWeekend(){
       </div>
     )}
 
-    {selectedRaceEvent?<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={()=>setSelectedRaceEvent(null)}>
+    {selectedRaceEvent?<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={()=>{setSelectedRaceEvent(null);setRaceAutoPaused(false);}}>
       <div className="w-full max-w-xl rounded-xl border border-white/15 bg-[#11161f] p-4 shadow-2xl" onClick={(event)=>event.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -2285,13 +2293,14 @@ export default function RaceWeekend(){
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Race event · L{selectedRaceEvent.lap??"—"}{Number(selectedRaceEvent?.sector)>0?" · S"+selectedRaceEvent.sector:""}</div>
               <div className="mt-1 text-base font-semibold">{raceEventLabel(selectedRaceEvent)}</div>
+              {raceAutoPaused?<div className="mt-1 inline-flex items-center gap-1 rounded border border-amber-400/20 bg-amber-500/[0.08] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-300"><Pause className="h-3 w-3"/>Race automatically paused</div>:null}
               {selectedEventDriverId?<div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-400">
                 <TeamLogo teamId={selectedEventTeamId} name={teamName(teams,selectedEventTeamId)} size="h-5 w-5" className="shrink-0 p-0"/>
                 <span className="truncate">{driverName(drivers,selectedEventDriverId)} · {teamName(teams,selectedEventTeamId)}</span>
               </div>:null}
             </div>
           </div>
-          <button type="button" onClick={()=>setSelectedRaceEvent(null)} className="rounded-md border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button>
+          <button type="button" onClick={()=>{setSelectedRaceEvent(null);setRaceAutoPaused(false);}} className="rounded-md border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-white"><X className="h-4 w-4"/></button>
         </div>
         {selectedRaceEvent?.type==="event_batch"
           ?<div className="mt-3 grid max-h-[60vh] gap-2 overflow-y-auto pr-1">
