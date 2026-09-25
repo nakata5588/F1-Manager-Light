@@ -2,7 +2,7 @@
 import { isRaceDriverContract, isReserveDriverContract } from "./contractRoles.js";
 import { activeDriverContracts as canonicalActiveDriverContracts } from "./driverContracts.js";
 import { COMPONENT_FALLBACK_CATALOG, availableCarComponentSlots } from "./carComponents.js";
-import { partDesignIdOfUnit, partUnits } from "./partUnits.js";
+import { partDesignIdOfUnit, partDesignOperational, partUnitOperational, partUnits } from "./partUnits.js";
 import { combineTechnicalAdjustments, technicalAdjustmentForPart } from "./carPartPerformance.js";
 
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??null):v;
@@ -168,9 +168,11 @@ export function installedPartsForCar(gs,car){
     .map(([slot,ref])=>{
       const id=String(ref??"");
       const unit=units.get(id)||null;
+      if(unit&&!partUnitOperational(unit))return {slot,part:null,unit:null};
       const design=unit
         ?designs.get(partDesignIdOfUnit(unit))
         :designs.get(id);
+      if(!partDesignOperational(design))return {slot,part:null,unit};
       return {slot,part:design||null,unit};
     })
     .filter((x)=>x.part);
