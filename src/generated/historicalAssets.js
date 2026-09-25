@@ -41,8 +41,24 @@ export const HISTORICAL_ASSET_MANIFEST = {
       "default": "/portraits/drivers/d_0178.webp",
       "history": []
     },
+    "d0181": {
+      "default": "/portraits/drivers/d_0181.webp",
+      "history": []
+    },
     "d0187": {
       "default": "/portraits/drivers/d_0187.webp",
+      "history": []
+    },
+    "d0190": {
+      "default": "/portraits/drivers/d_0190.webp",
+      "history": []
+    },
+    "d0192": {
+      "default": "/portraits/drivers/d_0192.webp",
+      "history": []
+    },
+    "d0193": {
+      "default": "/portraits/drivers/d_0193.webp",
       "history": []
     },
     "d0197": {
@@ -87,6 +103,10 @@ export const HISTORICAL_ASSET_MANIFEST = {
     },
     "d0222": {
       "default": "/portraits/drivers/d_0222.webp",
+      "history": []
+    },
+    "d0223": {
+      "default": "/portraits/drivers/d_0223.webp",
       "history": []
     },
     "d0224": {
