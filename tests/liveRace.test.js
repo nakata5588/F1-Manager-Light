@@ -465,9 +465,6 @@ test("RW5.3B.2B repair-only pit service preserves tyres and repairs damage only 
 
   const damage=damageStateFromComponents({front_wing:70,floor:45});
   gs=withVisibleDamage(gs,{damage});
-  const beforeRow=gs.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1");
-  const tyreBefore=structuredClone(beforeRow.tyre);
-
   gs=issueLiveRaceCommand(gs,{
     driverId:"D1",
     type:"pit",
@@ -481,6 +478,7 @@ test("RW5.3B.2B repair-only pit service preserves tyres and repairs damage only 
   gs=advanceLiveRaceSector(gs,{gp,sectors:1});
   let live=gs.raceWeekendState.live_race;
   const state=live.pit_states.D1;
+  const tyreBefore=structuredClone(live.classification.find((row)=>row.driver_id==="D1").tyre);
   assert.ok(state?.active);
   assert.equal(state.service.tyre_change,false);
   assert.equal(state.service.damage_repair,true);
