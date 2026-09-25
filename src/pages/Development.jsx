@@ -1406,17 +1406,18 @@ export default function Development({ embedded = false, initialTab = "projects",
                 </InfoPopover>
               </div>
               <div className="lg:flex-1"/>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Mini label="Output" value={researchOutput.total_points_per_day.toFixed(2)+" RP/day"}/>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Mini label="Output" value={(researchOutput.total_points_per_day*technicalStrategy.research.current_car_multiplier).toFixed(2)+" RP/day"}/>
                 <Mini label="Focus" value={research.reduce((sum,row)=>sum+Number(row.focus||0),0).toFixed(0)+"%"}/>
                 <Mini label="Banked" value={research.reduce((sum,row)=>sum+Number(row.points||0),0).toFixed(1)+" RP"}/>
+                <Mini label="Future learning" value={"×"+technicalStrategy.research.next_season_multiplier.toFixed(2)}/>
               </div>
             </div>
           </CardContent></Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {research.map((r)=>{
-              const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100);
+              const daily=researchOutput.total_points_per_day*(Number(r.focus||0)/100)*technicalStrategy.research.current_car_multiplier;
               return <Card className="!bg-[#12141c] !border-white/10 !text-slate-100" key={r.id}><CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2"><div className="font-semibold">{r.label||r.area}</div><InfoPopover title={r.label||r.area}>{r.description} Focus controls this area's share of daily RP generation; banked RP can support matching development projects.</InfoPopover></div>
