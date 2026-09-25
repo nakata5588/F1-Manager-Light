@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   assessRestartConditions,
   createRestartMonitor,
+  fastForwardRestartConditions,
   restartHysteresisPolicyForYear,
   suspendRestartProcedure,
 } from "../src/engine/RestartHysteresisEngine.js";
@@ -81,6 +82,53 @@ test("RW5.2D4.6 weather restart needs two consecutive safe observations",()=>{
   assert.equal(result.monitor.safe_streak,2);
   assert.equal(result.monitor.restart_authorized,true);
   assert.equal(result.monitor.recommended_control,"GREEN");
+});
+
+test("Track 2.0 Red Flag fast-forward finds the first sustained safe restart window",()=>{
+  const timeline=[extreme(1),extreme(2),extreme(3),row(4),row(5),row(6)];
+  const monitor=createRestartMonitor({
+    year:1980,
+    rules:historicRules,
+    cause:"weather",
+    triggerTrackState:timeline[0],
+  });
+  const result=fastForwardRestartConditions({
+    monitor,
+    year:1980,
+    rules:historicRules,
+    cause:"weather",
+    timeline,
+    currentLap:1,
+  });
+
+  assert.equal(result.authorized,true);
+  assert.equal(result.monitor.restart_authorized,true);
+  assert.equal(result.monitor.recommended_control,"GREEN");
+  assert.ok(result.checks_advanced>=4);
+  assert.equal(result.monitor.safe_streak,2);
+  assert.ok(Number(result.observation.timeline_index)>=4);
+});
+
+test("Track 2.0 Red Flag fast-forward stops when the weather timeline remains unsafe",()=>{
+  const timeline=[extreme(1),extreme(2),extreme(3)];
+  const monitor=createRestartMonitor({
+    year:1980,
+    rules:historicRules,
+    cause:"weather",
+    triggerTrackState:timeline[0],
+  });
+  const result=fastForwardRestartConditions({
+    monitor,
+    year:1980,
+    rules:historicRules,
+    cause:"weather",
+    timeline,
+    currentLap:1,
+  });
+
+  assert.equal(result.authorized,false);
+  assert.equal(result.exhausted,true);
+  assert.ok(result.checks_advanced<=timeline.length+3);
 });
 
 test("RW5.2D4.6 one unsafe observation resets the safe streak",()=>{
