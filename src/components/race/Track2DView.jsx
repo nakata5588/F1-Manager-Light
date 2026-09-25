@@ -255,7 +255,7 @@ function useSmoothTrackProgress(target,{duration=700,individualDuration=null,run
 }
 
 function useSmoothNumber(target,{duration=700,running=false}={}){
-  const normalized=Number(target);
+  const normalized=target==null?NaN:Number(target);
   const valid=Number.isFinite(normalized);
   const currentRef=useRef(valid?normalized:null);
   const targetRef=useRef(valid?normalized:null);
@@ -264,16 +264,16 @@ function useSmoothNumber(target,{duration=700,running=false}={}){
 
   useEffect(()=>{
     if(frameRef.current)cancelAnimationFrame(frameRef.current);
-    const next=Number(target);
+    const next=target==null?NaN:Number(target);
     if(!Number.isFinite(next)){
       currentRef.current=null;
       targetRef.current=null;
       setDisplay(null);
       return undefined;
     }
-    const from=Number.isFinite(Number(currentRef.current))?Number(currentRef.current):next;
+    const from=currentRef.current==null?next:Number(currentRef.current);
     const previousTarget=targetRef.current;
-    const changed=!Number.isFinite(Number(previousTarget))||Math.abs(next-Number(previousTarget))>0.001;
+    const changed=previousTarget==null||!Number.isFinite(Number(previousTarget))||Math.abs(next-Number(previousTarget))>0.001;
     targetRef.current=next;
 
     if(!running||!changed){
