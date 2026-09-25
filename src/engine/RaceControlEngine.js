@@ -8,6 +8,7 @@ import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvironmentEngine.js";
 import { evaluateRaceability } from "./RaceabilityEngine.js";
+import { aquaplaningOutcome, aquaplaningRiskForDriver, standingWaterForConditions } from "./StandingWaterEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -168,6 +169,12 @@ export function buildTrackWeatherTimeline(gs,weather,track){
     });
     const row=weatherRow(gs,state);
     const wetnessDelta=Number((surface.track_wetness-beforeWetness).toFixed(3));
+    const standingWater=standingWaterForConditions({
+      wetness:surface.track_wetness,
+      rainIntensity:intensity,
+      drainage,
+      wetnessDelta,
+    });
     const raceability=evaluateRaceability({
       wetness:surface.track_wetness,
       sprayIndex:environment.spray_index,
@@ -175,6 +182,7 @@ export function buildTrackWeatherTimeline(gs,weather,track){
       gripIndex:surface.grip_index,
       rainIntensity:intensity,
       wetnessDelta,
+      standingWaterIndex:standingWater.index,
     });
     out.push({
       lap,state,
@@ -190,6 +198,9 @@ export function buildTrackWeatherTimeline(gs,weather,track){
       spray_band:environment.spray_band,
       visibility_index:Number(environment.visibility_index.toFixed(1)),
       visibility_band:environment.visibility_band,
+      standing_water_index:standingWater.index,
+      standing_water_band:standingWater.band,
+      standing_water_factors:standingWater.factors,
       raceability_index:raceability.index,
       raceability_hazard_index:raceability.hazard_index,
       raceability_band:raceability.band,
@@ -255,6 +266,89 @@ function weightedIncidentLap(rng,timeline){
   const roll=rng.next()*total;
   return weighted.find(([,cum])=>roll<=cum)?.[0]||timeline.length;
 }
+function aquaplaningIncidentForDriver(gs,row,timeline,track,{year=1980,gpId="race"}={}){
+  const did=idOf(row?.driver||row);
+  if(!did||!Array.isArray(timeline)||!timeline.length)return null;
+  const rating=ratingFor(gs,did);
+  const tyreStates=Array.isArray(row?.tyre_state_by_lap)?row.tyre_state_by_lap:[];
+  const lapTimes=Array.isArray(row?.lap_times_ms)?row.lap_times_ms:[];
+  const referenceLap=Math.max(1,num(track?.reference_lap_ms,0));
+
+  for(const weatherLap of timeline){
+    const lap=Math.max(1,Number(weatherLap?.lap)||1);
+    if(num(weatherLap?.standing_water_index,0)<12)continue;
+    const tyreState=tyreStates.find((state)=>Number(state?.lap)===lap)||tyreStates[Math.max(0,lap-1)]||{};
+    const lapMs=num(lapTimes[lap-1],0);
+    const paceMode=String(tyreState?.pace_mode||row?.strategy_summary?.pace_mode||"balanced");
+    const speedRatio=referenceLap>1&&lapMs>0
+      ?clamp(referenceLap/lapMs,0.55,1.15)
+      :paceMode==="attack"?0.95:paceMode==="conserve"?0.76:0.85;
+    const risk=aquaplaningRiskForDriver({
+      standingWaterIndex:weatherLap.standing_water_index,
+      tyreCategory:tyreState?.category||"wet",
+      wetSkill:num(rating?.wet_skill,60),
+      adaptability:num(rating?.adaptability,60),
+      raceIntelligence:num(rating?.race_intelligence,60),
+      paceMode,
+      speedRatio,
+      tyreCondition:num(tyreState?.condition,100),
+    });
+    if(risk.probability<=0)continue;
+
+    const irng=rngFor(gs,`${year}-${gpId}-rw5.2d4.2-aquaplaning-${did}-${lap}`);
+    if(!irng.chance(risk.probability))continue;
+
+    const outcome=aquaplaningOutcome({
+      riskIndex:risk.risk_index,
+      outcomeRoll:irng.next(),
+      retirementRoll:irng.next(),
+    });
+    const sector=1+Math.floor(irng.next()*3);
+    const kind=outcome.outcome==="accident"
+      ?"aquaplaning_accident"
+      :outcome.outcome==="loss_of_control"
+        ?"aquaplaning_loss_of_control"
+        :"aquaplaning_spin";
+    const reason=outcome.outcome==="accident"
+      ?"Aquaplaning accident"
+      :outcome.outcome==="loss_of_control"
+        ?"Aquaplaning loss of control"
+        :"Aquaplaning spin";
+    const severityScore=outcome.severity==="critical"
+      ?Math.max(0.94,risk.risk_index/100)
+      :outcome.severity==="high"
+        ?Math.max(0.78,risk.risk_index/100)
+        :outcome.severity==="medium"
+          ?Math.max(0.50,risk.risk_index/100)
+          :Math.max(0.15,risk.risk_index/100);
+
+    return {
+      driver_id:did,
+      other_driver_id:null,
+      lap,
+      sector,
+      kind,
+      reason,
+      severity:outcome.severity,
+      severity_score:Number(clamp(severityScore,0,1).toFixed(3)),
+      weather_state:weatherLap.state,
+      retirement:outcome.retirement,
+      time_loss_s:outcome.time_loss_s,
+      aquaplaning:true,
+      aquaplaning_risk_index:risk.risk_index,
+      aquaplaning_probability:risk.probability,
+      aquaplaning_factors:risk.factors,
+      standing_water_index:weatherLap.standing_water_index,
+      standing_water_band:weatherLap.standing_water_band,
+      tyre_category:String(tyreState?.category||"wet"),
+      tyre_condition:Number(num(tyreState?.condition,100).toFixed(1)),
+      pace_mode:paceMode,
+      speed_ratio:Number(speedRatio.toFixed(3)),
+    };
+  }
+  return null;
+}
+
 function severity(rng,type,state){
   const weatherBoost=["HEAVY_RAIN","STORM"].includes(String(state))?0.12:0;
   const collisionBoost=type==="collision"?0.08:0;
@@ -379,6 +473,30 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     }
   }
 
+  // Standing-water incidents are generated separately from the baseline crash
+  // model. A driver can spin or lose control without retiring; an aquaplaning
+  // accident can become a retirement. D4.3 will later decide weather-driven
+  // race-control policy from the composite raceability signal.
+  for(const row of race||[]){
+    const aq=aquaplaningIncidentForDriver(gs,row,timeline,track||{},{year,gpId});
+    if(!aq)continue;
+    incidents.push(aq);
+    const weatherLap=timeline[Math.max(0,Number(aq.lap)-1)]||{state:"SUNNY",red_flag_chance_pct:0};
+    const arng=rngFor(gs,`${year}-${gpId}-rw5.2d4.2-aquaplaning-control-${aq.driver_id}-${aq.lap}`);
+    const response=responseForIncident(rules,aq,weatherLap,arng);
+    const duration=durationFor(response,arng,timeline.length);
+    periods.push({
+      type:response,
+      from_lap:aq.lap,
+      from_sector:aq.sector,
+      to_lap:Math.min(timeline.length,aq.lap+duration-1),
+      to_sector:3,
+      cause:"aquaplaning",
+      driver_id:aq.driver_id,
+      priority:response==="RED_FLAG"?0:response==="SAFETY_CAR"?1:response==="VSC"?2:3,
+    });
+  }
+
   // Extreme weather can force race control action even without a crash.
   for(const row of timeline){
     if(!["HEAVY_RAIN","STORM"].includes(String(row.state)))continue;
@@ -409,8 +527,10 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     version:3,
     environment_model:"rw5.2d3.1",
     raceability_model:"rw5.2d4.1",
+    standing_water_model:"rw5.2d4.2",
+    aquaplaning_model:"rw5.2d4.2",
     rules,
-    incidents:incidents.sort((a,b)=>a.lap-b.lap),
+    incidents:incidents.sort((a,b)=>a.lap-b.lap||Number(a?.sector??1)-Number(b?.sector??1)),
     periods:mergePeriods(periods,timeline.length),
     weather_timeline:timeline,
   };
@@ -428,8 +548,11 @@ export function raceControlAtLap(plan,lap){
   if(!matches.length)return {type:"GREEN",from_lap:lap,to_lap:lap,cause:null};
   return matches.slice().sort((a,b)=>Number(a.priority??9)-Number(b.priority??9))[0];
 }
+export function incidentsForDriver(plan,driverId){
+  return (plan?.incidents||[]).filter((row)=>String(row?.driver_id)===String(driverId));
+}
 export function incidentForDriver(plan,driverId){
-  return (plan?.incidents||[]).find((row)=>String(row?.driver_id)===String(driverId))||null;
+  return incidentsForDriver(plan,driverId).find((row)=>row?.retirement!==false)||null;
 }
 
 export function mergeRaceControlHistory(previous,fresh,currentLap,currentSector=3){
