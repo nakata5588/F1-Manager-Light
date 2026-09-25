@@ -3,6 +3,7 @@ import { useGame } from "../state/GameStore.js";
 import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { teamReputation, teamReputationLabel } from "../domain/teamReputation.js";
 import { contractActiveForYear } from "../domain/liveContracts.js";
+import { canonicalStaffRole, resolveStaffId, staffRoleLabel } from "../domain/staffRoles.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -62,8 +63,14 @@ export default function Teams(){
       const id=teamIdOf(t);
       const driverCount=contracts.filter(c=>contractActiveForYear(c,y)&&teamIdOf(c)===id&&String(pick(c,["role","position"],"")).toLowerCase().includes("driver")).length;
       const assignedStaff=staffContracts.filter(c=>contractActiveForYear(c,y)&&teamIdOf(c)===id);
-      const principal=assignedStaff.find(c=>/principal|owner/i.test(String(pick(c,["role","position"],""))));
-      const staffRoles=assignedStaff.map((row)=>String(pick(row,["role","position"],"Staff")).replaceAll("_"," ").replace(/\b\w/g,(m)=>m.toUpperCase()));
+      const staffAssignments=assignedStaff.map((row)=>({
+        id:resolveStaffId(gs,row),
+        name:pick(row,["staff_name","name","person_name"],"Staff"),
+        role:staffRoleLabel(pick(row,["role","position"],"Staff")),
+        canonicalRole:canonicalStaffRole(pick(row,["role","position"],"Staff")),
+      }));
+      const principal=staffAssignments.find((row)=>["team_principal","owner"].includes(row.canonicalRole))||null;
+      const staffRoles=staffAssignments.map((row)=>row.role);
       const brand=brandById.get(id)||{};
       const seasonRec=seasonById.get(id)||{};
       return {
@@ -80,9 +87,10 @@ export default function Teams(){
             String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
             teamIdOf(r)===id
           ).length,
-        principal:pick(principal,["staff_name","name"],"—"),
+        principal:principal?.name||"—",
         staffCount:assignedStaff.length,
         staffRoles,
+        staffAssignments,
         reputation:y===currentYear?teamReputation(gs,id):null,
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
@@ -118,7 +126,14 @@ export default function Teams(){
           <td className="px-4 py-2">{t.principal}</td>
           <td className="px-4 py-2">
             <div className="font-medium">{t.staffCount}</div>
-            <div className="max-w-[280px] truncate text-xs text-slate-500" title={(t.staffRoles||[]).join(", ")}>{(t.staffRoles||[]).join(" · ")||"—"}</div>
+            <div className="mt-0.5 max-w-[360px] space-y-0.5 text-xs text-slate-500">
+              {(t.staffAssignments||[]).slice(0,3).map((assignment,index)=><div key={assignment.id||assignment.name+"_"+index} className="truncate" title={assignment.role+" · "+assignment.name}>
+                <span className="text-slate-600">{assignment.role}:</span>{" "}
+                {assignment.id?<button type="button" data-entity="staff" data-id={assignment.id} className="text-slate-400 hover:text-slate-200 hover:underline">{assignment.name}</button>:<span>{assignment.name}</span>}
+              </div>)}
+              {(t.staffAssignments||[]).length>3?<div className="text-slate-600">+{t.staffAssignments.length-3} more</div>:null}
+              {!t.staffAssignments?.length?<div>—</div>:null}
+            </div>
           </td>
           <td className="px-4 py-2 text-right">{t.drivers}</td>
           <td className="px-4 py-2 text-right">
