@@ -263,6 +263,20 @@ export function accidentRetirementChance(gs,row){
   return clamp(base*weatherMult,0.005,0.55);
 }
 
+export function accidentIncidentChance(gs,row){
+  const target=accidentRetirementChance(gs,row);
+  // Add a repairable-incident layer without erasing the calibrated DNF target.
+  // 1.4x means roughly 29% of baseline crash incidents can be survivable before
+  // structural damage forces an additional retirement.
+  return clamp(target*1.4,target,0.75);
+}
+
+export function accidentConditionalRetirementChance(gs,row){
+  const target=accidentRetirementChance(gs,row);
+  const incident=accidentIncidentChance(gs,row);
+  return incident>0?clamp(target/incident,0,1):0;
+}
+
 export function mechanicalRetirementChance(gs,row){
   const did=idOf(row?.driver||row);
   const tid=teamIdForDriver(gs,did);
@@ -421,7 +435,9 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
   for(const [raceIndex,row] of (race||[]).entries()){
     const roll=rng.next();
     const mech=mechanicalRetirementChance(gs,row);
-    const accident=accidentRetirementChance(gs,row);
+    const accidentTarget=accidentRetirementChance(gs,row);
+    const accident=accidentIncidentChance(gs,row);
+    const accidentConditional=accidentConditionalRetirementChance(gs,row);
     let kind=null,reason=null;
     if(roll<mech){
       kind="mechanical";
@@ -460,6 +476,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
         componentRolls:Array.from({length:6},()=>damageRng.next()),
         impactRoll:damageRng.next(),
         retirementRoll:damageRng.next(),
+        retirementProbabilityOverride:accidentConditional,
       })
       :null;
     const incident={
@@ -476,6 +493,9 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
       reliability_source:reliability?.source??null,
       damage_ordinal:pointOrdinal(lap,sector),
       damage,
+      accident_target_dnf_chance:kind==="mechanical"?null:Number(accidentTarget.toFixed(4)),
+      accident_incident_chance:kind==="mechanical"?null:Number(accident.toFixed(4)),
+      accident_conditional_dnf_chance:kind==="mechanical"?null:Number(accidentConditional.toFixed(4)),
       retirement:kind==="mechanical"?true:Boolean(damage?.retirement_required),
     };
     incidents.push(incident);
