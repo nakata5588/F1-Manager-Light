@@ -77,6 +77,16 @@ function severityAdjective(severity){
     critical:"serious",
   }[String(severity||"").toLowerCase()]||"significant";
 }
+function incidentDamageSuffix(incident){
+  const damage=incident?.damage;
+  const components=Array.isArray(damage?.damaged_components)?damage.damaged_components:[];
+  if(!components.length)return "";
+  const labels=components.slice(0,3).map((component)=>String(component).replaceAll("_"," "));
+  const extra=components.length>3?` +${components.length-3} more`:"";
+  if(incident?.retirement===true)return ` Car damage: ${labels.join(", ")}${extra}; unable to continue.`;
+  const pace=Number(damage?.pace_loss_s_per_lap);
+  return ` Car damage: ${labels.join(", ")}${extra}${Number.isFinite(pace)&&pace>0?` (~+${pace.toFixed(2)}s/lap)`:""}.`;
+}
 export function formatRaceIncidentMessage({controlType=null,driverName="Driver",incident={},medicalConcern=null}={}){
   const kind=String(incident?.kind||"").toLowerCase();
   const reason=String(incident?.reason||incident?.kind||"incident").trim();
@@ -88,9 +98,9 @@ export function formatRaceIncidentMessage({controlType=null,driverName="Driver",
   if(kind.startsWith("aquaplaning_")){
     const loss=Number(incident?.time_loss_s)||0;
     const suffix=incident?.retirement===false&&loss>0?` Loses about ${loss.toFixed(1)}s.`:"";
-    if(kind==="aquaplaning_spin")return `${prefix}${driverName} aquaplanes and spins.${suffix}`;
-    if(kind==="aquaplaning_loss_of_control")return `${prefix}${driverName} aquaplanes and loses control.${suffix}`;
-    if(kind==="aquaplaning_accident")return `${prefix}${driverName} aquaplanes into an accident.${suffix}`;
+    if(kind==="aquaplaning_spin")return `${prefix}${driverName} aquaplanes and spins.${suffix}${incidentDamageSuffix(incident)}`;
+    if(kind==="aquaplaning_loss_of_control")return `${prefix}${driverName} aquaplanes and loses control.${suffix}${incidentDamageSuffix(incident)}`;
+    if(kind==="aquaplaning_accident")return `${prefix}${driverName} aquaplanes into an accident.${suffix}${incidentDamageSuffix(incident)}`;
   }
   const noun=incidentNoun(incident);
   const severity=String(incident?.severity||"medium").toLowerCase();
@@ -100,9 +110,9 @@ export function formatRaceIncidentMessage({controlType=null,driverName="Driver",
       ?" Seems to be OK."
       :"";
   if(severity==="critical"){
-    return `${prefix}Serious ${noun} involving ${driverName}.${medicalSuffix}`;
+    return `${prefix}Serious ${noun} involving ${driverName}.${medicalSuffix}${incidentDamageSuffix(incident)}`;
   }
-  return `${prefix}${driverName} involved in a ${severityAdjective(severity)} ${noun}.${medicalSuffix}`;
+  return `${prefix}${driverName} involved in a ${severityAdjective(severity)} ${noun}.${medicalSuffix}${incidentDamageSuffix(incident)}`;
 }
 function incidentMedicalStatus(gs,incident){
   const kind=String(incident?.kind||incident?.reason||"").toLowerCase();
