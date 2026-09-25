@@ -97,8 +97,6 @@ test("strategy multipliers are zero-sum around Balanced",()=>{
 
 test("Current Car Push generates more spendable RP while Future First generates more persistent knowledge",()=>{
   const base=fixture();
-  const opening=technicalKnowledgeSnapshot(base,{teamId:"PLAYER"}).average;
-
   let current=setTechnicalStrategy(structuredClone(base),{strategyId:"current_car_push",dateISO:"1980-03-01"});
   let future=setTechnicalStrategy(structuredClone(base),{strategyId:"future_first",dateISO:"1980-03-01"});
 
@@ -116,8 +114,11 @@ test("Current Car Push generates more spendable RP while Future First generates 
 
   assert.ok(currentRp>futureRp);
   assert.ok(futureResearchXp>currentResearchXp);
-  assert.ok(currentSnapshot.average>=opening);
-  assert.ok(futureSnapshot.average>=opening);
+  for(const snapshot of [currentSnapshot,futureSnapshot]){
+    for(const area of Object.values(snapshot.areas)){
+      assert.ok(area.level>=area.opening_level);
+    }
+  }
 });
 
 test("Future First aero priority improves next-season aero Design capacity but not unrelated areas",()=>{
