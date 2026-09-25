@@ -113,6 +113,61 @@ function pitWindowLabel(window){
   return `L${from}–${to}`;
 }
 
+function tyreVisual(compound){
+  const key=String(compound||"").toLowerCase();
+  if(key.includes("inter"))return {label:"I",ring:"#39ff14"};
+  if(key.includes("wet"))return {label:"W",ring:"#18a8ff"};
+  if(key.includes("option")||key.includes("soft"))return {label:"S",ring:"#ff3030"};
+  if(key.includes("medium"))return {label:"M",ring:"#ffd800"};
+  if(key.includes("prime")||key.includes("hard"))return {label:"H",ring:"#f5f7fa"};
+  const cMatch=key.match(/(?:^|\b)c([1-5])(?:\b|$)/);
+  if(cMatch){
+    const number=Number(cMatch[1]);
+    return {label:`C${number}`,ring:number<=2?"#f5f7fa":number===3?"#ffd800":"#ff3030"};
+  }
+  return {label:"T",ring:"#94a3b8"};
+}
+
+function MiniTyreIcon({compound,size=17}){
+  const visual=tyreVisual(compound);
+  return <span
+    title={String(compound||"Tyre")}
+    aria-label={String(compound||"Tyre")}
+    className="relative inline-flex shrink-0 items-center justify-center rounded-full bg-[#06080c]"
+    style={{width:size,height:size,border:`${Math.max(2,Math.round(size*.12))}px solid ${visual.ring}`,boxShadow:"inset 0 0 0 1px rgba(255,255,255,.10)"}}
+  >
+    <span className="rounded-full bg-slate-700" style={{width:Math.round(size*.38),height:Math.round(size*.38)}}/>
+    <span className="absolute text-center font-black leading-none" style={{fontSize:Math.max(5,Math.round(size*.22)),color:visual.ring}}>{visual.label}</span>
+  </span>;
+}
+
+function useAnimatedViewBox(target,duration=420){
+  const normalized=Array.isArray(target)&&target.length===4?target.map(Number):[0,0,1000,1000];
+  const [display,setDisplay]=useState(normalized);
+  const current=useRef(normalized);
+  const frame=useRef(null);
+  const key=normalized.map((value)=>Number(value).toFixed(2)).join(":");
+
+  useEffect(()=>{
+    if(frame.current)cancelAnimationFrame(frame.current);
+    const from=current.current.map(Number);
+    const to=normalized;
+    const started=performance.now();
+    const tick=(now)=>{
+      const t=Math.min(1,(now-started)/Math.max(1,Number(duration)||1));
+      const eased=1-Math.pow(1-t,3);
+      const next=from.map((value,index)=>value+(to[index]-value)*eased);
+      current.current=next;
+      setDisplay(next);
+      if(t<1)frame.current=requestAnimationFrame(tick);
+    };
+    frame.current=requestAnimationFrame(tick);
+    return ()=>{if(frame.current)cancelAnimationFrame(frame.current);};
+  },[key,duration]);
+
+  return display;
+}
+
 function eventTone(event){
   const control=String(event?.control_type||"").toUpperCase();
   const type=String(event?.type||"").toLowerCase();
