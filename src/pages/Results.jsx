@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameStore";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import { GrandPrixFlag } from "../components/entity/GrandPrixFlag.jsx";
+import { historicalRaceStarted, historicalResultCode, historicalResultDisplay, historicalResultInfo } from "../domain/historicalRaceStatus.js";
 
 const pick = (obj, keys, fb = undefined) => {
   for (const k of keys) {
@@ -96,23 +97,342 @@ function normalizeLegacyLastRace(lastRace, activeYear) {
   };
 }
 
+function canon(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function numberOrNull(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function rawDriverName(row) {
+  return String(pick(row, ["driver_name", "driverName", "display_name", "name"], "") || "").trim();
+}
+
+function rawTeamName(row) {
+  return String(pick(row, ["team_name", "constructorName", "constructor_name", "constructor", "team"], "") || "").trim();
+}
+
+function makeHistoricalRaceEvents(rows, drivers, teams, careerStartYear) {
+  if (!Array.isArray(rows) || !rows.length) return [];
+
+  const driverIds = new Set((drivers || []).map((d) => String(d?.driver_id ?? d?.id ?? "")).filter(Boolean));
+  const driverArchiveToId = new Map();
+  const driverNameToId = new Map();
+  for (const d of drivers || []) {
+    const id = String(d?.driver_id ?? d?.id ?? "");
+    if (!id) continue;
+    const archiveId = numberOrNull(pick(d, ["driverID_arch", "driverId_arch", "driverId"], null));
+    if (archiveId != null) driverArchiveToId.set(archiveId, id);
+    for (const name of [d?.display_name, d?.driver_name, d?.name, d?.full_name]) {
+      const key = canon(name);
+      if (key && !driverNameToId.has(key)) driverNameToId.set(key, id);
+    }
+  }
+
+  const teamIds = new Set((teams || []).map((t) => String(t?.team_id ?? t?.id ?? "")).filter(Boolean));
+  const teamNameToId = new Map();
+  for (const t of teams || []) {
+    const id = String(t?.team_id ?? t?.id ?? "");
+    if (!id) continue;
+    for (const name of [t?.team_name, t?.name, t?.short_name, t?.official_name]) {
+      const key = canon(name);
+      if (key && !teamNameToId.has(key)) teamNameToId.set(key, id);
+    }
+  }
+
+  const resolveDriverId = (row) => {
+    const direct = String(pick(row, ["driver_id", "person_id"], "") || "");
+    if (direct && driverIds.has(direct)) return direct;
+    const archive = numberOrNull(pick(row, ["driverId", "driverID"], null));
+    if (archive != null && driverArchiveToId.has(archive)) return driverArchiveToId.get(archive);
+    const byName = driverNameToId.get(canon(rawDriverName(row)));
+    return byName || direct || (archive != null ? `archive_driver_${archive}` : rawDriverName(row));
+  };
+
+  const resolveTeamId = (row) => {
+    const direct = String(pick(row, ["team_id", "constructor_id"], "") || "");
+    if (direct && teamIds.has(direct)) return direct;
+    const byName = teamNameToId.get(canon(rawTeamName(row)));
+    return byName || direct || rawTeamName(row);
+  };
+
+  const groups = new Map();
+  const cutoff = Number(careerStartYear);
+  for (const row of rows) {
+    const year = numberOrNull(pick(row, ["year", "season_year", "season"], null));
+    if (year == null) continue;
+    // Historical outcomes seed the world only before the player's career.
+    // From the career start onwards the simulated Save World is authoritative.
+    if (Number.isFinite(cutoff) && year >= cutoff) continue;
+
+    const round = numberOrNull(pick(row, ["round", "race_round", "round_number"], null));
+    const gpName = String(pick(row, ["gp_name", "race", "raceName", "name"], round != null ? `Round ${round}` : "Grand Prix"));
+    const gpId = pick(row, ["gp_id", "race_id", "raceId"], null);
+    const key = `hist_${year}_${round ?? "x"}_${String(gpId ?? gpName).replace(/\s+/g, "_")}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        year,
+        round,
+        name: gpName,
+        gp_name: gpName,
+        gp_id: gpId,
+        track_id: pick(row, ["track_id", "circuit_id", "circuitId"], null),
+        dateISO: pick(row, ["dateISO", "race_date", "date"], null),
+        historical: true,
+        source: "historical_database",
+        classification: [],
+        startingGrid: [],
+        qualifying: [],
+      });
+    }
+
+    const event = groups.get(key);
+    const driverId = resolveDriverId(row);
+    const driverName = rawDriverName(row) || resolveDriverName(drivers, driverId);
+    const teamId = resolveTeamId(row);
+    const teamName = rawTeamName(row) || resolveTeamNameById(teams, teamId);
+    const position = numberOrNull(pick(row, ["position", "positionOrder", "position_order", "finish_position", "pos"], null));
+    const grid = numberOrNull(pick(row, ["grid", "gridPosition", "grid_position", "starting_grid"], null));
+    const fastestRank = numberOrNull(pick(row, ["rank", "fastestLapRank", "fastest_lap_rank"], null));
+    const statusInfo = historicalResultInfo(row);
+    const retired = statusInfo.isDnf;
+    const status = statusInfo.label;
+    const resultCode = historicalResultCode(row);
+
+    event.classification.push({
+      position,
+      driver_id: driverId,
+      driver_name: driverName,
+      team_id: teamId,
+      team_name: teamName,
+      retired,
+      status,
+      result_code: resultCode,
+      retirement_reason: retired ? status : null,
+      points: numberOrNull(pick(row, ["points"], null)),
+      fastest_lap: fastestRank === 1 || ["true","1","yes"].includes(String(pick(row, ["fastest_lap", "fastestLap"], false)).toLowerCase()),
+      laps_completed: numberOrNull(pick(row, ["laps", "laps_completed"], null)),
+      total_time_ms: numberOrNull(pick(row, ["milliseconds", "total_time_ms"], null)),
+      grid,
+    });
+
+    if (grid != null && grid > 0) {
+      event.startingGrid.push({ driver_id: driverId, grid });
+      event.qualifying.push({ driver_id: driverId, position: grid, best_time_ms: null });
+    }
+  }
+
+  return [...groups.values()]
+    .map((event) => ({
+      ...event,
+      classification: event.classification.sort((a,b) => (Number(a.position) || Infinity) - (Number(b.position) || Infinity)),
+      startingGrid: event.startingGrid.sort((a,b) => Number(a.grid) - Number(b.grid)),
+      qualifying: event.qualifying.sort((a,b) => Number(a.position) - Number(b.position)),
+    }))
+    .sort((a,b) => Number(a.year) - Number(b.year) || Number(a.round || 0) - Number(b.round || 0));
+}
+
+function rowDriverKey(row) {
+  return String(row?.driver_id ?? row?.driver_key ?? row?.driver_name ?? "");
+}
+
+function rowTeamKey(row) {
+  return String(row?.team_id ?? row?.team_key ?? row?.team_name ?? "");
+}
+
 export default function ResultsPage() {
   const gameState = useGame((s) => s.gameState);
 
-  const driversDb = useMemo(() => gameState?.drivers || gameState?.dbDrivers || [], [gameState]);
-  const teamsDb = useMemo(() => gameState?.teams || gameState?.dbTeams || [], [gameState]);
-  const contractsDb = useMemo(() => gameState?.contracts || gameState?.dbContracts || [], [gameState]);
+  const driversDb = useMemo(() => {
+    const merged = new Map();
+    for (const d of gameState?.dbDrivers || []) {
+      const id = String(d?.driver_id ?? d?.id ?? "");
+      if (id) merged.set(id, d);
+    }
+    for (const d of gameState?.drivers || []) {
+      const id = String(d?.driver_id ?? d?.id ?? "");
+      if (id) merged.set(id, { ...(merged.get(id) || {}), ...d });
+    }
+    return [...merged.values()];
+  }, [gameState?.drivers, gameState?.dbDrivers]);
+  const teamsDb = useMemo(() => {
+    const merged = new Map();
+    for (const t of gameState?.dbTeams || []) {
+      const id = String(t?.team_id ?? t?.id ?? "");
+      if (id) merged.set(id, t);
+    }
+    for (const t of gameState?.teams || []) {
+      const id = String(t?.team_id ?? t?.id ?? "");
+      if (id) merged.set(id, { ...(merged.get(id) || {}), ...t });
+    }
+    return [...merged.values()];
+  }, [gameState?.teams, gameState?.dbTeams]);
+  const contractsDb = useMemo(() => gameState?.contracts || gameState?.dbContracts || [], [gameState?.contracts, gameState?.dbContracts]);
   const activeYear = gameState?.activeYear;
+  const careerStartYear = Number(gameState?.careerMeta?.sourceSeason ?? gameState?.careerMeta?.startYear ?? activeYear);
   const pointsTable = useMemo(() => pointsTableFromState(gameState), [gameState?.pointsSystem]);
+  const currentDecade = Number.isFinite(Number(activeYear))
+    ? Math.floor(Number(activeYear) / 10) * 10
+    : null;
+  const [archiveIndex, setArchiveIndex] = useState(null);
+  const [historicalRows, setHistoricalRows] = useState([]);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [decadeFilter, setDecadeFilter] = useState(currentDecade);
+  const [yearFilter, setYearFilter] = useState(Number.isFinite(Number(activeYear)) ? String(Number(activeYear)) : "");
+  const [driverFilter, setDriverFilter] = useState("ALL");
+  const [teamFilter, setTeamFilter] = useState("ALL");
+  const [gpFilter, setGpFilter] = useState("ALL");
+  const [selectedKey, setSelectedKey] = useState(null);
 
-  const resultsRaw = useMemo(() => {
-    if (Array.isArray(gameState?.results) && gameState.results.length) return gameState.results;
-    const legacy = normalizeLegacyLastRace(gameState?.lastRace, activeYear);
-    return legacy ? [legacy] : [];
-  }, [gameState?.results, gameState?.lastRace, activeYear]);
+  const careerResults = useMemo(() => (
+    Array.isArray(gameState?.results) && gameState.results.length
+      ? gameState.results
+      : (() => {
+          const legacy = normalizeLegacyLastRace(gameState?.lastRace, activeYear);
+          return legacy ? [legacy] : [];
+        })()
+  ), [gameState?.results, gameState?.lastRace, activeYear]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/data/race_results_archive_index.json", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((index) => {
+        if (!cancelled) setArchiveIndex(index && Array.isArray(index.decades) ? index : null);
+      })
+      .catch(() => {
+        if (!cancelled) setArchiveIndex(null);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const decadeOptions = useMemo(() => {
+    const values = new Set();
+    const cutoff = Number(careerStartYear);
+
+    for (const entry of archiveIndex?.decades || []) {
+      const decade = Number(entry?.decade);
+      if (!Number.isFinite(decade)) continue;
+      const hasPreCareerYear = (entry?.years || []).some((year) => Number(year) < cutoff);
+      if (!Number.isFinite(cutoff) || hasPreCareerYear) values.add(decade);
+    }
+    for (const event of careerResults) {
+      const year = Number(event?.year);
+      if (Number.isFinite(year)) values.add(Math.floor(year / 10) * 10);
+    }
+    if (Number.isFinite(currentDecade)) values.add(currentDecade);
+    return [...values].sort((a,b) => b-a);
+  }, [archiveIndex, careerResults, careerStartYear, currentDecade]);
+
+  useEffect(() => {
+    if (!Number.isFinite(Number(activeYear))) return;
+    const year = Number(activeYear);
+    setDecadeFilter(Math.floor(year / 10) * 10);
+    setYearFilter(String(year));
+    setDriverFilter("ALL");
+    setTeamFilter("ALL");
+    setGpFilter("ALL");
+    setSelectedKey(null);
+  }, [activeYear]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const decade = Number(decadeFilter);
+    if (!Number.isFinite(decade)) {
+      setHistoricalRows([]);
+      setHistoricalLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    const entry = (archiveIndex?.decades || []).find((item) => Number(item?.decade) === decade);
+    const cutoff = Number(careerStartYear);
+    const needsHistorical = entry
+      ? (entry.years || []).some((year) => !Number.isFinite(cutoff) || Number(year) < cutoff)
+      : decade < Math.floor((Number.isFinite(cutoff) ? cutoff : decade) / 10) * 10;
+
+    if (archiveIndex && !needsHistorical) {
+      setHistoricalRows([]);
+      setHistoricalLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    setHistoricalRows([]);
+    setHistoricalLoading(true);
+
+    const loadDecade = async () => {
+      const filename = entry?.file || `race_results_archive_${decade}s.json`;
+      try {
+        const decadeRes = await fetch(`/data/${filename}`, { cache: "no-store" });
+        if (decadeRes.ok) {
+          const rows = await decadeRes.json();
+          if (Array.isArray(rows)) return rows;
+        }
+
+        // Backwards-compatible fallback for workspaces that have not generated
+        // the decade files yet.
+        const archiveRes = await fetch("/data/race_results_archive.json", { cache: "no-store" });
+        if (archiveRes.ok) {
+          const archive = await archiveRes.json();
+          if (Array.isArray(archive)) {
+            return archive.filter((row) => Math.floor(Number(row?.year) / 10) * 10 === decade);
+          }
+        }
+
+        const rawRes = await fetch("/data/race_results.json", { cache: "no-store" });
+        if (!rawRes.ok) throw new Error(`HTTP ${rawRes.status}`);
+        const raw = await rawRes.json();
+        return Array.isArray(raw)
+          ? raw.filter((row) => Math.floor(Number(pick(row, ["year","season_year","season"], NaN)) / 10) * 10 === decade)
+          : [];
+      } catch (error) {
+        console.warn("[Results] historical race archive unavailable:", error);
+        return [];
+      }
+    };
+
+    loadDecade()
+      .then((rows) => { if (!cancelled) setHistoricalRows(rows); })
+      .finally(() => { if (!cancelled) setHistoricalLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [decadeFilter, archiveIndex, careerStartYear]);
+
+  const historicalResults = useMemo(() => {
+    const cutoff = Number(careerStartYear);
+    const decade = Number(decadeFilter);
+    const isArchive = historicalRows.some((row) => Array.isArray(row?.classification));
+    const normalized = isArchive
+      ? historicalRows
+      : makeHistoricalRaceEvents(historicalRows, driversDb, teamsDb, careerStartYear);
+
+    return normalized.filter((row) => {
+      const year = Number(row?.year);
+      return Number.isFinite(year)
+        && (!Number.isFinite(cutoff) || year < cutoff)
+        && (!Number.isFinite(decade) || Math.floor(year / 10) * 10 === decade);
+    });
+  }, [historicalRows, driversDb, teamsDb, careerStartYear, decadeFilter]);
 
   const results = useMemo(() => {
-    const arr = resultsRaw.slice();
+    const decade = Number(decadeFilter);
+    const careerForDecade = careerResults.filter((row) => {
+      const year = Number(row?.year);
+      return Number.isFinite(year) && (!Number.isFinite(decade) || Math.floor(year / 10) * 10 === decade);
+    });
+    const arr = [...historicalResults, ...careerForDecade];
     arr.sort((a, b) => {
       const ay = Number(a.year) || 0;
       const by = Number(b.year) || 0;
@@ -123,46 +443,89 @@ export default function ResultsPage() {
       return String(a.key || "").localeCompare(String(b.key || ""));
     });
     return arr;
-  }, [resultsRaw]);
-
-  const [yearFilter, setYearFilter] = useState(() => String(activeYear ?? "ALL"));
-  const [driverFilter, setDriverFilter] = useState("ALL");
-  const [gpFilter, setGpFilter] = useState("ALL");
-  const [selectedKey, setSelectedKey] = useState(null);
+  }, [historicalResults, careerResults, decadeFilter]);
 
   const yearOptions = useMemo(() => {
     const years = new Set(results.map((r) => Number(r.year)).filter(Number.isFinite));
-    if (Number.isFinite(Number(activeYear))) years.add(Number(activeYear));
-    return ["ALL", ...Array.from(years).sort((a,b)=>a-b)];
-  }, [results, activeYear]);
+    const entry = (archiveIndex?.decades || []).find((item) => Number(item?.decade) === Number(decadeFilter));
+    const cutoff = Number(careerStartYear);
+    for (const year of entry?.years || []) {
+      const y = Number(year);
+      if (Number.isFinite(y) && (!Number.isFinite(cutoff) || y < cutoff)) years.add(y);
+    }
+    if (Number.isFinite(Number(activeYear)) && Math.floor(Number(activeYear)/10)*10 === Number(decadeFilter)) {
+      years.add(Number(activeYear));
+    }
+    return [...years].sort((a,b) => b-a);
+  }, [results, archiveIndex, decadeFilter, careerStartYear, activeYear]);
 
   useEffect(() => {
-    setYearFilter(String(activeYear ?? "ALL"));
-    setDriverFilter("ALL");
-    setGpFilter("ALL");
-    setSelectedKey(null);
-  }, [activeYear]);
+    if (!yearOptions.length) {
+      setYearFilter("");
+      return;
+    }
+    const active = Number(activeYear);
+    const preferred = Number.isFinite(active)
+      && Math.floor(active / 10) * 10 === Number(decadeFilter)
+      && yearOptions.includes(active)
+        ? active
+        : yearOptions[0];
+    if (!yearOptions.includes(Number(yearFilter))) {
+      setYearFilter(String(preferred));
+      setDriverFilter("ALL");
+      setTeamFilter("ALL");
+      setGpFilter("ALL");
+      setSelectedKey(null);
+    }
+  }, [yearOptions, activeYear, decadeFilter, yearFilter]);
+
+  const yearScopedResults = useMemo(
+    () => results.filter((r) => Number(r?.year) === Number(yearFilter)),
+    [results, yearFilter]
+  );
+
   const gpOptions = useMemo(() => {
     const map = new Map();
-    for (const r of results) {
+    for (const r of yearScopedResults) {
       const key = String(r.gp_id ?? r.name ?? r.gp_name ?? "");
       if (key) map.set(key, r.name ?? r.gp_name ?? key);
     }
     return [["ALL","All Grands Prix"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
-  }, [results]);
-  const driverOptions = useMemo(() => {
-    const ids = new Set();
-    for (const r of results) for (const row of r.classification || []) if (row?.driver_id != null) ids.add(String(row.driver_id));
-    return [["ALL","All Drivers"], ...Array.from(ids).map((id)=>[id,resolveDriverName(driversDb,id)]).sort((a,b)=>a[1].localeCompare(b[1]))];
-  }, [results, driversDb]);
+  }, [yearScopedResults]);
 
-  const filteredResults = useMemo(() => results.filter((r) => {
-    if (yearFilter !== "ALL" && Number(r.year) !== Number(yearFilter)) return false;
+  const driverOptions = useMemo(() => {
+    const map = new Map();
+    for (const r of yearScopedResults) {
+      for (const row of r.classification || []) {
+        const id = rowDriverKey(row);
+        if (!id) continue;
+        const label = row?.driver_name || resolveDriverName(driversDb,id);
+        if (!map.has(id) || map.get(id) === id) map.set(id, label || id);
+      }
+    }
+    return [["ALL","All Drivers"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
+  }, [yearScopedResults, driversDb]);
+
+  const teamOptions = useMemo(() => {
+    const map = new Map();
+    for (const r of yearScopedResults) {
+      for (const row of r.classification || []) {
+        const id = rowTeamKey(row);
+        if (!id) continue;
+        const label = row?.team_name || resolveTeamNameById(teamsDb,id);
+        if (!map.has(id) || map.get(id) === id) map.set(id, label || id);
+      }
+    }
+    return [["ALL","All Teams"], ...Array.from(map.entries()).sort((a,b)=>String(a[1]).localeCompare(String(b[1])))];
+  }, [yearScopedResults, teamsDb]);
+
+  const filteredResults = useMemo(() => yearScopedResults.filter((r) => {
     const gpKey = String(r.gp_id ?? r.name ?? r.gp_name ?? "");
     if (gpFilter !== "ALL" && gpKey !== gpFilter) return false;
-    if (driverFilter !== "ALL" && !(r.classification || []).some((row) => String(row?.driver_id) === String(driverFilter))) return false;
+    if (driverFilter !== "ALL" && !(r.classification || []).some((row) => rowDriverKey(row) === String(driverFilter))) return false;
+    if (teamFilter !== "ALL" && !(r.classification || []).some((row) => rowTeamKey(row) === String(teamFilter))) return false;
     return true;
-  }), [results, yearFilter, driverFilter, gpFilter]);
+  }), [yearScopedResults, driverFilter, teamFilter, gpFilter]);
 
   useEffect(() => {
     if (!filteredResults.length) {
@@ -198,11 +561,12 @@ export default function ResultsPage() {
     const winner = rows.find((row) => Number(row?.position) === 1 && !row?.retired) || rows[0] || null;
     const fastest = rows.find((row) => row?.fastest_lap) || null;
     const pole = [...selectedQualifying.entries()].find(([, row]) => Number(row.position) === 1)?.[0] || null;
+    const poleRow = pole ? rows.find((row) => rowDriverKey(row) === String(pole)) : null;
     return {
-      winner: winner ? resolveDriverName(driversDb, winner.driver_id) : "—",
-      pole: pole ? resolveDriverName(driversDb, pole) : "—",
-      fastest: fastest ? resolveDriverName(driversDb, fastest.driver_id) : "—",
-      dnfs: rows.filter((row) => row?.retired || String(row?.status || "").toUpperCase() === "DNF").length,
+      winner: winner ? (winner?.driver_name || resolveDriverName(driversDb, winner.driver_id)) : "—",
+      pole: pole ? (poleRow?.driver_name || resolveDriverName(driversDb, pole)) : "—",
+      fastest: fastest ? (fastest?.driver_name || resolveDriverName(driversDb, fastest.driver_id)) : "—",
+      dnfs: rows.filter((row) => historicalResultInfo(row).isDnf).length,
       pitStops: rows.reduce((sum, row) => sum + (Array.isArray(row?.pit_stops) ? row.pit_stops.length : Number(row?.strategy_summary?.pit_count || 0)), 0),
       weather: selected?.weather?.state || selected?.raceStrategy?.weather?.state || "—",
       laps: selected?.track?.laps || selected?.raceStrategy?.track?.laps || rows[0]?.race_laps || "—",
@@ -214,22 +578,55 @@ export default function ResultsPage() {
       <div className="bg-[#12141c] border border-white/10 rounded-xl shadow-lg p-4">
         <h2 className="text-lg font-semibold">Results</h2>
         <p className="text-sm text-slate-400">
-          Todas as corridas disputadas nesta carreira. Seleciona uma corrida para ver a classificação.
+          Arquivo histórico anterior ao início da carreira + resultados simulados da tua carreira. O arquivo histórico é carregado por década para manter a página rápida.
         </p>
 
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={yearFilter} onChange={(e)=>setYearFilter(e.target.value)}>
-            {yearOptions.map((y)=><option key={y} value={y}>{y==="ALL"?"All years":y}</option>)}
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
+          <select
+            aria-label="Decade"
+            className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm"
+            value={decadeFilter ?? ""}
+            onChange={(e)=>{
+              setDecadeFilter(Number(e.target.value));
+              setDriverFilter("ALL");
+              setTeamFilter("ALL");
+              setGpFilter("ALL");
+              setSelectedKey(null);
+            }}
+          >
+            {decadeOptions.map((decade)=><option key={decade} value={decade}>{decade}s</option>)}
+          </select>
+          <select
+            aria-label="Season"
+            className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm"
+            value={yearFilter}
+            onChange={(e)=>{
+              setYearFilter(e.target.value);
+              setDriverFilter("ALL");
+              setTeamFilter("ALL");
+              setGpFilter("ALL");
+              setSelectedKey(null);
+            }}
+          >
+            {yearOptions.map((y)=><option key={y} value={y}>{y}</option>)}
           </select>
           <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={driverFilter} onChange={(e)=>setDriverFilter(e.target.value)}>
             {driverOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
+          </select>
+          <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={teamFilter} onChange={(e)=>setTeamFilter(e.target.value)}>
+            {teamOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
           </select>
           <select className="border border-white/10 bg-[#191c26] text-slate-100 rounded-md px-3 py-2 text-sm" value={gpFilter} onChange={(e)=>setGpFilter(e.target.value)}>
             {gpOptions.map(([id,name])=><option key={id} value={id}>{name}</option>)}
           </select>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          <span>{filteredResults.length} race{filteredResults.length===1?"":"s"} shown</span>
+          {historicalLoading ? <span>Loading historical archive…</span> : null}
+        </div>
+
+        <div className="mt-2 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-[#171a23] text-slate-300">
               <tr>
@@ -256,9 +653,12 @@ export default function ResultsPage() {
                       <span>{r.name ?? r.gp_name ?? "—"}</span>
                     </span>
                   </td>
-                  <td className="px-3 py-2">{resolveDriverName(driversDb,(r.classification||[]).find((row)=>Number(row?.position)===1&&!row?.retired)?.driver_id)}</td>
-                  <td className="px-3 py-2 text-right text-rose-300">{(r.classification||[]).filter((row)=>row?.retired||String(row?.status||"").toUpperCase()==="DNF").length}</td>
-                  <td className="px-3 py-2 text-right">{r.classification?.length ?? 0}</td>
+                  <td className="px-3 py-2">{(() => {
+                    const winner=(r.classification||[]).find((row)=>Number(row?.position)===1&&!row?.retired);
+                    return winner?.driver_name || resolveDriverName(driversDb,winner?.driver_id);
+                  })()}</td>
+                  <td className="px-3 py-2 text-right text-rose-300">{(r.classification||[]).filter((row)=>historicalResultInfo(row).isDnf).length}</td>
+                  <td className="px-3 py-2 text-right">{(r.classification||[]).filter((row)=>historicalRaceStarted(row)).length}</td>
                 </tr>
               ))}
               {!filteredResults.length && (
@@ -314,25 +714,29 @@ export default function ResultsPage() {
                   .slice()
                   .sort((a, b) => (Number(a.position) || Infinity) - (Number(b.position) || Infinity))
                   .map((row, idx) => {
-                    const did = String(row.driver_id ?? "");
-                    const name = resolveDriverName(driversDb, did);
+                    const did = rowDriverKey(row);
+                    const name = row?.driver_name || resolveDriverName(driversDb, did);
                     const tid = row.team_id || resolveTeamIdForYear(contractsDb, selected.year ?? activeYear, did);
-                    const team = resolveTeamNameById(teamsDb, tid);
+                    const team = row?.team_name || resolveTeamNameById(teamsDb, tid);
                     const position = Number(row.position);
-                    const retired = row?.retired || String(row?.status||"").toUpperCase()==="DNF";
+                    const resultInfo = historicalResultInfo(row);
+                    const retired = resultInfo.isDnf;
+                    const resultLabel = historicalResultDisplay(row);
                     const grid = selectedGrid.get(did) ?? null;
-                    const positionsGained = Number.isFinite(grid) && Number.isFinite(position) ? grid - position : null;
+                    const positionsGained = resultInfo.key==="finished" && Number.isFinite(grid) && Number.isFinite(position) ? grid - position : null;
                     const stops = Array.isArray(row?.pit_stops) ? row.pit_stops.length : Number(row?.strategy_summary?.pit_count || 0);
                     const strategy = row?.strategy_summary || {};
                     const tyres = Array.isArray(strategy?.used_tyres) ? strategy.used_tyres.filter(Boolean).join(" → ") : "";
-                    const points = retired
-                      ? 0
-                      : Number.isFinite(Number(row.points))
-                        ? Number(row.points)
-                        : Number(pointsTable[position - 1] || 0);
+                    const points = Number.isFinite(Number(row.points))
+                      ? Number(row.points)
+                      : selected?.historical
+                        ? "—"
+                        : retired
+                          ? 0
+                          : Number(pointsTable[position - 1] || 0);
                     return (
                       <tr key={`${did}_${idx}`} className="border-t border-white/10">
-                        <td className="px-3 py-2 text-right font-medium">{retired ? "DNF" : (row.position ?? "—")}</td>
+                        <td className={`px-3 py-2 text-right font-medium ${resultInfo.key==="dnf"?"text-rose-300":resultInfo.key==="finished"?"":"text-amber-300"}`}>{resultLabel}</td>
                         <td className="px-3 py-2 text-right">{grid ?? "—"}</td>
                         <td className={`px-3 py-2 text-right ${positionsGained>0?"text-emerald-300":positionsGained<0?"text-rose-300":""}`}>{positionsGained==null?"—":positionsGained>0?("+"+positionsGained):positionsGained}</td>
                         <td className="px-3 py-2">
@@ -348,9 +752,9 @@ export default function ResultsPage() {
                           </button>
                         </td>
                         <td className="px-3 py-2">
-                          {retired
-                            ? <span className="text-rose-300">{row.retirement_reason || "Retired"}{row.laps_completed ? ` · Lap ${row.laps_completed}` : ""}</span>
-                            : <span className="text-emerald-300">Finished</span>}
+                          <span className={resultInfo.key==="dnf"?"text-rose-300":resultInfo.key==="finished"?"text-emerald-300":"text-amber-300"}>
+                            {resultInfo.label}{retired && row.laps_completed ? ` · Lap ${row.laps_completed}` : ""}
+                          </span>
                         </td>
                         <td className="px-3 py-2 text-right">{row.laps_completed ?? row.race_laps ?? "—"}</td>
                         <td className="px-3 py-2 text-right">{stops}</td>
