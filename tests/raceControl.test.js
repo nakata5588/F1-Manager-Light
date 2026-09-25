@@ -486,3 +486,25 @@ test("failure cause weighting follows component condition",()=>{
   const lowRoll=selectMechanicalFailureReason(profile,0);
   assert.ok(lowRoll.reason);
 });
+
+
+test("RW5.3B.1 observed damage repairs survive future hazard-plan recalculation",()=>{
+  const previous={
+    incidents:[],
+    periods:[],
+    damage_repairs:[
+      {driver_id:"D1",repair_ordinal:5,source:"red_flag_repair"},
+      {driver_id:"D2",repair_ordinal:9,source:"future_test_repair"},
+    ],
+    weather_timeline:Array.from({length:12},(_,index)=>({lap:index+1})),
+  };
+  const fresh={
+    incidents:[],
+    periods:[],
+    weather_timeline:Array.from({length:12},(_,index)=>({lap:index+1})),
+  };
+  const merged=mergeRaceControlHistory(previous,fresh,2,2);
+  assert.equal(merged.damage_repairs.length,1);
+  assert.equal(merged.damage_repairs[0].driver_id,"D1");
+  assert.equal(merged.damage_repairs[0].repair_ordinal,5);
+});

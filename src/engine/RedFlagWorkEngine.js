@@ -5,6 +5,7 @@
 // resumed race without being treated as a pit stop.
 
 import { redFlagWorkPolicyForYear } from "./RedFlagLifecycleEngine.js";
+import { RED_FLAG_REPAIR_EFFECTIVENESS, repairDamageState } from "./CarDamageEngine.js";
 
 const idOf=(row)=>String(row?.tyre_id??row?.id??"");
 
@@ -205,6 +206,132 @@ function applyTyreChange(gs,{row,tyre,source="player"}={}){
   };
 }
 
+function pointOrdinal(lap,sector=1){
+  const l=Math.max(1,Number(lap)||1);
+  const s=Math.max(1,Math.min(3,Number(sector)||1));
+  return (l-1)*3+s;
+}
+
+function applyDamageRepair(gs,{row,source="player"}={}){
+  if(!row?.damage_state?.damaged_components?.length)return gs;
+  const weekend=gs.raceWeekendState;
+  const live=weekend.live_race;
+  const lifecycle=live.red_flag_lifecycle;
+  const policy=lifecycle?.work_policy||redFlagWorkPolicyForYear(gs?.activeYear);
+  if(policy?.genuine_accident_repair!==true)return gs;
+
+  const did=String(row.driver_id||"");
+  const sequence=Math.max(1,Number(lifecycle?.sequence)||1);
+  const lap=Math.max(1,Number(live?.current_lap)||1);
+  const sector=Math.max(1,Math.min(3,Number(live?.current_sector)||1));
+  const plan=weekend?.race_strategy?.race_control_plan||{};
+  const alreadyRepaired=(plan?.damage_repairs||[]).some((entry)=>
+    String(entry?.driver_id??"")===did&&
+    Number(entry?.red_flag_sequence||0)===sequence
+  );
+  if(alreadyRepaired)return gs;
+
+  const before=row.damage_state;
+  const after=repairDamageState(before,{
+    effectiveness:RED_FLAG_REPAIR_EFFECTIVENESS,
+    source:"red_flag_repair",
+  });
+  const repaired=before.damaged_components.filter((component)=>
+    Number(after?.components?.[component]?.damage_pct||0)<
+    Number(before?.components?.[component]?.damage_pct||0)
+  );
+  if(!repaired.length)return gs;
+
+  const repair={
+    type:"damage_repair",
+    source:"red_flag_repair",
+    work_source:source,
+    driver_id:did,
+    team_id:String(row?.team_id??""),
+    lap,
+    sector,
+    repair_ordinal:pointOrdinal(lap,sector),
+    red_flag_sequence:sequence,
+    repaired_components:repaired,
+    effectiveness:{...RED_FLAG_REPAIR_EFFECTIVENESS},
+    damage_before:structuredClone(before),
+    damage_after:structuredClone(after),
+    pace_loss_before_s_per_lap:Number(before?.pace_loss_s_per_lap||0),
+    pace_loss_after_s_per_lap:Number(after?.pace_loss_s_per_lap||0),
+    free_service:true,
+  };
+
+  const repairs=[
+    ...(Array.isArray(plan?.damage_repairs)?plan.damage_repairs:[])
+      .filter((entry)=>!(
+        String(entry?.driver_id??"")===did&&
+        Number(entry?.red_flag_sequence||0)===sequence
+      )),
+    repair,
+  ];
+  const workLog=[
+    ...(Array.isArray(lifecycle?.work_log)?lifecycle.work_log:[])
+      .filter((entry)=>!(
+        entry?.type==="damage_repair"&&
+        String(entry?.driver_id??"")===did&&
+        Number(entry?.red_flag_sequence||0)===sequence
+      )),
+    repair,
+  ];
+  const updatedRows=(live.classification||[]).map((candidate)=>
+    String(candidate?.driver_id??"")===did
+      ?{
+        ...candidate,
+        damage_state:after?.damaged_components?.length?after:null,
+        damage_severity:after?.damaged_components?.length?after.severity:"none",
+        damaged_components:after?.damaged_components||[],
+        damage_pace_loss_s_per_lap:Number(after?.pace_loss_s_per_lap||0),
+      }
+      :candidate
+  );
+  const improvement=Math.max(
+    0,
+    Number(before?.pace_loss_s_per_lap||0)-Number(after?.pace_loss_s_per_lap||0)
+  );
+
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      race_strategy:{
+        ...weekend.race_strategy,
+        race_control_plan:{
+          ...plan,
+          damage_repairs:repairs,
+        },
+      },
+      live_race:{
+        ...live,
+        classification:updatedRows,
+        red_flag_lifecycle:{
+          ...lifecycle,
+          work_log:workLog,
+        },
+        events:[...(live.events||[]),{
+          event_key:`red_flag_work:repair:${sequence}:${did}`,
+          lap,
+          sector,
+          type:"red_flag_work",
+          work_type:"damage_repair",
+          work_source:source,
+          driver_id:did,
+          driver_name:driverName(gs,did),
+          team_id:String(row?.team_id??""),
+          repaired_components:repaired,
+          pace_loss_before_s_per_lap:Number(before?.pace_loss_s_per_lap||0),
+          pace_loss_after_s_per_lap:Number(after?.pace_loss_s_per_lap||0),
+          message:`${driverName(gs,did)} had ${repaired.map((component)=>component.replaceAll("_"," ")).join(", ")} damage repaired during the Red Flag${improvement>0?` (~${improvement.toFixed(2)}s/lap recovered)`:""}.`,
+        }],
+      },
+    },
+  };
+}
+
 export function redFlagWorkCapability(gs,{driverId}={}){
   const year=Number(gs?.activeYear)||1980;
   const policy=lifecycleFor(gs)?.work_policy||redFlagWorkPolicyForYear(year);
@@ -218,9 +345,14 @@ export function redFlagWorkCapability(gs,{driverId}={}){
     tyre_change:Boolean(policy?.tyre_change),
     genuine_accident_repair:Boolean(policy?.genuine_accident_repair),
     front_wing_adjustment:Boolean(policy?.front_wing_adjustment),
-    // Persistent car damage is not yet represented in LiveRace rows.
-    damage_repair_available:false,
-    front_wing_adjustment_available:false,
+    damage_repair_available:Boolean(
+      policy?.genuine_accident_repair&&
+      row?.damage_state?.damaged_components?.length
+    ),
+    front_wing_adjustment_available:Boolean(
+      policy?.front_wing_adjustment&&
+      Number(row?.damage_state?.components?.front_wing?.damage_pct||0)>0
+    ),
     reason:!validSuspension(gs)
       ?"work_window_closed"
       :!ownsDriver
@@ -245,12 +377,20 @@ export function applyRedFlagTyreChange(gs,{driverId,tyreId}={}){
   return applyTyreChange(gs,{row,tyre,source:"player"});
 }
 
+export function applyRedFlagDamageRepair(gs,{driverId}={}){
+  if(!validSuspension(gs))return gs;
+  const did=String(driverId||"");
+  const row=(gs?.raceWeekendState?.live_race?.classification||[])
+    .find((candidate)=>String(candidate?.driver_id??"")===did);
+  if(!row||row?.retired||String(row?.team_id??"")!==playerTeamId(gs))return gs;
+  return applyDamageRepair(gs,{row,source:"player"});
+}
+
 export function applyAutomaticRedFlagWork(gs){
   if(!validSuspension(gs))return gs;
   let working=gs;
   const lifecycle=lifecycleFor(gs);
   const policy=lifecycle?.work_policy||redFlagWorkPolicyForYear(gs?.activeYear);
-  if(policy?.tyre_change!==true)return gs;
 
   const desired=targetCategory(lifecycle);
   const playerTeam=playerTeamId(gs);
@@ -261,16 +401,27 @@ export function applyAutomaticRedFlagWork(gs){
     if(!did||original?.retired||String(original?.team_id??"")===playerTeam)continue;
     const current=(working?.raceWeekendState?.live_race?.classification||[])
       .find((row)=>String(row?.driver_id??"")===did)||original;
-    const currentCategory=String(current?.tyre?.category||"dry");
-    const condition=Number(current?.tyre?.condition??100);
+    if(
+      policy?.genuine_accident_repair===true&&
+      current?.damage_state?.damaged_components?.length&&
+      Number(current?.damage_state?.pace_loss_s_per_lap||0)>=0.10
+    ){
+      working=applyDamageRepair(working,{row:current,source:"ai"});
+    }
+
+    const refreshed=(working?.raceWeekendState?.live_race?.classification||[])
+      .find((row)=>String(row?.driver_id??"")===did)||current;
+    if(policy?.tyre_change!==true)continue;
+    const currentCategory=String(refreshed?.tyre?.category||"dry");
+    const condition=Number(refreshed?.tyre?.condition??100);
     const mismatch=currentCategory!==desired;
     const worn=Number.isFinite(condition)&&condition<55;
     if(!mismatch&&!worn)continue;
 
-    const replacement=bestTyreForCategory(working,current.team_id,desired)
-      ||bestTyreForCategory(working,current.team_id,currentCategory);
+    const replacement=bestTyreForCategory(working,refreshed.team_id,desired)
+      ||bestTyreForCategory(working,refreshed.team_id,currentCategory);
     if(!replacement)continue;
-    working=applyTyreChange(working,{row:current,tyre:replacement,source:"ai"});
+    working=applyTyreChange(working,{row:refreshed,tyre:replacement,source:"ai"});
   }
   return working;
 }
