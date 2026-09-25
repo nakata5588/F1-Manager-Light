@@ -7,6 +7,7 @@ import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailure
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvironmentEngine.js";
+import { evaluateRaceability } from "./RaceabilityEngine.js";
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -166,12 +167,21 @@ export function buildTrackWeatherTimeline(gs,weather,track){
       sessionProgress:progress,
     });
     const row=weatherRow(gs,state);
+    const wetnessDelta=Number((surface.track_wetness-beforeWetness).toFixed(3));
+    const raceability=evaluateRaceability({
+      wetness:surface.track_wetness,
+      sprayIndex:environment.spray_index,
+      visibilityIndex:environment.visibility_index,
+      gripIndex:surface.grip_index,
+      rainIntensity:intensity,
+      wetnessDelta,
+    });
     out.push({
       lap,state,
       rain_intensity:Number(intensity.toFixed(2)),
       rain_band:surface.rain_band,
       track_wetness:Number(surface.track_wetness.toFixed(3)),
-      wetness_delta:Number((surface.track_wetness-beforeWetness).toFixed(3)),
+      wetness_delta:wetnessDelta,
       rubber_level:Number(surface.rubber_level.toFixed(1)),
       grip_index:Number(surface.grip_index.toFixed(1)),
       air_temp_c:Number(environment.air_temp_c.toFixed(1)),
@@ -180,6 +190,11 @@ export function buildTrackWeatherTimeline(gs,weather,track){
       spray_band:environment.spray_band,
       visibility_index:Number(environment.visibility_index.toFixed(1)),
       visibility_band:environment.visibility_band,
+      raceability_index:raceability.index,
+      raceability_hazard_index:raceability.hazard_index,
+      raceability_band:raceability.band,
+      raceability_factors:raceability.factors,
+      raceability_dominant_factors:raceability.dominant_factors,
       crash_risk_multiplier:Number(num(row?.crash_risk_ppm,{SUNNY:1,CLOUDY:1,WINDY:1.2,LIGHT_RAIN:1.6,HEAVY_RAIN:2.4,STORM:3.2}[state]||1).toFixed(2)),
       dnf_risk_multiplier:Number(num(row?.dnf_risk_ppm,1).toFixed(2)),
       safety_car_chance_pct:num(row?.safety_car_chance_pct,0),
@@ -393,6 +408,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
   return {
     version:3,
     environment_model:"rw5.2d3.1",
+    raceability_model:"rw5.2d4.1",
     rules,
     incidents:incidents.sort((a,b)=>a.lap-b.lap),
     periods:mergePeriods(periods,timeline.length),
