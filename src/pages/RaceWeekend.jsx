@@ -312,17 +312,31 @@ function liveEventText(event,drivers,tyres=[]){
       return `${name} was told to ${instruction}.`;
     }
     if(event?.command?.type==="pit"){
-      return `${name} was told to pit next lap for ${tyreName(tyres,event.command.tyre_id)} tyres.`;
+      const actions=[];
+      if(event.command.tyre_change!==false)actions.push(`${tyreName(tyres,event.command.tyre_id)} tyres`);
+      if(event.command.repair_components?.length)actions.push(`repairs: ${event.command.repair_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")}`);
+      if(event.command.refuel)actions.push("refuelling");
+      return `${name} was told to pit next lap for ${actions.join(" + ")}.`;
     }
   }
-  if(event?.type==="pit"&&name&&event?.tyre_to){
-    const from=event.tyre_from||tyreName(tyres,event.tyre_from_id);
-    const to=event.tyre_to||tyreName(tyres,event.tyre_to_id);
+  if(event?.type==="pit"&&name){
+    const actions=[];
+    if(event?.tyre_changed!==false&&event?.tyre_to){
+      const from=event.tyre_from||tyreName(tyres,event.tyre_from_id);
+      const to=event.tyre_to||tyreName(tyres,event.tyre_to_id);
+      actions.push(`changed from ${from} to ${to} tyres`);
+    }else{
+      actions.push("kept the current tyres");
+    }
+    if(event?.repaired_components?.length){
+      actions.push(`repaired ${event.repaired_components.map((component)=>String(component).replaceAll("_"," ")).join(", ")}`);
+    }
+    if(event?.service?.refuel||event?.refuelled)actions.push("refuelled");
     const loss=Number.isFinite(Number(event.total_loss_s))?`${Number(event.total_loss_s).toFixed(1)}s lost`:"pit stop";
     const positions=Number.isFinite(Number(event.position_before))&&Number.isFinite(Number(event.position_after))
       ?`, P${event.position_before} → P${event.position_after}`
       :"";
-    return `${name} changed from ${from} to ${to} tyres (${loss}${positions}).`;
+    return `${name} ${actions.join(" and ")} (${loss}${positions}).`;
   }
   const raw=String(event?.message||event?.type||"");
   if(!name)return raw;
@@ -1611,6 +1625,9 @@ export default function RaceWeekend(){
                   const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
                   const commands=raceStrategy?.live_commands?.[did]||[];
                   const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
+                  const damagedComponents=Array.isArray(liveDriver?.damage_state?.damaged_components)?liveDriver.damage_state.damaged_components:[];
+                  const hasRepairableDamage=damagedComponents.length>0;
+                  const hasFrontWingDamage=damagedComponents.includes("front_wing");
                   const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
                   const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
@@ -1653,9 +1670,28 @@ export default function RaceWeekend(){
                             <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
                               {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
                             </select>
-                            <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                            <select
+                              title="Pit service next lap"
+                              disabled={unavailable}
+                              className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50"
+                              value=""
+                              onChange={(e)=>{
+                                const value=String(e.target.value||"");
+                                if(!value)return;
+                                const [action,selectedTyre]=value.split("|");
+                                if(action==="tyre")setLiveCommand({driverId:did,type:"pit",tyreId:selectedTyre});
+                                else if(action==="repair")setLiveCommand({driverId:did,type:"pit",tyreChange:false,repairDamage:true});
+                                else if(action==="front_wing")setLiveCommand({driverId:did,type:"pit",tyreChange:false,repairComponents:["front_wing"]});
+                                else if(action==="tyre_repair")setLiveCommand({driverId:did,type:"pit",tyreId:selectedTyre,repairDamage:true});
+                                else if(action==="tyre_front_wing")setLiveCommand({driverId:did,type:"pit",tyreId:selectedTyre,repairComponents:["front_wing"]});
+                              }}
+                            >
                               <option value="">Stay out</option>
-                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                              {teamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                              {hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
+                              {hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
+                              {hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
+                              {hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
                             {canYieldToTeammate?<button
                               type="button"
