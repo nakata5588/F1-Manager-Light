@@ -7,6 +7,9 @@ import {
   staffRoleDepartment,
   staffRoleLabel,
 } from "../src/domain/staffRoles.js";
+import { teamEngineeringSupport } from "../src/engine/PracticeSetupEngine.js";
+import { forecastAccuracyForTeam } from "../src/engine/WeekendWeatherEngine.js";
+import { seedTechnicalKnowledge } from "../src/domain/technicalKnowledge.js";
 
 function fixture(){
   return {
@@ -79,4 +82,35 @@ test("D6.3D derives Race Engineer era coverage from recorded contracts",()=>{
   const completeCoverage=raceEngineerEraCoverage(complete);
   assert.equal(completeCoverage.status,"complete");
   assert.equal(completeCoverage.teams_with_role,2);
+});
+
+
+test("D6.3D resolved staff identity feeds existing engineering, weather and knowledge systems",()=>{
+  const gs={
+    activeYear:2004,
+    currentDateISO:"2004-03-01",
+    team:{team_id:"T1"},
+    contracts:[
+      {year:2004,team_id:"T1",driver_id:"D1",role:"Main Driver",status:"active"},
+      {year:2004,team_id:"T1",driver_id:"D2",role:"Second Driver",status:"active"},
+    ],
+    staffCore:[
+      {staff_id:"S1",staff_name:"Strong Engineer",role_primary:"technical_director"},
+    ],
+    staffContracts:[
+      {year:2004,team_id:"T1",staff_id:null,staff_name:"Strong Engineer",role:"technical_director",contract_start:2004,contract_until:2006,status:"active"},
+    ],
+    staffRatings:[
+      {year:2004,staff_id:"S1",technical:90,data_analysis:90,communication:90,reliability_focus:90,innovation:90},
+    ],
+    facilities:[{year:2004,team_id:"T1",pitcrew_training_level:5,aero_dept_level:5,wind_tunnel_level:5,_chassis_shop_level:5,manufacturing_leve:5}],
+    carStats:[{year:2004,team_id:"T1",aero_spec:60,chassis_spec:60,suspension_spec:60,brakes_spec:60,gearbox_spec:60,reliability:0.7}],
+    development:{projects:[]},
+    hq:{facilityLevels:{}},
+  };
+
+  assert.ok(teamEngineeringSupport(gs,"T1")>80);
+  assert.ok(forecastAccuracyForTeam(gs,"T1")>0.75);
+  const knowledge=seedTechnicalKnowledge(gs,{teamId:"T1"});
+  assert.ok(knowledge.opening_context.staff_quality>80);
 });
