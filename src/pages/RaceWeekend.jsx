@@ -9,7 +9,7 @@ import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/dri
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
-import { Activity, Car, ChevronDown, ChevronUp, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
+import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const STEPS=[
   ["practice","Practice"],
@@ -606,7 +606,6 @@ export default function RaceWeekend(){
   const [busy,setBusy]=useState(false);
   const [activeWindow,setActiveWindow]=useState("overview");
   const [liveTimingMode,setLiveTimingMode]=useState("overall");
-  const [showDetailedTiming,setShowDetailedTiming]=useState(false);
   const [selectedLiveDriverId,setSelectedLiveDriverId]=useState("");
   const [selectedRaceEvent,setSelectedRaceEvent]=useState(null);
   const lastAutoPopupKey=useRef(null);
@@ -765,6 +764,7 @@ export default function RaceWeekend(){
     {id:"strategy",label:"Strategy",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&Boolean(raceStrategy)},
     {id:"grid",label:"Starting Grid",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&startingGridRows.length>0},
     {id:"live",label:"Live Timing",enabled:String(weekend?.phase)==="race"},
+    {id:"detailed_timing",label:"Detailed Timing",enabled:String(weekend?.phase)==="race"&&Boolean(liveRace)},
     {id:"classification",label:"Results",enabled:Boolean(lastResult)||terminalWeekend},
   ];
 
@@ -804,7 +804,7 @@ export default function RaceWeekend(){
   });
 
   return <div className="min-h-[calc(100vh-3.5rem)] bg-[#080b11] p-2 md:p-3 text-slate-100 grid gap-2 content-start">
-    {!(activeWindow==="live"&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
+    {!((activeWindow==="live"||activeWindow==="detailed_timing")&&weekend.phase==="race")&&<div className="rounded-lg border border-white/10 bg-[#11161f] p-2 shadow-lg">
       <div className="grid grid-cols-5 gap-1">
         {STEPS.map(([id,label],index)=>{
           const state=index<currentIndex?"complete":index===currentIndex?"active":"upcoming";
@@ -1423,14 +1423,92 @@ export default function RaceWeekend(){
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#0a0f16] px-3 py-2">
-              <button type="button" onClick={()=>setShowDetailedTiming((value)=>!value)} className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold text-slate-300 hover:bg-white/[0.08]">
-                {showDetailedTiming?<><ChevronUp className="h-3.5 w-3.5"/>Hide Detailed Timing</>:<><ChevronDown className="h-3.5 w-3.5"/>Show Detailed Timing</>}
-              </button>
-              <div className="text-[10px] text-slate-600">Track Order contains the main live data; open this table for full telemetry detail.</div>
-            </div>
+            <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[44vh] overflow-y-auto border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl xl:max-h-none xl:overflow-visible">
+              <div className="mx-auto grid max-w-[1800px] gap-2 xl:grid-cols-2">
+                {playerEntrants.map((entry)=>{
+                  const did=String(entry.driver_id);
+                  const driver=driverObject(drivers,did);
+                  const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
+                  const commands=raceStrategy?.live_commands?.[did]||[];
+                  const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
+                  const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
+                  const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
+                  const compound=liveDriver?.tyre?.compound||"—";
+                  const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
+                  const teammateEntry=playerEntrants.find((candidate)=>String(candidate?.driver_id??"")!==did)||null;
+                  const teammateId=String(teammateEntry?.driver_id??"");
+                  const teammateLive=teammateId?liveRows.find((row)=>String(row?.driver_id??"")===teammateId):null;
+                  const teammateGapMs=Number(teammateLive?.gap_to_previous_ms??teammateLive?.interval_ms);
+                  const canYieldToTeammate=Boolean(
+                    teammateId&&liveDriver&&!liveDriver?.retired&&teammateLive&&!teammateLive?.retired&&
+                    Number(teammateLive?.position)===Number(liveDriver?.position)+1&&
+                    (!Number.isFinite(teammateGapMs)||teammateGapMs<=3500)&&
+                    !pending.some((command)=>command?.type==="team_order")
+                  );
+                  const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
+                  return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                    <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
+                      <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
+                      <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
+                      <div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
+                    </div>
 
-            <div className={(showDetailedTiming?"":"hidden ")+"border-b border-white/10 bg-[#0c1118] px-4 py-2"}>
+                    <div className="col-span-2 grid min-w-0 gap-1.5 lg:col-span-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
+                        <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} age={liveDriver?.tyre?.age_laps??0} compact/></span>
+                        <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
+                        <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
+                        <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
+                        <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
+                      </div>
+
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/5 pt-1.5">
+                        {liveDriver?.retired
+                          ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
+                          :<>
+                            <Gauge className="h-4 w-4 shrink-0 text-slate-500"/>
+                            <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
+                              {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
+                            </select>
+                            <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
+                              <option value="">Stay out</option>
+                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                            </select>
+                            {canYieldToTeammate?<button
+                              type="button"
+                              title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
+                              onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
+                              className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-500/20"
+                            >Let {driverName(drivers,teammateId).split(" ").at(-1)} through</button>:null}
+                            {pending.length
+                              ?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>
+                              :null}
+                          </>}
+                      </div>
+                    </div>
+                  </div>;
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeWindow==="detailed_timing"&&weekend.phase==="race"&&liveRace&&(
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1017] px-4 py-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Live Race Data</div>
+                <h3 className="mt-0.5 text-base font-semibold">Detailed Timing</h3>
+                <div className="text-[10px] text-slate-500">Full classification, sectors, tyres and strategy detail. Select a row to keep that driver selected in Race View.</div>
+              </div>
+              <div className="text-right text-[10px] text-slate-500">
+                <div>L{liveRace.current_lap||0}/{liveRace.total_laps||0}{Number(liveRace.current_sector)>0?` · S${liveRace.current_sector}`:""}</div>
+                <div>{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
+              </div>
+            </div>
+            <div className="border-b border-white/10 bg-[#0c1118] px-4 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex rounded-lg border border-white/10 bg-black/20 p-1">
                   {[
@@ -1466,7 +1544,7 @@ export default function RaceWeekend(){
               </div>
             </div>
 
-            <div className={(showDetailedTiming?"":"hidden ")+"overflow-x-auto"}>
+            <div className="overflow-x-auto">
               <table
                 className="w-full text-xs"
                 style={{minWidth:liveTimingMode==="overall"?"1120px":liveTimingMode==="timing"?"1040px":liveTimingMode==="tyres"?"820px":"900px"}}
@@ -1647,75 +1725,7 @@ export default function RaceWeekend(){
               </table>
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[44vh] overflow-y-auto border-t border-white/15 bg-[#0b0f16]/95 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.35)] backdrop-blur-xl xl:max-h-none xl:overflow-visible">
-              <div className="mx-auto grid max-w-[1800px] gap-2 xl:grid-cols-2">
-                {playerEntrants.map((entry)=>{
-                  const did=String(entry.driver_id);
-                  const driver=driverObject(drivers,did);
-                  const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
-                  const commands=raceStrategy?.live_commands?.[did]||[];
-                  const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
-                  const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
-                  const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
-                  const compound=liveDriver?.tyre?.compound||"—";
-                  const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
-                  const teammateEntry=playerEntrants.find((candidate)=>String(candidate?.driver_id??"")!==did)||null;
-                  const teammateId=String(teammateEntry?.driver_id??"");
-                  const teammateLive=teammateId?liveRows.find((row)=>String(row?.driver_id??"")===teammateId):null;
-                  const teammateGapMs=Number(teammateLive?.gap_to_previous_ms??teammateLive?.interval_ms);
-                  const canYieldToTeammate=Boolean(
-                    teammateId&&liveDriver&&!liveDriver?.retired&&teammateLive&&!teammateLive?.retired&&
-                    Number(teammateLive?.position)===Number(liveDriver?.position)+1&&
-                    (!Number.isFinite(teammateGapMs)||teammateGapMs<=3500)&&
-                    !pending.some((command)=>command?.type==="team_order")
-                  );
-                  const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
-                  return <div className={"grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
-                    <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
-                      <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
-                      <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
-                      <div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
-                    </div>
 
-                    <div className="col-span-2 grid min-w-0 gap-1.5 lg:col-span-1">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
-                        <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} age={liveDriver?.tyre?.age_laps??0} compact/></span>
-                        <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
-                        <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
-                        <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
-                        <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
-                      </div>
-
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/5 pt-1.5">
-                        {liveDriver?.retired
-                          ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
-                          :<>
-                            <Gauge className="h-4 w-4 shrink-0 text-slate-500"/>
-                            <select title="Pace next lap" disabled={unavailable} className={"rounded-md border border-white/10 px-2 py-1.5 text-xs disabled:opacity-50 "+paceTone(latestPace)} value={latestPace} onChange={(e)=>setLiveCommand({driverId:did,type:"pace",paceMode:e.target.value})}>
-                              {Object.values(RACE_PACE_MODES).map((mode)=><option className="bg-[#11161f] text-slate-100" key={mode.id} value={mode.id}>{mode.label}</option>)}
-                            </select>
-                            <select title="Pit next lap" disabled={unavailable} className="rounded-md border border-white/10 bg-[#0f141d] px-2 py-1.5 text-xs text-slate-100 disabled:opacity-50" value="" onChange={(e)=>{if(e.target.value)setLiveCommand({driverId:did,type:"pit",tyreId:e.target.value});}}>
-                              <option value="">Stay out</option>
-                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
-                            </select>
-                            {canYieldToTeammate?<button
-                              type="button"
-                              title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
-                              onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
-                              className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-500/20"
-                            >Let {driverName(drivers,teammateId).split(" ").at(-1)} through</button>:null}
-                            {pending.length
-                              ?<button type="button" disabled={unavailable} onClick={()=>cancelLiveCommand({driverId:did})} className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-semibold text-amber-200 disabled:opacity-40">Cancel Order</button>
-                              :null}
-                          </>}
-                      </div>
-                    </div>
-                  </div>;
-                })}
-              </div>
-            </div>
           </div>
         )}
 

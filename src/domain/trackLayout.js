@@ -166,3 +166,55 @@ export function trackGeometryViewBox(geometry,{paddingRatio=0.055,minPadding=24}
     Number((height+padding*2).toFixed(2)),
   ];
 }
+
+
+export function orientTrackGeometry(geometry,{landscape=true,threshold=1.12}={}){
+  const points=Array.isArray(geometry?.points)?geometry.points:[];
+  const valid=points.filter((point)=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1])));
+  if(valid.length<2)return geometry||null;
+
+  const xs=valid.map((point)=>Number(point[0]));
+  const ys=valid.map((point)=>Number(point[1]));
+  const minX=Math.min(...xs),maxX=Math.max(...xs);
+  const minY=Math.min(...ys),maxY=Math.max(...ys);
+  const width=Math.max(1,maxX-minX);
+  const height=Math.max(1,maxY-minY);
+  const shouldRotate=Boolean(landscape)&&height>width*Math.max(1,Number(threshold)||1);
+  if(!shouldRotate)return {...geometry,display_rotation_deg:0};
+
+  const cx=(minX+maxX)/2;
+  const cy=(minY+maxY)/2;
+  const rotated=points.map((point)=>{
+    const x=Number(point?.[0]||0);
+    const y=Number(point?.[1]||0);
+    return [
+      Number((cx-(y-cy)).toFixed(3)),
+      Number((cy+(x-cx)).toFixed(3)),
+    ];
+  });
+  return {...geometry,points:rotated,display_rotation_deg:90};
+}
+
+export function focusTrackViewBox(fullViewBox,point,{zoom=2.35,minWidth=190,minHeight=150}={}){
+  const box=Array.isArray(fullViewBox)&&fullViewBox.length===4?fullViewBox.map(Number):[0,0,1000,1000];
+  const [x,y,width,height]=box;
+  if(!point||!Number.isFinite(Number(point.x))||!Number.isFinite(Number(point.y))||width<=0||height<=0)return box;
+
+  const z=Math.max(1,Number(zoom)||1);
+  let targetWidth=Math.max(Number(minWidth)||0,width/z);
+  let targetHeight=Math.max(Number(minHeight)||0,height/z);
+  targetWidth=Math.min(width,targetWidth);
+  targetHeight=Math.min(height,targetHeight);
+
+  const maxX=x+width-targetWidth;
+  const maxY=y+height-targetHeight;
+  const targetX=Math.min(Math.max(x,Number(point.x)-targetWidth/2),maxX);
+  const targetY=Math.min(Math.max(y,Number(point.y)-targetHeight/2),maxY);
+
+  return [
+    Number(targetX.toFixed(2)),
+    Number(targetY.toFixed(2)),
+    Number(targetWidth.toFixed(2)),
+    Number(targetHeight.toFixed(2)),
+  ];
+}
