@@ -450,9 +450,6 @@ export default function Track2DView({
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const activeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
-  const [orderExpanded,setOrderExpanded]=useState(false);
-  const [orderMode,setOrderMode]=useState("order");
-  const [feedExpanded,setFeedExpanded]=useState(false);
   const [cameraMode,setCameraMode]=useState("fit");
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
@@ -498,7 +495,6 @@ export default function Track2DView({
     svgRef.current.setAttribute("viewBox",box.join(" "));
   };
   useEffect(()=>{followViewBoxRef.current=null;},[resolvedSelectedId]);
-  const visibleEvents=(events||[]).slice(0,feedExpanded?10:3);
   const trackIntelEvents=(events||[]).filter((event)=>{
     const progress=raceEventTrackProgress(event,intelligence);
     if(progress==null)return false;
@@ -515,9 +511,7 @@ export default function Track2DView({
     </div>;
   }
 
-  const orderPanelClass=orderExpanded
-    ?"xl:grid-cols-[300px_minmax(0,1fr)_188px] 2xl:grid-cols-[320px_minmax(0,1fr)_198px]"
-    :"xl:grid-cols-[172px_minmax(0,1fr)_188px] 2xl:grid-cols-[184px_minmax(0,1fr)_198px]";
+  const orderPanelClass="xl:grid-cols-[248px_minmax(0,1fr)_188px] 2xl:grid-cols-[262px_minmax(0,1fr)_198px]";
 
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
     <div className="flex min-h-10 items-center gap-2 border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
@@ -678,47 +672,25 @@ export default function Track2DView({
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05080d]/75 to-transparent"/>
 
-        <div className="absolute bottom-3 left-3 z-20 w-[min(420px,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-white/15 bg-[#0a0f16]/88 shadow-xl backdrop-blur-xl">
-          <button type="button" onClick={()=>setFeedExpanded((value)=>!value)} className="flex w-full items-center justify-between gap-3 border-b border-white/10 px-3 py-2 text-left">
-            <div>
-              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Race Feed</div>
-              <div className="text-[10px] text-slate-400">{timingSummary?.running_count??activeRows.filter((row)=>!row.retired).length} running · {timingSummary?.retired_count??activeRows.filter((row)=>row.retired).length} DNF</div>
-            </div>
-            {feedExpanded?<ChevronDown className="h-4 w-4 text-slate-400"/>:<ChevronUp className="h-4 w-4 text-slate-400"/>}
-          </button>
-          <div className={`grid gap-1 p-2 ${feedExpanded?"max-h-[265px] overflow-y-auto":"max-h-[128px] overflow-hidden"}`}>
-            {visibleEvents.map((event,index)=>(
-              <button type="button" key={event?.event_key||event?.id||index} onClick={()=>onSelectEvent?.(event)} className={`flex items-start gap-2 rounded-md border px-2 py-1.5 text-left text-[10px] leading-snug text-slate-300 hover:bg-white/[0.08] ${eventTone(event)}`}>
-                <span className="shrink-0 font-mono text-slate-500">L{event?.lap??"—"}{Number(event?.sector)>0?`·S${event.sector}`:""}</span>
-                <span className="min-w-0">{event?.display_text||event?.message||String(event?.type||"Race update").replaceAll("_"," ")}</span>
-              </button>
-            ))}
-            {!visibleEvents.length?<div className="px-2 py-3 text-[10px] text-slate-600">No race-control events yet.</div>:null}
-          </div>
-        </div>
-
         {!geometry?<div className="absolute bottom-3 right-3 rounded bg-black/70 px-2 py-1 text-[10px] text-slate-400">Static layout only · centerline pending</div>:null}
       </div>
 
       <aside className="order-2 border-t border-white/10 bg-[#070a0f] xl:order-1 xl:border-r xl:border-t-0">
-        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-2">
-          <div>
-            <div className="text-[16px] font-black tracking-tight text-slate-100">L{Number(currentLap)||0}<span className="text-[10px] text-slate-500">/{Number(totalLaps)||0}</span></div>
-            <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-sky-300">Sector {Math.max(1,Number(currentSector)||1)} · {playbackRunning?`${playbackSpeed}× LIVE`:"PAUSED"}</div>
+        <div className="border-b border-white/10 bg-[#0a0e14] px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[17px] font-black italic tracking-[-0.04em] text-slate-100">
+              <span className="mr-1 rounded-sm bg-slate-100 px-1.5 py-0.5 text-[13px] text-slate-950">F1</span>
+              RACE
+            </div>
+            <div className="text-[8px] font-bold uppercase tracking-[0.14em] text-sky-300">{playbackRunning?`${playbackSpeed}× LIVE`:"PAUSED"}</div>
           </div>
-          <button type="button" onClick={()=>setOrderExpanded((value)=>!value)} title={orderExpanded?"Compact Track Order":"Expand Track Order"} className="rounded-md border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 hover:bg-white/[0.08] hover:text-slate-100">
-            {orderExpanded?<Minimize2 className="h-3.5 w-3.5"/>:<Maximize2 className="h-3.5 w-3.5"/>}
-          </button>
+          <div className="mt-1 text-[12px] font-black tracking-wide text-slate-100">LAP {Number(currentLap)||0}<span className="font-semibold text-slate-500">/{Number(totalLaps)||0}</span></div>
+          <div className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-slate-600">Sector {Math.max(1,Number(currentSector)||1)} · Gap to leader / interval</div>
         </div>
 
-        {orderExpanded?<div className="flex gap-1 border-b border-white/10 p-1.5">
-          {[
-            ["order","Order"],
-            ["timing","Timing"],
-            ["tyres","Tyres"],
-            ["strategy","Strategy"],
-          ].map(([id,label])=><button type="button" key={id} onClick={()=>setOrderMode(id)} className={`flex-1 rounded px-1.5 py-1 text-[9px] font-semibold ${orderMode===id?"bg-slate-100 text-slate-950":"bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]"}`}>{label}</button>)}
-        </div>:null}
+        <div className="grid grid-cols-[28px_24px_42px_minmax(54px,1fr)_24px_56px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[7px] font-bold uppercase tracking-[0.10em] text-slate-600">
+          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
+        </div>
 
         <div className="max-h-[545px] overflow-y-auto p-0.5 2xl:max-h-[580px]">
           {activeRows.map((row,index)=>{
@@ -726,74 +698,39 @@ export default function Track2DView({
             const tid=String(row?.team_id||"");
             const mine=tid===String(playerTeamId||"");
             const selected=did===resolvedSelectedId;
-            const color=markerColor(teamBrands,tid,year);
+            const palette=markerPalette(teamBrands,tid,year);
             return <button
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`mb-px flex w-full items-center gap-1 border-l-[3px] px-1 py-[4px] text-left text-[9px] transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
-              style={{borderLeftColor:row?.retired?"#7f1d1d":color}}
+              className={`mb-px grid w-full grid-cols-[28px_24px_42px_minmax(54px,1fr)_24px_56px] items-center gap-1 border-l-[3px] px-1.5 py-[5px] text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              style={{borderLeftColor:row?.retired?"#7f1d1d":palette.primary}}
             >
-              <span className="w-6 shrink-0 text-right text-[10px] font-black italic text-slate-100">{row?.position??index+1}</span>
-              <span className="min-w-0 flex-1">
-                <span className="flex min-w-0 items-center gap-1">
-                  {mine?<span title="Your Team" className="text-[7px] text-amber-300">◆</span>:null}
-                  <span className="truncate font-black tracking-[0.03em] text-slate-100">{orderExpanded?driverName(drivers,did):shortDriverName(drivers,did)}</span>
-                </span>
-                {orderExpanded?<span className="block truncate text-[8px] text-slate-600">{teamName(teams,tid)}</span>:null}
-              </span>
-              {!orderExpanded?<MiniTyreIcon compound={row?.tyre?.compound} size={13}/>:null}
-              {orderExpanded&&orderMode==="tyres"
-                ?<span className="flex shrink-0 items-center gap-1 font-mono text-[8px] text-slate-400"><MiniTyreIcon compound={row?.tyre?.compound} size={15}/>{row?.tyre?.age_laps??"—"}L</span>
-                :(!orderExpanded||orderMode==="order")
-                  ?<AnimatedGapValue
-                    target={row?.gap_to_leader_ms}
-                    leader={index===0}
-                    retired={Boolean(row?.retired)}
-                    running={Boolean(playbackRunning)}
-                    duration={motionDuration}
-                    className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"text-slate-100":"text-slate-400"}`}
-                  />
-                  :<span className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":"text-slate-400"}`}>{orderModeValue(row,index,orderMode)}</span>}
-              {orderExpanded?<ChevronRight className="h-3 w-3 shrink-0 text-slate-600"/>:null}
+              <span className="text-right text-[11px] font-black italic text-slate-100">{row?.position??index+1}</span>
+              <span className="flex items-center justify-center"><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-4 w-4" className="p-0"/></span>
+              <span className={`truncate text-[10px] font-black tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
+              <AnimatedGapValue
+                target={row?.gap_to_leader_ms}
+                leader={index===0}
+                retired={Boolean(row?.retired)}
+                running={Boolean(playbackRunning)}
+                duration={motionDuration}
+                className={`text-right font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}
+              />
+              <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={14}/></span>
+              <AnimatedGapValue
+                target={row?.interval_ms??row?.gap_to_previous_ms}
+                leader={index===0}
+                retired={Boolean(row?.retired)}
+                running={Boolean(playbackRunning)}
+                duration={motionDuration}
+                className={`text-right font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}
+              />
             </button>;
           })}
-          {!activeRows.length?<div className="px-2 py-6 text-center text-xs text-slate-600">Cars appear after the first live timing update.</div>:null}
+          {!activeRows.length?<div className="px-2 py-6 text-center text-xs text-slate-600">Cars are forming on the grid.</div>:null}
         </div>
-
-        {orderExpanded&&selectedRow?<div className="border-t border-white/10 p-2">
-          <div className="grid grid-cols-2 gap-1">
-            {orderMode==="order"?<>
-              <Stat label="Grid" value={`P${selectedRow?.grid_position??"—"}`}/>
-              <Stat label="Net" value={Number(selectedRow?.position_gain)>0?`+${selectedRow.position_gain}`:String(selectedRow?.position_gain??0)}/>
-              <Stat label="Interval" value={<AnimatedGapValue target={selectedRow?.interval_ms} leader={Number(selectedRow?.position)===1} retired={Boolean(selectedRow?.retired)} running={Boolean(playbackRunning)} duration={motionDuration}/>}/>
-              <Stat label="Leader" value={selectedRow?.retired?"DNF":Number(selectedRow?.position)===1?"—":<AnimatedGapValue target={selectedRow?.gap_to_leader_ms} running={Boolean(playbackRunning)} duration={motionDuration}/>}/>
-            </>:null}
-            {orderMode==="timing"?<>
-              <Stat label="S1" value={formatLapTime(selectedRow?.sector_1_ms)}/>
-              <Stat label="S2" value={formatLapTime(selectedRow?.sector_2_ms)}/>
-              <Stat label="S3" value={formatLapTime(selectedRow?.sector_3_ms)}/>
-              <Stat label="Best" value={formatLapTime(selectedRow?.best_lap_ms)} tone="text-emerald-300"/>
-            </>:null}
-            {orderMode==="tyres"?<>
-              <div className="min-w-0 rounded-md border border-white/10 bg-black/25 px-2 py-1.5">
-                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-500">Compound</div>
-                <div className="mt-1 flex items-center gap-1.5 text-xs font-bold"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={20}/>{selectedRow?.tyre?.compound||"—"}</div>
-              </div>
-              <Stat label="Age" value={`${selectedRow?.tyre?.age_laps??"—"}L`}/>
-              <Stat label="Condition" value={Number.isFinite(Number(selectedRow?.tyre?.condition))?`${Number(selectedRow.tyre.condition).toFixed(0)}%`:"—"}/>
-              <Stat label="Stops" value={selectedRow?.pit_count??0} icon={<Wrench className="h-3 w-3"/>}/>
-            </>:null}
-            {orderMode==="strategy"?<>
-              <Stat label="Pace" value={paceLabel(selectedRow?.current_pace)}/>
-              <Stat label="Pit window" value={pitWindowLabel(selectedRow?.pit_window)}/>
-              <Stat label="Rejoin" value={Number.isFinite(Number(selectedRow?.pit_rejoin_position))?`P${selectedRow.pit_rejoin_position}`:"—"}/>
-              <Stat label="Projection" value={Number.isFinite(Number(selectedRow?.projected_finish_position))?`P${selectedRow.projected_finish_position}`:"—"}/>
-            </>:null}
-          </div>
-        </div>:null}
       </aside>
-
       <aside className="order-3 border-t border-white/10 bg-[#080c12] xl:border-l xl:border-t-0">
         <div className="border-b border-white/10 px-2.5 py-2">
           <div className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">Race Conditions</div>
