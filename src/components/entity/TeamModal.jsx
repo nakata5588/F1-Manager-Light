@@ -8,6 +8,7 @@ import { countryNameFor, DriverPortrait, flagFromCountry } from "./EntityVisuals
 import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { teamChampionshipSummary } from "../../domain/championshipHistory.js";
+import { historicalAssetCandidates } from "../../domain/historicalAssets.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -88,15 +89,20 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   const team = useMemo(() => teams.find(t => String(t.team_id ?? t.id ?? t.team) === idStr), [teams, idStr]);
 
   /* ---------- Logos ---------- */
-  const logoCandidates = useMemo(() => {
-    const cands = [];
-    if (idStr) {
-      cands.push(`/logos/${idStr}.png`, `/logos/${idStr}.svg`, `/logos/teams/${idStr}.png`, `/logos/teams/${idStr}.svg`);
-    }
-    if (brand?.logo_path) cands.push(brand.logo_path);
-    if (team?.logo_path)  cands.push(team.logo_path);
-    return cands;
-  }, [idStr, brand?.logo_path, team?.logo_path]);
+  const logoCandidates = useMemo(() => historicalAssetCandidates(
+    "teams",
+    [idStr, team?.short_name, team?.team_name, team?.name, name],
+    year,
+    [
+      brand?.logo_path,
+      team?.logo_path,
+      team?.logo_data_url,
+      idStr?`/logos/${idStr}.png`:"",
+      idStr?`/logos/${idStr}.svg`:"",
+      idStr?`/logos/teams/${idStr}.png`:"",
+      idStr?`/logos/teams/${idStr}.svg`:"",
+    ]
+  ), [idStr, year, name, team?.short_name, team?.team_name, team?.name, team?.logo_path, team?.logo_data_url, brand?.logo_path]);
 
   /* ---------- Team Engines (fonte única para Engine Supplier/Power) ---------- */
   const teamEngines = getArr(gs, ["teamEngines","dbTeamEngines","team_engines","db_team_engines"]);
