@@ -299,8 +299,29 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     Number(a?.total_time_ms??Infinity)-Number(b?.total_time_ms??Infinity)
     ||Number(a?.pos??999)-Number(b?.pos??999)
   );
+  const winnerTime=Number(finishers[0]?.total_time_ms);
+  let previousTime=winnerTime;
+  const positionedFinishers=finishers.map((row,index)=>{
+    const total=Number(row?.total_time_ms);
+    const gapToWinner=Number.isFinite(total)&&Number.isFinite(winnerTime)?Math.max(0,total-winnerTime):row?.gap_to_winner_ms;
+    const gapToPrevious=index===0
+      ?0
+      :Number.isFinite(total)&&Number.isFinite(previousTime)
+        ?Math.max(0,total-previousTime)
+        :row?.gap_to_previous_ms;
+    if(Number.isFinite(total))previousTime=total;
+    return {
+      ...row,
+      pos:index+1,
+      gap_to_winner_ms:gapToWinner,
+      gap_to_previous_ms:gapToPrevious,
+    };
+  });
   retirees.sort((a,b)=>Number(b.laps_completed||0)-Number(a.laps_completed||0));
-  return [...finishers,...retirees].map((row,index)=>({...row,pos:index+1}));
+  return [
+    ...positionedFinishers,
+    ...retirees.map((row,index)=>({...row,pos:positionedFinishers.length+index+1})),
+  ];
 }
 
 function buildRaceTiming(race, ratings, roundIndex, gs, rng) {
