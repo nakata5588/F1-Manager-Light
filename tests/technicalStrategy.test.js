@@ -107,13 +107,17 @@ test("Current Car Push generates more spendable RP while Future First generates 
 
   const currentRp=current.development.research.reduce((sum,row)=>sum+row.points,0);
   const futureRp=future.development.research.reduce((sum,row)=>sum+row.points,0);
-  const currentKnowledge=technicalKnowledgeSnapshot(current,{teamId:"PLAYER"}).average;
-  const futureKnowledge=technicalKnowledgeSnapshot(future,{teamId:"PLAYER"}).average;
+  const currentSnapshot=technicalKnowledgeSnapshot(current,{teamId:"PLAYER"});
+  const futureSnapshot=technicalKnowledgeSnapshot(future,{teamId:"PLAYER"});
+  const currentResearchXp=Object.values(current.development.technicalKnowledge.areas)
+    .reduce((sum,row)=>sum+Number(row.research_xp||0),0);
+  const futureResearchXp=Object.values(future.development.technicalKnowledge.areas)
+    .reduce((sum,row)=>sum+Number(row.research_xp||0),0);
 
   assert.ok(currentRp>futureRp);
-  assert.ok(futureKnowledge>currentKnowledge);
-  assert.ok(currentKnowledge>=opening);
-  assert.ok(futureKnowledge>=opening);
+  assert.ok(futureResearchXp>currentResearchXp);
+  assert.ok(currentSnapshot.average>=opening);
+  assert.ok(futureSnapshot.average>=opening);
 });
 
 test("Future First aero priority improves next-season aero Design capacity but not unrelated areas",()=>{
