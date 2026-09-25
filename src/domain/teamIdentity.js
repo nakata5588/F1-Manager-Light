@@ -13,14 +13,35 @@ export const TEAM_NAME_ALIASES=Object.freeze({
   "team lotus":"Lotus",
 });
 
+function identityScalar(value){
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(Object.prototype.hasOwnProperty.call(value,"result"))return identityScalar(value.result);
+    if(Object.prototype.hasOwnProperty.call(value,"value"))return identityScalar(value.value);
+  }
+  return value;
+}
+
+function mapIdentityValue(value,mapper){
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(Object.prototype.hasOwnProperty.call(value,"result")){
+      return {...value,result:mapper(value.result)};
+    }
+    if(Object.prototype.hasOwnProperty.call(value,"value")){
+      return {...value,value:mapper(value.value)};
+    }
+    return value;
+  }
+  return mapper(value);
+}
+
 export function canonicalTeamId(value){
-  const raw=String(value??"").trim();
+  const raw=String(identityScalar(value)??"").trim();
   if(!raw)return raw;
   return TEAM_ID_ALIASES[raw]||raw;
 }
 
 export function canonicalTeamName(value){
-  const raw=String(value??"").trim();
+  const raw=String(identityScalar(value)??"").trim();
   if(!raw)return raw;
   return TEAM_NAME_ALIASES[raw.toLowerCase()]||raw;
 }
@@ -31,7 +52,7 @@ export function canonicalTeamIdentity(row){
 
   for(const key of Object.keys(out)){
     if(key==="team_id"||key==="constructor_id"||key==="primary_team_id"||key.endsWith("_team_id")){
-      out[key]=canonicalTeamId(out[key]);
+      out[key]=mapIdentityValue(out[key],canonicalTeamId);
       continue;
     }
     if(
@@ -39,12 +60,13 @@ export function canonicalTeamIdentity(row){
       key==="primary_team_name"||
       key.endsWith("_team_name")
     ){
-      out[key]=canonicalTeamName(out[key]);
+      out[key]=mapIdentityValue(out[key],canonicalTeamName);
     }
   }
 
-  if(typeof out.teams==="string"&&out.teams.trim().toLowerCase()==="team lotus"){
-    out.teams="Lotus";
+  const teamsValue=identityScalar(out.teams);
+  if(typeof teamsValue==="string"&&teamsValue.trim().toLowerCase()==="team lotus"){
+    out.teams=mapIdentityValue(out.teams,canonicalTeamName);
   }
   return out;
 }
