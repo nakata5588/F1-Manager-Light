@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { Briefcase, CalendarDays, CircleDollarSign, X } from "lucide-react";
 import { useGame } from "../../state/GameStore.js";
 import { StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
+import { contractActiveForYear } from "../../domain/liveContracts.js";
+import { resolveStaffId, staffRoleLabel } from "../../domain/staffRoles.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -29,12 +31,34 @@ export default function StaffModal({entity,onClose,pageMode=false}){
   const coreList=gs?.staffCore?.length?gs.staffCore:gs?.dbStaffCore||[];
   const ratings=gs?.staffRatings?.length?gs.staffRatings:gs?.dbStaffRatings||[];
   const contracts=gs?.staffContracts?.length?gs.staffContracts:gs?.dbStaffContracts||[];
+  const dbContracts=Array.isArray(gs?.dbStaffContracts)?gs.dbStaffContracts:[];
   const teams=gs?.teams?.length?gs.teams:gs?.dbTeams||[];
   const id=String(entity.id);
 
   const staff=useMemo(()=>coreList.find(s=>staffIdOf(s)===id)||null,[coreList,id]);
-  const rating=useMemo(()=>ratings.find(r=>staffIdOf(r)===id)||null,[ratings,id]);
-  const contract=useMemo(()=>contracts.find(c=>staffIdOf(c)===id && (!Number.isFinite(year)||!Number.isFinite(Number(c?.year))||Number(c?.year)===year))||null,[contracts,id,year]);
+  const rating=useMemo(()=>{
+    const candidates=ratings.filter((row)=>staffIdOf(row)===id);
+    return candidates.find((row)=>Number(row?.year??row?.season_year)===year)
+      ||candidates.filter((row)=>Number(row?.year??row?.season_year)<=year)
+        .sort((a,b)=>Number(b?.year??b?.season_year??0)-Number(a?.year??a?.season_year??0))[0]
+      ||candidates[0]
+      ||null;
+  },[ratings,id,year]);
+  const contractRows=useMemo(()=>{
+    const merged=new Map();
+    for(const row of [...dbContracts,...contracts]){
+      if(resolveStaffId(gs,row)!==id)continue;
+      const key=[
+        String(row?.team_id??row?.team??""),
+        String(row?.role??row?.position??""),
+        String(row?.contract_start??row?.contract_start_year??row?.start_year??row?.year??""),
+        String(row?.contract_until??row?.contract_until_year??row?.end_year??row?.year??""),
+      ].join("|");
+      merged.set(key,row);
+    }
+    return [...merged.values()];
+  },[dbContracts,contracts,gs,id]);
+  const contract=useMemo(()=>contractRows.find((row)=>contractActiveForYear(row,year))||null,[contractRows,year]);
 
   if(!staff&&!contract){
     return <div className="rounded-2xl border border-white/10 bg-[#090b10] p-6 text-slate-100">
@@ -45,8 +69,8 @@ export default function StaffModal({entity,onClose,pageMode=false}){
 
   const name=pick(staff,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id));
   const country=pick(staff,["country_name","country","nationality"],"");
-  const role=nice(pick(contract,["role","position"],pick(staff,["role_primary"],"Staff")));
-  const primaryRole=nice(pick(staff,["role_primary"],role));
+  const role=staffRoleLabel(pick(contract,["role","position"],pick(staff,["role_primary"],"Staff")));
+  const primaryRole=staffRoleLabel(pick(staff,["role_primary"],role));
   const overall=overallOf(rating);
   const skills=Object.entries(rating||{})
     .filter(([k,v])=>!["staff_id","staff_name","year"].includes(k)&&Number.isFinite(Number(v)))
@@ -123,6 +147,32 @@ export default function StaffModal({entity,onClose,pageMode=false}){
             <Info label="Primary role" value={primaryRole}/>
             <Info label="Contract to" value={until}/>
             <Info label="Salary" value={salary}/>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-2">
+            <h3 className="font-semibold">Career Assignments</h3>
+            <p className="text-xs text-slate-500">Historical team and role records available in the database.</p>
+          </div>
+          <div className="space-y-2">
+            {contractRows.slice().sort((a,b)=>Number(b?.year??b?.season_year??0)-Number(a?.year??a?.season_year??0)).map((row,index)=>{
+              const rowTeamId=String(pick(row,["team_id","team"],""));
+              const rowTeam=teams.find((teamRow)=>String(teamRow?.team_id??teamRow?.id??"")===rowTeamId)||null;
+              const rowTeamName=pick(row,["team_name"],pick(rowTeam,["team_name","name","short_name"],rowTeamId||"Unknown Team"));
+              const start=pick(row,["contract_start","contract_start_year","start_year","year"],"—");
+              const end=pick(row,["contract_until","contract_until_year","end_year","year"],"—");
+              const range=String(start)===String(end)?String(start):String(start)+"–"+String(end);
+              return <div key={rowTeamId+"|"+String(row?.role||row?.position||"")+"|"+index} className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+                {rowTeamId?<button type="button" data-entity="team" data-id={rowTeamId} className="shrink-0"><TeamLogo teamId={rowTeamId} name={rowTeamName} size="h-8 w-8"/></button>:null}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{rowTeamId?<button type="button" data-entity="team" data-id={rowTeamId} className="hover:underline">{rowTeamName}</button>:rowTeamName}</div>
+                  <div className="text-xs text-slate-500">{staffRoleLabel(pick(row,["role","position"],"Staff"))}</div>
+                </div>
+                <div className="shrink-0 text-xs text-slate-400">{range}</div>
+              </div>;
+            })}
+            {!contractRows.length?<div className="rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-500">No historical staff assignments recorded.</div>:null}
           </div>
         </section>
 
