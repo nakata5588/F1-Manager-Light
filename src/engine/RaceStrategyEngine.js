@@ -1037,6 +1037,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         air_temp_c:Number.isFinite(Number(trackWeather?.air_temp_c))?Number(trackWeather.air_temp_c):null,
         visibility_index:Number.isFinite(Number(trackWeather?.visibility_index))?Number(trackWeather.visibility_index):null,
         spray_index:Number.isFinite(Number(trackWeather?.spray_index))?Number(trackWeather.spray_index):null,
+        standing_water_index:Number.isFinite(Number(trackWeather?.standing_water_index))?Number(trackWeather.standing_water_index):null,
+        standing_water_band:trackWeather?.standing_water_band||null,
+        raceability_index:Number.isFinite(Number(trackWeather?.raceability_index))?Number(trackWeather.raceability_index):null,
+        raceability_band:trackWeather?.raceability_band||null,
+        pace_mode:activePaceMode,
         weather_penalty_s:Number((Number.isFinite(wetness)
           ?tyreWeatherPenaltyForWetness(tyre?.category||"dry",wetness)
           :tyreWeatherPenalty(tyre,tyreState)).toFixed(2)),
