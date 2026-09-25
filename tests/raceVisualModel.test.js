@@ -7,6 +7,7 @@ import {
   driverVisualMotionDurationMs,
   interpolateVisualGap,
   visualMotionMode,
+  visualMotionProgress,
 } from "../src/domain/raceVisualModel.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
@@ -47,4 +48,30 @@ test("visual model mirrors authoritative race state and adds presentation timing
   assert.equal(model[1].authoritative_gap_ms,850);
   assert.equal(model[1].sector_duration_ms,30600);
   assert.equal(model[1].motion_mode,RACE_VISUAL_MOTION_MODES.RACING);
+});
+
+
+test("RW6.7A individual motion stays synchronized while showing relative pace",()=>{
+  assert.equal(visualMotionProgress(0,{individualDurationMs:29000,globalDurationMs:30500}),0);
+  assert.equal(visualMotionProgress(1,{individualDurationMs:29000,globalDurationMs:30500}),1);
+
+  const fastMid=visualMotionProgress(0.5,{individualDurationMs:29000,globalDurationMs:30500});
+  const baselineMid=visualMotionProgress(0.5,{individualDurationMs:30500,globalDurationMs:30500});
+  const slowMid=visualMotionProgress(0.5,{individualDurationMs:32000,globalDurationMs:30500});
+
+  assert.ok(fastMid>baselineMid);
+  assert.equal(baselineMid,0.5);
+  assert.ok(slowMid<baselineMid);
+});
+
+test("RW6.7A motion curve remains monotonic for extreme but valid pace ratios",()=>{
+  for(const individualDurationMs of [17000,50000]){
+    let previous=0;
+    for(let step=0;step<=20;step+=1){
+      const value=visualMotionProgress(step/20,{individualDurationMs,globalDurationMs:30000});
+      assert.ok(value>=previous-1e-9);
+      previous=value;
+    }
+    assert.equal(previous,1);
+  }
 });
