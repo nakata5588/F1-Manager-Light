@@ -447,7 +447,7 @@ export default function Track2DView({
     globalSectorMs:playbackBaseSectorMs,
     currentControl,
   }),[activeRows,currentSector,playbackSpeed,playbackBaseSectorMs,currentControl]);
-  const visualByDriver=useMemo(()=>new Map(visualModel.map((row)=>[String(row.driver_id),row])),[visualModel]);
+  const visualByDriver=useMemo(()=>new globalThis.Map(visualModel.map((row)=>[String(row.driver_id),row])),[visualModel]);
   const averageSpeedKmh=raceAverageSpeedKmh(lapLengthKm,referenceLapMs);
 
   useEffect(()=>{
