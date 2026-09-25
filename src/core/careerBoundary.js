@@ -8,6 +8,7 @@
 import { seasonStartMentalState } from "../domain/driverMentalState.js";
 import { applySeasonTeamReputation } from "../domain/teamReputation.js";
 import { materializeNextSeasonTechnicalWorld } from "../domain/nextSeasonMaterialization.js";
+import { transitionPhysicalTechnicalWorld } from "../domain/seasonTechnicalTransition.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -308,6 +309,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
   // receives title and final expectation effects while the final table exists.
   const seasonReviewedState=applySeasonTeamReputation(state,previousYear);
   const technicalSeasonState=materializeNextSeasonTechnicalWorld(seasonReviewedState,targetYear);
+  const physicalSeasonState=transitionPhysicalTechnicalWorld(technicalSeasonState,targetYear);
 
   const calendar=materializeCalendar(state,targetYear);
 
@@ -405,7 +407,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
   },...(state.inbox||[])];
 
   return {
-    ...technicalSeasonState,
+    ...physicalSeasonState,
     activeYear:targetYear,
     currentDateISO:`${targetYear}-01-01`,
     currentRound:0,
@@ -426,7 +428,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     teamBrands:(state.teamBrands||[]).map((r)=>({...r,year:targetYear})),
     teamEngines:(state.teamEngines||[]).map((r)=>({...r,year:targetYear})),
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),
-    carStats:technicalSeasonState.carStats,
+    carStats:physicalSeasonState.carStats,
     driverAttributes:nextDriverAttributes,
     teamReputationState:{...(seasonReviewedState?.teamReputationState||{})},
     teamReputationLog:{...(seasonReviewedState?.teamReputationLog||{})},
