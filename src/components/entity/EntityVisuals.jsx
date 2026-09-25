@@ -146,19 +146,25 @@ function useActiveVisualYear(){
   return useGame((state)=>Number(state?.gameState?.activeYear??state?.gameState?.seasonYear)||1980);
 }
 
+function compactVisualDependency(values){
+  return (Array.isArray(values)?values:[values]).map((value)=>{
+    const text=String(value??"");
+    return `${text.length}:${text.slice(0,32)}:${text.slice(-16)}`;
+  }).join("|");
+}
+
 function useHistoricalImageCandidates(type,entityId,aliases,activeYear,fallbacks=[]){
   const overrideSet=useGame((state)=>
     visualAssetOverrideSet(state?.gameState?.visualAssetOverrides,type,entityId)
   );
-  const aliasKey=(Array.isArray(aliases)?aliases:[aliases]).map((value)=>String(value??"")).join("|");
-  const fallbackKey=(Array.isArray(fallbacks)?fallbacks:[fallbacks]).map((value)=>String(value??"")).join("|");
+  const aliasKey=compactVisualDependency(aliases);
+  const fallbackKey=compactVisualDependency(fallbacks);
   const candidates=React.useMemo(()=>{
     const merged=mergeHistoricalAssetSets(historicalAssetSet(type,aliases),overrideSet);
     return historicalAssetCandidatesFromSet(merged,activeYear,fallbacks);
   },[type,entityId,aliasKey,activeYear,fallbackKey,overrideSet]);
-  const signature=candidates.join("|");
   const [failedIndex,setFailedIndex]=React.useState(0);
-  React.useEffect(()=>setFailedIndex(0),[signature]);
+  React.useEffect(()=>setFailedIndex(0),[candidates]);
   return {
     src:candidates[failedIndex]||null,
     fail:()=>setFailedIndex((index)=>index+1),
