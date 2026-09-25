@@ -238,6 +238,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   });
   const [nextSeasonDraftEngineers,setNextSeasonDraftEngineers]=useState(4);
   const [nextSeasonPhilosophyId,setNextSeasonPhilosophyId]=useState("balanced");
+  const [showNextSeasonDetails,setShowNextSeasonDetails]=useState(false);
 
   const calculatedNextSeasonImpact=useMemo(
     ()=>nextSeasonRegulationImpact(gameState,{targetSeason:nextSeasonCar.targetSeason,teamId}),
@@ -920,6 +921,50 @@ export default function Development({ embedded = false, initialTab = "projects",
             </div>
           </CardContent></Card>
 
+          <Card className="!bg-[#10131b] !border-white/10 !text-slate-100"><CardContent className="p-3 space-y-3">
+            <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+              <div className="flex items-center gap-2 min-w-[230px]">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Technical Snapshot</div>
+                  <div className="font-semibold text-sm">{nextSeasonTechnicalPackage.philosophy.label}</div>
+                </div>
+                <span className={"rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide "+(
+                  nextSeasonCar.phase==="concept"?"border-violet-400/30 bg-violet-500/10 text-violet-200":
+                  nextSeasonCar.phase==="design"?"border-cyan-400/30 bg-cyan-500/10 text-cyan-200":
+                  nextSeasonCar.phase==="integration"?"border-amber-400/30 bg-amber-500/10 text-amber-200":
+                  "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                )}>{nice(nextSeasonCar.phase)}</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 xl:flex-1">
+                <div className="rounded-lg border border-violet-400/15 bg-violet-500/[0.05] px-3 py-2"><div className="text-[9px] uppercase text-violet-300/70">Regulations</div><div className="text-sm font-semibold">{nextSeasonImpact.label}</div></div>
+                <div className="rounded-lg border border-sky-400/15 bg-sky-500/[0.05] px-3 py-2"><div className="text-[9px] uppercase text-sky-300/70">Carry-over</div><div className="text-sm font-semibold">{nextSeasonKnowledge.retention_percent.toFixed(1)}%</div></div>
+                <div className="rounded-lg border border-amber-400/15 bg-amber-500/[0.05] px-3 py-2"><div className="text-[9px] uppercase text-amber-300/70">Integrated avg.</div><div className="text-sm font-semibold">{nextSeasonTechnicalPackage.overall.integrated_projected.toFixed(1)}</div></div>
+                <div className="rounded-lg border border-emerald-400/15 bg-emerald-500/[0.05] px-3 py-2"><div className="text-[9px] uppercase text-emerald-300/70">Validated avg.</div><div className="text-sm font-semibold">{nextSeasonTechnicalPackage.overall.validated.toFixed(1)}</div></div>
+              </div>
+              <Button size="sm" variant="outline" onClick={()=>setShowNextSeasonDetails((v)=>!v)}>{showNextSeasonDetails?"Hide technical detail":"Show technical detail"}</Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="min-w-[650px] grid grid-cols-[1.3fr_repeat(5,minmax(70px,1fr))] gap-x-2 text-[10px]">
+                <div className="text-slate-600 uppercase tracking-wide py-1">Area</div>
+                <div className="text-sky-400/70 uppercase tracking-wide py-1 text-right">Knowledge</div>
+                <div className="text-violet-400/70 uppercase tracking-wide py-1 text-right">Concept</div>
+                <div className="text-cyan-400/70 uppercase tracking-wide py-1 text-right">Design</div>
+                <div className="text-amber-400/70 uppercase tracking-wide py-1 text-right">Integrated</div>
+                <div className="text-emerald-400/70 uppercase tracking-wide py-1 text-right">Validated</div>
+                {nextSeasonTechnicalPackage.rows.filter((row)=>row.applicable!==false).map((row)=><React.Fragment key={row.id}>
+                  <div className="border-t border-white/[0.06] py-1.5 text-slate-300">{row.label}</div>
+                  <div className="border-t border-white/[0.06] py-1.5 text-right tabular-nums text-sky-200">{row.retained_knowledge.toFixed(1)}</div>
+                  <div className="border-t border-white/[0.06] py-1.5 text-right tabular-nums text-violet-200">{row.concept_target.toFixed(1)}</div>
+                  <div className="border-t border-white/[0.06] py-1.5 text-right tabular-nums text-cyan-200">{row.projected.toFixed(1)}</div>
+                  <div className="border-t border-white/[0.06] py-1.5 text-right tabular-nums text-amber-200">{row.integrated_projected.toFixed(1)}</div>
+                  <div className="border-t border-white/[0.06] py-1.5 text-right tabular-nums text-emerald-200">{row.validated.toFixed(1)}</div>
+                </React.Fragment>)}
+              </div>
+            </div>
+          </CardContent></Card>
+
+          {showNextSeasonDetails&&<>
           <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-3">
             <div className="flex flex-col lg:flex-row lg:items-start gap-4">
               <div className="flex items-start gap-2 lg:w-[42%]">
@@ -1138,6 +1183,8 @@ export default function Development({ embedded = false, initialTab = "projects",
             </div>
           </CardContent></Card>
 
+          </>}
+
           {nextSeasonCar.status==="not_started" ? (
             <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
               <div>
@@ -1203,7 +1250,14 @@ export default function Development({ embedded = false, initialTab = "projects",
                     const phaseOrder=NEXT_SEASON_PHASES.findIndex((row)=>row.id===phase.id);
                     const currentOrder=NEXT_SEASON_PHASES.findIndex((row)=>row.id===nextSeasonCar.phase);
                     const complete=nextSeasonCar.status==="completed"||phaseOrder<currentOrder;
-                    return <div key={phase.id} className={"rounded-lg border p-3 "+(current?"border-cyan-300/40 bg-cyan-300/[0.08]":complete?"border-emerald-400/20 bg-emerald-500/[0.05]":"border-white/10 bg-[#0d0f15]")}>
+                    const tone=phase.id==="concept"
+                      ?"border-violet-400/30 bg-violet-500/[0.07]"
+                      :phase.id==="design"
+                        ?"border-cyan-400/30 bg-cyan-500/[0.07]"
+                        :phase.id==="integration"
+                          ?"border-amber-400/30 bg-amber-500/[0.07]"
+                          :"border-emerald-400/30 bg-emerald-500/[0.07]";
+                    return <div key={phase.id} className={"rounded-lg border p-2.5 "+(current?tone:complete?"border-emerald-400/20 bg-emerald-500/[0.04]":"border-white/10 bg-[#0d0f15]")}>
                       <div className="text-xs uppercase tracking-wide text-slate-500">{complete?"Complete":current?"Current":"Upcoming"}</div>
                       <div className="font-semibold mt-1">{phase.label}</div>
                       <div className="text-[11px] text-slate-500 mt-1">{phase.description}</div>
