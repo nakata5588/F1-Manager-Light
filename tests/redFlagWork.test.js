@@ -9,6 +9,7 @@ import {
   redFlagWorkCapability,
 } from "../src/engine/RedFlagWorkEngine.js";
 import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
+import { extractGameStateFromStoredSave, prepareGameStateForSave } from "../src/core/saveSafety.js";
 
 const tyres=[
   {tyre_id:"gy_h",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Hard",category:"dry",grip_index:74,wear_rate:0.015},
@@ -238,4 +239,33 @@ test("RW5.3B.1 AI repairs meaningful damage during the same Red Flag work window
     .find((item)=>item.driver_id==="D2");
   assert.ok(repair);
   assert.equal(repair.work_source,"ai");
+});
+
+
+test("RW5.3B.1 Red Flag repair persists through save and load",()=>{
+  const gs=fixture();
+  const damage=damageStateFromComponents({front_wing:68,floor:42});
+  gs.raceWeekendState.live_race.classification[0]={
+    ...gs.raceWeekendState.live_race.classification[0],
+    damage_state:damage,
+    damage_severity:damage.severity,
+    damaged_components:damage.damaged_components,
+    damage_pace_loss_s_per_lap:damage.pace_loss_s_per_lap,
+  };
+
+  const repaired=applyRedFlagDamageRepair(gs,{driverId:"D1"});
+  const stored=prepareGameStateForSave(repaired);
+  const loaded=extractGameStateFromStoredSave({
+    meta:{name:"RW5.3B.1 repair save"},
+    gameState:stored,
+  });
+
+  const row=loaded.raceWeekendState.live_race.classification.find((item)=>item.driver_id==="D1");
+  const repairs=loaded.raceWeekendState.race_strategy.race_control_plan.damage_repairs;
+
+  assert.equal(repairs.length,1);
+  assert.equal(repairs[0].driver_id,"D1");
+  assert.equal(repairs[0].repair_ordinal,17);
+  assert.equal(row.damage_state.components.front_wing.damage_pct,0);
+  assert.ok(row.damage_pace_loss_s_per_lap<damage.pace_loss_s_per_lap);
 });
