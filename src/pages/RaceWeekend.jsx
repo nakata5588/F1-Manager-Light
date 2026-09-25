@@ -871,7 +871,14 @@ export default function RaceWeekend(){
           <button
             type="button"
             disabled={busy}
-            onClick={()=>setRacePlaying((value)=>!value)}
+            onClick={()=>{
+              if(racePlaying){
+                setRacePlaying(false);
+                return;
+              }
+              setRacePlaying(true);
+              perform(()=>advanceLiveRaceSector(1));
+            }}
             title={racePlaying?"Pause live race":"Play live race"}
             className={"inline-flex h-7 w-8 items-center justify-center rounded-md border text-[11px] font-bold transition disabled:opacity-40 "+(racePlaying?"border-sky-300/40 bg-sky-400/15 text-sky-200":"border-white/15 bg-white/[0.05] text-slate-200 hover:bg-white/10")}
           >
@@ -886,7 +893,8 @@ export default function RaceWeekend(){
               className={"rounded px-1.5 py-1 text-[9px] font-bold transition "+(racePlaybackSpeed===speed?"bg-slate-100 text-slate-950":"text-slate-500 hover:bg-white/[0.08] hover:text-slate-200")}
             >{speed}×</button>)}
           </div>
-          <div className="mx-0.5 h-5 w-px bg-white/10"/>
+          {racePlaying?<span className="hidden items-center gap-1 rounded bg-emerald-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-300 lg:inline-flex"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300"/>Live Motion</span>:null}
+                    <div className="mx-0.5 h-5 w-px bg-white/10"/>
           <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
           <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
           <button disabled={busy} className="rounded-md bg-slate-100 px-2 py-1.5 text-[9px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1));}}>Finish</button>
@@ -1460,6 +1468,8 @@ export default function RaceWeekend(){
                 selectedDriverId={selectedLiveDriverId}
                 onSelectDriver={setSelectedLiveDriverId}
                 onSelectEvent={setSelectedRaceEvent}
+                playbackRunning={racePlaying}
+                playbackSpeed={racePlaybackSpeed}
                 busy={busy}
                 onRestartRace={()=>perform(resumeLiveRace)}
                 onConfirmResults={()=>perform(runRace)}
