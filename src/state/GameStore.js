@@ -13,6 +13,7 @@ import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
+import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
 import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
@@ -177,7 +178,7 @@ function hydrateLoadedGameState(saved) {
     temporaryDriverAssignments: Array.isArray(saved?.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
     driverNegotiations: Array.isArray(saved?.driverNegotiations) ? saved.driverNegotiations : [],
     raceEntryState: saved?.raceEntryState || null,
-    raceWeekendState: saved?.raceWeekendState || null,
+    raceWeekendState: normalizeRaceWeekendResumeState(saved?.raceWeekendState),
     financeLog: Array.isArray(saved?.financeLog) ? saved.financeLog : [],
     finances: saved?.finances || null,
     showSeasonSummary: false,
