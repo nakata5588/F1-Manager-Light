@@ -200,6 +200,53 @@ export function materializeNextSeasonCarStats(state,targetYear){
   });
 }
 
+function archiveAIProgrammes(state,targetYear){
+  if(!state?.aiTechnicalWorld?.teams)return state?.aiTechnicalWorld;
+  const date=`${Number(targetYear)}-01-01`;
+  const teams=Object.fromEntries(Object.entries(state.aiTechnicalWorld.teams).map(([teamId,teamState])=>{
+    const dev=teamState?.development||{};
+    const programme=dev?.nextSeasonCar;
+    const programmeTarget=Number(programme?.targetSeason??programme?.target_season);
+    const existing=Array.isArray(teamState?.next_season_history)?teamState.next_season_history:[];
+    let history=existing;
+
+    if(programme&&programmeTarget===Number(targetYear)){
+      const archived={
+        target_season:Number(targetYear),
+        archived_at:date,
+        status:programme?.status||"not_started",
+        progress:round(num(programme?.overall_progress,0),2),
+        readiness:programme?.technical_package?.readiness??programme?.readiness??null,
+        philosophy_id:programme?.technical_package?.philosophy?.id??programme?.technical_philosophy?.id??"balanced",
+        strategy_id:dev?.technicalStrategy?.id||"balanced",
+        technical_package:programme?.technical_package||null,
+      };
+      history=[
+        ...existing.filter((row)=>Number(row?.target_season)!==Number(targetYear)),
+        archived,
+      ].sort((a,b)=>Number(a?.target_season)-Number(b?.target_season)).slice(-8);
+    }
+
+    return [teamId,{
+      ...teamState,
+      next_season_history:history,
+      development:{
+        ...dev,
+        nextSeasonCar:programme&&programmeTarget===Number(targetYear)?null:dev?.nextSeasonCar??null,
+        technicalStrategy:null,
+      },
+      strategy_planning:{
+        ...(teamState?.strategy_planning||{}),
+        season_year:Number(targetYear),
+        last_review_date:null,
+        next_review_date:null,
+        reason:"season_reset",
+      },
+    }];
+  }));
+  return {...state.aiTechnicalWorld,teams};
+}
+
 function archivePlayerProgramme(state,targetYear){
   const dev=state?.development||{};
   const programme=dev?.nextSeasonCar;
@@ -239,9 +286,11 @@ function archivePlayerProgramme(state,targetYear){
 
 export function materializeNextSeasonTechnicalWorld(state,targetYear){
   if(!state||typeof state!=="object")return state;
+  const carStats=materializeNextSeasonCarStats(state,targetYear);
   return {
     ...state,
-    carStats:materializeNextSeasonCarStats(state,targetYear),
+    carStats,
     development:archivePlayerProgramme(state,targetYear),
+    aiTechnicalWorld:archiveAIProgrammes(state,targetYear),
   };
 }
