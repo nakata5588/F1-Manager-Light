@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
+import { raceMotionDurationMs, unwrapTrackProgress } from "../../domain/racePlayback.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -198,6 +199,56 @@ function orderModeValue(row,index,mode){
   return index===0?"LEAD":formatInterval(row?.gap_to_leader_ms);
 }
 
+function useSmoothTrackProgress(target,{duration=700,running=false,onFrame=null}={}){
+  const normalizedTarget=Number(target)||0;
+  const currentRef=useRef(normalizedTarget);
+  const targetRef=useRef(normalizedTarget);
+  const frameRef=useRef(null);
+  const onFrameRef=useRef(onFrame);
+  const [display,setDisplay]=useState(normalizedTarget);
+
+  useEffect(()=>{onFrameRef.current=onFrame;},[onFrame]);
+
+  useEffect(()=>{
+    if(frameRef.current)cancelAnimationFrame(frameRef.current);
+    const from=currentRef.current;
+    const previousTarget=targetRef.current;
+    const to=unwrapTrackProgress(from,normalizedTarget);
+    const previousUnwrapped=unwrapTrackProgress(from,previousTarget);
+    const targetChanged=Math.abs(to-previousUnwrapped)>0.000001;
+    targetRef.current=to;
+
+    if(!running){
+      if(targetChanged){
+        currentRef.current=to;
+        setDisplay(to);
+        onFrameRef.current?.(to);
+      }
+      return undefined;
+    }
+
+    if(Math.abs(to-from)<0.000001){
+      onFrameRef.current?.(from);
+      return undefined;
+    }
+
+    const started=performance.now();
+    const motionDuration=Math.max(1,Number(duration)||700);
+    const tick=(now)=>{
+      const t=Math.min(1,(now-started)/motionDuration);
+      const value=from+(to-from)*t;
+      currentRef.current=value;
+      setDisplay(value);
+      onFrameRef.current?.(value);
+      if(t<1)frameRef.current=requestAnimationFrame(tick);
+    };
+    frameRef.current=requestAnimationFrame(tick);
+    return ()=>{if(frameRef.current)cancelAnimationFrame(frameRef.current);};
+  },[normalizedTarget,running,duration]);
+
+  return display;
+}
+
 function AnimatedMarker({
   geometry,
   progress,
@@ -208,32 +259,15 @@ function AnimatedMarker({
   retired=false,
   selected=false,
   onSelect,
+  motionRunning=false,
+  motionDuration=700,
+  onVisualProgress=null,
 }){
-  const target=Number(progress)||0;
-  const previous=useRef(target);
-  const frame=useRef(null);
-  const [display,setDisplay]=useState(target);
-
-  useEffect(()=>{
-    if(frame.current)cancelAnimationFrame(frame.current);
-    let from=previous.current;
-    let to=target;
-    while(to<from-0.5)to+=1;
-    while(to>from+0.5)to-=1;
-    if(to<from&&from-to>0.08)to+=1;
-    const started=performance.now();
-    const duration=650;
-    const tick=(now)=>{
-      const t=Math.min(1,(now-started)/duration);
-      const eased=1-Math.pow(1-t,3);
-      setDisplay(from+(to-from)*eased);
-      if(t<1)frame.current=requestAnimationFrame(tick);
-      else previous.current=((to%1)+1)%1;
-    };
-    frame.current=requestAnimationFrame(tick);
-    return ()=>{if(frame.current)cancelAnimationFrame(frame.current);};
-  },[target]);
-
+  const display=useSmoothTrackProgress(progress,{
+    duration:motionDuration,
+    running:motionRunning&&!retired,
+    onFrame:onVisualProgress,
+  });
   const point=pointAtTrackProgress(geometry,display);
   if(!point)return null;
   const radius=selected?16:mine?13:8.5;
@@ -326,6 +360,8 @@ export default function Track2DView({
   selectedDriverId="",
   onSelectDriver=null,
   onSelectEvent=null,
+  playbackRunning=false,
+  playbackSpeed=1,
   busy=false,
   onRestartRace=null,
   onConfirmResults=null,
@@ -343,22 +379,40 @@ export default function Track2DView({
   const [feedExpanded,setFeedExpanded]=useState(false);
   const [cameraMode,setCameraMode]=useState("fit");
   const [showTrackIntel,setShowTrackIntel]=useState(true);
+  const svgRef=useRef(null);
+  const followViewBoxRef=useRef(null);
+  const motionDuration=raceMotionDurationMs(playbackSpeed);
 
-  useEffect(()=>setCameraMode("fit"),[trackId,year]);
+  useEffect(()=>{
+    followViewBoxRef.current=null;
+    setCameraMode("fit");
+  },[trackId,year]);
 
   const resolvedSelectedId=String(selectedDriverId||activeRows.find((row)=>String(row?.team_id||"")===String(playerTeamId||""))?.driver_id||activeRows[0]?.driver_id||"");
   const selectedRow=activeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||null;
   const selectedIndex=Math.max(0,activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId));
   const selectedProgress=selectedRow?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
   const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
-  const targetViewBox=cameraMode==="follow"&&selectedPoint
+  const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
     ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:2.45,minWidth:210,minHeight:155})
     :fittedViewBox;
-  const animatedViewBox=useAnimatedViewBox(targetViewBox);
+  const renderedViewBox=cameraMode==="follow"
+    ?(followViewBoxRef.current||snapshotFocusViewBox)
+    :fittedViewBox;
   const selectDriver=(driverId)=>{
+    followViewBoxRef.current=null;
     setCameraMode("follow");
     onSelectDriver?.(String(driverId||""));
   };
+  const followSelectedVisualProgress=(progress)=>{
+    if(cameraMode!=="follow"||!svgRef.current)return;
+    const point=pointAtTrackProgress(displayGeometry,progress);
+    if(!point)return;
+    const box=focusTrackViewBox(fittedViewBox,point,{zoom:2.45,minWidth:210,minHeight:155});
+    followViewBoxRef.current=box;
+    svgRef.current.setAttribute("viewBox",box.join(" "));
+  };
+  useEffect(()=>{followViewBoxRef.current=null;},[resolvedSelectedId]);
   const visibleEvents=(events||[]).slice(0,feedExpanded?10:3);
   const trackIntelEvents=(events||[]).filter((event)=>{
     const progress=raceEventTrackProgress(event,intelligence);
@@ -409,7 +463,7 @@ export default function Track2DView({
 
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[500px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[545px] xl:order-2 xl:min-h-[590px] 2xl:min-h-[625px]">
-        {displayGeometry?<svg className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={animatedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
+        {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
@@ -522,6 +576,9 @@ export default function Track2DView({
               selected={selected}
               onSelect={()=>selectDriver(did)}
               retired={Boolean(row?.retired)}
+              motionRunning={Boolean(playbackRunning)}
+              motionDuration={motionDuration}
+              onVisualProgress={selected?followSelectedVisualProgress:null}
               title={`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`}
             />;
           })}
@@ -536,7 +593,7 @@ export default function Track2DView({
           ><Flag className="h-3.5 w-3.5"/>Track intel</button>
           {cameraMode==="follow"?<button
             type="button"
-            onClick={()=>setCameraMode("fit")}
+            onClick={()=>{followViewBoxRef.current=null;setCameraMode("fit");}}
             className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
           ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>:null}
         </div>
