@@ -176,10 +176,9 @@ export function technicalStrategySnapshot(gs,{
     programme?.status==="completed"?0:1,
     Math.round(base.engineer_pool*strategy.engineer_target_share)
   );
-  const feasibleNext=Math.max(
-    programme?.status==="completed"?0:1,
-    Math.min(targetNext,Math.max(0,base.engineer_pool-base.project_engineers))
-  );
+  const feasibleNext=programme?.status==="completed"
+    ?0
+    :Math.min(targetNext,Math.max(0,base.engineer_pool-base.project_engineers));
   const actualFree=Math.max(0,base.engineer_pool-base.project_engineers-actualNext);
   const research=technicalStrategyResearchMultipliers(strategy);
   const aero=technicalStrategyAeroMultipliers(strategy);
