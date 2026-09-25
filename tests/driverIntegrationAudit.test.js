@@ -59,6 +59,16 @@ function auditState(seed="d70-integration"){
       {driver_id:"D1",display_name:"Driver One",team_id:"T1"},
       {driver_id:"D2",display_name:"Driver Two",team_id:"T1"},
     ],
+    contracts:[
+      {year:1980,team_id:"T1",driver_id:"D1",role:"Main Driver",status:"active"},
+      {year:1980,team_id:"T1",driver_id:"D2",role:"Second Driver",status:"active"},
+    ],
+    staffCore:[
+      {staff_id:"E1",staff_name:"Engineer One",role_primary:"race_engineer"},
+    ],
+    staffContracts:[
+      {year:1980,team_id:"T1",staff_id:"E1",staff_name:"Engineer One",role:"race_engineer",status:"active"},
+    ],
     driverAttributes:{
       D1:{confidence:50,morale:50,preparation:50,fatigue:0},
       D2:{confidence:50,morale:50,preparation:50,fatigue:0},
