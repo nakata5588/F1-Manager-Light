@@ -116,6 +116,7 @@ export function damageFromIncident({
   componentRolls=[],
   impactRoll=0.5,
   retirementRoll=0.5,
+  retirementProbabilityOverride=null,
 }={}){
   const severity=Math.max(0,Math.min(1,Number(severityScore)||0));
   const key=String(kind||"accident").toLowerCase();
@@ -134,7 +135,7 @@ export function damageFromIncident({
   if(key.includes("loss_of_control")&&severity<0.35&&Number(impactRoll)<0.30)return null;
 
   const state=damageStateFromComponents(raw,{source:key});
-  const retirementProbability=state.structural_critical||state.catastrophic
+  const damageRetirementProbability=state.structural_critical||state.catastrophic
     ?0.98
     :state.severity==="critical"
       ?0.72
@@ -143,11 +144,20 @@ export function damageFromIncident({
         :state.severity==="moderate"
           ?0.08
           :0.015;
-  const retired=Number(retirementRoll)<retirementProbability;
+  const hasOverride=Number.isFinite(Number(retirementProbabilityOverride));
+  const calibratedProbability=hasOverride
+    ?Math.max(0,Math.min(1,Number(retirementProbabilityOverride)))
+    :damageRetirementProbability;
+  // Structurally unsafe damage always retires the car. Otherwise the caller
+  // may supply an era-calibrated conditional DNF probability so the historical
+  // DNF baseline survives the new "repairable incident" layer.
+  const retired=!state.can_continue||Number(retirementRoll)<calibratedProbability;
 
   return {
     ...state,
-    retirement_probability:Number(retirementProbability.toFixed(3)),
+    damage_retirement_probability:Number(damageRetirementProbability.toFixed(3)),
+    retirement_probability:Number(calibratedProbability.toFixed(3)),
+    retirement_probability_source:hasOverride?"era_calibration":"damage_model",
     retirement_required:Boolean(retired),
   };
 }
