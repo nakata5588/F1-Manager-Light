@@ -5,7 +5,9 @@
 // RUNNING -> SUSPENDED -> RESTART_PENDING -> RUNNING
 //
 // D4.5 owns work permitted during the suspension.
-// D4.6 will decide when a restart is safe enough to authorise.
+// D4.6 decides when a restart is safe enough to authorise.
+
+import { createRestartMonitor } from "./RestartHysteresisEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 
@@ -112,6 +114,12 @@ export function createRedFlagSuspension({
     work_policy:rules?.red_flag_work_policy||redFlagWorkPolicyForYear(year),
     work_locked:false,
     work_log:[],
+    restart_monitor:createRestartMonitor({
+      year,
+      rules,
+      cause:String(period?.cause||"race_control"),
+      triggerTrackState:trackState,
+    }),
     race_progress_frozen:true,
     overtaking_allowed:false,
     restart_authorized:false,
@@ -143,6 +151,7 @@ export function createRedFlagSuspension({
 
 export function prepareRedFlagRestart(lifecycle){
   if(!lifecycle||String(lifecycle?.phase)!=="suspended")return lifecycle;
+  if(lifecycle?.restart_monitor?.restart_authorized!==true)return lifecycle;
   return {
     ...lifecycle,
     phase:"restart_pending",
@@ -152,13 +161,14 @@ export function prepareRedFlagRestart(lifecycle){
   };
 }
 
-export function completeRedFlagRestart(lifecycle,{lap=null,sector=null}={}){
+export function completeRedFlagRestart(lifecycle,{lap=null,sector=null,restartControl=null}={}){
   if(!lifecycle||String(lifecycle?.phase)!=="restart_pending"||lifecycle?.restart_authorized!==true)return lifecycle;
   return {
     ...lifecycle,
     phase:"resumed",
     race_progress_frozen:false,
     overtaking_allowed:true,
+    restart_control:String(restartControl||lifecycle?.restart_monitor?.recommended_control||"GREEN"),
     resumed_lap:Number.isFinite(Number(lap))?Number(lap):num(lifecycle?.triggered_lap,1),
     resumed_sector:Number.isFinite(Number(sector))?Number(sector):num(lifecycle?.triggered_sector,1),
   };
