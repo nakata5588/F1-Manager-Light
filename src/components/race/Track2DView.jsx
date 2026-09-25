@@ -67,8 +67,15 @@ function brandForTeam(teamBrands,teamId,year){
   return past[0]||rows[0];
 }
 
+function markerPalette(teamBrands,teamId,year){
+  const brand=brandForTeam(teamBrands,teamId,year);
+  return {
+    primary:brand?.primary_color||"#94a3b8",
+    secondary:brand?.secondary_color||"#e2e8f0",
+  };
+}
 function markerColor(teamBrands,teamId,year){
-  return brandForTeam(teamBrands,teamId,year)?.primary_color||"#94a3b8";
+  return markerPalette(teamBrands,teamId,year).primary;
 }
 
 function resolutionTone(resolution){
@@ -98,7 +105,7 @@ function formatInterval(ms,{leader=false}={}){
   if(leader)return "LEAD";
   const n=Number(ms);
   if(!Number.isFinite(n)||n<0)return "—";
-  return `+${(n/1000).toFixed(1)}`;
+  return `+${(n/1000).toFixed(3)}`;
 }
 
 function paceLabel(mode){
@@ -308,6 +315,7 @@ function AnimatedMarker({
   geometry,
   progress,
   color,
+  secondaryColor="#e2e8f0",
   label,
   title,
   mine=false,
@@ -327,7 +335,7 @@ function AnimatedMarker({
   });
   const point=pointAtTrackProgress(geometry,display);
   if(!point)return null;
-  const radius=selected?16:mine?13:8.5;
+  const scale=selected?1.20:mine?1.10:1;
   return <g
     role="button"
     tabIndex="0"
@@ -337,14 +345,23 @@ function AnimatedMarker({
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
   >
     <title>{title}</title>
-    {selected?<circle cx={point.x} cy={point.y} r={radius+10} fill="none" stroke="#f8fafc" strokeWidth="2" opacity=".35">
-      <animate attributeName="r" values={`${radius+5};${radius+12};${radius+5}`} dur="1.25s" repeatCount="indefinite"/>
+    {selected?<circle cx={point.x} cy={point.y} r="23" fill="none" stroke="#f8fafc" strokeWidth="2" opacity=".35">
+      <animate attributeName="r" values="18;25;18" dur="1.25s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values=".6;.12;.6" dur="1.25s" repeatCount="indefinite"/>
     </circle>:null}
-    <circle cx={point.x} cy={point.y} r={radius+3} fill="rgba(2,6,23,.88)" stroke={selected?"#f8fafc":mine?"#f8fafc":"rgba(255,255,255,.42)"} strokeWidth={selected?4:mine?3:1.5}/>
-    <circle cx={point.x} cy={point.y} r={radius} fill={retired?"#7f1d1d":color} opacity={retired?0.74:1}/>
-    {(mine||selected)?<text x={point.x} y={point.y+3.5} textAnchor="middle" fontSize={selected?"10.5":"9.5"} fontWeight="900" fill="#fff">{label}</text>:null}
-    {retired?<path d={`M ${point.x-5} ${point.y-5} L ${point.x+5} ${point.y+5} M ${point.x+5} ${point.y-5} L ${point.x-5} ${point.y+5}`} stroke="#fff" strokeWidth="2"/>:null}
+    <g transform={`translate(${point.x} ${point.y}) scale(${scale})`} opacity={retired?0.72:1}>
+      <rect x="-14.5" y="-7.2" width="29" height="14.4" rx="5.5" fill="#020617" stroke={selected||mine?"#f8fafc":"rgba(255,255,255,.55)"} strokeWidth={selected?2.4:mine?2:1.2}/>
+      <rect x="-12.5" y="-5.6" width="25" height="11.2" rx="4.2" fill={retired?"#7f1d1d":color}/>
+      <rect x="-9.5" y="-8.1" width="19" height="3" rx="1.2" fill={secondaryColor}/>
+      <rect x="-9.5" y="5.1" width="19" height="3" rx="1.2" fill={secondaryColor}/>
+      <rect x="-3.6" y="-4.8" width="7.2" height="9.6" rx="2.2" fill="rgba(2,6,23,.72)" stroke="rgba(255,255,255,.24)" strokeWidth=".7"/>
+      <rect x="-13.8" y="-7.8" width="4" height="3.2" rx=".8" fill="#020617"/>
+      <rect x="9.8" y="-7.8" width="4" height="3.2" rx=".8" fill="#020617"/>
+      <rect x="-13.8" y="4.6" width="4" height="3.2" rx=".8" fill="#020617"/>
+      <rect x="9.8" y="4.6" width="4" height="3.2" rx=".8" fill="#020617"/>
+      <text x="0" y="2.6" textAnchor="middle" fontSize="7" fontWeight="900" fill="#fff" stroke="#020617" strokeWidth=".35" paintOrder="stroke">{label}</text>
+      {retired?<path d="M -7 -4 L 7 4 M 7 -4 L -7 4" stroke="#fff" strokeWidth="1.7"/>:null}
+    </g>
   </g>;
 }
 
@@ -625,11 +642,13 @@ export default function Track2DView({
             if(!visibleOnTrack)return null;
             const progress=visualTrackProgress(row,{currentLap,currentSector,referenceLapMs,index});
             const visualRow=visualByDriver.get(did);
+            const palette=markerPalette(teamBrands,tid,year);
             return <AnimatedMarker
               key={did||index}
               geometry={displayGeometry}
               progress={progress}
-              color={markerColor(teamBrands,tid,year)}
+              color={palette.primary}
+              secondaryColor={palette.secondary}
               label={shortDriverName(drivers,did)}
               mine={mine}
               selected={selected}
