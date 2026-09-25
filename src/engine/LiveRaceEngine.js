@@ -3,7 +3,7 @@ import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffect
 import { createRaceControlPlan, incidentForDriver, incidentsForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
-import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
+import { applyRedFlagRestartGrid, completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
 import { normalPitRepairRecord } from "./PitServiceEngine.js";
@@ -2038,7 +2038,10 @@ export function resumeLiveRace(gs){
     year:Number(gs?.activeYear)||1980,
     rules,
     cause:current?.cause||live?.red_flag_period?.cause||"race_control",
-    timeline:plan?.weather_timeline||[],
+    // The fast-forward already advanced wall-clock conditions while race
+    // distance stayed frozen. Final validation checks the current restart
+    // window rather than jumping back into the pre-suspension lap timeline.
+    timeline:[live?.track_state||current?.track_snapshot||{}],
     currentLap:Number(live?.current_lap)||1,
     finalValidation:true,
   });
@@ -2098,6 +2101,7 @@ export function resumeLiveRace(gs){
         current_control:restartControl,
         track_state:observed||live?.track_state||null,
         last_weather:observed?.state||live?.last_weather||null,
+        classification:applyRedFlagRestartGrid(live?.classification||[],current),
         red_flag_period:null,
         red_flag_lifecycle:null,
         red_flag_history:history,
@@ -2114,6 +2118,13 @@ export function resumeLiveRace(gs){
       },
     },
   };
+}
+
+export function restartLiveRaceFromRedFlag(gs){
+  const prepared=prepareLiveRaceRestart(gs);
+  const phase=prepared?.raceWeekendState?.live_race?.red_flag_lifecycle?.phase;
+  if(String(phase)!=="restart_pending")return prepared;
+  return resumeLiveRace(prepared);
 }
 
 export function liveRaceReadyToFinalize(gs){
