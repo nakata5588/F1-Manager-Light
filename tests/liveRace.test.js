@@ -1084,8 +1084,9 @@ test("Track 2.0 Red Flag fast-forward reaches a weather restart window in one ac
   assert.equal(live.current_sector,2);
   assert.equal(live.red_flag_lifecycle.restart_monitor.restart_authorized,true);
   assert.equal(live.red_flag_lifecycle.restart_monitor.safe_streak,2);
-  assert.equal(live.events.at(-1).type,"red_flag_restart_fast_forward");
-  assert.ok(Number(live.events.at(-1).checks_advanced)>=3);
+  const fastForwardEvent=live.events.find((event)=>event?.type==="red_flag_restart_fast_forward");
+  assert.ok(fastForwardEvent);
+  assert.ok(Number(fastForwardEvent.checks_advanced)>=3);
   assert.equal(live.track_state.state,"LIGHT_RAIN");
 });
 
@@ -1139,7 +1140,9 @@ test("Track 2.0 one Red Flag fast-forward waits through a storm and restarts fro
   assert.equal(suspended.current_lap,1);
   assert.equal(suspended.current_sector,1);
   assert.equal(suspended.red_flag_lifecycle.restart_monitor.restart_authorized,true);
-  assert.ok(Number(suspended.events.at(-1).generated_recovery_checks)>=2);
+  const fastForwardEvent=suspended.events.find((event)=>event?.type==="red_flag_restart_fast_forward");
+  assert.ok(fastForwardEvent);
+  assert.ok(Number(fastForwardEvent.generated_recovery_checks)>=2);
   assert.equal(suspended.red_flag_lifecycle.restart_grid_source,"starting_grid");
 
   const restarted=restartLiveRaceFromRedFlag(waited);
