@@ -192,3 +192,31 @@ test("RW5.3A finalised Live Race rows preserve damage and damage-adjusted lap ti
   assert.ok(rows[0].best_lap_ms>=baseLap);
   assert.equal(rows[0].incident_kind,"collision");
 });
+
+
+test("RW5.3A.1 era calibration can raise conditional DNF probability without changing damage physics",()=>{
+  const damage=damageFromIncident({
+    kind:"accident",
+    severityScore:0.40,
+    componentRolls:[0.5,0.5,0.5,0.5,0.5,0.5],
+    impactRoll:0.5,
+    retirementRoll:0.80,
+    retirementProbabilityOverride:0.70,
+  });
+  assert.ok(damage);
+  assert.equal(damage.retirement_probability_source,"era_calibration");
+  assert.equal(damage.retirement_probability,0.7);
+  assert.ok(damage.damage_retirement_probability<damage.retirement_probability);
+  assert.equal(damage.retirement_required,false);
+
+  const retired=damageFromIncident({
+    kind:"accident",
+    severityScore:0.40,
+    componentRolls:[0.5,0.5,0.5,0.5,0.5,0.5],
+    impactRoll:0.5,
+    retirementRoll:0.60,
+    retirementProbabilityOverride:0.70,
+  });
+  assert.equal(retired.retirement_required,true);
+  assert.deepEqual(retired.components,damage.components);
+});

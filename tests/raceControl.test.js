@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  accidentConditionalRetirementChance,
+  accidentIncidentChance,
   accidentRetirementChance,
   buildTrackWeatherTimeline,
   createRaceControlPlan,
@@ -58,6 +60,39 @@ const mixedWeather={state:"HEAVY_RAIN",segments:[
   {from_lap:1,to_lap:4,state:"HEAVY_RAIN"},
   {from_lap:5,to_lap:12,state:"DRYING"},
 ]};
+
+test("RW5.3A.1 repairable incidents preserve the calibrated 1980 DNF target",()=>{
+  const state=gs(1980);
+  const row={
+    driver:{driver_id:"D1"},
+    incident_risk_multiplier:1,
+    mechanical_risk_multiplier:1,
+  };
+  const target=accidentRetirementChance(state,row);
+  const incident=accidentIncidentChance(state,row);
+  const conditional=accidentConditionalRetirementChance(state,row);
+
+  assert.equal(target,0.15);
+  assert.ok(incident>target);
+  assert.equal(Number(incident.toFixed(3)),0.21);
+  assert.ok(conditional>0&&conditional<1);
+  assert.ok(Math.abs(incident*conditional-target)<1e-12);
+});
+
+test("RW5.3A.1 weather raises incident frequency without changing target-vs-conditional math",()=>{
+  const state=gs(1980);
+  const row={
+    driver:{driver_id:"D1"},
+    incident_risk_multiplier:2.4,
+    mechanical_risk_multiplier:1,
+  };
+  const target=accidentRetirementChance(state,row);
+  const incident=accidentIncidentChance(state,row);
+  const conditional=accidentConditionalRetirementChance(state,row);
+  assert.ok(target>0.15);
+  assert.ok(incident>target);
+  assert.ok(Math.abs(incident*conditional-target)<1e-12);
+});
 
 test("race control availability follows the era",()=>{
   const y1980=raceControlRulesForYear(1980);

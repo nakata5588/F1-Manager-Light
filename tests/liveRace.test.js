@@ -229,28 +229,40 @@ test("live race starts at lap zero and advances incrementally",()=>{
   assert.equal(gs.raceWeekendState.live_race.status,"running");
 });
 
-test("RW4.6.1 each incident produces one human Race Feed event",()=>{
+test("RW4.6.1 each observed incident produces one human Race Feed event",()=>{
   let gs=null;
-  let incident=null;
-  for(let index=0;index<60&&!incident;index+=1){
+  let targetLap=null;
+  for(let index=0;index<60&&!targetLap;index+=1){
     const candidate=createLiveRaceState(fixture(`rw4.6.1-feed-${index}`),{gp});
     const first=candidate.raceWeekendState.race_strategy.race_control_plan?.incidents?.[0]||null;
     if(first){
       gs=candidate;
-      incident=first;
+      targetLap=Number(first.lap);
     }
   }
-  assert.ok(gs&&incident,"expected a deterministic seed with a race incident");
+  assert.ok(gs&&targetLap,"expected a deterministic seed with a race incident");
 
-  gs=advanceTo(gs,Number(incident.lap));
-  const matching=(gs.raceWeekendState.live_race.events||[]).filter((event)=>
-    Number(event?.lap)===Number(incident.lap)&&
-    String(event?.driver_id||"")===String(incident.driver_id)&&
-    ["incident","race_control"].includes(String(event?.type))
-  );
-  assert.equal(matching.length,1,"one incident should produce one player-facing incident/control message");
-  assert.doesNotMatch(matching[0].message,/\((?:low|medium|high|critical)\)/i);
-  assert.doesNotMatch(matching[0].message,/\b(?:low|medium|high|critical)\b/i);
+  gs=advanceTo(gs,targetLap);
+  const currentLap=Number(gs.raceWeekendState.live_race.current_lap||0);
+  const currentSector=Number(gs.raceWeekendState.live_race.current_sector||3);
+  const observedOrdinal=(lap,sector=1)=>(Number(lap)-1)*3+Number(sector||1);
+  const liveOrdinal=observedOrdinal(currentLap,currentSector);
+  const observedIncidents=(gs.raceWeekendState.race_strategy.race_control_plan?.incidents||[])
+    .filter((row)=>observedOrdinal(row?.lap,row?.sector??1)<=liveOrdinal);
+
+  assert.ok(observedIncidents.length>=1,"expected at least one observed incident after advancing the live race");
+
+  for(const incident of observedIncidents){
+    const matching=(gs.raceWeekendState.live_race.events||[]).filter((event)=>
+      Number(event?.lap)===Number(incident.lap)&&
+      String(event?.driver_id||"")===String(incident.driver_id)&&
+      ["incident","race_control"].includes(String(event?.type))
+    );
+    assert.equal(matching.length,1,"each observed incident should produce exactly one player-facing incident/control message");
+    assert.doesNotMatch(matching[0].message,/\((?:low|medium|high|critical)\)/i);
+    assert.doesNotMatch(matching[0].message,/\b(?:low|medium|high|critical)\b/i);
+  }
+
   const incidentControlEvents=(gs.raceWeekendState.live_race.events||[]).filter((event)=>
     event?.type==="race_control"&&event?.cause==="incident"
   );
