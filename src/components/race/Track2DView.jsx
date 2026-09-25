@@ -17,7 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackLayoutResolutionLabel, visualTrackProgress } from "../../domain/trackLayout.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackLayoutResolutionLabel, visualTrackProgress } from "../../domain/trackLayout.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -40,6 +40,12 @@ function shortDriverName(drivers,id){
   const name=driverName(drivers,id).trim();
   const chunks=name.split(/\s+/).filter(Boolean);
   return (chunks.at(-1)||name||"?").slice(0,3).toUpperCase();
+}
+
+function driverSurname(drivers,id){
+  const name=driverName(drivers,id).trim();
+  const chunks=name.split(/\s+/).filter(Boolean);
+  return chunks.at(-1)||name||"?";
 }
 
 function teamName(teams,id){
@@ -262,15 +268,30 @@ export default function Track2DView({
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const layout=resolved.layout;
   const geometry=resolved.geometry;
-  const fittedViewBox=useMemo(()=>trackGeometryViewBox(geometry),[geometry]);
+  const displayGeometry=useMemo(()=>orientTrackGeometry(geometry),[geometry]);
+  const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const activeRows=(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
   const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
   const [orderExpanded,setOrderExpanded]=useState(false);
   const [orderMode,setOrderMode]=useState("order");
   const [feedExpanded,setFeedExpanded]=useState(false);
+  const [cameraMode,setCameraMode]=useState("fit");
+
+  useEffect(()=>setCameraMode("fit"),[trackId,year]);
 
   const resolvedSelectedId=String(selectedDriverId||activeRows.find((row)=>String(row?.team_id||"")===String(playerTeamId||""))?.driver_id||activeRows[0]?.driver_id||"");
   const selectedRow=activeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||null;
+  const selectedIndex=Math.max(0,activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId));
+  const selectedProgress=selectedRow?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
+  const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
+  const targetViewBox=cameraMode==="follow"&&selectedPoint
+    ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:2.45,minWidth:210,minHeight:155})
+    :fittedViewBox;
+  const animatedViewBox=useAnimatedViewBox(targetViewBox);
+  const selectDriver=(driverId)=>{
+    setCameraMode("follow");
+    onSelectDriver?.(String(driverId||""));
+  };
   const visibleEvents=(events||[]).slice(0,feedExpanded?10:3);
   const progressPct=Math.max(0,Math.min(100,(((Math.max(0,Number(currentLap||0)-1))+(Number(currentSector||0)/3))/Math.max(1,Number(totalLaps||1)))*100));
 
@@ -281,8 +302,8 @@ export default function Track2DView({
   }
 
   const orderPanelClass=orderExpanded
-    ?"xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_420px]"
-    :"xl:grid-cols-[minmax(0,1fr)_235px] 2xl:grid-cols-[minmax(0,1fr)_250px]";
+    ?"xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]"
+    :"xl:grid-cols-[minmax(0,1fr)_200px] 2xl:grid-cols-[minmax(0,1fr)_210px]";
 
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#0b1017] px-3 py-2">
@@ -301,10 +322,10 @@ export default function Track2DView({
     </div>
 
     <div className={`grid ${orderPanelClass}`}>
-      <div className="relative min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[620px] xl:min-h-[660px] 2xl:min-h-[700px]">
-        {geometry?<svg className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={fittedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
+      <div className="relative min-h-[510px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[555px] xl:min-h-[600px] 2xl:min-h-[640px]">
+        {displayGeometry?<svg className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={animatedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
           {(()=>{
-            const closed=[...geometry.points,geometry.points[0]];
+            const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
               <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
@@ -320,13 +341,13 @@ export default function Track2DView({
             const progress=visualTrackProgress(row,{currentLap,currentSector,referenceLapMs,index});
             return <AnimatedMarker
               key={did||index}
-              geometry={geometry}
+              geometry={displayGeometry}
               progress={progress}
               color={markerColor(teamBrands,tid,year)}
               label={shortDriverName(drivers,did)}
               mine={mine}
               selected={selected}
-              onSelect={()=>onSelectDriver?.(did)}
+              onSelect={()=>selectDriver(did)}
               retired={Boolean(row?.retired)}
               title={`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`}
             />;
@@ -334,6 +355,11 @@ export default function Track2DView({
         </svg>:null}
 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05080d]/85 to-transparent"/>
+        {cameraMode==="follow"?<button
+          type="button"
+          onClick={()=>setCameraMode("fit")}
+          className="absolute right-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
+        ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>:null}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05080d]/75 to-transparent"/>
 
         <div className="absolute left-3 top-3 z-20 w-[min(420px,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-white/15 bg-[#0a0f16]/90 shadow-xl backdrop-blur-xl">
@@ -390,7 +416,7 @@ export default function Track2DView({
         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2 py-2">
           <div>
             <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">Track Order</div>
-            <div className="text-[9px] text-slate-600">Click a driver to inspect</div>
+            <div className="text-[8px] text-slate-600">Select · auto zoom</div>
           </div>
           <button type="button" onClick={()=>setOrderExpanded((value)=>!value)} title={orderExpanded?"Compact Track Order":"Expand Track Order"} className="rounded-md border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 hover:bg-white/[0.08] hover:text-slate-100">
             {orderExpanded?<Minimize2 className="h-3.5 w-3.5"/>:<Maximize2 className="h-3.5 w-3.5"/>}
@@ -406,7 +432,7 @@ export default function Track2DView({
           ].map(([id,label])=><button type="button" key={id} onClick={()=>setOrderMode(id)} className={`flex-1 rounded px-1.5 py-1 text-[9px] font-semibold ${orderMode===id?"bg-slate-100 text-slate-950":"bg-white/[0.04] text-slate-400 hover:bg-white/[0.08]"}`}>{label}</button>)}
         </div>:null}
 
-        <div className="max-h-[610px] overflow-y-auto p-1.5 2xl:max-h-[650px]">
+        <div className="max-h-[555px] overflow-y-auto p-1 2xl:max-h-[595px]">
           {activeRows.map((row,index)=>{
             const did=String(row?.driver_id||"");
             const tid=String(row?.team_id||"");
@@ -416,19 +442,21 @@ export default function Track2DView({
             return <button
               type="button"
               key={did||index}
-              onClick={()=>onSelectDriver?.(did)}
-              className={`mb-1 flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[10px] transition ${selected?"border-white/35 bg-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,.05)]":mine?"border-amber-300/15 bg-amber-500/[0.06]":"border-transparent bg-white/[0.025] hover:bg-white/[0.06]"}`}
+              onClick={()=>selectDriver(did)}
+              className={`mb-0.5 flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[9px] transition ${selected?"border-white/35 bg-white/[0.12] shadow-[0_0_0_1px_rgba(255,255,255,.05)]":mine?"border-amber-300/15 bg-amber-500/[0.06]":"border-transparent bg-white/[0.025] hover:bg-white/[0.06]"}`}
             >
-              <span className="w-6 shrink-0 text-right text-xs font-black text-slate-200">P{row?.position??index+1}</span>
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-white/40" style={{backgroundColor:row?.retired?"#7f1d1d":color}}/>
+              <span className="w-5 shrink-0 text-right text-[10px] font-black text-slate-200">P{row?.position??index+1}</span>
+              <span className="h-2 w-2 shrink-0 rounded-full border border-white/40" style={{backgroundColor:row?.retired?"#7f1d1d":color}}/>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1">
                   {mine?<span className="text-amber-300">●</span>:null}
-                  <span className="truncate font-semibold text-slate-100">{driverName(drivers,did)}</span>
+                  <span className="truncate font-semibold text-slate-100">{orderExpanded?driverName(drivers,did):driverSurname(drivers,did)}</span>
                 </span>
                 {orderExpanded?<span className="mt-0.5 block truncate text-[9px] text-slate-500">{teamName(teams,tid)}</span>:null}
               </span>
-              <span className={`shrink-0 font-mono text-[9px] ${row?.retired?"text-red-300":"text-slate-400"}`}>{orderModeValue(row,index,orderExpanded?orderMode:"order")}</span>
+              {orderExpanded&&orderMode==="tyres"
+                ?<span className="flex shrink-0 items-center gap-1 font-mono text-[8px] text-slate-400"><MiniTyreIcon compound={row?.tyre?.compound} size={16}/>{row?.tyre?.age_laps??"—"}L</span>
+                :<span className={`shrink-0 font-mono text-[8px] ${row?.retired?"text-red-300":"text-slate-400"}`}>{orderModeValue(row,index,orderExpanded?orderMode:"order")}</span>}
               {orderExpanded?<ChevronRight className="h-3 w-3 shrink-0 text-slate-600"/>:null}
             </button>;
           })}
@@ -450,7 +478,10 @@ export default function Track2DView({
               <Stat label="Best" value={formatLapTime(selectedRow?.best_lap_ms)} tone="text-emerald-300"/>
             </>:null}
             {orderMode==="tyres"?<>
-              <Stat label="Compound" value={selectedRow?.tyre?.compound||"—"}/>
+              <div className="min-w-0 rounded-md border border-white/10 bg-black/25 px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-[0.12em] text-slate-500">Compound</div>
+                <div className="mt-1 flex items-center gap-1.5 text-xs font-bold"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={20}/>{selectedRow?.tyre?.compound||"—"}</div>
+              </div>
               <Stat label="Age" value={`${selectedRow?.tyre?.age_laps??"—"}L`}/>
               <Stat label="Condition" value={Number.isFinite(Number(selectedRow?.tyre?.condition))?`${Number(selectedRow.tyre.condition).toFixed(0)}%`:"—"}/>
               <Stat label="Stops" value={selectedRow?.pit_count??0} icon={<Wrench className="h-3 w-3"/>}/>
