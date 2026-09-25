@@ -601,6 +601,7 @@ export default function RaceWeekend(){
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
+  const assessLiveRaceRestart=useGame((s)=>s.assessRaceWeekendLiveRaceRestart);
   const prepareLiveRaceRestart=useGame((s)=>s.prepareRaceWeekendLiveRaceRestart);
   const resumeLiveRace=useGame((s)=>s.resumeRaceWeekendLiveRace);
   const continueWeekend=useGame((s)=>s.continueRaceWeekendSession);
@@ -633,6 +634,7 @@ export default function RaceWeekend(){
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
   const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
+  const restartMonitor=redFlagLifecycle?.restart_monitor||null;
   const liveRows=collectionRows(liveRace?.classification);
   const trackState=liveRace?.track_state||null;
   const timingSummary=liveRace?.timing_summary||null;
@@ -1488,18 +1490,35 @@ export default function RaceWeekend(){
                       <div className="mt-0.5 text-[10px] text-red-200/60">
                         {redFlagLifecycle?.phase==="restart_pending"
                           ?`Restart procedure prepared · work window closed · ${String(redFlagLifecycle?.restart_style||"era rules").replaceAll("_"," ")}`
-                          :"Track progress is frozen. Tyre work is allowed before the restart procedure is prepared."}
+                          :restartMonitor?.restart_authorized
+                            ?`Sustained improvement confirmed · restart available · ${restartMonitor?.recommended_control==="SAFETY_CAR"?"Safety Car":"green"} resumption`
+                            :`Track progress is frozen. Race Control requires sustained safe conditions before restart.`}
                       </div>
+                      {redFlagLifecycle?.phase==="suspended"?<div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-red-100/55">
+                        <span>Safe checks: {Number(restartMonitor?.safe_streak||0)}/{Number(restartMonitor?.required_safe_checks||1)}</span>
+                        {Number.isFinite(Number(restartMonitor?.latest_score))?<span>Race Control score: {Number(restartMonitor.latest_score).toFixed(0)}/100</span>:null}
+                        {restartMonitor?.latest_action?<span>Assessment: {String(restartMonitor.latest_action).replaceAll("_"," ")}</span>:null}
+                      </div>:null}
                       {redFlagLifecycle?.work_policy?.notes?<div className="mt-1 text-[9px] text-red-100/45">{redFlagLifecycle.work_policy.notes}</div>:null}
                     </div>
                   </div>
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={()=>perform(redFlagLifecycle?.phase==="restart_pending"?resumeLiveRace:prepareLiveRaceRestart)}
+                    onClick={()=>perform(
+                      redFlagLifecycle?.phase==="restart_pending"
+                        ?resumeLiveRace
+                        :restartMonitor?.restart_authorized
+                          ?prepareLiveRaceRestart
+                          :assessLiveRaceRestart
+                    )}
                     className="shrink-0 rounded-md border border-red-300/35 bg-red-500/15 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25 disabled:opacity-50"
                   >
-                    {redFlagLifecycle?.phase==="restart_pending"?"Restart race":"Prepare restart"}
+                    {redFlagLifecycle?.phase==="restart_pending"
+                      ?"Restart race"
+                      :restartMonitor?.restart_authorized
+                        ?"Prepare restart"
+                        :"Check conditions"}
                   </button>
                 </div>
                 <div className="mt-2 grid gap-1.5 md:grid-cols-2">
