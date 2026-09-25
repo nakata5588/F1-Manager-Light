@@ -10,7 +10,9 @@ import { teamWorkRateMultiplier } from "./teamMorale.js";
 import {
   normalizePhysicalPartState,
   partDesignById,
+  partDesignOperational,
   partUnitById,
+  partUnitOperational,
   physicalUnitLocation,
 } from "./partUnits.js";
 
@@ -112,6 +114,7 @@ export function standardBuildQuote(gs,slot,{fitCarId=null}={}){
 }
 
 export function partManufactureQuote(gs,part){
+  if(!partDesignOperational(part))return null;
   const base=standardBuildQuote(gs,part?.slot);
   const strength=Math.max(0,Number(part?.perf||0));
   return {
@@ -165,8 +168,9 @@ export function standardRestoreQuote(gs,slot,condition,{carId=null}={}){
 export function partUnitRestoreQuote(gs,unitId){
   const normalized=normalizePhysicalPartState(gs);
   const unit=partUnitById(normalized,unitId);
-  if(!unit)return null;
+  if(!unit||!partUnitOperational(unit))return null;
   const design=partDesignById(normalized,unit.design_id);
+  if(!partDesignOperational(design))return null;
   const slot=str(unit?.slot??design?.slot);
   const current=clamp(unit?.condition??100);
   const missing=Math.max(0,100-current);
