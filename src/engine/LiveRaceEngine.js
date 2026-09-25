@@ -6,6 +6,7 @@ import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
+import { normalPitRepairRecord } from "./PitServiceEngine.js";
 import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
 import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { rngFor } from "../core/random.js";
@@ -688,6 +689,90 @@ function pitServiceTyreState(gs,row,state){
     source:"live_pit_service",
   };
 }
+function pitServiceDamageState(row,state){
+  const after=state?.service?.repair?.damage_after;
+  if(!after)return row;
+  const damaged=Array.isArray(after?.damaged_components)?after.damaged_components:[];
+  return {
+    ...row,
+    damage_state:damaged.length?structuredClone(after):null,
+    damage_severity:damaged.length?after.severity:"none",
+    damaged_components:[...damaged],
+    damage_pace_loss_s_per_lap:Number(after?.pace_loss_s_per_lap||0),
+  };
+}
+function pitRepairRecordForState(gs,state){
+  if(!state?.service?.damage_repair||!state?.service?.repair?.repaired_components?.length)return null;
+  return normalPitRepairRecord({
+    driverId:state.driver_id,
+    teamId:teamForDriver(gs,state.driver_id),
+    service:state.service,
+    lap:Math.max(1,Number(state?.entry_lap)||1),
+    sector:Math.max(1,Math.min(3,Number(state?.entry_sector)||3)),
+    stopKey:state.stop_key,
+  });
+}
+function appendPitRepairRecords(plan,records=[]){
+  const current=Array.isArray(plan?.damage_repairs)?plan.damage_repairs:[];
+  const next=[...current];
+  const keys=new Set(current.map((row)=>String(row?.pit_stop_key||"")).filter(Boolean));
+  for(const record of records||[]){
+    if(!record)continue;
+    const key=String(record?.pit_stop_key||"");
+    if(key&&keys.has(key))continue;
+    const duplicate=!key&&next.some((row)=>
+      String(row?.driver_id||"")===String(record?.driver_id||"")&&
+      Number(row?.repair_ordinal||0)===Number(record?.repair_ordinal||0)&&
+      String(row?.source||"")===String(record?.source||"")
+    );
+    if(duplicate)continue;
+    next.push(record);
+    if(key)keys.add(key);
+  }
+  return {...(plan||{}),damage_repairs:next};
+}
+function completedPitRepairRecordsFromLive(gs,live){
+  const states=[
+    ...(Array.isArray(live?.pit_history)?live.pit_history:[]),
+    ...Object.values(live?.pit_states||{}),
+  ];
+  return states
+    .filter((state)=>state?.service?.completed&&state?.service?.damage_repair)
+    .map((state)=>pitRepairRecordForState(gs,state))
+    .filter(Boolean);
+}
+function completedPitRepairRecordsForInterval(gs,race,{currentOrdinal,targetOrdinal,progressive=true}={}){
+  const records=[];
+  for(const row of race||[]){
+    const did=idOf(row?.driver||row);
+    const stops=Array.isArray(row?.pit_stops)?row.pit_stops:[];
+    stops.forEach((stop,index)=>{
+      if(!stop?.service?.repair?.repaired_components?.length)return;
+      const stopLap=Math.max(1,Number(stop?.lap)||1);
+      const entryLap=stopLap<=1?1:stopLap-1;
+      const entrySector=stopLap<=1?1:3;
+      const startOrdinal=pointOrdinal(entryLap,entrySector);
+      if(!(startOrdinal>Number(currentOrdinal||0)&&startOrdinal<=Number(targetOrdinal||0)))return;
+      if(progressive&&startOrdinal===Number(targetOrdinal||0))return;
+      const key=livePitStopKey(did,stop,index+1);
+      const service={
+        ...(stop?.service||{}),
+        damage_repair:true,
+        repair:structuredClone(stop.service.repair),
+        completed:true,
+      };
+      records.push(normalPitRepairRecord({
+        driverId:did,
+        teamId:teamForDriver(gs,did),
+        service,
+        lap:entryLap,
+        sector:entrySector,
+        stopKey:key,
+      }));
+    });
+  }
+  return records.filter(Boolean);
+}
 function advancePitLifecycleOnLiveState(gs,live,deltaMs,{settle=false,emitPhaseEvents=true}={}){
   const currentStates={...(live?.pit_states||{})};
   if(!Object.values(currentStates).some((state)=>state?.active))return live;
@@ -711,12 +796,36 @@ function advancePitLifecycleOnLiveState(gs,live,deltaMs,{settle=false,emitPhaseE
         pit_state:next,
         in_pit:!next.completed,
       };
-      if(next?.service?.completed&&!current?.service?.completed&&next?.service?.tyre_change){
+      const serviceJustCompleted=Boolean(next?.service?.completed&&!current?.service?.completed);
+      if(serviceJustCompleted&&next?.service?.tyre_change){
         patched={...patched,tyre:pitServiceTyreState(gs,patched,next)};
+      }
+      if(serviceJustCompleted&&next?.service?.damage_repair){
+        patched=pitServiceDamageState(patched,next);
       }
       return patched;
     });
 
+    const serviceJustCompleted=Boolean(next?.service?.completed&&!current?.service?.completed);
+    if(emitPhaseEvents&&serviceJustCompleted&&next?.service?.damage_repair){
+      const repair=next.service.repair||{};
+      const repaired=(repair.repaired_components||[]).map((component)=>String(component).replaceAll("_"," "));
+      const recovered=Math.max(0,Number(repair.pace_loss_before_s_per_lap||0)-Number(repair.pace_loss_after_s_per_lap||0));
+      pushUniqueEvent(events,{
+        event_key:`pit_service:repair:${next.stop_key}`,
+        lap:Number(live?.current_lap)||0,
+        sector:Number(live?.current_sector)||0,
+        type:"pit_service",
+        work_type:"damage_repair",
+        driver_id:String(did),
+        driver_name:driverDisplayName(gs,did),
+        repaired_components:[...(repair.repaired_components||[])],
+        repair_duration_s:Number(repair.duration_s||0),
+        pace_loss_before_s_per_lap:Number(repair.pace_loss_before_s_per_lap||0),
+        pace_loss_after_s_per_lap:Number(repair.pace_loss_after_s_per_lap||0),
+        message:`${driverDisplayName(gs,did)} completed pit repairs to ${repaired.join(", ")}${recovered>0?` (~${recovered.toFixed(2)}s/lap recovered)`:""}.`,
+      });
+    }
     if(emitPhaseEvents&&String(next?.phase||"")!==String(current?.phase||"")&&!next.completed){
       pushUniqueEvent(events,{
         event_key:`pit_phase:${next.stop_key}:${next.phase}`,
