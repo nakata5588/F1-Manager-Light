@@ -350,7 +350,10 @@ export function advanceNextSeasonCarDay(gs,{teamId=null}={}){
     knowledge_carryover:knowledgeCarryover,
   };
   const technicalPackage=buildNextSeasonTechnicalPackage(gs,{
-    programme:progressedProgramme,
+    programme:{
+      ...progressedProgramme,
+      engineers:programme.engineers,
+    },
     teamId:id,
     knowledgeCarryover,
   });
