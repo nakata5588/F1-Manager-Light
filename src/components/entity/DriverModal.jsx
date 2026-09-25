@@ -2730,6 +2730,13 @@ function RelationshipsTab({ gameState, driverId }) {
     driverName:subjectName,
   });
   const rivalries=driverRivalryRecords(gameState,driverId);
+  const visibleRivalries=rivalries.filter((row)=>
+    row?.active||
+    Number(row?.collisions||0)>0||
+    Number(row?.championship_battles||0)>0||
+    Number(row?.close_battles||0)>=3
+  );
+  const visibleRivalryKeys=new Set(visibleRivalries.map((row)=>String(row?.pair_key||"")).filter(Boolean));
 
   const yearsForRecord=(record)=>{
     const values=new Set(
@@ -2898,27 +2905,28 @@ function RelationshipsTab({ gameState, driverId }) {
   const logs=[
     ...(gameState?.driverRelationships?.log||[])
       .filter((entry)=>String(entry?.driver_id??"")===String(driverId)),
-    ...driverRivalryEventLogForDriver(gameState,driverId),
+    ...driverRivalryEventLogForDriver(gameState,driverId)
+      .filter((entry)=>visibleRivalryKeys.has(String(entry?.pair_key||""))),
   ]
     .sort((a,b)=>String(b?.dateISO||"").localeCompare(String(a?.dateISO||"")))
     .slice(0,12);
 
-  if(!allRecords.length&&!rivalries.length){
+  if(!allRecords.length&&!visibleRivalries.length){
     return <div className="rounded-lg border border-white/10 bg-[#12141c] p-4 text-sm text-slate-400">No relationships have been established for this driver yet.</div>;
   }
 
   return <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
     <div className="space-y-2">
-      {rivalries.length?<section className="rounded-lg border border-white/10 bg-[#12141c] p-3">
+      {visibleRivalries.length?<section className="rounded-lg border border-white/10 bg-[#12141c] p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Global Driver Rivalries</div>
             <div className="mt-0.5 text-[10px] text-slate-600">Persists across teams · separate from team-mate tension.</div>
           </div>
-          <span className="text-[10px] text-slate-500">{rivalries.filter((row)=>row.active).length} active</span>
+          <span className="text-[10px] text-slate-500">{visibleRivalries.filter((row)=>row.active).length} active</span>
         </div>
         <div className="mt-2 space-y-1.5">
-          {rivalries.map((rivalry)=>{
+          {visibleRivalries.map((rivalry)=>{
             const target=targetMeta(rivalry);
             const openTarget=target.entity?()=>openEntity({...target.entity,tab:"overview"}):null;
             const yearsLabel=formatRelationshipYears(rivalry?.years||[]);
