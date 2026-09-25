@@ -89,6 +89,45 @@ function snapshotClassification(rows=[]){
     }));
 }
 
+function restartGridSnapshot(rows=[],lap=1,sector=1){
+  const useStartingGrid=Number(lap)<=1&&Number(sector)<=1;
+  const ordered=(rows||[])
+    .slice()
+    .sort((a,b)=>{
+      const aRank=useStartingGrid
+        ?Number(a?.grid_position??a?.position??999)
+        :Number(a?.position??999);
+      const bRank=useStartingGrid
+        ?Number(b?.grid_position??b?.position??999)
+        :Number(b?.position??999);
+      return aRank-bRank||String(a?.driver_id??"").localeCompare(String(b?.driver_id??""));
+    });
+  return ordered.map((row,index)=>({
+    driver_id:String(row?.driver_id??""),
+    team_id:String(row?.team_id??""),
+    restart_position:index+1,
+    grid_position:Number.isFinite(Number(row?.grid_position))?Number(row.grid_position):null,
+    suspended_position:Number.isFinite(Number(row?.position))?Number(row.position):index+1,
+    retired:Boolean(row?.retired),
+    status:String(row?.status||"RUNNING"),
+  }));
+}
+
+export function applyRedFlagRestartGrid(rows=[],lifecycle=null){
+  const grid=Array.isArray(lifecycle?.restart_grid)?lifecycle.restart_grid:[];
+  if(!grid.length)return rows;
+  const rank=new Map(grid.map((row,index)=>[
+    String(row?.driver_id??""),
+    Number(row?.restart_position??index+1),
+  ]));
+  return (rows||[])
+    .map((row,index)=>({
+      ...row,
+      position:rank.get(String(row?.driver_id??""))??Number(row?.position??index+1),
+    }))
+    .sort((a,b)=>Number(a?.position??999)-Number(b?.position??999));
+}
+
 export function createRedFlagSuspension({
   year=1980,
   rules={},
@@ -146,6 +185,8 @@ export function createRedFlagSuspension({
       grip_index:Number.isFinite(Number(trackState?.grip_index))?Number(trackState.grip_index):null,
     }:null,
     classification_snapshot:snapshotClassification(classification),
+    restart_grid_source:Number(lap)<=1&&Number(sector)<=1?"starting_grid":"suspension_order",
+    restart_grid:restartGridSnapshot(classification,lap,sector),
   };
 }
 
