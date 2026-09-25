@@ -13,6 +13,8 @@ import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
+import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
+import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "@/domain/sessionRecovery";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
 import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
@@ -33,6 +35,7 @@ import {
 const SAVE_KEY = "f1hm_save";
 const SAVE_PREFIX = "f1ml_save_";
 const LAST_SAVE_KEY = "f1ml_last_save_key";
+const SESSION_RECOVERY_KEY = "f1ml_session_recovery";
 
 /** ===== util curto ===== */
 function nowIso() { return new Date().toISOString(); }
@@ -160,6 +163,27 @@ function setRollingSnapshot(value) {
   cleanupLegacyAutosaveDuplicate();
   return setItemQuotaSafe(SAVE_KEY, value, { evictManualSaves: false });
 }
+function setSessionRecoverySnapshot(gs) {
+  try {
+    if (typeof sessionStorage === "undefined") return false;
+    const snapshot = buildSessionRecoverySnapshot(gs);
+    if (!snapshot) return false;
+    sessionStorage.setItem(SESSION_RECOVERY_KEY, JSON.stringify(snapshot));
+    return true;
+  } catch (error) {
+    console.warn("session recovery checkpoint failed:", error);
+    return false;
+  }
+}
+function sessionRecoverySnapshot() {
+  try {
+    if (typeof sessionStorage === "undefined") return null;
+    const raw = sessionStorage.getItem(SESSION_RECOVERY_KEY);
+    return raw ? safeJSONParse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function hydrateLoadedGameState(saved) {
   const activeYear = Number(saved?.activeYear ?? saved?.seasonYear);
@@ -177,7 +201,7 @@ function hydrateLoadedGameState(saved) {
     temporaryDriverAssignments: Array.isArray(saved?.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
     driverNegotiations: Array.isArray(saved?.driverNegotiations) ? saved.driverNegotiations : [],
     raceEntryState: saved?.raceEntryState || null,
-    raceWeekendState: saved?.raceWeekendState || null,
+    raceWeekendState: normalizeRaceWeekendResumeState(saved?.raceWeekendState),
     financeLog: Array.isArray(saved?.financeLog) ? saved.financeLog : [],
     finances: saved?.finances || null,
     showSeasonSummary: false,
@@ -209,12 +233,15 @@ function latestManualSaveKey() {
 function checkpointRaceWeekendState(gs) {
   try {
     const phase=String(gs?.raceWeekendState?.phase||"");
-    if(!phase||phase==="completed"||gs?.settings?.autosave===false)return false;
+    if(!phase||phase==="completed")return false;
+    const sessionOk=setSessionRecoverySnapshot(gs);
+    if(gs?.settings?.autosave===false)return sessionOk;
     const light=makeLightSnapshot(gs);
-    // One rolling recovery snapshot is enough. A second full copy used to
-    // double localStorage pressure during live weekends and could trigger
-    // eviction of manual saves.
-    return setRollingSnapshot(JSON.stringify(light));
+    // localStorage remains the long-lived Continue snapshot. sessionStorage
+    // is the tab-local refresh journal, so F5 recovery is not dependent on
+    // the larger rolling write succeeding under localStorage quota pressure.
+    const rollingOk=setRollingSnapshot(JSON.stringify(light));
+    return rollingOk||sessionOk;
   } catch (error) {
     console.warn("race weekend checkpoint failed:",error);
     return false;
@@ -1460,10 +1487,12 @@ export const useGame = create((set, get) => ({
   saveLocal: () => {
     try {
       const state = get().gameState;
+      const sessionOk = setSessionRecoverySnapshot(state);
       const light = makeLightSnapshot(state);
       // SAVE_KEY is the rolling "Continue" snapshot. It must not create a
       // visible/manual save slot every time a new career starts or autosaves.
-      return setRollingSnapshot( JSON.stringify(light));
+      const rollingOk = setRollingSnapshot(JSON.stringify(light));
+      return rollingOk || sessionOk;
     } catch (e) {
       console.error("saveLocal() failed:", e);
       return false;
@@ -2059,8 +2088,9 @@ function restoreRollingSessionAtStartup() {
     if (!raw) return false;
     const saved = extractGameStateFromStoredSave(JSON.parse(raw));
     if (!saved || typeof saved !== "object") return false;
+    const recovered = applySessionRecoverySnapshot(saved, sessionRecoverySnapshot());
     useGame.setState({
-      gameState: hydrateLoadedGameState(saved),
+      gameState: hydrateLoadedGameState(recovered),
       currentSaveKey: null,
     });
     return true;
