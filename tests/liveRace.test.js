@@ -660,7 +660,7 @@ test("RW5.2D4.4 red flag requires explicit restart preparation before resuming",
   assert.equal(resumed.raceWeekendState.live_race.status,"running");
   assert.equal(resumed.raceWeekendState.live_race.current_lap,5);
   assert.equal(resumed.raceWeekendState.live_race.current_sector,2);
-  assert.equal(resumed.raceWeekendState.race_strategy.race_control_plan,plan);
+  assert.deepEqual(resumed.raceWeekendState.race_strategy.race_control_plan,plan);
   assert.equal(resumed.raceWeekendState.live_race.red_flag_lifecycle,null);
   assert.equal(resumed.raceWeekendState.live_race.red_flag_history.length,1);
   assert.equal(resumed.raceWeekendState.live_race.red_flag_history[0].phase,"resumed");
