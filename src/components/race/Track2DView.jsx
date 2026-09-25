@@ -735,7 +735,7 @@ export default function Track2DView({
           <div className="rounded border border-sky-400/10 bg-sky-500/[0.04] px-2 py-1.5">
             <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-sky-300/70">Live Pace</div>
             <div className="mt-0.5 text-[11px] font-black text-sky-200">{Math.round(Number(playbackBaseSectorMs||0)/100)/10}s / sector</div>
-            <div className="text-[8px] text-slate-500">1× real time{Number.isFinite(Number(averageSpeedKmh))?` · ~${Math.round(averageSpeedKmh)} km/h avg`:""}</div>
+            <div className="text-[8px] text-slate-500">1× real time{Number.isFinite(Number(lapLengthKm))?` · ${Number(lapLengthKm).toFixed(3)} km`:""}{Number.isFinite(Number(averageSpeedKmh))?` · ~${Math.round(averageSpeedKmh)} km/h avg`:""}</div>
           </div>
           {selectedRow?<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
             <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
