@@ -13,7 +13,7 @@ import {
 } from "@/domain/pitCrewTraining.js";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { availableCarComponentSlots, componentLabel } from "@/domain/carComponents.js";
-import { normalizePhysicalPartState, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
+import { normalizePhysicalPartState, partDesignOperational, partUnitOperational, partUnitsForDesign, warehousePartUnitsForDesign } from "@/domain/partUnits.js";
 import { activeWorkshopJobs, partManufactureQuote } from "@/domain/componentService.js";
 import { derivePartTechnicalProfile } from "@/domain/carPartPerformance.js";
 import {
@@ -510,6 +510,7 @@ export default function Development({ embedded = false, initialTab = "projects",
   const manufacture = (part) => {
     const qty = 1;
     const quote=partManufactureQuote(physicalState,part);
+    if(!quote)return;
     const unitCost=Number(quote.cost||0);
     const buildDays=Number(quote.days||0);
     if (budget < unitCost || !currentDateISO) return;
@@ -888,16 +889,19 @@ export default function Development({ embedded = false, initialTab = "projects",
             <tbody>{parts.map((p)=>{
               const warehouse=warehousePartUnitsForDesign(physicalState,p.id);
               const allUnits=partUnitsForDesign(physicalState,p.id);
-              const fitted=Math.max(0,allUnits.length-warehouse.length);
-              const manufactureQuote=partManufactureQuote(physicalState,p);
+              const activeUnits=allUnits.filter(partUnitOperational);
+              const retiredUnits=allUnits.length-activeUnits.length;
+              const fitted=Math.max(0,activeUnits.length-warehouse.length);
+              const currentBlueprint=partDesignOperational(p);
+              const manufactureQuote=currentBlueprint?partManufactureQuote(physicalState,p):null;
               const technical=derivePartTechnicalProfile(physicalState,p);
-              return <tr key={p.id} className="border-t border-white/10">
-                <td className="px-3 py-2 font-medium"><div>{p.name}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td>
+              return <tr key={p.id} className={"border-t border-white/10 "+(!currentBlueprint?"opacity-60":"")}>
+                <td className="px-3 py-2 font-medium"><div className="flex items-center gap-2"><span>{p.name}</span>{!currentBlueprint?<span className="rounded border border-slate-500/20 bg-slate-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-slate-400">Archived</span>:null}</div><div className="text-[10px] text-slate-500">{technical.impact_area} · {technical.design.weight_kg.toFixed(1)} kg · DF {technical.design.downforce.toFixed(3)} · Drag {technical.design.drag.toFixed(3)} · Rel {(technical.design.reliability*100).toFixed(1)}%</div></td>
                 <td className="px-3 py-2">{componentLabel(gameState,p.slot)}</td>
-                <td className="px-3 py-2">{p.version||"—"}</td>
+                <td className="px-3 py-2">{p.version||"—"}{p.season_year?<div className="text-[10px] text-slate-500">{p.season_year}</div>:null}</td>
                 <td className="px-3 py-2 text-right"><div>+{Number(p.perf||0).toFixed(2)}</div><div className="text-[10px] text-slate-500">{p.development_focus?nice(p.development_focus):"Balanced"}</div></td>
-                <td className="px-3 py-2 text-right"><div>{allUnits.length} total{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {warehouse.length} warehouse</div></td>
-                <td className="px-3 py-2 text-right"><Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button></td>
+                <td className="px-3 py-2 text-right">{currentBlueprint?<><div>{activeUnits.length} current{p.in_manufacturing? ` (+${p.in_manufacturing} building)`:""}</div><div className="text-[10px] text-slate-500">{fitted} fitted · {warehouse.length} warehouse</div></>:<><div>{retiredUnits} retired</div><div className="text-[10px] text-slate-500">Historical design only</div></>}</td>
+                <td className="px-3 py-2 text-right">{manufactureQuote?<Button size="sm" className="border border-emerald-400/30 !bg-emerald-500/10 !text-emerald-200 hover:!bg-emerald-500/20" onClick={()=>manufacture(p)} disabled={budget<Number(manufactureQuote.cost||0)}>Manufacture · {manufactureQuote.days}d · <span className="ml-1 rounded bg-rose-500/15 px-1 text-rose-300">{fmtMoney(manufactureQuote.cost)}</span></Button>:<span className="text-xs text-slate-500">Not legal for {activeYear}</span>}</td>
               </tr>;
             })}
             {!parts.length&&<tr><td colSpan={6} className="px-3 py-5 text-center text-slate-400">Complete a Current Car design project to create your first blueprint.</td></tr>}</tbody>
