@@ -5,6 +5,7 @@ import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
+import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -1274,6 +1275,77 @@ export function advanceLiveRaceSector(gs,{gp={},sectors=1}={}){
   return advanceLiveRace(gs,{gp,sectors});
 }
 
+export function assessLiveRaceRestart(gs){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||live?.status!=="red_flag")return gs;
+  const plan=weekend?.race_strategy?.race_control_plan||{};
+  const rules=plan?.rules||{};
+  const current=live?.red_flag_lifecycle||legacyRedFlagLifecycle({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    live,
+  });
+  if(!current||String(current?.phase)!=="suspended")return gs;
+
+  const monitor=current?.restart_monitor||createRestartMonitor({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    triggerTrackState:live?.track_state||current?.track_snapshot||null,
+  });
+  const result=assessRestartConditions({
+    monitor,
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    timeline:plan?.weather_timeline||[],
+    currentLap:Number(live?.current_lap)||1,
+    finalValidation:false,
+  });
+  const observed=result?.observation?.track_state||live?.track_state||null;
+  const lifecycle={
+    ...current,
+    restart_monitor:result.monitor,
+    track_snapshot:observed||current?.track_snapshot||null,
+  };
+  const required=Math.max(1,Number(result?.monitor?.required_safe_checks)||1);
+  const streak=Math.max(0,Number(result?.monitor?.safe_streak)||0);
+  const message=result.authorized
+    ?`Race Control: sustained improvement confirmed (${result.observation.score}/100). Restart window available.`
+    :result.safe
+      ?`Race Control: conditions improving (${result.observation.score}/100). Safe checks ${streak}/${required}.`
+      :`Race Control: conditions remain unsafe (${result.observation.score}/100). Safe-check streak reset.`;
+
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:{
+        ...live,
+        track_state:observed||live?.track_state||null,
+        last_weather:observed?.state||live?.last_weather||null,
+        red_flag_lifecycle:lifecycle,
+        events:[...(live.events||[]),{
+          event_key:`red_flag_restart_check:${lifecycle.sequence||1}:${result.monitor.check_count}`,
+          lap:Number(live.current_lap),
+          sector:Number(live.current_sector)||1,
+          type:"red_flag_restart_check",
+          control_type:"RED_FLAG",
+          lifecycle_phase:"suspended",
+          restart_safe:Boolean(result.safe),
+          restart_authorized:Boolean(result.authorized),
+          restart_score:Number(result.observation.score),
+          restart_action:String(result.observation.action),
+          safe_streak:streak,
+          required_safe_checks:required,
+          message,
+        }],
+      },
+    },
+  };
+}
+
 export function prepareLiveRaceRestart(gs){
   const weekend=gs?.raceWeekendState;
   const live=weekend?.live_race;
@@ -1284,8 +1356,13 @@ export function prepareLiveRaceRestart(gs){
     rules,
     live,
   });
-  if(!current||String(current?.phase)!=="suspended")return gs;
+  if(
+    !current||
+    String(current?.phase)!=="suspended"||
+    current?.restart_monitor?.restart_authorized!==true
+  )return gs;
   const lifecycle=prepareRedFlagRestart(current);
+  if(String(lifecycle?.phase)!=="restart_pending")return gs;
   return {
     ...gs,
     raceWeekendState:{
@@ -1300,6 +1377,7 @@ export function prepareLiveRaceRestart(gs){
           type:"red_flag_restart_pending",
           control_type:"RED_FLAG",
           lifecycle_phase:"restart_pending",
+          restart_control:lifecycle?.restart_monitor?.recommended_control||"GREEN",
           message:`Restart procedure prepared under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
         }],
       },
@@ -1311,19 +1389,70 @@ export function resumeLiveRace(gs){
   const weekend=gs?.raceWeekendState;
   const live=weekend?.live_race;
   if(!weekend||live?.status!=="red_flag")return gs;
-  const rules=weekend?.race_strategy?.race_control_plan?.rules||{};
+  const plan=weekend?.race_strategy?.race_control_plan||{};
+  const rules=plan?.rules||{};
   const current=live?.red_flag_lifecycle||legacyRedFlagLifecycle({
     year:Number(gs?.activeYear)||1980,
     rules,
     live,
   });
   if(!current||String(current?.phase)!=="restart_pending"||current?.restart_authorized!==true)return gs;
-  const completed=completeRedFlagRestart(current,{
+
+  const validation=assessRestartConditions({
+    monitor:current?.restart_monitor,
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    timeline:plan?.weather_timeline||[],
+    currentLap:Number(live?.current_lap)||1,
+    finalValidation:true,
+  });
+  const observed=validation?.observation?.track_state||live?.track_state||null;
+
+  if(!validation.safe||!validation.authorized){
+    const suspended=suspendRestartProcedure({
+      ...current,
+      track_snapshot:observed||current?.track_snapshot||null,
+      restart_monitor:validation.monitor,
+    },validation.monitor);
+    return {
+      ...gs,
+      raceWeekendState:{
+        ...weekend,
+        live_race:{
+          ...live,
+          status:"red_flag",
+          current_control:"RED_FLAG",
+          track_state:observed||live?.track_state||null,
+          last_weather:observed?.state||live?.last_weather||null,
+          red_flag_lifecycle:suspended,
+          events:[...(live.events||[]),{
+            event_key:`red_flag_restart_aborted:${Number(live.current_lap)}:${Number(live.current_sector)||1}:${suspended.sequence||1}:${validation.monitor.check_count}`,
+            lap:Number(live.current_lap),
+            sector:Number(live.current_sector)||1,
+            type:"red_flag_restart_aborted",
+            control_type:"RED_FLAG",
+            lifecycle_phase:"suspended",
+            restart_score:Number(validation?.observation?.score??100),
+            message:"Resumption procedure suspended: conditions deteriorated before the restart.",
+          }],
+        },
+      },
+    };
+  }
+
+  const completed=completeRedFlagRestart({
+    ...current,
+    restart_monitor:validation.monitor,
+    track_snapshot:observed||current?.track_snapshot||null,
+  },{
     lap:Number(live.current_lap),
     sector:Number(live.current_sector)||1,
+    restartControl:validation.recommended_control,
   });
   if(String(completed?.phase)!=="resumed")return gs;
   const history=[...(Array.isArray(live?.red_flag_history)?live.red_flag_history:[]),completed];
+  const restartControl=String(completed?.restart_control||"GREEN");
   return {
     ...gs,
     raceWeekendState:{
@@ -1331,7 +1460,9 @@ export function resumeLiveRace(gs){
       live_race:{
         ...live,
         status:"running",
-        current_control:"GREEN",
+        current_control:restartControl,
+        track_state:observed||live?.track_state||null,
+        last_weather:observed?.state||live?.last_weather||null,
         red_flag_period:null,
         red_flag_lifecycle:null,
         red_flag_history:history,
@@ -1342,7 +1473,8 @@ export function resumeLiveRace(gs){
           type:"restart",
           lifecycle_phase:"resumed",
           restart_style:completed.restart_style,
-          message:`Race restarting under ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
+          restart_control:restartControl,
+          message:`Race restarting under ${restartControl==="SAFETY_CAR"?"Safety Car":"green"} conditions using ${String(rules.restart_style||"era rules").replaceAll("_"," ")}.`,
         }],
       },
     },
