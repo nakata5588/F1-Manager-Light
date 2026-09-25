@@ -5,6 +5,8 @@ import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
 import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
+import { rngFor } from "../core/random.js";
+import { teamOrderComplianceProfile } from "../domain/driverRelationshipConsequences.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -820,7 +822,41 @@ export function issueLiveRaceCommand(gs,{driverId,type,paceMode,tyreId,teamOrder
     const gapMs=Number(mate?.gap_to_previous_ms??mate?.interval_ms);
     if(!Number.isFinite(currentPos)||!Number.isFinite(matePos)||matePos!==currentPos+1)return gs;
     if(Number.isFinite(gapMs)&&gapMs>3500)return gs;
-    command={type:"team_order",team_order:"yield",teammate_id:mateId,effective_lap:effectiveLap};
+
+    const compliance=teamOrderComplianceProfile(gs,did,mateId,{teamId});
+    if(compliance.at_risk){
+      const complianceRng=rngFor(gs,`team-order-compliance:${weekend?.key||"race"}:${did}:${mateId}:${effectiveLap}`);
+      if(complianceRng.next()>compliance.probability){
+        const driverName=driverDisplayName(gs,did);
+        const mateName=driverDisplayName(gs,mateId);
+        return {
+          ...gs,
+          raceWeekendState:{
+            ...weekend,
+            live_race:{...live,events:[...(live.events||[]),{
+              event_key:`team_order_refused:${did}:${mateId}:${effectiveLap}`,
+              lap:Number(live.current_lap),
+              sector:Number(live.current_sector)||0,
+              type:"driver_feedback",
+              feedback_kind:"team_order_refused",
+              driver_id:did,
+              driver_name:driverName,
+              teammate_id:mateId,
+              relationship_compliance:compliance.probability,
+              relationship_label:compliance.label,
+              message:`${driverName}: "I don't agree with that order — I want to race ${mateName}."`,
+            }]},
+          },
+        };
+      }
+    }
+    command={
+      type:"team_order",
+      team_order:"yield",
+      teammate_id:mateId,
+      effective_lap:effectiveLap,
+      relationship_compliance:compliance.probability,
+    };
   }
   if(!command)return gs;
   const existing=weekend?.race_strategy?.live_commands?.[did]||[];
