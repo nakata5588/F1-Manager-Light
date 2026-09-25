@@ -675,7 +675,7 @@ export default function Track2DView({
         {!geometry?<div className="absolute bottom-3 right-3 rounded bg-black/70 px-2 py-1 text-[10px] text-slate-400">Static layout only · centerline pending</div>:null}
       </div>
 
-      <aside className="order-2 border-t border-white/10 bg-[#070a0f] xl:order-1 xl:border-r xl:border-t-0">
+      <aside className="order-2 flex min-h-0 flex-col border-t border-white/10 bg-[#070a0f] xl:order-1 xl:border-r xl:border-t-0">
         <div className="border-b border-white/10 bg-[#0a0e14] px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[17px] font-black italic tracking-[-0.04em] text-slate-100">
@@ -692,7 +692,7 @@ export default function Track2DView({
           <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
         </div>
 
-        <div className="max-h-[545px] overflow-y-auto p-0.5 2xl:max-h-[580px]">
+        <div className="grid min-h-0 flex-1 p-0.5" style={{gridTemplateRows:`repeat(${Math.max(1,activeRows.length)},minmax(0,1fr))`}}>
           {activeRows.map((row,index)=>{
             const did=String(row?.driver_id||"");
             const tid=String(row?.team_id||"");
@@ -703,12 +703,12 @@ export default function Track2DView({
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`mb-px grid w-full grid-cols-[28px_24px_42px_minmax(54px,1fr)_24px_56px] items-center gap-1 border-l-[3px] px-1.5 py-[5px] text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              className={`min-h-0 grid w-full grid-cols-[28px_22px_40px_minmax(52px,1fr)_22px_54px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
               style={{borderLeftColor:row?.retired?"#7f1d1d":palette.primary}}
             >
-              <span className="text-right text-[11px] font-black italic text-slate-100">{row?.position??index+1}</span>
-              <span className="flex items-center justify-center"><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-4 w-4" className="p-0"/></span>
-              <span className={`truncate text-[10px] font-black tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
+              <span className="text-right text-[10px] font-black italic leading-none text-slate-100">{row?.position??index+1}</span>
+              <span className="flex items-center justify-center"><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/></span>
+              <span className={`truncate text-[9px] font-black leading-none tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
               <AnimatedGapValue
                 target={row?.gap_to_leader_ms}
                 leader={index===0}
@@ -717,7 +717,7 @@ export default function Track2DView({
                 duration={motionDuration}
                 className={`text-right font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}
               />
-              <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={14}/></span>
+              <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={12}/></span>
               <AnimatedGapValue
                 target={row?.interval_ms??row?.gap_to_previous_ms}
                 leader={index===0}
