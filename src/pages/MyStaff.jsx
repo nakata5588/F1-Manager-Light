@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
-import { TeamLogo, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
+import { StaffPortrait, flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { teamEngineeringSupport } from "../engine/PracticeSetupEngine.js";
 import { teamWorkRateLabel } from "../domain/teamMorale.js";
+import { raceEngineerAssignmentStatus } from "../domain/driverStaffAssignments.js";
+import { staffRoleLabel, teamStaffStructure } from "../domain/staffRoles.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -60,27 +62,28 @@ export default function MyStaff(){
 
   const coreById=useMemo(()=>new Map(staffCore.map((s)=>[staffIdOf(s),s])),[staffCore]);
 
-  const rows=useMemo(()=>contracts.filter((c)=>{
-    const cy=Number(pick(c,["year","season_year"],year));
-    return teamIdOf(c)===myTeamId&&(!Number.isFinite(year)||!Number.isFinite(cy)||cy===year);
-  }).map((c)=>{
-    const id=staffIdOf(c);
+  const structure=useMemo(()=>teamStaffStructure(gs,myTeamId),[gs,myTeamId]);
+  const rows=useMemo(()=>structure.map((c)=>{
+    const id=String(c?.staff_id||"");
     const core=coreById.get(id)||{};
     const rating=ratingForYear(ratings,id,year);
     const attrs=numericRatings(rating);
     return {
       id,
       name:pick(core,["staff_name","display_name","name"],pick(c,["staff_name","name"],id)),
-      role:nice(pick(c,["role","position"],pick(core,["role_primary"],"Staff"))),
+      role:c?.role_label||staffRoleLabel(pick(c,["role","position"],pick(core,["role_primary"],"Staff"))),
+      canonicalRole:c?.canonical_role||"",
+      department:c?.department||"Staff",
       country:pick(core,["country_name","country","nationality"],""),
       code:pick(core,["country_code"],""),
+      core,
       overall:overallOf(rating),
       ratingYear:pick(rating,["year","season_year"],null),
       attributes:attrs,
       salary:Number(pick(c,["salary","salary_yearly"],0))||0,
       until:pick(c,["contract_until","contract_until_year","end_year","end_date"],"—"),
     };
-  }).sort((a,b)=>String(a.role).localeCompare(String(b.role))||String(a.name).localeCompare(String(b.name))),[contracts,year,myTeamId,coreById,ratings]);
+  }).sort((a,b)=>String(a.department).localeCompare(String(b.department))||String(a.role).localeCompare(String(b.role))||String(a.name).localeCompare(String(b.name))),[structure,year,coreById,ratings]);
 
   const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,myTeamId),[gs,myTeamId]);
   const teamMorale=useMemo(()=>teamWorkRateLabel(gs,myTeamId),[gs,myTeamId]);
@@ -90,6 +93,14 @@ export default function MyStaff(){
   const pit=useMemo(()=>livePit||pitcrew.find((row)=>
     teamIdOf(row)===myTeamId&&Number(pick(row,["year","season_year"],year))===year
   )||pitcrew.find((row)=>teamIdOf(row)===myTeamId)||null,[livePit,pitcrew,myTeamId,year]);
+
+  const engineerStatus=useMemo(()=>raceEngineerAssignmentStatus(gs,myTeamId),[gs,myTeamId]);
+  const drivers=Array.isArray(gs?.drivers)&&gs.drivers.length?gs.drivers:(gs?.dbDrivers||[]);
+  const driverNameById=useMemo(()=>new Map(drivers.map((driver)=>[
+    String(driver?.driver_id??driver?.id??""),
+    driver?.display_name||driver?.name||[driver?.first_name,driver?.last_name].filter(Boolean).join(" ")
+  ])),[drivers]);
+  const staffNameById=useMemo(()=>new Map(rows.map((row)=>[row.id,row.name])),[rows]);
 
   const avgOverall=rows.filter((r)=>Number.isFinite(r.overall));
   const average=avgOverall.length?Math.round(avgOverall.reduce((s,r)=>s+r.overall,0)/avgOverall.length):null;
@@ -109,13 +120,50 @@ export default function MyStaff(){
       <Link to="/Staff" className="rounded-md bg-slate-100 text-slate-950 px-3 py-1.5 text-xs font-semibold hover:bg-white">Staff Market</Link>
     </div>
 
+    <section className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
+        <div>
+          <div className="font-semibold">Staff Structure</div>
+          <div className="text-xs text-slate-500">Current contractual roles · database-driven for season {year||"—"}</div>
+        </div>
+        <div className="flex-1"/>
+        <span className={"rounded px-2 py-1 text-[10px] "+(engineerStatus.status==="covered"?"bg-emerald-500/10 text-emerald-300":engineerStatus.status==="not_recorded"?"bg-white/5 text-slate-400":"bg-amber-500/10 text-amber-300")}>
+          Race Engineers: {engineerStatus.status==="covered"?"Assigned":engineerStatus.status==="not_recorded"?"Not recorded for era":"Incomplete"}
+        </span>
+      </div>
+      <div className="grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map((staff)=><button key={"structure_"+staff.id+"_"+staff.role} type="button" data-entity="staff" data-id={staff.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#171a23] px-3 py-2 text-left hover:bg-white/5">
+            <StaffPortrait staff={staff.core||{staff_name:staff.name}} size="h-8 w-8"/>
+            <span className="min-w-0">
+              <span className="block text-[9px] uppercase tracking-wide text-slate-500">{staff.role}</span>
+              <span className="block truncate text-xs font-semibold text-slate-200">{staff.name}</span>
+            </span>
+          </button>)}
+          {!rows.length?<div className="col-span-full text-sm text-slate-500">No staff contracts recorded for this Team/season.</div>:null}
+        </div>
+        <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Driver ↔ Race Engineer</div>
+          {engineerStatus.status==="not_recorded"
+            ?<div className="mt-2 text-xs text-slate-400">{engineerStatus.label}. No engineer is invented or treated as vacant.</div>
+            :<div className="mt-2 space-y-2">
+              {(engineerStatus.assignments||[]).map((assignment)=><div key={assignment.driver_id} className="flex items-center justify-between gap-3 text-xs">
+                <button type="button" data-entity="driver" data-id={assignment.driver_id} className="truncate font-medium text-slate-200 hover:underline">{driverNameById.get(String(assignment.driver_id))||assignment.driver_id}</button>
+                <span className="text-slate-600">→</span>
+                <button type="button" data-entity="staff" data-id={assignment.staff_id} className="truncate text-right text-sky-300 hover:underline">{staffNameById.get(String(assignment.staff_id))||assignment.staff_id}{assignment.assignment_mode==="shared"?" · shared":""}</button>
+              </div>)}
+              {!(engineerStatus.assignments||[]).length?<div className="text-xs text-slate-500">{engineerStatus.label}</div>:null}
+            </div>}
+          <div className="mt-2 border-t border-white/5 pt-2 text-[10px] text-slate-600">{engineerStatus.teams_with_role}/{engineerStatus.team_count||"—"} teams in the current field have a recorded Race Engineer role.</div>
+        </div>
+      </div>
+    </section>
+
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
       <section className="xl:col-span-9 grid grid-cols-1 lg:grid-cols-2 gap-4">
         {rows.map((staff)=><article key={staff.id} className="rounded-xl border border-white/10 bg-[#12141c] shadow-lg overflow-hidden">
           <div className="p-4 flex items-start gap-4">
-            <div className="h-16 w-16 rounded-full border border-white/10 bg-[#1b1e28] flex items-center justify-center text-lg font-bold">
-              {String(staff.name||"?").split(/\s+/).filter(Boolean).map((x)=>x[0]).join("").slice(0,2).toUpperCase()}
-            </div>
+            <StaffPortrait staff={staff.core||{staff_name:staff.name}} size="h-16 w-16"/>
             <div className="min-w-0 flex-1">
               <div className="text-xs uppercase tracking-wide text-slate-500">{staff.role}</div>
               <button data-entity="staff" data-id={staff.id} className="text-xl font-semibold hover:underline text-left truncate max-w-full">{staff.name}</button>
