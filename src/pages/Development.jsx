@@ -262,7 +262,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     ?nextSeasonPhilosophyId
     :(nextSeasonCar.technical_philosophy?.id||"balanced");
   const nextSeasonTechnicalPackage=useMemo(
-    ()=>nextSeasonCar.technical_package||buildNextSeasonTechnicalPackage(gameState,{
+    ()=>Number(nextSeasonCar.technical_package?.version||0)>=2?nextSeasonCar.technical_package:buildNextSeasonTechnicalPackage(gameState,{
       teamId,
       knowledgeCarryover:nextSeasonKnowledge,
       programme:{
@@ -1023,14 +1023,16 @@ export default function Development({ embedded = false, initialTab = "projects",
               {nextSeasonTechnicalPackage.rows.map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div>
-                  {Math.abs(Number(row.philosophy_bias||0))>=0.05?<span className={Number(row.philosophy_bias)>0?"text-[10px] text-emerald-300":"text-[10px] text-amber-300"}>{Number(row.philosophy_bias)>0?"+":""}{Number(row.philosophy_bias).toFixed(1)} philosophy</span>:null}
+                  {row.applicable===false?<span className="text-[10px] text-slate-600">Not applicable · {nextSeasonTechnicalPackage.targetSeason}</span>:Math.abs(Number(row.philosophy_bias||0))>=0.05?<span className={Number(row.philosophy_bias)>0?"text-[10px] text-emerald-300":"text-[10px] text-amber-300"}>{Number(row.philosophy_bias)>0?"+":""}{Number(row.philosophy_bias).toFixed(1)} philosophy</span>:null}
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                  <div><div className="text-[9px] uppercase text-slate-600">Knowledge</div><div className="font-semibold tabular-nums">{row.retained_knowledge.toFixed(1)}</div></div>
-                  <div><div className="text-[9px] uppercase text-slate-600">Concept target</div><div className="font-semibold tabular-nums">{row.concept_target.toFixed(1)}</div></div>
-                  <div><div className="text-[9px] uppercase text-slate-600">Projected</div><div className="font-semibold tabular-nums text-cyan-200">{row.projected.toFixed(1)}</div></div>
-                </div>
-                <div className="mt-2 text-[10px] text-slate-500 text-center">Range {row.range_low.toFixed(1)}–{row.range_high.toFixed(1)} · ±{row.uncertainty.toFixed(1)}</div>
+                {row.applicable===false?<div className="mt-3 text-xs text-slate-600">Excluded from package averages and Integration because this technical family is outside the target-season architecture.</div>:<>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                    <div><div className="text-[9px] uppercase text-slate-600">Knowledge</div><div className="font-semibold tabular-nums">{row.retained_knowledge.toFixed(1)}</div></div>
+                    <div><div className="text-[9px] uppercase text-slate-600">Concept target</div><div className="font-semibold tabular-nums">{row.concept_target.toFixed(1)}</div></div>
+                    <div><div className="text-[9px] uppercase text-slate-600">Projected</div><div className="font-semibold tabular-nums text-cyan-200">{row.projected.toFixed(1)}</div></div>
+                  </div>
+                  <div className="mt-2 text-[10px] text-slate-500 text-center">Range {row.range_low.toFixed(1)}–{row.range_high.toFixed(1)} · ±{row.uncertainty.toFixed(1)}</div>
+                </>}
               </div>)}
             </div>
             <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 flex flex-col md:flex-row md:items-center gap-3">
@@ -1039,7 +1041,100 @@ export default function Development({ embedded = false, initialTab = "projects",
                 <div className="text-xl font-semibold tabular-nums">{nextSeasonTechnicalPackage.overall.projected.toFixed(1)} <span className="text-sm text-slate-500">± {nextSeasonTechnicalPackage.overall.uncertainty.toFixed(1)}</span></div>
               </div>
               <div className="md:flex-1"/>
-              <div className="text-[11px] text-slate-500 max-w-xl">Integration and Validation are intentionally not applied yet. Stage 7.4B will test whether these individually strong areas work together and whether the projected values survive validation.</div>
+              <div className="text-[11px] text-slate-500 max-w-xl">{nextSeasonTechnicalPackage.design.locked?"Design baseline locked at 60%. Later Research cannot rewrite completed Design.":"Design remains live until 60%, when its baseline is locked for Integration."}</div>
+            </div>
+          </CardContent></Card>
+
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Integration</div>
+                  <div className="font-semibold">Systems coherence & packaging</div>
+                  <div className="text-xs text-slate-500 mt-1">Strong individual systems still need to work together as one car.</div>
+                </div>
+                <InfoPopover title="Integration">
+                  Integration evaluates package balance, aero/chassis correlation, powertrain/cooling margin, hybrid integration where applicable, packaging and systems compatibility. Poor coherence can reduce how much Design potential survives. Design locks at 60%; Integration locks at 85%.
+                </InfoPopover>
+              </div>
+              <div className="lg:flex-1"/>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <Mini label="Maturity" value={nextSeasonTechnicalPackage.integration.maturity.toFixed(0)+"%"}/>
+                <Mini label="Quality" value={nextSeasonTechnicalPackage.integration.quality==null?"Pending":nextSeasonTechnicalPackage.integration.quality.toFixed(1)}/>
+                <Mini label="Projected" value={nextSeasonTechnicalPackage.integration.projected_quality.toFixed(1)}/>
+                <Mini label="Packaging" value={nextSeasonTechnicalPackage.integration.packaging_quality.toFixed(1)}/>
+                <Mini label="Systems" value={nextSeasonTechnicalPackage.integration.systems_compatibility.toFixed(1)}/>
+              </div>
+            </div>
+
+            {nextSeasonTechnicalPackage.integration.bottlenecks.length?<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {nextSeasonTechnicalPackage.integration.bottlenecks.map((issue)=><div key={issue.id} className={"rounded-lg border p-3 "+(issue.severity==="major"?"border-rose-400/20 bg-rose-500/[0.05]":issue.severity==="medium"?"border-amber-400/20 bg-amber-500/[0.05]":"border-white/10 bg-[#0d0f15]")}>
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-sm">{issue.title}</strong>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-400">{nice(issue.severity)}</span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">{issue.detail}</div>
+              </div>)}
+            </div>:<div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 text-sm text-slate-500">
+              {nextSeasonTechnicalPackage.integration.maturity>0?"No material integration bottlenecks detected at the current package state.":String(nextSeasonTechnicalPackage.integration.all_projected_bottlenecks.length)+" projected bottleneck(s) will be evaluated once Integration begins."}
+            </div>}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+              {nextSeasonTechnicalPackage.rows.filter((row)=>row.applicable!==false).map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d0f15] p-2">
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">{row.label}</div>
+                <div className="mt-1 text-sm tabular-nums"><span className="text-slate-500">{row.projected.toFixed(1)}</span> <span className="text-slate-700">→</span> <strong className={Number(row.integration_penalty||0)>0.2?"text-amber-200":"text-emerald-200"}>{row.integrated_projected.toFixed(1)}</strong></div>
+                <div className="text-[9px] text-slate-600 mt-0.5">{Number(row.integration_penalty||0)>0.05?"-"+Number(row.integration_penalty).toFixed(2)+" integration":"No material loss"}</div>
+              </div>)}
+            </div>
+            {nextSeasonTechnicalPackage.integration.locked?<div className="text-[11px] text-emerald-300/80">Integration baseline locked at 85%. Validation now tests this fixed integrated package.</div>:null}
+          </CardContent></Card>
+
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Validation</div>
+                  <div className="font-semibold">Correlation & technical sign-off</div>
+                  <div className="text-xs text-slate-500 mt-1">Validation confirms or revises the integrated projection and closes uncertainty.</div>
+                </div>
+                <InfoPopover title="Validation">
+                  Validation is deterministic. It uses Integration quality, bottlenecks, staff, facilities, engineering support and philosophy complexity; there is no hidden random roll. As maturity rises, the package converges on validated values and uncertainty narrows.
+                </InfoPopover>
+              </div>
+              <div className="lg:flex-1"/>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Maturity" value={nextSeasonTechnicalPackage.validation.maturity.toFixed(0)+"%"}/>
+                <Mini label="Support" value={nextSeasonTechnicalPackage.validation.support_quality.toFixed(1)}/>
+                <Mini label="Confidence" value={nextSeasonTechnicalPackage.validation.confidence.toFixed(1)+"%"}/>
+                <Mini label="Uncertainty" value={"± "+nextSeasonTechnicalPackage.validation.uncertainty.toFixed(2)}/>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+              {nextSeasonTechnicalPackage.rows.filter((row)=>row.applicable!==false).map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d0f15] p-2">
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">{row.label}</div>
+                <div className="mt-1 text-sm tabular-nums"><span className="text-slate-500">{row.integrated_projected.toFixed(1)}</span> <span className="text-slate-700">→</span> <strong className="text-cyan-200">{row.validated.toFixed(1)}</strong></div>
+                <div className="text-[9px] text-slate-600 mt-0.5">Range {row.validated_range_low.toFixed(1)}–{row.validated_range_high.toFixed(1)}</div>
+              </div>)}
+            </div>
+
+            {nextSeasonTechnicalPackage.validation.discoveries.length?<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {nextSeasonTechnicalPackage.validation.discoveries.map((finding)=><div key={finding.id} className={"rounded-lg border p-3 "+(finding.severity==="positive"?"border-emerald-400/20 bg-emerald-500/[0.05]":finding.severity==="medium"?"border-amber-400/20 bg-amber-500/[0.05]":"border-white/10 bg-[#0d0f15]")}>
+                <div className="font-medium text-sm">{finding.title}</div>
+                <div className="text-[11px] text-slate-500 mt-1">{finding.detail}</div>
+              </div>)}
+            </div>:nextSeasonTechnicalPackage.validation.maturity>0?<div className="rounded-lg border border-emerald-400/15 bg-emerald-500/[0.04] p-3 text-sm text-emerald-200">Validation is tracking the integrated projection without a material technical revision so far.</div>:null}
+
+            <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 flex flex-col md:flex-row md:items-center gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Package status</div>
+                <div className="font-semibold">{nice(nextSeasonTechnicalPackage.readiness)}</div>
+              </div>
+              <div className="md:flex-1"/>
+              <div className="grid grid-cols-2 gap-2 min-w-[250px]">
+                <Mini label="Integrated avg." value={nextSeasonTechnicalPackage.overall.integrated_projected.toFixed(1)}/>
+                <Mini label="Validated avg." value={nextSeasonTechnicalPackage.overall.validated.toFixed(1)}/>
+              </div>
             </div>
           </CardContent></Card>
 
@@ -1138,7 +1233,7 @@ export default function Development({ embedded = false, initialTab = "projects",
                     <Mini label="Started" value={nextSeasonCar.started_at||"—"}/>
                   </div>
                 </div>
-                {nextSeasonCar.status==="completed"?<div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-sm text-emerald-200">Technical package complete. Season-transition materialisation will convert this programme into the new Current Car baseline in the later Stage 7 rollover step.</div>:null}
+                {nextSeasonCar.status==="completed"?<div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] p-3 text-sm text-emerald-200">Technical package validated. It remains separate from the current car; Stage 7.7 will materialise it into the following-season baseline.</div>:null}
               </CardContent></Card>
             </>
           )}
