@@ -67,6 +67,10 @@ import {
   nextSeasonKnowledgeCarryover,
   technicalKnowledgeSnapshot,
 } from "@/domain/technicalKnowledge.js";
+import {
+  NEXT_SEASON_TECHNICAL_PHILOSOPHIES,
+  buildNextSeasonTechnicalPackage,
+} from "@/domain/nextSeasonTechnicalPackage.js";
 
 const DAY = 86_400_000;
 const fmtMoney = (n) => new Intl.NumberFormat("en-GB", {
@@ -245,6 +249,24 @@ export default function Development({ embedded = false, initialTab = "projects",
     [gameState,teamId,nextSeasonCar.targetSeason,nextSeasonImpact]
   );
   const nextSeasonReservedEngineers=nextSeasonCar.status==="active"?Number(nextSeasonCar.engineers||0):0;
+  const nextSeasonSelectedPhilosophy=nextSeasonCar.status==="not_started"
+    ?nextSeasonPhilosophyId
+    :(nextSeasonCar.technical_philosophy?.id||"balanced");
+  const nextSeasonTechnicalPackage=useMemo(
+    ()=>nextSeasonCar.technical_package||buildNextSeasonTechnicalPackage(gameState,{
+      teamId,
+      knowledgeCarryover:nextSeasonKnowledge,
+      programme:{
+        ...nextSeasonCar,
+        engineers:nextSeasonCar.status==="not_started"
+          ?Math.max(1,Number(nextSeasonDraftEngineers||1))
+          :nextSeasonCar.engineers,
+        technical_philosophy:{id:nextSeasonSelectedPhilosophy},
+        knowledge_carryover:nextSeasonKnowledge,
+      },
+    }),
+    [gameState,teamId,nextSeasonCar,nextSeasonKnowledge,nextSeasonDraftEngineers,nextSeasonSelectedPhilosophy]
+  );
 
   const validTabs = ["projects","next_season","parts","manufacturing","research","pit_crew"];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : "projects");
@@ -253,6 +275,7 @@ export default function Development({ embedded = false, initialTab = "projects",
     type:"chassis", objective:"balanced", engineers:3, duration:21, cfd:0, windTunnel:0, researchSupport:0,
   });
   const [nextSeasonDraftEngineers,setNextSeasonDraftEngineers]=useState(4);
+  const [nextSeasonPhilosophyId,setNextSeasonPhilosophyId]=useState("balanced");
 
   useEffect(() => {
     if (validTabs.includes(initialTab) && initialTab !== tab) setTab(initialTab);
@@ -514,6 +537,7 @@ export default function Development({ embedded = false, initialTab = "projects",
       teamId,
       engineers:nextSeasonDraftEngineers,
       engineeringSupport,
+      philosophyId:nextSeasonPhilosophyId,
     });
     if(next!==gameState)setGameState(next);
   };
@@ -937,7 +961,7 @@ export default function Development({ embedded = false, initialTab = "projects",
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
                 {nextSeasonImpactAreas.map((row)=><Mini key={row.area} label={nice(row.area)} value={row.retention.percent+"%"}/>)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-2">This is the regulation-only retention ceiling. Stage 7.3 will combine it with the team's actual technical knowledge, research, staff and completed design work.</div>
+              <div className="text-[11px] text-slate-500 mt-2">This regulation-retention ceiling is now applied to the team's live Technical Knowledge before Concept and Design convert it into the projected next-season package.</div>
             </div>:null}
           </CardContent></Card>
 
@@ -975,11 +999,76 @@ export default function Development({ embedded = false, initialTab = "projects",
             </div>
           </CardContent></Card>
 
+          <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Concept & Design</div>
+                  <div className="font-semibold">{nextSeasonTechnicalPackage.philosophy.label} technical package</div>
+                  <div className="text-xs text-slate-500 mt-1">{nextSeasonTechnicalPackage.philosophy.tradeoff}</div>
+                </div>
+                <InfoPopover title="Projected Technical Package">
+                  Concept converts retained knowledge into a technical direction. Design then turns that direction into a projected package. The displayed uncertainty is not daily randomness: it narrows as engineering maturity increases. Current-season carStats are not changed by these projections.
+                </InfoPopover>
+              </div>
+              <div className="lg:flex-1"/>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Mini label="Concept quality" value={nextSeasonTechnicalPackage.concept.quality.toFixed(1)}/>
+                <Mini label="Concept maturity" value={nextSeasonTechnicalPackage.concept.maturity.toFixed(0)+"%"}/>
+                <Mini label="Design maturity" value={nextSeasonTechnicalPackage.design.maturity.toFixed(0)+"%"}/>
+                <Mini label="Confidence" value={nextSeasonTechnicalPackage.overall.confidence.toFixed(0)+"%"}/>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+              {nextSeasonTechnicalPackage.rows.map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div>
+                  {Math.abs(Number(row.philosophy_bias||0))>=0.05?<span className={Number(row.philosophy_bias)>0?"text-[10px] text-emerald-300":"text-[10px] text-amber-300"}>{Number(row.philosophy_bias)>0?"+":""}{Number(row.philosophy_bias).toFixed(1)} philosophy</span>:null}
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                  <div><div className="text-[9px] uppercase text-slate-600">Knowledge</div><div className="font-semibold tabular-nums">{row.retained_knowledge.toFixed(1)}</div></div>
+                  <div><div className="text-[9px] uppercase text-slate-600">Concept target</div><div className="font-semibold tabular-nums">{row.concept_target.toFixed(1)}</div></div>
+                  <div><div className="text-[9px] uppercase text-slate-600">Projected</div><div className="font-semibold tabular-nums text-cyan-200">{row.projected.toFixed(1)}</div></div>
+                </div>
+                <div className="mt-2 text-[10px] text-slate-500 text-center">Range {row.range_low.toFixed(1)}–{row.range_high.toFixed(1)} · ±{row.uncertainty.toFixed(1)}</div>
+              </div>)}
+            </div>
+            <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 flex flex-col md:flex-row md:items-center gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Projected package average</div>
+                <div className="text-xl font-semibold tabular-nums">{nextSeasonTechnicalPackage.overall.projected.toFixed(1)} <span className="text-sm text-slate-500">± {nextSeasonTechnicalPackage.overall.uncertainty.toFixed(1)}</span></div>
+              </div>
+              <div className="md:flex-1"/>
+              <div className="text-[11px] text-slate-500 max-w-xl">Integration and Validation are intentionally not applied yet. Stage 7.4B will test whether these individually strong areas work together and whether the projected values survive validation.</div>
+            </div>
+          </CardContent></Card>
+
           {nextSeasonCar.status==="not_started" ? (
             <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
               <div>
                 <div className="font-semibold">Launch {nextSeasonCar.targetSeason} programme</div>
-                <div className="text-sm text-slate-400 mt-1">Choose the engineering commitment. These engineers remain unavailable for Current Car projects while the programme is active.</div>
+                <div className="text-sm text-slate-400 mt-1">Choose the technical philosophy and engineering commitment. Philosophy is locked when the programme starts; engineers can still be reallocated later.</div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Technical Philosophy</div>
+                  <InfoPopover title="Technical Philosophy">
+                    Philosophy changes the technical targets and trade-offs of the new car. It is not a free performance bonus: stronger emphasis in one area can reduce margins elsewhere and increases integration complexity for more aggressive concepts.
+                  </InfoPopover>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  {NEXT_SEASON_TECHNICAL_PHILOSOPHIES.map((row)=>{
+                    const active=nextSeasonPhilosophyId===row.id;
+                    return <button key={row.id} onClick={()=>setNextSeasonPhilosophyId(row.id)} className={"rounded-lg border p-3 text-left transition "+(active?"border-cyan-300/40 bg-cyan-300/[0.08]":"border-white/10 bg-[#0d0f15] hover:bg-white/[0.04]")}>
+                      <div className="flex items-center justify-between gap-2">
+                        <strong className="text-sm">{row.label}</strong>
+                        <span className="text-[10px] text-slate-500">Complexity {Number(row.complexity).toFixed(1)}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">{row.description}</div>
+                      <div className="text-[10px] text-amber-200/80 mt-2">{row.tradeoff}</div>
+                    </button>;
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-end">
                 <div className="lg:col-span-2 rounded-lg border border-white/10 bg-[#0d0f15] p-3">
