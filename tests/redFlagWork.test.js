@@ -102,16 +102,27 @@ test("RW5.2D4.5 player cannot modify an AI car",()=>{
 
 test("RW5.2D4.5 work is locked after restart preparation",()=>{
   const gs=fixture();
+  const lifecycle=gs.raceWeekendState.live_race.red_flag_lifecycle;
+  const authorized={
+    ...lifecycle,
+    restart_monitor:{
+      ...lifecycle.restart_monitor,
+      restart_authorized:true,
+      safe_streak:lifecycle.restart_monitor.required_safe_checks,
+      recommended_control:"GREEN",
+    },
+  };
   const pending={
     ...gs,
     raceWeekendState:{
       ...gs.raceWeekendState,
       live_race:{
         ...gs.raceWeekendState.live_race,
-        red_flag_lifecycle:prepareRedFlagRestart(gs.raceWeekendState.live_race.red_flag_lifecycle),
+        red_flag_lifecycle:prepareRedFlagRestart(authorized),
       },
     },
   };
+  assert.equal(pending.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
   const next=applyRedFlagTyreChange(pending,{driverId:"D1",tyreId:"gy_w"});
   assert.equal(next,pending);
 });

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { advanceLiveRace, advanceLiveRaceSector, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 
@@ -14,18 +14,34 @@ const tyres=[
   {tyre_id:"gy_w",year_from:1980,year_to:1980,supplier:"Goodyear",compound_name:"Wet",category:"wet",grip_index:55,wear_rate:0.020,warmup_time_s:3.5},
 ];
 
+function resolveRedFlag(gs){
+  let next=gs;
+  let guard=0;
+  while(next?.raceWeekendState?.live_race?.status==="red_flag"&&guard<8){
+    const lifecycle=next?.raceWeekendState?.live_race?.red_flag_lifecycle;
+    if(lifecycle?.phase==="restart_pending"){
+      next=resumeLiveRace(next);
+    }else if(lifecycle?.restart_monitor?.restart_authorized){
+      next=prepareLiveRaceRestart(next);
+    }else{
+      next=assessLiveRaceRestart(next);
+    }
+    guard+=1;
+  }
+  return next;
+}
+
 function advanceTo(gs,target){
   let next=gs;
   let guard=0;
   while(Number(next?.raceWeekendState?.live_race?.current_lap||0)<target&&guard<20){
-    if(next?.raceWeekendState?.live_race?.status==="red_flag"){ next=prepareLiveRaceRestart(next); next=resumeLiveRace(next); }
+    if(next?.raceWeekendState?.live_race?.status==="red_flag")next=resolveRedFlag(next);
     const current=Number(next?.raceWeekendState?.live_race?.current_lap||0);
     next=advanceLiveRace(next,{gp,laps:Math.max(1,target-current)});
     guard+=1;
   }
   if(next?.raceWeekendState?.live_race?.status==="red_flag"){
-    next=prepareLiveRaceRestart(next);
-    next=resumeLiveRace(next);
+    next=resolveRedFlag(next);
     if(Number(next?.raceWeekendState?.live_race?.current_lap||0)>=Number(next?.raceWeekendState?.live_race?.total_laps||Infinity)){
       next=advanceLiveRace(next,{gp,laps:1});
     }
@@ -644,7 +660,11 @@ test("RW5.2D4.4 red flag requires explicit restart preparation before resuming",
   const premature=resumeLiveRace(gs);
   assert.equal(premature.raceWeekendState.live_race.status,"red_flag");
 
-  const prepared=prepareLiveRaceRestart(gs);
+  const firstCheck=assessLiveRaceRestart(gs);
+  assert.equal(firstCheck.raceWeekendState.live_race.status,"red_flag");
+  assert.equal(firstCheck.raceWeekendState.live_race.red_flag_lifecycle.restart_monitor.restart_authorized,true);
+
+  const prepared=prepareLiveRaceRestart(firstCheck);
   assert.equal(prepared.raceWeekendState.live_race.status,"red_flag");
   assert.equal(prepared.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
   assert.equal(prepared.raceWeekendState.live_race.red_flag_lifecycle.race_progress_frozen,true);
