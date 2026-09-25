@@ -11,7 +11,7 @@ import { preferLiveRows } from "../domain/liveContracts.js";
 import { carReliabilityProfile, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
-import { accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
+import { accidentConditionalRetirementChance, accidentIncidentChance, accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { applyRacePerformanceEvaluation, driverPerformanceEntries } from "../domain/driverForm.js";
 import { applyRaceReputation } from "../domain/driverReputation.js";
@@ -218,7 +218,9 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     // Direct/non-live resolution consumes the exact same retirement
     // probabilities as Live Race Control.
     const mechanicalChance=mechanicalRetirementChance(gs,row);
-    const accidentChance=accidentRetirementChance(gs,row);
+    const accidentTarget=accidentRetirementChance(gs,row);
+    const accidentChance=accidentIncidentChance(gs,row);
+    const accidentConditional=accidentConditionalRetirementChance(gs,row);
     const roll=rng.next();
 
     let reason=null;
@@ -248,6 +250,7 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
         componentRolls:Array.from({length:6},()=>rng.next()),
         impactRoll:rng.next(),
         retirementRoll:rng.next(),
+        retirementProbabilityOverride:accidentConditional,
       })
       :null;
 
@@ -264,6 +267,9 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
         incident_severity:incident.label,
         incident_severity_score:incident.score,
         incident_lap:lapsCompleted,
+        accident_target_dnf_chance:Number(accidentTarget.toFixed(4)),
+        accident_incident_chance:Number(accidentChance.toFixed(4)),
+        accident_conditional_dnf_chance:Number(accidentConditional.toFixed(4)),
         damage_state:crashDamage,
         damage_severity:crashDamage.severity,
         damaged_components:crashDamage.damaged_components,
@@ -283,6 +289,9 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
       incident_reason:incident?reason:null,
       incident_severity:incident?.label??null,
       incident_severity_score:incident?.score??null,
+      accident_target_dnf_chance:incident?Number(accidentTarget.toFixed(4)):null,
+      accident_incident_chance:incident?Number(accidentChance.toFixed(4)):null,
+      accident_conditional_dnf_chance:incident?Number(accidentConditional.toFixed(4)):null,
       damage_state:crashDamage,
       damage_severity:crashDamage?.severity??null,
       damaged_components:crashDamage?.damaged_components||[],
