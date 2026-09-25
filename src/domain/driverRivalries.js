@@ -197,6 +197,7 @@ export function driverRivalryEventLogForDriver(gs,driverId){
       const respectAfter=isA?num(entry?.respect_after_a,null):num(entry?.respect_after_b,null);
       return {
         id:entry.id,
+        pair_key:entry.pair_key,
         dateISO:entry.dateISO,
         driver_id:did,
         target_type:"rival",
