@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
-import { pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, resolveTrackLayout, trackGeometryViewBox, visualTrackProgress } from "../src/domain/trackLayout.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -103,4 +103,37 @@ test("RW6.2.1 auto-fit viewBox crops unused geometry space while keeping marker 
 
 test("RW6.2.1 auto-fit keeps a safe fallback for missing geometry",()=>{
   assert.deepEqual(trackGeometryViewBox(null),[0,0,1000,1000]);
+});
+
+
+test("RW6.3.1 rotates tall display geometry to use a landscape race view",()=>{
+  const geometry={points:[[100,100],[200,100],[200,900],[100,900]]};
+  const oriented=orientTrackGeometry(geometry);
+  const originalBox=trackGeometryViewBox(geometry,{paddingRatio:0,minPadding:0});
+  const orientedBox=trackGeometryViewBox(oriented,{paddingRatio:0,minPadding:0});
+  assert.equal(oriented.display_rotation_deg,90);
+  assert.ok(originalBox[3]>originalBox[2]);
+  assert.ok(orientedBox[2]>orientedBox[3]);
+});
+
+test("RW6.3.1 keeps already-wide circuit geometry in its original orientation",()=>{
+  const geometry={points:[[100,100],[900,100],[900,400],[100,400]]};
+  const oriented=orientTrackGeometry(geometry);
+  assert.equal(oriented.display_rotation_deg,0);
+  assert.deepEqual(oriented.points,geometry.points);
+});
+
+test("RW6.3.1 focused viewBox zooms around the selected car and stays inside track bounds",()=>{
+  const full=[0,0,1000,600];
+  const focused=focusTrackViewBox(full,{x:950,y:580},{zoom:2});
+  assert.ok(focused[2]<full[2]);
+  assert.ok(focused[3]<full[3]);
+  assert.ok(focused[0]>=full[0]);
+  assert.ok(focused[1]>=full[1]);
+  assert.ok(focused[0]+focused[2]<=full[0]+full[2]);
+  assert.ok(focused[1]+focused[3]<=full[1]+full[3]);
+});
+
+test("RW6.3.1 focused viewBox falls back to full view without a valid selected point",()=>{
+  assert.deepEqual(focusTrackViewBox([10,20,800,500],null),[10,20,800,500]);
 });
