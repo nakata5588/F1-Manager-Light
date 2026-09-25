@@ -102,11 +102,16 @@ export function createLivePitState({
       .reduce((sum,row)=>sum+Number(row.duration_ms||0),0),
     phases,
     service:{
-      tyre_change:String(stop?.tyre_from||"")!==String(stop?.tyre_to||""),
+      ...(stop?.service||{}),
+      tyre_change:stop?.tyre_changed===false
+        ?false
+        :String(stop?.tyre_from||"")!==String(stop?.tyre_to||""),
       tyre_from:stop?.tyre_from??null,
       tyre_to:stop?.tyre_to??null,
       refuel:Boolean(stop?.refuelled),
-      damage_repair:false,
+      damage_repair:Boolean(stop?.service?.repair?.repaired_components?.length),
+      repair:stop?.service?.repair?structuredClone(stop.service.repair):null,
+      tasks:Array.isArray(stop?.service?.tasks)?stop.service.tasks.map((task)=>({...task})):[],
       completed:false,
     },
     crew_error_delay_ms:Math.max(0,Math.round(num(stop?.crew_error_delay_s,0)*1000)),
