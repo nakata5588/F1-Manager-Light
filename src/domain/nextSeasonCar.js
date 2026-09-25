@@ -361,6 +361,7 @@ export function advanceNextSeasonCarDay(gs,{teamId=null}={}){
       ...dev,
       nextSeasonCar:{
         ...progressedProgramme,
+        readiness:technicalPackage.readiness||progressedProgramme.readiness,
         technical_package:technicalPackage,
       },
     },
