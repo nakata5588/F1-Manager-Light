@@ -143,6 +143,76 @@ export function assessRestartConditions({
   };
 }
 
+export function fastForwardRestartConditions({
+  monitor,
+  year=1980,
+  rules={},
+  cause="weather",
+  timeline=[],
+  currentLap=1,
+  maxChecks=null,
+}={}){
+  let working=monitor||createRestartMonitor({year,rules,cause});
+  const rows=Array.isArray(timeline)?timeline:[];
+  const required=Math.max(1,Number(working?.required_safe_checks)||1);
+  const limit=Math.max(1,Math.min(
+    512,
+    Number.isFinite(Number(maxChecks))
+      ?Math.round(Number(maxChecks))
+      :Math.max(4,rows.length+required+2)
+  ));
+  const observations=[];
+  let lastIndex=null;
+  let repeatedUnsafeAtEnd=0;
+  let latest={
+    monitor:working,
+    observation:null,
+    safe:false,
+    authorized:Boolean(working?.restart_authorized),
+    recommended_control:working?.recommended_control||"RED_FLAG",
+  };
+
+  for(let step=0;step<limit&&!latest.authorized;step+=1){
+    latest=assessRestartConditions({
+      monitor:working,
+      year,
+      rules,
+      cause,
+      timeline:rows,
+      currentLap,
+      finalValidation:false,
+    });
+    working=latest.monitor;
+    if(latest.observation)observations.push(latest.observation);
+
+    const index=Number(latest?.observation?.timeline_index);
+    const atEnd=rows.length>0&&Number.isFinite(index)&&index>=rows.length-1;
+    if(atEnd&&!latest.safe&&lastIndex===index)repeatedUnsafeAtEnd+=1;
+    else repeatedUnsafeAtEnd=0;
+    lastIndex=index;
+
+    // Once the weather timeline is exhausted and the same final unsafe
+    // conditions have been observed twice, no amount of clicking can reveal a
+    // new restart window. Stop instead of looping pointlessly.
+    if(atEnd&&!latest.safe&&repeatedUnsafeAtEnd>=1)break;
+  }
+
+  return {
+    ...latest,
+    monitor:working,
+    observations,
+    checks_advanced:observations.length,
+    exhausted:!latest.authorized&&(
+      rows.length===0||
+      observations.length>=limit||
+      (
+        Number(latest?.observation?.timeline_index)>=rows.length-1&&
+        latest.safe!==true
+      )
+    ),
+  };
+}
+
 export function suspendRestartProcedure(lifecycle,monitor){
   if(!lifecycle)return lifecycle;
   return {
