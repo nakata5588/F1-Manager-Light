@@ -7,10 +7,11 @@ import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
 import { normalPitRepairRecord } from "./PitServiceEngine.js";
-import { assessRestartConditions, createRestartMonitor, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
+import { assessRestartConditions, createRestartMonitor, fastForwardRestartConditions, suspendRestartProcedure } from "./RestartHysteresisEngine.js";
 import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { rngFor } from "../core/random.js";
 import { teamOrderComplianceProfile } from "../domain/driverRelationshipConsequences.js";
+import { liveSectorTimesForLap } from "../domain/liveSectorPace.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -295,6 +296,58 @@ function gridForWeekend(gs){
     penalty_places:Number(row?.penalty_places??0),
   })).filter((row)=>row.driver);
 }
+function startingGridLiveClassification(gs){
+  const strategy=gs?.raceWeekendState?.race_strategy||{};
+  return gridForWeekend(gs).map((entry,index)=>{
+    const did=idOf(entry?.driver);
+    const teamId=teamForDriver(gs,did);
+    const selection=strategy?.selections?.[did]||{};
+    const tyreId=String(selection?.start_tyre_id||"");
+    const tyreRow=tyresForTeam(gs,teamId).find((row)=>String(row?.tyre_id??row?.id??"")===tyreId)||null;
+    const pace=String(selection?.pace_mode||"balanced");
+    return {
+      driver_id:did,
+      team_id:teamId,
+      position:index+1,
+      grid_position:Number(entry?.pos)||index+1,
+      position_gain:0,
+      current_lap:0,
+      current_sector:0,
+      laps_completed:0,
+      elapsed_ms:0,
+      gap_to_leader_ms:index===0?0:null,
+      gap_to_previous_ms:index===0?0:null,
+      interval_ms:index===0?0:null,
+      last_lap_ms:null,
+      previous_lap_ms:null,
+      best_lap_ms:null,
+      sector_1_ms:null,
+      sector_2_ms:null,
+      sector_3_ms:null,
+      tyre:{
+        tyre_id:tyreId||null,
+        compound:tyreRow?.compound_name||tyreRow?.name||null,
+        category:tyreRow?.category||null,
+        condition:100,
+        temperature_c:null,
+        age_laps:0,
+        stint_number:1,
+        source:"starting_grid",
+      },
+      pit_stops:[],
+      pit_count:0,
+      current_pace:pace,
+      next_pace:pace,
+      pit_window:null,
+      retired:false,
+      status:"RUNNING",
+      projected_finish_position:null,
+      projected_finish_best:null,
+      projected_finish_worst:null,
+      projection_source:"starting_grid",
+    };
+  });
+}
 function cumulativeAtLap(row,lap){
   return (row?.lap_times_ms||[]).slice(0,Math.max(0,lap)).reduce((sum,v)=>sum+num(v),0)
     +(row?.pit_stops||[]).filter((stop)=>Number(stop?.lap)<=lap).reduce((sum,stop)=>sum+num(stop?.total_loss_s)*1000,0);
@@ -337,27 +390,6 @@ function tyreStateAtLap(row,lap){
     source:"legacy_fallback",
   };
 }
-function stableHash(value){
-  let hash=2166136261;
-  for(const ch of String(value??"")){
-    hash^=ch.charCodeAt(0);
-    hash=Math.imul(hash,16777619)>>>0;
-  }
-  return hash>>>0;
-}
-function sectorTimesForLap(lapMs,driverId,lap){
-  const total=Number(lapMs);
-  if(!Number.isFinite(total)||total<=0)return {sector_1_ms:null,sector_2_ms:null,sector_3_ms:null};
-  const hash=stableHash(driverId+"-"+lap);
-  const jitter1=((hash&1023)/1023-0.5)*0.026;
-  const jitter2=(((hash>>>10)&1023)/1023-0.5)*0.026;
-  const share1=0.327+jitter1;
-  const share2=0.337+jitter2;
-  const s1=Math.max(1,Math.round(total*share1));
-  const s2=Math.max(1,Math.round(total*share2));
-  const s3=Math.max(1,total-s1-s2);
-  return {sector_1_ms:s1,sector_2_ms:s2,sector_3_ms:s3};
-}
 function cumulativeAtPoint(row,lap,sector=3){
   const l=Math.max(1,Number(lap)||1);
   const s=Math.max(1,Math.min(3,Number(sector)||1));
@@ -368,7 +400,7 @@ function cumulativeAtPoint(row,lap,sector=3){
     .filter((stop)=>Number(stop?.lap)<=l)
     .reduce((sum,stop)=>sum+num(stop?.total_loss_s)*1000,0);
   const lapMs=num(row?.lap_times_ms?.[l-1],0);
-  const sectors=sectorTimesForLap(lapMs,idOf(row?.driver||row),l);
+  const sectors=liveSectorTimesForLap(lapMs,idOf(row?.driver||row),l);
   const partial=s>=1?num(sectors.sector_1_ms,0):0;
   const partial2=s>=2?num(sectors.sector_2_ms,0):0;
   return base+pitLoss+partial+partial2;
@@ -396,7 +428,7 @@ function tyreStateAtPoint(row,lap,sector=3){
 }
 function sectorDisplayForPoint(row,lap,sector=3){
   const lapMs=num(row?.lap_times_ms?.[Math.max(0,Number(lap)-1)],null);
-  const sectors=sectorTimesForLap(lapMs,idOf(row?.driver||row),lap);
+  const sectors=liveSectorTimesForLap(lapMs,idOf(row?.driver||row),lap);
   return {
     sector_1_ms:Number(sector)>=1?sectors.sector_1_ms:null,
     sector_2_ms:Number(sector)>=2?sectors.sector_2_ms:null,
@@ -1144,7 +1176,7 @@ export function createLiveRaceState(gs,{gp={}}={}){
       race_strategy:{...preliminary.gameState.raceWeekendState.race_strategy,race_control_plan:plan},
       live_race:{
         version:4,status:"running",current_lap:0,current_sector:0,completed_laps:0,total_laps:Math.max(1,Number(track?.laps)||1),speed:"manual",
-        classification:[],pit_states:{},pit_history:[],pit_clock_ms:0,events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
+        classification:startingGridLiveClassification(preliminary.gameState),pit_states:{},pit_history:[],pit_clock_ms:0,events:[{lap:0,sector:0,type:"start_ready",message:"Cars are on the grid. Race control is ready."}],
         last_weather:null,current_control:"GREEN",track_state:plan.weather_timeline?.[0]||null,started_at:gs?.currentDateISO||null,
       },
     },
@@ -1871,6 +1903,77 @@ export function assessLiveRaceRestart(gs){
           restart_action:String(result.observation.action),
           safe_streak:streak,
           required_safe_checks:required,
+          message,
+        }],
+      },
+    },
+  };
+}
+
+export function fastForwardLiveRaceRestart(gs){
+  const weekend=gs?.raceWeekendState;
+  const live=weekend?.live_race;
+  if(!weekend||live?.status!=="red_flag")return gs;
+  const plan=weekend?.race_strategy?.race_control_plan||{};
+  const rules=plan?.rules||{};
+  const current=live?.red_flag_lifecycle||legacyRedFlagLifecycle({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    live,
+  });
+  if(!current||String(current?.phase)!=="suspended")return gs;
+
+  const monitor=current?.restart_monitor||createRestartMonitor({
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    triggerTrackState:live?.track_state||current?.track_snapshot||null,
+  });
+  const result=fastForwardRestartConditions({
+    monitor,
+    year:Number(gs?.activeYear)||1980,
+    rules,
+    cause:current?.cause||live?.red_flag_period?.cause||"race_control",
+    timeline:plan?.weather_timeline||[],
+    currentLap:Number(live?.current_lap)||1,
+  });
+  const observed=result?.observation?.track_state||live?.track_state||null;
+  const lifecycle={
+    ...current,
+    restart_monitor:result.monitor,
+    track_snapshot:observed||current?.track_snapshot||null,
+  };
+  const checks=Math.max(0,Number(result?.checks_advanced)||0);
+  const required=Math.max(1,Number(result?.monitor?.required_safe_checks)||1);
+  const streak=Math.max(0,Number(result?.monitor?.safe_streak)||0);
+  const message=result.authorized
+    ?`Race Control fast-forwarded ${checks} condition checks. Restart window available (${Number(result?.observation?.score??result?.monitor?.latest_score??0).toFixed(0)}/100).`
+    :`Race Control fast-forwarded ${checks} condition checks, but no safe restart window is available yet. Safe checks ${streak}/${required}.`;
+
+  return {
+    ...gs,
+    raceWeekendState:{
+      ...weekend,
+      live_race:{
+        ...live,
+        track_state:observed||live?.track_state||null,
+        last_weather:observed?.state||live?.last_weather||null,
+        red_flag_lifecycle:lifecycle,
+        events:[...(live.events||[]),{
+          event_key:`red_flag_restart_fast_forward:${lifecycle.sequence||1}:${result.monitor.check_count}`,
+          lap:Number(live.current_lap),
+          sector:Number(live.current_sector)||1,
+          type:"red_flag_restart_fast_forward",
+          control_type:"RED_FLAG",
+          lifecycle_phase:"suspended",
+          restart_safe:Boolean(result.safe),
+          restart_authorized:Boolean(result.authorized),
+          restart_score:Number(result?.observation?.score??result?.monitor?.latest_score??100),
+          restart_action:String(result?.observation?.action??result?.monitor?.latest_action??"RED_FLAG"),
+          safe_streak:streak,
+          required_safe_checks:required,
+          checks_advanced:checks,
+          exhausted:Boolean(result.exhausted),
           message,
         }],
       },
