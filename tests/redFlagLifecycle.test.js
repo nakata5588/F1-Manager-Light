@@ -8,6 +8,7 @@ import {
   prepareRedFlagRestart,
   redFlagClockPolicyForYear,
   redFlagHoldingAreaForYear,
+  redFlagWorkPolicyForYear,
 } from "../src/engine/RedFlagLifecycleEngine.js";
 
 test("RW5.2D4.4 holding area changes with the 2015 suspension procedure",()=>{
@@ -109,4 +110,33 @@ test("RW5.2D4.4 legacy red-flag saves can be normalised into the lifecycle",()=>
   assert.equal(lifecycle.triggered_lap,4);
   assert.equal(lifecycle.triggered_sector,3);
   assert.equal(lifecycle.classification_snapshot.length,1);
+});
+
+
+test("RW5.2D4.5 Red Flag work policy becomes explicitly restricted from 2021",()=>{
+  const historic=redFlagWorkPolicyForYear(1980);
+  assert.equal(historic.id,"historic_restart_service");
+  assert.equal(historic.tyre_change,true);
+  assert.equal(historic.routine_component_replacement,true);
+
+  const broad=redFlagWorkPolicyForYear(2020);
+  assert.equal(broad.id,"broad_suspension_work");
+  assert.equal(broad.tyre_change,true);
+  assert.equal(broad.routine_component_replacement,true);
+
+  const restricted=redFlagWorkPolicyForYear(2021);
+  assert.equal(restricted.id,"restricted_accident_work");
+  assert.equal(restricted.tyre_change,true);
+  assert.equal(restricted.genuine_accident_repair,true);
+  assert.equal(restricted.front_wing_adjustment,true);
+  assert.equal(restricted.routine_component_replacement,false);
+});
+
+test("RW5.2D4.5 preparing a restart closes the Red Flag work window",()=>{
+  const suspended=createRedFlagSuspension({year:2026,lap:8,sector:1});
+  assert.equal(suspended.work_locked,false);
+  assert.equal(suspended.work_policy.id,"restricted_accident_work");
+  const pending=prepareRedFlagRestart(suspended);
+  assert.equal(pending.phase,"restart_pending");
+  assert.equal(pending.work_locked,true);
 });
