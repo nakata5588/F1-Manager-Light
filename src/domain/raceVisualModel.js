@@ -51,6 +51,16 @@ export function driverVisualMotionDurationMs(row,{currentSector=1,playbackSpeed=
   return raceMotionDurationMs(playbackSpeed,individual);
 }
 
+export function visualMotionProgress(t,{individualDurationMs=null,globalDurationMs=null}={}){
+  const progress=clamp(finite(t,0),0,1);
+  const individual=finite(individualDurationMs);
+  const global=finite(globalDurationMs);
+  if(individual==null||global==null||individual<=0||global<=0)return progress;
+  const paceRatio=clamp(individual/global,0.55,1.65);
+  const bias=clamp((1-paceRatio)*0.9,-0.22,0.22);
+  return clamp(progress+(bias*4*progress*(1-progress)),0,1);
+}
+
 export function interpolateVisualGap(fromGapMs,toGapMs,t){
   const from=finite(fromGapMs);
   const to=finite(toGapMs);
