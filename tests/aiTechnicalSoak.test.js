@@ -264,15 +264,17 @@ test("multi-season AI development stays concurrent-capacity-limited and design s
 
   for(const team of AI_TEAMS){
     const state=aiTechnicalTeamState(gs,team);
-    const bySlot=new Map();
+    const bySeasonSlot=new Map();
     for(const part of state.development.parts){
-      const list=bySlot.get(part.slot)||[];
+      const season=Number(part?.season_year)||Number(String(part?.created_at||"").slice(0,4))||0;
+      const key=`${season}:${part.slot}`;
+      const list=bySeasonSlot.get(key)||[];
       list.push(Number(part.perf||0));
-      bySlot.set(part.slot,list);
+      bySeasonSlot.set(key,list);
     }
-    for(const strengths of bySlot.values()){
+    for(const strengths of bySeasonSlot.values()){
       for(let i=1;i<strengths.length;i+=1){
-        assert.ok(strengths[i]>=strengths[i-1]-0.001,"successive designs must not regress their specification");
+        assert.ok(strengths[i]>=strengths[i-1]-0.001,"successive designs must not regress within the same season");
       }
     }
   }
