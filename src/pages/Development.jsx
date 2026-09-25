@@ -1023,14 +1023,16 @@ export default function Development({ embedded = false, initialTab = "projects",
               {nextSeasonTechnicalPackage.rows.map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d0f15] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div>
-                  {Math.abs(Number(row.philosophy_bias||0))>=0.05?<span className={Number(row.philosophy_bias)>0?"text-[10px] text-emerald-300":"text-[10px] text-amber-300"}>{Number(row.philosophy_bias)>0?"+":""}{Number(row.philosophy_bias).toFixed(1)} philosophy</span>:null}
+                  {row.applicable===false?<span className="text-[10px] text-slate-600">Not applicable · {nextSeasonTechnicalPackage.targetSeason}</span>:Math.abs(Number(row.philosophy_bias||0))>=0.05?<span className={Number(row.philosophy_bias)>0?"text-[10px] text-emerald-300":"text-[10px] text-amber-300"}>{Number(row.philosophy_bias)>0?"+":""}{Number(row.philosophy_bias).toFixed(1)} philosophy</span>:null}
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                  <div><div className="text-[9px] uppercase text-slate-600">Knowledge</div><div className="font-semibold tabular-nums">{row.retained_knowledge.toFixed(1)}</div></div>
-                  <div><div className="text-[9px] uppercase text-slate-600">Concept target</div><div className="font-semibold tabular-nums">{row.concept_target.toFixed(1)}</div></div>
-                  <div><div className="text-[9px] uppercase text-slate-600">Projected</div><div className="font-semibold tabular-nums text-cyan-200">{row.projected.toFixed(1)}</div></div>
-                </div>
-                <div className="mt-2 text-[10px] text-slate-500 text-center">Range {row.range_low.toFixed(1)}–{row.range_high.toFixed(1)} · ±{row.uncertainty.toFixed(1)}</div>
+                {row.applicable===false?<div className="mt-3 text-xs text-slate-600">Excluded from package averages and Integration because this technical family is outside the target-season architecture.</div>:<>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                    <div><div className="text-[9px] uppercase text-slate-600">Knowledge</div><div className="font-semibold tabular-nums">{row.retained_knowledge.toFixed(1)}</div></div>
+                    <div><div className="text-[9px] uppercase text-slate-600">Concept target</div><div className="font-semibold tabular-nums">{row.concept_target.toFixed(1)}</div></div>
+                    <div><div className="text-[9px] uppercase text-slate-600">Projected</div><div className="font-semibold tabular-nums text-cyan-200">{row.projected.toFixed(1)}</div></div>
+                  </div>
+                  <div className="mt-2 text-[10px] text-slate-500 text-center">Range {row.range_low.toFixed(1)}–{row.range_high.toFixed(1)} · ±{row.uncertainty.toFixed(1)}</div>
+                </>}
               </div>)}
             </div>
             <div className="rounded-lg border border-white/10 bg-[#0d0f15] p-3 flex flex-col md:flex-row md:items-center gap-3">
