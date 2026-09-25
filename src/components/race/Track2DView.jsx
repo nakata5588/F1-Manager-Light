@@ -265,7 +265,7 @@ function AnimatedMarker({
 }){
   const display=useSmoothTrackProgress(progress,{
     duration:motionDuration,
-    running:motionRunning&&!retired,
+    running:motionRunning,
     onFrame:onVisualProgress,
   });
   const point=pointAtTrackProgress(geometry,display);
