@@ -7,6 +7,7 @@ import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLive
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMarkerLaneOffset, raceMarkerScaleForCamera, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 import { liveSectorShares, liveSectorTimesForLap } from "../src/domain/liveSectorPace.js";
+import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "../src/domain/sessionRecovery.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -1522,4 +1523,30 @@ test("Track 2.1A changing playback speed preserves sector progress fraction",()=
   assert.ok(Math.abs(remaining-0.75)<1e-9);
   assert.equal(racePlaybackDelayForRemainingRatio(2,30000,remaining),11250);
   assert.equal(racePlaybackDelayForRemainingRatio(4,30000,remaining),5625);
+});
+
+
+test("Track 2.1A compact refresh recovery can continue the live race",()=>{
+  const seed="track-2.1a-refresh-resume";
+  const opening=fixture(seed);
+  let live=createLiveRaceState(opening,{gp});
+  live=advanceLiveRaceSector(live,{gp,sectors:1});
+  live=advanceLiveRaceSector(live,{gp,sectors:1});
+  const before=live.raceWeekendState.live_race;
+  assert.ok(Array.isArray(before.projected_race)&&before.projected_race.length>0);
+
+  const journal=buildSessionRecoverySnapshot(live);
+  assert.equal(Object.hasOwn(journal.raceWeekendState.live_race,"projected_race"),false);
+
+  const stale=createLiveRaceState(fixture(seed),{gp});
+  const recovered=applySessionRecoverySnapshot(stale,journal);
+  assert.equal(recovered.raceWeekendState.live_race.current_lap,before.current_lap);
+  assert.equal(recovered.raceWeekendState.live_race.current_sector,before.current_sector);
+
+  const advanced=advanceLiveRaceSector(recovered,{gp,sectors:1});
+  const after=advanced.raceWeekendState.live_race;
+  const beforeOrdinal=(Number(before.current_lap)-1)*3+Number(before.current_sector);
+  const afterOrdinal=(Number(after.current_lap)-1)*3+Number(after.current_sector);
+  assert.equal(afterOrdinal,beforeOrdinal+1);
+  assert.ok(Array.isArray(after.projected_race)&&after.projected_race.length>0);
 });
