@@ -62,11 +62,19 @@ jobs:
       - name: Test historical talent evidence principles
         run: npm run test:talent-evidence
 
+      - name: Test Talent Profile inference principles
+        run: npm run test:talent-profiles
+
       - name: Test historical talent evidence against real archive
         run: |
           node scripts/build-race-results-archive.mjs
           npm run test:talent-evidence:real
           npm run talent:evidence
+
+      - name: Test Talent Profile inference against real archive
+        run: |
+          npm run test:talent-profiles:real
+          npm run talent:profiles
 
       - name: Test Drivers cross-system integration
         run: npm run test:driver-integration
