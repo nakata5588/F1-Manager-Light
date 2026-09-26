@@ -148,7 +148,15 @@ function reconcileSeedDriverContracts(rows,year,teamHistory=[]){
 }
 function teamIdsForSeason(g,year){
   const ids=new Set();
-  for(const row of rowsAtYear(g.teamSeasons,year)){const id=teamId(row);if(id)ids.add(id);}
+  const authoritative=rowsAtYear(g.teamSeasons,year);
+  if(authoritative.length){
+    for(const row of authoritative){const id=teamId(row);if(id)ids.add(id);}
+    return ids;
+  }
+
+  // Compatibility fallback for years that do not yet have generated
+  // team_seasons coverage. Once team_seasons exists for a year, auxiliary
+  // technical/contract datasets must not expand the managerial team list.
   for(const row of rowsAtYear(g.carStats,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of rowsAtYear(g.teamBrands,year)){const id=teamId(row);if(id)ids.add(id);}
   for(const row of activeContractRows(g.contracts,year)){const id=teamId(row);if(id)ids.add(id);}
