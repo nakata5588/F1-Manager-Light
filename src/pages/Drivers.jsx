@@ -36,6 +36,10 @@ const statusClass=(status)=>{
 };
 
 function marketStatus(driver, contract, pending, activeYear){
+  const lifecycle=String(driver?.status||"").toLowerCase();
+  if(lifecycle==="retired")return "Retired";
+  if(lifecycle==="deceased")return "Unavailable";
+  if(lifecycle==="hidden")return "Unavailable";
   if(pending) return "Negotiating";
   if(contract) return "Contracted";
   const openingLabel=openingMarketLabel(driver,activeYear);
@@ -136,14 +140,17 @@ export default function Drivers(){
       :{canNegotiate:false,reason:"no_team",roles:[]};
     const tid=teamIdOf(contract)||teamIdOf(d);
     const ms=marketStatus(d,contract,pending,activeYear);
-    const overallBase=driverOverallPresentation(gs,d);
-    const knowledge=driverKnowledgeState(gs,d);
-    const overallView=presentDriverKnowledgeValue(
-      knowledge,
-      "current_ability",
-      overallBase.value,
-      {kind:"ability",estimated:overallBase.estimated}
-    );
+    const retired=String(d?.status||"").toLowerCase()==="retired";
+    const overallBase=retired?{value:null,estimated:false}:driverOverallPresentation(gs,d);
+    const knowledge=retired?null:driverKnowledgeState(gs,d);
+    const overallView=retired
+      ?{label:"—",sortValue:null,visibility:"missing"}
+      :presentDriverKnowledgeValue(
+        knowledge,
+        "current_ability",
+        overallBase.value,
+        {kind:"ability",estimated:overallBase.estimated}
+      );
     const role=contract?contractRoleLabel(contract):(pending?.offer?.role||pending?.personal_offer?.role||null);
     const contractSalary=contract?Number(pick(contract,["salary","salary_yearly"],0))||0:0;
     const pendingSalary=pending?Number(pending?.offer?.salary||pending?.personal_offer?.salary||0)||0:0;
@@ -399,6 +406,8 @@ export default function Drivers(){
             <span className="text-xs text-slate-500">Your driver</span>
           ):d.negotiation_reason==="lineup_full"?(
             <span className="text-xs text-slate-500">Line-up full</span>
+          ):String(d.status||"").toLowerCase()==="retired"?(
+            <span className="text-xs text-amber-300/80">Retired</span>
           ):d.negotiation_reason==="not_f1_eligible"?(
             <span className="text-xs text-slate-500">Not eligible</span>
           ):"—"}
