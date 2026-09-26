@@ -44,7 +44,7 @@ export default function HubLayout() {
       <div className="flex-1 min-w-0 flex flex-col">
         <Header pageTitle={pageTitle} />
         <main className="flex-1 min-w-0 bg-[#090b10]">
-          <div className="w-full px-3 md:px-5 py-4 md:py-5">
+          <div className="f1ml-responsive-shell py-4 md:py-5">
             <Outlet />
           </div>
         </main>
