@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  driverCareerExperience,
   driverLifecycleSnapshot,
   driverMonthlyCareerDevelopmentPlan,
   driverPreviousMonthPerformance,
@@ -232,4 +233,40 @@ test("the same January incident is not applied again in March",()=>{
   );
   assert.ok(feb.changes.some((row)=>row.source==="driver_error_regression"));
   assert.equal(mar.changes.some((row)=>row.source==="driver_error_regression"),false);
+});
+
+
+test("Save World rookie season hides future historical debut until the driver actually races",()=>{
+  const gs=state({
+    activeYear:1980,
+    careerMeta:{started:true,sourceSeason:1980},
+    drivers:[{driver_id:"S1",display_name:"Future Rookie",age:19,f1_rookie_season:1984}],
+    results:[],
+  });
+  const before=driverCareerExperience(gs,"S1");
+  assert.equal(before.rookieYear,null);
+  assert.equal(before.yearsRaced,0);
+
+  const after=driverCareerExperience({
+    ...gs,
+    activeYear:1981,
+    results:[{
+      year:1981,
+      classification:[{driver_id:"S1",position:12}],
+    }],
+  },"S1");
+  assert.equal(after.rookieYear,1981);
+  assert.equal(after.yearsRaced,1);
+});
+
+test("Save World rookie season keeps historical debut only when it predates the career boundary",()=>{
+  const gs=state({
+    activeYear:1980,
+    careerMeta:{started:true,sourceSeason:1980},
+    drivers:[{driver_id:"V1",display_name:"Veteran",age:30,f1_rookie_season:1975}],
+    results:[],
+  });
+  const exp=driverCareerExperience(gs,"V1");
+  assert.equal(exp.rookieYear,1975);
+  assert.equal(exp.yearsRaced,6);
 });

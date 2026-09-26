@@ -75,7 +75,8 @@ function safeHistoricalRookieYear(gs,driver){
   if(!Number.isFinite(year)||!Number.isFinite(boundary)||year>boundary)return null;
   return year;
 }
-function careerExperience(gs,driver){
+export function driverCareerExperience(gs,driverOrId){
+  const driver=driverOf(gs,driverOrId);
   const driverId=idOf(driver);
   const year=Number(gs?.activeYear);
   const playedYears=actualRaceYears(gs,driverId);
@@ -299,7 +300,7 @@ export function driverLifecycleSnapshot(gs,driverOrId,ratingInput=null,{dateISO=
   const headroom=Number.isFinite(current)&&Number.isFinite(potential)?Math.max(0,potential-current):0;
   const form=driverFormSnapshot(gs,driverId);
   const formScore=Number(form?.score);
-  const experience=careerExperience(gs,driver);
+  const experience=driverCareerExperience(gs,driver);
   const trajectory=recentAttributeTrajectory(gs,driverId,dateISO);
   const trajectoryKey=trajectoryLabel(trajectory.impact);
   const previous=driverPreviousMonthPerformance(gs,driverId,dateISO);
