@@ -2,7 +2,22 @@
 import React from "react";
 import { CountryFlag } from "./EntityVisuals.jsx";
 
-const text=(value)=>String(value??"").trim();
+const unbox=(value)=>{
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unbox(value.result);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unbox(value.value);
+    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unbox(value.text);
+    return "";
+  }
+  return value;
+};
+const text=(value)=>String(unbox(value)??"").trim();
+const grandPrixCountryCode=(country,code)=>{
+  const explicit=text(code).toUpperCase();
+  if(explicit==="UK")return "GB";
+  if(explicit)return explicit;
+  return text(country).toUpperCase()==="UK"?"GB":"";
+};
 const yearOf=(row)=>{
   const raw=row?.year??row?.season_year??String(row?.dateISO??row?.date??row?.race_date??"").slice(0,4);
   if(raw===null||raw===undefined||String(raw).trim()==="")return NaN;
@@ -47,7 +62,10 @@ export function resolveGrandPrixRecord(gameState,record){
 export function GrandPrixFlag({gameState=null,gp=null,record=null,size="sm",className=""}){
   const resolved=resolveGrandPrixRecord(gameState,gp||record);
   const country=text(resolved?.country??resolved?.country_name??resolved?.Country??resolved?.host_country??resolved?.nation);
-  const code=text(resolved?.country_code??resolved?.countryCode??resolved?.country_iso2??resolved?.iso2);
+  const code=grandPrixCountryCode(
+    country,
+    resolved?.country_code??resolved?.countryCode??resolved?.country_iso2??resolved?.iso2,
+  );
   if(!country&&!code)return null;
   return <CountryFlag country={country} code={code} size={size} className={className} title={country||code}/>;
 }
