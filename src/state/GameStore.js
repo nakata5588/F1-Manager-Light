@@ -35,6 +35,7 @@ import {
 } from "@/domain/driverOpeningState";
 import { inferDriverWorldEntries } from "@/domain/driverWorldEntry";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "@/domain/driverFeederPlacement";
+import { materializeMissingStartingRatings } from "@/domain/driverStartingRating";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -87,7 +88,7 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
@@ -418,6 +419,7 @@ export const useGame = create((set, get) => ({
     dbDrivers: [],
     dbTeams: [],
     dbDriverRatings: [],
+    dbDriverRatingProfiles: [],
     dbDriverHistory: [],
     dbHistoricalChampionships: { drivers: [], constructors: [] },
     dbDriverOpeningState: [],
@@ -733,7 +735,7 @@ export const useGame = create((set, get) => ({
   loadData: async () => {
     try {
       const [
-        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, historicalChampionshipsRaw, driverOpeningStateRaw, achievementsRaw,
+        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverRatingProfilesRaw, driverCareerRaw, driverHistoryRaw, historicalChampionshipsRaw, driverOpeningStateRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, carPartsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
@@ -745,6 +747,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/calendar.json"),
         fetchJsonSafe("/data/teams.json"),
         fetchJsonSafe("/data/driver_ratings.json"),
+        fetchOptional("/data/driver_rating_profiles.json", []),
         fetchJsonSafe("/data/driver_career.json"),
         fetchOptional("/data/driver_f1_history.json", []),
         fetchOptional("/data/historical_championships.json", { drivers: [], constructors: [] }),
@@ -791,6 +794,7 @@ export const useGame = create((set, get) => ({
       const calendar          = unexcelDeep(calendarRaw);
       const teams             = mergeCanonicalTeamRows(unexcelDeep(teamsRaw));
       const driverRatings     = unexcelDeep(driverRatingsRaw);
+      const driverRatingProfiles = unexcelDeep(driverRatingProfilesRaw);
       const driverCareer      = canonicalManagerialTeamRows(Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : []);
       const driverHistory     = canonicalManagerialTeamRows(Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : []);
       const historicalChampionships = historicalChampionshipsRaw && typeof historicalChampionshipsRaw === "object"
@@ -854,6 +858,7 @@ export const useGame = create((set, get) => ({
           dbCalendar: calendar,
           dbTeams: teams,
           dbDriverRatings: driverRatings,
+          dbDriverRatingProfiles: driverRatingProfiles,
           dbDriverHistory: driverHistory,
           dbHistoricalChampionships: historicalChampionships,
           dbDriverOpeningState: driverOpeningState,
@@ -1183,7 +1188,15 @@ export const useGame = create((set, get) => ({
 
     const driverRatingsExact = filterByYear(prev.dbDriverRatings, y);
     const staffRatingsExact  = filterByYear(prev.dbStaffRatings, y);
-    const driverRatings = driverRatingsExact.length ? driverRatingsExact : filterByYearRange(prev.dbDriverRatings, y);
+    const driverRatingsSeed = driverRatingsExact.length ? driverRatingsExact : filterByYearRange(prev.dbDriverRatings, y);
+    const driverRatings = materializeMissingStartingRatings({
+      drivers,
+      existingRatings:driverRatingsSeed,
+      profiles:prev.dbDriverRatingProfiles||[],
+      year:y,
+      placements:feederPlacements,
+      historicalSnapshots:[],
+    });
 
     const staffRatingMap = new Map();
     const staffRatingCandidates = (prev.dbStaffRatings || [])

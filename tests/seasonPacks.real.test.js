@@ -225,3 +225,18 @@ test("1980 Season Pack materializes Senna in the feeder world without replaying 
   assert.equal(sennaSeed?.forced_future_f1_debut,false);
   assert.equal(sennaSeed?.forced_future_team,false);
 });
+
+
+test("1980 Senna receives materialized starting attributes from Talent Profile",async()=>{
+  const pack=await readPack(1980);
+  const rating=(pack.state?.driverRatings||[]).find((row)=>String(row.driver_id)==="d_0102");
+  assert.ok(rating,"1980 Senna must have a runtime rating row");
+  assert.equal(rating.source,"talent_profile_starting_materializer");
+  assert.equal(rating.rating_model,"D7.R2");
+  assert.equal(Number(rating.potential_ability),99);
+  assert.ok(Number(rating.current_ability)>=60&&Number(rating.current_ability)<=64,String(rating.current_ability));
+  assert.ok(Number(rating.pace)>=68&&Number(rating.pace)<=71,String(rating.pace));
+  assert.ok(Number(rating.racecraft)>=53&&Number(rating.racecraft)<=57,String(rating.racecraft));
+  assert.ok(Number(rating.consistency)>=53&&Number(rating.consistency)<=57,String(rating.consistency));
+  assert.ok(Number(rating.mentality)>=63&&Number(rating.mentality)<=66,String(rating.mentality));
+});
