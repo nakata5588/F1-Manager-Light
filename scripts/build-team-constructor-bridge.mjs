@@ -75,13 +75,47 @@ const byKey=new Map();
 let unresolved=0;
 let exactEntrants=0;
 let estimatedEntrants=0;
+const unresolvedSamples=[];
+const sourceFieldCoverage={
+  constructorId:0,
+  constructorID:0,
+  constructor_id:0,
+  constructorName:0,
+  constructor_name:0,
+  team_id:0,
+  team_name:0,
+  constructor:0,
+  team:0,
+};
 
 for(const row of Array.isArray(raceRows)?raceRows:[]){
+  for(const key of Object.keys(sourceFieldCoverage)){
+    const value=unwrap(row?.[key]);
+    if(value!==undefined&&value!==null&&value!=="")sourceFieldCoverage[key]+=1;
+  }
   const driverId=resolveDriver(row);
   const link=resolver.resolve(row,{driverId});
   if(!link.year||!link.constructor_name)continue;
 
-  if(!link.team_id)unresolved+=1;
+  if(!link.team_id){
+    unresolved+=1;
+    if(unresolvedSamples.length<6){
+      unresolvedSamples.push({
+        year:link.year,
+        driverId,
+        keys:Object.keys(row||{}),
+        constructorId:unwrap(row?.constructorId),
+        constructorID:unwrap(row?.constructorID),
+        constructor_id:unwrap(row?.constructor_id),
+        constructorName:unwrap(row?.constructorName),
+        constructor_name:unwrap(row?.constructor_name),
+        team_id:unwrap(row?.team_id),
+        team_name:unwrap(row?.team_name),
+        constructor:unwrap(row?.constructor),
+        team:unwrap(row?.team),
+      });
+    }
+  }
   else if(link.exact_entrant)exactEntrants+=1;
   else estimatedEntrants+=1;
 
@@ -137,3 +171,7 @@ await fs.writeFile(target,JSON.stringify(output,null,2)+"\n","utf8");
 console.log(
   `Generated team_constructor_bridge.json: ${output.length} links · ${exactEntrants} exact result links · ${estimatedEntrants} estimated result links · ${unresolved} unresolved result links`
 );
+console.log("[team-constructor-bridge] source field coverage",sourceFieldCoverage);
+if(unresolvedSamples.length){
+  console.log("[team-constructor-bridge] unresolved samples",JSON.stringify(unresolvedSamples));
+}
