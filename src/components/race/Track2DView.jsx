@@ -482,6 +482,21 @@ export default function Track2DView({
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=Array.isArray(layout?.environment_view_box)&&layout.environment_view_box.length===4?layout.environment_view_box.map(Number):(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
   const historicalEnvironment=Boolean(layout?.asset&&layout?.historical_status==="verified");
+  const fitViewBox=useMemo(()=>{
+    if(!historicalEnvironment)return fittedViewBox;
+    const [gx,gy,gw,gh]=fittedViewBox;
+    const [ex,ey,ew,eh]=environmentViewBox;
+    const minX=Math.min(gx,ex);
+    const minY=Math.min(gy,ey);
+    const maxX=Math.max(gx+gw,ex+ew);
+    const maxY=Math.max(gy+gh,ey+eh);
+    return [
+      Number(minX.toFixed(2)),
+      Number(minY.toFixed(2)),
+      Number((maxX-minX).toFixed(2)),
+      Number((maxY-minY).toFixed(2)),
+    ];
+  },[environmentViewBox,fittedViewBox,historicalEnvironment]);
   const authoritativeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=authoritativeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
   const visualFrame=useVisualRaceTimeline({
@@ -530,7 +545,7 @@ export default function Track2DView({
     :fittedViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
-    :fittedViewBox;
+    :fitViewBox;
   const selectDriver=(driverId)=>{
     followViewBoxRef.current=null;
     setCameraMode("follow");
