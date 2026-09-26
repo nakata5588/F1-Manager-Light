@@ -6,7 +6,7 @@ import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
 import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
-import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs } from "../domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
@@ -620,6 +620,9 @@ export default function RaceWeekend(){
   const [racePlaybackSpeed,setRacePlaybackSpeed]=useState(1);
   const [raceAutoPaused,setRaceAutoPaused]=useState(false);
   const lastAutoPopupKey=useRef(null);
+  const racePlaybackRemainingRatioRef=useRef(1);
+  const racePlaybackTimerStateRef=useRef(null);
+  const racePlaybackActivatedRef=useRef(false);
 
   const weekend=gs?.raceWeekendState;
   const drivers=gs?.drivers||[];
@@ -759,15 +762,52 @@ export default function RaceWeekend(){
     advanceLivePitClock,
   ]);
   useEffect(()=>{
+    // A new authoritative sector target starts a fresh visual/playback clock.
+    racePlaybackRemainingRatioRef.current=1;
+    racePlaybackTimerStateRef.current=null;
+  },[liveRace?.current_lap,liveRace?.current_sector]);
+
+  useEffect(()=>{
     if(!liveRace||weekend?.phase!=="race"||!racePlaybackCanRun(liveRace)){
       if(racePlaying)setRacePlaying(false);
       return undefined;
     }
     if(!racePlaying||busy)return undefined;
+
+    const fullDelay=racePlaybackDelayMs(racePlaybackSpeed,playbackSectorMs);
+    const ratioAtStart=Math.max(0,Math.min(1,Number(racePlaybackRemainingRatioRef.current)||0));
+    const remainingDelay=racePlaybackDelayForRemainingRatio(
+      racePlaybackSpeed,
+      playbackSectorMs,
+      ratioAtStart
+    );
+    const timerState={
+      startedAt:performance.now(),
+      fullDelay,
+      ratioAtStart,
+      fired:false,
+    };
+    racePlaybackTimerStateRef.current=timerState;
+
     const timer=window.setTimeout(()=>{
+      timerState.fired=true;
+      racePlaybackRemainingRatioRef.current=1;
+      if(racePlaybackTimerStateRef.current===timerState)racePlaybackTimerStateRef.current=null;
       perform(()=>advanceLiveRaceSector(1));
-    },racePlaybackDelayMs(racePlaybackSpeed,playbackSectorMs));
-    return ()=>window.clearTimeout(timer);
+    },remainingDelay);
+
+    return ()=>{
+      window.clearTimeout(timer);
+      if(!timerState.fired){
+        const elapsed=Math.max(0,performance.now()-timerState.startedAt);
+        racePlaybackRemainingRatioRef.current=racePlaybackRemainingRatioAfterElapsed(
+          timerState.ratioAtStart,
+          elapsed,
+          timerState.fullDelay
+        );
+      }
+      if(racePlaybackTimerStateRef.current===timerState)racePlaybackTimerStateRef.current=null;
+    };
   },[
     racePlaying,
     racePlaybackSpeed,
@@ -789,6 +829,34 @@ export default function RaceWeekend(){
     lastAutoPopupKey.current=key;
     openRaceEvent(important,{auto:true});
   },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
+
+  useEffect(()=>{
+    const onKeyDown=(event)=>{
+      if(event.code!=="Space"||event.repeat)return;
+      if(
+        activeWindow!=="live"||
+        weekend?.phase!=="race"||
+        String(liveRace?.status||"")!=="running"||
+        selectedRaceEvent
+      )return;
+      const target=event.target;
+      const tag=String(target?.tagName||"").toUpperCase();
+      if(target?.isContentEditable||["INPUT","TEXTAREA","SELECT","BUTTON","A"].includes(tag))return;
+      event.preventDefault();
+      toggleRacePlayback();
+    };
+    window.addEventListener("keydown",onKeyDown);
+    return ()=>window.removeEventListener("keydown",onKeyDown);
+  },[
+    activeWindow,
+    weekend?.phase,
+    liveRace?.status,
+    liveRace?.current_lap,
+    liveRace?.current_sector,
+    racePlaying,
+    busy,
+    selectedRaceEvent,
+  ]);
 
   const lastResult=useMemo(()=>{
     const key=weekend?.race_result_key;
@@ -889,15 +957,23 @@ export default function RaceWeekend(){
     await continueWeekend();
   });
   const toggleRacePlayback=()=>{
+    if(busy||String(liveRace?.status||"")!=="running")return;
     if(racePlaying){
       setRacePlaying(false);
       return;
     }
+    const firstActivation=!racePlaybackActivatedRef.current;
+    racePlaybackActivatedRef.current=true;
     setRaceAutoPaused(false);
     setRacePlaying(true);
-    // At race start the cars are already rendered on the grid. Advance the
-    // first sector immediately so one Play click produces visible motion.
-    if(Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0){
+    // A freshly mounted Race View has no recoverable presentation-only
+    // fractional sector. Advance immediately so Play always produces motion.
+    // Normal Pause/Resume in the same view preserves the remaining clock.
+    if(
+      firstActivation||
+      (Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0)
+    ){
+      racePlaybackRemainingRatioRef.current=1;
       perform(()=>advanceLiveRaceSector(1));
     }
   };
