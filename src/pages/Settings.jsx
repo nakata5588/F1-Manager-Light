@@ -1,8 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "../components/ui/select";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, Monitor, Maximize2, RotateCcw, Save, Settings as SettingsIcon } from "lucide-react";
 import { useGame } from "../state/GameStore";
 import {
   DEFAULT_DISPLAY_SETTINGS,
@@ -20,18 +18,129 @@ function initialSettings(gameState){
     ...global,
     ...(gameState?.settings||{}),
     display:{...global.display,...(gameState?.settings?.display||{})},
+    audio:{...global.audio,...(gameState?.settings?.audio||{})},
+    gameplay:{...global.gameplay,...(gameState?.settings?.gameplay||{})},
+    data:{...global.data,...(gameState?.settings?.data||{})},
+    developer:{...global.developer,...(gameState?.settings?.developer||{})},
   });
 }
 
-function titleCase(value){
-  return String(value||"").replace(/_/g," ").replace(/w/g,(m)=>m.toUpperCase());
+function stable(value){
+  try{return JSON.stringify(value);}catch{return String(value);}
 }
 
-export default function Settings(){
-  const fileRef=useRef(null);
-  const {gameState,saveGame}=useGame();
+function countChangedLeaves(a,b){
+  const walk=(left,right)=>{
+    if(left===right)return 0;
+    if(left&&right&&typeof left==="object"&&typeof right==="object"&&!Array.isArray(left)&&!Array.isArray(right)){
+      const keys=new Set([...Object.keys(left),...Object.keys(right)]);
+      let total=0;
+      for(const key of keys)total+=walk(left[key],right[key]);
+      return total;
+    }
+    return 1;
+  };
+  return walk(a,b);
+}
+
+function titleCase(value){
+  return String(value||"")
+    .replace(/_/g," ")
+    .replace(/\b\w/g,(m)=>m.toUpperCase());
+}
+
+function Section({title,description,action,children}){
+  return <section className="rounded-2xl border border-white/10 bg-[#12141c] shadow-xl shadow-black/10">
+    <div className="flex flex-wrap items-start gap-3 border-b border-white/10 px-5 py-4">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
+        {description?<p className="mt-1 max-w-4xl text-xs leading-5 text-slate-400">{description}</p>:null}
+      </div>
+      <div className="flex-1"/>
+      {action}
+    </div>
+    <div className="space-y-5 p-5">{children}</div>
+  </section>;
+}
+
+function Metric({label,value,detail}){
+  return <div className="rounded-xl border border-white/10 bg-[#171a23] p-3">
+    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
+    <div className="mt-1 text-xl font-semibold text-slate-100">{value}</div>
+    {detail?<div className="mt-1 text-xs text-slate-500">{detail}</div>:null}
+  </div>;
+}
+
+function Segmented({label,value,onChange,options,description}){
+  return <div className="space-y-2">
+    <div className="text-sm font-medium text-slate-300">{label}</div>
+    <div className="grid gap-2" style={{gridTemplateColumns:`repeat(${Math.min(options.length,4)}, minmax(0,1fr))`}}>
+      {options.map((option)=>{
+        const selected=value===option.value;
+        return <button
+          key={option.value}
+          type="button"
+          onClick={()=>onChange(option.value)}
+          aria-pressed={selected}
+          className={
+            "relative rounded-lg border px-3 py-2.5 text-left transition "+
+            (selected
+              ?"border-emerald-400 bg-emerald-400/15 text-white ring-1 ring-emerald-400/30"
+              :"border-white/10 bg-[#0d0f15] text-slate-400 hover:border-white/25 hover:bg-white/[0.04]")
+          }
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{option.label}</span>
+            {selected?<Check size={14} className="ml-auto shrink-0 text-emerald-300"/>:null}
+          </div>
+          {option.hint?<div className={"mt-1 text-[10px] "+(selected?"text-emerald-200/70":"text-slate-600")}>{option.hint}</div>:null}
+        </button>;
+      })}
+    </div>
+    {description?<p className="text-[11px] leading-4 text-slate-500">{description}</p>:null}
+  </div>;
+}
+
+function DarkSelect({label,value,onChange,children,description}){
+  return <label className="block space-y-2">
+    <span className="text-sm font-medium text-slate-300">{label}</span>
+    <select
+      value={value}
+      onChange={(event)=>onChange(event.target.value)}
+      className="h-10 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 text-sm text-slate-100 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/30"
+    >
+      {children}
+    </select>
+    {description?<span className="block text-[11px] text-slate-500">{description}</span>:null}
+  </label>;
+}
+
+function Toggle({checked,onChange,label,description}){
+  return <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={()=>onChange(!checked)}
+    className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-3 text-left hover:border-white/20"
+  >
+    <span className={"relative h-5 w-9 shrink-0 rounded-full transition "+(checked?"bg-emerald-500":"bg-slate-700")}>
+      <span className={"absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition "+(checked?"left-[18px]":"left-0.5")}/>
+    </span>
+    <span className="min-w-0">
+      <span className="block text-sm font-medium text-slate-200">{label}</span>
+      {description?<span className="mt-0.5 block text-[11px] text-slate-500">{description}</span>:null}
+    </span>
+  </button>;
+}
+
+export default function Settings({embedded=false}){
+  const navigate=useNavigate();
+  const location=useLocation();
+  const gameState=useGame((s)=>s.gameState);
   const [draft,setDraft]=useState(()=>initialSettings(gameState));
-  const [status,setStatus]=useState("");
+  const [applied,setApplied]=useState(()=>initialSettings(gameState));
+  const [applyState,setApplyState]=useState("idle");
+  const [notice,setNotice]=useState("");
   const [viewport,setViewport]=useState(()=>({
     width:typeof window!=="undefined"?window.innerWidth:1440,
     height:typeof window!=="undefined"?window.innerHeight:900,
@@ -49,9 +158,12 @@ export default function Settings(){
     };
   },[]);
 
+  const dirty=stable(draft)!==stable(applied);
+  const changedCount=useMemo(()=>countChangedLeaves(applied,draft),[applied,draft]);
   const detectedLayout=viewportLayout(viewport.width,viewport.height);
   const effectiveScale=effectiveUiScale(draft.display.uiScale,viewport.width,viewport.height);
   const contentMax=contentMaxForLayout(detectedLayout);
+  const hasCareer=Boolean(gameState?.team);
 
   const set=(path,value)=>{
     setDraft((prev)=>{
@@ -65,292 +177,250 @@ export default function Settings(){
       node[parts.at(-1)]=value;
       return next;
     });
+    setApplyState("idle");
   };
 
-  const commit=(next)=>{
+  const flash=(message)=>{
+    setNotice(message);
+    window.setTimeout(()=>setNotice(""),2600);
+  };
+
+  const handleApply=()=>{
+    if(!dirty)return;
+    setApplyState("applying");
     try{
-      const normalized=mergeUserSettings(next);
+      const normalized=mergeUserSettings(draft);
       useGame.getState().updateSettings(normalized);
-      if(typeof saveGame==="function")saveGame();
       setDraft(normalized);
-      setStatus("Settings applied.");
-      setTimeout(()=>setStatus(""),2200);
+      setApplied(normalized);
+      setApplyState("applied");
+      flash("Settings saved successfully.");
+      window.setTimeout(()=>setApplyState("idle"),2200);
     }catch(error){
       console.error(error);
-      setStatus("Unable to apply settings.");
+      setApplyState("error");
+      flash("Unable to save settings.");
     }
   };
 
-  const handleApply=()=>commit(draft);
-  const handleResetDisplay=()=>setDraft((prev)=>mergeUserSettings({...prev,display:{...DEFAULT_DISPLAY_SETTINGS},uiTheme:DEFAULT_USER_SETTINGS.uiTheme}));
-  const handleResetDefaults=()=>setDraft(mergeUserSettings(DEFAULT_USER_SETTINGS));
-
-  const handleExport=()=>{
-    const blob=new Blob([JSON.stringify(draft,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;
-    a.download="f1ml_settings.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleResetDisplay=()=>{
+    setDraft((prev)=>mergeUserSettings({
+      ...prev,
+      uiTheme:DEFAULT_USER_SETTINGS.uiTheme,
+      display:{...DEFAULT_DISPLAY_SETTINGS},
+    }));
+    setApplyState("idle");
   };
 
-  const handleImport=(event)=>{
-    const file=event.target.files?.[0];
-    if(!file)return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try{
-        setDraft(mergeUserSettings(JSON.parse(reader.result)));
-        setStatus("Imported. Review and Apply to confirm.");
-      }catch{
-        setStatus("Invalid settings JSON.");
-      }
-    };
-    reader.readAsText(file);
+  const handleResetAll=()=>{
+    setDraft(mergeUserSettings(DEFAULT_USER_SETTINGS));
+    setApplyState("idle");
   };
 
   const toggleFullscreen=async()=>{
     try{
       if(document.fullscreenElement)await document.exitFullscreen?.();
       else await document.documentElement.requestFullscreen?.();
-    }catch(error){
-      setStatus("Fullscreen is not available in this browser/window.");
+    }catch{
+      flash("Fullscreen is not available in this browser or window.");
     }
   };
 
-  const years=useMemo(()=>{
-    const cal=gameState?.calendar||[];
-    const values=Array.from(new Set(cal.map((row)=>String(row?.year??row?.season_year??String(row?.date||row?.race_date||"").slice(0,4))).filter(Boolean)));
-    return values.length?values:["1980"];
-  },[gameState?.calendar]);
+  const backTarget=embedded
+    ?"/Home"
+    :(location.state?.from==="game"&&hasCareer?"/Home":"/");
 
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Settings</h1>
-          <p className="mt-1 text-sm text-slate-400">User preferences are global and stay the same across careers.</p>
+  const content=<>
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={()=>navigate(backTarget)}
+        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300 hover:border-white/25 hover:bg-white/[0.07]"
+      >
+        <ArrowLeft size={16}/> {embedded?"Back to Game":"Back"}
+      </button>
+      <div>
+        <div className="flex items-center gap-2">
+          <SettingsIcon size={20} className="text-slate-400"/>
+          <h1 className="text-2xl font-semibold text-white">Settings</h1>
         </div>
-        <div className="flex-1"/>
-        {status?<div className="text-sm text-emerald-400">{status}</div>:null}
+        <p className="mt-1 text-sm text-slate-400">Global preferences shared across every career.</p>
       </div>
-
-      <Card className="rounded-2xl border-white/10 bg-[#12141c] text-slate-100">
-        <CardContent className="space-y-5 p-4 md:p-6">
-          <div className="flex flex-wrap items-start gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Display & Interface</h2>
-              <p className="mt-1 text-xs text-slate-500">The layout always reacts to the available browser window. UI Scale changes density without forcing a fixed resolution.</p>
-            </div>
-            <div className="flex-1"/>
-            <Button variant="outline" onClick={handleResetDisplay}>Reset display</Button>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Current viewport</div>
-              <div className="mt-1 text-xl font-semibold">{viewport.width} × {viewport.height}</div>
-              <div className="mt-1 text-xs text-slate-500">Browser content area</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Detected layout</div>
-              <div className="mt-1 text-xl font-semibold">{titleCase(detectedLayout)}</div>
-              <div className="mt-1 text-xs text-slate-500">Content width up to {contentMax}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Effective UI scale</div>
-              <div className="mt-1 text-xl font-semibold">{titleCase(effectiveScale)}</div>
-              <div className="mt-1 text-xs text-slate-500">{draft.display.uiScale==="auto"?"Chosen automatically":"Manual override"}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Display mode</div>
-              <div className="mt-1 text-xl font-semibold">{fullscreen?"Fullscreen":"Windowed"}</div>
-              <button type="button" onClick={toggleFullscreen} className="mt-1 text-xs text-sky-300 hover:underline">{fullscreen?"Exit fullscreen":"Enter fullscreen"}</button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">UI Scale</label>
-              <Select value={draft.display.uiScale} onValueChange={(v)=>set("display.uiScale",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto (Recommended)</SelectItem>
-                  <SelectItem value="compact">Compact</SelectItem>
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-slate-600">Auto considers both viewport width and height.</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Information Density</label>
-              <Select value={draft.display.informationDensity} onValueChange={(v)=>set("display.informationDensity",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-slate-600">Controls shell spacing; individual screens can progressively adopt it.</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Theme</label>
-              <Select value={draft.uiTheme} onValueChange={(v)=>set("uiTheme",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-slate-600">Auto follows the operating-system preference.</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Animations</label>
-              <Select value={draft.display.animations} onValueChange={(v)=>set("display.animations",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">Auto</SelectItem>
-                  <SelectItem value="full">Full</SelectItem>
-                  <SelectItem value="reduced">Reduced</SelectItem>
-                  <SelectItem value="off">Off</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-slate-600">Auto respects the system reduced-motion preference.</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Language</label>
-              <Select value={draft.language} onValueChange={(v)=>set("language",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="pt">Português</SelectItem>
-                  <SelectItem value="es">Español</SelectItem>
-                  <SelectItem value="fr">Français</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Date format</label>
-              <Input value={draft.dateFormat} onChange={(e)=>set("dateFormat",e.target.value)}/>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-5">
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" className="h-4 w-4" checked={draft.display.tooltips!==false} onChange={(e)=>set("display.tooltips",e.target.checked)}/>
-              <span>Enable contextual tooltips</span>
-            </label>
-            <div className="flex items-center gap-3 text-sm text-slate-400">
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400/15 text-[10px] text-emerald-300">✓</span>
-              <span>Responsive screen layout · always automatic</span>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-sky-400/15 bg-sky-400/[0.05] p-3 text-xs text-slate-400">
-            Layout classification: <b className="text-slate-200">Compact &lt;1280</b> · <b className="text-slate-200">Standard 1280–1599</b> · <b className="text-slate-200">Wide 1600–1919</b> · <b className="text-slate-200">Ultra-wide ≥1920</b>. The game reacts to the available window, not the monitor's advertised resolution.
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-2xl border-white/10 bg-[#12141c] text-slate-100">
-        <CardContent className="space-y-4 p-4 md:p-6">
-          <h2 className="text-lg font-semibold">Gameplay</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Difficulty</label>
-              <Select value={draft.gameplay.difficulty} onValueChange={(v)=>set("gameplay.difficulty",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="easy">Easy</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="hard">Hard</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Simulation speed (×)</label>
-              <Input type="number" min={0.25} max={8} step={0.25} value={draft.gameplay.simSpeed} onChange={(e)=>set("gameplay.simSpeed",Number(e.target.value)||1)}/>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Rules era / Year</label>
-              <Select value={draft.gameplay.rulesEra} onValueChange={(v)=>set("gameplay.rulesEra",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>{years.map((year)=><SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.gameplay.enableInjuryRandomEvents} onChange={(e)=>set("gameplay.enableInjuryRandomEvents",e.target.checked)}/><span>Random driver injury events</span></label>
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.gameplay.enableFatalities!==false} onChange={(e)=>set("gameplay.enableFatalities",e.target.checked)}/><span>Fatal race accidents</span></label>
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.gameplay.enableWeatherRandomness} onChange={(e)=>set("gameplay.enableWeatherRandomness",e.target.checked)}/><span>Weather randomness</span></label>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-2xl border-white/10 bg-[#12141c] text-slate-100">
-        <CardContent className="space-y-4 p-4 md:p-6">
-          <h2 className="text-lg font-semibold">Audio & Notifications</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              ["audio.masterVolume","Master volume",draft.audio.masterVolume],
-              ["audio.sfxVolume","SFX volume",draft.audio.sfxVolume],
-              ["audio.musicVolume","Music volume",draft.audio.musicVolume],
-            ].map(([path,label,value])=><div key={path} className="space-y-1">
-              <label className="text-sm text-slate-400">{label} · {value}%</label>
-              <input type="range" min={0} max={100} value={value} onChange={(e)=>set(path,Number(e.target.value))} className="w-full"/>
-            </div>)}
-          </div>
-          <div className="flex flex-wrap gap-5">
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.notifications} onChange={(e)=>set("notifications",e.target.checked)}/><span>Enable notifications</span></label>
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.autosave} onChange={(e)=>set("autosave",e.target.checked)}/><span>Autosave</span></label>
-            <label className="flex items-center gap-2 text-sm text-slate-400">Interval<Input className="w-20" type="number" min={1} max={120} value={draft.autosaveIntervalMin} onChange={(e)=>set("autosaveIntervalMin",Math.max(1,Number(e.target.value)||10))}/>min</label>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-2xl border-white/10 bg-[#12141c] text-slate-100">
-        <CardContent className="space-y-4 p-4 md:p-6">
-          <h2 className="text-lg font-semibold">Data & Advanced</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <label className="text-sm text-slate-400">Datasource</label>
-              <Select value={draft.data.datasource} onValueChange={(v)=>set("data.datasource",v)}>
-                <SelectTrigger><SelectValue/></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="json">Local JSON</SelectItem>
-                  <SelectItem value="excel">Excel (converter)</SelectItem>
-                  <SelectItem value="remote">Remote URL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {draft.data.datasource==="remote"?<div className="space-y-2 md:col-span-2"><label className="text-sm text-slate-400">Remote base URL</label><Input value={draft.data.remoteUrl} onChange={(e)=>set("data.remoteUrl",e.target.value)}/></div>:null}
-          </div>
-          <div className="flex flex-wrap gap-5">
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.developer.showDevTools} onChange={(e)=>set("developer.showDevTools",e.target.checked)}/><span>Show developer tools</span></label>
-            <label className="flex items-center gap-3"><input type="checkbox" className="h-4 w-4" checked={draft.developer.verboseLogs} onChange={(e)=>set("developer.verboseLogs",e.target.checked)}/><span>Verbose logs</span></label>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="secondary" onClick={handleExport}>Export settings</Button>
-            <input ref={fileRef} type="file" accept="application/json" onChange={handleImport} className="hidden"/>
-            <Button variant="secondary" onClick={()=>fileRef.current?.click()}>Import settings…</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-white/10 bg-[#0d0f15]/95 p-3 shadow-2xl backdrop-blur">
-        <Button variant="outline" onClick={handleResetDefaults}>Reset all defaults</Button>
-        <Button onClick={handleApply}>Apply Settings</Button>
-      </div>
+      <div className="flex-1"/>
+      {dirty
+        ?<div className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-300">{changedCount} unsaved change{changedCount===1?"":"s"}</div>
+        :<div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">All changes saved</div>}
     </div>
-  );
+
+    {notice?<div className={"rounded-lg border px-4 py-3 text-sm "+(applyState==="error"?"border-rose-400/25 bg-rose-400/10 text-rose-200":"border-emerald-400/25 bg-emerald-400/10 text-emerald-200")}>{notice}</div>:null}
+
+    <Section
+      title="Display & Interface"
+      description="The game always adapts its layout to the available browser window. UI Scale controls readability and density without forcing a fixed resolution."
+      action={<button type="button" onClick={handleResetDisplay} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-300 hover:border-white/25"><RotateCcw size={14}/> Reset display</button>}
+    >
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Current viewport" value={viewport.width+" × "+viewport.height} detail="Available browser content area"/>
+        <Metric label="Detected layout" value={titleCase(detectedLayout)} detail={"Content width up to "+contentMax}/>
+        <Metric label="Effective UI scale" value={titleCase(effectiveScale)} detail={draft.display.uiScale==="auto"?"Chosen automatically":"Manual override"}/>
+        <div className="rounded-xl border border-white/10 bg-[#171a23] p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Display mode</div>
+          <div className="mt-1 text-xl font-semibold text-slate-100">{fullscreen?"Fullscreen":"Windowed"}</div>
+          <button type="button" onClick={toggleFullscreen} className="mt-1 inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"><Maximize2 size={12}/>{fullscreen?"Exit fullscreen":"Enter fullscreen"}</button>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Segmented
+          label="UI Scale"
+          value={draft.display.uiScale}
+          onChange={(value)=>set("display.uiScale",value)}
+          options={[
+            {value:"auto",label:"Auto",hint:"Recommended"},
+            {value:"compact",label:"Compact",hint:"More on screen"},
+            {value:"standard",label:"Standard",hint:"Balanced"},
+            {value:"large",label:"Large",hint:"More readable"},
+          ]}
+          description="Auto considers both the width and height of the active game window."
+        />
+
+        <Segmented
+          label="Information Density"
+          value={draft.display.informationDensity}
+          onChange={(value)=>set("display.informationDensity",value)}
+          options={[
+            {value:"low",label:"Low",hint:"More breathing room"},
+            {value:"normal",label:"Normal",hint:"Recommended"},
+            {value:"high",label:"High",hint:"More information"},
+          ]}
+          description="Controls spacing and information density as screens adopt the responsive shell."
+        />
+
+        <Segmented
+          label="Theme"
+          value={draft.uiTheme}
+          onChange={(value)=>set("uiTheme",value)}
+          options={[
+            {value:"auto",label:"Auto",hint:"System preference"},
+            {value:"dark",label:"Dark",hint:"Dark interface"},
+            {value:"light",label:"Light",hint:"Light interface"},
+          ]}
+        />
+
+        <Segmented
+          label="Animations"
+          value={draft.display.animations}
+          onChange={(value)=>set("display.animations",value)}
+          options={[
+            {value:"auto",label:"Auto",hint:"System preference"},
+            {value:"full",label:"Full",hint:"All effects"},
+            {value:"reduced",label:"Reduced",hint:"Short transitions"},
+            {value:"off",label:"Off",hint:"No motion"},
+          ]}
+          description="Auto respects your operating system's reduced-motion preference."
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <DarkSelect label="Language" value={draft.language} onChange={(value)=>set("language",value)}>
+          <option value="en">English</option>
+          <option value="pt">Português</option>
+          <option value="es">Español</option>
+          <option value="fr">Français</option>
+        </DarkSelect>
+
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-slate-300">Date format</span>
+          <input
+            value={draft.dateFormat}
+            onChange={(event)=>set("dateFormat",event.target.value)}
+            className="h-10 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 text-sm text-slate-100 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/30"
+          />
+        </label>
+
+        <Toggle
+          checked={draft.display.tooltips!==false}
+          onChange={(value)=>set("display.tooltips",value)}
+          label="Contextual tooltips"
+          description="Show explanatory hints over unfamiliar controls and metrics."
+        />
+      </div>
+
+      <div className="flex items-center gap-3 rounded-lg border border-sky-400/15 bg-sky-400/[0.05] px-4 py-3 text-xs text-slate-400">
+        <Monitor size={16} className="shrink-0 text-sky-300"/>
+        <span><b className="text-slate-200">Responsive layout is always automatic.</b> Compact &lt;1280 · Standard 1280–1599 · Wide 1600–1919 · Ultra-wide ≥1920. It reacts to the game window, not the monitor's advertised resolution.</span>
+      </div>
+    </Section>
+
+    <Section title="Gameplay" description="Existing gameplay preferences remain available while the dedicated Gameplay settings pass is still pending.">
+      <div className="grid gap-4 md:grid-cols-3">
+        <DarkSelect label="Difficulty" value={draft.gameplay.difficulty} onChange={(value)=>set("gameplay.difficulty",value)}>
+          <option value="easy">Easy</option>
+          <option value="normal">Normal</option>
+          <option value="hard">Hard</option>
+          <option value="custom">Custom</option>
+        </DarkSelect>
+
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-slate-300">Simulation speed</span>
+          <input type="number" min="0.25" max="8" step="0.25" value={draft.gameplay.simSpeed} onChange={(event)=>set("gameplay.simSpeed",Number(event.target.value)||1)} className="h-10 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 text-sm text-slate-100 outline-none focus:border-emerald-400"/>
+        </label>
+
+        <DarkSelect label="Rules era / Year" value={draft.gameplay.rulesEra} onChange={(value)=>set("gameplay.rulesEra",value)}>
+          <option value={String(gameState?.activeYear||1980)}>{String(gameState?.activeYear||1980)}</option>
+        </DarkSelect>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Toggle checked={draft.gameplay.enableInjuryRandomEvents!==false} onChange={(value)=>set("gameplay.enableInjuryRandomEvents",value)} label="Random driver injury events"/>
+        <Toggle checked={draft.gameplay.enableFatalities!==false} onChange={(value)=>set("gameplay.enableFatalities",value)} label="Fatal race accidents"/>
+        <Toggle checked={draft.gameplay.enableWeatherRandomness!==false} onChange={(value)=>set("gameplay.enableWeatherRandomness",value)} label="Weather randomness"/>
+      </div>
+    </Section>
+
+    <Section title="Audio & Notifications" description="Basic controls retained until the dedicated Notifications and Audio settings stages.">
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          ["audio.masterVolume","Master volume",draft.audio.masterVolume],
+          ["audio.sfxVolume","SFX volume",draft.audio.sfxVolume],
+          ["audio.musicVolume","Music volume",draft.audio.musicVolume],
+        ].map(([path,label,value])=><label key={path} className="space-y-2">
+          <span className="flex items-center justify-between text-sm text-slate-300"><span>{label}</span><span className="font-semibold text-slate-100">{value}%</span></span>
+          <input type="range" min="0" max="100" value={value} onChange={(event)=>set(path,Number(event.target.value))} className="w-full accent-emerald-500"/>
+        </label>)}
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Toggle checked={draft.notifications!==false} onChange={(value)=>set("notifications",value)} label="Enable notifications"/>
+        <Toggle checked={draft.autosave!==false} onChange={(value)=>set("autosave",value)} label="Autosave"/>
+      </div>
+    </Section>
+
+    <div className="sticky bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-[#0b0d12]/95 p-3 shadow-2xl shadow-black/40 backdrop-blur">
+      <div className="min-w-0 flex-1">
+        {dirty
+          ?<div><div className="text-sm font-semibold text-amber-300">You have unsaved changes</div><div className="text-xs text-slate-500">{changedCount} setting{changedCount===1?"":"s"} changed since the last Apply.</div></div>
+          :applyState==="applied"
+            ?<div><div className="text-sm font-semibold text-emerald-300">Settings applied ✓</div><div className="text-xs text-slate-500">Your preferences are saved globally.</div></div>
+            :<div><div className="text-sm font-semibold text-slate-300">Settings are up to date</div><div className="text-xs text-slate-600">Change an option to enable Apply.</div></div>}
+      </div>
+      <button type="button" onClick={handleResetAll} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-slate-300 hover:border-white/25">Reset all defaults</button>
+      <button
+        type="button"
+        onClick={handleApply}
+        disabled={!dirty||applyState==="applying"}
+        className={"inline-flex min-w-[150px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition "+
+          (dirty
+            ?"bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+            :"cursor-not-allowed bg-white/10 text-slate-600")}
+      >
+        {applyState==="applying"?<><Save size={15}/> Applying…</>:dirty?<><Save size={15}/> Apply Changes</>:applyState==="applied"?<><Check size={15}/> Applied</>:"No Changes"}
+      </button>
+    </div>
+  </>;
+
+  if(embedded)return <div className="space-y-5">{content}</div>;
+
+  return <div className="min-h-screen bg-[#090b10] text-slate-100">
+    <div className="f1ml-responsive-shell space-y-5 py-6">{content}</div>
+  </div>;
 }
