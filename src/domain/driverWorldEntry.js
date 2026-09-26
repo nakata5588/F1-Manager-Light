@@ -96,6 +96,51 @@ function f1DebutFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverD
   return candidates.length?Math.min(...candidates):null;
 }
 
+function f1LastYearFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverDevelopmentHistory=[],driverHistory=[]}={}){
+  const direct=yearOf(driver?.career_end_year??driver?.last_f1_season);
+  const did=driverId(driver);
+  const statusLast=earliestYear([]); // keeps null semantics explicit below
+  const years=[];
+
+  if(Number.isInteger(direct))years.push(direct);
+  for(const row of rowsForDriver(driverYearStatus,did)){
+    if(Boolean(row?.f1_entry_list)||upper(row?.world_status).startsWith("F1_")){
+      const year=yearOf(row?.year);
+      if(Number.isInteger(year))years.push(year);
+    }
+  }
+  for(const row of rowsForDriver(driverCareer,did)){
+    if(upper(row?.series_division??row?.division??row?.series)==="F1"){
+      const year=yearOf(row?.year);
+      if(Number.isInteger(year))years.push(year);
+    }
+  }
+  for(const row of rowsForDriver(driverDevelopmentHistory,did)){
+    if(upper(row?.series_or_level)==="FORMULA_1"||upper(row?.event_type).startsWith("F1_")){
+      const year=yearOf(row?.event_year??row?.year);
+      if(Number.isInteger(year))years.push(year);
+    }
+  }
+  for(const row of rowsForDriver(driverHistory,did)){
+    const year=yearOf(row?.year??row?.season_year);
+    if(Number.isInteger(year))years.push(year);
+  }
+  void statusLast;
+  return years.length?Math.max(...years):null;
+}
+
+function deathBeforeOpening(driver,year){
+  const raw=text(driver?.death_date);
+  if(!raw)return false;
+  const exact=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(exact){
+    const opening=`${Number(year)}-01-01`;
+    return `${exact[1]}-${exact[2]}-${exact[3]}`<=opening;
+  }
+  const dy=yearOf(raw);
+  return Number.isInteger(dy)&&dy<Number(year);
+}
+
 function specificPreF1EvidenceYear(driver,{driverDevelopmentHistory=[],driverCareer=[]}={}){
   const did=driverId(driver);
   const developmentRows=rowsForDriver(driverDevelopmentHistory,did).filter(row=>{
@@ -170,6 +215,7 @@ export function inferDriverWorldEntry(driver,context={},options={}){
   const did=driverId(driver);
   const born=birthYear(driver);
   const debut=f1DebutFromEvidence(driver,context);
+  const lastF1Year=f1LastYearFromEvidence(driver,context);
   const specific=specificPreF1EvidenceYear(driver,context);
   const legacy=validLegacyCareerStart(driver,debut,born,options);
   const prospect=prospectEvidence(driver,context);
@@ -219,6 +265,7 @@ export function inferDriverWorldEntry(driver,context={},options={}){
     model:"historical_driver_world_entry_v1",
     birth_year:born,
     reference_f1_debut_year:debut,
+    reference_f1_last_year:lastF1Year,
     first_world_year:firstWorldYear,
     entry_age:Number.isFinite(entryAge)?entryAge:null,
     entry_level:entryLevel,
@@ -249,19 +296,31 @@ export function driverWorldStageAtYear(driver,entry,year,{youthMaxAge=19}={}){
   const target=Number(year);
   const first=num(entry?.first_world_year,null);
   const debut=num(entry?.reference_f1_debut_year,null);
-  if(!Number.isInteger(target)||!Number.isInteger(first)||target<first){
-    return {
-      year:target,
-      active_world:false,
-      stage:"NOT_IN_WORLD",
-      age:Number.isInteger(target)?ageAtOpening(driver,target):null,
-    };
+  const lastF1=num(entry?.reference_f1_last_year,null);
+  const born=birthYear(driver);
+
+  if(!Number.isInteger(target)){
+    return {year:target,active_world:false,stage:"NOT_IN_WORLD",age:null};
+  }
+  if(Number.isInteger(born)&&target<born){
+    return {year:target,active_world:false,stage:"NOT_IN_WORLD",age:null};
   }
 
   const age=ageAtOpening(driver,target);
+  if(deathBeforeOpening(driver,target)){
+    return {year:target,active_world:false,stage:"DECEASED",age};
+  }
+  if(!Number.isInteger(first)||target<first){
+    return {year:target,active_world:false,stage:"NOT_IN_WORLD",age};
+  }
+  if(Number.isInteger(lastF1)&&target>lastF1){
+    return {year:target,active_world:false,stage:"RETIRED_REFERENCE",age};
+  }
+
   if(Number.isInteger(debut)&&target>=debut){
     return {year:target,active_world:true,stage:"F1_REFERENCE_WINDOW",age};
   }
+
   const stage=Number.isFinite(age)&&age<=Number(youthMaxAge)?"YOUTH":"LOWER_SERIES";
   return {year:target,active_world:true,stage,age};
 }
@@ -282,7 +341,14 @@ export function buildDriverWorldEntryAudit(entries=[],drivers=[],{
 
   const yearSnapshots={};
   for(const year of auditYears){
-    const counts={NOT_IN_WORLD:0,YOUTH:0,LOWER_SERIES:0,F1_REFERENCE_WINDOW:0};
+    const counts={
+      NOT_IN_WORLD:0,
+      YOUTH:0,
+      LOWER_SERIES:0,
+      F1_REFERENCE_WINDOW:0,
+      RETIRED_REFERENCE:0,
+      DECEASED:0,
+    };
     const active=[];
     for(const entry of source){
       const driver=driverMap.get(entry.driver_id)||entry;
@@ -318,7 +384,8 @@ export function buildDriverWorldEntryAudit(entries=[],drivers=[],{
       "D7.W1 determines when a driver first exists in the motorsport world; it does not simulate feeder championships.",
       "Specific pre-F1 evidence wins over legacy career_start_year; legacy career_start wins over debut-based inference.",
       "When no pre-F1 evidence exists, world entry is inferred no more than six years before the historical F1 debut and never before age 16.",
-      "Historical F1 debut is reference/calibration only and does not force promotion, team assignment or future results after New Game.",
+      "Historical F1 debut/end are reference/calibration only and do not force promotion, team assignment or future results after New Game.",
+      "The audit excludes drivers whose historical F1 career had already ended or who were deceased before the selected January 1 opening date from active-world counts.",
       "D7.W2 will map active pre-F1 drivers into generic Youth / Lower Series / F1-ready opening placement.",
     ],
   };
