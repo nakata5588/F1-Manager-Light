@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { damageStateFromComponents, incidentDamageStateThrough } from "../src/engine/CarDamageEngine.js";
-import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
+import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, restartLiveRaceFromRedFlag, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 import { liveSectorShares, liveSectorTimesForLap } from "../src/domain/liveSectorPace.js";
@@ -1084,9 +1084,77 @@ test("Track 2.0 Red Flag fast-forward reaches a weather restart window in one ac
   assert.equal(live.current_sector,2);
   assert.equal(live.red_flag_lifecycle.restart_monitor.restart_authorized,true);
   assert.equal(live.red_flag_lifecycle.restart_monitor.safe_streak,2);
-  assert.equal(live.events.at(-1).type,"red_flag_restart_fast_forward");
-  assert.ok(Number(live.events.at(-1).checks_advanced)>=3);
+  const fastForwardEvent=live.events.find((event)=>event?.type==="red_flag_restart_fast_forward");
+  assert.ok(fastForwardEvent);
+  assert.ok(Number(fastForwardEvent.checks_advanced)>=3);
   assert.equal(live.track_state.state,"LIGHT_RAIN");
+});
+
+test("Track 2.0 one Red Flag fast-forward waits through a storm and restarts from the standing grid",()=>{
+  let gs=createLiveRaceState(fixture("track-red-simple-flow"),{gp});
+  const unsafe=(lap)=>({
+    lap,
+    raceability_index:14,
+    raceability_hazard_index:86,
+    standing_water_index:95,
+    visibility_index:22,
+    spray_index:0.99,
+    grip_index:20,
+    rain_intensity:0.92,
+    track_wetness:0.96,
+    wetness_delta:0.03,
+    raceability_band:"CRITICAL",
+    state:"HEAVY_RAIN",
+  });
+  const original=gs.raceWeekendState.live_race.classification;
+  const scrambled=original
+    .slice()
+    .reverse()
+    .map((row,index)=>({...row,position:index+1}));
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:{
+          ...gs.raceWeekendState.race_strategy.race_control_plan,
+          weather_timeline:[unsafe(1),unsafe(2)],
+        },
+      },
+      live_race:{
+        ...gs.raceWeekendState.live_race,
+        status:"red_flag",
+        current_lap:1,
+        current_sector:1,
+        current_control:"RED_FLAG",
+        classification:scrambled,
+        track_state:unsafe(1),
+        red_flag_period:{type:"RED_FLAG",from_lap:1,from_sector:1,to_lap:1,cause:"weather"},
+      },
+    },
+  };
+
+  const waited=fastForwardLiveRaceRestart(gs);
+  const suspended=waited.raceWeekendState.live_race;
+  assert.equal(suspended.current_lap,1);
+  assert.equal(suspended.current_sector,1);
+  assert.equal(suspended.red_flag_lifecycle.restart_monitor.restart_authorized,true);
+  const fastForwardEvent=suspended.events.find((event)=>event?.type==="red_flag_restart_fast_forward");
+  assert.ok(fastForwardEvent);
+  assert.ok(Number(fastForwardEvent.generated_recovery_checks)>=2);
+  assert.equal(suspended.red_flag_lifecycle.restart_grid_source,"starting_grid");
+
+  const restarted=restartLiveRaceFromRedFlag(waited);
+  const live=restarted.raceWeekendState.live_race;
+  assert.equal(live.status,"running");
+  assert.equal(live.current_lap,1);
+  assert.equal(live.current_sector,1);
+  assert.deepEqual(
+    live.classification.map((row)=>row.driver_id),
+    original.slice().sort((a,b)=>Number(a.grid_position)-Number(b.grid_position)).map((row)=>row.driver_id)
+  );
+  assert.deepEqual(live.classification.map((row)=>row.position),[1,2,3,4]);
 });
 
 test("finalized live rows preserve exactly the retirements visible to the player",()=>{
