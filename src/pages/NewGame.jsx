@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore";
 import { DriverPortrait } from "../components/entity/EntityVisuals.jsx";
-import { newGameTeamPreview } from "../domain/newGameTeamPreview.js";
+import { newGameTeamPreviews } from "../domain/newGameTeamPreview.js";
 import {
   deleteManagerProfile,
   readManagerProfileStore,
@@ -229,13 +229,11 @@ export default function NewGame() {
     ?"Create New Team"
     :safeText(getTeamDisplayName?.(selectedTeam)??pick(selectedTeam,["team_name","name","short_name"],teamId),"—");
   const teamPreviews=useMemo(()=>{
-    const previews=new Map();
-    for(const team of teamsForYear){
-      const id=getTeamId(team);
-      previews.set(id,newGameTeamPreview(gameState,team));
-    }
-    return previews;
-  },[gameState,teamsForYear]);
+    // Team intelligence is only needed on Choose Team. Keeping it lazy avoids
+    // blocking Main Menu -> New Game with full-grid historical calculations.
+    if(step!==3)return new Map();
+    return newGameTeamPreviews(gameState);
+  },[step,gameState?.activeYear,gameState?.seasonPackMeta?.year,teamsForYear]);
   const selectedTeamPreview=selectedTeam?teamPreviews.get(getTeamId(selectedTeam))||null:null;
   const managerPreview=useMemo(
     ()=>createManagerProfile(manager,{year:+year,team:selectedTeam||{name:teamId==="create"?"New Team":"Unattached"}}),
