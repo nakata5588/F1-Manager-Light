@@ -80,5 +80,25 @@ for(const row of audit.top_relative_evidence.slice(0,15)){
     " · "+row.starts+" starts · "+row.confidence
   );
 }
+const sentinelNames=[
+  "Ayrton Senna","Alain Prost","Michael Schumacher","Lewis Hamilton",
+  "Juan Manuel Fangio","Jim Clark","Max Verstappen","Fernando Alonso"
+];
+console.log("Calibration sentinels (diagnostic only):");
+for(const wanted of sentinelNames){
+  const row=evidence.find(item=>String(item.display_name||"").normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g,"").toLowerCase()===wanted.normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g,"").toLowerCase());
+  if(!row)continue;
+  console.log(
+    "  "+row.display_name+
+    " · composite "+String(row.comparative_evidence_percentiles?.composite??"—")+
+    " · Q "+String(row.comparative_evidence_percentiles?.qualifying??"—")+
+    " · Race "+String(row.comparative_evidence_percentiles?.race??"—")+
+    " · Peak "+String(row.comparative_evidence_percentiles?.peak??"—")+
+    " · Cons "+String(row.comparative_evidence_percentiles?.consistency??"—")+
+    " · "+row.sample.starts+" starts · "+row.confidence.band
+  );
+}
 console.log("Wrote scripts/output/driver_talent_evidence.json");
 console.log("Wrote scripts/output/driver_talent_evidence_audit.json");
