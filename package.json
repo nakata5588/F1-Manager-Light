@@ -21,7 +21,7 @@
     "test:drivers": "node --test tests/driverProgression.test.js tests/driverProfile.test.js tests/driverKnowledge.test.js tests/driverDerivedRatings.test.js tests/driverAttributeGroups.test.js tests/driverForm.test.js tests/driverLifecycle.test.js tests/driverCareerIdentity.test.js tests/driverMentalState.test.js tests/driverReputation.test.js tests/driverRelationships.test.js tests/driverRelationshipHistory.test.js tests/driverRivalries.test.js tests/driverRelationshipConsequences.test.js tests/driverDecisionModel.test.js tests/driverStaffAssignments.test.js tests/staffRoles.test.js tests/driverPortraits.test.js tests/historicalRaceStatus.test.js",
     "test:driver-integration": "node --test tests/driverIntegrationAudit.test.js",
     "test:simulation": "node --test tests/driverSimulation.test.js",
-    "test:management": "node --test tests/managementSystems.test.js tests/teamMorale.test.js tests/teamReputation.test.js tests/championshipHistory.test.js",
+    "test:management": "node --test tests/managementSystems.test.js tests/teamMorale.test.js tests/teamReputation.test.js tests/championshipHistory.test.js tests/newGameTeamPreview.test.js",
     "test:save-safety": "node --test tests/saveSafety.test.js tests/newGameRuntime.test.js",
     "test:race-entry": "node --test tests/raceEntry.test.js",
     "test:injuries": "node --test tests/injuryReplacement.test.js",
