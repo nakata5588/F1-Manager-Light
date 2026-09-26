@@ -108,6 +108,14 @@ export default function Teams(){
       const staffRoles=staffAssignments.map((row)=>row.role);
       const brand=brandById.get(id)||{};
       const seasonRec=seasonById.get(id)||{};
+      const exactEntrantRows=Number(pick(seasonRec,["exact_entrant_rows"],0))||0;
+      const estimatedRows=Number(pick(seasonRec,["estimated_rows"],0))||0;
+      const historicalDriverCount=Number(pick(seasonRec,["driver_count"],0))||0;
+      const fallbackCareerDriverCount=career.filter((r)=>
+        Number(pick(r,["year"],NaN))===y &&
+        String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
+        teamIdOf(r)===id
+      ).length;
       return {
         id,
         name:canonicalTeamName(pick(brand,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id)))),
@@ -115,13 +123,13 @@ export default function Teams(){
         country:pick(t,["team_base","country","base"],""),
         code:pick(t,["country_code"],""),
         founded:pick(t,["founded_year"],"—"),
+        // Do not present constructor-family fallback appearances as an exact
+        // managerial roster. This avoids misleading historical rows such as a
+        // Lotus family showing every privateer who happened to use a Lotus.
         drivers:driverCount ||
-          Number(pick(seasonRec,["driver_count"],0)) ||
-          career.filter((r)=>
-            Number(pick(r,["year"],NaN))===y &&
-            String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
-            teamIdOf(r)===id
-          ).length,
+          (hasSeasonAuthority
+            ? (exactEntrantRows>0?historicalDriverCount:null)
+            : (historicalDriverCount||fallbackCareerDriverCount||null)),
         principal:principal?.name||"—",
         staffCount:assignedStaff.length,
         staffRoles,
@@ -131,6 +139,7 @@ export default function Teams(){
         chassis:Array.isArray(seasonRec?.chassis_names)?seasonRec.chassis_names:[],
         engines:Array.isArray(seasonRec?.engine_names)?seasonRec.engine_names:[],
         identityConfidence:Array.isArray(seasonRec?.identity_confidence)?seasonRec.identity_confidence:[],
+        estimatedIdentity:hasSeasonAuthority&&estimatedRows>0&&exactEntrantRows===0,
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
   },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,year,currentYear,gs]);
@@ -158,7 +167,7 @@ export default function Teams(){
         <tbody>{filtered.map(t=><tr key={t.id} className="border-t border-white/10 hover:bg-white/[0.04]">
           <td className="px-4 py-2">
             <button type="button" data-entity="team" data-id={t.id} className="flex items-center gap-3 font-medium hover:underline text-left">
-              <TeamLogo teamId={t.id} name={t.name} size="h-9 w-9"/><span>{t.name}</span>
+              <TeamLogo teamId={t.id} name={t.name} year={year} size="h-9 w-9"/><span>{t.name}</span>
             </button>
           </td>
           <td className="px-4 py-2">
@@ -180,7 +189,7 @@ export default function Teams(){
               {!t.staffAssignments?.length?<div>—</div>:null}
             </div>
           </td>
-          <td className="px-4 py-2 text-right">{t.drivers}</td>
+          <td className="px-4 py-2 text-right" title={t.drivers==null&&t.estimatedIdentity?"Exact entrant roster not yet covered for this season":undefined}>{t.drivers??"—"}</td>
           <td className="px-4 py-2 text-right">
             {t.reputation!=null?(
               <span className={Number(t.reputation)>=72?"font-semibold text-emerald-300":Number(t.reputation)<48?"font-semibold text-rose-300":"font-medium text-slate-300"}>
