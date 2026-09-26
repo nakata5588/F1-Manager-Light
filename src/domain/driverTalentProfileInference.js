@@ -13,9 +13,12 @@
 // - current ability is intentionally absent: R2 will materialize it by start year.
 
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
-const round1=(value)=>Number.isFinite(Number(value))
-  ?Math.round(Number(value)*10)/10
-  :null;
+const round1=(value)=>{
+  if(value===undefined||value===null||value==="")return null;
+  return Number.isFinite(Number(value))
+    ?Math.round(Number(value)*10)/10
+    :null;
+};
 const num=(value,fallback=null)=>{
   if(value===undefined||value===null||value==="")return fallback;
   const parsed=Number(value);
