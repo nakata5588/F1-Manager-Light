@@ -1,19 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
-  <title id="title">Buenos Aires Circuit No. 15 — 1980 historical environment</title>
-  <desc id="desc">Presentation-only historical environment layer. Race geometry and results remain engine-owned.</desc>
-  <defs>
-    <pattern id="grass" width="24" height="24" patternUnits="userSpaceOnUse">
-      <rect width="24" height="24" fill="#6f8752"/><path d="M0 20L20 0M8 24L24 8" stroke="#819761" stroke-width="1" opacity=".35"/>
-    </pattern>
-    <pattern id="checker" width="16" height="16" patternUnits="userSpaceOnUse">
-      <rect width="16" height="16" fill="#f5f2e8"/><rect width="8" height="8" fill="#1f2428"/><rect x="8" y="8" width="8" height="8" fill="#1f2428"/>
-    </pattern>
-  </defs>
-  <rect width="1200" height="760" fill="url(#grass)"/>
-  <path d="M130 195H880C1035 195 1090 250 1090 350C1090 455 1010 520 910 565L760 635C650 685 545 650 485 565L420 470C390 425 340 415 295 450L185 535C125 580 55 540 62 470C66 425 105 390 155 355L255 285C310 247 285 195 225 195Z" fill="none" stroke="#d6d1c4" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M130 195H880C1035 195 1090 250 1090 350C1090 455 1010 520 910 565L760 635C650 685 545 650 485 565L420 470C390 425 340 415 295 450L185 535C125 580 55 540 62 470C66 425 105 390 155 355L255 285C310 247 285 195 225 195Z" fill="none" stroke="#33383b" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M130 195H880" stroke="#f0efe8" stroke-width="3" stroke-dasharray="14 16" opacity=".55"/>
-  <rect x="515" y="161" width="18" height="68" fill="url(#checker)" transform="rotate(90 524 195)"/>
-  <g opacity=".72" fill="#c8b99d"><rect x="180" y="90" width="180" height="42" rx="4"/><rect x="690" y="82" width="220" height="46" rx="4"/><rect x="930" y="250" width="120" height="54" rx="4"/></g>
-  <g opacity=".48" fill="#56684a"><ellipse cx="260" cy="640" rx="125" ry="44"/><ellipse cx="880" cy="690" rx="170" ry="38"/><ellipse cx="1050" cy="100" rx="100" ry="34"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-labelledby="title desc">
+<title id="title">Buenos Aires Circuit No. 15 — 1980 Historical Environment</title>
+<desc id="desc">Presentation-only environment inspired by the supplied Buenos Aires reference. Functional centreline and race state remain authoritative.</desc>
+<defs>
+ <linearGradient id="grass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#536f42"/><stop offset="1" stop-color="#78915a"/></linearGradient>
+ <linearGradient id="water" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#245d65"/><stop offset="1" stop-color="#397b7d"/></linearGradient>
+ <pattern id="checker" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#f8fafc"/><rect width="5" height="5" fill="#111827"/><rect x="5" y="5" width="5" height="5" fill="#111827"/></pattern>
+ <filter id="shadow"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-opacity=".35"/></filter>
+</defs>
+<rect width="1000" height="1000" fill="url(#grass)"/>
+<!-- surrounding park and access roads -->
+<g fill="none" stroke="#71806d" stroke-width="13" opacity=".65"><path d="M15 145C170 95 320 115 470 88S770 65 985 112"/><path d="M20 820C230 790 385 815 540 830S810 845 990 815"/><path d="M105 280C160 355 130 470 78 555"/><path d="M585 90C620 150 600 215 575 285"/></g>
+<!-- lake -->
+<path d="M438 444C522 402 657 399 780 415C873 428 921 479 920 552C918 629 856 665 773 674C667 685 538 674 469 640C410 611 384 552 398 499C404 476 418 457 438 444Z" fill="url(#water)" stroke="#3e5f55" stroke-width="8"/>
+<!-- buildings/paddock on upper straight -->
+<g fill="#b7b7aa" stroke="#60665d" stroke-width="4" opacity=".92"><rect x="250" y="155" width="135" height="46"/><rect x="397" y="153" width="125" height="48"/><rect x="535" y="151" width="116" height="50"/><rect x="264" y="286" width="96" height="34"/><rect x="375" y="287" width="118" height="32"/></g>
+<!-- tree clusters -->
+<g fill="#274c31" opacity=".88"><circle cx="95" cy="115" r="30"/><circle cx="145" cy="130" r="24"/><circle cx="725" cy="135" r="34"/><circle cx="790" cy="160" r="26"/><circle cx="880" cy="180" r="34"/><circle cx="110" cy="680" r="32"/><circle cx="165" cy="735" r="25"/><circle cx="300" cy="760" r="30"/><circle cx="925" cy="745" r="28"/></g>
+<!-- presentation track, matching Circuit No. 15 reference; not physics authority -->
+<path d="M222 244H665C715 244 735 276 752 324C765 362 774 393 812 401C846 408 892 382 932 381C968 380 980 410 980 462V560C980 651 948 699 870 699H490C405 699 371 680 340 620C319 579 292 565 258 571C229 576 232 613 264 627C296 641 319 619 307 590C295 561 256 558 229 575C199 594 186 558 205 524C226 486 244 440 282 461L320 490C350 513 379 490 367 457C358 431 322 405 291 377L255 342C221 311 188 307 157 337C128 365 138 417 165 439C191 461 218 433 202 393C183 347 158 323 176 293C188 273 204 257 222 244Z" fill="none" stroke="#e5e7eb" stroke-width="70" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)"/>
+<path d="M222 244H665C715 244 735 276 752 324C765 362 774 393 812 401C846 408 892 382 932 381C968 380 980 410 980 462V560C980 651 948 699 870 699H490C405 699 371 680 340 620C319 579 292 565 258 571C229 576 232 613 264 627C296 641 319 619 307 590C295 561 256 558 229 575C199 594 186 558 205 524C226 486 244 440 282 461L320 490C350 513 379 490 367 457C358 431 322 405 291 377L255 342C221 311 188 307 157 337C128 365 138 417 165 439C191 461 218 433 202 393C183 347 158 323 176 293C188 273 204 257 222 244Z" fill="none" stroke="#303438" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+<!-- kerb hints -->
+<path d="M222 218H665" stroke="#f8fafc" stroke-width="6" stroke-dasharray="18 10" opacity=".8"/><path d="M222 270H665" stroke="#dc2626" stroke-width="6" stroke-dasharray="18 10" opacity=".72"/>
+<!-- S/F checker and race direction: right -->
+<rect x="216" y="218" width="12" height="52" fill="url(#checker)"/>
+<path d="M246 230H298L286 218M298 230L286 242" fill="none" stroke="#f8fafc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<!-- pit/paddock visual hint; metadata remains authoritative -->
+<path d="M260 285H610" fill="none" stroke="#70757a" stroke-width="18" stroke-linecap="round" opacity=".75"/>
 </svg>
