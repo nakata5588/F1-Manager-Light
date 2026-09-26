@@ -141,6 +141,21 @@ test("light scouting narrows estimates while deep scouting reveals exact ratings
   assert.equal(presentDriverKnowledgeValue(deep,"pace",65,{kind:"attribute"}).label,"65");
 });
 
+test("a later light report never downgrades previously unlocked deep knowledge",()=>{
+  const gs=baseState();
+  gs.scouting.assignments.push({
+    id:"deep_first",mode:"driver",depth:"deep",status:"completed",
+    completed_at:"1980-03-20",prospect_id:"D4",
+  });
+  gs.scouting.assignments.push({
+    id:"light_later",mode:"driver",depth:"light",status:"completed",
+    completed_at:"1980-03-25",prospect_id:"D4",
+  });
+  const knowledge=driverKnowledgeState(gs,"D4");
+  assert.equal(knowledge.level,DRIVER_KNOWLEDGE_LEVELS.SCOUTED);
+  assert.equal(presentDriverKnowledgeValue(knowledge,"pace",65,{kind:"attribute"}).label,"65");
+});
+
 test("reputation and F1 experience reduce scouting duration, and light reports are quicker",()=>{
   const gs=baseState();
   gs.drivers.push({driver_id:"STAR",display_name:"Established Star",reputation:90,status:"eligible"});
