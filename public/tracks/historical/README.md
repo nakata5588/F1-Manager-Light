@@ -6,4 +6,4 @@ The functional centerline and track metadata control car movement, sector bounda
 
 ## Buenos Aires 1980
 
-`buenos-aires-no15-1980.svg` represents Circuit No. 15. Its upper-straight S/F and rightward race direction are mirrored by the independent verified centerline in `src/data/historicalTrackGeometry.js`.
+`buenos-aires-no15-1980.webp` is the approved high-fidelity presentation reference for Circuit No. 15. Its upper-straight S/F, rightward race direction, sector guides and pit lane are mirrored by independent verified geometry/metadata in `src/data/historicalTrackGeometry.js` and `src/data/trackLayoutAssets.js`.
