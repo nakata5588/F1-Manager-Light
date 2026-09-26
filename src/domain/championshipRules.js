@@ -12,6 +12,8 @@
 
 const freeze=(value)=>Object.freeze(value);
 const ALL=freeze({type:"all"});
+const hasOwn=(value,key)=>Object.prototype.hasOwnProperty.call(value,key);
+const isConstructorMode=(options)=>Boolean(options&&hasOwn(options,"constructor")&&options.constructor===true);
 
 const driverCountingByYear=(year)=>{
   if(year>=1991)return ALL;
@@ -46,10 +48,11 @@ const constructorCountingByYear=(year)=>{
   return driverCountingByYear(year);
 };
 
-const racePointsByYear=(year,{constructor=false}={})=>{
+const racePointsByYear=(year,options={})=>{
+  const constructorMode=isConstructorMode(options);
   if(year<=1959)return [8,6,4,3,2];
   if(year===1960)return [8,6,4,3,2,1];
-  if(year===1961&&constructor)return [8,6,4,3,2,1];
+  if(year===1961&&constructorMode)return [8,6,4,3,2,1];
   if(year<=1990)return [9,6,4,3,2,1];
   if(year<=2002)return [10,6,4,3,2,1];
   if(year<=2009)return [10,8,6,5,4,3,2,1];
@@ -129,26 +132,27 @@ export function pointsForPosition(table,position){
   return Number((Array.isArray(table)?table:[])[pos-1]||0);
 }
 
-export function racePointsForResult({
-  year,
-  position,
-  fastestLap=false,
-  classified=true,
-  isFinalRound=false,
-  constructor=false,
-}={}){
+export function racePointsForResult(options={}){
+  const {
+    year,
+    position,
+    fastestLap=false,
+    classified=true,
+    isFinalRound=false,
+  }=options||{};
+  const constructorMode=isConstructorMode(options);
   const rule=championshipRuleForYear(year);
   if(!classified)return 0;
-  const table=constructor?rule.constructorRacePoints:rule.racePoints;
+  const table=constructorMode?rule.constructorRacePoints:rule.racePoints;
   let points=pointsForPosition(table,position);
 
-  if(!constructor&&fastestLap&&rule.fastestLap.points>0){
+  if(!constructorMode&&fastestLap&&rule.fastestLap.points>0){
     const eligible=
       rule.fastestLap.eligibility==="any_classified"||
       (rule.fastestLap.eligibility==="top_10"&&Number(position)<=10);
     if(eligible)points+=rule.fastestLap.points;
   }
-  if(constructor&&fastestLap&&rule.fastestLap.constructors){
+  if(constructorMode&&fastestLap&&rule.fastestLap.constructors){
     const eligible=rule.fastestLap.eligibility==="top_10"&&Number(position)<=10;
     if(eligible)points+=rule.fastestLap.points;
   }
