@@ -97,14 +97,14 @@ function aggregateCareerResults(results,year,driversById,teamsById){
   return {drivers,teams};
 }
 
-function aggregateHistorical(history,year,driversById,teamsById){
-  const drivers=aggregateHistoricalDrivers(history,year,driversById,teamsById).map((row)=>({
+function aggregateHistorical(history,year,driversById,teamsById,championships){
+  const drivers=aggregateHistoricalDrivers(history,year,driversById,teamsById,championships).map((row)=>({
     ...row,
     teamId:row.team_id,
     teamName:row.team_name,
     driver:driversById.get(row.id)||{driver_id:row.id,display_name:row.name},
   }));
-  const teams=aggregateHistoricalConstructors(history,year,teamsById).map((row)=>({
+  const teams=aggregateHistoricalConstructors(history,year,teamsById,championships).map((row)=>({
     ...row,
     team:teamsById.get(row.id)||{team_id:row.id,team_name:row.name},
   }));
@@ -126,6 +126,7 @@ export default function Standings(){
   const liveStandings=gameState?.standings||{drivers:[],teams:[]};
   const results=Array.isArray(gameState?.results)?gameState.results:[];
   const history=Array.isArray(gameState?.dbDriverHistory)?gameState.dbDriverHistory:[];
+  const historicalChampionships=gameState?.dbHistoricalChampionships||null;
 
   // Historical DB rows are the base, but the Save World is authoritative.
   // This is especially important for runtime fields such as portrait_path.
@@ -174,8 +175,8 @@ export default function Standings(){
     [results,selectedYear,driversById,teamsById]
   );
   const historicalArchive=useMemo(
-    ()=>aggregateHistorical(history,selectedYear,driversById,teamsById),
-    [history,selectedYear,driversById,teamsById]
+    ()=>aggregateHistorical(history,selectedYear,driversById,teamsById,historicalChampionships),
+    [history,selectedYear,driversById,teamsById,historicalChampionships]
   );
 
   const hasCareerResults=results.some((r)=>resultYear(r)===selectedYear);
@@ -252,7 +253,7 @@ export default function Standings(){
           <tr>
             <th className="px-4 py-3 text-right w-16">Pos</th>
             <th className="px-4 py-3 text-left">{tab==="drivers"?"Driver":"Team"}</th>
-            {tab==="drivers"&&<th className="px-4 py-3 text-left">Team</th>}
+            {tab==="drivers"&&<th className="px-4 py-3 text-left">{sourceLabel==="Historical F1 archive"?"Car / Constructor":"Team"}</th>}
             <th className="px-4 py-3 text-right">Races</th>
             <th className="px-4 py-3 text-right">Wins</th>
             <th className="px-4 py-3 text-right">Podiums</th>
