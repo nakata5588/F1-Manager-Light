@@ -1,3 +1,5 @@
+import { TRACK_LAYOUT_GEOMETRY } from "./trackLayoutGeometry.js";
+
 // Hand-authored historical functional geometry. These centerlines are independent from environment artwork.
 // Progress 0 is the start/finish line; point order is race direction.
 export const HISTORICAL_TRACK_GEOMETRY = Object.freeze({
@@ -24,5 +26,8 @@ export const HISTORICAL_TRACK_GEOMETRY = Object.freeze({
     start_finish_direction:"right"
   })
 });
+
+// Generated/provisional geometry remains the fallback; verified historical geometry overrides only its stable id.
+Object.assign(TRACK_LAYOUT_GEOMETRY,HISTORICAL_TRACK_GEOMETRY);
 
 export default HISTORICAL_TRACK_GEOMETRY;
