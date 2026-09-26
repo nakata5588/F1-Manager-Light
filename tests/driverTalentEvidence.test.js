@@ -269,3 +269,17 @@ test("R1B opposition context values beating a stronger teammate more highly",()=
     weak.comparative_evidence_percentiles.qualifying
   );
 });
+
+
+test("R1B career peak uses best-season evidence instead of averaging development and decline years",()=>{
+  const {aggregateEraNormalized}=__driverTalentNormalizationInternals;
+  const rows=[
+    {driver_id:"d_peak",year:1980,starts:10,season_percentiles:{qualifying:50,race:50,peak:30,consistency:50,composite:45}},
+    {driver_id:"d_peak",year:1981,starts:10,season_percentiles:{qualifying:70,race:70,peak:98,consistency:60,composite:75}},
+    {driver_id:"d_peak",year:1982,starts:10,season_percentiles:{qualifying:75,race:75,peak:92,consistency:65,composite:78}},
+    {driver_id:"d_peak",year:1983,starts:10,season_percentiles:{qualifying:45,race:45,peak:25,consistency:55,composite:42}},
+  ];
+  const career=aggregateEraNormalized(rows).get("d_peak");
+  assert.ok(career.peak>=90,"peak should reflect the best part of the career, not the four-season average");
+  assert.ok(career.peak>61.25,"peak must not collapse to the arithmetic mean of all seasons");
+});
