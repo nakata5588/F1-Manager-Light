@@ -1428,6 +1428,12 @@ test("Track 2.0 follow view only spreads nearby non-selected cars",()=>{
   assert.ok(Math.abs((offset5*5)-(offset10*10))<1e-9,"lateral spread should stay screen-space stable");
 });
 
+test("Track 2.1A.4 follow marker lane is stable when live order changes",()=>{
+  const before=raceMarkerLaneOffset(2,{cameraMode:"follow",zoom:7,closeBattle:true,slotKey:"driver_alpha"});
+  const after=raceMarkerLaneOffset(11,{cameraMode:"follow",zoom:7,closeBattle:true,slotKey:"driver_alpha"});
+  assert.equal(before,after,"a driver must not jump laterally when visual position order changes");
+});
+
 test("RW6.6 track progress unwrap crosses start-finish in the forward direction",()=>{
   assert.ok(Math.abs(unwrapTrackProgress(.92,.08)-1.08)<1e-9);
   assert.ok(Math.abs(unwrapTrackProgress(1.08,.34)-1.34)<1e-9);
