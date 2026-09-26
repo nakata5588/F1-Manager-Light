@@ -17,6 +17,7 @@ const round1=(value)=>Number.isFinite(Number(value))
   ?Math.round(Number(value)*10)/10
   :null;
 const num=(value,fallback=null)=>{
+  if(value===undefined||value===null||value==="")return fallback;
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
