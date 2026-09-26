@@ -7,6 +7,7 @@
 
 export const TEAM_ID_ALIASES=Object.freeze({
   t_0040:"t_0005", // "Team Lotus" duplicate -> canonical "Lotus"
+  legacy_constructor_lotus:"t_0005", // historical championship fallback -> Lotus
 });
 
 export const TEAM_NAME_ALIASES=Object.freeze({
