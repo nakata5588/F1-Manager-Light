@@ -58,6 +58,39 @@ function fmtMoney(value) {
   }).format(n);
 }
 
+function valueTone(value) {
+  const n=Number(value);
+  if(!Number.isFinite(n))return "text-slate-300";
+  if(n>=80)return "text-emerald-300";
+  if(n>=65)return "text-green-300";
+  if(n>=50)return "text-amber-300";
+  if(n>=35)return "text-orange-300";
+  return "text-rose-300";
+}
+
+function projectionTone(projection) {
+  const field=Math.max(1,Number(projection?.fieldSize)||1);
+  const min=Number(projection?.minPosition);
+  const max=Number(projection?.maxPosition);
+  if(!Number.isFinite(min)||!Number.isFinite(max))return "text-slate-300";
+  const midpoint=(min+max)/2;
+  const percentile=midpoint/field;
+  if(percentile<=0.2)return "text-emerald-300";
+  if(percentile<=0.4)return "text-green-300";
+  if(percentile<=0.65)return "text-amber-300";
+  if(percentile<=0.85)return "text-orange-300";
+  return "text-rose-300";
+}
+
+function facilityBarTone(level) {
+  const score=Number(level)*10;
+  if(score>=80)return "bg-emerald-400";
+  if(score>=65)return "bg-green-400";
+  if(score>=50)return "bg-amber-300";
+  if(score>=35)return "bg-orange-400";
+  return "bg-rose-400";
+}
+
 function FallbackAvatar({ title, large=false }) {
   const initials = String(title || "?").split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
   return <div className={(large?"w-20 h-20 rounded-2xl text-xl":"w-8 h-8 rounded-md text-xs")+" bg-white/10 flex items-center justify-center font-bold"}>{initials}</div>;
@@ -481,12 +514,12 @@ export default function NewGame() {
                               <TeamLogo candidates={getTeamLogoCandidates?.(t) || []} title={title} />
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-sm font-semibold">{title}</div>
-                                <div className="truncate text-[10px] text-slate-500">{preview?.championshipExpectationLabel||"—"}</div>
+                                <div className={"truncate text-[11px] font-medium "+projectionTone(preview?.championshipProjection)}>{preview?.championshipExpectationLabel||"—"}</div>
                               </div>
                               <div className="grid shrink-0 grid-cols-3 gap-1">
-                                <div className="min-w-[48px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[8px] uppercase tracking-wide text-slate-600">Rep</div><div className="text-[11px] font-semibold">{preview?.reputation!=null?Math.round(preview.reputation):"—"}</div></div>
-                                <div className="min-w-[48px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[8px] uppercase tracking-wide text-slate-600">Car</div><div className="text-[11px] font-semibold">{preview?.car?.overall!=null?Math.round(preview.car.overall):"—"}</div></div>
-                                <div className="min-w-[58px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[8px] uppercase tracking-wide text-slate-600">Budget</div><div className="truncate text-[11px] font-semibold">{fmtMoney(preview?.startingBudget)}</div></div>
+                                <div className="min-w-[50px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Rep</div><div className={"text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.reputation??preview?.reputation)}>{preview?.reputation!=null?Math.round(preview.reputation):"—"}</div></div>
+                                <div className="min-w-[50px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Car</div><div className={"text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.car??preview?.car?.overall)}>{preview?.car?.overall!=null?Math.round(preview.car.overall):"—"}</div></div>
+                                <div className="min-w-[62px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[9px] uppercase tracking-wide text-slate-500">Budget</div><div className={"truncate text-xs font-semibold "+valueTone(preview?.championshipProjection?.factors?.budget)}>{fmtMoney(preview?.startingBudget)}</div></div>
                               </div>
                             </div>
                           </button>
@@ -517,39 +550,39 @@ export default function NewGame() {
 
                           <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6">
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Reputation</div>
-                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.reputation!=null?Math.round(selectedTeamPreview.reputation)+"/100":"—"}</div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-500">Reputation</div>
+                              <div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.championshipProjection?.factors?.reputation??selectedTeamPreview.reputation)}>{selectedTeamPreview.reputation!=null?Math.round(selectedTeamPreview.reputation)+"/100":"—"}</div>
                               <div className="text-[10px] text-slate-500">{selectedTeamPreview.reputationLabel}</div>
                             </div>
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Starting Budget</div>
-                              <div className="mt-0.5 text-base font-semibold">{fmtMoney(selectedTeamPreview.startingBudget)}</div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-500">Starting Budget</div>
+                              <div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.championshipProjection?.factors?.budget)}>{fmtMoney(selectedTeamPreview.startingBudget)}</div>
                               <div className="text-[10px] text-slate-500">Career opening funds</div>
                             </div>
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Car Overall</div>
-                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.car?.overall!=null?selectedTeamPreview.car.overall.toFixed(1):"—"}</div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-500">Car Overall</div>
+                              <div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.championshipProjection?.factors?.car??selectedTeamPreview.car?.overall)}>{selectedTeamPreview.car?.overall!=null?selectedTeamPreview.car.overall.toFixed(1):"—"}</div>
                               <div className="text-[10px] text-slate-500">Historical technical package</div>
                             </div>
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Drivers OVR</div>
-                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.driversOverall!=null?selectedTeamPreview.driversOverall.toFixed(1):"—"}</div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-500">Drivers OVR</div>
+                              <div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.championshipProjection?.factors?.drivers??selectedTeamPreview.driversOverall)}>{selectedTeamPreview.driversOverall!=null?selectedTeamPreview.driversOverall.toFixed(1):"—"}</div>
                               <div className="text-[10px] text-slate-500">Main + Second average</div>
                             </div>
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Facilities</div>
-                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.facilities?.average!=null?selectedTeamPreview.facilities.average.toFixed(1)+"/10":"—"}</div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-500">Facilities</div>
+                              <div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.championshipProjection?.factors?.facilities)}>{selectedTeamPreview.facilities?.average!=null?selectedTeamPreview.facilities.average.toFixed(1)+"/10":"—"}</div>
                               <div className="text-[10px] text-slate-500">{selectedTeamPreview.facilities?.available||0} era-available areas</div>
                             </div>
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Championship Projection</div>
-                              <div className="mt-1 text-lg font-semibold leading-5">{selectedTeamPreview.championshipExpectationLabel}</div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-500">Championship Projection</div>
+                              <div className={"mt-1 text-lg font-semibold leading-5 "+projectionTone(selectedTeamPreview.championshipProjection)}>{selectedTeamPreview.championshipExpectationLabel}</div>
                               <div className="mt-1 text-xs text-slate-500">Model strength {selectedTeamPreview.championshipProjection?.score?.toFixed?.(1)??"—"}/100</div>
                             </div>
                           </div>
 
                           <div>
-                            <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Projection Factors</div>
+                            <div className="mb-1 text-[11px] uppercase tracking-[0.15em] text-slate-500">Projection Factors</div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                               {[
                                 ["Car","car"],
@@ -562,8 +595,8 @@ export default function NewGame() {
                                 const value=selectedTeamPreview.championshipProjection?.factors?.[key];
                                 const weight=selectedTeamPreview.championshipProjection?.weights?.[key];
                                 return <div key={key} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5">
-                                  <div className="text-[9px] uppercase tracking-wide text-slate-500">{label} · {weight?Math.round(weight*100):0}%</div>
-                                  <div className="mt-1 text-sm font-semibold">{Number.isFinite(Number(value))?Number(value).toFixed(1):"—"}</div>
+                                  <div className="text-[10px] uppercase tracking-wide text-slate-500">{label} · {weight?Math.round(weight*100):0}%</div>
+                                  <div className={"mt-0.5 text-sm font-semibold "+valueTone(value)}>{Number.isFinite(Number(value))?Number(value).toFixed(1):"—"}</div>
                                 </div>;
                               })}
                             </div>
@@ -571,7 +604,7 @@ export default function NewGame() {
                           </div>
 
                           <div>
-                            <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Race Drivers</div>
+                            <div className="mb-1 text-[11px] uppercase tracking-[0.15em] text-slate-500">Race Drivers</div>
                             <div className="grid gap-2 sm:grid-cols-2">
                               {selectedTeamPreview.drivers.map((row)=>(
                                 <div key={row.slot+"_"+row.id} className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] p-2">
@@ -579,7 +612,7 @@ export default function NewGame() {
                                   <div className="min-w-0 flex-1">
                                     <div className="text-[10px] uppercase tracking-wide text-slate-500">{row.slot==="main"?"Main Driver":"Second Driver"}</div>
                                     <div className="truncate font-semibold">{row.name}</div>
-                                    <div className="text-xs text-slate-300">OVR {row.overall==null?"—":(row.estimated?"~":"")+Math.round(row.overall)}</div>
+                                    <div className={"text-sm font-semibold "+valueTone(row.overall)}>OVR {row.overall==null?"—":(row.estimated?"~":"")+Math.round(row.overall)}</div>
                                   </div>
                                 </div>
                               ))}
@@ -589,21 +622,21 @@ export default function NewGame() {
 
                           <div className="grid gap-3 xl:grid-cols-[0.8fr_1.2fr]">
                             <div>
-                              <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
+                              <div className="mb-1 text-[11px] uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
                               <div className="grid grid-cols-3 gap-2">
-                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] uppercase text-slate-500">Qualifying</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
-                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] uppercase text-slate-500">Race Pace</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
-                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] uppercase text-slate-500">Reliability</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[11px] uppercase text-slate-500">Qualifying</div><div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.car?.qualifying)}>{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[11px] uppercase text-slate-500">Race Pace</div><div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.car?.race)}>{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[11px] uppercase text-slate-500">Reliability</div><div className={"mt-0.5 text-base font-semibold "+valueTone(selectedTeamPreview.car?.reliability)}>{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
                               </div>
                             </div>
                             <div>
                               <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Facilities</div>
                               {selectedTeamPreview.facilities?.items?.length?<div className="grid grid-cols-2 gap-1.5 2xl:grid-cols-3">
                                 {selectedTeamPreview.facilities.items.map((row)=><div key={row.label} className="rounded-lg bg-white/[0.03] px-2.5 py-1.5">
-                                  <div className="truncate text-[10px] uppercase tracking-wide text-slate-500">{row.label}</div>
+                                  <div className="truncate text-[11px] uppercase tracking-wide text-slate-500">{row.label}</div>
                                   <div className="mt-1 flex items-center gap-2">
-                                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-300" style={{width:String(Math.max(0,Math.min(10,row.level))*10)+"%"}}/></div>
-                                    <div className="w-8 text-right text-sm font-semibold">{row.level}/10</div>
+                                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className={"h-full rounded-full "+facilityBarTone(row.level)} style={{width:String(Math.max(0,Math.min(10,row.level))*10)+"%"}}/></div>
+                                    <div className={"w-8 text-right text-sm font-semibold "+valueTone(Number(row.level)*10)}>{row.level}/10</div>
                                   </div>
                                 </div>)}
                               </div>:<div className="text-sm text-slate-500">No facility data is available for this season.</div>}
