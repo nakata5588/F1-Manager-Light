@@ -9,7 +9,7 @@ import { hydrateDriverPortraitRows } from "../domain/driverPortraits.js";
 
 export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
   // Global database / catalogues.
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbHistoricalChampionships",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships",
   "dbDriverOpeningState","dbStaffRatings","dbStaffCore","dbDriverCareer",
   "dbAchievements","dbTeamBrands","dbTeamEngines","dbContracts",
   "dbSponsorsContracts","dbRules","dbEraSafety","dbAccidentModel",
