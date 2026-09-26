@@ -68,6 +68,9 @@ jobs:
       - name: Test historical driver world-entry principles
         run: npm run test:world-entry
 
+      - name: Test generic feeder placement principles
+        run: npm run test:world-placement
+
       - name: Test historical talent evidence against real archive
         run: |
           node scripts/build-race-results-archive.mjs
@@ -84,6 +87,11 @@ jobs:
           node scripts/build-driver-history.mjs
           npm run test:world-entry:real
           npm run world:entry
+
+      - name: Test generic feeder placement against real population
+        run: |
+          npm run test:world-placement:real
+          npm run world:placement
 
       - name: Test Drivers cross-system integration
         run: npm run test:driver-integration
