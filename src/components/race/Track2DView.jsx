@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
-import { raceAverageSpeedKmh, raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
+import { raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
 import { advanceVisualTimelineProgress, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
@@ -311,20 +311,46 @@ function AnimatedMarker({
   onVisualProgress=null,
 }){
   const display=Number(progress)||0;
+  const laneTarget=Number(laneOffset)||0;
+  const laneDisplayRef=useRef(laneTarget);
+  const [laneDisplay,setLaneDisplay]=useState(laneTarget);
 
   useEffect(()=>{
     onVisualProgress?.(display);
   },[display,onVisualProgress]);
 
+  useEffect(()=>{
+    let frame=null;
+    const tick=()=>{
+      const current=laneDisplayRef.current;
+      const next=current+(laneTarget-current)*0.30;
+      if(Math.abs(laneTarget-next)<0.015){
+        laneDisplayRef.current=laneTarget;
+        setLaneDisplay(laneTarget);
+        return;
+      }
+      laneDisplayRef.current=next;
+      setLaneDisplay(next);
+      frame=requestAnimationFrame(tick);
+    };
+    if(Math.abs(laneDisplayRef.current-laneTarget)<0.015){
+      laneDisplayRef.current=laneTarget;
+      setLaneDisplay(laneTarget);
+      return undefined;
+    }
+    frame=requestAnimationFrame(tick);
+    return ()=>{if(frame)cancelAnimationFrame(frame);};
+  },[laneTarget]);
+
   const trackPoint=pointAtTrackProgress(geometry,display);
   if(!trackPoint)return null;
 
   const scale=Math.max(0.08,Math.min(1.25,Number(markerScale)||1));
-  const lateral=Number(laneOffset)||0;
+  const lateral=Number(laneDisplay)||0;
   let point=trackPoint;
   if(Math.abs(lateral)>0.0001){
-    const before=pointAtTrackProgress(geometry,Number(display||0)-0.0015);
-    const after=pointAtTrackProgress(geometry,Number(display||0)+0.0015);
+    const before=pointAtTrackProgress(geometry,Number(display||0)-0.0045);
+    const after=pointAtTrackProgress(geometry,Number(display||0)+0.0045);
     if(before&&after){
       const dx=after.x-before.x;
       const dy=after.y-before.y;
@@ -515,8 +541,9 @@ export default function Track2DView({
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
+  const followCameraTargetRef=useRef(null);
+  const followCameraFrameRef=useRef(null);
   const markerScale=raceMarkerScaleForCamera(cameraMode,followZoom);
-  const averageSpeedKmh=raceAverageSpeedKmh(lapLengthKm,referenceLapMs);
 
   useEffect(()=>{
     followViewBoxRef.current=null;
@@ -555,11 +582,41 @@ export default function Track2DView({
     if(cameraMode!=="follow"||!svgRef.current)return;
     const point=pointAtTrackProgress(displayGeometry,progress);
     if(!point)return;
-    const box=focusTrackViewBox(fittedViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
-    followViewBoxRef.current=box;
-    svgRef.current.setAttribute("viewBox",box.join(" "));
+    followCameraTargetRef.current=focusTrackViewBox(fittedViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
+    if(followCameraFrameRef.current)return;
+    const tick=()=>{
+      if(cameraMode!=="follow"||!svgRef.current){
+        followCameraFrameRef.current=null;
+        return;
+      }
+      const target=followCameraTargetRef.current;
+      if(!target){
+        followCameraFrameRef.current=null;
+        return;
+      }
+      const current=followViewBoxRef.current||target;
+      const next=current.map((value,index)=>value+(target[index]-value)*0.34);
+      const settled=next.every((value,index)=>Math.abs(value-target[index])<0.03);
+      const box=settled?target:next;
+      followViewBoxRef.current=box;
+      svgRef.current.setAttribute("viewBox",box.join(" "));
+      if(settled){
+        followCameraFrameRef.current=null;
+      }else{
+        followCameraFrameRef.current=requestAnimationFrame(tick);
+      }
+    };
+    followCameraFrameRef.current=requestAnimationFrame(tick);
   };
-  useEffect(()=>{followViewBoxRef.current=null;},[resolvedSelectedId]);
+  useEffect(()=>{
+    followViewBoxRef.current=null;
+    followCameraTargetRef.current=null;
+    if(followCameraFrameRef.current){
+      cancelAnimationFrame(followCameraFrameRef.current);
+      followCameraFrameRef.current=null;
+    }
+  },[resolvedSelectedId,cameraMode,followZoom]);
+  useEffect(()=>()=>{if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);},[]);
   const trackIntelEvents=(events||[]).filter((event)=>{
     const progress=raceEventTrackProgress(event,intelligence);
     if(progress==null)return false;
@@ -601,9 +658,23 @@ export default function Track2DView({
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
-              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#f8fafc":"#020617"} strokeWidth={historicalEnvironment?"32":"34"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".94":".96"}/>
-              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#30343a":"#cbd5e1"} strokeWidth={historicalEnvironment?"23":"16"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".98":".74"}/>
-              {showTrackIntel&&Number(currentSector)>0?(()=>{
+              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#252b31":"#020617"} strokeWidth={historicalEnvironment?"15":"34"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".92":".96"}/>
+              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#3b4147":"#cbd5e1"} strokeWidth={historicalEnvironment?"10":"16"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".98":".74"}/>
+              {showTrackIntel&&historicalEnvironment?[1,2,3].map((sector)=>{
+                const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:110});
+                const colors=Array.isArray(layout?.sector_colors)&&layout.sector_colors.length>=3?layout.sector_colors:["#ef4444","#22d3ee","#facc15"];
+                return <polyline
+                  key={`historic-sector-${sector}`}
+                  points={segment.map((point)=>point.join(",")).join(" ")}
+                  fill="none"
+                  stroke={colors[sector-1]}
+                  strokeWidth="5.5"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  strokeDasharray="11 9"
+                  opacity=".98"
+                />;
+              }):showTrackIntel&&Number(currentSector)>0?(()=>{
                 const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
                 const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:42});
                 return <polyline
@@ -616,24 +687,33 @@ export default function Track2DView({
                   opacity=".23"
                 />;
               })():null}
-              <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
+              {!historicalEnvironment?<polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>:null}
+              {historicalEnvironment&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
+                points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
+                fill="none"
+                stroke="#40464d"
+                strokeWidth="10"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                opacity=".98"
+              />:null}
               {showTrackIntel&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
                 points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                 fill="none"
-                stroke="#22c55e"
-                strokeWidth="8"
+                stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"}
+                strokeWidth={historicalEnvironment?"5.5":"8"}
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                strokeDasharray="10 5"
-                opacity=".78"
+                strokeDasharray={historicalEnvironment?"12 8":"10 5"}
+                opacity=".95"
               />:null}
               {showTrackIntel&&intelligence.pit_entry_progress!=null?(()=>{
                 const line=trackMarkerSegment(displayGeometry,intelligence.pit_entry_progress,{length:28});
-                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="#22c55e" strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill="#86efac">PIT IN</text></g>:null;
+                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"} strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text></g>:null;
               })():null}
               {showTrackIntel&&intelligence.pit_exit_progress!=null?(()=>{
                 const line=trackMarkerSegment(displayGeometry,intelligence.pit_exit_progress,{length:28});
-                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="#22c55e" strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill="#86efac">PIT OUT</text></g>:null;
+                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"} strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text></g>:null;
               })():null}
               {showTrackIntel?(()=>{
                 const markers=[
@@ -870,11 +950,6 @@ export default function Track2DView({
             <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-fuchsia-300/70">Fastest Lap</div>
             <div className="mt-0.5 font-mono text-[12px] font-black text-fuchsia-300">{formatLapTime(timingSummary?.fastest_lap_ms)}</div>
             <div className="truncate text-[8px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
-          </div>
-          <div className="rounded border border-sky-400/10 bg-sky-500/[0.04] px-2 py-1.5">
-            <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-sky-300/70">Average Speed</div>
-            <div className="mt-0.5 text-[12px] font-black text-sky-200">{averageSpeedKmh!=null&&Number.isFinite(Number(averageSpeedKmh))?`~${Math.round(averageSpeedKmh)} km/h`:"— km/h"}</div>
-            <div className="text-[8px] text-slate-500">{Math.round(Number(playbackBaseSectorMs||0)/100)/10}s sector avg{Number.isFinite(Number(lapLengthKm))?` · ${Number(lapLengthKm).toFixed(3)} km/lap`:""} · not instantaneous</div>
           </div>
           {selectedRow?<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
             <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
