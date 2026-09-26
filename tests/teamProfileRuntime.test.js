@@ -15,6 +15,7 @@ import {
   createTeamConstructorBridgeResolver,
   groupBridgeByTeamSeason,
 } from "../src/domain/teamConstructorBridge.js";
+import { createHistoricalResultTeamResolver } from "../src/domain/historicalResultTeamResolver.js";
 
 test("Team Profile initializes display name before historical logo candidates", async()=>{
   const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
@@ -169,4 +170,44 @@ test("technical constructor parsing does not claim an entrant identity",()=>{
     engine_name:"",
     constructor_family:"ferrari",
   });
+});
+
+
+test("shared historical result resolver reconciles constructorId through canonical managerial identity",()=>{
+  const teams=[
+    {team_id:"t_0005",team_name:"Lotus"},
+    {team_id:"t_0171",team_name:"Lotus-Climax"},
+  ];
+  const resolver=createHistoricalResultTeamResolver({
+    teams,
+    constructorReference:[{constructorId:172,constructorName:"Lotus-Climax"}],
+  });
+
+  const historical=resolver.resolve({constructorId:172});
+  assert.equal(historical.id,"t_0005");
+  assert.equal(historical.known,true);
+
+  const overloaded={constructor_id:"t_0171",constructorId:172};
+  assert.equal(resolver.resolve(overloaded).id,"t_0171");
+  assert.equal(
+    resolver.resolve(overloaded,{ignoreDirectIds:true}).id,
+    "t_0005",
+    "bridge reconciliation must ignore overloaded technical IDs"
+  );
+});
+
+test("Team/Entrant bridge reuses historical constructorId reconciliation",()=>{
+  const resolver=createTeamConstructorBridgeResolver({
+    teams:[
+      {team_id:"t_0005",team_name:"Lotus"},
+      {team_id:"t_0171",team_name:"Lotus-Climax"},
+    ],
+    constructorReference:[{constructorId:172,constructorName:"Lotus-Climax"}],
+  });
+
+  const link=resolver.resolve({year:1963,constructorId:172});
+  assert.equal(link.team_id,"t_0005");
+  assert.equal(link.constructor_id,"t_0171");
+  assert.equal(link.relation_basis,"historical_result_resolver");
+  assert.equal(link.exact_entrant,false);
 });
