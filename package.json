@@ -22,7 +22,7 @@
     "test:driver-integration": "node --test tests/driverIntegrationAudit.test.js",
     "test:simulation": "node --test tests/driverSimulation.test.js",
     "test:management": "node --test tests/managementSystems.test.js tests/teamMorale.test.js tests/teamReputation.test.js tests/championshipHistory.test.js tests/newGameTeamPreview.test.js tests/userPreferences.test.js",
-    "test:save-safety": "node --test tests/saveSafety.test.js tests/newGameRuntime.test.js tests/deterministicGameplayRng.test.js",
+    "test:save-safety": "node --test tests/saveSafety.test.js tests/newGameRuntime.test.js tests/deterministicGameplayRng.test.js tests/dailyTickPipeline.test.js",
     "test:race-entry": "node --test tests/raceEntry.test.js",
     "test:injuries": "node --test tests/injuryReplacement.test.js",
     "test:health": "node --test tests/healthModel.test.js tests/driverMedical.test.js",
