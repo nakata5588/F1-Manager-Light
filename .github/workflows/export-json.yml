@@ -65,6 +65,9 @@ jobs:
       - name: Test Talent Profile inference principles
         run: npm run test:talent-profiles
 
+      - name: Test historical driver world-entry principles
+        run: npm run test:world-entry
+
       - name: Test historical talent evidence against real archive
         run: |
           node scripts/build-race-results-archive.mjs
@@ -75,6 +78,11 @@ jobs:
         run: |
           npm run test:talent-profiles:real
           npm run talent:profiles
+
+      - name: Test historical driver world-entry against real population
+        run: |
+          npm run test:world-entry:real
+          npm run world:entry
 
       - name: Test Drivers cross-system integration
         run: npm run test:driver-integration
