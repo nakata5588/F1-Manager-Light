@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
-import { raceAverageSpeedKmh, raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
+import { raceAverageSpeedKmh, raceMarkerLaneOffset, raceMarkerScaleForCamera, raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
 import { buildRaceVisualModel, interpolateVisualGap, visualMotionProgress } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
@@ -323,6 +323,8 @@ function AnimatedMarker({
   mine=false,
   retired=false,
   selected=false,
+  markerScale=1,
+  laneOffset=0,
   onSelect,
   motionRunning=false,
   motionDuration=700,
@@ -335,10 +337,33 @@ function AnimatedMarker({
     running:motionRunning,
     onFrame:onVisualProgress,
   });
-  const point=pointAtTrackProgress(geometry,display);
-  if(!point)return null;
-  const radius=selected?13.5:mine?10.5:9;
-  const textSize=selected?7.5:mine?6.7:6.1;
+  const trackPoint=pointAtTrackProgress(geometry,display);
+  if(!trackPoint)return null;
+
+  const scale=Math.max(0.08,Math.min(1.25,Number(markerScale)||1));
+  const lateral=Number(laneOffset)||0;
+  let point=trackPoint;
+  if(Math.abs(lateral)>0.0001){
+    const before=pointAtTrackProgress(geometry,Number(display||0)-0.0015);
+    const after=pointAtTrackProgress(geometry,Number(display||0)+0.0015);
+    if(before&&after){
+      const dx=after.x-before.x;
+      const dy=after.y-before.y;
+      const length=Math.hypot(dx,dy);
+      if(length>0.0001){
+        point={
+          x:trackPoint.x+(-dy/length)*lateral,
+          y:trackPoint.y+(dx/length)*lateral,
+        };
+      }
+    }
+  }
+
+  const radius=(selected?11.5:mine?9.5:8.5)*scale;
+  const textSize=(selected?6.9:mine?6.2:5.8)*scale;
+  const outerGap=2.3*scale;
+  const haloGap=4.5*scale;
+  const haloPulse=3.2*scale;
   return <g
     role="button"
     tabIndex="0"
@@ -348,17 +373,22 @@ function AnimatedMarker({
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
   >
     <title>{title}</title>
-    {selected?<circle cx={point.x} cy={point.y} r={radius+10} fill="none" stroke="#f8fafc" strokeWidth="2.2" opacity=".38">
-      <animate attributeName="r" values={`${radius+5};${radius+12};${radius+5}`} dur="1.15s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values=".62;.14;.62" dur="1.15s" repeatCount="indefinite"/>
+    {selected?<circle cx={point.x} cy={point.y} r={radius+haloGap} fill="none" stroke="#f8fafc" strokeWidth={1.8*scale} opacity=".42">
+      <animate
+        attributeName="r"
+        values={`${radius+haloGap-haloPulse};${radius+haloGap+haloPulse};${radius+haloGap-haloPulse}`}
+        dur="1.15s"
+        repeatCount="indefinite"
+      />
+      <animate attributeName="opacity" values=".62;.18;.62" dur="1.15s" repeatCount="indefinite"/>
     </circle>:null}
     <circle
       cx={point.x}
       cy={point.y}
-      r={radius+2.6}
+      r={radius+outerGap}
       fill="#020617"
       stroke={selected?"#f8fafc":secondaryColor}
-      strokeWidth={selected?2.4:mine?2:1.5}
+      strokeWidth={(selected?2.1:mine?1.8:1.4)*scale}
       opacity={retired?0.78:1}
     />
     <circle
@@ -367,7 +397,7 @@ function AnimatedMarker({
       r={radius}
       fill={retired?"#7f1d1d":color}
       stroke="rgba(2,6,23,.72)"
-      strokeWidth=".9"
+      strokeWidth={0.85*scale}
       opacity={retired?0.78:1}
     />
     <text
@@ -378,10 +408,13 @@ function AnimatedMarker({
       fontWeight="900"
       fill="#fff"
       stroke="#020617"
-      strokeWidth=".55"
+      strokeWidth={0.5*scale}
       paintOrder="stroke"
     >{label}</text>
-    {retired?<path d={`M ${point.x-5} ${point.y-5} L ${point.x+5} ${point.y+5} M ${point.x+5} ${point.y-5} L ${point.x-5} ${point.y+5}`} stroke="#fff" strokeWidth="1.8"/>:null}
+    {retired?(()=>{
+      const arm=4.2*scale;
+      return <path d={`M ${point.x-arm} ${point.y-arm} L ${point.x+arm} ${point.y+arm} M ${point.x+arm} ${point.y-arm} L ${point.x-arm} ${point.y+arm}`} stroke="#fff" strokeWidth={1.6*scale}/>;
+    })():null}
   </g>;
 }
 
@@ -476,6 +509,7 @@ export default function Track2DView({
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
   const motionDuration=raceMotionDurationMs(playbackSpeed,playbackBaseSectorMs);
+  const markerScale=raceMarkerScaleForCamera(cameraMode,followZoom);
   const visualModel=useMemo(()=>buildRaceVisualModel(activeRows,{
     currentSector:Math.max(1,Number(currentSector)||1),
     playbackSpeed,
@@ -665,6 +699,18 @@ export default function Track2DView({
             const progress=visualTrackProgress(row,{currentLap,currentSector,referenceLapMs,index});
             const visualRow=visualByDriver.get(did);
             const palette=markerPalette(teamBrands,tid,year);
+            const previousGap=Number(row?.interval_ms);
+            const nextGap=Number(activeRows[index+1]?.interval_ms);
+            const closeBattle=(
+              (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
+              ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
+            );
+            const laneOffset=raceMarkerLaneOffset(index,{
+              cameraMode,
+              zoom:followZoom,
+              closeBattle,
+              selected,
+            });
             return <AnimatedMarker
               key={did||index}
               geometry={displayGeometry}
@@ -674,6 +720,8 @@ export default function Track2DView({
               label={shortDriverName(drivers,did)}
               mine={mine}
               selected={selected}
+              markerScale={markerScale}
+              laneOffset={laneOffset}
               onSelect={()=>selectDriver(did)}
               retired={Boolean(row?.retired)}
               motionRunning={Boolean(playbackRunning)}
