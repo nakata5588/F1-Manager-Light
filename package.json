@@ -45,7 +45,7 @@
     "test:development": "node --test tests/developmentProject.test.js",
     "test:development-regulations": "node --test tests/developmentRegulations.test.js",
     "test:technical-department": "node --test tests/technicalDepartment.test.js tests/playerTechnicalLifecycle.test.js tests/nextSeasonCar.test.js tests/nextSeasonRegulations.test.js tests/technicalKnowledge.test.js tests/nextSeasonTechnicalPackage.test.js tests/technicalStrategy.test.js tests/nextSeasonMaterialization.test.js",
-    "test:manager": "node --test tests/managerProfile.test.js",
+    "test:manager": "node --test tests/managerProfile.test.js tests/managerProfileStorage.test.js",
     "test:track-layout": "node --test tests/trackLayout.test.js"
   },
   "keywords": [

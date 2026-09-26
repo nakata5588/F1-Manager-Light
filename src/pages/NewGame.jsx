@@ -4,6 +4,12 @@ import { useGame } from "../state/GameStore";
 import { DriverPortrait } from "../components/entity/EntityVisuals.jsx";
 import { newGameTeamPreview } from "../domain/newGameTeamPreview.js";
 import {
+  deleteManagerProfile,
+  readManagerProfileStore,
+  rememberLastUsedManagerProfile,
+  saveManagerProfile,
+} from "../domain/managerProfileStorage.js";
+import {
   MANAGER_ATTRIBUTES,
   MANAGER_BACKGROUNDS,
   MANAGER_EXPERIENCE_LEVELS,
@@ -142,9 +148,18 @@ export default function NewGame() {
   });
   const [dobTouched,setDobTouched]=useState(false);
   const [portraitError,setPortraitError]=useState("");
+  const [lastUsedManager,setLastUsedManager]=useState(null);
+  const [savedManagerProfiles,setSavedManagerProfiles]=useState([]);
+  const [managerProfileNotice,setManagerProfileNotice]=useState("");
   const [yearLoading, setYearLoading] = useState(false);
   const [yearSource, setYearSource] = useState("");
   const [yearError, setYearError] = useState("");
+
+  useEffect(()=>{
+    const snapshot=readManagerProfileStore();
+    setLastUsedManager(snapshot.lastUsed);
+    setSavedManagerProfiles(snapshot.profiles);
+  },[]);
 
   const allYears = useMemo(() => {
     const ys = gameState?.yearsAvailable || [];
@@ -246,6 +261,40 @@ export default function NewGame() {
 
   const patchManager=(patch)=>setManager((current)=>({...current,...patch}));
 
+  const loadManagerDraft=(draft,label="Saved profile")=>{
+    if(!draft)return;
+    setManager((current)=>({...current,...draft}));
+    setDobTouched(Boolean(draft.date_of_birth));
+    setPortraitError("");
+    setManagerProfileNotice(label+" loaded.");
+  };
+
+  const refreshManagerProfiles=()=>{
+    const snapshot=readManagerProfileStore();
+    setLastUsedManager(snapshot.lastUsed);
+    setSavedManagerProfiles(snapshot.profiles);
+  };
+
+  const saveCurrentManagerProfile=()=>{
+    const result=saveManagerProfile(manager);
+    refreshManagerProfiles();
+    setManagerProfileNotice(result.ok?"Manager profile saved.":"Unable to save manager profile.");
+  };
+
+  const removeManagerProfile=(id)=>{
+    const result=deleteManagerProfile(id);
+    refreshManagerProfiles();
+    setManagerProfileNotice(result.ok?"Saved profile removed.":"Unable to remove saved profile.");
+  };
+
+  const rememberCurrentManager=()=>{
+    const result=rememberLastUsedManagerProfile(manager);
+    if(result.ok){
+      setLastUsedManager(result.store.lastUsed);
+      setManagerProfileNotice("Last Used profile updated.");
+    }
+  };
+
   const handlePortrait=async(file)=>{
     setPortraitError("");
     try{
@@ -258,6 +307,7 @@ export default function NewGame() {
 
   const handleFinish = async () => {
     if (!canNext) return;
+    rememberCurrentManager();
     if (teamId === "create") {
       navigate("/CreateTeam", { state: { era, year, difficulty, manager } });
       return;
@@ -276,7 +326,7 @@ export default function NewGame() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="w-full max-w-[1600px] mx-auto px-4 py-6 sm:px-6 xl:px-8">
         <h1 className="text-3xl font-bold mb-6">New Game</h1>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs mb-6">
@@ -329,7 +379,30 @@ export default function NewGame() {
                     <p className="mt-1 text-sm text-slate-400">This is your career identity. Backgrounds redistribute the same core ability; experience trades starting strength for long-term potential.</p>
                   </div>
 
-                  <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+                  <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="mr-1">
+                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Manager Profiles</div>
+                        <div className="text-[11px] text-slate-600">Reuse the same identity across careers.</div>
+                      </div>
+                      {lastUsedManager?<button type="button" onClick={()=>loadManagerDraft(lastUsedManager,"Last Used")} className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-left hover:border-emerald-300">
+                        <div className="text-[10px] uppercase tracking-wide text-emerald-300">Last Used</div>
+                        <div className="text-sm font-semibold">{[lastUsedManager.first_name,lastUsedManager.last_name].filter(Boolean).join(" ")||"Team Manager"}</div>
+                      </button>:null}
+                      {savedManagerProfiles.map((row)=><div key={row.id} className="flex overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
+                        <button type="button" onClick={()=>loadManagerDraft(row.profile,row.label)} className="px-3 py-2 text-left hover:bg-white/[0.05]">
+                          <div className="text-[10px] uppercase tracking-wide text-slate-500">Saved</div>
+                          <div className="max-w-[180px] truncate text-sm font-semibold">{row.label}</div>
+                        </button>
+                        <button type="button" aria-label={"Delete "+row.label} onClick={()=>removeManagerProfile(row.id)} className="border-l border-white/10 px-2 text-slate-500 hover:bg-white/[0.05] hover:text-rose-300">×</button>
+                      </div>)}
+                      <div className="flex-1"/>
+                      <button type="button" onClick={saveCurrentManagerProfile} disabled={!managerValid} className="rounded-lg border border-white/15 px-3 py-2 text-sm font-semibold hover:border-white/35 disabled:opacity-40">Save current profile</button>
+                    </div>
+                    {managerProfileNotice?<div className="mt-2 text-xs text-slate-400">{managerProfileNotice}</div>:null}
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label className="text-sm">First name<input value={manager.first_name} onChange={(e)=>patchManager({first_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="First name"/></label>
@@ -400,8 +473,8 @@ export default function NewGame() {
                     <p className="mt-1 text-sm text-slate-400">Compare the historical opening conditions for {year}. These values describe the team you are taking over before the Save World begins.</p>
                   </div>
 
-                  <div className="grid gap-4 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.6fr)]">
-                    <div className="max-h-[66vh] space-y-2 overflow-y-auto pr-1">
+                  <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+                    <div className="max-h-[72vh] space-y-2 overflow-y-auto pr-1">
                       <button onClick={() => setTeamId("create")} className={"w-full rounded-xl border p-3 text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
                         <div className="font-medium">Create New Team</div>
                         <div className="mt-1 text-xs text-slate-400">Start as a brand-new privateer entry</div>
@@ -436,7 +509,7 @@ export default function NewGame() {
                       })}
                     </div>
 
-                    <div className="min-h-[420px] rounded-xl border border-white/10 bg-[#0d0f15] p-4 lg:sticky lg:top-4 lg:self-start">
+                    <div className="min-h-[460px] rounded-xl border border-white/10 bg-[#0d0f15] p-5 xl:sticky xl:top-4 xl:self-start">
                       {teamId==="create" ? (
                         <div className="flex h-full min-h-[380px] flex-col items-center justify-center text-center">
                           <FallbackAvatar title="Create New Team" large/>
@@ -506,12 +579,26 @@ export default function NewGame() {
                             </div>
                           </div>
 
-                          <div>
-                            <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Qualifying</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
-                              <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Race Pace</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
-                              <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Reliability</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
+                          <div className="grid gap-4 xl:grid-cols-2">
+                            <div>
+                              <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Qualifying</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Race Pace</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Reliability</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Facilities</div>
+                              {selectedTeamPreview.facilities?.items?.length?<div className="grid grid-cols-2 gap-2">
+                                {selectedTeamPreview.facilities.items.map((row)=><div key={row.label} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                                  <div className="truncate text-[10px] uppercase tracking-wide text-slate-500">{row.label}</div>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-300" style={{width:String(Math.max(0,Math.min(10,row.level))*10)+"%"}}/></div>
+                                    <div className="w-8 text-right text-sm font-semibold">{row.level}/10</div>
+                                  </div>
+                                </div>)}
+                              </div>:<div className="text-sm text-slate-500">No facility data is available for this season.</div>}
                             </div>
                           </div>
                         </div>

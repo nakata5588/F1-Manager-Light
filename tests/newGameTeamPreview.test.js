@@ -62,6 +62,8 @@ test("New Game team preview uses historical opening conditions",()=>{
   assert.equal(preview.driversOverall,78);
   assert.equal(preview.facilities.available,5);
   assert.equal(preview.facilities.average,7.2);
+  assert.equal(preview.facilities.items.length,5);
+  assert.deepEqual(preview.facilities.items[0],{label:"Wind Tunnel",level:7});
   assert.ok(Number.isFinite(preview.car?.overall));
   assert.ok(Number.isFinite(preview.car?.race));
   assert.notEqual(preview.reputation,99);
