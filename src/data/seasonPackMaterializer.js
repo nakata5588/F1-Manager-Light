@@ -15,6 +15,8 @@ import {
 } from "../domain/driverOpeningState.js";
 import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
+import { inferDriverWorldEntries } from "../domain/driverWorldEntry.js";
+import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../domain/driverFeederPlacement.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -433,9 +435,31 @@ export function materializeSeasonPack(globalData,yearInput){
   const driverMaster=new Map((g.drivers||[]).map((d)=>[driverId(d),d]).filter(([id])=>id));
   const careerByDriver=new Map(f1Career.map((d)=>[driverId(d),d]).filter(([id])=>id));
   const contractByDriver=new Map(contracts.map((d)=>[driverId(d),d]).filter(([id])=>id));
+
+  // D7.W3: W1/W2 supplement the historical Opening State with pre-F1 drivers
+  // who already exist in the motorsport world. They never fabricate F1 seats,
+  // teams or future promotions; exact Opening State remains authoritative.
+  const worldEntries=inferDriverWorldEntries([...driverMaster.values()],{
+    driverYearStatus:g.driverYearStatus||[],
+    driverCareer:g.driverCareer||[],
+    driverDevelopmentHistory:g.driverDevelopmentHistory||[],
+    driverHistory:g.driverHistory||[],
+  });
+  const feederPlacements=inferDriverFeederPlacements(
+    [...driverMaster.values()],
+    worldEntries,
+    year
+  );
+  const feederByDriver=new Map(
+    feederPlacements.map((row)=>[String(row.driver_id||""),row]).filter(([id])=>id)
+  );
+
   const candidateIds=hasOpeningState
     ?new Set(openingStateRows.filter((row)=>!openingStateExcluded(row)).map(openingDriverId).filter(Boolean))
     :new Set(driverMaster.keys());
+  for(const placement of feederPlacements){
+    if(placement?.active_pre_f1_world)candidateIds.add(String(placement.driver_id));
+  }
   for(const id of gridDriverIds)candidateIds.add(id);
 
   for(const id of candidateIds){
@@ -446,12 +470,29 @@ export function materializeSeasonPack(globalData,yearInput){
       display_name:pick(d,["display_name","driver_name","name"],pick(careerByDriver.get(id)||{},["driver_name"],pick(contractByDriver.get(id)||{},["driver_name","name"],id))),
       age:ageAt(d,year),
     };
+    const feederPatch=feederPlacementRuntimePatch(feederByDriver.get(id));
 
     if(hasOpeningState){
       const opening=openingByDriver.get(id);
-      if(!opening)continue;
-      const materialized=applyOpeningStateToDriver(base,opening,year);
-      if(materialized)drivers.push(materialized);
+      if(opening){
+        const materialized=applyOpeningStateToDriver(base,opening,year);
+        if(materialized)drivers.push({
+          ...materialized,
+          feeder_placement:"HISTORICAL_OPENING_STATE",
+          world_runtime_source:"driver_opening_state",
+        });
+        continue;
+      }
+      // Opening State does not list every pre-F1 prospect. W1/W2 may add only
+      // active feeder-world drivers; no F1/retired/gap status is inferred here.
+      if(feederPatch){
+        drivers.push({...base,...feederPatch});
+      }
+      continue;
+    }
+
+    if(feederPatch){
+      drivers.push({...base,...feederPatch});
       continue;
     }
 
@@ -511,6 +552,8 @@ export function materializeSeasonPack(globalData,yearInput){
       driverRatings,
       driverCareer,
       driverHistory,
+      driverWorldEntry:worldEntries,
+      driverFeederPlacement:feederPlacements,
       driverOpeningState:openingStateRows,
       contracts,
       staffCore,
@@ -606,6 +649,8 @@ export function validateSeasonPack(pack){
       drivers:(s.drivers||[]).length,
       driverRatings:(s.driverRatings||[]).length,
       openingState:(s.driverOpeningState||[]).length,
+      worldEntry:(s.driverWorldEntry||[]).length,
+      feederPlacement:(s.driverFeederPlacement||[]).length,
       contractedDrivers:gridContracts.length,
       staff:(s.staffCore||[]).length,
       staffContracts:(s.staffContracts||[]).length,

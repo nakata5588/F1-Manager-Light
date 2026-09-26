@@ -56,6 +56,8 @@ export function seasonPackStatePatch(pack) {
     driverRatings: Array.isArray(s.driverRatings) ? s.driverRatings : [],
     driverCareer: Array.isArray(s.driverCareer) ? s.driverCareer : [],
     driverHistory: Array.isArray(s.driverHistory) ? s.driverHistory : [],
+    driverWorldEntry: Array.isArray(s.driverWorldEntry) ? s.driverWorldEntry : [],
+    driverFeederPlacement: Array.isArray(s.driverFeederPlacement) ? s.driverFeederPlacement : [],
     driverOpeningState: Array.isArray(s.driverOpeningState) ? s.driverOpeningState : [],
     contracts: Array.isArray(s.contracts) ? s.contracts : [],
     staffCore: Array.isArray(s.staffCore) ? s.staffCore : [],

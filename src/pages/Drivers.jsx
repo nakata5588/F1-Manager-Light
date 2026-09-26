@@ -50,6 +50,7 @@ function marketStatus(driver, contract, pending, activeYear){
     driver?.status==="junior_only" ||
     driver?.active_lower_series===true;
   if(lowerSeries){
+    if(String(driver?.feeder_placement||"")==="F1_READY") return "F1 Ready";
     if(Number.isFinite(age)&&age<=19) return "Youth";
     return "Lower Series";
   }
@@ -180,7 +181,7 @@ export default function Drivers(){
   }),[drivers,contractById,activePlayerByDriver,activeTransferByDriver,teamNames,gs]);
 
   const teamOptions=useMemo(()=>["ALL",...Array.from(new Set(rows.map(r=>r.team_name).filter(v=>v&&v!=="—"))).sort()],[rows]);
-  const statusOptions=["ALL","Contracted","Negotiating","Free","Academy","Other Series","Prospect","Youth","Lower Series","Team Commitment","Status Review","Retired","Unavailable","Available"];
+  const statusOptions=["ALL","Contracted","Negotiating","Free","Academy","Other Series","Prospect","Youth","Lower Series","F1 Ready","Team Commitment","Status Review","Retired","Unavailable","Available"];
 
   const filtered=useMemo(()=>{
     const n=q.trim().toLowerCase();

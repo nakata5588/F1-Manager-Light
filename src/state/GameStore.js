@@ -33,6 +33,8 @@ import {
   openingStateRowsForYear,
   openingTeamId,
 } from "@/domain/driverOpeningState";
+import { inferDriverWorldEntries } from "@/domain/driverWorldEntry";
+import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "@/domain/driverFeederPlacement";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -465,6 +467,8 @@ export const useGame = create((set, get) => ({
     drivers: [],
     teams: [],
     driverRatings: [],
+    driverWorldEntry: [],
+    driverFeederPlacement: [],
     driverOpeningState: [],
     staffRatings: [],
     staffCore: [],
@@ -1046,9 +1050,31 @@ export const useGame = create((set, get) => ({
     const youthMinAge = Number(pick(youthRule, ["min_age"], 16));
     const youthMaxAge = Number(pick(youthRule, ["max_age"], 19));
 
+    const worldEntries = inferDriverWorldEntries(prev.dbDrivers || [], {
+      driverCareer: prev.dbDriverCareer || [],
+      driverHistory: prev.dbDriverHistory || [],
+    });
+    const feederPlacements = inferDriverFeederPlacements(
+      prev.dbDrivers || [],
+      worldEntries,
+      y,
+      { youthMaxAge }
+    );
+    const feederPlacementByDriver = new Map(
+      feederPlacements.map((row) => [String(row?.driver_id || ""), row]).filter(([id]) => id)
+    );
+    const feederDriverIds = new Set(
+      feederPlacements
+        .filter((row) => row?.active_pre_f1_world)
+        .map((row) => String(row.driver_id))
+    );
+
     const openingDriverIds = new Set(driverOpeningState.map(openingDriverId).filter(Boolean));
     const driverPool = hasOpeningState
-      ? (prev.dbDrivers || []).filter((d) => openingDriverIds.has(String(d.driver_id ?? d.id ?? d.code ?? "")))
+      ? (prev.dbDrivers || []).filter((d) => {
+          const id=String(d.driver_id ?? d.id ?? d.code ?? "");
+          return openingDriverIds.has(id) || feederDriverIds.has(id);
+        })
       : (prev.dbDrivers || []);
 
     const driversWithStatus = driverPool.map((d) => {
@@ -1059,23 +1085,33 @@ export const useGame = create((set, get) => ({
       const driverId = String(d.driver_id ?? d.id ?? d.code ?? "");
       const age = ageOnYear(d.dob ?? d.date_of_birth, y);
       const openingRow = openingByDriver.get(driverId) || null;
+      const feederPatch = feederPlacementRuntimePatch(feederPlacementByDriver.get(driverId));
+      const runtimeBase = {
+        ...d,
+        driver_id: driverId || null,
+        display_name,
+        name: display_name || d.name || "",
+        country: d.country_name ?? d.country ?? "",
+        country_code: d.country_code ?? d.nationality_code ?? "",
+        dob: d.dob ?? d.date_of_birth ?? "",
+        prefered_number: d.prefered_number ?? d.number ?? "",
+        portrait_path: resolveDriverPortrait(driverId, y, d.portrait_path ?? d.portrait ?? ""),
+        helmet_color_primary: d.helmet_color_primary ?? "",
+        helmet_color_secondary: d.helmet_color_secondary ?? "",
+        age,
+      };
       if (hasOpeningState) {
-        if (!openingRow || openingStateExcluded(openingRow)) return null;
-        return applyOpeningStateToDriver({
-          ...d,
-          driver_id: driverId || null,
-          display_name,
-          name: display_name || d.name || "",
-          country: d.country_name ?? d.country ?? "",
-          country_code: d.country_code ?? d.nationality_code ?? "",
-          dob: d.dob ?? d.date_of_birth ?? "",
-          prefered_number: d.prefered_number ?? d.number ?? "",
-          portrait_path: resolveDriverPortrait(driverId, y, d.portrait_path ?? d.portrait ?? ""),
-          helmet_color_primary: d.helmet_color_primary ?? "",
-          helmet_color_secondary: d.helmet_color_secondary ?? "",
-          age,
-        }, openingRow, y, { youthMinAge, youthMaxAge });
+        if (openingRow && !openingStateExcluded(openingRow)) {
+          return {
+            ...applyOpeningStateToDriver(runtimeBase, openingRow, y, { youthMinAge, youthMaxAge }),
+            feeder_placement: "HISTORICAL_OPENING_STATE",
+            world_runtime_source: "driver_opening_state",
+          };
+        }
+        return feederPatch ? { ...runtimeBase, ...feederPatch } : null;
       }
+
+      if (feederPatch) return { ...runtimeBase, ...feederPatch };
 
       const baseStatus = computeDriverStatus(y, d);
       const hasF1Contract = driverIdsFromContracts.has(driverId);
@@ -1125,19 +1161,8 @@ export const useGame = create((set, get) => ({
         ((status === "lower_series" || status === "junior_only") && Number.isFinite(age) && age >= 18);
 
       return {
-        ...d,
-        driver_id: driverId || null,
-        display_name,
-        name: display_name || d.name || "",
-        country: d.country_name ?? d.country ?? "",
-        country_code: d.country_code ?? d.nationality_code ?? "",
-        dob: d.dob ?? d.date_of_birth ?? "",
-        prefered_number: d.prefered_number ?? d.number ?? "",
-        portrait_path: resolveDriverPortrait(driverId, y, d.portrait_path ?? d.portrait ?? ""),
-        helmet_color_primary: d.helmet_color_primary ?? "",
-        helmet_color_secondary: d.helmet_color_secondary ?? "",
+        ...runtimeBase,
         status,
-        age,
         active_lower_series: inLowerSeries,
         lower_series_name: pick(lowerSeriesRow || {}, ["series_division","division","series"], inferredPreF1Active ? "Lower Series" : ""),
         youth_eligible: isYouth,
@@ -1261,6 +1286,8 @@ export const useGame = create((set, get) => ({
       teams,
       drivers,
       driverRatings,
+      driverWorldEntry: worldEntries,
+      driverFeederPlacement: feederPlacements,
       driverOpeningState,
       staffRatings,
       staffCore,

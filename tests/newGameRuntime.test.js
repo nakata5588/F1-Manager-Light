@@ -210,3 +210,30 @@ test("fresh career never inherits uploaded visual overrides from a previous care
 
   assert.deepEqual(fresh.visualAssetOverrides,{drivers:{},staff:{},teams:{}});
 });
+
+
+test("Season Pack world-entry metadata survives loader and fresh-career boundary",()=>{
+  const patch=seasonPackStatePatch({
+    format:"f1ml-season-pack",
+    schemaVersion:1,
+    year:1980,
+    validation:{ok:true},
+    state:{
+      drivers:[{driver_id:"S1",display_name:"Youth",status:"junior_only",active_lower_series:true}],
+      driverWorldEntry:[{driver_id:"S1",first_world_year:1978}],
+      driverFeederPlacement:[{driver_id:"S1",year:1980,placement:"YOUTH",forced_future_f1_debut:false}],
+    },
+  });
+  assert.equal(patch.driverWorldEntry[0].first_world_year,1978);
+  assert.equal(patch.driverFeederPlacement[0].placement,"YOUTH");
+
+  const fresh=buildFreshCareerState({
+    ...patch,
+    seasonPackMeta:{format:"f1ml-season-pack",year:1980},
+  },{
+    activeYear:1980,
+    currentDateISO:"1980-01-01",
+  });
+  assert.equal(fresh.driverWorldEntry[0].first_world_year,1978);
+  assert.equal(fresh.driverFeederPlacement[0].placement,"YOUTH");
+});

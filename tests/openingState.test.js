@@ -173,3 +173,32 @@ test("Academy-only opening prospects cannot jump directly from karting to an F1 
     "Academy-only opening policy must not become a permanent historical debut lock after rollover"
   );
 });
+
+
+test("W3 supplements authoritative Opening State with valid pre-F1 world entrants only",()=>{
+  const data=fixture();
+  data.drivers.push({
+    driver_id:"S1",
+    display_name:"Missing Youth Prospect",
+    dob:"1960-03-21",
+    f1_rookie_season:1984,
+  });
+  // S1 is deliberately absent from driver_opening_state. W3 should add him as
+  // a feeder-world driver without creating any F1 contract or future destiny.
+  const pack=materializeSeasonPack(data,1980);
+  assert.equal(pack.validation.ok,true,JSON.stringify(pack.validation));
+
+  const prospect=pack.state.drivers.find((d)=>d.driver_id==="S1");
+  assert.ok(prospect,"pre-F1 world entrant must supplement incomplete Opening State");
+  assert.equal(prospect.status,"junior_only");
+  assert.equal(prospect.feeder_placement,"YOUTH");
+  assert.equal(prospect.age,19);
+  assert.equal(prospect.active_lower_series,true);
+  assert.equal(prospect.canHireAcademy,true);
+  assert.equal(prospect.canHireF1,false);
+  assert.equal(
+    pack.state.contracts.some((row)=>String(row.driver_id)==="S1"),
+    false,
+    "supplemental feeder placement must never fabricate an F1 contract"
+  );
+});

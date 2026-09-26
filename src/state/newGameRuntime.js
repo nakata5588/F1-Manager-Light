@@ -25,7 +25,7 @@ export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
 
   // Historical starting conditions materialized for the selected season.
   "calendar","teams","drivers","driverRatings","driverCareer","driverHistory",
-  "driverOpeningState","staffRatings","staffCore","staffContracts","teamBrands",
+  "driverWorldEntry","driverFeederPlacement","driverOpeningState","staffRatings","staffCore","staffContracts","teamBrands",
   "teamEngines","contracts","sponsorsContracts","rules","qualifyingRules",
   "eraSafety","accidentModel","facilities","carStats","tyres","pointsSystem",
   "penaltiesRules","financialRules","agendaBlocks","coreTracks",
