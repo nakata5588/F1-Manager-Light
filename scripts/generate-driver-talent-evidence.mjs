@@ -1,5 +1,5 @@
 // scripts/generate-driver-talent-evidence.mjs
-// D7.R1A analysis-only generator. It writes ignored audit artifacts under
+// D7.R1B analysis-only generator. It writes ignored audit artifacts under
 // scripts/output and does not alter runtime ratings, Season Packs or saves.
 
 import fs from "node:fs/promises";
@@ -29,11 +29,11 @@ const [drivers,events,carCompetitiveness,careerRows]=await Promise.all([
 ]);
 
 if(!drivers.length){
-  throw new Error("D7.R1A requires public/data/drivers.json.");
+  throw new Error("D7.R1B requires public/data/drivers.json.");
 }
 if(!events.length){
   throw new Error(
-    "D7.R1A requires the derived historical race archive. Run npm run season:generate first, then npm run talent:evidence."
+    "D7.R1B requires the derived historical race archive. Run npm run season:generate first, then npm run talent:evidence."
   );
 }
 
@@ -51,9 +51,9 @@ await Promise.all([
     path.join(outputDir,"driver_talent_evidence.json"),
     JSON.stringify({
       format:"f1ml-driver-talent-evidence",
-      schema_version:1,
+      schema_version:2,
       generated_at:null,
-      stage:"D7.R1A",
+      stage:"D7.R1B",
       authority:"analysis_only",
       drivers:evidence,
     },null,2)+"\n",
@@ -67,7 +67,7 @@ await Promise.all([
 ]);
 
 console.log(
-  "D7.R1A talent evidence:",
+  "D7.R1B talent evidence:",
   audit.total_drivers+" drivers · "+
   audit.drivers_with_f1_starts+" with F1 starts · "+
   Object.entries(audit.confidence_counts).map(([band,count])=>band+":"+count).join(" · ")
@@ -84,19 +84,28 @@ const sentinelNames=[
   "Ayrton Senna","Alain Prost","Michael Schumacher","Lewis Hamilton",
   "Juan Manuel Fangio","Jim Clark","Max Verstappen","Fernando Alonso"
 ];
-console.log("Calibration sentinels (diagnostic only):");
+console.log("Calibration sentinels — R1A -> R1B (diagnostic only):");
 for(const wanted of sentinelNames){
   const row=evidence.find(item=>String(item.display_name||"").normalize("NFD")
     .replace(/[\\u0300-\\u036f]/g,"").toLowerCase()===wanted.normalize("NFD")
     .replace(/[\\u0300-\\u036f]/g,"").toLowerCase());
   if(!row)continue;
+  const before=row.r1a_comparative_evidence_percentiles||{};
+  const after=row.comparative_evidence_percentiles||{};
+  const delta=(key)=>{
+    const a=Number(after?.[key]);
+    const b=Number(before?.[key]);
+    return Number.isFinite(a)&&Number.isFinite(b)?Number((a-b).toFixed(1)):"—";
+  };
   console.log(
     "  "+row.display_name+
-    " · composite "+String(row.comparative_evidence_percentiles?.composite??"—")+
-    " · Q "+String(row.comparative_evidence_percentiles?.qualifying??"—")+
-    " · Race "+String(row.comparative_evidence_percentiles?.race??"—")+
-    " · Peak "+String(row.comparative_evidence_percentiles?.peak??"—")+
-    " · Cons "+String(row.comparative_evidence_percentiles?.consistency??"—")+
+    " · composite "+String(before.composite??"—")+" -> "+String(after.composite??"—")+
+    " ("+delta("composite")+")"+
+    " · Q "+String(before.qualifying??"—")+" -> "+String(after.qualifying??"—")+
+    " · Race "+String(before.race??"—")+" -> "+String(after.race??"—")+
+    " · Peak "+String(before.peak??"—")+" -> "+String(after.peak??"—")+
+    " · field "+String(row.opposition_context?.average_field_strength??"—")+
+    " · teammate "+String(row.opposition_context?.average_teammate_strength??"—")+
     " · "+row.sample.starts+" starts · "+row.confidence.band
   );
 }
