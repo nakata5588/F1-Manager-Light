@@ -4,6 +4,17 @@ export function liveRaceIsInProgress(liveRace) {
   return !["finished", "completed"].includes(status);
 }
 
+export function raceWeekendCanFinalizeLiveRace(weekend) {
+  if (!weekend || String(weekend.phase || "") !== "race") return false;
+  const liveRace = weekend.live_race;
+  if (!liveRace || String(liveRace.status || "").toLowerCase() !== "finished") return false;
+  const totalLaps = Math.max(1, Number(liveRace.total_laps) || 1);
+  return (
+    Number(liveRace.current_lap) >= totalLaps &&
+    Number(liveRace.current_sector ?? 3) >= 3
+  );
+}
+
 export function normalizeRaceWeekendResumeState(weekend) {
   if (!weekend || typeof weekend !== "object") return weekend ?? null;
   if (!liveRaceIsInProgress(weekend.live_race)) return weekend;
