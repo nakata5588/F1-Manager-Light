@@ -59,6 +59,14 @@ jobs:
       - name: Test driver progression and fatigue
         run: npm run test:drivers
 
+      - name: Test historical talent evidence principles
+        run: npm run test:talent-evidence
+
+      - name: Test historical talent evidence against real archive
+        run: |
+          node scripts/build-race-results-archive.mjs
+          npm run test:talent-evidence:real
+
       - name: Test Drivers cross-system integration
         run: npm run test:driver-integration
 
