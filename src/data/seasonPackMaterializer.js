@@ -17,6 +17,7 @@ import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { inferDriverWorldEntries } from "../domain/driverWorldEntry.js";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../domain/driverFeederPlacement.js";
+import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -277,7 +278,7 @@ function historicalSnapshotToRating(row,year){
   return Object.fromEntries(Object.entries(rating).filter(([,v])=>v!==null&&v!==undefined&&v!==""));
 }
 
-function driverRatingsForSeason(g,year,wantedIds){
+function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
   const wanted=wantedIds instanceof Set?wantedIds:null;
   const exactV2=rowsAtYear(g.historicalRatingSnapshots||[],year)
     .filter((r)=>!wanted||wanted.has(driverId(r)))
@@ -289,7 +290,14 @@ function driverRatingsForSeason(g,year,wantedIds){
     const id=driverId(row);
     if(id&&!byId.has(id))byId.set(id,{...clean(row),year,source:pick(row,["source"],"legacy_driver_ratings")});
   }
-  return [...byId.values()];
+  return materializeMissingStartingRatings({
+    drivers,
+    existingRatings:[...byId.values()],
+    profiles:g.driverRatingProfiles||[],
+    year,
+    placements,
+    historicalSnapshots:g.historicalRatingSnapshots||[],
+  });
 }
 
 export function materializeSeasonPack(globalData,yearInput){
@@ -501,7 +509,10 @@ export function materializeSeasonPack(globalData,yearInput){
     drivers.push({...base,...status});
   }
   const driverIds=new Set(drivers.map(driverId));
-  const driverRatings=driverRatingsForSeason(g,year,driverIds);
+  const driverRatings=driverRatingsForSeason(g,year,driverIds,{
+    drivers,
+    placements:feederPlacements,
+  });
   const driverCareer=rowsAtYear(g.driverCareer,year).map(clean);
   const driverHistory=(g.driverHistory||[])
     .filter((r)=>driverIds.has(driverId(r)) && Number(yearOf(r)) < year)
@@ -536,7 +547,11 @@ export function materializeSeasonPack(globalData,yearInput){
     .map(normalizeTeamRow).filter(Boolean)
     .filter((r)=>teamIds.has(teamId(r)));
   const calendar=calendarRows(g.calendar,year);
-  const ratingModel=driverRatings.some((r)=>String(r?.source||"")==="historical_rating_snapshot_r2b")?"R2B":"legacy";
+  const ratingModel=driverRatings.some((r)=>String(r?.source||"")==="historical_rating_snapshot_r2b")
+    ?"R2B"
+    :driverRatings.some((r)=>String(r?.source||"")==="talent_profile_starting_materializer")
+      ?"D7.R2"
+      :"legacy";
 
   const pack={
     format:"f1ml-season-pack",
