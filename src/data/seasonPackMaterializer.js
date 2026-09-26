@@ -14,6 +14,7 @@ import {
   openingTeamId,
 } from "../domain/driverOpeningState.js";
 import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
+import { championshipPointsSystem } from "../domain/championshipRules.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -601,7 +602,7 @@ export function materializeSeasonPack(globalData,yearInput){
       eraSafety:effectiveSingle(g.eraSafety,year),
       accidentModel:effectiveSingle(Array.isArray(g.accidentModel)?g.accidentModel:[],year),
       tyres:effectiveRange(g.tyres,year),
-      pointsSystem:effectiveRange(g.pointsSystems,year)[0]||null,
+      pointsSystem:championshipPointsSystem(year,effectiveRange(g.pointsSystems,year)[0]||null),
       penaltiesRules:effectiveRange(g.penaltiesRules,year),
       financialRules:effectiveRange(g.financialRules,year),
       agendaBlocks:effectiveRange(g.agendaBlocks,year),
