@@ -2,6 +2,9 @@
 // Reconciles historical career rows with the live driver/team identities.
 // Historical imports can retain legacy IDs even when the live canonical ID changed.
 
+import { canonicalHistoricalTeam, resolveHistoricalTeamId } from "./teamIdentity.js";
+export { canonicalHistoricalTeam, resolveHistoricalTeamId };
+
 function unbox(value){
   if(value&&typeof value==="object"&&!Array.isArray(value)){
     if(value.result!==undefined&&value.result!==null&&value.result!=="")return unbox(value.result);
@@ -37,47 +40,6 @@ export function historicalCareerDriverMatches(row,{driverId=null,driverName=null
   );
   const liveName=normalizeHistoricalName(driverName);
   return Boolean(rowName&&liveName&&rowName===liveName);
-}
-
-export function resolveHistoricalTeamId(row,teams=[]){
-  const direct=String(unbox(row?.team_id??row?.constructor_id??"")??"").trim();
-  const candidates=(Array.isArray(teams)?teams:[])
-    .map((team)=>({
-      team,
-      id:String(unbox(team?.team_id??team?.id??"")??"").trim(),
-      name:normalizeHistoricalName(team?.team_name??team?.name??team?.short_name),
-      label:String(unbox(team?.team_name??team?.name??team?.short_name??"")??"").trim(),
-    }))
-    .filter((entry)=>entry.id&&entry.name);
-
-  // Keep a direct ID only when it is already a live/canonical team ID.
-  if(direct&&candidates.some((entry)=>entry.id===direct))return direct;
-
-  const wanted=normalizeHistoricalName(row?.team_name??row?.team??row?.constructor);
-  if(wanted){
-    const exact=candidates.find((entry)=>entry.name===wanted);
-    if(exact)return exact.id;
-
-    // Historical imports can use founder/sponsor prefixes (Walter Wolf -> Wolf)
-    // or archive constructor IDs. Prefer the canonical live team by name.
-    const fuzzy=candidates
-      .filter((entry)=>entry.name.length>=4&&(wanted.includes(entry.name)||entry.name.includes(wanted)))
-      .sort((a,b)=>b.name.length-a.name.length)[0];
-    if(fuzzy)return fuzzy.id;
-  }
-
-  return direct;
-}
-
-export function canonicalHistoricalTeam(row,teams=[]){
-  const id=resolveHistoricalTeamId(row,teams);
-  const team=(Array.isArray(teams)?teams:[]).find((candidate)=>
-    String(unbox(candidate?.team_id??candidate?.id??"")??"")===String(id)
-  );
-  return {
-    id:id||String(unbox(row?.team_id??row?.constructor_id??"")??""),
-    name:String(unbox(team?.team_name??team?.name??team?.short_name??row?.team_name??row?.team??row?.constructor??"")??""),
-  };
 }
 
 function careerDriverToken(row){
