@@ -29,6 +29,7 @@ test("Team Profile initializes display name before historical logo candidates", 
 
 test("Team Lotus historical duplicate resolves to canonical Lotus identity",()=>{
   assert.equal(canonicalTeamId("t_0040"),"t_0005");
+  assert.equal(canonicalTeamId("legacy_constructor_lotus"),"t_0005");
   assert.equal(canonicalTeamId("t_0005"),"t_0005");
   assert.equal(canonicalTeamName("Team Lotus"),"Lotus");
   assert.equal(canonicalTeamName("Lotus F1"),"Lotus F1");
