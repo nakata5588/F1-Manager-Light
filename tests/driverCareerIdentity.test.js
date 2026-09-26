@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { resolveHistoricalTeamIdentity } from "../src/domain/teamIdentity.js";
 import {
   annotateCareerTransfers,
   applyResultChampionshipPositions,
@@ -123,4 +124,23 @@ test("career transfer annotation identifies the joined team and round",()=>{
   ]);
   assert.equal(rows[0].__transfer,undefined);
   assert.deepEqual(rows[1].__transfer,{from:"Team One",to:"Team Two",round:6});
+});
+
+
+test("central historical team resolver preserves constructor identity and refuses ambiguous fuzzy matches",()=>{
+  const teams=[
+    {team_id:"t_0005",team_name:"Lotus",short_name:"Lotus"},
+    {team_id:"t_0179",team_name:"Lotus-Ford",short_name:"Lotus-Ford"},
+    {team_id:"t_0035",team_name:"Lola",short_name:"Lola"},
+    {team_id:"t_0200",team_name:"Haas F1 Team",short_name:"Haas"},
+  ];
+
+  const lotusFord=resolveHistoricalTeamIdentity({team_name:"Lotus-Ford"},teams);
+  assert.equal(lotusFord.id,"t_0179");
+  assert.equal(lotusFord.match,"exact_name");
+
+  const ambiguous=resolveHistoricalTeamIdentity({team_name:"Haas Lola"},teams);
+  assert.equal(ambiguous.id,"");
+  assert.equal(ambiguous.match,"ambiguous_name");
+  assert.deepEqual(ambiguous.ambiguous_candidate_ids,["t_0035","t_0200"]);
 });
