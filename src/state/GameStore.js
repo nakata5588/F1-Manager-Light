@@ -21,6 +21,7 @@ import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
 import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
 import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
+import { DEFAULT_USER_SETTINGS, mergeUserSettings, readUserSettings, writeUserSettings } from "@/domain/userPreferences";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -63,26 +64,7 @@ let __lastSaveResult = null;
 const DEDUPE_WINDOW_MS = 1200;
 
 /** ===== DEFAULT SETTINGS ===== */
-const defaultSettings = {
-  uiTheme: "auto",
-  language: "en",
-  dateFormat: "yyyy-MM-dd",
-  autosave: true,
-  autosaveIntervalMin: 10,
-  notifications: true,
-  audio: { masterVolume: 70, sfxVolume: 70, musicVolume: 30 },
-  gameplay: {
-    difficulty: "normal",
-    simSpeed: 1,
-    rulesEra: "1980",
-    enableInjuryRandomEvents: true,
-    enableFatalities: true,
-    enableWeatherRandomness: true,
-    autoRollover: false,
-  },
-  data: { datasource: "json", remoteUrl: "" },
-  developer: { showDevTools: false, verboseLogs: false },
-};
+const defaultSettings = DEFAULT_USER_SETTINGS;
 
 /** ===== fetch JSON (public/data) ===== */
 async function fetchJsonSafe(path) {
@@ -522,7 +504,7 @@ export const useGame = create((set, get) => ({
     dbDriverCareer: [],
 
     // Settings
-    settings: defaultSettings,
+    settings: readUserSettings(),
 
     // save/ui
     team: null,
@@ -585,12 +567,24 @@ export const useGame = create((set, get) => ({
   })),
 
   updateSettings: (next) => {
-    set((state) => ({
-      gameState: {
-        ...state.gameState,
-        settings: { ...state.gameState?.settings, ...next },
-      },
-    }));
+    set((state) => {
+      const settings=mergeUserSettings({
+        ...(state.gameState?.settings||{}),
+        ...(next||{}),
+        display:{...(state.gameState?.settings?.display||{}),...(next?.display||{})},
+        audio:{...(state.gameState?.settings?.audio||{}),...(next?.audio||{})},
+        gameplay:{...(state.gameState?.settings?.gameplay||{}),...(next?.gameplay||{})},
+        data:{...(state.gameState?.settings?.data||{}),...(next?.data||{})},
+        developer:{...(state.gameState?.settings?.developer||{}),...(next?.developer||{})},
+      });
+      writeUserSettings(settings);
+      return {
+        gameState: {
+          ...state.gameState,
+          settings,
+        },
+      };
+    });
   },
 
   loadSeasonPack: async (yearInput, { fallback = true } = {}) => {
