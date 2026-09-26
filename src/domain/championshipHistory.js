@@ -78,7 +78,40 @@ function preferredTeam(teamEntries=[]){
   )[0]||null;
 }
 
-export function aggregateHistoricalDrivers(history,year,drivers=[],teams=[]){
+export function aggregateHistoricalDrivers(history,year,drivers=[],teams=[],championships=null){
+  const canonical=rows(championships?.drivers)
+    .filter((row)=>Number(unbox(row?.year))===Number(year));
+  if(canonical.length){
+    const fallback=aggregateHistoricalDrivers(history,year,drivers,teams,null);
+    const fallbackById=new Map(fallback.map((row)=>[String(row.id),row]));
+    return canonical
+      .map((row,index)=>{
+        const did=driverIdOf(row);
+        const base=fallbackById.get(did)||{};
+        const tid=str(row?.constructor_id??row?.team_id??base?.team_id);
+        const races=num(base?.races,0);
+        const points=num(row?.points,0);
+        return {
+          ...base,
+          id:did,
+          driver_id:did,
+          name:str(row?.driver_name)||base?.name||driverNameFor(drivers,did,did),
+          driver_name:str(row?.driver_name)||base?.driver_name||driverNameFor(drivers,did,did),
+          team_id:tid,
+          team_name:str(row?.constructor_name??row?.team_name)||teamNameFor(teams,tid,tid||"—"),
+          points,
+          rawPoints:num(row?.raw_points,points),
+          discardedPoints:num(row?.discarded_points,0),
+          wins:num(row?.wins,base?.wins??0),
+          podiums:num(row?.podiums,base?.podiums??0),
+          pointsPerRace:races?Number((points/races).toFixed(2)):0,
+          position:num(row?.position,index+1),
+          source:str(row?.source)||"historical_championship_rules",
+        };
+      })
+      .filter((row)=>row.driver_id)
+      .sort((a,b)=>a.position-b.position||b.points-a.points||a.name.localeCompare(b.name));
+  }
   const driverMap=new Map();
   const teamMap=teams instanceof Map?teams:new Map(rows(teams).map((team)=>[teamIdOf(team),team]));
   const driverDb=drivers instanceof Map?drivers:new Map(rows(drivers).map((driver)=>[driverIdOf(driver),driver]));
@@ -157,7 +190,37 @@ export function aggregateHistoricalDrivers(history,year,drivers=[],teams=[]){
     .map((row,index)=>({...row,position:index+1}));
 }
 
-export function aggregateHistoricalConstructors(history,year,teamsById=[]){
+export function aggregateHistoricalConstructors(history,year,teamsById=[],championships=null){
+  const canonical=rows(championships?.constructors)
+    .filter((row)=>Number(unbox(row?.year))===Number(year));
+  if(canonical.length){
+    return canonical
+      .map((row,index)=>{
+        const id=str(row?.constructor_id??row?.team_id??row?.id);
+        const points=num(row?.points,0);
+        const races=num(row?.races,0);
+        return {
+          id,
+          constructor_id:id,
+          name:str(row?.constructor_name??row?.team_name)||teamNameFor(teamsById,id,id),
+          points,
+          rawPoints:num(row?.raw_points,points),
+          discardedPoints:num(row?.discarded_points,0),
+          adjustment:num(row?.adjustment,0),
+          races,
+          wins:num(row?.wins,0),
+          podiums:num(row?.podiums,0),
+          fastestLaps:num(row?.fastest_laps,0),
+          poles:num(row?.poles,0),
+          dnfs:num(row?.dnf??row?.dnfs,0),
+          pointsPerRace:races?Number((points/races).toFixed(2)):0,
+          position:num(row?.position,index+1),
+          source:str(row?.source)||"historical_championship_rules",
+        };
+      })
+      .filter((row)=>row.id)
+      .sort((a,b)=>a.position-b.position||b.points-a.points||a.name.localeCompare(b.name));
+  }
   const teamMap=new Map();
   for(const row of rows(history)){
     if(Number(unbox(row?.year))!==Number(year))continue;
@@ -317,7 +380,7 @@ export function driverStandingsForYear(gs,year){
     // dbDriverHistory is the complete generated cache from historical race
     // results. driverHistory is season-pack scoped, so it is fallback only.
     const history=rows(gs?.dbDriverHistory).length?rows(gs?.dbDriverHistory):rows(gs?.driverHistory);
-    const standings=aggregateHistoricalDrivers(history,y,driversById(gs),teamsById(gs));
+    const standings=aggregateHistoricalDrivers(history,y,driversById(gs),teamsById(gs),gs?.dbHistoricalChampionships);
     return standings.length?standings:achievementFallbackStandings(gs,y);
   }
 
@@ -407,7 +470,7 @@ export function constructorChampionForYear(gs,year){
   if(y>=careerSourceSeason(gs))return null;
 
   const history=rows(gs?.dbDriverHistory).length?rows(gs?.dbDriverHistory):rows(gs?.driverHistory);
-  const standings=aggregateHistoricalConstructors(history,y,teamsById(gs));
+  const standings=aggregateHistoricalConstructors(history,y,teamsById(gs),gs?.dbHistoricalChampionships);
   const champion=standings[0];
   return champion?{
     year:y,
