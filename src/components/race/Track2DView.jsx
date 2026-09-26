@@ -11,6 +11,8 @@ import {
   Map as MapIcon,
   Maximize2,
   Minimize2,
+  Minus,
+  Plus,
   Thermometer,
   Timer,
   TriangleAlert,
@@ -335,7 +337,8 @@ function AnimatedMarker({
   });
   const point=pointAtTrackProgress(geometry,display);
   if(!point)return null;
-  const scale=selected?1.20:mine?1.10:1;
+  const radius=selected?13.5:mine?10.5:9;
+  const textSize=selected?7.5:mine?6.7:6.1;
   return <g
     role="button"
     tabIndex="0"
@@ -345,23 +348,40 @@ function AnimatedMarker({
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
   >
     <title>{title}</title>
-    {selected?<circle cx={point.x} cy={point.y} r="23" fill="none" stroke="#f8fafc" strokeWidth="2" opacity=".35">
-      <animate attributeName="r" values="18;25;18" dur="1.25s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values=".6;.12;.6" dur="1.25s" repeatCount="indefinite"/>
+    {selected?<circle cx={point.x} cy={point.y} r={radius+10} fill="none" stroke="#f8fafc" strokeWidth="2.2" opacity=".38">
+      <animate attributeName="r" values={`${radius+5};${radius+12};${radius+5}`} dur="1.15s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".62;.14;.62" dur="1.15s" repeatCount="indefinite"/>
     </circle>:null}
-    <g transform={`translate(${point.x} ${point.y}) scale(${scale})`} opacity={retired?0.72:1}>
-      <rect x="-14.5" y="-7.2" width="29" height="14.4" rx="5.5" fill="#020617" stroke={selected||mine?"#f8fafc":"rgba(255,255,255,.55)"} strokeWidth={selected?2.4:mine?2:1.2}/>
-      <rect x="-12.5" y="-5.6" width="25" height="11.2" rx="4.2" fill={retired?"#7f1d1d":color}/>
-      <rect x="-9.5" y="-8.1" width="19" height="3" rx="1.2" fill={secondaryColor}/>
-      <rect x="-9.5" y="5.1" width="19" height="3" rx="1.2" fill={secondaryColor}/>
-      <rect x="-3.6" y="-4.8" width="7.2" height="9.6" rx="2.2" fill="rgba(2,6,23,.72)" stroke="rgba(255,255,255,.24)" strokeWidth=".7"/>
-      <rect x="-13.8" y="-7.8" width="4" height="3.2" rx=".8" fill="#020617"/>
-      <rect x="9.8" y="-7.8" width="4" height="3.2" rx=".8" fill="#020617"/>
-      <rect x="-13.8" y="4.6" width="4" height="3.2" rx=".8" fill="#020617"/>
-      <rect x="9.8" y="4.6" width="4" height="3.2" rx=".8" fill="#020617"/>
-      <text x="0" y="2.6" textAnchor="middle" fontSize="7" fontWeight="900" fill="#fff" stroke="#020617" strokeWidth=".35" paintOrder="stroke">{label}</text>
-      {retired?<path d="M -7 -4 L 7 4 M 7 -4 L -7 4" stroke="#fff" strokeWidth="1.7"/>:null}
-    </g>
+    <circle
+      cx={point.x}
+      cy={point.y}
+      r={radius+2.6}
+      fill="#020617"
+      stroke={selected?"#f8fafc":secondaryColor}
+      strokeWidth={selected?2.4:mine?2:1.5}
+      opacity={retired?0.78:1}
+    />
+    <circle
+      cx={point.x}
+      cy={point.y}
+      r={radius}
+      fill={retired?"#7f1d1d":color}
+      stroke="rgba(2,6,23,.72)"
+      strokeWidth=".9"
+      opacity={retired?0.78:1}
+    />
+    <text
+      x={point.x}
+      y={point.y+textSize*.34}
+      textAnchor="middle"
+      fontSize={textSize}
+      fontWeight="900"
+      fill="#fff"
+      stroke="#020617"
+      strokeWidth=".55"
+      paintOrder="stroke"
+    >{label}</text>
+    {retired?<path d={`M ${point.x-5} ${point.y-5} L ${point.x+5} ${point.y+5} M ${point.x+5} ${point.y-5} L ${point.x-5} ${point.y+5}`} stroke="#fff" strokeWidth="1.8"/>:null}
   </g>;
 }
 
@@ -451,6 +471,7 @@ export default function Track2DView({
   const activeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
   const [cameraMode,setCameraMode]=useState("fit");
+  const [followZoom,setFollowZoom]=useState(5.25);
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
@@ -476,7 +497,7 @@ export default function Track2DView({
   const selectedProgress=selectedRow&&selectedVisibleOnTrack?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
   const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
   const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
-    ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:2.45,minWidth:210,minHeight:155})
+    ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
     :fittedViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
@@ -490,7 +511,7 @@ export default function Track2DView({
     if(cameraMode!=="follow"||!svgRef.current)return;
     const point=pointAtTrackProgress(displayGeometry,progress);
     if(!point)return;
-    const box=focusTrackViewBox(fittedViewBox,point,{zoom:2.45,minWidth:210,minHeight:155});
+    const box=focusTrackViewBox(fittedViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
     followViewBoxRef.current=box;
     svgRef.current.setAttribute("viewBox",box.join(" "));
   };
@@ -511,7 +532,7 @@ export default function Track2DView({
     </div>;
   }
 
-  const orderPanelClass="xl:grid-cols-[248px_minmax(0,1fr)_188px] 2xl:grid-cols-[262px_minmax(0,1fr)_198px]";
+  const orderPanelClass="xl:grid-cols-[304px_minmax(0,1fr)_176px] 2xl:grid-cols-[328px_minmax(0,1fr)_188px]";
 
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
     <div className="flex min-h-10 items-center gap-2 border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
@@ -529,8 +550,8 @@ export default function Track2DView({
     <div className="h-0.5 bg-white/[0.04]"><div className="h-full bg-sky-300/80 transition-all" style={{width:`${progressPct}%`}}/></div>
 
     <div className={`grid ${orderPanelClass}`}>
-      <div className="relative order-1 min-h-[470px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[510px] xl:order-2 xl:min-h-[540px] 2xl:min-h-[570px]">
-        {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label={`${layout.label} circuit and live car positions`}>
+      <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
+        {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
@@ -627,7 +648,14 @@ export default function Track2DView({
               }):null}
             </>;
           })()}
-          {activeRows.map((row,index)=>{
+          {activeRows
+            .map((row,index)=>({row,index}))
+            .sort((a,b)=>{
+              const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
+              const bSelected=String(b.row?.driver_id||"")===resolvedSelectedId?1:0;
+              return aSelected-bSelected;
+            })
+            .map(({row,index})=>{
             const did=String(row?.driver_id||"");
             const tid=String(row?.team_id||"");
             const mine=tid===String(playerTeamId||"");
@@ -664,11 +692,34 @@ export default function Track2DView({
             onClick={()=>setShowTrackIntel((value)=>!value)}
             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[9px] font-semibold shadow-lg backdrop-blur ${showTrackIntel?"border-sky-400/30 bg-sky-500/15 text-sky-200":"border-white/15 bg-[#0a0f16]/90 text-slate-400 hover:bg-white/[0.10]"}`}
           ><Flag className="h-3.5 w-3.5"/>Track intel</button>
-          {cameraMode==="follow"?<button
-            type="button"
-            onClick={()=>{followViewBoxRef.current=null;setCameraMode("fit");}}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
-          ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>:null}
+          {cameraMode==="follow"?<>
+            <div className="flex items-center overflow-hidden rounded-md border border-white/15 bg-[#0a0f16]/90 shadow-lg backdrop-blur">
+              <button
+                type="button"
+                title="Zoom out"
+                onClick={()=>{
+                  followViewBoxRef.current=null;
+                  setFollowZoom((value)=>Math.max(2.5,Number((value-0.75).toFixed(2))));
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center text-slate-300 hover:bg-white/[0.10]"
+              ><Minus className="h-3.5 w-3.5"/></button>
+              <span className="min-w-[42px] border-x border-white/10 px-1.5 text-center text-[9px] font-bold text-slate-300">{followZoom.toFixed(2)}×</span>
+              <button
+                type="button"
+                title="Zoom in"
+                onClick={()=>{
+                  followViewBoxRef.current=null;
+                  setFollowZoom((value)=>Math.min(9,Number((value+0.75).toFixed(2))));
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center text-slate-300 hover:bg-white/[0.10]"
+              ><Plus className="h-3.5 w-3.5"/></button>
+            </div>
+            <button
+              type="button"
+              onClick={()=>{followViewBoxRef.current=null;setCameraMode("fit");}}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
+            ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>
+          </>:null}
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05080d]/75 to-transparent"/>
 
@@ -688,7 +739,7 @@ export default function Track2DView({
           <div className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-slate-600">Sector {Math.max(1,Number(currentSector)||1)} · Gap to leader / interval</div>
         </div>
 
-        <div className="grid grid-cols-[28px_24px_42px_minmax(54px,1fr)_24px_56px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[7px] font-bold uppercase tracking-[0.10em] text-slate-600">
+        <div className="grid grid-cols-[30px_26px_48px_minmax(64px,1fr)_28px_62px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
           <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
         </div>
 
@@ -703,19 +754,19 @@ export default function Track2DView({
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`min-h-0 grid w-full grid-cols-[28px_22px_40px_minmax(52px,1fr)_22px_54px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              className={`min-h-0 grid w-full grid-cols-[30px_24px_46px_minmax(62px,1fr)_26px_60px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
               style={{borderLeftColor:row?.retired?"#7f1d1d":palette.primary}}
             >
               <span className="text-right text-[10px] font-black italic leading-none text-slate-100">{row?.position??index+1}</span>
               <span className="flex items-center justify-center"><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/></span>
-              <span className={`truncate text-[9px] font-black leading-none tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
+              <span className={`truncate text-[10px] font-black leading-none tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
               <AnimatedGapValue
                 target={row?.gap_to_leader_ms}
                 leader={index===0}
                 retired={Boolean(row?.retired)}
                 running={Boolean(playbackRunning)}
                 duration={motionDuration}
-                className={`text-right font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}
+                className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}
               />
               <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={12}/></span>
               <AnimatedGapValue
@@ -724,7 +775,7 @@ export default function Track2DView({
                 retired={Boolean(row?.retired)}
                 running={Boolean(playbackRunning)}
                 duration={motionDuration}
-                className={`text-right font-mono text-[8px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}
+                className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}
               />
             </button>;
           })}
