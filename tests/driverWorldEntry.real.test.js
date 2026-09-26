@@ -16,6 +16,20 @@ async function readJson(name,fallback=[]){
   catch{return fallback;}
 }
 
+async function loadRealWorldEntryData(){
+  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory]=await Promise.all([
+    readJson("drivers.json",[]),
+    readJson("driver_year_status.json",[]),
+    readJson("driver_career.json",[]),
+    readJson("driver_development_history.json",[]),
+    readJson("driver_f1_history.json",[]),
+  ]);
+  return {
+    drivers,
+    context:{driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory},
+  };
+}
+
 const norm=(value)=>String(value||"")
   .normalize("NFD")
   .replace(/[\u0300-\u036f]/g,"")
@@ -24,16 +38,10 @@ const norm=(value)=>String(value||"")
   .trim();
 
 test("real canonical population produces deterministic world-entry candidates",async()=>{
-  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory]=await Promise.all([
-    readJson("drivers.json",[]),
-    readJson("driver_year_status.json",[]),
-    readJson("driver_career.json",[]),
-    readJson("driver_development_history.json",[]),
-    readJson("driver_f1_history.json",[]),
-  ]);
+  const {drivers,context}=await loadRealWorldEntryData();
 
   assert.ok(drivers.length>500);
-  const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
+  assert.ok(context.driverHistory.length>500);
   const a=inferDriverWorldEntries(drivers,context);
   const b=inferDriverWorldEntries(drivers,context);
 
@@ -48,13 +56,7 @@ test("real canonical population produces deterministic world-entry candidates",a
 });
 
 test("1980 world-entry audit includes Senna pre-F1 but excludes much later generations",async()=>{
-  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory]=await Promise.all([
-    readJson("drivers.json",[]),
-    readJson("driver_year_status.json",[]),
-    readJson("driver_career.json",[]),
-    readJson("driver_development_history.json",[]),
-  ]);
-  const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
+  const {drivers,context}=await loadRealWorldEntryData();
   const entries=inferDriverWorldEntries(drivers,context);
 
   const findDriver=(name)=>drivers.find(row=>norm(row.display_name)===norm(name));
@@ -65,7 +67,7 @@ test("1980 world-entry audit includes Senna pre-F1 but excludes much later gener
   assert.ok(senna);
   assert.ok(sennaEntry);
   assert.ok(sennaEntry.first_world_year<=1980);
-  assert.ok(sennaEntry.reference_f1_debut_year===1984);
+  assert.equal(sennaEntry.reference_f1_debut_year,1984);
 
   const senna1980=driverWorldStageAtYear(senna,sennaEntry,1980);
   assert.equal(senna1980.active_world,true);
@@ -83,13 +85,7 @@ test("1980 world-entry audit includes Senna pre-F1 but excludes much later gener
 });
 
 test("1980 known F1 drivers remain in the historical F1 reference window",async()=>{
-  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory]=await Promise.all([
-    readJson("drivers.json",[]),
-    readJson("driver_year_status.json",[]),
-    readJson("driver_career.json",[]),
-    readJson("driver_development_history.json",[]),
-  ]);
-  const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
+  const {drivers,context}=await loadRealWorldEntryData();
   const entries=inferDriverWorldEntries(drivers,context);
 
   for(const name of ["Alain Prost","Nelson Piquet"]){
