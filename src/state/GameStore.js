@@ -174,7 +174,7 @@ function hydrateLoadedGameState(saved) {
     drivers: hydrateDriverPortraitRows(saved?.drivers, activeYear),
     dbDrivers: hydrateDriverPortraitRows(saved?.dbDrivers, activeYear),
     manager: normalizeManagerProfile(saved?.manager, { year: saved?.activeYear, team: saved?.team }),
-    settings: { ...defaultSettings, ...(saved?.settings || {}) },
+    settings: mergeUserSettings({ ...(saved?.settings || {}), ...readUserSettings(), display:{...(saved?.settings?.display||{}),...(readUserSettings()?.display||{})} }),
     inbox: Array.isArray(saved?.inbox) ? saved.inbox : [],
     eventsQueue: Array.isArray(saved?.eventsQueue) ? saved.eventsQueue : [],
     driverAttrLog: saved?.driverAttrLog || {},
