@@ -1286,6 +1286,8 @@ export const useGame = create((set, get) => ({
       teams,
       drivers,
       driverRatings,
+      driverWorldEntry: worldEntries,
+      driverFeederPlacement: feederPlacements,
       driverOpeningState,
       staffRatings,
       staffCore,
