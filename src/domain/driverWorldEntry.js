@@ -69,12 +69,13 @@ function earliestYear(rows,selector=(row)=>row?.year){
   return years.length?Math.min(...years):null;
 }
 
-function f1DebutFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverDevelopmentHistory=[]}={}){
+function f1DebutFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverDevelopmentHistory=[],driverHistory=[]}={}){
   const direct=yearOf(driver?.f1_rookie_season??driver?.f1_debut_year);
   const did=driverId(driver);
   const statusRows=rowsForDriver(driverYearStatus,did);
   const careerRows=rowsForDriver(driverCareer,did);
   const developmentRows=rowsForDriver(driverDevelopmentHistory,did);
+  const historyRows=rowsForDriver(driverHistory,did);
 
   const statusDebut=earliestYear(
     statusRows.filter(row=>Boolean(row?.f1_entry_list)||upper(row?.world_status).startsWith("F1_"))
@@ -89,8 +90,9 @@ function f1DebutFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverD
     ),
     row=>row?.event_year??row?.year
   );
+  const historyDebut=earliestYear(historyRows,row=>row?.year??row?.season_year);
 
-  const candidates=[direct,statusDebut,careerDebut,developmentDebut].filter(Number.isInteger);
+  const candidates=[direct,statusDebut,careerDebut,developmentDebut,historyDebut].filter(Number.isInteger);
   return candidates.length?Math.min(...candidates):null;
 }
 
