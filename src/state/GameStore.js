@@ -90,7 +90,7 @@ const HEAVY_KEYS = [
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
-  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbCoreTracks",
+  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbCoreTracks",
   "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
 ];
 export function makeLightSnapshot(gs) {
@@ -448,6 +448,7 @@ export const useGame = create((set, get) => ({
     dbScoutingZones: [],
     dbTrackLayoutByYear: [],
     dbTeamSeasons: [],
+    dbTeamConstructorBridge: [],
     dbCoreTracks: [],
     dbWeatherProfiles: [],
     dbWeatherStates: [],
@@ -732,7 +733,7 @@ export const useGame = create((set, get) => ({
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, carPartsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
-        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, coreTracksRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, teamConstructorBridgeRaw, coreTracksRaw,
         weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
@@ -773,6 +774,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/scouting_zones.json", []),
         fetchOptional("/data/track_layout_by_year.json", []),
         fetchOptional("/data/team_seasons.json", []),
+        fetchOptional("/data/team_constructor_bridge.json", []),
         fetchOptional("/data/core_tracks.json", []),
         fetchOptional("/data/weather_profiles.json", []),
         fetchOptional("/data/weather_states.json", []),
@@ -820,6 +822,7 @@ export const useGame = create((set, get) => ({
       const scoutingZones      = unexcelDeep(scoutingZonesRaw);
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
       const teamSeasons         = unexcelDeep(teamSeasonsRaw);
+      const teamConstructorBridge = unexcelDeep(teamConstructorBridgeRaw);
       const coreTracks          = unexcelDeep(coreTracksRaw);
       const weatherProfiles     = unexcelDeep(weatherProfilesRaw);
       const weatherStates       = unexcelDeep(weatherStatesRaw);
@@ -880,6 +883,7 @@ export const useGame = create((set, get) => ({
           dbScoutingZones: scoutingZones,
           dbTrackLayoutByYear: trackLayoutByYear,
           dbTeamSeasons: teamSeasons,
+          dbTeamConstructorBridge: teamConstructorBridge,
           dbCoreTracks: coreTracks,
           dbWeatherProfiles: weatherProfiles,
           dbWeatherStates: weatherStates,
