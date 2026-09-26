@@ -402,12 +402,31 @@ function aggregateEraNormalized(rows=[]){
       num(row?.season_percentiles?.[key],null),
       Math.max(0.15,Math.min(1,num(row?.starts,0)/10)),
     ]);
+    const qualifying=round(weightedAverage(parts("qualifying")),1);
+    const race=round(weightedAverage(parts("race")),1);
+    const consistency=round(weightedAverage(parts("consistency")),1);
+
+    // Peak is intentionally NOT a career-average signal. Averaging every
+    // season punishes long careers because development/decline years dilute
+    // the driver's actual peak. Use the best quarter of season-level peak
+    // evidence (capped by topMean) and keep career-average Q/R separate.
+    const peak=round(topMean(
+      seasons.map(row=>num(row?.season_percentiles?.peak,null)).filter(Number.isFinite),
+      0.25
+    ),1);
+    const composite=round(weightedAverage([
+      [qualifying,0.35],
+      [race,0.40],
+      [peak,0.20],
+      [consistency,0.05],
+    ]),1);
+
     out.set(did,{
-      qualifying:round(weightedAverage(parts("qualifying")),1),
-      race:round(weightedAverage(parts("race")),1),
-      peak:round(weightedAverage(parts("peak")),1),
-      consistency:round(weightedAverage(parts("consistency")),1),
-      composite:round(weightedAverage(parts("composite")),1),
+      qualifying,
+      race,
+      peak,
+      consistency,
+      composite,
       seasons:seasons.length,
     });
   }
