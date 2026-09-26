@@ -137,3 +137,31 @@ test("every evidence row yields exactly one deterministic candidate profile",()=
   assert.equal(audit.authority,"analysis_only");
   assert.equal(audit.total_profiles,3);
 });
+
+
+test("best-season evidence prevents rookie and decline years from diluting latent ceilings",()=>{
+  const base=evidence({
+    driver_id:"d_peak",
+    comparative_evidence_percentiles:{
+      qualifying:68,race:68,peak:82,consistency:70,composite:69,
+    },
+    normalization_context:{
+      season_evidence:[
+        {year:1980,qualifying:40,race:42,peak:45,consistency:55,composite:44},
+        {year:1981,qualifying:96,race:94,peak:98,consistency:90,composite:95},
+        {year:1982,qualifying:92,race:91,peak:95,consistency:88,composite:92},
+        {year:1983,qualifying:45,race:46,peak:48,consistency:58,composite:47},
+      ],
+    },
+  });
+  const withPeak=inferDriverTalentProfile(base);
+  const withoutSeasonPeak=inferDriverTalentProfile({
+    ...base,
+    normalization_context:{season_evidence:[]},
+  });
+
+  assert.ok(withPeak.peak_ability>withoutSeasonPeak.peak_ability);
+  assert.ok(withPeak.ceilings.qualifying>withoutSeasonPeak.ceilings.qualifying);
+  assert.ok(withPeak.ceilings.racecraft>withoutSeasonPeak.ceilings.racecraft);
+  assert.ok(withPeak.evidence_summary.peak_season_composite>=90);
+});
