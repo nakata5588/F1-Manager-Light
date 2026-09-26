@@ -184,3 +184,47 @@ export function buildDriverFeederPlacementAudit(placements=[]){
 }
 
 export const DRIVER_FEEDER_PLACEMENT_DEFAULTS=DEFAULTS;
+
+
+export function feederPlacementRuntimePatch(placement){
+  if(!placement||placement.authority!=="analysis_only"&&placement.stage!=="D7.W2")return null;
+  const base={
+    feeder_placement:placement.placement,
+    world_entry_year:num(placement.first_world_year,null),
+    reference_f1_debut_year:num(placement.reference_f1_debut_year,null),
+    active_lower_series:Boolean(placement.active_pre_f1_world),
+    world_runtime_source:"driver_world_entry_w3",
+  };
+
+  if(placement.placement==="YOUTH"){
+    return {
+      ...base,
+      status:"junior_only",
+      lower_series_name:"Youth",
+      youth_eligible:true,
+      canHireAcademy:true,
+      canHireF1:false,
+    };
+  }
+  if(placement.placement==="F1_READY"){
+    return {
+      ...base,
+      status:"lower_series",
+      lower_series_name:"F1 Ready",
+      youth_eligible:false,
+      canHireAcademy:false,
+      canHireF1:true,
+    };
+  }
+  if(placement.placement==="LOWER_SERIES"){
+    return {
+      ...base,
+      status:"lower_series",
+      lower_series_name:"Lower Series",
+      youth_eligible:false,
+      canHireAcademy:false,
+      canHireF1:Boolean(placement.can_hire_f1),
+    };
+  }
+  return null;
+}
