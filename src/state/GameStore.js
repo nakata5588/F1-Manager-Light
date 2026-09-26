@@ -23,6 +23,7 @@ import { syncGarageState } from "@/domain/garage";
 import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
 import { DEFAULT_USER_SETTINGS, mergeUserSettings, readUserSettings, writeUserSettings } from "@/domain/userPreferences";
 import { championshipPointsSystem } from "@/domain/championshipRules";
+import { canonicalManagerialTeamRows, canonicalTeamName, mergeCanonicalTeamRows } from "@/domain/teamIdentity";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -42,7 +43,7 @@ const SESSION_RECOVERY_KEY = "f1ml_session_recovery";
 /** ===== util curto ===== */
 function nowIso() { return new Date().toISOString(); }
 function defaultSaveName(gs) {
-  const team = gs?.team?.team_name || gs?.team?.name || "Save";
+  const team = canonicalTeamName(gs?.team?.team_name || gs?.team?.name || "Save");
   const season = gs?.activeYear || gs?.seasonYear || "";
   return `${team}${season ? ` — ${season}` : ""}`;
 }
@@ -784,28 +785,28 @@ export const useGame = create((set, get) => ({
 
       const drivers           = unexcelDeep(driversRaw);
       const calendar          = unexcelDeep(calendarRaw);
-      const teams             = unexcelDeep(teamsRaw);
+      const teams             = mergeCanonicalTeamRows(unexcelDeep(teamsRaw));
       const driverRatings     = unexcelDeep(driverRatingsRaw);
-      const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
-      const driverHistory     = Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : [];
+      const driverCareer      = canonicalManagerialTeamRows(Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : []);
+      const driverHistory     = canonicalManagerialTeamRows(Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : []);
       const historicalChampionships = historicalChampionshipsRaw && typeof historicalChampionshipsRaw === "object"
         ? unexcelDeep(historicalChampionshipsRaw)
         : { drivers: [], constructors: [] };
-      const driverOpeningState = Array.isArray(driverOpeningStateRaw) ? unexcelDeep(driverOpeningStateRaw) : [];
+      const driverOpeningState = canonicalManagerialTeamRows(Array.isArray(driverOpeningStateRaw) ? unexcelDeep(driverOpeningStateRaw) : []);
       const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
       const staffRatings      = unexcelDeep(staffRatingsRaw);
       const staffCore         = unexcelDeep(staffCoreRaw);
-      const teamBrands        = unexcelDeep(teamBrandsRaw);
-      const teamEngines       = unexcelDeep(teamEnginesRaw);
-      const contracts         = unexcelDeep(contractsRaw);
-      const sponsorsContracts = unexcelDeep(sponsorsContractsRaw);
+      const teamBrands        = canonicalManagerialTeamRows(unexcelDeep(teamBrandsRaw));
+      const teamEngines       = canonicalManagerialTeamRows(unexcelDeep(teamEnginesRaw));
+      const contracts         = canonicalManagerialTeamRows(unexcelDeep(contractsRaw));
+      const sponsorsContracts = canonicalManagerialTeamRows(unexcelDeep(sponsorsContractsRaw));
       const rules             = unexcelDeep(rulesRaw);
       const eraSafety         = unexcelDeep(eraSafetyRaw);
       const accidentModel     = (Array.isArray(accidentModelRaw) || typeof accidentModelRaw === "object") ? unexcelDeep(accidentModelRaw) : {};
-      const facilities        = unexcelDeep(facilitiesRaw);
-      const carStats          = unexcelDeep(carStatsRaw);
+      const facilities        = canonicalManagerialTeamRows(unexcelDeep(facilitiesRaw));
+      const carStats          = canonicalManagerialTeamRows(unexcelDeep(carStatsRaw));
       const carParts          = unexcelDeep(carPartsRaw);
-      const staffContracts    = unexcelDeep(staffContractsRaw);
+      const staffContracts    = canonicalManagerialTeamRows(unexcelDeep(staffContractsRaw));
 
       const tyres              = unexcelDeep(tyresRaw);
       const pointsSystems      = unexcelDeep(pointsSystemsRaw);
@@ -821,8 +822,8 @@ export const useGame = create((set, get) => ({
       const youthIntake        = unexcelDeep(youthIntakeRaw);
       const scoutingZones      = unexcelDeep(scoutingZonesRaw);
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
-      const teamSeasons         = unexcelDeep(teamSeasonsRaw);
-      const teamConstructorBridge = unexcelDeep(teamConstructorBridgeRaw);
+      const teamSeasons         = canonicalManagerialTeamRows(unexcelDeep(teamSeasonsRaw));
+      const teamConstructorBridge = canonicalManagerialTeamRows(unexcelDeep(teamConstructorBridgeRaw));
       const coreTracks          = unexcelDeep(coreTracksRaw);
       const weatherProfiles     = unexcelDeep(weatherProfilesRaw);
       const weatherStates       = unexcelDeep(weatherStatesRaw);
@@ -1308,7 +1309,7 @@ export const useGame = create((set, get) => ({
 
     const brandName = pick(rec, ["official_name", "team_name", "name", "short_name"], null);
     const teamFallback = pick(team, ["official_name", "team_name", "name", "short_name"], getTeamId(team));
-    return brandName ?? teamFallback;
+    return canonicalTeamName(brandName ?? teamFallback);
   },
 
   getTeamLogoCandidates: (team, yearOverride = null, brand = null) => {
