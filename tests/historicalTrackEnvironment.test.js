@@ -5,6 +5,7 @@ import { HISTORICAL_TRACK_ENVIRONMENTS } from "../src/data/historicalTrackEnviro
 test("Buenos Aires historical environment is explicitly presentation-only",()=>{
   const environment=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
   assert.equal(environment.presentation_only,true);
+  assert.equal(environment.asset,"/tracks/historical/buenos-aires-no15-1980.svg");
   assert.equal(environment.reference_year,1980);
   assert.equal(environment.layout,"Circuit No. 15");
   assert.equal(environment.start_finish_location,"upper_straight");
