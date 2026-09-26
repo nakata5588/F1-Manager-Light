@@ -143,6 +143,48 @@ export function assessRestartConditions({
   };
 }
 
+function recoveryWeatherRows(rows,currentLap,requiredSafeChecks){
+  const source=(Array.isArray(rows)&&rows.length?rows.at(-1):{})||{};
+  const numeric=(key,fallback)=>{
+    const value=Number(source?.[key]);
+    return Number.isFinite(value)?value:fallback;
+  };
+  const target={
+    raceability_index:84,
+    raceability_hazard_index:16,
+    standing_water_index:8,
+    visibility_index:92,
+    spray_index:0.08,
+    grip_index:84,
+    rain_intensity:0.08,
+    track_wetness:0.24,
+    wetness_delta:-0.03,
+  };
+  const steps=Math.max(6,Number(requiredSafeChecks||2)+4);
+  const mix=(from,to,t)=>from+(to-from)*t;
+  return Array.from({length:steps},(_,index)=>{
+    const t=(index+1)/steps;
+    const safeTail=index>=steps-Math.max(2,Number(requiredSafeChecks)||2);
+    return {
+      ...source,
+      lap:Math.max(1,Number(currentLap)||1),
+      state:safeTail?"DRYING":t>=0.55?"LIGHT_RAIN":"HEAVY_RAIN",
+      raceability_band:safeTail?"GOOD":t>=0.55?"POOR":"CRITICAL",
+      raceability_index:Number(mix(numeric("raceability_index",20),target.raceability_index,t).toFixed(2)),
+      raceability_hazard_index:Number(mix(numeric("raceability_hazard_index",80),target.raceability_hazard_index,t).toFixed(2)),
+      standing_water_index:Number(mix(numeric("standing_water_index",90),target.standing_water_index,t).toFixed(2)),
+      visibility_index:Number(mix(numeric("visibility_index",30),target.visibility_index,t).toFixed(2)),
+      spray_index:Number(mix(numeric("spray_index",0.95),target.spray_index,t).toFixed(3)),
+      grip_index:Number(mix(numeric("grip_index",25),target.grip_index,t).toFixed(2)),
+      rain_intensity:Number(mix(numeric("rain_intensity",0.85),target.rain_intensity,t).toFixed(3)),
+      track_wetness:Number(mix(numeric("track_wetness",0.90),target.track_wetness,t).toFixed(3)),
+      wetness_delta:target.wetness_delta,
+      suspension_elapsed_min:(index+1)*5,
+      restart_recovery_generated:true,
+    };
+  });
+}
+
 export function fastForwardRestartConditions({
   monitor,
   year=1980,
@@ -153,8 +195,16 @@ export function fastForwardRestartConditions({
   maxChecks=null,
 }={}){
   let working=monitor||createRestartMonitor({year,rules,cause});
-  const rows=Array.isArray(timeline)?timeline:[];
+  const sourceRows=Array.isArray(timeline)?timeline:[];
   const required=Math.max(1,Number(working?.required_safe_checks)||1);
+  const recoveryRows=String(cause||"weather")==="weather"
+    ?recoveryWeatherRows(sourceRows,currentLap,required)
+    :[];
+  // Red Flag fast-forward represents wall-clock waiting, not race distance.
+  // Existing weather slices are consumed first; if a storm outlasts the race
+  // timeline, deterministic recovery slices let conditions improve while the
+  // cars remain stopped on the restart grid.
+  const rows=[...sourceRows,...recoveryRows];
   const hasExplicitMax=maxChecks!==null&&maxChecks!==undefined&&Number.isFinite(Number(maxChecks));
   const limit=Math.max(1,Math.min(
     512,
@@ -163,8 +213,6 @@ export function fastForwardRestartConditions({
       :Math.max(4,rows.length+required+2)
   ));
   const observations=[];
-  let lastIndex=null;
-  let repeatedUnsafeAtEnd=0;
   let latest={
     monitor:working,
     observation:null,
@@ -185,32 +233,19 @@ export function fastForwardRestartConditions({
     });
     working=latest.monitor;
     if(latest.observation)observations.push(latest.observation);
-
-    const index=Number(latest?.observation?.timeline_index);
-    const atEnd=rows.length>0&&Number.isFinite(index)&&index>=rows.length-1;
-    if(atEnd&&!latest.safe&&lastIndex===index)repeatedUnsafeAtEnd+=1;
-    else repeatedUnsafeAtEnd=0;
-    lastIndex=index;
-
-    // Once the weather timeline is exhausted and the same final unsafe
-    // conditions have been observed twice, no amount of clicking can reveal a
-    // new restart window. Stop instead of looping pointlessly.
-    if(atEnd&&!latest.safe&&repeatedUnsafeAtEnd>=1)break;
   }
 
   return {
     ...latest,
-    monitor:working,
+    monitor:{
+      ...working,
+      fast_forward_completed:Boolean(latest.authorized),
+      fast_forward_checks:observations.length,
+    },
     observations,
     checks_advanced:observations.length,
-    exhausted:!latest.authorized&&(
-      rows.length===0||
-      observations.length>=limit||
-      (
-        Number(latest?.observation?.timeline_index)>=rows.length-1&&
-        latest.safe!==true
-      )
-    ),
+    generated_recovery_checks:observations.filter((row)=>row?.track_state?.restart_recovery_generated).length,
+    exhausted:!latest.authorized,
   };
 }
 
