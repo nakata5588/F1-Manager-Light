@@ -59,12 +59,29 @@ function normalizeCollectionRows(value, idKey = null) {
 
   return Object.entries(value).flatMap(([key, row]) => {
     if (!isRecord(row)) return [];
+
+    // Legacy Race Weekend exports used several driver identity aliases.
+    // Canonicalize them before any UI/engine consumer receives the row.
+    const driverAlias =
+      row.driver_id ??
+      row.driverId ??
+      row.id ??
+      row.driver?.driver_id ??
+      (/^d[_-]?\d+$/i.test(String(key)) ? key : null);
+    let normalizedRow =
+      driverAlias != null && row.driver_id == null
+        ? { ...row, driver_id: String(driverAlias) }
+        : row;
+
     const hasIdentity =
-      row.id != null ||
-      row.driver_id != null ||
-      row.team_id != null ||
-      row.constructor_id != null;
-    return hasIdentity || !idKey ? [row] : [{ ...row, [idKey]: key }];
+      normalizedRow.id != null ||
+      normalizedRow.driver_id != null ||
+      normalizedRow.team_id != null ||
+      normalizedRow.constructor_id != null;
+    if (idKey && normalizedRow[idKey] == null && !hasIdentity) {
+      normalizedRow = { ...normalizedRow, [idKey]: key };
+    }
+    return [normalizedRow];
   });
 }
 
