@@ -8,6 +8,7 @@ import { countryNameFor, DriverPortrait, TeamLogo, flagFromCountry } from "./Ent
 import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMorale.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { teamChampionshipSummary } from "../../domain/championshipHistory.js";
+import { canonicalTeamId } from "../../domain/teamIdentity.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -76,7 +77,7 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
     else modalSetTab(tab);
   };
 
-  const idStr = String(entity.id);
+  const idStr = canonicalTeamId(String(entity.id));
   const gs    = useGame((s) => s.gameState);
   const year  = gs?.activeYear;
 
