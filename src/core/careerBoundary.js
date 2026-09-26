@@ -8,6 +8,7 @@
 import { seasonStartMentalState } from "../domain/driverMentalState.js";
 import { applySeasonTeamReputation } from "../domain/teamReputation.js";
 import { materializeNextSeasonTechnicalWorld } from "../domain/nextSeasonMaterialization.js";
+import { championshipPointsSystem } from "../domain/championshipRules.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -364,7 +365,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
   const rules=effectiveRow(state.dbRules,targetYear);
   const eraSafety=effectiveRow(state.dbEraSafety,targetYear);
   const accidentModel=effectiveRow(Array.isArray(state.dbAccidentModel)?state.dbAccidentModel:[],targetYear);
-  const pointsSystem=rangeRow(state.dbPointsSystems,targetYear)[0]||state.pointsSystem||null;
+  const pointsSystem=championshipPointsSystem(targetYear,rangeRow(state.dbPointsSystems,targetYear)[0]||state.pointsSystem||null);
   const tyres=rangeRow(state.dbTyres,targetYear);
   const penaltiesRules=rangeRow(state.dbPenaltiesRules,targetYear);
   const financialRules=rangeRow(state.dbFinancialRules,targetYear);
