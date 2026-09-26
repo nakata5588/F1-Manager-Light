@@ -326,17 +326,17 @@ export default function NewGame() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="f1ml-responsive-shell py-6">
-        <h1 className="text-3xl font-bold mb-6">New Game</h1>
+      <div className="f1ml-responsive-shell py-4">
+        <h1 className="mb-3 text-2xl font-bold">New Game</h1>
 
-        <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs mb-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs">
           {STEP_LABELS.map((label,index)=><React.Fragment key={label}>
             <StepDot active={step >= index} current={step===index} label={label} />
             {index<STEP_LABELS.length-1?<span className="opacity-30">/</span>:null}
           </React.Fragment>)}
         </div>
 
-        <div className="rounded-2xl bg-white/5 border border-white/10 p-6">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 lg:p-5">
           {isLoading ? <div className="py-10 text-center opacity-80">Loading dataset…</div> : (
             <>
               {step === 0 && (
@@ -373,91 +373,83 @@ export default function NewGame() {
               )}
 
               {step === 2 && (
-                <div className="space-y-5">
-                  <div>
-                    <h2 className="text-xl font-semibold">Create Team Manager</h2>
-                    <p className="mt-1 text-sm text-slate-400">This is your career identity. Backgrounds redistribute the same core ability; experience trades starting strength for long-term potential.</p>
-                  </div>
+                <div className="space-y-3">
+                  <h2 className="text-xl font-semibold">Create Team Manager</h2>
 
-                  <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-3">
+                  <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-2.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="mr-1">
-                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Manager Profiles</div>
-                        <div className="text-[11px] text-slate-600">Reuse the same identity across careers.</div>
-                      </div>
-                      {lastUsedManager?<button type="button" onClick={()=>loadManagerDraft(lastUsedManager,"Last Used")} className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-left hover:border-emerald-300">
+                      <div className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Manager Profiles</div>
+                      {lastUsedManager?<button type="button" onClick={()=>loadManagerDraft(lastUsedManager,"Last Used")} className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5 text-left hover:border-emerald-300">
                         <div className="text-[10px] uppercase tracking-wide text-emerald-300">Last Used</div>
                         <div className="text-sm font-semibold">{[lastUsedManager.first_name,lastUsedManager.last_name].filter(Boolean).join(" ")||"Team Manager"}</div>
                       </button>:null}
                       {savedManagerProfiles.map((row)=><div key={row.id} className="flex overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
-                        <button type="button" onClick={()=>loadManagerDraft(row.profile,row.label)} className="px-3 py-2 text-left hover:bg-white/[0.05]">
+                        <button type="button" onClick={()=>loadManagerDraft(row.profile,row.label)} className="px-2.5 py-1.5 text-left hover:bg-white/[0.05]">
                           <div className="text-[10px] uppercase tracking-wide text-slate-500">Saved</div>
                           <div className="max-w-[180px] truncate text-sm font-semibold">{row.label}</div>
                         </button>
                         <button type="button" aria-label={"Delete "+row.label} onClick={()=>removeManagerProfile(row.id)} className="border-l border-white/10 px-2 text-slate-500 hover:bg-white/[0.05] hover:text-rose-300">×</button>
                       </div>)}
                       <div className="flex-1"/>
-                      <button type="button" onClick={saveCurrentManagerProfile} disabled={!managerValid} className="rounded-lg border border-white/15 px-3 py-2 text-sm font-semibold hover:border-white/35 disabled:opacity-40">Save current profile</button>
+                      <button type="button" onClick={saveCurrentManagerProfile} disabled={!managerValid} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold hover:border-white/35 disabled:opacity-40">Save current profile</button>
                     </div>
                     {managerProfileNotice?<div className="mt-2 text-xs text-slate-400">{managerProfileNotice}</div>:null}
                   </div>
 
-                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <label className="text-sm">First name<input value={manager.first_name} onChange={(e)=>patchManager({first_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="First name"/></label>
-                        <label className="text-sm">Last name<input value={manager.last_name} onChange={(e)=>patchManager({last_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="Last name"/></label>
-                        <label className="text-sm">Nationality<input value={manager.nationality_name} onChange={(e)=>patchManager({nationality_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="e.g. Portuguese"/></label>
-                        <label className="text-sm">Nationality code <span className="text-xs text-slate-500">(optional)</span><input value={manager.nationality_code} maxLength={3} onChange={(e)=>patchManager({nationality_code:e.target.value.toUpperCase()})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2 uppercase" placeholder="PRT"/></label>
-                        <label className="text-sm">Date of birth<input type="date" value={manager.date_of_birth} onChange={(e)=>{setDobTouched(true);patchManager({date_of_birth:e.target.value});}} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2"/></label>
-                        <label className="text-sm">Place of birth <span className="text-xs text-slate-500">(optional)</span><input value={manager.place_of_birth} onChange={(e)=>patchManager({place_of_birth:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-2" placeholder="City, Country"/></label>
+                  <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_330px]">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+                        <label className="text-sm">First name<input value={manager.first_name} onChange={(e)=>patchManager({first_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5" placeholder="First name"/></label>
+                        <label className="text-sm">Last name<input value={manager.last_name} onChange={(e)=>patchManager({last_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5" placeholder="Last name"/></label>
+                        <label className="text-sm">Nationality<input value={manager.nationality_name} onChange={(e)=>patchManager({nationality_name:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5" placeholder="e.g. Portuguese"/></label>
+                        <label className="text-sm">Nationality code <span className="text-[10px] text-slate-500">(optional)</span><input value={manager.nationality_code} maxLength={3} onChange={(e)=>patchManager({nationality_code:e.target.value.toUpperCase()})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5 uppercase" placeholder="PRT"/></label>
+                        <label className="text-sm">Date of birth<input type="date" value={manager.date_of_birth} onChange={(e)=>{setDobTouched(true);patchManager({date_of_birth:e.target.value});}} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5"/></label>
+                        <label className="text-sm">Place of birth <span className="text-[10px] text-slate-500">(optional)</span><input value={manager.place_of_birth} onChange={(e)=>patchManager({place_of_birth:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5" placeholder="City, Country"/></label>
                       </div>
                       {managerPreviewAge!=null&&managerPreviewAge<21?<div className="text-xs text-amber-300">The Team Manager must be at least 21 at the start of the selected season.</div>:null}
 
                       <div>
-                        <div className="text-xs uppercase tracking-[0.16em] text-slate-500 mb-2">Background</div>
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                          {MANAGER_BACKGROUNDS.map((row)=><button type="button" key={row.id} onClick={()=>patchManager({background:row.id})} className={"rounded-xl border p-3 text-left "+(manager.background===row.id?"border-emerald-400 bg-emerald-400/10":"border-white/10 hover:border-white/30")}>
-                            <div className="font-semibold">{row.label}</div>
-                            <div className="mt-1 text-xs text-slate-400">{row.description}</div>
+                        <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-slate-500">Background</div>
+                        <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-5">
+                          {MANAGER_BACKGROUNDS.map((row)=><button type="button" key={row.id} title={row.description} onClick={()=>patchManager({background:row.id})} className={"rounded-lg border px-2.5 py-2 text-left "+(manager.background===row.id?"border-emerald-400 bg-emerald-400/10":"border-white/10 hover:border-white/30")}>
+                            <div className="truncate text-xs font-semibold">{row.label}</div>
                           </button>)}
                         </div>
                       </div>
 
                       <div>
-                        <div className="text-xs uppercase tracking-[0.16em] text-slate-500 mb-2">Starting Experience</div>
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                          {MANAGER_EXPERIENCE_LEVELS.map((row)=><button type="button" key={row.id} onClick={()=>patchManager({experience_level:row.id})} className={"rounded-xl border p-3 text-left "+(manager.experience_level===row.id?"border-emerald-400 bg-emerald-400/10":"border-white/10 hover:border-white/30")}>
-                            <div className="font-semibold">{row.label}</div>
-                            <div className="mt-1 text-xs text-slate-400">{row.description}</div>
+                        <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-slate-500">Starting Experience</div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {MANAGER_EXPERIENCE_LEVELS.map((row)=><button type="button" key={row.id} title={row.description} onClick={()=>patchManager({experience_level:row.id})} className={"rounded-lg border px-2.5 py-2 text-left "+(manager.experience_level===row.id?"border-emerald-400 bg-emerald-400/10":"border-white/10 hover:border-white/30")}>
+                            <div className="text-xs font-semibold">{row.label}</div>
                           </button>)}
                         </div>
                       </div>
                     </div>
 
-                    <aside className="rounded-xl border border-white/10 bg-[#0d0f15] p-4 h-fit">
+                    <aside className="h-fit rounded-xl border border-white/10 bg-[#0d0f15] p-3">
                       <div className="flex items-center gap-3">
-                        <ManagerPortrait manager={managerPreview}/>
+                        <ManagerPortrait manager={managerPreview} size="small"/>
                         <div>
                           <div className="text-lg font-semibold">{managerPreview.display_name}</div>
                           <div className="text-xs text-slate-400">{manager.nationality_name||"Nationality"}{managerPreviewAge!=null?" · Age "+managerPreviewAge:""}</div>
                           <div className="mt-1 text-xs text-slate-500">{managerBackground(manager.background).label} · {managerExperience(manager.experience_level).label}</div>
                         </div>
                       </div>
-                      <label className="mt-4 block text-xs text-slate-400">Profile photo <span className="text-slate-600">(optional)</span>
-                        <input type="file" accept="image/*" onChange={(e)=>handlePortrait(e.target.files?.[0])} className="mt-2 block w-full text-xs text-slate-500 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-slate-200"/>
+                      <label className="mt-3 block text-xs text-slate-400">Profile photo <span className="text-slate-600">(optional)</span>
+                        <input type="file" accept="image/*" onChange={(e)=>handlePortrait(e.target.files?.[0])} className="mt-1.5 block w-full text-[11px] text-slate-500 file:mr-2 file:rounded-md file:border-0 file:bg-white/10 file:px-2.5 file:py-1.5 file:text-slate-200"/>
                       </label>
                       {portraitError?<div className="mt-2 text-xs text-amber-300">{portraitError}</div>:null}
                       {manager.portrait_data_url?<button type="button" onClick={()=>patchManager({portrait_data_url:null,portrait_file_name:null})} className="mt-2 text-xs text-slate-400 hover:text-white">Remove photo</button>:null}
 
-                      <div className="mt-5 space-y-2">
-                        {MANAGER_ATTRIBUTES.map((definition)=><div key={definition.key} className="flex items-center gap-2 text-xs">
+                      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        {MANAGER_ATTRIBUTES.map((definition)=><div key={definition.key} className="flex items-center gap-1.5 text-[11px]">
                           <span className="min-w-0 flex-1 text-slate-400">{definition.shortLabel}</span>
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-200" style={{width:String(managerPreview.attributes?.[definition.key]||0)+"%"}}/></div>
+                          <div className="h-1.5 w-12 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-200" style={{width:String(managerPreview.attributes?.[definition.key]||0)+"%"}}/></div>
                           <span className="w-6 text-right font-semibold tabular-nums">{managerPreview.attributes?.[definition.key]}</span>
                         </div>)}
                       </div>
-                      <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="mt-3 grid grid-cols-2 gap-2">
                         <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-[10px] uppercase text-slate-500">Reputation</div><div className="font-semibold">{Math.round(managerPreview.reputation)}/100</div></div>
                         <div className="rounded-lg bg-white/[0.04] p-2"><div className="text-[10px] uppercase text-slate-500">Potential</div><div className="font-semibold">{Math.round(managerPreview.potential)}/100</div></div>
                       </div>
@@ -467,17 +459,17 @@ export default function NewGame() {
               )}
 
               {step === 3 && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div>
                     <h2 className="text-xl font-semibold">Choose Team</h2>
                     <p className="mt-1 text-sm text-slate-400">Compare the historical opening conditions for {year}. These values describe the team you are taking over before the Save World begins.</p>
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
-                    <div className="max-h-[72vh] space-y-2 overflow-y-auto pr-1">
-                      <button onClick={() => setTeamId("create")} className={"w-full rounded-xl border p-3 text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
+                  <div className="grid gap-3 xl:grid-cols-[400px_minmax(0,1fr)]">
+                    <div className="max-h-[calc(100vh-230px)] space-y-1.5 overflow-y-auto pr-1">
+                      <button onClick={() => setTeamId("create")} className={"w-full rounded-lg border px-3 py-2 text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
                         <div className="font-medium">Create New Team</div>
-                        <div className="mt-1 text-xs text-slate-400">Start as a brand-new privateer entry</div>
+                        <div className="text-[10px] text-slate-500">Brand-new privateer entry</div>
                       </button>
 
                       {teamsForYear.map((t) => {
@@ -486,30 +478,25 @@ export default function NewGame() {
                         const preview=teamPreviews.get(id);
                         const selected=teamId===id;
                         return (
-                          <button key={id} onClick={() => setTeamId(id)} className={"w-full rounded-xl border p-3 text-left transition "+(selected ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
-                            <div className="flex items-center gap-3">
+                          <button key={id} onClick={() => setTeamId(id)} className={"w-full rounded-lg border px-2.5 py-2 text-left transition "+(selected ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
+                            <div className="flex items-center gap-2.5">
                               <TeamLogo candidates={getTeamLogoCandidates?.(t) || []} title={title} />
                               <div className="min-w-0 flex-1">
-                                <div className="truncate font-medium">{title}</div>
-                                <div className="truncate text-[11px] text-slate-500">{preview?.championshipExpectationLabel||"—"}</div>
+                                <div className="truncate text-sm font-semibold">{title}</div>
+                                <div className="truncate text-[10px] text-slate-500">{preview?.championshipExpectationLabel||"—"}</div>
                               </div>
-                            </div>
-                            <div className="mt-3 grid grid-cols-3 gap-1.5">
-                              <div className="rounded-md bg-white/[0.04] px-2 py-1.5"><div className="text-[9px] uppercase tracking-wide text-slate-500">Rep</div><div className="text-xs font-semibold">{preview?.reputation!=null?Math.round(preview.reputation):"—"}</div></div>
-                              <div className="rounded-md bg-white/[0.04] px-2 py-1.5"><div className="text-[9px] uppercase tracking-wide text-slate-500">Car</div><div className="text-xs font-semibold">{preview?.car?.overall!=null?Math.round(preview.car.overall):"—"}</div></div>
-                              <div className="rounded-md bg-white/[0.04] px-2 py-1.5"><div className="text-[9px] uppercase tracking-wide text-slate-500">Budget</div><div className="truncate text-xs font-semibold">{fmtMoney(preview?.startingBudget)}</div></div>
-                            </div>
-                            <div className="mt-2 truncate text-[11px] text-slate-400">
-                              {preview?.drivers?.length
-                                ?preview.drivers.map((driver)=>driver.name+" "+(driver.overall==null?"—":(driver.estimated?"~":"")+Math.round(driver.overall))).join(" · ")
-                                :"Drivers —"}
+                              <div className="grid shrink-0 grid-cols-3 gap-1">
+                                <div className="min-w-[48px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[8px] uppercase tracking-wide text-slate-600">Rep</div><div className="text-[11px] font-semibold">{preview?.reputation!=null?Math.round(preview.reputation):"—"}</div></div>
+                                <div className="min-w-[48px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[8px] uppercase tracking-wide text-slate-600">Car</div><div className="text-[11px] font-semibold">{preview?.car?.overall!=null?Math.round(preview.car.overall):"—"}</div></div>
+                                <div className="min-w-[58px] rounded-md bg-white/[0.04] px-1.5 py-1 text-center"><div className="text-[8px] uppercase tracking-wide text-slate-600">Budget</div><div className="truncate text-[11px] font-semibold">{fmtMoney(preview?.startingBudget)}</div></div>
+                              </div>
                             </div>
                           </button>
                         );
                       })}
                     </div>
 
-                    <div className="min-h-[460px] rounded-xl border border-white/10 bg-[#0d0f15] p-5 xl:sticky xl:top-4 xl:self-start">
+                    <div className="min-h-[430px] rounded-xl border border-white/10 bg-[#0d0f15] p-4 xl:sticky xl:top-3 xl:self-start">
                       {teamId==="create" ? (
                         <div className="flex h-full min-h-[380px] flex-col items-center justify-center text-center">
                           <FallbackAvatar title="Create New Team" large/>
@@ -517,46 +504,46 @@ export default function NewGame() {
                           <p className="mt-2 max-w-md text-sm text-slate-400">Build a new privateer entry instead of inheriting an existing constructor. Your starting identity, finances and technical package will be configured in the next screen.</p>
                         </div>
                       ) : selectedTeam && selectedTeamPreview ? (
-                        <div className="space-y-5">
-                          <div className="flex items-start gap-4">
-                            <TeamLogo candidates={getTeamLogoCandidates?.(selectedTeam) || []} title={selectedTeamTitle} large />
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <TeamLogo candidates={getTeamLogoCandidates?.(selectedTeam) || []} title={selectedTeamTitle} />
                             <div className="min-w-0 flex-1">
-                              <div className="text-2xl font-semibold">{selectedTeamTitle}</div>
+                              <div className="text-xl font-semibold">{selectedTeamTitle}</div>
                               <div className="mt-1 text-sm text-slate-400">
                                 {safeText(pick(selectedTeam,["team_base","base","country","location"],"—"))}
                                 {selectedTeamPreview.engineName?" · "+selectedTeamPreview.engineName:""}
                               </div>
-                              <div className="mt-2 text-xs text-slate-500">Historical opening conditions · {year}</div>
+                              <div className="mt-0.5 text-[10px] text-slate-500">Historical opening conditions · {year}</div>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[10px] uppercase tracking-wide text-slate-500">Reputation</div>
-                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.reputation!=null?Math.round(selectedTeamPreview.reputation)+"/100":"—"}</div>
-                              <div className="text-xs text-slate-500">{selectedTeamPreview.reputationLabel}</div>
+                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.reputation!=null?Math.round(selectedTeamPreview.reputation)+"/100":"—"}</div>
+                              <div className="text-[10px] text-slate-500">{selectedTeamPreview.reputationLabel}</div>
                             </div>
-                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[10px] uppercase tracking-wide text-slate-500">Starting Budget</div>
-                              <div className="mt-1 text-lg font-semibold">{fmtMoney(selectedTeamPreview.startingBudget)}</div>
-                              <div className="text-xs text-slate-500">Career opening funds</div>
+                              <div className="mt-0.5 text-base font-semibold">{fmtMoney(selectedTeamPreview.startingBudget)}</div>
+                              <div className="text-[10px] text-slate-500">Career opening funds</div>
                             </div>
-                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[10px] uppercase tracking-wide text-slate-500">Car Overall</div>
-                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.car?.overall!=null?selectedTeamPreview.car.overall.toFixed(1):"—"}</div>
-                              <div className="text-xs text-slate-500">Historical technical package</div>
+                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.car?.overall!=null?selectedTeamPreview.car.overall.toFixed(1):"—"}</div>
+                              <div className="text-[10px] text-slate-500">Historical technical package</div>
                             </div>
-                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[10px] uppercase tracking-wide text-slate-500">Drivers OVR</div>
-                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.driversOverall!=null?selectedTeamPreview.driversOverall.toFixed(1):"—"}</div>
-                              <div className="text-xs text-slate-500">Main + Second average</div>
+                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.driversOverall!=null?selectedTeamPreview.driversOverall.toFixed(1):"—"}</div>
+                              <div className="text-[10px] text-slate-500">Main + Second average</div>
                             </div>
-                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[10px] uppercase tracking-wide text-slate-500">Facilities</div>
-                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.facilities?.average!=null?selectedTeamPreview.facilities.average.toFixed(1)+"/10":"—"}</div>
-                              <div className="text-xs text-slate-500">{selectedTeamPreview.facilities?.available||0} era-available areas</div>
+                              <div className="mt-0.5 text-base font-semibold">{selectedTeamPreview.facilities?.average!=null?selectedTeamPreview.facilities.average.toFixed(1)+"/10":"—"}</div>
+                              <div className="text-[10px] text-slate-500">{selectedTeamPreview.facilities?.available||0} era-available areas</div>
                             </div>
-                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
                               <div className="text-[10px] uppercase tracking-wide text-slate-500">Championship Projection</div>
                               <div className="mt-1 text-lg font-semibold leading-5">{selectedTeamPreview.championshipExpectationLabel}</div>
                               <div className="mt-1 text-xs text-slate-500">Model strength {selectedTeamPreview.championshipProjection?.score?.toFixed?.(1)??"—"}/100</div>
@@ -564,7 +551,7 @@ export default function NewGame() {
                           </div>
 
                           <div>
-                            <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Projection Factors</div>
+                            <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Projection Factors</div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                               {[
                                 ["Car","car"],
@@ -576,25 +563,25 @@ export default function NewGame() {
                               ].map(([label,key])=>{
                                 const value=selectedTeamPreview.championshipProjection?.factors?.[key];
                                 const weight=selectedTeamPreview.championshipProjection?.weights?.[key];
-                                return <div key={key} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                                return <div key={key} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5">
                                   <div className="text-[9px] uppercase tracking-wide text-slate-500">{label} · {weight?Math.round(weight*100):0}%</div>
                                   <div className="mt-1 text-sm font-semibold">{Number.isFinite(Number(value))?Number(value).toFixed(1):"—"}</div>
                                 </div>;
                               })}
                             </div>
-                            <div className="mt-2 text-[11px] text-slate-600">Projected finishing range is calculated against the full {selectedTeamPreview.championshipProjection?.fieldSize||teamsForYear.length}-team field. Missing historical factors are excluded and the remaining weights are rebalanced.</div>
+                            <div className="mt-1 text-[10px] text-slate-600">Compared with the full {selectedTeamPreview.championshipProjection?.fieldSize||teamsForYear.length}-team field · missing historical factors are rebalanced.</div>
                           </div>
 
                           <div>
-                            <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Race Drivers</div>
+                            <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Race Drivers</div>
                             <div className="grid gap-2 sm:grid-cols-2">
                               {selectedTeamPreview.drivers.map((row)=>(
-                                <div key={row.slot+"_"+row.id} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                                  <DriverPortrait driver={row.driver||{display_name:row.name}} size="h-16 w-16"/>
+                                <div key={row.slot+"_"+row.id} className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+                                  <DriverPortrait driver={row.driver||{display_name:row.name}} size="h-12 w-12"/>
                                   <div className="min-w-0 flex-1">
                                     <div className="text-[10px] uppercase tracking-wide text-slate-500">{row.slot==="main"?"Main Driver":"Second Driver"}</div>
                                     <div className="truncate font-semibold">{row.name}</div>
-                                    <div className="mt-1 text-sm text-slate-300">OVR {row.overall==null?"—":(row.estimated?"~":"")+Math.round(row.overall)}</div>
+                                    <div className="text-xs text-slate-300">OVR {row.overall==null?"—":(row.estimated?"~":"")+Math.round(row.overall)}</div>
                                   </div>
                                 </div>
                               ))}
@@ -602,19 +589,19 @@ export default function NewGame() {
                             </div>
                           </div>
 
-                          <div className="grid gap-4 xl:grid-cols-2">
+                          <div className="grid gap-3 xl:grid-cols-[0.8fr_1.2fr]">
                             <div>
-                              <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
+                              <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
                               <div className="grid grid-cols-3 gap-2">
-                                <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Qualifying</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
-                                <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Race Pace</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
-                                <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Reliability</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] uppercase text-slate-500">Qualifying</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] uppercase text-slate-500">Race Pace</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
+                                <div className="rounded-lg bg-white/[0.03] p-2.5"><div className="text-[10px] uppercase text-slate-500">Reliability</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
                               </div>
                             </div>
                             <div>
-                              <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Facilities</div>
-                              {selectedTeamPreview.facilities?.items?.length?<div className="grid grid-cols-2 gap-2">
-                                {selectedTeamPreview.facilities.items.map((row)=><div key={row.label} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                              <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-slate-500">Facilities</div>
+                              {selectedTeamPreview.facilities?.items?.length?<div className="grid grid-cols-2 gap-1.5 2xl:grid-cols-3">
+                                {selectedTeamPreview.facilities.items.map((row)=><div key={row.label} className="rounded-lg bg-white/[0.03] px-2.5 py-1.5">
                                   <div className="truncate text-[10px] uppercase tracking-wide text-slate-500">{row.label}</div>
                                   <div className="mt-1 flex items-center gap-2">
                                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-300" style={{width:String(Math.max(0,Math.min(10,row.level))*10)+"%"}}/></div>
@@ -693,7 +680,7 @@ export default function NewGame() {
           )}
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
+        <div className="sticky bottom-0 z-20 mt-3 flex items-center justify-between border-t border-white/5 bg-gray-950/95 py-3 backdrop-blur">
           <div className="flex gap-2">
             <button onClick={() => navigate("/")} className="px-4 py-2 rounded-lg border border-white/20 hover:border-white/40">Main Menu</button>
             <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="px-4 py-2 rounded-lg border border-white/20 disabled:opacity-40">Back</button>
