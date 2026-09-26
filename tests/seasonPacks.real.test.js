@@ -192,3 +192,36 @@ test("estimated team identity does not fabricate historical rosters",async()=>{
     "driver rosters require exact entrant evidence"
   );
 });
+
+
+test("1980 Season Pack materializes Senna in the feeder world without replaying his future F1 debut",async()=>{
+  const pack=await readPack(1980);
+  const drivers=pack.state?.drivers||[];
+  const senna=drivers.find((row)=>String(row.driver_id)==="d_0102");
+  assert.ok(senna,"Ayrton Senna must exist in the 1980 active driver world");
+  assert.equal(senna.status,"junior_only");
+  assert.equal(senna.feeder_placement,"YOUTH");
+  assert.equal(Number(senna.age),19);
+  assert.equal(senna.active_lower_series,true);
+  assert.equal(senna.canHireAcademy,true);
+  assert.equal(senna.canHireF1,false);
+  assert.equal(
+    (pack.state?.contracts||[]).some((row)=>String(row.driver_id)==="d_0102"),
+    false,
+    "1980 Senna must not receive a fabricated historical F1 contract"
+  );
+
+  for(const id of ["d_0299","d_0648","d_0540"]){
+    assert.equal(
+      drivers.some((row)=>String(row.driver_id)===id),
+      false,
+      id+" must not leak into the 1980 active world before world-entry"
+    );
+  }
+
+  assert.ok(Array.isArray(pack.state?.driverWorldEntry));
+  assert.ok(Array.isArray(pack.state?.driverFeederPlacement));
+  const sennaSeed=(pack.state.driverFeederPlacement||[]).find((row)=>String(row.driver_id)==="d_0102");
+  assert.equal(sennaSeed?.forced_future_f1_debut,false);
+  assert.equal(sennaSeed?.forced_future_team,false);
+});
