@@ -1169,7 +1169,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                     :`· ${contractTeam || profileSnapshot?.teamName || "Free Agent"} · ${contractRole || "No active role"}`}
                 </span>
                 {isOwnDriver && <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-300">YOUR DRIVER</span>}
-                {!profileSnapshot?.availability?.available && (
+                {!isRetired&&!profileSnapshot?.availability?.available && (
                   <span className="rounded bg-rose-500/15 px-2 py-1 text-[10px] font-medium uppercase text-rose-300">
                     {profileSnapshot?.availability?.status || "Unavailable"}
                   </span>
