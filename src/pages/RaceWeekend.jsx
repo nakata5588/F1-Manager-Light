@@ -831,22 +831,35 @@ export default function RaceWeekend(){
   },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
 
   useEffect(()=>{
-    const onKeyDown=(event)=>{
-      if(event.code!=="Space"||event.repeat)return;
-      if(
-        activeWindow!=="live"||
-        weekend?.phase!=="race"||
-        String(liveRace?.status||"")!=="running"||
-        selectedRaceEvent
-      )return;
-      const target=event.target;
+    const shortcutActive=()=>(
+      activeWindow==="live"&&
+      weekend?.phase==="race"&&
+      String(liveRace?.status||"")==="running"&&
+      !selectedRaceEvent
+    );
+    const editableTarget=(target)=>{
       const tag=String(target?.tagName||"").toUpperCase();
-      if(target?.isContentEditable||["INPUT","TEXTAREA","SELECT","BUTTON","A"].includes(tag))return;
+      return Boolean(target?.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(tag));
+    };
+    const onKeyDown=(event)=>{
+      if(event.code!=="Space"||event.repeat||!shortcutActive()||editableTarget(event.target))return;
+      // Capture before a focused Track/Speed/etc button can consume Space as
+      // another click. In Race View, Space is the dedicated Play/Pause key.
       event.preventDefault();
+      event.stopPropagation();
       toggleRacePlayback();
     };
-    window.addEventListener("keydown",onKeyDown);
-    return ()=>window.removeEventListener("keydown",onKeyDown);
+    const onKeyUp=(event)=>{
+      if(event.code!=="Space"||!shortcutActive()||editableTarget(event.target))return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    window.addEventListener("keydown",onKeyDown,true);
+    window.addEventListener("keyup",onKeyUp,true);
+    return ()=>{
+      window.removeEventListener("keydown",onKeyDown,true);
+      window.removeEventListener("keyup",onKeyUp,true);
+    };
   },[
     activeWindow,
     weekend?.phase,

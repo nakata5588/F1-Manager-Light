@@ -507,7 +507,19 @@ export default function Track2DView({
   },[trackId,year]);
 
   const resolvedSelectedId=String(selectedDriverId||"");
-  const selectedRow=activeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||null;
+  const selectedIndex=activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId);
+  const selectedRow=selectedIndex>=0?activeRows[selectedIndex]:null;
+  const selectedAheadGapRaw=selectedRow?.interval_ms??selectedRow?.gap_to_previous_ms;
+  const selectedAheadGapMs=selectedRow&&!selectedRow?.retired&&selectedIndex>0&&selectedAheadGapRaw!=null&&Number.isFinite(Number(selectedAheadGapRaw))
+    ?Number(selectedAheadGapRaw)
+    :null;
+  const selectedBehindRow=selectedRow&&!selectedRow?.retired&&selectedIndex>=0&&selectedIndex<activeRows.length-1
+    ?activeRows[selectedIndex+1]
+    :null;
+  const selectedBehindGapRaw=selectedBehindRow?.interval_ms??selectedBehindRow?.gap_to_previous_ms;
+  const selectedBehindGapMs=selectedBehindRow&&!selectedBehindRow?.retired&&selectedBehindGapRaw!=null&&Number.isFinite(Number(selectedBehindGapRaw))
+    ?Number(selectedBehindGapRaw)
+    :null;
   const selectedVisibleOnTrack=selectedRow?retiredCarVisibleOnTrack(selectedRow,{currentLap,currentSector,currentControl}):false;
   const selectedProgress=selectedRow&&selectedVisibleOnTrack?Number(selectedRow?.visual_track_progress):null;
   const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
@@ -764,8 +776,8 @@ export default function Track2DView({
           <div className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-slate-600">Sector {Math.max(1,Number(currentSector)||1)} · Gap to leader / interval</div>
         </div>
 
-        <div className="grid grid-cols-[34px_22px_42px_minmax(56px,1fr)_34px_24px_52px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
-          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-right">Gain</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
+        <div className="grid grid-cols-[34px_22px_42px_minmax(56px,1fr)_24px_52px_34px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
+          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-center">Tyre</span><span className="text-right">Int.</span><span className="text-right">Gain</span>
         </div>
 
         <div className="grid min-h-0 flex-1 p-0.5" style={{gridTemplateRows:`repeat(${Math.max(1,activeRows.length)},minmax(0,1fr))`}}>
@@ -785,7 +797,7 @@ export default function Track2DView({
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`min-h-0 grid w-full grid-cols-[34px_22px_42px_minmax(56px,1fr)_34px_24px_52px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              className={`min-h-0 grid w-full grid-cols-[34px_22px_42px_minmax(56px,1fr)_24px_52px_34px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
               style={{borderLeftColor:row?.retired?"#7f1d1d":palette.primary}}
             >
               <span className="flex items-center justify-end gap-0.5 text-right text-[10px] font-black italic leading-none text-slate-100">
@@ -797,12 +809,12 @@ export default function Track2DView({
               <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}>
                 {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.gap_to_leader_ms)}
               </span>
-              <span className={`text-right font-mono text-[9px] font-bold ${row?.retired||gridGain==null?"text-slate-600":gridGain>0?"text-emerald-300":gridGain<0?"text-red-300":"text-slate-500"}`}>
-                {row?.retired||gridGain==null?"—":gridGain>0?`+${gridGain}`:String(gridGain)}
-              </span>
               <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={12}/></span>
               <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}>
                 {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.interval_ms??row?.gap_to_previous_ms)}
+              </span>
+              <span className={`text-right font-mono text-[9px] font-bold ${row?.retired||gridGain==null?"text-slate-600":gridGain>0?"text-emerald-300":gridGain<0?"text-red-300":"text-slate-500"}`}>
+                {row?.retired||gridGain==null?"—":gridGain>0?`+${gridGain}`:String(gridGain)}
               </span>
             </button>;
           })}
@@ -842,14 +854,18 @@ export default function Track2DView({
             <div className="truncate text-[8px] text-slate-500">{timingSummary?.fastest_lap_driver_id?driverName(drivers,timingSummary.fastest_lap_driver_id):"—"}</div>
           </div>
           <div className="rounded border border-sky-400/10 bg-sky-500/[0.04] px-2 py-1.5">
-            <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-sky-300/70">Live Pace</div>
-            <div className="mt-0.5 text-[11px] font-black text-sky-200">{Math.round(Number(playbackBaseSectorMs||0)/100)/10}s / sector</div>
-            <div className="text-[8px] text-slate-500">1× real time{Number.isFinite(Number(lapLengthKm))?` · ${Number(lapLengthKm).toFixed(3)} km`:""}{Number.isFinite(Number(averageSpeedKmh))?` · ~${Math.round(averageSpeedKmh)} km/h avg`:""}</div>
+            <div className="text-[7px] font-bold uppercase tracking-[0.12em] text-sky-300/70">Average Speed</div>
+            <div className="mt-0.5 text-[12px] font-black text-sky-200">{averageSpeedKmh!=null&&Number.isFinite(Number(averageSpeedKmh))?`~${Math.round(averageSpeedKmh)} km/h`:"— km/h"}</div>
+            <div className="text-[8px] text-slate-500">{Math.round(Number(playbackBaseSectorMs||0)/100)/10}s sector avg{Number.isFinite(Number(lapLengthKm))?` · ${Number(lapLengthKm).toFixed(3)} km/lap`:""} · not instantaneous</div>
           </div>
           {selectedRow?<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
             <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
             <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><span>{selectedRow?.retired?"DNF":Number(selectedRow.position)===1?"LEAD":formatInterval(selectedRow?.gap_to_leader_ms)}</span></div>
             <div className="mt-1 flex items-center gap-1"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={15}/><span className="text-[8px] text-slate-400">{selectedRow?.tyre?.compound||"—"} · {Number.isFinite(Number(selectedRow?.tyre?.condition))?Number(selectedRow.tyre.condition).toFixed(0)+"%":"—"}</span></div>
+            <div className="mt-1 grid grid-cols-2 gap-1 border-t border-white/5 pt-1 text-[8px]">
+              <div className="rounded bg-black/20 px-1.5 py-1"><span className="text-slate-600">Ahead</span><div className="font-mono font-bold text-sky-300">{selectedRow?.retired?"—":selectedIndex===0?"LEAD":Number.isFinite(selectedAheadGapMs)?formatInterval(selectedAheadGapMs):"—"}</div></div>
+              <div className="rounded bg-black/20 px-1.5 py-1"><span className="text-slate-600">Behind</span><div className="font-mono font-bold text-slate-300">{selectedRow?.retired?"—":Number.isFinite(selectedBehindGapMs)?formatInterval(selectedBehindGapMs):"—"}</div></div>
+            </div>
           </div>:null}
         </div>
       </aside>
