@@ -90,6 +90,28 @@ export function driverRoleSalaryMultiplier(role){
   return 1.00;
 }
 
+export function driverSalaryMarketAnchor(gs){
+  const salaries=activeDriverContracts(gs)
+    .map((row)=>Number(pickValue(row,["salary","salary_yearly"],0)))
+    .filter((value)=>Number.isFinite(value)&&value>0)
+    .sort((a,b)=>a-b);
+  if(salaries.length>=3){
+    const mid=Math.floor(salaries.length/2);
+    return salaries.length%2
+      ?salaries[mid]
+      :(salaries[mid-1]+salaries[mid])/2;
+  }
+
+  // Fallback only when historical contract coverage is sparse. The normal
+  // path is data-driven from the salaries already present in the active era.
+  const year=Number(gs?.activeYear);
+  if(Number.isFinite(year)&&year<=1984)return 250_000;
+  if(Number.isFinite(year)&&year<=1994)return 450_000;
+  if(Number.isFinite(year)&&year<=2004)return 1_000_000;
+  if(Number.isFinite(year)&&year<=2014)return 1_800_000;
+  return 3_000_000;
+}
+
 export function expectedDriverSalary(gs,driverId,{role=null}={}){
   const rating=ratingForDriver(gs,driverId);
   const evaluation=driverMarketEvaluation(gs,driverId);
@@ -101,11 +123,19 @@ export function expectedDriverSalary(gs,driverId,{role=null}={}){
   const rawMarket=Number(pickValue(rating,["market_value"],NaN));
   const market=Number.isFinite(rawMarket)&&rawMarket>0?rawMarket:Number(evaluation.market_value||0);
   const existing=Number(pickValue(contract||{},["salary","salary_yearly"],0));
-  const model=Math.round((Math.max(45,ability)**2)*120 + Math.max(0,rep-50)*18_000);
-  const baseline=Math.max(150_000,existing,Math.round(market*0.16),model);
+
+  const eraAnchor=Math.max(50_000,driverSalaryMarketAnchor(gs));
+  const abilityFactor=clamp(0.50+((ability-45)/40)*1.25,0.45,1.85);
+  const reputationFactor=clamp(0.82+((rep-50)/100),0.72,1.25);
+  const model=Math.round(eraAnchor*abilityFactor*reputationFactor);
+  const marketSignal=Math.min(Math.max(0,Math.round(market*0.16)),Math.round(eraAnchor*2.5));
+  const floor=Math.max(25_000,Math.round(eraAnchor*0.28));
+  const baseline=Math.max(floor,existing,marketSignal,model);
+
   if(!role)return baseline;
-  const adjusted=Math.round((baseline*driverRoleSalaryMultiplier(role))/5_000)*5_000;
-  return Math.max(75_000,adjusted);
+  const increment=eraAnchor<1_000_000?5_000:(eraAnchor<3_000_000?10_000:25_000);
+  const adjusted=Math.round((baseline*driverRoleSalaryMultiplier(role))/increment)*increment;
+  return Math.max(Math.round(floor*0.6),adjusted);
 }
 
 export function contractAcceptanceChance(gs,driverId,offer,{renewal=false,teamId=null}={}){
