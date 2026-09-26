@@ -18,6 +18,7 @@ import {
   ClipboardList,
   UsersRound,
   UserRound,
+  Settings as SettingsIcon,
 } from "lucide-react";
 
 const HelmetIcon = ({ className = "w-5 h-5" }) => (
@@ -161,6 +162,10 @@ export default function Sidebar() {
       <Item to="/Teams" label="All Teams" icon={Car} brand={brand} />
       <Item to="/Drivers" label="Driver Market" icon={UsersRound} brand={brand} />
       <Item to="/Staff" label="All Staff" icon={Users} brand={brand} />
+
+      <div className="mt-auto border-t border-white/10 pt-2">
+        <Item to="/GameSettings" label="Settings" icon={SettingsIcon} brand={brand} />
+      </div>
     </aside>
   );
 }
