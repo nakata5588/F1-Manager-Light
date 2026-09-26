@@ -211,7 +211,7 @@ test("1980 Season Pack materializes Senna in the feeder world without replaying 
     "1980 Senna must not receive a fabricated historical F1 contract"
   );
 
-  for(const id of ["d_0299","d_0648","d_0540"]){
+  for(const id of ["d_0030","d_0001","d_0004"]){
     assert.equal(
       drivers.some((row)=>String(row.driver_id)===id),
       false,
