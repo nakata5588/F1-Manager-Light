@@ -14,8 +14,24 @@ const teamIdOf=(o)=>canonicalTeamId(rawTeamIdOf(o));
 export default function Teams(){
   const gs=useGame(s=>s.gameState);
   const currentYear=Number(gs?.activeYear)||1980;
-  const years=(gs?.yearsAvailable?.length ? gs.yearsAvailable : [currentYear]).filter((y)=>Number(y)<=currentYear);
-  const [year,setYear]=useState(Number(gs?.activeYear)||Number(years[0])||1980);
+  const teamSeasons=Array.isArray(gs?.dbTeamSeasons)?gs.dbTeamSeasons:[];
+  const years=useMemo(()=>{
+    const available=new Set();
+    for(const value of gs?.yearsAvailable||[]){
+      const y=Number(value);
+      if(Number.isInteger(y)&&y<=currentYear)available.add(y);
+    }
+    // All Teams is a historical browser, not a New Game selector. Once
+    // team_seasons has evidence for an older season, expose it even when no
+    // playable Season Pack exists for that year yet.
+    for(const row of teamSeasons){
+      const y=Number(pick(row,["year","season_year"],NaN));
+      if(Number.isInteger(y)&&y<=currentYear)available.add(y);
+    }
+    if(!available.size)available.add(currentYear);
+    return [...available].sort((a,b)=>a-b);
+  },[gs?.yearsAvailable,teamSeasons,currentYear]);
+  const [year,setYear]=useState(Number(gs?.activeYear)||Number(years.at(-1))||1980);
   const [q,setQ]=useState("");
   const teams=gs?.dbTeams||[];
   const contracts=gs?.dbContracts||[];
@@ -23,7 +39,6 @@ export default function Teams(){
   const brands=gs?.dbTeamBrands||[];
   const career=gs?.dbDriverCareer||[];
   const achievements=Array.isArray(gs?.dbAchievements)?gs.dbAchievements:(gs?.dbAchievements?.list||[]);
-  const teamSeasons=Array.isArray(gs?.dbTeamSeasons)?gs.dbTeamSeasons:[];
   const teamEngines=Array.isArray(gs?.dbTeamEngines)?gs.dbTeamEngines:[];
 
   const rows=useMemo(()=>{
@@ -124,9 +139,13 @@ export default function Teams(){
         String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
         teamIdOf(r)===id
       ).length;
+      const displayName=canonicalTeamName(
+        pick(brand,["team_name","team_official_name","short_name"],
+          pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id)))
+      );
       return {
         id,
-        name:canonicalTeamName(pick(brand,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id)))),
+        name:displayName,
         shortName:pick(brand,["short_name"],pick(t,["short_name"],"")),
         country:pick(t,["team_base","country","base"],""),
         code:pick(t,["country_code"],""),
@@ -145,8 +164,14 @@ export default function Teams(){
         reputation:y===currentYear?teamReputation(gs,id):null,
         // Estimated constructor-family reconciliation is useful for
         // participation, but is not safe enough to display as the Team's car.
-        constructors:exactChassis.length?exactChassis:exactConstructors,
-        chassis:exactChassis,
+        // A single exact technical identity is safe to show. Multiple values
+        // here usually mean archive reconciliation crossed constructor-family
+        // evidence; never render absurd combinations such as
+        // "Ensign · Shadow · Williams" as one car.
+        constructors:exactChassis.length===1
+          ?exactChassis
+          :(exactConstructors.length===1?exactConstructors:[displayName]),
+        chassis:exactChassis.length===1?exactChassis:[],
         engines:detailedEngine?[detailedEngine]:exactEngines,
         identityConfidence:Array.isArray(seasonRec?.identity_confidence)?seasonRec.identity_confidence:[],
         estimatedIdentity:hasSeasonAuthority&&estimatedRows>0&&exactEntrantRows===0,

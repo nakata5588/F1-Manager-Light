@@ -4,6 +4,7 @@ import {useGame} from "../state/GameStore";
 import {DriverPortrait,TeamLogo} from "../components/entity/EntityVisuals.jsx";
 import {championshipRuleForYear} from "../domain/championshipRules.js";
 import {canonicalTeamId,canonicalTeamName} from "../domain/teamIdentity.js";
+import {createHistoricalResultTeamResolver} from "../domain/historicalResultTeamResolver.js";
 
 const tabs=[["champions","Champions"],["rules","Rules & Regulations"]];
 const rows=(v)=>Array.isArray(v)?v:[];
@@ -122,7 +123,7 @@ function ruleSections(year){
   ];
 }
 
-function ChampionVisual({type,row,year,driverMap,teamMap}){
+function ChampionVisual({type,row,year,driverMap,teamMap,teamResolver}){
   if(type==="driver"){
     if(!row)return <div className="text-sm text-slate-500">No champion recorded</div>;
     const id=clean(row.driver_id??row.id);
@@ -141,18 +142,31 @@ function ChampionVisual({type,row,year,driverMap,teamMap}){
   }
 
   if(!row)return <div className="text-sm text-slate-500">{year<1958?"Championship not contested":"No champion recorded"}</div>;
-  const id=canonicalTeamId(clean(row.constructor_id??row.team_id??row.id));
+  const rawId=canonicalTeamId(clean(row.constructor_id??row.team_id??row.id));
   const name=canonicalTeamName(clean(row.constructor_name??row.team_name??row.name)||"Unknown constructor");
-  const team=teamMap.get(id);
-  const displayName=canonicalTeamName(clean(team?.team_name??team?.name)||name);
-  return (
-    <button type="button" data-entity="team" data-id={id} className="flex min-w-0 items-center gap-3 text-left hover:opacity-90">
-      <TeamLogo teamId={id} name={displayName} year={year} size="h-11 w-11" className="shrink-0 p-1"/>
+  const resolved=teamMap.has(rawId)
+    ?{id:rawId,name:canonicalTeamName(teamMap.get(rawId)?.team_name??teamMap.get(rawId)?.name??name),known:true}
+    :(teamResolver?.resolve({team_name:name},{fallback:"raw"})||{id:"",name,known:false});
+  const id=resolved?.id&&teamMap.has(canonicalTeamId(resolved.id))?canonicalTeamId(resolved.id):"";
+  const team=id?teamMap.get(id):null;
+  const displayName=canonicalTeamName(clean(team?.team_name??team?.name??resolved?.name)||name);
+  const content=(
+    <>
+      <TeamLogo teamId={id||rawId} name={displayName} year={year} size="h-11 w-11" className="shrink-0 p-1"/>
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-slate-100 hover:underline">{displayName}</div>
+        <div className="truncate text-sm font-semibold text-slate-100">{displayName}</div>
         {displayName!==name?<div className="mt-0.5 truncate text-xs text-slate-400">{name}</div>:null}
       </div>
+    </>
+  );
+  return id?(
+    <button type="button" data-entity="team" data-id={id} className="flex min-w-0 items-center gap-3 text-left hover:opacity-90 hover:underline">
+      {content}
     </button>
+  ):(
+    <div className="flex min-w-0 items-center gap-3 text-left" title="No managerial Team profile is available for this historical constructor">
+      {content}
+    </div>
   );
 }
 
@@ -182,6 +196,10 @@ export default function Champions(){
     }
     return map;
   },[gs?.dbTeams,gs?.teams]);
+  const historicalTeamResolver=useMemo(
+    ()=>createHistoricalResultTeamResolver({teams:[...teamMap.values()]}),
+    [teamMap]
+  );
 
   const championRows=useMemo(()=>{
     const byYear=new Map();
@@ -287,11 +305,11 @@ export default function Champions(){
                     {entry.source==="save_world"?"Career World":"Historical"}
                   </div>
                 </div>
-                <ChampionVisual type="driver" row={entry.driver} year={entry.year} driverMap={driverMap} teamMap={teamMap}/>
+                <ChampionVisual type="driver" row={entry.driver} year={entry.year} driverMap={driverMap} teamMap={teamMap} teamResolver={historicalTeamResolver}/>
                 <div className="text-right text-lg font-semibold tabular-nums text-slate-100">
                   {pointsLabel(entry.driver?.points)}
                 </div>
-                <ChampionVisual type="constructor" row={entry.constructor} year={entry.year} driverMap={driverMap} teamMap={teamMap}/>
+                <ChampionVisual type="constructor" row={entry.constructor} year={entry.year} driverMap={driverMap} teamMap={teamMap} teamResolver={historicalTeamResolver}/>
                 <div className="text-right text-lg font-semibold tabular-nums text-slate-100">
                   {entry.constructor?pointsLabel(entry.constructor?.points):"—"}
                 </div>

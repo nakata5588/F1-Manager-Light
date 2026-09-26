@@ -85,6 +85,23 @@ function playerOffer(gs,{driverId="F1",salary=null,years=1,role="Reserve Driver"
   });
 }
 
+test("salary expectations scale with the active era contract market",()=>{
+  const normal=fixture("salary-era-normal");
+  const normalExpected=expectedDriverSalary(normal,"F1");
+
+  const lowEra={
+    ...normal,
+    contracts:normal.contracts.map((row)=>({
+      ...row,
+      salary:Math.round(Number(row.salary||0)*0.5),
+    })),
+  };
+  const lowExpected=expectedDriverSalary(lowEra,"F1");
+
+  assert.ok(lowExpected<normalExpected,"halving the era salary market should lower a free driver's expectation");
+  assert.ok(normalExpected<1_000_000,"a 1980 mid-grid free agent should stay within the active era's salary scale");
+});
+
 test("role-adjusted salary expectations keep Main > Second > Reserve > Test for the same driver",()=>{
   const gs=fixture("role-salary");
   const main=expectedDriverSalary(gs,"F1",{role:"Main Driver"});
