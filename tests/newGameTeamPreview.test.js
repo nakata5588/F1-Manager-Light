@@ -37,6 +37,18 @@ function state(){
       {year:1980,team_id:"T1",engine_name:"Test V8",power:82,reliability:0.84},
       {year:1980,team_id:"T2",engine_name:"Slow V8",power:60,reliability:0.72},
     ],
+    staffCore:[
+      {staff_id:"S1",staff_name:"Strong Principal"},
+      {staff_id:"S2",staff_name:"Weak Principal"},
+    ],
+    staffRatings:[
+      {year:1980,staff_id:"S1",leadership:90,technical:88,strategy:86},
+      {year:1980,staff_id:"S2",leadership:55,technical:52,strategy:50},
+    ],
+    staffContracts:[
+      {year:1980,team_id:"T1",staff_id:"S1",staff_name:"Strong Principal",role:"Team Principal",contract_start_year:1980,contract_until_year:1980,status:"active"},
+      {year:1980,team_id:"T2",staff_id:"S2",staff_name:"Weak Principal",role:"Team Principal",contract_start_year:1980,contract_until_year:1980,status:"active"},
+    ],
     carStats:[
       {year:1980,team_id:"T1",chassis_spec:82,aero_spec:80,gearbox_spec:79,suspension_spec:81,brakes_spec:80,cooling_spec:78,reliability:0.86},
       {year:1980,team_id:"T2",chassis_spec:58,aero_spec:56,gearbox_spec:60,suspension_spec:57,brakes_spec:59,cooling_spec:55,reliability:0.70},
@@ -71,6 +83,9 @@ test("New Game team preview uses historical opening conditions",()=>{
   assert.ok(preview.championshipProjection.score>50);
   assert.equal(preview.championshipProjection.weights.car,0.35);
   assert.equal(preview.championshipProjection.weights.drivers,0.25);
+  assert.equal(preview.championshipProjection.weights.staff,0.15);
+  assert.ok(preview.championshipProjection.factors.staff>80);
+  assert.equal(preview.championshipProjection.completeness,100);
   assert.equal(preview.engineName,"Test V8");
   assert.equal(preview.drivers.length,2);
   assert.equal(preview.drivers[0].name,"Driver One");
