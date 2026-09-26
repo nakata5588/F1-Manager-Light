@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Search,
   Trophy,
+  Medal,
   Flag,
   PiggyBank,
   ClipboardList,
@@ -155,6 +156,7 @@ export default function Sidebar() {
       <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Season</div>
       <Item to="/Standings" label="Standings" icon={Trophy} brand={brand} />
       <Item to="/Results" label="Results" icon={Flag} brand={brand} />
+      <Item to="/Champions" label="Champions" icon={Medal} brand={brand} />
       <Item to="/Finances" label="Finances" icon={PiggyBank} brand={brand} />
       <Item to="/Board" label="Board" icon={ClipboardList} brand={brand} badge={attention.board} />
 
