@@ -10,6 +10,11 @@ import {
   resolveHistoricalTeamIdentity,
   resolveHistoricalTeamId,
 } from "../src/domain/teamIdentity.js";
+import {
+  constructorTechnicalIdentity,
+  createTeamConstructorBridgeResolver,
+  groupBridgeByTeamSeason,
+} from "../src/domain/teamConstructorBridge.js";
 
 test("Team Profile initializes display name before historical logo candidates", async()=>{
   const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
@@ -82,4 +87,86 @@ test("historical team resolver refuses ambiguous fuzzy matches",()=>{
   assert.equal(resolved.id,"");
   assert.equal(resolved.match,"ambiguous_name");
   assert.deepEqual(resolved.ambiguous_candidate_ids,["t_0035","t_0200"]);
+});
+
+
+test("Team/Entrant bridge keeps constructor identity separate from managerial identity",()=>{
+  const teams=[
+    {team_id:"t_0005",team_name:"Lotus"},
+    {team_id:"t_0094",team_name:"BRP"},
+    {team_id:"t_0171",team_name:"Lotus-Climax"},
+    {team_id:"t_0175",team_name:"Lotus-BRM"},
+  ];
+  const resolver=createTeamConstructorBridgeResolver({
+    teams,
+    constructorReference:[
+      {constructorId:172,constructorName:"Lotus-Climax"},
+      {constructorId:176,constructorName:"Lotus-BRM"},
+    ],
+    entryRows:[
+      {year:1963,driver_id:"d_clark",team_id:"t_0005",team_name:"Lotus"},
+      {year:1963,driver_id:"d_hall",team_id:"t_0094",team_name:"BRP"},
+    ],
+  });
+
+  const clark=resolver.resolve(
+    {year:1963,driver_id:"d_clark",constructorId:172,constructorName:"Lotus-Climax"},
+    {driverId:"d_clark"}
+  );
+  assert.equal(clark.team_id,"t_0005");
+  assert.equal(clark.constructor_id,"t_0171");
+  assert.equal(clark.constructor_name,"Lotus-Climax");
+  assert.equal(clark.chassis_name,"Lotus");
+  assert.equal(clark.engine_name,"Climax");
+  assert.equal(clark.relation_basis,"entry_list_driver");
+  assert.equal(clark.exact_entrant,true);
+
+  const hall=resolver.resolve(
+    {year:1963,driver_id:"d_hall",constructorId:176,constructorName:"Lotus-BRM"},
+    {driverId:"d_hall"}
+  );
+  assert.equal(hall.team_id,"t_0094");
+  assert.equal(hall.constructor_id,"t_0175");
+  assert.equal(hall.constructor_name,"Lotus-BRM");
+  assert.equal(hall.relation_basis,"entry_list_driver");
+});
+
+test("constructor-family fallback groups technical variants without rewriting constructor IDs",()=>{
+  const teams=[
+    {team_id:"t_0005",team_name:"Lotus"},
+    {team_id:"t_0171",team_name:"Lotus-Climax"},
+    {team_id:"t_0175",team_name:"Lotus-BRM"},
+  ];
+  const resolver=createTeamConstructorBridgeResolver({teams});
+
+  const climax=resolver.resolve({year:1963,constructor_id:"t_0171",constructor_name:"Lotus-Climax"});
+  const brm=resolver.resolve({year:1963,constructor_id:"t_0175",constructor_name:"Lotus-BRM"});
+
+  assert.equal(climax.team_id,"t_0005");
+  assert.equal(brm.team_id,"t_0005");
+  assert.equal(climax.constructor_id,"t_0171");
+  assert.equal(brm.constructor_id,"t_0175");
+  assert.equal(climax.relation_basis,"constructor_family_fallback");
+  assert.equal(climax.confidence,"MEDIUM");
+
+  const grouped=groupBridgeByTeamSeason([climax,brm]);
+  assert.equal(grouped.length,1);
+  assert.equal(grouped[0].team_id,"t_0005");
+  assert.deepEqual(grouped[0].constructor_ids,["t_0171","t_0175"]);
+  assert.deepEqual(grouped[0].constructor_names,["Lotus-BRM","Lotus-Climax"]);
+});
+
+test("technical constructor parsing does not claim an entrant identity",()=>{
+  assert.deepEqual(constructorTechnicalIdentity("BRP-BRM"),{
+    constructor_name:"BRP-BRM",
+    chassis_name:"BRP",
+    engine_name:"BRM",
+    constructor_family:"brp",
+  });
+  assert.deepEqual(constructorTechnicalIdentity("Ferrari"),{
+    constructor_name:"Ferrari",
+    chassis_name:"Ferrari",
+    engine_name:"",
+    constructor_family:"ferrari",
+  });
 });
