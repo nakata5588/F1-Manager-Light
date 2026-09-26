@@ -2307,6 +2307,11 @@ function DriverRacesTab({ rows = [], stats = null, loading = false, gameState, t
 }
 
 function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows, agg }) {
+  const rate=(value)=>{
+    const entries=Number(agg?.starts||0);
+    const count=Number(value||0);
+    return entries>0?`${count} · ${((count/entries)*100).toFixed(1)}%`:`${count} · —`;
+  };
   if (!rows?.length) {
     return (
       <div className="space-y-3">
@@ -2323,11 +2328,11 @@ function StatisticsTab({ gameYear, seriesSel, setSeriesSel, seriesOptions, rows,
       <SeriesFilter seriesSel={seriesSel} setSeriesSel={setSeriesSel} seriesOptions={seriesOptions} />
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5 xl:grid-cols-10">
         <ProfileMetric label="Starts" value={agg?.starts ?? 0} cardTone="border-slate-400/15 bg-slate-400/[0.05]" compact />
-        <ProfileMetric label="Wins" value={agg?.wins ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
-        <ProfileMetric label="Podiums" value={agg?.podiums ?? 0} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
-        <ProfileMetric label="Poles" value={agg?.poles ?? 0} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" compact />
+        <ProfileMetric label="Wins" value={rate(agg?.wins)} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
+        <ProfileMetric label="Podiums" value={rate(agg?.podiums)} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
+        <ProfileMetric label="Poles" value={rate(agg?.poles)} tone="text-violet-300" cardTone="border-violet-400/20 bg-violet-500/[0.06]" compact />
         <ProfileMetric label="Fastest Laps" value={agg?.fastest_laps ?? 0} tone="text-cyan-300" cardTone="border-cyan-400/20 bg-cyan-500/[0.06]" compact />
-        <ProfileMetric label="DNF" value={agg?.dnfs ?? 0} tone={agg?.dnfs?"text-rose-300":""} cardTone="border-rose-400/20 bg-rose-500/[0.06]" compact />
+        <ProfileMetric label="DNF" value={rate(agg?.dnfs)} tone={agg?.dnfs?"text-rose-300":""} cardTone="border-rose-400/20 bg-rose-500/[0.06]" compact />
         <ProfileMetric label="Points" value={agg?.points ?? 0} tone="text-emerald-300" cardTone="border-emerald-400/20 bg-emerald-500/[0.06]" compact />
         <ProfileMetric label="Avg Points" value={agg?.avgPoints != null ? agg.avgPoints.toFixed(2) : "—"} tone="text-sky-300" cardTone="border-sky-400/20 bg-sky-500/[0.06]" compact />
         <ProfileMetric label="Best Champ." value={agg?.highestPos != null ? `P${agg.highestPos}` : "—"} tone="text-amber-300" cardTone="border-amber-400/20 bg-amber-500/[0.06]" compact />
