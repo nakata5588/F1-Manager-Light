@@ -164,3 +164,31 @@ test("drivers who die during the selected season are alive on New Game January 1
   );
   assert.equal(orphan.length,0,"1982 New Game must not contain orphan driver contracts");
 });
+
+
+test("team_seasons never promotes unresolved technical constructors into managerial teams",async()=>{
+  const rows=JSON.parse(await fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8"));
+  const invalid=rows.filter((row)=>
+    String(row?.team_id||"").startsWith("archive_constructor_") ||
+    String(row?.team_id||"").startsWith("legacy_constructor_")
+  );
+  assert.deepEqual(
+    invalid.map((row)=>({year:row.year,team_id:row.team_id,team_name:row.team_name})),
+    [],
+    "technical constructor fallback IDs must not appear in managerial team_seasons"
+  );
+});
+
+test("estimated team identity does not fabricate historical rosters",async()=>{
+  const rows=JSON.parse(await fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8"));
+  const offenders=rows.filter((row)=>
+    Number(row?.exact_entrant_rows||0)===0 &&
+    Array.isArray(row?.driver_ids) &&
+    row.driver_ids.length>0
+  );
+  assert.deepEqual(
+    offenders.map((row)=>({year:row.year,team_id:row.team_id,drivers:row.driver_ids})),
+    [],
+    "driver rosters require exact entrant evidence"
+  );
+});
