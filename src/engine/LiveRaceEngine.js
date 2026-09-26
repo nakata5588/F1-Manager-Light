@@ -3,7 +3,7 @@ import { simulateManagedRace, tyresForTeam, RACE_PACE_MODES, tyreConditionEffect
 import { createRaceControlPlan, incidentForDriver, incidentsForDriver, mergeRaceControlHistory, raceControlAtLap, raceControlAtPoint } from "./RaceControlEngine.js";
 import { raceForecastForTeam } from "./WeekendWeatherEngine.js";
 import { healthOutcomeProbabilities } from "./InjuryEngine.js";
-import { completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
+import { applyRedFlagRestartGrid, completeRedFlagRestart, createRedFlagSuspension, legacyRedFlagLifecycle, prepareRedFlagRestart } from "./RedFlagLifecycleEngine.js";
 import { applyAutomaticRedFlagWork } from "./RedFlagWorkEngine.js";
 import { advanceLivePitState, completedLivePitRecord, createLivePitState, livePitStopKey, settleLivePitState } from "./LivePitStopEngine.js";
 import { normalPitRepairRecord } from "./PitServiceEngine.js";
@@ -1947,10 +1947,13 @@ export function fastForwardLiveRaceRestart(gs){
   const required=Math.max(1,Number(result?.monitor?.required_safe_checks)||1);
   const streak=Math.max(0,Number(result?.monitor?.safe_streak)||0);
   const message=result.authorized
-    ?`Race Control fast-forwarded ${checks} condition checks. Restart window available (${Number(result?.observation?.score??result?.monitor?.latest_score??0).toFixed(0)}/100).`
-    :`Race Control fast-forwarded ${checks} condition checks, but no safe restart window is available yet. Safe checks ${streak}/${required}.`;
-
-  return {
+    ?`Race Control fast-forwarded the suspension until conditions improved. Restart window available (${Number(result?.observation?.score??result?.monitor?.latest_score??0).toFixed(0)}/100).`
+    :`Race Control could not establish a safe restart window. Safe checks ${streak}/${required}.`;
+  const priorEvents=(live.events||[]).filter((event)=>!(
+    event?.type==="red_flag_restart_fast_forward"&&
+    Number(event?.red_flag_sequence||0)===Number(lifecycle.sequence||1)
+  ));
+  const nextState={
     ...gs,
     raceWeekendState:{
       ...weekend,
@@ -1959,8 +1962,9 @@ export function fastForwardLiveRaceRestart(gs){
         track_state:observed||live?.track_state||null,
         last_weather:observed?.state||live?.last_weather||null,
         red_flag_lifecycle:lifecycle,
-        events:[...(live.events||[]),{
-          event_key:`red_flag_restart_fast_forward:${lifecycle.sequence||1}:${result.monitor.check_count}`,
+        events:[...priorEvents,{
+          event_key:`red_flag_restart_fast_forward:${lifecycle.sequence||1}`,
+          red_flag_sequence:Number(lifecycle.sequence||1),
           lap:Number(live.current_lap),
           sector:Number(live.current_sector)||1,
           type:"red_flag_restart_fast_forward",
@@ -1973,12 +1977,14 @@ export function fastForwardLiveRaceRestart(gs){
           safe_streak:streak,
           required_safe_checks:required,
           checks_advanced:checks,
+          generated_recovery_checks:Number(result?.generated_recovery_checks||0),
           exhausted:Boolean(result.exhausted),
           message,
         }],
       },
     },
   };
+  return result.authorized?applyAutomaticRedFlagWork(nextState):nextState;
 }
 
 export function prepareLiveRaceRestart(gs){
@@ -2038,7 +2044,10 @@ export function resumeLiveRace(gs){
     year:Number(gs?.activeYear)||1980,
     rules,
     cause:current?.cause||live?.red_flag_period?.cause||"race_control",
-    timeline:plan?.weather_timeline||[],
+    // The fast-forward already advanced wall-clock conditions while race
+    // distance stayed frozen. Final validation checks the current restart
+    // window rather than jumping back into the pre-suspension lap timeline.
+    timeline:[live?.track_state||current?.track_snapshot||{}],
     currentLap:Number(live?.current_lap)||1,
     finalValidation:true,
   });
@@ -2098,6 +2107,7 @@ export function resumeLiveRace(gs){
         current_control:restartControl,
         track_state:observed||live?.track_state||null,
         last_weather:observed?.state||live?.last_weather||null,
+        classification:applyRedFlagRestartGrid(live?.classification||[],current),
         red_flag_period:null,
         red_flag_lifecycle:null,
         red_flag_history:history,
@@ -2114,6 +2124,13 @@ export function resumeLiveRace(gs){
       },
     },
   };
+}
+
+export function restartLiveRaceFromRedFlag(gs){
+  const prepared=prepareLiveRaceRestart(gs);
+  const phase=prepared?.raceWeekendState?.live_race?.red_flag_lifecycle?.phase;
+  if(String(phase)!=="restart_pending")return prepared;
+  return resumeLiveRace(prepared);
 }
 
 export function liveRaceReadyToFinalize(gs){
