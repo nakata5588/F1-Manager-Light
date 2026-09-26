@@ -71,15 +71,17 @@ export function constructorTechnicalIdentity(nameInput){
   };
 }
 
-function constructorIdentity(row,constructorNamesByArchiveId,teamResolver){
+function constructorIdentity(row,constructorNamesByArchiveId,teamResolver,teamNamesById){
   const numericId=integer(row?.constructorId);
   const referenced=numericId!=null?text(constructorNamesByArchiveId?.get(numericId)):"";
+  const directConstructor=canonicalTeamId(first(row,["constructor_id"]));
+  const directMasterName=directConstructor?text(teamNamesById?.get(directConstructor)):"";
   const rawName=first(row,[
     "constructor_name",
     "constructorName",
     "constructor",
     "technical_constructor_name",
-  ])||referenced||first(row,["team_name","team"]);
+  ])||referenced||directMasterName||first(row,["team_name","team"]);
 
   const technical=constructorTechnicalIdentity(rawName);
 
@@ -90,7 +92,6 @@ function constructorIdentity(row,constructorNamesByArchiveId,teamResolver){
     exact?.id&&
     normalizeTeamIdentityName(exact?.name)===normalizeTeamIdentityName(technical.constructor_name);
 
-  const directConstructor=canonicalTeamId(first(row,["constructor_id"]));
   const constructorId=
     directConstructor||
     (exactNameMatch?exact.id:"")||
@@ -184,11 +185,17 @@ export function createTeamConstructorBridgeResolver({
       .filter(([id,name])=>id!=null&&name)
   );
   const entryIndex=buildEntryIndex(entryRows);
+  const teamNamesById=new Map();
+  for(const team of Array.isArray(teams)?teams:[]){
+    const id=canonicalTeamId(first(team,["team_id","constructor_id","id"]));
+    const name=canonicalTeamName(first(team,["team_name","name","short_name"]));
+    if(id&&name&&!teamNamesById.has(id))teamNamesById.set(id,name);
+  }
 
   const resolve=(row,options={})=>{
     const year=integer(row?.year??row?.season_year??options?.year);
     const driverId=first(options,["driverId","driver_id"])||first(row,["driver_id","person_id"]);
-    const constructor=constructorIdentity(row,constructorNamesByArchiveId,teamResolver);
+    const constructor=constructorIdentity(row,constructorNamesByArchiveId,teamResolver,teamNamesById);
 
     let entrant=explicitEntrantFromRow(row,teamResolver);
     if(!entrant){
@@ -202,7 +209,7 @@ export function createTeamConstructorBridgeResolver({
       // Last-resort compatibility: if the result already carries a canonical
       // managerial team ID use it, but mark it as low-confidence because many
       // historic imports used team_id for constructor identity.
-      const directTeam=canonicalTeamId(first(row,["team_id"]));
+      const directTeam=canonicalTeamId(first(row,["team_id","constructor_id"]));
       if(directTeam){
         const resolved=teamResolver.resolve({team_id:directTeam});
         if(resolved.id){
