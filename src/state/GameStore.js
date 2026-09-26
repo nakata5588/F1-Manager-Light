@@ -1585,7 +1585,7 @@ export const useGame = create((set, get) => ({
 
     const gs = getS().gameState;
     const today = clampISO(gs?.currentDateISO);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(today)) {
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(today)) {
       throw new Error("queueEvent requires gameState.currentDateISO.");
     }
 
