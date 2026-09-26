@@ -212,7 +212,7 @@ export default function CreateTeam() {
 
   return (
     <div className="min-h-screen bg-gray-700 text-white">
-      <div className="mx-auto max-w-5xl p-6 space-y-6">
+      <div className="f1ml-responsive-shell py-6 space-y-6">
         <h1 className="text-3xl font-bold">Create Your Team</h1>
         {startContext?.manager ? (
           <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
