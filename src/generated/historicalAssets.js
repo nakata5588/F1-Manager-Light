@@ -259,6 +259,10 @@ export const HISTORICAL_ASSET_MANIFEST = {
     "t0015": {
       "default": "/logos/teams/t_0015.png",
       "history": []
+    },
+    "t0059": {
+      "default": "/logos/teams/t_0059.svg",
+      "history": []
     }
   }
 };
