@@ -81,6 +81,7 @@ jobs:
 
       - name: Test historical driver world-entry against real population
         run: |
+          node scripts/build-driver-history.mjs
           npm run test:world-entry:real
           npm run world:entry
 
