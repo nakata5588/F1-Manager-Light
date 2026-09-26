@@ -1,10 +1,14 @@
 // src/utils/weather.js
 
-export function pickWeighted(weights) {
+export function pickWeighted(weights, rng) {
   const entries = Object.entries(weights || {});
   if (!entries.length) return null;
+  const next = typeof rng === "function"
+    ? rng
+    : (rng && typeof rng.next === "function" ? () => rng.next() : null);
+  if (!next) throw new TypeError("pickWeighted requires an injected RNG source.");
   const sum = entries.reduce((a, [, w]) => a + w, 0);
-  let r = Math.random() * sum;
+  let r = next() * sum;
   for (const [key, w] of entries) {
     r -= w;
     if (r <= 0) return key;
@@ -29,9 +33,9 @@ export function resolveWeatherProfile({ trackId, month, country }, profiles) {
   return zoneCfg?.weights_by_month?.[String(m)] || null;
 }
 
-export function pickInitialWeather(ctx, profiles) {
+export function pickInitialWeather(ctx, profiles, rng) {
   const weights = resolveWeatherProfile(ctx, profiles);
-  return pickWeighted(weights) || "SUNNY";
+  return pickWeighted(weights, rng) || "SUNNY";
 }
 
 export function toStatesDict(statesArray) {
