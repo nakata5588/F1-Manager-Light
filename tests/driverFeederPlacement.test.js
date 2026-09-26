@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inferDriverFeederPlacement } from "../src/domain/driverFeederPlacement.js";
+import { inferDriverFeederPlacement, feederPlacementRuntimePatch } from "../src/domain/driverFeederPlacement.js";
 
 function driver(overrides={}){
   return {
@@ -73,4 +73,29 @@ test("career-ended drivers stay out of feeder placement",()=>{
   const row=inferDriverFeederPlacement(d,e,1980);
   assert.equal(row.placement,"RETIRED_REFERENCE");
   assert.equal(row.scoutable,false);
+});
+
+
+test("W3 runtime patch converts generic feeder placement into existing market flags",()=>{
+  const youth=feederPlacementRuntimePatch(
+    inferDriverFeederPlacement(driver(),entry(),1980)
+  );
+  assert.equal(youth.status,"junior_only");
+  assert.equal(youth.age,19);
+  assert.equal(youth.active_lower_series,true);
+  assert.equal(youth.canHireAcademy,true);
+  assert.equal(youth.canHireF1,false);
+  assert.equal(youth.feeder_placement,"YOUTH");
+
+  const ready=feederPlacementRuntimePatch(
+    inferDriverFeederPlacement(
+      driver({dob:"1956-12-23"}),
+      entry({first_world_year:1975,reference_f1_debut_year:1981,reference_f1_last_year:1994}),
+      1980
+    )
+  );
+  assert.equal(ready.status,"lower_series");
+  assert.equal(ready.lower_series_name,"F1 Ready");
+  assert.equal(ready.canHireF1,true);
+  assert.equal(ready.feeder_placement,"F1_READY");
 });
