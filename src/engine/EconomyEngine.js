@@ -450,7 +450,7 @@ export function applyEconomyTick(state) {
 
     return gs;
   } catch (e) {
-    console.warn("[EconomyEngine] applyEconomyTick failed:", e);
-    return state;
+    console.error("[EconomyEngine] applyEconomyTick failed:", e);
+    throw e;
   }
 }
