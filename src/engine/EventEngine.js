@@ -412,7 +412,10 @@ function buildInboxMessage({ ev, dateISO, driver, logLines, changes }) {
 export function triggerDailyTick(gs) {
   if (!gs) return gs;
 
-  const today = toISODateOnly(gs.currentDateISO || Date.now());
+  const today = clampISO(gs.currentDateISO);
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(today)) {
+    throw new TypeError("triggerDailyTick requires gameState.currentDateISO.");
+  }
   const queue = Array.isArray(gs.eventsQueue) ? gs.eventsQueue.slice() : [];
 
   const drivers = gs.drivers?.length ? gs.drivers : (gs.dbDrivers || []);
@@ -459,11 +462,15 @@ export function triggerDailyTick(gs) {
  * pronto a enfileirar com useGame().queueEvent(...)
  *
  * @param {object} block registo de agenda_blocks (id, name, effects_json, cooldown, etc.)
- * @param {object} opts  { dateISO, driverId, title, note, participants }
+ * @param {object} opts  { dateISO, currentDateISO, driverId, title, note, participants }
  */
 export function scheduleEventFromBlock(block, opts = {}) {
   if (!block) return null;
-  const dateISO = clampISO(opts.dateISO || addDaysISO(toISODateOnly(Date.now()), 1));
+  const currentDateISO = clampISO(opts.currentDateISO);
+  const dateISO = clampISO(opts.dateISO || (currentDateISO ? addDaysISO(currentDateISO, 1) : ""));
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateISO)) {
+    throw new TypeError("scheduleEventFromBlock requires dateISO or currentDateISO.");
+  }
   const driverId = opts.driverId ?? (Array.isArray(opts.participants) ? opts.participants[0] : null);
   const effects_json = block.effects || block.effects_json || {};
   const effects = flattenAgendaEffects(effects_json, { driverId });
