@@ -9,7 +9,7 @@ export const TRACK_LAYOUT_ASSETS = [
     "year_from": 1974,
     "year_to": 1981,
     "reference_year": 1980,
-    "asset": "/tracks/historical/buenos-aires-no15-1980.webp",
+    "asset": "/tracks/historical/buenos-aires-no15-1980.svg",
     "environment_view_box": [0,0,1649,954],
     "historical_status": "verified",
     "geometry_status": "historical_verified",
@@ -23,7 +23,7 @@ export const TRACK_LAYOUT_ASSETS = [
     "sector_colors": ["#ef4444","#22d3ee","#facc15"],
     "pit_lane_color": "#2563eb",
     "track_intelligence_status": "historical_verified",
-    "source_label": "Buenos Aires Circuit No. 15 — 1980 historical environment; functional centreline remains engine-independent"
+    "source_label": "Buenos Aires Circuit No. 15 — 1980 detailed video-game environment; functional centreline remains engine-independent"
   },
   {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
