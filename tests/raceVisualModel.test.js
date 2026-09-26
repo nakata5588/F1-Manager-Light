@@ -202,3 +202,36 @@ test("Track 2.1A start-finish wrapping keeps forward physical continuity",()=>{
   assert.ok(timeline.drivers[0].to_world_progress>timeline.drivers[0].from_world_progress);
   assert.ok(timeline.drivers[0].to_world_progress-timeline.drivers[0].from_world_progress<0.5);
 });
+
+
+test("Track 2.1A visual position delta appears only after the crossing",()=>{
+  const previous=[
+    {driver_id:"a",position:1,gap_to_leader_ms:0,interval_ms:0,sector_2_ms:30000},
+    {driver_id:"b",position:2,gap_to_leader_ms:900,interval_ms:900,sector_2_ms:30000},
+  ];
+  const target=[
+    {driver_id:"b",position:1,gap_to_leader_ms:0,interval_ms:0,sector_2_ms:30000},
+    {driver_id:"a",position:2,gap_to_leader_ms:450,interval_ms:450,sector_2_ms:30000},
+  ];
+  const timeline=createVisualRaceTimeline(previous,target,{
+    previousLap:1,
+    previousSector:1,
+    currentLap:1,
+    currentSector:2,
+    referenceLapMs:90000,
+    playbackSpeed:1,
+    globalSectorMs:30000,
+  });
+
+  const before=visualRaceTimelineFrame(timeline,0.60).rows;
+  assert.equal(before.find((row)=>row.driver_id==="a").visual_position_delta,0);
+  assert.equal(before.find((row)=>row.driver_id==="b").visual_position_delta,0);
+
+  const after=visualRaceTimelineFrame(timeline,0.75).rows;
+  assert.equal(after.find((row)=>row.driver_id==="b").visual_position_delta,1);
+  assert.equal(after.find((row)=>row.driver_id==="a").visual_position_delta,-1);
+
+  const endpoint=visualRaceTimelineFrame(timeline,1).rows;
+  assert.equal(endpoint.find((row)=>row.driver_id==="b").visual_position_delta,1);
+  assert.equal(endpoint.find((row)=>row.driver_id==="a").visual_position_delta,-1);
+});

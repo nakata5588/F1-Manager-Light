@@ -253,6 +253,9 @@ export function visualRaceTimelineFrame(timeline,t=1){
       visual_world_progress:entry.from_world_progress,
       visual_track_progress:wrapTrackProgress(entry.from_world_progress),
       visual_t:0,
+      previous_authoritative_position:finite(entry.previous?.position),
+      target_authoritative_position:finite(entry.target?.position),
+      visual_position_delta:0,
     })).sort((a,b)=>finite(a?.position,999)-finite(b?.position,999));
     return {progress:0,rows};
   }
@@ -263,6 +266,9 @@ export function visualRaceTimelineFrame(timeline,t=1){
       visual_world_progress:entry.to_world_progress,
       visual_track_progress:wrapTrackProgress(entry.to_world_progress),
       visual_t:1,
+      previous_authoritative_position:finite(entry.previous?.position),
+      target_authoritative_position:finite(entry.target?.position),
+      visual_position_delta:finite(entry.previous?.position,finite(entry.target?.position,0))-finite(entry.target?.position,0),
     })).sort((a,b)=>finite(a?.position,999)-finite(b?.position,999));
     return {progress:1,rows};
   }
@@ -295,12 +301,14 @@ export function visualRaceTimelineFrame(timeline,t=1){
     const gap=index===0?0:Math.max(0,(leaderWorld-Number(row.visual_world_progress))*referenceLapMs);
     const interval=index===0?0:Math.max(0,gap-previousGap);
     previousGap=gap;
+    const visualPosition=index+1;
     return {
       ...row,
-      position:index+1,
+      position:visualPosition,
       gap_to_leader_ms:gap,
       interval_ms:interval,
       gap_to_previous_ms:interval,
+      visual_position_delta:finite(row?.previous_authoritative_position,visualPosition)-visualPosition,
     };
   });
   return {progress,rows};

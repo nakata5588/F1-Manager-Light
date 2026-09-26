@@ -13,7 +13,7 @@ import {
 } from "../src/core/saveSafety.js";
 import { runRaceWeekend } from "../src/engine/GPEngine.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
-import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot, sessionRecoveryMatchesState } from "../src/domain/sessionRecovery.js";
+import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot, compactRaceWeekendForRecovery, sessionRecoveryMatchesState } from "../src/domain/sessionRecovery.js";
 
 test("seeded RNG is deterministic and entropy-key scoped", () => {
   const a = createRng("1980-monaco-race");
@@ -604,4 +604,50 @@ test("tab session recovery never crosses into a different career", () => {
 
   assert.equal(sessionRecoveryMatchesState(current,journal),false);
   assert.equal(applySessionRecoverySnapshot(current,journal),current);
+});
+
+
+test("live race refresh journal drops rebuildable future projection payloads",()=>{
+  const weekend={
+    phase:"race",
+    active_session_id:"race",
+    race_strategy:{race_control_plan:{periods:[{type:"VSC",from_lap:8,to_lap:8}]}},
+    live_race:{
+      status:"running",
+      current_lap:8,
+      current_sector:2,
+      classification:[{driver_id:"d_1",position:1}],
+      events:[{lap:8,sector:2,type:"position_change"}],
+      projected_race:Array.from({length:20},(_,index)=>({
+        driver:{driver_id:`d_${index+1}`},
+        lap_times_ms:Array.from({length:70},()=>90000+index),
+      })),
+      projected_summary:{large:true,rows:Array.from({length:100},(_,index)=>index)},
+    },
+  };
+  const compact=compactRaceWeekendForRecovery(weekend);
+  assert.equal(compact.live_race.current_lap,8);
+  assert.equal(compact.live_race.current_sector,2);
+  assert.equal(compact.live_race.classification.length,1);
+  assert.equal(compact.live_race.events.length,1);
+  assert.equal(Object.hasOwn(compact.live_race,"projected_race"),false);
+  assert.equal(Object.hasOwn(compact.live_race,"projected_summary"),false);
+  assert.ok(JSON.stringify(compact).length<JSON.stringify(weekend).length/2);
+});
+
+test("finished race refresh state keeps final projected race needed for result finalization",()=>{
+  const weekend={
+    phase:"race",
+    active_session_id:"race",
+    live_race:{
+      status:"finished",
+      current_lap:70,
+      current_sector:3,
+      projected_race:[{driver:{driver_id:"d_1"},position:1}],
+      projected_summary:{winner:"d_1"},
+    },
+  };
+  const compact=compactRaceWeekendForRecovery(weekend);
+  assert.deepEqual(compact.live_race.projected_race,weekend.live_race.projected_race);
+  assert.deepEqual(compact.live_race.projected_summary,weekend.live_race.projected_summary);
 });

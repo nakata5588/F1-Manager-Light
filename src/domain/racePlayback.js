@@ -14,6 +14,19 @@ export function racePlaybackCanRun(liveRace){
   );
 }
 
+export function racePlaybackRemainingRatioAfterElapsed(currentRatio,elapsedMs,fullDelayMs){
+  const ratio=Math.max(0,Math.min(1,Number(currentRatio)||0));
+  const elapsed=Math.max(0,Number(elapsedMs)||0);
+  const duration=Math.max(1,Number(fullDelayMs)||1);
+  return Math.max(0,Math.min(1,ratio-(elapsed/duration)));
+}
+
+export function racePlaybackDelayForRemainingRatio(speed,baseSectorMs=30000,remainingRatio=1){
+  const fullDelay=racePlaybackDelayMs(speed,baseSectorMs);
+  const ratio=Math.max(0,Math.min(1,Number(remainingRatio)||0));
+  return Math.max(20,Math.round(fullDelay*ratio));
+}
+
 
 export function raceMotionDurationMs(speed,baseSectorMs=30000){
   const normalized=RACE_PLAYBACK_SPEEDS.includes(Number(speed))?Number(speed):1;

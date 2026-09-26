@@ -547,7 +547,7 @@ export default function Track2DView({
     </div>;
   }
 
-  const orderPanelClass="xl:grid-cols-[304px_minmax(0,1fr)_176px] 2xl:grid-cols-[328px_minmax(0,1fr)_188px]";
+  const orderPanelClass="xl:grid-cols-[336px_minmax(0,1fr)_176px] 2xl:grid-cols-[360px_minmax(0,1fr)_188px]";
 
   return <section className="overflow-hidden rounded-xl border border-white/10 bg-[#090d13] shadow-2xl">
     <div className="flex min-h-10 items-center gap-2 border-b border-white/10 bg-[#0b1017] px-2.5 py-1.5">
@@ -764,8 +764,8 @@ export default function Track2DView({
           <div className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-slate-600">Sector {Math.max(1,Number(currentSector)||1)} · Gap to leader / interval</div>
         </div>
 
-        <div className="grid grid-cols-[30px_26px_48px_minmax(64px,1fr)_28px_62px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
-          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
+        <div className="grid grid-cols-[34px_22px_42px_minmax(56px,1fr)_34px_24px_52px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
+          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-right">Gain</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
         </div>
 
         <div className="grid min-h-0 flex-1 p-0.5" style={{gridTemplateRows:`repeat(${Math.max(1,activeRows.length)},minmax(0,1fr))`}}>
@@ -775,18 +775,30 @@ export default function Track2DView({
             const mine=tid===String(playerTeamId||"");
             const selected=did===resolvedSelectedId;
             const palette=markerPalette(teamBrands,tid,year);
+            const positionDelta=Number(row?.visual_position_delta)||0;
+            const gridPosition=Number(row?.grid_position);
+            const livePosition=Number(row?.position??index+1);
+            const gridGain=Number.isFinite(gridPosition)&&Number.isFinite(livePosition)
+              ?gridPosition-livePosition
+              :null;
             return <button
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`min-h-0 grid w-full grid-cols-[30px_24px_46px_minmax(62px,1fr)_26px_60px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              className={`min-h-0 grid w-full grid-cols-[34px_22px_42px_minmax(56px,1fr)_34px_24px_52px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
               style={{borderLeftColor:row?.retired?"#7f1d1d":palette.primary}}
             >
-              <span className="text-right text-[10px] font-black italic leading-none text-slate-100">{row?.position??index+1}</span>
+              <span className="flex items-center justify-end gap-0.5 text-right text-[10px] font-black italic leading-none text-slate-100">
+                {positionDelta>0?<ChevronUp className="h-3 w-3 shrink-0 text-emerald-300" aria-label="Position gained"/>:positionDelta<0?<ChevronDown className="h-3 w-3 shrink-0 text-red-300" aria-label="Position lost"/>:null}
+                <span>{row?.position??index+1}</span>
+              </span>
               <span className="flex items-center justify-center"><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/></span>
               <span className={`truncate text-[10px] font-black leading-none tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
               <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}>
                 {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.gap_to_leader_ms)}
+              </span>
+              <span className={`text-right font-mono text-[9px] font-bold ${row?.retired||gridGain==null?"text-slate-600":gridGain>0?"text-emerald-300":gridGain<0?"text-red-300":"text-slate-500"}`}>
+                {row?.retired||gridGain==null?"—":gridGain>0?`+${gridGain}`:String(gridGain)}
               </span>
               <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={12}/></span>
               <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}>
