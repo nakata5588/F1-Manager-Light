@@ -105,7 +105,7 @@ export function driverSalaryMarketAnchor(gs){
   // Fallback only when historical contract coverage is sparse. The normal
   // path is data-driven from the salaries already present in the active era.
   const year=Number(gs?.activeYear);
-  if(Number.isFinite(year)&&year<=1984)return 250_000;
+  if(Number.isFinite(year)&&year<=1984)return 450_000;
   if(Number.isFinite(year)&&year<=1994)return 450_000;
   if(Number.isFinite(year)&&year<=2004)return 1_000_000;
   if(Number.isFinite(year)&&year<=2014)return 1_800_000;
