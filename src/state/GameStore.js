@@ -1,7 +1,6 @@
 // src/state/GameStore.js
 import { create } from "zustand";
-import { triggerDailyTick } from "@/engine/EventEngine";
-import { processScoutingTick } from "@/engine/ScoutingEngine";
+import { runDailyTickPipeline } from "@/engine/DailyTickEngine";
 import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
 import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
@@ -12,15 +11,10 @@ import { withVisualAssetOverride, withoutVisualAssetOverride } from "@/domain/vi
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
-import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
 import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "@/domain/sessionRecovery";
-import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
-import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
-import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
-import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
 import { DEFAULT_USER_SETTINGS, mergeUserSettings, readUserSettings, writeUserSettings } from "@/domain/userPreferences";
 import {
   applyOpeningStateToDriver,
@@ -659,67 +653,7 @@ export const useGame = create((set, get) => ({
   },
 
   /** ===================== AVANÇAR UM DIA ===================== */
-  advanceOneDay: async () => {
-    const s = get().gameState;
-    const baseISO = clampISO(s.currentDateISO || firstDayISO(s.activeYear || 1980));
-    const newISO  = addDaysISO(baseISO, 1);
-    const nextCalendarYear = Number(String(newISO).slice(0, 4));
-    let updated = { ...s, currentDateISO: newISO };
-    if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
-      updated = rolloverSeasonPure(s, nextCalendarYear);
-    }
-    try {
-      const res = triggerDailyTick(updated);
-      updated = res?.state || res?.patched || res || updated;
-      updated = processScoutingTick(updated);
-      updated = refreshDriverAvailability(updated, updated.currentDateISO);
-      updated = processWorkshopJobs(updated);
-      updated = processPlayerTechnicalLifecycle(updated);
-      updated = processTechnologyAdoption(updated);
-      updated = tickAITechnicalWorld(updated);
-      updated = processTechnologyDiscoveryNews(updated);
-      const changes = res?.changes || res?.attrChanges || [];
-      if (Array.isArray(changes) && changes.length) {
-        // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
-        if (typeof applyAttrChangesDict === "function") {
-          updated = { ...updated, driverAttrLog: applyAttrChangesDict(updated.driverAttrLog, changes) };
-        }
-      }
-    } catch (e) {
-      console.warn("[EventEngine] daily tick failed:", e);
-    }
-
-    // Keep single-day advance behavior aligned with "advance until break".
-    try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
-    updated = advanceNextSeasonCarDay(updated);
-    try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
-
-    set({ gameState: updated });
-
-    // ---- Fim de época: se já passámos a última corrida, abre Season Summary ----
-    try {
-      const gs = get().gameState || updated || {};
-      const lastIdx = Math.max(0, (gs.calendar?.length || 1) - 1);
-      const lastRaceISO = gpDateISO(gs.calendar?.[lastIdx]);
-      const todayISO = clampISO(gs.currentDateISO);
-      const yearNow = gs.activeYear || gs.seasonYear || gs.season || null;
-
-      const canTrigger =
-        lastRaceISO &&
-        todayISO > lastRaceISO &&
-        gs._seasonFinishedAt !== yearNow;
-
-      if (canTrigger) {
-        set({ gameState: { ...gs, _seasonFinishedAt: yearNow, showSeasonSummary: true } });
-      }
-    } catch (e) {
-      console.warn("end-of-season check failed:", e);
-    }
-  },
+  advanceOneDay: async () => get().advanceOneDayUntilBreak(),
 
   /** ===================== CARREGAR DB ===================== */
   loadData: async () => {
@@ -1650,7 +1584,10 @@ export const useGame = create((set, get) => ({
     const setS = set;
 
     const gs = getS().gameState;
-    const today = (gs?.currentDateISO || new Date().toISOString()).slice(0,10);
+    const today = clampISO(gs?.currentDateISO);
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(today)) {
+      throw new Error("queueEvent requires gameState.currentDateISO.");
+    }
 
     const scheduled = {
       id: ev.id || `ev_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
@@ -1969,31 +1906,27 @@ export const useGame = create((set, get) => ({
     }
 
     try {
-      const res=triggerDailyTick(updated);
-      const {state:next1,patched,changes,attrChanges}=res||{};
-      updated=next1||patched||res||updated;
-      updated=processScoutingTick(updated);
-      updated=refreshDriverAvailability(updated,updated.currentDateISO);
-      updated=processWorkshopJobs(updated);
-      updated=processPlayerTechnicalLifecycle(updated);
-      updated=processTechnologyAdoption(updated);
-      updated=tickAITechnicalWorld(updated);
-      updated=processTechnologyDiscoveryNews(updated);
-      const ch=changes||attrChanges||[];
-      if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
-        updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};
-      }
-    } catch(e){
-      console.warn("[EventEngine] daily tick failed:",e);
+      const tick=runDailyTickPipeline(updated);
+      updated=tick.state;
+    } catch(error){
+      const stage=String(error?.stage||"daily-pipeline");
+      const message=String(error?.cause?.message||error?.message||error||"Unknown daily tick failure");
+      console.error(`[DailyTick] aborted at ${stage}:`,error);
+      get().pushToast?.({
+        title:"Day advance failed",
+        description:`${stage}: ${message}`,
+        type:"error",
+        ttl:5000,
+      });
+      return {
+        oldDate:baseISO,
+        newDate:baseISO,
+        roundChanged:false,
+        round,
+        breakReason:"tick_error",
+        tickError:{stage,message},
+      };
     }
-
-    try { const mod=await import("@/engine/RuleEngine"); if(typeof mod.applyRulesTick==="function") updated=mod.applyRulesTick(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/ProgressionEngine"); if(typeof mod.applyProgressionTick==="function") updated=mod.applyProgressionTick(updated)||updated; } catch {}
-    updated=advanceNextSeasonCarDay(updated);
-    try { const mod=await import("@/engine/EconomyEngine"); if(typeof mod.applyEconomyTick==="function") updated=mod.applyEconomyTick(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/MarketEngine"); if(typeof mod.applyMarketTick==="function") updated=mod.applyMarketTick(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/NegotiationEngine"); if(typeof mod.processDriverNegotiations==="function") updated=mod.processDriverNegotiations(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/InboxEngine"); if(typeof mod.syncInbox==="function") updated=mod.syncInbox(updated)||updated; } catch {}
 
     let weekendBreak=null;
     try {
@@ -2009,26 +1942,35 @@ export const useGame = create((set, get) => ({
       if(["practice","qualifying","race"].includes(phase)){
         weekendBreak={breakReason:"race_weekend",raceWeekendPhase:phase};
       }
-    } catch(e){
-      console.warn("[RaceWeekend] state sync failed:",e);
+    } catch(error){
+      const message=String(error?.message||error||"Race Weekend state sync failed");
+      console.error("[RaceWeekend] state sync failed; day advance aborted:",error);
+      get().pushToast?.({
+        title:"Day advance failed",
+        description:`race-weekend-sync: ${message}`,
+        type:"error",
+        ttl:5000,
+      });
+      return {
+        oldDate:baseISO,
+        newDate:baseISO,
+        roundChanged:false,
+        round,
+        breakReason:"tick_error",
+        tickError:{stage:"race-weekend-sync",message},
+      };
+    }
+
+    const lastIdx=Math.max(0,(updated.calendar?.length||1)-1);
+    const lastRaceISO=gpDateISO(updated.calendar?.[lastIdx]);
+    const todayISO=clampISO(updated.currentDateISO);
+    const yearNow=updated.activeYear||updated.seasonYear||updated.season||null;
+    const canTriggerSeasonSummary=lastRaceISO&&todayISO>lastRaceISO&&updated._seasonFinishedAt!==yearNow;
+    if(canTriggerSeasonSummary){
+      updated={...updated,_seasonFinishedAt:yearNow,showSeasonSummary:true};
     }
 
     set({gameState:updated});
-
-    try {
-      const gs=get().gameState||updated||{};
-      const lastIdx=Math.max(0,(gs.calendar?.length||1)-1);
-      const lastRaceISO=gpDateISO(gs.calendar?.[lastIdx]);
-      const todayISO=clampISO(gs.currentDateISO);
-      const yearNow=gs.activeYear||gs.seasonYear||gs.season||null;
-      const canTrigger=lastRaceISO&&todayISO>lastRaceISO&&gs._seasonFinishedAt!==yearNow;
-      if(canTrigger){
-        set({gameState:{...gs,_seasonFinishedAt:yearNow,showSeasonSummary:true}});
-        updated=get().gameState;
-      }
-    } catch(e){
-      console.warn("end-of-season check failed:",e);
-    }
 
     try {
       if(updated?.settings?.autosave!==false){
@@ -2036,7 +1978,9 @@ export const useGame = create((set, get) => ({
         localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
         setRollingSnapshot(JSON.stringify(light));
       }
-    } catch {}
+    } catch(error) {
+      console.warn("[DailyTick] autosave failed after committed day:",error);
+    }
 
     return {
       oldDate:baseISO,
