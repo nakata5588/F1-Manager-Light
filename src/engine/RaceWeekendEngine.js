@@ -4,8 +4,8 @@ import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
 import { runRaceWeekend, simulateQualifyingSession } from "./GPEngine.js";
 import { practiceProgramme, simulatePracticeSession } from "./PracticeSetupEngine.js";
 import { createRaceStrategyState, refreshPlayerRaceStrategyFromForecast, setRaceStrategySelection as setRaceStrategySelectionState } from "./RaceStrategyEngine.js";
-import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, resumeLiveRace } from "./LiveRaceEngine.js";
-import { applyRedFlagDamageRepair, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
+import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, restartLiveRaceFromRedFlag, resumeLiveRace } from "./LiveRaceEngine.js";
+import { applyRedFlagDamageRepair, applyRedFlagRestartStrategy, applyRedFlagTyreChange } from "./RedFlagWorkEngine.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { createWeekendWeatherState, observeWeekendWeatherSession } from "./WeekendWeatherEngine.js";
@@ -322,6 +322,10 @@ export function setRedFlagDamageRepair(gs,command={}){
   return applyRedFlagDamageRepair(gs,command);
 }
 
+export function setRedFlagRestartStrategy(gs,command={}){
+  return applyRedFlagRestartStrategy(gs,command);
+}
+
 export function assessLiveRaceRestartSession(gs){
   return assessLiveRaceRestart(gs);
 }
@@ -336,6 +340,10 @@ export function prepareLiveRaceRestartSession(gs){
 
 export function resumeLiveRaceSession(gs){
   return resumeLiveRace(gs);
+}
+
+export function restartLiveRaceFromRedFlagSession(gs){
+  return restartLiveRaceFromRedFlag(gs);
 }
 
 export function completePracticeSession(gs,{gp}={}){
