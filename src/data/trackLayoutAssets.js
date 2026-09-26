@@ -3,14 +3,19 @@ export const TRACK_LAYOUT_ASSETS = [
   {
     "layout_id": "tr_0018_provisional",
     "track_id": "tr_0018",
-    "label": "Buenos Aires",
-    "year_from": null,
-    "year_to": null,
-    "reference_year": null,
-    "asset": null,
-    "historical_status": "provisional",
-    "geometry_status": "derived_provisional",
-    "source_label": "User supplied SVG; source year not encoded"
+    "label": "Buenos Aires — Circuit No. 15",
+    "year_from": 1974,
+    "year_to": 1981,
+    "reference_year": 1980,
+    "asset": "/tracks/historical/buenos-aires-no15-1980.svg",
+    "historical_status": "verified",
+    "geometry_status": "historical_verified",
+    "lap_length_km": 5.968,
+    "start_finish_progress": 0,
+    "race_direction": "clockwise",
+    "start_finish_direction": "right",
+    "track_intelligence_status": "historical_verified",
+    "source_label": "Buenos Aires Circuit No. 15 — 1980 historical environment; functional centreline remains engine-independent"
   },
   {
     "layout_id": "tr_0028_provisional",
