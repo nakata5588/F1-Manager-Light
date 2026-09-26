@@ -26,6 +26,22 @@ import { championshipRuleForYear, countChampionshipPoints, racePointsForResult }
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
+function championshipPointsWithStandingCarry({
+  previousPoints=0,
+  priorEvents=[],
+  nextEvents=[],
+  countingRule,
+}={}){
+  const priorComputed=countChampionshipPoints(priorEvents,countingRule);
+  const nextComputed=countChampionshipPoints(nextEvents,countingRule);
+  // Save World standings remain authoritative when older detailed result rows
+  // are unavailable (legacy/incomplete saves). Carry only the unexplained
+  // standings delta; when result history is complete this delta is zero, so
+  // historical best-N/split-season counting remains exact.
+  const carriedDelta=(Number(previousPoints)||0)-priorComputed;
+  return Number((nextComputed+carriedDelta).toFixed(3));
+}
+
 const unwrap = (value) => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     if (value.result !== undefined && value.result !== null && value.result !== "") return value.result;
@@ -897,15 +913,20 @@ export async function runRaceWeekend(gs, {
     }));
   const scoreEvents=[...historicalScoreEvents,{round,classification}];
 
-  const driverEvents=new Map();
-  for(const event of scoreEvents){
-    for(const row of event.classification){
-      const id=String(row?.driver_id??row?.id??"");
-      if(!id)continue;
-      if(!driverEvents.has(id))driverEvents.set(id,[]);
-      driverEvents.get(id).push({round:event.round,points:Number(row?.points||0)});
+  const driverEventsFor=(events)=>{
+    const byDriver=new Map();
+    for(const event of events){
+      for(const row of event.classification){
+        const id=String(row?.driver_id??row?.id??"");
+        if(!id)continue;
+        if(!byDriver.has(id))byDriver.set(id,[]);
+        byDriver.get(id).push({round:event.round,points:Number(row?.points||0)});
+      }
     }
-  }
+    return byDriver;
+  };
+  const priorDriverEvents=driverEventsFor(historicalScoreEvents);
+  const driverEvents=driverEventsFor(scoreEvents);
 
   const previousDriverStandings=gs.standings?.drivers||[];
   const driverById=new Map(allDrivers.map((d)=>[String(d?.driver_id??d?.id??""),d]));
@@ -922,15 +943,21 @@ export async function runRaceWeekend(gs, {
       driver_id:id,
       name:d.display_name || d.name || `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim() || previous.name || id,
       team_id:resolveDriverTeamId(gs,d)||previous.team_id||null,
-      points:countChampionshipPoints(driverEvents.get(id)||[],championshipRule.driverCounting),
+      points:championshipPointsWithStandingCarry({
+        previousPoints:previous.points,
+        priorEvents:priorDriverEvents.get(id)||[],
+        nextEvents:driverEvents.get(id)||[],
+        countingRule:championshipRule.driverCounting,
+      }),
     };
   })
     .sort((a,b)=>b.points-a.points||String(a.name||"").localeCompare(String(b.name||"")))
     .map((row,index)=>({...row,position:index+1}));
 
-  const teamRaceEvents=new Map();
-  if(championshipRule.constructorChampionship){
-    for(const event of scoreEvents){
+  const teamRaceEventsFor=(events)=>{
+    const byTeam=new Map();
+    if(!championshipRule.constructorChampionship)return byTeam;
+    for(const event of events){
       const perTeam=new Map();
       for(const row of event.classification){
         const teamId=String(row?.team_id??row?.constructor_id??"");
@@ -943,22 +970,39 @@ export async function runRaceWeekend(gs, {
         }
       }
       for(const [teamId,points] of perTeam){
-        if(!teamRaceEvents.has(teamId))teamRaceEvents.set(teamId,[]);
-        teamRaceEvents.get(teamId).push({round:event.round,points});
+        if(!byTeam.has(teamId))byTeam.set(teamId,[]);
+        byTeam.get(teamId).push({round:event.round,points});
       }
     }
-  }
+    return byTeam;
+  };
+  const priorTeamRaceEvents=teamRaceEventsFor(historicalScoreEvents);
+  const teamRaceEvents=teamRaceEventsFor(scoreEvents);
+  const previousTeamStandings=gs.standings?.teams||[];
+  const previousTeamStandingById=new Map(previousTeamStandings.map((row)=>[
+    String(row?.team_id??row?.constructor_id??""),
+    row,
+  ]));
 
   const teamIds=new Set([
     ...(gs.teams||[]).map(getTeamId).filter(Boolean),
     ...teamRaceEvents.keys(),
+    ...previousTeamStandingById.keys(),
   ]);
   const teamStandings=championshipRule.constructorChampionship
-    ?[...teamIds].map((team_id)=>({
-        team_id,
-        team_name:teamsById.get(team_id)?.team_name||teamsById.get(team_id)?.name||team_id,
-        points:countChampionshipPoints(teamRaceEvents.get(team_id)||[],championshipRule.constructorCounting),
-      }))
+    ?[...teamIds].map((team_id)=>{
+        const previous=previousTeamStandingById.get(String(team_id))||{};
+        return {
+          team_id,
+          team_name:teamsById.get(team_id)?.team_name||teamsById.get(team_id)?.name||previous.team_name||team_id,
+          points:championshipPointsWithStandingCarry({
+            previousPoints:previous.points,
+            priorEvents:priorTeamRaceEvents.get(team_id)||[],
+            nextEvents:teamRaceEvents.get(team_id)||[],
+            countingRule:championshipRule.constructorCounting,
+          }),
+        };
+      })
       .sort((a,b)=>b.points-a.points||String(a.team_name||"").localeCompare(String(b.team_name||"")))
       .map((row,index)=>({...row,position:index+1}))
     :[];
