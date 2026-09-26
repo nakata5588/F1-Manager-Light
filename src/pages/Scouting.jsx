@@ -372,18 +372,17 @@ export default function Scouting() {
       </div>
 
       {showStart && (
-        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-4 space-y-4">
-          <div className="font-semibold">New scouting assignment</div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant={mode==="driver"?"default":"outline"} onClick={()=>{setMode("driver");setZoneId("");}}>Specific Driver</Button>
-            <Button variant={mode==="region"?"default":"outline"} onClick={()=>{setMode("region");setTarget("");if(!zoneId&&zones[0])setZoneId(String(zones[0].zone_id));}}>Explore Region</Button>
+        <Card className="!bg-[#12141c] !border-white/10 !text-slate-100"><CardContent className="p-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-2 font-semibold">New scouting assignment</div>
+            <Button size="sm" variant={mode==="driver"?"default":"outline"} onClick={()=>{setMode("driver");setZoneId("");}}>Specific Driver</Button>
+            <Button size="sm" variant={mode==="region"?"default":"outline"} onClick={()=>{setMode("region");setTarget("");if(!zoneId&&zones[0])setZoneId(String(zones[0].zone_id));}}>Explore Region</Button>
           </div>
 
           {mode === "driver" ? (
             <label className="text-sm block">
               Driver
-              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-2.5 py-1.5 w-full" value={target} onChange={(e)=>setTarget(e.target.value)}>
                 <option value="">Select driver…</option>
                 {specificScoutCandidates.map((d)=><option key={idOf(d)} value={idOf(d)}>{d.display_name || d.name} · {driverCountry(d) || "Unknown"}</option>)}
               </select>
@@ -391,33 +390,33 @@ export default function Scouting() {
           ) : (
             <label className="text-sm block">
               Region
-              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-3 py-2 w-full" value={zoneId} onChange={(e)=>setZoneId(e.target.value)}>
+              <select className="mt-1 border border-white/10 bg-[#191c26] text-slate-100 rounded px-2.5 py-1.5 w-full" value={zoneId} onChange={(e)=>setZoneId(e.target.value)}>
                 {zones.map((z)=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}
               </select>
             </label>
           )}
 
           {mode==="driver"&&selectedDriver&&(
-            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Report depth</div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <button type="button" onClick={()=>setDepth("light")} className={`rounded-lg border p-3 text-left ${depth==="light"?"border-sky-400/60 bg-sky-400/10":"border-white/10 bg-black/10"}`}>
-                  <div className="font-semibold">Light scouting</div>
-                  <div className="mt-1 text-xs text-slate-400">Faster and cheaper. Narrows Overall and attribute ranges, but does not reveal everything.</div>
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-2.5">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Report depth</div>
+              <div className="grid gap-1.5 md:grid-cols-2">
+                <button type="button" onClick={()=>setDepth("light")} className={`rounded-md border px-2.5 py-2 text-left ${depth==="light"?"border-sky-400/60 bg-sky-400/10":"border-white/10 bg-black/10"}`}>
+                  <div className="text-sm font-semibold">Light scouting</div>
+                  <div className="mt-0.5 text-[11px] leading-tight text-slate-400">Faster/cheaper · narrows Overall and attribute ranges.</div>
                 </button>
-                <button type="button" onClick={()=>setDepth("deep")} className={`rounded-lg border p-3 text-left ${depth==="deep"?"border-emerald-400/60 bg-emerald-400/10":"border-white/10 bg-black/10"}`}>
-                  <div className="font-semibold">Deep scouting</div>
-                  <div className="mt-1 text-xs text-slate-400">Longer full report. Reveals exact current ratings and a full potential assessment.</div>
+                <button type="button" onClick={()=>setDepth("deep")} className={`rounded-md border px-2.5 py-2 text-left ${depth==="deep"?"border-emerald-400/60 bg-emerald-400/10":"border-white/10 bg-black/10"}`}>
+                  <div className="text-sm font-semibold">Deep scouting</div>
+                  <div className="mt-0.5 text-[11px] leading-tight text-slate-400">Longer/full · exact current ratings and full potential assessment.</div>
                 </button>
               </div>
-              {specificPlan?<div className="mt-2 text-xs text-slate-500">
+              {specificPlan?<div className="mt-1.5 text-[11px] text-slate-500">
                 Familiarity {Math.round(specificPlan.familiarity.score)}/100 · Reputation {Math.round(specificPlan.familiarity.reputation)} · F1 starts {specificPlan.familiarity.starts}. Known drivers are quicker to scout.
               </div>:null}
             </div>
           )}
 
           {effectiveZone && (
-            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3 text-sm grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-2 text-sm grid grid-cols-2 md:grid-cols-4 gap-1.5">
               <Mini label="Area" value={effectiveZone.name}/>
               <Mini label="Duration" value={`${duration} days`}/>
               <Mini label="Cost" value={fmtMoney(cost)}/>
@@ -433,6 +432,7 @@ export default function Scouting() {
           )}
 
           <Button
+            size="sm"
             disabled={!effectiveZone || (mode==="driver"&&!selectedDriver) || budget < cost}
             onClick={startAssignment}
           >
