@@ -413,7 +413,7 @@ export function triggerDailyTick(gs) {
   if (!gs) return gs;
 
   const today = clampISO(gs.currentDateISO);
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(today)) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(today)) {
     throw new TypeError("triggerDailyTick requires gameState.currentDateISO.");
   }
   const queue = Array.isArray(gs.eventsQueue) ? gs.eventsQueue.slice() : [];
@@ -468,7 +468,7 @@ export function scheduleEventFromBlock(block, opts = {}) {
   if (!block) return null;
   const currentDateISO = clampISO(opts.currentDateISO);
   const dateISO = clampISO(opts.dateISO || (currentDateISO ? addDaysISO(currentDateISO, 1) : ""));
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateISO)) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateISO)) {
     throw new TypeError("scheduleEventFromBlock requires dateISO or currentDateISO.");
   }
   const driverId = opts.driverId ?? (Array.isArray(opts.participants) ? opts.participants[0] : null);
