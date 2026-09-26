@@ -84,7 +84,7 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbDriverOpeningState","dbStaffRatings",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
@@ -416,6 +416,7 @@ export const useGame = create((set, get) => ({
     dbTeams: [],
     dbDriverRatings: [],
     dbDriverHistory: [],
+    dbHistoricalChampionships: { drivers: [], constructors: [] },
     dbDriverOpeningState: [],
     dbStaffRatings: [],
     dbTeamBrands: [],
@@ -726,7 +727,7 @@ export const useGame = create((set, get) => ({
   loadData: async () => {
     try {
       const [
-        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, driverOpeningStateRaw, achievementsRaw,
+        driversRaw, calendarRaw, teamsRaw, driverRatingsRaw, driverCareerRaw, driverHistoryRaw, historicalChampionshipsRaw, driverOpeningStateRaw, achievementsRaw,
         staffRatingsRaw, staffCoreRaw, teamBrandsRaw, teamEnginesRaw, contractsRaw, sponsorsContractsRaw,
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, carPartsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
@@ -740,6 +741,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/driver_ratings.json"),
         fetchJsonSafe("/data/driver_career.json"),
         fetchOptional("/data/driver_f1_history.json", []),
+        fetchOptional("/data/historical_championships.json", { drivers: [], constructors: [] }),
         fetchOptional("/data/driver_opening_state.json", []),
         fetchJsonSafe("/data/achievements.json"),
         fetchJsonSafe("/data/staff_ratings.json"),
@@ -784,6 +786,9 @@ export const useGame = create((set, get) => ({
       const driverRatings     = unexcelDeep(driverRatingsRaw);
       const driverCareer      = Array.isArray(driverCareerRaw) ? unexcelDeep(driverCareerRaw) : [];
       const driverHistory     = Array.isArray(driverHistoryRaw) ? unexcelDeep(driverHistoryRaw) : [];
+      const historicalChampionships = historicalChampionshipsRaw && typeof historicalChampionshipsRaw === "object"
+        ? unexcelDeep(historicalChampionshipsRaw)
+        : { drivers: [], constructors: [] };
       const driverOpeningState = Array.isArray(driverOpeningStateRaw) ? unexcelDeep(driverOpeningStateRaw) : [];
       const achievements      = (achievementsRaw && typeof achievementsRaw === "object") ? unexcelDeep(achievementsRaw) : { version: 1, list: [] };
       const staffRatings      = unexcelDeep(staffRatingsRaw);
@@ -842,6 +847,7 @@ export const useGame = create((set, get) => ({
           dbTeams: teams,
           dbDriverRatings: driverRatings,
           dbDriverHistory: driverHistory,
+          dbHistoricalChampionships: historicalChampionships,
           dbDriverOpeningState: driverOpeningState,
           dbStaffRatings: staffRatings,
           dbStaffCore: staffCore,
