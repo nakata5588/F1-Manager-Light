@@ -25,6 +25,7 @@ const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHist
   readJson("driver_year_status.json",[]),
   readJson("driver_career.json",[]),
   readJson("driver_development_history.json",[]),
+  readJson("driver_f1_history.json",[]),
 ]);
 
 if(!drivers.length)throw new Error("D7.W1 requires public/data/drivers.json.");
