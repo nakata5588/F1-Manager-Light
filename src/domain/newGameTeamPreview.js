@@ -59,27 +59,29 @@ function financeSnapshot(gs,team,teamId,year){
 }
 
 const FACILITY_FIELDS=Object.freeze([
-  ["wind_tunnel_level"],
-  ["aero_dept_level"],
-  ["_chassis_shop_level","chassis_shop_level"],
-  ["manufacturing_leve","manufacturing_level"],
-  ["pitcrew_training_level"],
-  ["simulator_level"],
-  ["youth_program_level"],
+  {label:"Wind Tunnel",keys:["wind_tunnel_level"]},
+  {label:"Aero Department",keys:["aero_dept_level"]},
+  {label:"Chassis Workshop",keys:["_chassis_shop_level","chassis_shop_level"]},
+  {label:"Manufacturing",keys:["manufacturing_leve","manufacturing_level"]},
+  {label:"Pit Crew Training",keys:["pitcrew_training_level"]},
+  {label:"Simulator",keys:["simulator_level"]},
+  {label:"Youth Programme",keys:["youth_program_level"]},
 ]);
 
 function facilitySnapshot(gs,teamId,year){
   const facility=rowForTeam(collection(gs?.facilities,gs?.dbFacilities),teamId,year);
   const brand=brandForTeam(gs,teamId,year);
   const source=facility||brand||{};
-  const levels=FACILITY_FIELDS
-    .map((keys)=>Number(pick(source,keys,NaN)))
-    .filter(Number.isFinite);
+  const items=FACILITY_FIELDS
+    .map(({label,keys})=>({label,level:Number(pick(source,keys,NaN))}))
+    .filter((row)=>Number.isFinite(row.level));
+  const levels=items.map((row)=>row.level);
   return {
     available:levels.length,
     average:levels.length
       ? Math.round((levels.reduce((sum,value)=>sum+value,0)/levels.length)*10)/10
       : null,
+    items,
   };
 }
 
