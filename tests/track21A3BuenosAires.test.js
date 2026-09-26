@@ -27,8 +27,11 @@ test("Track 2.1A.3 Buenos Aires S/F is on upper straight and race direction is r
 test("Track 2.1A.3 keeps environment artwork non-authoritative",()=>{
   const {layout,geometry}=resolveTrackLayout({trackId:"tr_0018",year:1980});
   assert.ok(layout.asset,"presentation artwork must be independently registered");
-  assert.equal(geometry.derivation,"hand_authored_historical_reference");
+  assert.equal(geometry.derivation,"reference_trace_historical_environment");
   assert.ok(Array.isArray(geometry.points));
-  assert.ok(geometry.points.length>=80);
+  assert.ok(geometry.points.length>=250);
+  assert.deepEqual(geometry.view_box,[0,0,1642,958]);
+  assert.deepEqual(layout.environment_view_box,[0,0,1642,958]);
+  assert.deepEqual(layout.sector_boundaries,[0.315,0.674]);
   assert.equal(Object.hasOwn(geometry,"asset"),false,"functional geometry must not consume the presentation asset as physics data");
 });

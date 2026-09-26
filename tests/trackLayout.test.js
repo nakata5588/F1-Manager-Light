@@ -83,10 +83,11 @@ for(const layout of TRACK_LAYOUT_ASSETS){
     assert.match(layout.track_id,/^tr_\d{4}$/);
     const geometry=TRACK_LAYOUT_GEOMETRY[layout.layout_id];
     assert.ok(geometry);
+    const [vx,vy,vw,vh]=Array.isArray(geometry.view_box)&&geometry.view_box.length===4?geometry.view_box:[0,0,1000,1000];
     for(const point of geometry.points){
       assert.equal(point.length,2);
-      assert.ok(point[0]>=0&&point[0]<=1000);
-      assert.ok(point[1]>=0&&point[1]<=1000);
+      assert.ok(point[0]>=vx&&point[0]<=vx+vw);
+      assert.ok(point[1]>=vy&&point[1]<=vy+vh);
     }
   });
 }

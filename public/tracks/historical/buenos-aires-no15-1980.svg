@@ -1,29 +1,58 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-labelledby="title desc">
-<title id="title">Buenos Aires Circuit No. 15 — 1980 Historical Environment</title>
-<desc id="desc">Presentation-only environment inspired by the supplied Buenos Aires reference. Functional centreline and race state remain authoritative.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1642 958" role="img" aria-labelledby="title desc">
+<title id="title">Buenos Aires Circuit No. 15 — 1980 historical environment</title>
+<desc id="desc">Presentation-only scenery aligned to the supplied historical reference. Functional centreline and race state remain authoritative.</desc>
 <defs>
- <linearGradient id="grass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#536f42"/><stop offset="1" stop-color="#78915a"/></linearGradient>
- <linearGradient id="water" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#245d65"/><stop offset="1" stop-color="#397b7d"/></linearGradient>
- <pattern id="checker" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#f8fafc"/><rect width="5" height="5" fill="#111827"/><rect x="5" y="5" width="5" height="5" fill="#111827"/></pattern>
- <filter id="shadow"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-opacity=".35"/></filter>
+  <linearGradient id="grass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#445b35"/><stop offset=".52" stop-color="#62794a"/><stop offset="1" stop-color="#3f5333"/></linearGradient>
+  <linearGradient id="water" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#20555d"/><stop offset=".55" stop-color="#2f6d70"/><stop offset="1" stop-color="#1d4c55"/></linearGradient>
+  <filter id="soft"><feGaussianBlur stdDeviation="2"/></filter>
 </defs>
-<rect width="1000" height="1000" fill="url(#grass)"/>
-<!-- surrounding park and access roads -->
-<g fill="none" stroke="#71806d" stroke-width="13" opacity=".65"><path d="M15 145C170 95 320 115 470 88S770 65 985 112"/><path d="M20 820C230 790 385 815 540 830S810 845 990 815"/><path d="M105 280C160 355 130 470 78 555"/><path d="M585 90C620 150 600 215 575 285"/></g>
-<!-- lake -->
-<path d="M438 444C522 402 657 399 780 415C873 428 921 479 920 552C918 629 856 665 773 674C667 685 538 674 469 640C410 611 384 552 398 499C404 476 418 457 438 444Z" fill="url(#water)" stroke="#3e5f55" stroke-width="8"/>
-<!-- buildings/paddock on upper straight -->
-<g fill="#b7b7aa" stroke="#60665d" stroke-width="4" opacity=".92"><rect x="250" y="155" width="135" height="46"/><rect x="397" y="153" width="125" height="48"/><rect x="535" y="151" width="116" height="50"/><rect x="264" y="286" width="96" height="34"/><rect x="375" y="287" width="118" height="32"/></g>
-<!-- tree clusters -->
-<g fill="#274c31" opacity=".88"><circle cx="95" cy="115" r="30"/><circle cx="145" cy="130" r="24"/><circle cx="725" cy="135" r="34"/><circle cx="790" cy="160" r="26"/><circle cx="880" cy="180" r="34"/><circle cx="110" cy="680" r="32"/><circle cx="165" cy="735" r="25"/><circle cx="300" cy="760" r="30"/><circle cx="925" cy="745" r="28"/></g>
-<!-- presentation track, matching Circuit No. 15 reference; not physics authority -->
-<path d="M222 244H665C715 244 735 276 752 324C765 362 774 393 812 401C846 408 892 382 932 381C968 380 980 410 980 462V560C980 651 948 699 870 699H490C405 699 371 680 340 620C319 579 292 565 258 571C229 576 232 613 264 627C296 641 319 619 307 590C295 561 256 558 229 575C199 594 186 558 205 524C226 486 244 440 282 461L320 490C350 513 379 490 367 457C358 431 322 405 291 377L255 342C221 311 188 307 157 337C128 365 138 417 165 439C191 461 218 433 202 393C183 347 158 323 176 293C188 273 204 257 222 244Z" fill="none" stroke="#e5e7eb" stroke-width="70" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)"/>
-<path d="M222 244H665C715 244 735 276 752 324C765 362 774 393 812 401C846 408 892 382 932 381C968 380 980 410 980 462V560C980 651 948 699 870 699H490C405 699 371 680 340 620C319 579 292 565 258 571C229 576 232 613 264 627C296 641 319 619 307 590C295 561 256 558 229 575C199 594 186 558 205 524C226 486 244 440 282 461L320 490C350 513 379 490 367 457C358 431 322 405 291 377L255 342C221 311 188 307 157 337C128 365 138 417 165 439C191 461 218 433 202 393C183 347 158 323 176 293C188 273 204 257 222 244Z" fill="none" stroke="#303438" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
-<!-- kerb hints -->
-<path d="M222 218H665" stroke="#f8fafc" stroke-width="6" stroke-dasharray="18 10" opacity=".8"/><path d="M222 270H665" stroke="#dc2626" stroke-width="6" stroke-dasharray="18 10" opacity=".72"/>
-<!-- S/F checker and race direction: right -->
-<rect x="216" y="218" width="12" height="52" fill="url(#checker)"/>
-<path d="M246 230H298L286 218M298 230L286 242" fill="none" stroke="#f8fafc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-<!-- pit/paddock visual hint; metadata remains authoritative -->
-<path d="M260 285H610" fill="none" stroke="#70757a" stroke-width="18" stroke-linecap="round" opacity=".75"/>
+<rect width="1642" height="958" fill="url(#grass)"/>
+<!-- distant roads / city edge -->
+<g fill="none" stroke="#6b7468" opacity=".55">
+  <path d="M0 88 C260 55 420 74 620 55 S1050 46 1642 82" stroke-width="20"/>
+  <path d="M0 906 C290 878 520 895 765 890 S1245 900 1642 870" stroke-width="18"/>
+  <path d="M85 120 C160 205 135 310 112 410 S115 650 82 820" stroke-width="11"/>
+  <path d="M720 70 C760 145 740 220 706 310" stroke-width="10"/>
+</g>
+<!-- paddock / buildings along upper straight -->
+<g fill="#9ca08f" stroke="#53594f" stroke-width="4" opacity=".9">
+  <rect x="255" y="118" width="165" height="54" rx="3"/>
+  <rect x="430" y="112" width="190" height="58" rx="3"/>
+  <rect x="630" y="116" width="145" height="52" rx="3"/>
+  <rect x="285" y="265" width="118" height="40" rx="3"/>
+  <rect x="420" y="266" width="132" height="38" rx="3"/>
+</g>
+<g fill="#b9b29e" opacity=".45">
+  <rect x="1040" y="110" width="90" height="34"/><rect x="1140" y="92" width="130" height="42"/>
+  <rect x="1385" y="140" width="85" height="38"/>
+</g>
+<!-- internal service roads, deliberately not the racing surface -->
+<g fill="none" stroke="#7b8273" stroke-linecap="round" opacity=".55">
+  <path d="M230 350 C390 385 520 420 665 495 S885 565 980 470" stroke-width="12"/>
+  <path d="M260 620 C360 570 470 575 585 630 S770 690 860 630" stroke-width="10"/>
+  <path d="M585 220 C650 285 650 360 620 430" stroke-width="9"/>
+</g>
+<!-- lake from the historical reference -->
+<path d="M615 365
+ C760 315 1010 315 1220 340
+ C1390 360 1490 430 1502 540
+ C1515 663 1425 748 1288 777
+ C1125 812 895 805 735 770
+ C606 742 555 665 561 567
+ C566 482 574 405 615 365Z"
+ fill="url(#water)" stroke="#35554d" stroke-width="10"/>
+<!-- tree masses -->
+<g fill="#1f4329" opacity=".88">
+  <circle cx="130" cy="150" r="34"/><circle cx="185" cy="175" r="28"/><circle cx="225" cy="125" r="25"/>
+  <circle cx="805" cy="160" r="31"/><circle cx="852" cy="178" r="24"/><circle cx="910" cy="145" r="29"/>
+  <circle cx="1030" cy="250" r="24"/><circle cx="1095" cy="220" r="31"/><circle cx="1170" cy="205" r="26"/>
+  <circle cx="205" cy="665" r="31"/><circle cx="260" cy="715" r="27"/><circle cx="350" cy="780" r="31"/>
+  <circle cx="535" cy="845" r="24"/><circle cx="930" cy="860" r="24"/><circle cx="1450" cy="810" r="30"/>
+</g>
+<!-- subtle mowing / terrain texture -->
+<g fill="none" stroke="#83916f" stroke-width="7" opacity=".18">
+  <path d="M80 520 C300 465 430 475 600 540"/>
+  <path d="M120 760 C330 700 500 720 685 785"/>
+  <path d="M980 250 C1190 210 1380 230 1550 275"/>
+</g>
 </svg>

@@ -480,6 +480,23 @@ export default function Track2DView({
   const geometry=resolved.geometry;
   const displayGeometry=useMemo(()=>orientTrackGeometry(geometry),[geometry]);
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
+  const environmentViewBox=Array.isArray(layout?.environment_view_box)&&layout.environment_view_box.length===4?layout.environment_view_box.map(Number):(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
+  const historicalEnvironment=Boolean(layout?.asset&&layout?.historical_status==="verified");
+  const fitViewBox=useMemo(()=>{
+    if(!historicalEnvironment)return fittedViewBox;
+    const [gx,gy,gw,gh]=fittedViewBox;
+    const [ex,ey,ew,eh]=environmentViewBox;
+    const minX=Math.min(gx,ex);
+    const minY=Math.min(gy,ey);
+    const maxX=Math.max(gx+gw,ex+ew);
+    const maxY=Math.max(gy+gh,ey+eh);
+    return [
+      Number(minX.toFixed(2)),
+      Number(minY.toFixed(2)),
+      Number((maxX-minX).toFixed(2)),
+      Number((maxY-minY).toFixed(2)),
+    ];
+  },[environmentViewBox,fittedViewBox,historicalEnvironment]);
   const authoritativeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=authoritativeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
   const visualFrame=useVisualRaceTimeline({
@@ -528,7 +545,7 @@ export default function Track2DView({
     :fittedViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
-    :fittedViewBox;
+    :fitViewBox;
   const selectDriver=(driverId)=>{
     followViewBoxRef.current=null;
     setCameraMode("follow");
@@ -579,12 +596,13 @@ export default function Track2DView({
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
+          {layout?.asset?<image href={layout.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity=".92" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
-              <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
-              <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".74"/>
+              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#f8fafc":"#020617"} strokeWidth={historicalEnvironment?"32":"34"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".94":".96"}/>
+              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#30343a":"#cbd5e1"} strokeWidth={historicalEnvironment?"23":"16"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".98":".74"}/>
               {showTrackIntel&&Number(currentSector)>0?(()=>{
                 const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
                 const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:42});
