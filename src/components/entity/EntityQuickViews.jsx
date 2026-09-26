@@ -135,6 +135,7 @@ export function DriverQuickView({entity,onClose}){
   const country=pick(driver,["country_name","country","nationality"],"");
   const number=pick(driver,["prefered_number","preferred_number","driver_number"],null);
   const role=contractRoleLabel(snapshot?.contract)||pick(snapshot?.contract,["role"],"");
+  const isRetired=String(driver?.status||"").toLowerCase()==="retired";
   const formTone=Number(form?.score)>=76?"text-emerald-300":Number(form?.score)<58&&form?.score!=null?"text-rose-300":"text-slate-200";
 
   return (
@@ -150,41 +151,53 @@ export function DriverQuickView({entity,onClose}){
               {number!=null?` · #${number}`:""}
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-              <TeamLogo teamId={snapshot?.teamId} name={snapshot?.teamName||"Team"} size="h-7 w-7"/>
-              <span>{snapshot?.teamName||"Free Agent"}{role?` · ${role}`:""}</span>
+              {!isRetired&&<TeamLogo teamId={snapshot?.teamId} name={snapshot?.teamName||"Team"} size="h-7 w-7"/>}
+              <span>{isRetired?"Retired · Historical profile":`${snapshot?.teamName||"Free Agent"}${role?` · ${role}`:""}`}</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-          <Metric label="Overall" value={overall.label} tone={presentationTone(overall)}/>
-          <Metric label="Potential" value={potential.label} tone={presentationTone(potential)}/>
-          <Metric label="Reputation" value={reputation.label} tone={presentationTone(reputation)}/>
-          <Metric label="Form" value={form?.score!=null?`${Number(form.score).toFixed(1)} · ${form.label}`:"—"} tone={formTone}/>
-          <Metric
-            label="Championship"
-            value={snapshot?.season?.championshipPosition?`P${snapshot.season.championshipPosition}`:"—"}
-            tone={championshipTone(snapshot?.season?.championshipPosition)}
-          />
-          <Metric label="Market Value" value={marketValueLabel} tone={marketValueLabel==="Scout required"?"text-slate-400":"text-cyan-300"}/>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-white/10 bg-[#11141c] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge</div>
-            <span className="text-xs text-sky-300">{knowledge?.label||"Unscouted"}</span>
-          </div>
-          {knowledge?.canSeeCondition ? (
-            <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-              <Metric label="Confidence" value={Math.round(Number(condition?.confidence??50))} tone={numericTone(condition?.confidence)}/>
-              <Metric label="Morale" value={Math.round(Number(condition?.morale??50))} tone={numericTone(condition?.morale)}/>
-              <Metric label="Prep" value={Math.round(Number(condition?.preparation??50))} tone={numericTone(condition?.preparation)}/>
-              <Metric label="Fatigue" value={Math.round(Number(condition?.fatigue??0))} tone={numericTone(condition?.fatigue,{inverse:true})}/>
+        {isRetired?(
+          <div className="mt-5 rounded-xl border border-amber-400/15 bg-amber-500/[0.05] p-4">
+            <div className="text-sm font-semibold text-amber-200">Retired from active competition</div>
+            <div className="mt-1 text-xs text-slate-400">
+              Active Overall, Potential, Reputation, Form and Market Value are not displayed for historical retired drivers.
+              Open the full profile for Races, Relationships and Career history.
             </div>
-          ) : (
-            <div className="mt-2 text-xs text-slate-500">Current condition is private team information.</div>
-          )}
-        </div>
+          </div>
+        ):(
+          <>
+            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
+              <Metric label="Overall" value={overall.label} tone={presentationTone(overall)}/>
+              <Metric label="Potential" value={potential.label} tone={presentationTone(potential)}/>
+              <Metric label="Reputation" value={reputation.label} tone={presentationTone(reputation)}/>
+              <Metric label="Form" value={form?.score!=null?`${Number(form.score).toFixed(1)} · ${form.label}`:"—"} tone={formTone}/>
+              <Metric
+                label="Championship"
+                value={snapshot?.season?.championshipPosition?`P${snapshot.season.championshipPosition}`:"—"}
+                tone={championshipTone(snapshot?.season?.championshipPosition)}
+              />
+              <Metric label="Market Value" value={marketValueLabel} tone={marketValueLabel==="Scout required"?"text-slate-400":"text-cyan-300"}/>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-[#11141c] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Knowledge</div>
+                <span className="text-xs text-sky-300">{knowledge?.label||"Unscouted"}</span>
+              </div>
+              {knowledge?.canSeeCondition ? (
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <Metric label="Confidence" value={Math.round(Number(condition?.confidence??50))} tone={numericTone(condition?.confidence)}/>
+                  <Metric label="Morale" value={Math.round(Number(condition?.morale??50))} tone={numericTone(condition?.morale)}/>
+                  <Metric label="Prep" value={Math.round(Number(condition?.preparation??50))} tone={numericTone(condition?.preparation)}/>
+                  <Metric label="Fatigue" value={Math.round(Number(condition?.fatigue??0))} tone={numericTone(condition?.fatigue,{inverse:true})}/>
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-slate-500">Current condition is private team information.</div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </QuickShell>
   );
