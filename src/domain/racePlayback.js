@@ -43,20 +43,11 @@ export function raceMarkerScaleForCamera(cameraMode="fit",zoom=1){
   return Math.max(0.12,Math.min(0.5,1.15/normalized));
 }
 
-export function raceMarkerLaneOffset(index,{cameraMode="fit",zoom=1,closeBattle=false,selected=false,slotKey=null}={}){
+export function raceMarkerLaneOffset(index,{cameraMode="fit",zoom=1,closeBattle=false,selected=false}={}){
   if(String(cameraMode)!=="follow"||!closeBattle||selected)return 0;
   const normalized=Math.max(1,Math.min(12,Number(zoom)||1));
   const slots=[-1,-0.5,0,0.5,1];
-  // Do not derive the visual lane from live position order: during an overtake
-  // the index can flip every frame and make markers appear to tremble laterally.
-  const key=String(slotKey??"");
-  let stableIndex=Math.abs(Number(index)||0);
-  if(key){
-    let hash=0;
-    for(let i=0;i<key.length;i++)hash=((hash*31)+key.charCodeAt(i))>>>0;
-    stableIndex=hash;
-  }
-  const slot=slots[stableIndex%slots.length]||0;
+  const slot=slots[Math.abs(Number(index)||0)%slots.length]||0;
   // Keep the visual spread screen-space stable as the camera zoom changes.
   return (slot*10)/normalized;
 }
