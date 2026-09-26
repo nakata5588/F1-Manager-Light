@@ -9,7 +9,7 @@ export const TRACK_LAYOUT_ASSETS = [
     "year_from": 1974,
     "year_to": 1981,
     "reference_year": 1980,
-    "asset": "/tracks/historical/buenos-aires-no15-1980.svg",
+    "asset": "/tracks/historical/buenos-aires-no15-1980.webp",
     "environment_view_box": [0,0,1649,954],
     "historical_status": "verified",
     "geometry_status": "historical_verified",
