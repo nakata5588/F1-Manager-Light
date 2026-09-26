@@ -9,14 +9,7 @@
   .entity-link-sponsor { @apply text-purple-600 cursor-pointer hover:underline; }
 }
 
-/* Track 2.1A.3 — historical environment is presentation-only.
-   Functional SVG centerline/metadata remain the authority for cars, sectors, grid and incidents. */
-svg[aria-label^="Buenos Aires — Circuit No. 15 circuit"] {
-  background-image: linear-gradient(rgba(3, 7, 12, .08), rgba(3, 7, 12, .08)), url('/tracks/historical/buenos-aires-no15-1980.svg');
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-}
+/* Historical environments are rendered inside the Race View SVG so scenery and functional geometry share one coordinate system. */
 
 /* ===== UI.R1 Responsive Application Shell ===== */
 :root {
