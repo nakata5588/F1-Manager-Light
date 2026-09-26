@@ -146,20 +146,84 @@ test("GP engine consumes race entries instead of every driver contract",async()=
     D2:{status:"suspended",reason:"one-race suspension"},
   };
 
-  gs.standings.drivers=[{driver_id:"D2",name:"Alpha Two",team_id:"T1",points:5,position:1}];
+  // Legacy/incomplete saves can have authoritative standings without detailed
+  // result rows for every earlier GP. Those carried points must survive.
+  gs.standings.drivers=[
+    {driver_id:"D1",name:"Alpha One",team_id:"T1",points:4,position:2},
+    {driver_id:"D2",name:"Alpha Two",team_id:"T1",points:5,position:1},
+  ];
+  gs.standings.teams=[
+    {team_id:"T1",team_name:"Alpha",points:7,position:1},
+  ];
+
   const next=await runRaceWeekend(gs,{roundIndex:4,gp});
   assert.ok(next.raceEntryState);
   assert.deepEqual(raceEntryDriverIds(next.raceEntryState).sort(),["D1","D3","D4","D7"]);
 
-  const classified=new Set(next.results[0].classification.map((row)=>String(row.driver_id)));
+  const classification=next.results[0].classification;
+  const classified=new Set(classification.map((row)=>String(row.driver_id)));
   assert.equal(classified.has("D1"),true);
   assert.equal(classified.has("D3"),true);
   assert.equal(classified.has("D4"),true);
   assert.equal(classified.has("D7"),true,"reserve driver should replace unavailable race driver");
   assert.equal(classified.has("D2"),false,"unavailable driver must not race");
   assert.equal(classified.has("D5"),false,"test driver must not race");
-  assert.equal(next.standings.drivers.find((row)=>row.driver_id==="D2")?.points,5,"missing a GP must not remove championship points");
+
+  const d1RacePoints=Number(classification.find((row)=>row.driver_id==="D1")?.points||0);
+  assert.equal(
+    next.standings.drivers.find((row)=>row.driver_id==="D1")?.points,
+    4+d1RacePoints,
+    "a driver who races must add the current result to carried standings points when old result rows are missing"
+  );
+  assert.equal(
+    next.standings.drivers.find((row)=>row.driver_id==="D2")?.points,
+    5,
+    "missing a GP must not remove championship points"
+  );
+
+  const t1RacePoints=classification
+    .filter((row)=>row.team_id==="T1")
+    .reduce((sum,row)=>sum+Number(row.constructor_points||0),0);
+  assert.equal(
+    next.standings.teams.find((row)=>row.team_id==="T1")?.points,
+    7+t1RacePoints,
+    "constructor standings must preserve the same carried Save World baseline"
+  );
   assert.deepEqual(next.results[0].raceEntry,next.raceEntryState.entries);
+});
+
+test("complete result history is not double-counted when standings already match it",async()=>{
+  const gs=fixture();
+  gs.results=[{
+    key:"1980_4_prior",
+    year:1980,
+    round:4,
+    gp_id:"prior",
+    classification:[
+      {driver_id:"D1",team_id:"T1",points:9,constructor_points:9},
+      {driver_id:"D2",team_id:"T1",points:6,constructor_points:6},
+      {driver_id:"D3",team_id:"T2",points:4,constructor_points:4},
+      {driver_id:"D4",team_id:"T2",points:3,constructor_points:3},
+    ],
+  }];
+  gs.standings.drivers=[
+    {driver_id:"D1",name:"Alpha One",team_id:"T1",points:9,position:1},
+    {driver_id:"D2",name:"Alpha Two",team_id:"T1",points:6,position:2},
+  ];
+  gs.standings.teams=[
+    {team_id:"T1",team_name:"Alpha",points:15,position:1},
+    {team_id:"T2",team_name:"Beta",points:7,position:2},
+  ];
+
+  const next=await runRaceWeekend(gs,{roundIndex:4,gp});
+  const current=next.results.find((row)=>row.gp_id==="monaco").classification;
+  const d1RacePoints=Number(current.find((row)=>row.driver_id==="D1")?.points||0);
+  const t1RacePoints=current
+    .filter((row)=>row.team_id==="T1")
+    .reduce((sum,row)=>sum+Number(row.constructor_points||0),0);
+
+  assert.equal(next.standings.drivers.find((row)=>row.driver_id==="D1")?.points,9+d1RacePoints);
+  assert.equal(next.standings.teams.find((row)=>row.team_id==="T1")?.points,15+t1RacePoints);
 });
 
 test("race-entry and availability state survive save/load round-trip",()=>{
