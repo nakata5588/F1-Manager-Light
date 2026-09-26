@@ -53,11 +53,16 @@ function academySupported(gs,driverId){
   );
 }
 function completedSpecificReport(gs,driverId){
-  return asRows(gs?.scouting?.assignments)
+  const completed=asRows(gs?.scouting?.assignments)
     .filter((row)=>String(row?.status||"").toLowerCase()==="completed")
     .filter((row)=>String(row?.mode||"driver").toLowerCase()!=="region")
     .filter((row)=>sameDriver(row?.prospect_id??row?.driver_id,driverId))
-    .sort((a,b)=>String(b?.completed_at||b?.finishes_at||"").localeCompare(String(a?.completed_at||a?.finishes_at||"")))[0]||null;
+    .sort((a,b)=>String(b?.completed_at||b?.finishes_at||"").localeCompare(String(a?.completed_at||a?.finishes_at||"")));
+  // Knowledge is cumulative: once a Deep report has unlocked exact current
+  // ratings, a later Light report must never downgrade that knowledge.
+  return completed.find((row)=>String(row?.depth||row?.scouting_depth||"deep").toLowerCase()!=="light")
+    ||completed[0]
+    ||null;
 }
 function completedRegionalDiscovery(gs,driverId){
   return asRows(gs?.scouting?.assignments)
