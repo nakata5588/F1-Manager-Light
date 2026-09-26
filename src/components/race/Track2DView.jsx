@@ -311,16 +311,42 @@ function AnimatedMarker({
   onVisualProgress=null,
 }){
   const display=Number(progress)||0;
+  const laneTarget=Number(laneOffset)||0;
+  const laneDisplayRef=useRef(laneTarget);
+  const [laneDisplay,setLaneDisplay]=useState(laneTarget);
 
   useEffect(()=>{
     onVisualProgress?.(display);
   },[display,onVisualProgress]);
 
+  useEffect(()=>{
+    let frame=null;
+    const tick=()=>{
+      const current=laneDisplayRef.current;
+      const next=current+(laneTarget-current)*0.30;
+      if(Math.abs(laneTarget-next)<0.015){
+        laneDisplayRef.current=laneTarget;
+        setLaneDisplay(laneTarget);
+        return;
+      }
+      laneDisplayRef.current=next;
+      setLaneDisplay(next);
+      frame=requestAnimationFrame(tick);
+    };
+    if(Math.abs(laneDisplayRef.current-laneTarget)<0.015){
+      laneDisplayRef.current=laneTarget;
+      setLaneDisplay(laneTarget);
+      return undefined;
+    }
+    frame=requestAnimationFrame(tick);
+    return ()=>{if(frame)cancelAnimationFrame(frame);};
+  },[laneTarget]);
+
   const trackPoint=pointAtTrackProgress(geometry,display);
   if(!trackPoint)return null;
 
   const scale=Math.max(0.08,Math.min(1.25,Number(markerScale)||1));
-  const lateral=Number(laneOffset)||0;
+  const lateral=Number(laneDisplay)||0;
   let point=trackPoint;
   if(Math.abs(lateral)>0.0001){
     const before=pointAtTrackProgress(geometry,Number(display||0)-0.0045);
@@ -774,7 +800,6 @@ export default function Track2DView({
               zoom:followZoom,
               closeBattle,
               selected,
-              slotKey:did,
             });
             return <AnimatedMarker
               key={did||index}
