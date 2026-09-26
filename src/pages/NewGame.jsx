@@ -30,15 +30,7 @@ const pick = (obj, keys, fb = undefined) => {
   for (const k of keys) if (obj && obj[k] != null && obj[k] !== "") return obj[k];
   return fb;
 };
-const canon = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "").trim();
 const getTeamId = (t) => String(pick(t, ["team_id", "id", "name", "team_name", "short_name"], JSON.stringify(t)));
-const sameTeam = (rec, team) => {
-  const recId = pick(rec, ["team_id", "team", "constructor_id", "constructor", "name", "team_name", "short_name"]);
-  if (recId != null && getTeamId(team) === String(recId)) return true;
-  const rn = pick(rec, ["team_name", "constructor", "name", "team", "short_name"]);
-  const tn = pick(team, ["name", "team_name", "short_name"]);
-  return rn && tn && canon(rn) === canon(tn);
-};
 
 function safeText(v, fallback = "—") {
   if (v == null) return fallback;
@@ -214,7 +206,6 @@ export default function NewGame() {
   };
 
   const teamsForYear = Array.isArray(gameState?.teams) ? gameState.teams : [];
-  const contracts = Array.isArray(gameState?.contracts) ? gameState.contracts : [];
   const gpCount = Array.isArray(gameState?.calendar) ? gameState.calendar.length : 0;
   const driverCount = Array.isArray(gameState?.drivers) ? gameState.drivers.length : 0;
   const isLoading = !gameState?.dbCalendar?.length || !gameState?.dbTeams?.length || !gameState?.dbDrivers?.length;
