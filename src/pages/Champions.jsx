@@ -3,6 +3,7 @@ import {Trophy,Medal,Flag,UsersRound,Gauge,Sparkles} from "lucide-react";
 import {useGame} from "../state/GameStore";
 import {DriverPortrait,TeamLogo} from "../components/entity/EntityVisuals.jsx";
 import {championshipRuleForYear} from "../domain/championshipRules.js";
+import {canonicalTeamId,canonicalTeamName} from "../domain/teamIdentity.js";
 
 const tabs=[["champions","Champions"],["rules","Rules & Regulations"]];
 const rows=(v)=>Array.isArray(v)?v:[];
@@ -127,31 +128,31 @@ function ChampionVisual({type,row,year,driverMap,teamMap}){
     const id=clean(row.driver_id??row.id);
     const name=clean(row.driver_name??row.name)||"Unknown driver";
     const driver=driverMap.get(id)||{driver_id:id,display_name:name,driver_name:name};
-    const constructorName=clean(row.constructor_name??row.team_name)||"—";
+    const constructorName=canonicalTeamName(clean(row.constructor_name??row.team_name)||"—");
     return (
-      <div className="flex min-w-0 items-center gap-3">
+      <button type="button" data-entity="driver" data-id={id} className="flex min-w-0 items-center gap-3 text-left hover:opacity-90">
         <DriverPortrait driver={{...driver,driver_id:id,display_name:name}} year={year} size="h-11 w-11" className="shrink-0"/>
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-slate-100">{name}</div>
+          <div className="truncate text-sm font-semibold text-slate-100 hover:underline">{name}</div>
           <div className="mt-0.5 truncate text-xs text-slate-400">{constructorName}</div>
         </div>
-      </div>
+      </button>
     );
   }
 
   if(!row)return <div className="text-sm text-slate-500">{year<1958?"Championship not contested":"No champion recorded"}</div>;
-  const id=clean(row.constructor_id??row.team_id??row.id);
-  const name=clean(row.constructor_name??row.team_name??row.name)||"Unknown constructor";
+  const id=canonicalTeamId(clean(row.constructor_id??row.team_id??row.id));
+  const name=canonicalTeamName(clean(row.constructor_name??row.team_name??row.name)||"Unknown constructor");
   const team=teamMap.get(id);
-  const displayName=clean(team?.team_name??team?.name)||name;
+  const displayName=canonicalTeamName(clean(team?.team_name??team?.name)||name);
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      <TeamLogo teamId={id} name={name} year={year} size="h-11 w-11" className="shrink-0 p-1"/>
+    <button type="button" data-entity="team" data-id={id} className="flex min-w-0 items-center gap-3 text-left hover:opacity-90">
+      <TeamLogo teamId={id} name={displayName} year={year} size="h-11 w-11" className="shrink-0 p-1"/>
       <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-slate-100">{displayName}</div>
+        <div className="truncate text-sm font-semibold text-slate-100 hover:underline">{displayName}</div>
         {displayName!==name?<div className="mt-0.5 truncate text-xs text-slate-400">{name}</div>:null}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -176,8 +177,8 @@ export default function Champions(){
   const teamMap=useMemo(()=>{
     const map=new Map();
     for(const team of [...rows(gs?.dbTeams),...rows(gs?.teams)]){
-      const id=clean(team?.team_id??team?.constructor_id??team?.id);
-      if(id)map.set(id,{...(map.get(id)||{}),...team});
+      const id=canonicalTeamId(clean(team?.team_id??team?.constructor_id??team?.id));
+      if(id)map.set(id,{...(map.get(id)||{}),...team,team_id:id,team_name:canonicalTeamName(team?.team_name??team?.name??id)});
     }
     return map;
   },[gs?.dbTeams,gs?.teams]);
