@@ -94,9 +94,9 @@ test("inference never activates a driver before age 16",()=>{
     f1_rookie_season:2015,
   });
   const entry=inferDriverWorldEntry(d,{});
-  assert.equal(entry.first_world_year,2013);
+  assert.equal(entry.first_world_year,2014);
   assert.equal(entry.entry_level,"YOUTH");
-  assert.ok(entry.entry_age>=15&&entry.entry_age<=16);
+  assert.equal(entry.entry_age,16);
 });
 
 test("drivers outside their world-entry window stay absent from the active world",()=>{
