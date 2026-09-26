@@ -22,6 +22,7 @@ import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
 import { applyRaceDriverRivalries } from "../domain/driverRivalries.js";
 import { applyRaceRelationshipConsequences } from "../domain/driverRelationshipConsequences.js";
 import { damageFromIncident, mergeDamageStates } from "./CarDamageEngine.js";
+import { championshipRuleForYear, countChampionshipPoints, racePointsForResult } from "../domain/championshipRules.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -801,7 +802,7 @@ export async function runRaceWeekend(gs, {
   const drivers=allDrivers.filter((d)=>enteredIds.has(String(d?.driver_id??d?.id??"")));
   const ratings=gs.driverRatings||[];
   const teamsById=new Map((gs.teams||[]).map(t=>[String(t.team_id||t.id||t.name),t]));
-  const pointsTable=getActivePointsTable(gs);
+  const championshipRule=gs?.pointsSystem?.championship_rules||championshipRuleForYear(activeYear);
   const gpEntropyId=gp?.gp_id||gp?.id||gp?.track_id||`round_${Number(roundIndex)+1}`;
   const entropyBase=`${activeYear||"season"}-${gpEntropyId}`;
   const raceOrderRng=rngFor(gs,`${entropyBase}-race-order`);
@@ -835,96 +836,134 @@ export async function runRaceWeekend(gs, {
         .sort((a,b)=>Number(a.pos)-Number(b.pos))
     : applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng);
 
-  const previousDriverStandings=gs.standings?.drivers||[];
-  const prevDrv = new Map(previousDriverStandings.map(x => [String(x.driver_id), Number(x.points||0)]));
-  race.forEach((r,i) => {
-    const pts = r?.retired ? 0 : Number(pointsTable[i] || 0);
-    const id = String(r.driver.driver_id);
-    prevDrv.set(id, (prevDrv.get(id)||0) + pts);
+  const gpName = gp?.gp_name || gp?.name || `Round ${roundIndex+1}`;
+  const year = Number(gs.activeYear) || Number(gp?.year) || activeYear || null;
+  const round = Number(roundIndex) + 1;
+  const gpId = gp?.gp_id || gp?.id || gp?.track_id || `round_${round}`;
+  const resultKey = `${year ?? "season"}_${round}_${gpId}`;
+  const isFinalRound=Array.isArray(gs?.calendar)&&gs.calendar.length>0
+    ? round>=gs.calendar.length
+    : false;
+
+  const classification = race.map((row, index) => {
+    const position=Number(row?.pos??index+1);
+    const classified=!Boolean(row?.retired);
+    const fastestLap=Boolean(row?.fastest_lap);
+    return {
+      position,
+      driver_id: row.driver?.driver_id ?? null,
+      team_id: resolveDriverTeamId(gs, row.driver),
+      points: racePointsForResult({
+        year,position,fastestLap,classified,isFinalRound,constructor:false,
+      }),
+      constructor_points: racePointsForResult({
+        year,position,fastestLap,classified,isFinalRound,constructor:true,
+      }),
+      status: row.status || (row.retired ? "DNF" : "Finished"),
+      retired: Boolean(row.retired),
+      retirement_reason: row.retirement_reason || null,
+      laps_completed: row.laps_completed ?? (row.retired ? null : row.race_laps ?? null),
+      race_laps: row.race_laps ?? null,
+      incident_lap: row.incident_lap ?? null,
+      incident_severity: row.incident_severity ?? null,
+      incident_severity_score: row.incident_severity_score ?? null,
+      incident_with_driver_id: row.incident_with_driver_id ?? null,
+      incident_kind:row.incident_kind??null,
+      incident_reason:row.incident_reason??null,
+      damage_state:row.damage_state?structuredClone(row.damage_state):null,
+      damage_severity:row.damage_severity??row.damage_state?.severity??"none",
+      damaged_components:Array.isArray(row.damaged_components)?[...row.damaged_components]:[],
+      damage_pace_loss_s_per_lap:Number(row?.damage_state?.pace_loss_s_per_lap||0),
+      pit_stops: Array.isArray(row.pit_stops) ? row.pit_stops.map((stop)=>({...stop})) : [],
+      stints: Array.isArray(row.stints) ? row.stints.map((stint)=>({...stint})) : [],
+      tyre_supplier: row.tyre_supplier ?? null,
+      start_tyre_id: row.start_tyre_id ?? null,
+      finish_tyre_id: row.finish_tyre_id ?? null,
+      tyre_condition_finish: row.tyre_condition_finish ?? null,
+      strategy_summary: row.strategy_summary ? {...row.strategy_summary} : null,
+      total_time_ms: row.total_time_ms,
+      gap_to_winner_ms: row.gap_to_winner_ms,
+      gap_to_previous_ms: row.gap_to_previous_ms,
+      best_lap_ms: row.best_lap_ms,
+      fastest_lap: fastestLap,
+    };
   });
+
+  const historicalScoreEvents=(Array.isArray(gs?.results)?gs.results:[])
+    .filter((event)=>Number(event?.year??event?.season_year)===Number(year))
+    .map((event)=>({
+      round:Number(event?.round??event?.round_number??0),
+      classification:Array.isArray(event?.classification)?event.classification:[],
+    }));
+  const scoreEvents=[...historicalScoreEvents,{round,classification}];
+
+  const driverEvents=new Map();
+  for(const event of scoreEvents){
+    for(const row of event.classification){
+      const id=String(row?.driver_id??row?.id??"");
+      if(!id)continue;
+      if(!driverEvents.has(id))driverEvents.set(id,[]);
+      driverEvents.get(id).push({round:event.round,points:Number(row?.points||0)});
+    }
+  }
+
+  const previousDriverStandings=gs.standings?.drivers||[];
   const driverById=new Map(allDrivers.map((d)=>[String(d?.driver_id??d?.id??""),d]));
   const previousStandingById=new Map(previousDriverStandings.map((row)=>[String(row?.driver_id??""),row]));
   const championshipDriverIds=new Set([
-    ...prevDrv.keys(),
+    ...driverEvents.keys(),
+    ...previousStandingById.keys(),
     ...drivers.map((d)=>String(d?.driver_id??d?.id??"")).filter(Boolean),
   ]);
-  const driverStandings = [...championshipDriverIds].map((id) => {
+  const driverStandings=[...championshipDriverIds].map((id)=>{
     const d=driverById.get(String(id))||{};
     const previous=previousStandingById.get(String(id))||{};
     return {
       driver_id:id,
       name:d.display_name || d.name || `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim() || previous.name || id,
       team_id:resolveDriverTeamId(gs,d)||previous.team_id||null,
-      points:prevDrv.get(String(id))||0,
+      points:countChampionshipPoints(driverEvents.get(id)||[],championshipRule.driverCounting),
     };
   })
-    .sort((a,b) => b.points - a.points || String(a.name || "").localeCompare(String(b.name || "")))
-    .map((row, index) => ({ ...row, position: index + 1 }));
+    .sort((a,b)=>b.points-a.points||String(a.name||"").localeCompare(String(b.name||"")))
+    .map((row,index)=>({...row,position:index+1}));
 
-  const teamPts = new Map();
-  for (const team of gs.teams || []) {
-    const id = getTeamId(team);
-    if (id) teamPts.set(id, 0);
+  const teamRaceEvents=new Map();
+  if(championshipRule.constructorChampionship){
+    for(const event of scoreEvents){
+      const perTeam=new Map();
+      for(const row of event.classification){
+        const teamId=String(row?.team_id??row?.constructor_id??"");
+        if(!teamId)continue;
+        const points=Number(row?.constructor_points??row?.points??0)||0;
+        if(championshipRule.constructorCarsScoring==="best_one"){
+          perTeam.set(teamId,Math.max(perTeam.get(teamId)||0,points));
+        }else{
+          perTeam.set(teamId,(perTeam.get(teamId)||0)+points);
+        }
+      }
+      for(const [teamId,points] of perTeam){
+        if(!teamRaceEvents.has(teamId))teamRaceEvents.set(teamId,[]);
+        teamRaceEvents.get(teamId).push({round:event.round,points});
+      }
+    }
   }
-  for (const row of gs.standings?.teams || []) {
-    const id = String(row?.team_id ?? row?.constructor_id ?? "");
-    if (id) teamPts.set(id, Number(row?.points || 0));
-  }
-  race.forEach((row, i) => {
-    const teamId = resolveDriverTeamId(gs, row.driver);
-    if (!teamId) return;
-    const pts = row?.retired ? 0 : Number(pointsTable[i] || 0);
-    teamPts.set(teamId, (teamPts.get(teamId) || 0) + pts);
-  });
-  const teamStandings = Array.from(teamPts.entries())
-    .map(([team_id, points]) => ({
-      team_id,
-      team_name: teamsById.get(team_id)?.team_name || teamsById.get(team_id)?.name || team_id,
-      points
-    }))
-    .sort((a,b) => b.points - a.points || String(a.team_name || "").localeCompare(String(b.team_name || "")))
-    .map((row, index) => ({ ...row, position: index + 1 }));
 
-  next.standings = { drivers: driverStandings, teams: teamStandings };
+  const teamIds=new Set([
+    ...(gs.teams||[]).map(getTeamId).filter(Boolean),
+    ...teamRaceEvents.keys(),
+  ]);
+  const teamStandings=championshipRule.constructorChampionship
+    ?[...teamIds].map((team_id)=>({
+        team_id,
+        team_name:teamsById.get(team_id)?.team_name||teamsById.get(team_id)?.name||team_id,
+        points:countChampionshipPoints(teamRaceEvents.get(team_id)||[],championshipRule.constructorCounting),
+      }))
+      .sort((a,b)=>b.points-a.points||String(a.team_name||"").localeCompare(String(b.team_name||"")))
+      .map((row,index)=>({...row,position:index+1}))
+    :[];
 
-  const gpName = gp?.gp_name || gp?.name || `Round ${roundIndex+1}`;
-  const year = Number(gs.activeYear) || Number(gp?.year) || null;
-  const round = Number(roundIndex) + 1;
-  const gpId = gp?.gp_id || gp?.id || gp?.track_id || `round_${round}`;
-  const resultKey = `${year ?? "season"}_${round}_${gpId}`;
-  const classification = race.map((row, index) => ({
-    position: row.pos,
-    driver_id: row.driver?.driver_id ?? null,
-    team_id: resolveDriverTeamId(gs, row.driver),
-    points: row?.retired ? 0 : Number(pointsTable[index] || 0),
-    status: row.status || (row.retired ? "DNF" : "Finished"),
-    retired: Boolean(row.retired),
-    retirement_reason: row.retirement_reason || null,
-    laps_completed: row.laps_completed ?? (row.retired ? null : row.race_laps ?? null),
-    race_laps: row.race_laps ?? null,
-    incident_lap: row.incident_lap ?? null,
-    incident_severity: row.incident_severity ?? null,
-    incident_severity_score: row.incident_severity_score ?? null,
-    incident_with_driver_id: row.incident_with_driver_id ?? null,
-    incident_kind:row.incident_kind??null,
-    incident_reason:row.incident_reason??null,
-    damage_state:row.damage_state?structuredClone(row.damage_state):null,
-    damage_severity:row.damage_severity??row.damage_state?.severity??"none",
-    damaged_components:Array.isArray(row.damaged_components)?[...row.damaged_components]:[],
-    damage_pace_loss_s_per_lap:Number(row?.damage_state?.pace_loss_s_per_lap||0),
-    pit_stops: Array.isArray(row.pit_stops) ? row.pit_stops.map((stop)=>({...stop})) : [],
-    stints: Array.isArray(row.stints) ? row.stints.map((stint)=>({...stint})) : [],
-    tyre_supplier: row.tyre_supplier ?? null,
-    start_tyre_id: row.start_tyre_id ?? null,
-    finish_tyre_id: row.finish_tyre_id ?? null,
-    tyre_condition_finish: row.tyre_condition_finish ?? null,
-    strategy_summary: row.strategy_summary ? {...row.strategy_summary} : null,
-    total_time_ms: row.total_time_ms,
-    gap_to_winner_ms: row.gap_to_winner_ms,
-    gap_to_previous_ms: row.gap_to_previous_ms,
-    best_lap_ms: row.best_lap_ms,
-    fastest_lap: Boolean(row.fastest_lap),
-  }));
+  next.standings={drivers:driverStandings,teams:teamStandings};
 
   const persistedQualifying=Array.isArray(qualifyingClassificationOverride)&&qualifyingClassificationOverride.length
     ?qualifyingClassificationOverride
