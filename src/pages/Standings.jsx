@@ -356,7 +356,7 @@ export default function Standings(){
       const tid=str(row?.team_id??row?.constructor_id??stats.teamId??db?.team_id??db?.constructor_id);
       return {
         id,name:row?.name||driverName(db,id),teamId:tid,teamName:teamName(teamsById.get(tid),stats.teamName||tid||"—"),
-        points:num(row?.points,0),races:num(stats.races,0),wins:num(stats.wins,0),podiums:num(stats.podiums,0),
+        points:num(row?.points,0),entries:num(stats.entries,stats.races??0),races:num(stats.races,0),wins:num(stats.wins,0),podiums:num(stats.podiums,0),
         fastestLaps:num(stats.fastestLaps,0),poles:num(stats.poles,0),dnfs:num(stats.dnfs,0),
         bestFinish:stats.bestFinish??null,averageFinish:stats.averageFinish??null,pointsPerRace:num(stats.pointsPerRace,0),
         driver:db||{driver_id:id,display_name:row?.name||id},position:num(row?.position,index+1),
@@ -371,7 +371,7 @@ export default function Standings(){
       const stats=statsByTeam.get(id)||{};
       return {
         id,name:row?.team_name||row?.name||teamName(db,id),points:num(row?.points,0),
-        races:num(stats.races,0),wins:num(stats.wins,0),podiums:num(stats.podiums,0),
+        entries:num(stats.entries,stats.races??0),races:num(stats.races,0),wins:num(stats.wins,0),podiums:num(stats.podiums,0),
         fastestLaps:num(stats.fastestLaps,0),poles:num(stats.poles,0),dnfs:num(stats.dnfs,0),pointsPerRace:num(stats.pointsPerRace,0),
         team:db||{team_id:id,team_name:row?.team_name||row?.name||id},position:num(row?.position,index+1),
       };
