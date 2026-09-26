@@ -30,27 +30,34 @@ export default function Teams(){
     const teamIds=new Set();
 
     const seasonRows=teamSeasons.filter((r)=>Number(pick(r,["year","season_year"],NaN))===y);
-    for(const row of seasonRows){ const tid=teamIdOf(row); if(tid) teamIds.add(tid); }
+    const hasSeasonAuthority=seasonRows.length>0;
 
-    const brandRows=brands.filter((b)=>Number(pick(b,["year","season_year"],NaN))===y);
-    for(const b of brandRows){ const tid=teamIdOf(b); if(tid) teamIds.add(tid); }
+    // team_seasons is the historical participation authority whenever coverage
+    // exists. Other datasets enrich the row but must not introduce constructor
+    // identities as extra managerial teams.
+    if(hasSeasonAuthority){
+      for(const row of seasonRows){ const tid=teamIdOf(row); if(tid) teamIds.add(tid); }
+    }else{
+      const brandRowsFallback=brands.filter((b)=>Number(pick(b,["year","season_year"],NaN))===y);
+      for(const b of brandRowsFallback){ const tid=teamIdOf(b); if(tid) teamIds.add(tid); }
 
-    for(const row of career){
-      if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
-      if(String(pick(row,["series_division","division","series"],"")).toUpperCase()!=="F1") continue;
-      const tid=teamIdOf(row); if(tid) teamIds.add(tid);
-    }
-    for(const row of achievements){
-      if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
-      const tid=teamIdOf(row); if(tid) teamIds.add(tid);
-    }
-    for(const c of contracts){
-      if(contractActiveForYear(c,y)){
-        const tid=teamIdOf(c); if(tid) teamIds.add(tid);
+      for(const row of career){
+        if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
+        if(String(pick(row,["series_division","division","series"],"")).toUpperCase()!=="F1") continue;
+        const tid=teamIdOf(row); if(tid) teamIds.add(tid);
+      }
+      for(const row of achievements){
+        if(Number(pick(row,["year","season_year"],NaN))!==y) continue;
+        const tid=teamIdOf(row); if(tid) teamIds.add(tid);
+      }
+      for(const c of contracts){
+        if(contractActiveForYear(c,y)){
+          const tid=teamIdOf(c); if(tid) teamIds.add(tid);
+        }
       }
     }
 
-    const sourceRaw=teamIds.size
+    const matchedTeams=teamIds.size
       ? teams.filter((t)=>teamIds.has(teamIdOf(t)))
       : teams.filter((t)=>{
           const founded=Number(pick(t,["founded_year","first_year","start_year"],NaN));
@@ -58,6 +65,19 @@ export default function Teams(){
           const ended=endedRaw==null||endedRaw===""?Infinity:Number(endedRaw);
           return Number.isFinite(founded)&&y>=founded&&y<=ended;
         });
+
+    const matchedIds=new Set(matchedTeams.map(teamIdOf));
+    const syntheticHistorical=hasSeasonAuthority
+      ? seasonRows
+          .filter((row)=>{const id=teamIdOf(row);return id&&!matchedIds.has(id);})
+          .map((row)=>({
+            team_id:teamIdOf(row),
+            team_name:pick(row,["team_name"],teamIdOf(row)),
+            short_name:pick(row,["team_name"],teamIdOf(row)),
+            historical_placeholder:true,
+          }))
+      : [];
+    const sourceRaw=[...matchedTeams,...syntheticHistorical];
 
     // Old saves/generated datasets may still contain the pre-canonical
     // t_0040 "Team Lotus" duplicate. Collapse aliases by canonical ID and
@@ -71,6 +91,7 @@ export default function Teams(){
     }
     const source=[...sourceById.values()];
 
+    const brandRows=brands.filter((b)=>Number(pick(b,["year","season_year"],NaN))===y);
     const brandById=new Map(brandRows.map((b)=>[teamIdOf(b),b]));
     const seasonById=new Map(seasonRows.map((r)=>[teamIdOf(r),r]));
     return source.map(t=>{
@@ -106,6 +127,10 @@ export default function Teams(){
         staffRoles,
         staffAssignments,
         reputation:y===currentYear?teamReputation(gs,id):null,
+        constructors:Array.isArray(seasonRec?.constructor_names)?seasonRec.constructor_names:[],
+        chassis:Array.isArray(seasonRec?.chassis_names)?seasonRec.chassis_names:[],
+        engines:Array.isArray(seasonRec?.engine_names)?seasonRec.engine_names:[],
+        identityConfidence:Array.isArray(seasonRec?.identity_confidence)?seasonRec.identity_confidence:[],
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
   },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,year,currentYear,gs]);
@@ -127,7 +152,7 @@ export default function Teams(){
     <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#11141c] shadow-xl">
       <table className="min-w-full text-sm">
         <thead className="bg-white/[0.04] text-slate-400"><tr>
-          <th className="px-4 py-3 text-left">Team</th><th className="px-4 py-3 text-left">Country / Base</th>
+          <th className="px-4 py-3 text-left">Team / Entrant</th><th className="px-4 py-3 text-left">Constructor / Car</th><th className="px-4 py-3 text-left">Country / Base</th>
           <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-left">Staff assignments</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
         </tr></thead>
         <tbody>{filtered.map(t=><tr key={t.id} className="border-t border-white/10 hover:bg-white/[0.04]">
@@ -135,6 +160,12 @@ export default function Teams(){
             <button type="button" data-entity="team" data-id={t.id} className="flex items-center gap-3 font-medium hover:underline text-left">
               <TeamLogo teamId={t.id} name={t.name} size="h-9 w-9"/><span>{t.name}</span>
             </button>
+          </td>
+          <td className="px-4 py-2">
+            <div className="max-w-[260px] text-slate-300">
+              {(t.constructors||[]).length?(t.constructors||[]).join(" · "):((t.chassis||[]).length?(t.chassis||[]).join(" · "):"—")}
+            </div>
+            {(t.engines||[]).length?<div className="mt-0.5 text-xs text-slate-500">{(t.engines||[]).join(" · ")}</div>:null}
           </td>
           <td className="px-4 py-2">{flagFromCountry(t.country,t.code)} {t.country||"—"}</td>
           <td className="px-4 py-2">{t.principal}</td>
@@ -159,7 +190,7 @@ export default function Teams(){
           </td>
           <td className="px-4 py-2 text-right">{t.founded}</td>
         </tr>)}
-        {!filtered.length&&<tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">No teams found for {year}.</td></tr>}</tbody>
+        {!filtered.length&&<tr><td colSpan={8} className="px-4 py-6 text-center text-slate-500">No teams found for {year}.</td></tr>}</tbody>
       </table>
     </div>
   </div>;
