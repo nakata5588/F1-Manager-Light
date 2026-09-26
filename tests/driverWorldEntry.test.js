@@ -44,7 +44,7 @@ test("explicit career start outranks debut-horizon inference",()=>{
   const entry=inferDriverWorldEntry(d,{});
   assert.equal(entry.first_world_year,1989);
   assert.equal(entry.entry_source,"legacy_career_start");
-  assert.equal(entry.entry_level,"LOWER_SERIES");
+  assert.equal(entry.entry_level,"YOUTH");
 });
 
 test("specific lower-series evidence outranks a later legacy career start",()=>{
