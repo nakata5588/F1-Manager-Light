@@ -8,7 +8,6 @@ export const DEFAULT_DISPLAY_SETTINGS=Object.freeze({
   informationDensity:"normal", // low | normal | high
   animations:"auto",       // auto | full | reduced | off
   tooltips:true,
-  responsiveLayout:true,
 });
 
 export const DEFAULT_USER_SETTINGS=Object.freeze({
