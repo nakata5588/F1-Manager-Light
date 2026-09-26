@@ -139,9 +139,13 @@ export default function Teams(){
         String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
         teamIdOf(r)===id
       ).length;
+      const displayName=canonicalTeamName(
+        pick(brand,["team_name","team_official_name","short_name"],
+          pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id)))
+      );
       return {
         id,
-        name:canonicalTeamName(pick(brand,["team_name","team_official_name","short_name"],pick(seasonRec,["team_name"],pick(t,["team_name","name","short_name"],id)))),
+        name:displayName,
         shortName:pick(brand,["short_name"],pick(t,["short_name"],"")),
         country:pick(t,["team_base","country","base"],""),
         code:pick(t,["country_code"],""),
@@ -166,7 +170,7 @@ export default function Teams(){
         // "Ensign · Shadow · Williams" as one car.
         constructors:exactChassis.length===1
           ?exactChassis
-          :(exactConstructors.length===1?exactConstructors:[canonicalTeamName(name)]),
+          :(exactConstructors.length===1?exactConstructors:[displayName]),
         chassis:exactChassis.length===1?exactChassis:[],
         engines:detailedEngine?[detailedEngine]:exactEngines,
         identityConfidence:Array.isArray(seasonRec?.identity_confidence)?seasonRec.identity_confidence:[],
