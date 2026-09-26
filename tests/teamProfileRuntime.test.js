@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { canonicalTeamId, canonicalTeamIdentity, canonicalTeamName, mergeCanonicalTeamRows } from "../src/domain/teamIdentity.js";
+import {
+  canonicalTeamId,
+  canonicalTeamIdentity,
+  canonicalTeamName,
+  createTeamIdentityResolver,
+  mergeCanonicalTeamRows,
+  resolveHistoricalTeamIdentity,
+  resolveHistoricalTeamId,
+} from "../src/domain/teamIdentity.js";
 
 test("Team Profile initializes display name before historical logo candidates", async()=>{
   const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
@@ -38,4 +46,40 @@ test("Team Lotus historical duplicate resolves to canonical Lotus identity",()=>
   assert.equal(lotus[0].team_name,"Lotus");
   assert.equal(lotus[0].short_name,"LOT");
   assert.equal(merged.some((row)=>row.team_id==="t_0206"&&row.team_name==="Lotus F1"),true);
+});
+
+
+test("historical team resolver is centralized and preserves canonical historical IDs",()=>{
+  const teams=[
+    {team_id:"t_0005",team_name:"Lotus",short_name:"Lotus"},
+    {team_id:"t_0179",team_name:"Lotus-Ford",short_name:"Lotus-Ford"},
+    {team_id:"t_0059",team_name:"Wolf",short_name:"Wolf"},
+    {team_id:"t_0035",team_name:"Lola",short_name:"Lola"},
+    {team_id:"t_0200",team_name:"Haas F1 Team",short_name:"Haas"},
+  ];
+
+  const resolver=createTeamIdentityResolver(teams);
+
+  assert.equal(resolver.resolveId({team_id:"t_0040"}),"t_0005");
+  assert.equal(resolver.resolveId({team_name:"Walter Wolf"}),"t_0059");
+  assert.equal(resolver.resolveId({team_id:"archive_constructor_27",team_name:"Walter Wolf"}),"t_0059");
+  assert.equal(resolver.resolveId({team_name:"Lotus-Ford"}),"t_0179");
+  assert.equal(resolveHistoricalTeamId({team_name:"Lotus-Ford"},teams),"t_0179");
+
+  const wolf=resolveHistoricalTeamIdentity({team_name:"Walter Wolf"},teams);
+  assert.equal(wolf.id,"t_0059");
+  assert.equal(wolf.name,"Wolf");
+  assert.equal(wolf.match,"fuzzy_name");
+});
+
+test("historical team resolver refuses ambiguous fuzzy matches",()=>{
+  const teams=[
+    {team_id:"t_0035",team_name:"Lola",short_name:"Lola"},
+    {team_id:"t_0200",team_name:"Haas F1 Team",short_name:"Haas"},
+  ];
+  const resolved=resolveHistoricalTeamIdentity({team_name:"Haas Lola"},teams);
+
+  assert.equal(resolved.id,"");
+  assert.equal(resolved.match,"ambiguous_name");
+  assert.deepEqual(resolved.ambiguous_candidate_ids,["t_0035","t_0200"]);
 });
