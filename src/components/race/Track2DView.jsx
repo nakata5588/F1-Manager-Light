@@ -11,6 +11,8 @@ import {
   Map as MapIcon,
   Maximize2,
   Minimize2,
+  Minus,
+  Plus,
   Thermometer,
   Timer,
   TriangleAlert,
@@ -469,6 +471,7 @@ export default function Track2DView({
   const activeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
   const [cameraMode,setCameraMode]=useState("fit");
+  const [followZoom,setFollowZoom]=useState(5.25);
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
@@ -494,7 +497,7 @@ export default function Track2DView({
   const selectedProgress=selectedRow&&selectedVisibleOnTrack?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
   const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
   const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
-    ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:5.25,minWidth:108,minHeight:78})
+    ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
     :fittedViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
@@ -508,7 +511,7 @@ export default function Track2DView({
     if(cameraMode!=="follow"||!svgRef.current)return;
     const point=pointAtTrackProgress(displayGeometry,progress);
     if(!point)return;
-    const box=focusTrackViewBox(fittedViewBox,point,{zoom:5.25,minWidth:108,minHeight:78});
+    const box=focusTrackViewBox(fittedViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
     followViewBoxRef.current=box;
     svgRef.current.setAttribute("viewBox",box.join(" "));
   };
@@ -689,11 +692,34 @@ export default function Track2DView({
             onClick={()=>setShowTrackIntel((value)=>!value)}
             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[9px] font-semibold shadow-lg backdrop-blur ${showTrackIntel?"border-sky-400/30 bg-sky-500/15 text-sky-200":"border-white/15 bg-[#0a0f16]/90 text-slate-400 hover:bg-white/[0.10]"}`}
           ><Flag className="h-3.5 w-3.5"/>Track intel</button>
-          {cameraMode==="follow"?<button
-            type="button"
-            onClick={()=>{followViewBoxRef.current=null;setCameraMode("fit");}}
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
-          ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>:null}
+          {cameraMode==="follow"?<>
+            <div className="flex items-center overflow-hidden rounded-md border border-white/15 bg-[#0a0f16]/90 shadow-lg backdrop-blur">
+              <button
+                type="button"
+                title="Zoom out"
+                onClick={()=>{
+                  followViewBoxRef.current=null;
+                  setFollowZoom((value)=>Math.max(2.5,Number((value-0.75).toFixed(2))));
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center text-slate-300 hover:bg-white/[0.10]"
+              ><Minus className="h-3.5 w-3.5"/></button>
+              <span className="min-w-[42px] border-x border-white/10 px-1.5 text-center text-[9px] font-bold text-slate-300">{followZoom.toFixed(2)}×</span>
+              <button
+                type="button"
+                title="Zoom in"
+                onClick={()=>{
+                  followViewBoxRef.current=null;
+                  setFollowZoom((value)=>Math.min(9,Number((value+0.75).toFixed(2))));
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center text-slate-300 hover:bg-white/[0.10]"
+              ><Plus className="h-3.5 w-3.5"/></button>
+            </div>
+            <button
+              type="button"
+              onClick={()=>{followViewBoxRef.current=null;setCameraMode("fit");}}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
+            ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>
+          </>:null}
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05080d]/75 to-transparent"/>
 
