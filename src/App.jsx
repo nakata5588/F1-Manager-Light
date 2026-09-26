@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useGame } from "./state/GameStore";
 import { useEventStore } from "./state/EventStore";
+import { contentMaxForLayout, effectiveAnimations, effectiveUiScale, viewportLayout } from "./domain/userPreferences.js";
 import HubLayout from "./layouts/HubLayout.jsx";
 import RaceWeekendLayout from "./layouts/RaceWeekendLayout.jsx";
 
@@ -108,6 +109,39 @@ function ThemeBinder() {
   return null;
 }
 
+function DisplayBinder() {
+  const display = useGame((s) => s.gameState?.settings?.display);
+  useEffect(() => {
+    const el=document.documentElement;
+    const motionQuery=window.matchMedia?.("(prefers-reduced-motion: reduce)");
+
+    const apply=()=>{
+      const width=window.innerWidth||document.documentElement.clientWidth||1440;
+      const height=window.innerHeight||document.documentElement.clientHeight||900;
+      const layout=viewportLayout(width,height);
+      const scale=effectiveUiScale(display?.uiScale,width,height);
+      const animations=effectiveAnimations(display?.animations,Boolean(motionQuery?.matches));
+
+      el.dataset.screenLayout=layout;
+      el.dataset.uiScale=display?.uiScale||"auto";
+      el.dataset.uiScaleEffective=scale;
+      el.dataset.uiDensity=display?.informationDensity||"normal";
+      el.dataset.animations=animations;
+      el.dataset.tooltips=display?.tooltips===false?"off":"on";
+      el.style.setProperty("--f1ml-content-max",contentMaxForLayout(layout));
+    };
+
+    apply();
+    window.addEventListener("resize",apply);
+    motionQuery?.addEventListener?.("change",apply);
+    return ()=>{
+      window.removeEventListener("resize",apply);
+      motionQuery?.removeEventListener?.("change",apply);
+    };
+  }, [display?.uiScale,display?.informationDensity,display?.animations,display?.tooltips]);
+  return null;
+}
+
 export default function App() {
   useEffect(() => {
     const unbind = bindEntityDeepLinkOnce();
@@ -136,6 +170,7 @@ export default function App() {
       <SessionPersistenceBinder />
       <DatabaseBinder />
       <ThemeBinder />
+      <DisplayBinder />
       <EntityModalRoot />
       <EntityClickBus />
       <Toaster />
