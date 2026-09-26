@@ -54,6 +54,7 @@ import { driverRelationshipConsequenceProfile } from "../../domain/driverRelatio
 import { formatRelationshipYears, historicalDriverRelationshipRecords } from "../../domain/driverRelationshipHistory.js";
 import { managerDisplayName } from "../../domain/managerProfile.js";
 import { historicalRaceStarted, historicalResultDisplay, historicalResultInfo } from "../../domain/historicalRaceStatus.js";
+import { driverCareerExperience } from "../../domain/driverLifecycle.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -903,6 +904,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     return Number.isFinite(explicit) ? explicit : ageOnYear(driver?.dob, gameYear);
   }, [driver?.age, driver?.dob, gameYear]);
 
+  const careerExperience = useMemo(
+    () => driverCareerExperience(gs, driver || driverId),
+    [gs, driver, driverId]
+  );
+
   const overallView  = profileSnapshot?.overall || driverOverallPresentation(gs, driver || entity.id);
   const knowledge     = profileSnapshot?.knowledge || null;
   const overallPresentation = presentDriverKnowledgeValue(
@@ -1091,7 +1097,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
 
         <div className="mt-4 border-t border-white/10 pt-4 text-xs text-slate-400 space-y-2">
           <div className="flex justify-between gap-3"><span>Age</span><strong className="text-slate-200">{computedAge ?? "—"}</strong></div>
-          <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{unbox(driver?.f1_rookie_season) ?? "—"}</strong></div>
+          <div className="flex justify-between gap-3"><span>Rookie season</span><strong className="text-slate-200">{careerExperience?.rookieYear ?? "—"}</strong></div>
           <div className="flex justify-between gap-3"><span>Years raced</span><strong className="text-slate-200">{yearsRaced ?? "—"}</strong></div>
         </div>
 
