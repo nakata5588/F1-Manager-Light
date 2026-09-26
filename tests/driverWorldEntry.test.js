@@ -127,3 +127,34 @@ test("world-entry generation is deterministic and one-to-one",()=>{
   assert.equal(audit.total_drivers,2);
   assert.equal(audit.resolved,2);
 });
+
+
+test("historical career end removes old drivers from later active-world audits",()=>{
+  const d=driver({
+    driver_id:"d_retired",
+    dob:"1940-01-01",
+    career_start_year:1965,
+    f1_rookie_season:1968,
+    career_end_year:1975,
+  });
+  const entry=inferDriverWorldEntry(d,{});
+  const state=driverWorldStageAtYear(d,entry,1980);
+  assert.equal(state.active_world,false);
+  assert.equal(state.stage,"RETIRED_REFERENCE");
+});
+
+test("death before January opening excludes a driver without erasing same-season availability",()=>{
+  const d=driver({
+    driver_id:"d_death",
+    dob:"1950-01-01",
+    career_start_year:1970,
+    f1_rookie_season:1972,
+    career_end_year:1985,
+    death_date:"1982-05-08",
+  });
+  const entry=inferDriverWorldEntry(d,{});
+  assert.equal(driverWorldStageAtYear(d,entry,1982).active_world,true);
+  const after=driverWorldStageAtYear(d,entry,1983);
+  assert.equal(after.active_world,false);
+  assert.equal(after.stage,"DECEASED");
+});
