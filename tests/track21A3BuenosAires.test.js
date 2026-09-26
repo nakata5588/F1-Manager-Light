@@ -24,10 +24,11 @@ test("Track 2.1A.3 Buenos Aires S/F is on upper straight and race direction is r
   assert.equal(layout.start_finish_direction,"right");
 });
 
-test("Track 2.1A.3 keeps historical environment separate from functional geometry",()=>{
+test("Track 2.1A.3 keeps environment artwork non-authoritative",()=>{
   const {layout,geometry}=resolveTrackLayout({trackId:"tr_0018",year:1980});
-  assert.notEqual(layout.asset,geometry.source_environment,"asset metadata and geometry source may reference the same file but are independent fields");
+  assert.ok(layout.asset,"presentation artwork must be independently registered");
   assert.equal(geometry.derivation,"hand_authored_historical_reference");
   assert.ok(Array.isArray(geometry.points));
   assert.ok(geometry.points.length>=80);
+  assert.equal(Object.hasOwn(geometry,"asset"),false,"functional geometry must not consume the presentation asset as physics data");
 });
