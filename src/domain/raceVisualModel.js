@@ -210,7 +210,10 @@ export function createVisualRaceTimeline(previousRows,targetRows,{
       let candidate=previousLapBase+unwrappedTrack;
       while(candidate<previousWorld-0.08)candidate+=1;
       while(candidate>previousWorld+1.08)candidate-=1;
-      if(Math.abs(candidate-targetWorld)<=0.55)targetWorld=candidate;
+      // Keep the physical path continuous across start/finish. The wrapped
+      // target is presentation-only; authoritative gaps/positions remain on
+      // the target row and are restored exactly at t=1.
+      targetWorld=candidate;
     }
     return {
       driver_id:String(target.driver_id),
