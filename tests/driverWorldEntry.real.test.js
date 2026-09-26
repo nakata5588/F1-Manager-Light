@@ -52,7 +52,10 @@ test("real canonical population produces deterministic world-entry candidates",a
   const audit=buildDriverWorldEntryAudit(a,drivers,{auditYears:[1980]});
   assert.equal(audit.total_drivers,drivers.length);
   assert.ok(audit.resolved>500);
-  assert.ok(audit.year_snapshots["1980"].active_world>0);
+  assert.ok(audit.year_snapshots["1980"].active_world>40);
+  assert.ok(audit.year_snapshots["1980"].active_world<250);
+  assert.ok(audit.year_snapshots["1980"].counts.F1_REFERENCE_WINDOW>20);
+  assert.ok(audit.year_snapshots["1980"].counts.F1_REFERENCE_WINDOW<100);
 });
 
 test("1980 world-entry audit includes Senna pre-F1 but excludes much later generations",async()=>{
