@@ -48,6 +48,16 @@ function ageAtOpening(driver,year){
   return age;
 }
 
+function minimumOpeningYearForAge(driver,minAge){
+  const born=birthYear(driver);
+  if(!Number.isInteger(born))return null;
+  const raw=text(driver?.dob??driver?.birthdate_iso??driver?.birthdate??driver?.date_of_birth);
+  const match=raw.match(/^(\d{4})(?:-(\d{2})-(\d{2}))?/);
+  const birthdayAfterJan1=Boolean(match?.[2]&&match?.[3])&&
+    (Number(match[2])>1||(Number(match[2])===1&&Number(match[3])>1));
+  return born+Number(minAge)+(birthdayAfterJan1?1:0);
+}
+
 function rowsForDriver(rows,did){
   return (Array.isArray(rows)?rows:[]).filter(row=>driverId(row)===did);
 }
@@ -134,7 +144,8 @@ function inferredWorldEntry(driver,debut,{
   const born=birthYear(driver);
   const leadCandidate=debut-Math.max(1,Number(maxLeadYears)||DEFAULT_MAX_INFERRED_LEAD_YEARS);
   if(!Number.isInteger(born))return leadCandidate;
-  return Math.max(born+Number(minWorldAge),leadCandidate);
+  const minimumYear=minimumOpeningYearForAge(driver,minWorldAge);
+  return Math.max(Number.isInteger(minimumYear)?minimumYear:born+Number(minWorldAge),leadCandidate);
 }
 
 function levelAtEntry(driver,entryYear,debut,{youthMaxAge=19}={}){
@@ -182,7 +193,14 @@ export function inferDriverWorldEntry(driver,context={},options={}){
   // Never put someone into the active motorsport world before birth/minimum age
   // merely because a malformed historical row exists.
   if(Number.isInteger(firstWorldYear)&&Number.isInteger(born)){
-    firstWorldYear=Math.max(firstWorldYear,born+Number(options.minWorldAge??DEFAULT_MIN_WORLD_AGE));
+    const minimumYear=minimumOpeningYearForAge(
+      driver,
+      Number(options.minWorldAge??DEFAULT_MIN_WORLD_AGE)
+    );
+    firstWorldYear=Math.max(
+      firstWorldYear,
+      Number.isInteger(minimumYear)?minimumYear:born+Number(options.minWorldAge??DEFAULT_MIN_WORLD_AGE)
+    );
   }
   if(Number.isInteger(firstWorldYear)&&Number.isInteger(debut)){
     firstWorldYear=Math.min(firstWorldYear,debut);
