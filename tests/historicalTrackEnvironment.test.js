@@ -9,4 +9,5 @@ test("Buenos Aires historical environment is explicitly presentation-only",()=>{
   assert.equal(environment.layout,"Circuit No. 15");
   assert.equal(environment.start_finish_location,"upper_straight");
   assert.equal(environment.start_finish_direction,"right");
+  assert.deepEqual(environment.view_box,[0,0,1642,958]);
 });
