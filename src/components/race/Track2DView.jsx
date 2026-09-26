@@ -653,13 +653,21 @@ export default function Track2DView({
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
-          {layout?.asset?<image href={layout.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity=".92" pointerEvents="none"/>:null}
+          {layout?.asset?<image href={layout.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
-              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#252b31":"#020617"} strokeWidth={historicalEnvironment?"15":"34"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".92":".96"}/>
-              <polyline points={polyline} fill="none" stroke={historicalEnvironment?"#3b4147":"#cbd5e1"} strokeWidth={historicalEnvironment?"10":"16"} strokeLinejoin="round" strokeLinecap="round" opacity={historicalEnvironment?".98":".74"}/>
+              {historicalEnvironment?<>
+                <polyline points={polyline} fill="none" stroke="#03070b" strokeWidth="38" strokeLinejoin="round" strokeLinecap="round" opacity=".42"/>
+                <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
+                <polyline points={polyline} fill="none" stroke="#e53e3e" strokeWidth="30" strokeDasharray="17 17" strokeLinejoin="round" strokeLinecap="butt" opacity=".98"/>
+                <polyline points={polyline} fill="none" stroke="#20252b" strokeWidth="22" strokeLinejoin="round" strokeLinecap="round" opacity=".995"/>
+                <polyline points={polyline} fill="none" stroke="#343b43" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
+              </>:<>
+                <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
+                <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".74"/>
+              </>}
               {showTrackIntel&&historicalEnvironment?[1,2,3].map((sector)=>{
                 const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:110});
                 const colors=Array.isArray(layout?.sector_colors)&&layout.sector_colors.length>=3?layout.sector_colors:["#ef4444","#22d3ee","#facc15"];
@@ -688,15 +696,26 @@ export default function Track2DView({
                 />;
               })():null}
               {!historicalEnvironment?<polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>:null}
-              {historicalEnvironment&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
-                points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
-                fill="none"
-                stroke="#40464d"
-                strokeWidth="10"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                opacity=".98"
-              />:null}
+              {historicalEnvironment&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<g>
+                <polyline
+                  points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
+                  fill="none"
+                  stroke="#0b1116"
+                  strokeWidth="15"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity=".65"
+                />
+                <polyline
+                  points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
+                  fill="none"
+                  stroke="#303840"
+                  strokeWidth="10"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  opacity=".99"
+                />
+              </g>:null}
               {showTrackIntel&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
                 points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                 fill="none"

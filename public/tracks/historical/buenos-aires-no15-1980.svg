@@ -1,58 +1,163 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1642 958" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1649 954" role="img" aria-labelledby="title desc">
 <title id="title">Buenos Aires Circuit No. 15 — 1980 historical environment</title>
-<desc id="desc">Presentation-only scenery aligned to the supplied historical reference. Functional centreline and race state remain authoritative.</desc>
+<desc id="desc">Presentation-only video-game aerial environment. Functional centreline, sectors, pit lane and race state remain authoritative.</desc>
 <defs>
-  <linearGradient id="grass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#445b35"/><stop offset=".52" stop-color="#62794a"/><stop offset="1" stop-color="#3f5333"/></linearGradient>
-  <linearGradient id="water" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#20555d"/><stop offset=".55" stop-color="#2f6d70"/><stop offset="1" stop-color="#1d4c55"/></linearGradient>
-  <filter id="soft"><feGaussianBlur stdDeviation="2"/></filter>
+  <linearGradient id="grass" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#29431f"/><stop offset=".38" stop-color="#46652e"/><stop offset=".72" stop-color="#5b7637"/><stop offset="1" stop-color="#304923"/>
+  </linearGradient>
+  <radialGradient id="treeCrown"><stop stop-color="#6f932e"/><stop offset=".45" stop-color="#426b22"/><stop offset="1" stop-color="#18391d"/></radialGradient>
+  <linearGradient id="water" x1=".1" y1=".1" x2=".9" y2=".9">
+    <stop stop-color="#246a73"/><stop offset=".48" stop-color="#1e5d67"/><stop offset="1" stop-color="#123f4b"/>
+  </linearGradient>
+  <linearGradient id="roof" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#d8ddd8"/><stop offset="1" stop-color="#8d9995"/></linearGradient>
+  <pattern id="mow" width="72" height="72" patternUnits="userSpaceOnUse" patternTransform="rotate(18)">
+    <rect width="36" height="72" fill="#ffffff" opacity=".018"/><rect x="36" width="36" height="72" fill="#000000" opacity=".018"/>
+  </pattern>
+  <pattern id="waterLines" width="54" height="26" patternUnits="userSpaceOnUse">
+    <path d="M2 12 C12 7 22 17 34 11 S48 8 54 12" fill="none" stroke="#a7e0df" stroke-width="1" opacity=".08"/>
+  </pattern>
+  <symbol id="tree" viewBox="-16 -18 32 36">
+    <ellipse cx="4" cy="10" rx="11" ry="5" fill="#102918" opacity=".42"/>
+    <rect x="-1.5" y="5" width="3" height="9" rx="1.5" fill="#5c4326"/>
+    <ellipse cx="-5" cy="-2" rx="8.5" ry="9" fill="#274f20"/>
+    <ellipse cx="5" cy="-4" rx="9.5" ry="10" fill="#335f22"/>
+    <ellipse cx="0" cy="-8" rx="9" ry="10" fill="url(#treeCrown)"/>
+    <ellipse cx="-2" cy="-11" rx="4.5" ry="3.5" fill="#8aa53b" opacity=".45"/>
+  </symbol>
+  <symbol id="stand" viewBox="0 0 120 34">
+    <rect width="120" height="34" rx="3" fill="#26313a" stroke="#a8b1b7" stroke-width="2"/>
+    <g stroke="#d15d55" stroke-width="4" opacity=".9">
+      <path d="M8 8h104M8 17h104M8 26h104"/>
+    </g>
+    <g stroke="#c9d1d7" stroke-width="2" opacity=".75">
+      <path d="M18 4v26M38 4v26M58 4v26M78 4v26M98 4v26"/>
+    </g>
+  </symbol>
 </defs>
-<rect width="1642" height="958" fill="url(#grass)"/>
-<!-- distant roads / city edge -->
-<g fill="none" stroke="#6b7468" opacity=".55">
-  <path d="M0 88 C260 55 420 74 620 55 S1050 46 1642 82" stroke-width="20"/>
-  <path d="M0 906 C290 878 520 895 765 890 S1245 900 1642 870" stroke-width="18"/>
-  <path d="M85 120 C160 205 135 310 112 410 S115 650 82 820" stroke-width="11"/>
-  <path d="M720 70 C760 145 740 220 706 310" stroke-width="10"/>
+
+<!-- terrain -->
+<rect width="1649" height="954" fill="url(#grass)"/>
+<rect width="1649" height="954" fill="url(#mow)"/>
+<path d="M0 0H1649V120C1400 100 1210 124 1030 105S610 115 390 96 140 110 0 100Z" fill="#233820" opacity=".55"/>
+<path d="M0 845 C280 820 520 860 770 842 S1230 845 1649 820 V954 H0Z" fill="#2a4226" opacity=".65"/>
+
+<!-- perimeter roads -->
+<g fill="none" stroke-linecap="round">
+  <path d="M-20 62 C230 38 440 72 650 52 S1080 34 1290 48 S1510 70 1670 55" stroke="#20272b" stroke-width="36"/>
+  <path d="M-20 62 C230 38 440 72 650 52 S1080 34 1290 48 S1510 70 1670 55" stroke="#657068" stroke-width="24"/>
+  <path d="M-20 900 C240 875 470 894 720 887 S1210 900 1670 866" stroke="#20272b" stroke-width="34"/>
+  <path d="M-20 900 C240 875 470 894 720 887 S1210 900 1670 866" stroke="#606b64" stroke-width="22"/>
+  <path d="M72 78 C115 190 97 330 83 455 S74 690 50 842" stroke="#313a38" stroke-width="19"/>
+  <path d="M72 78 C115 190 97 330 83 455 S74 690 50 842" stroke="#6d786d" stroke-width="11"/>
 </g>
-<!-- paddock / buildings along upper straight -->
-<g fill="#9ca08f" stroke="#53594f" stroke-width="4" opacity=".9">
-  <rect x="255" y="118" width="165" height="54" rx="3"/>
-  <rect x="430" y="112" width="190" height="58" rx="3"/>
-  <rect x="630" y="116" width="145" height="52" rx="3"/>
-  <rect x="285" y="265" width="118" height="40" rx="3"/>
-  <rect x="420" y="266" width="132" height="38" rx="3"/>
+<g fill="none" stroke="#cbd5c0" stroke-width="2" stroke-dasharray="18 20" opacity=".34">
+  <path d="M-20 62 C230 38 440 72 650 52 S1080 34 1290 48 S1510 70 1670 55"/>
+  <path d="M-20 900 C240 875 470 894 720 887 S1210 900 1670 866"/>
 </g>
-<g fill="#b9b29e" opacity=".45">
-  <rect x="1040" y="110" width="90" height="34"/><rect x="1140" y="92" width="130" height="42"/>
-  <rect x="1385" y="140" width="85" height="38"/>
+
+<!-- paddock / garages around upper straight -->
+<g stroke="#58615d" stroke-width="3">
+  <rect x="238" y="104" width="174" height="60" rx="4" fill="url(#roof)"/>
+  <rect x="420" y="98" width="196" height="67" rx="4" fill="url(#roof)"/>
+  <rect x="624" y="104" width="144" height="56" rx="4" fill="url(#roof)"/>
+  <rect x="267" y="275" width="132" height="44" rx="3" fill="#aab2ae"/>
+  <rect x="410" y="272" width="152" height="47" rx="3" fill="#9ca6a1"/>
+  <rect x="578" y="270" width="106" height="42" rx="3" fill="#bbc1bb"/>
 </g>
-<!-- internal service roads, deliberately not the racing surface -->
-<g fill="none" stroke="#7b8273" stroke-linecap="round" opacity=".55">
-  <path d="M230 350 C390 385 520 420 665 495 S885 565 980 470" stroke-width="12"/>
-  <path d="M260 620 C360 570 470 575 585 630 S770 690 860 630" stroke-width="10"/>
-  <path d="M585 220 C650 285 650 360 620 430" stroke-width="9"/>
+<g fill="#48524f" opacity=".9">
+  <rect x="245" y="114" width="160" height="8"/><rect x="428" y="109" width="180" height="8"/><rect x="632" y="115" width="128" height="7"/>
 </g>
-<!-- lake from the historical reference -->
-<path d="M615 365
- C760 315 1010 315 1220 340
- C1390 360 1490 430 1502 540
- C1515 663 1425 748 1288 777
- C1125 812 895 805 735 770
- C606 742 555 665 561 567
- C566 482 574 405 615 365Z"
- fill="url(#water)" stroke="#35554d" stroke-width="10"/>
-<!-- tree masses -->
-<g fill="#1f4329" opacity=".88">
-  <circle cx="130" cy="150" r="34"/><circle cx="185" cy="175" r="28"/><circle cx="225" cy="125" r="25"/>
-  <circle cx="805" cy="160" r="31"/><circle cx="852" cy="178" r="24"/><circle cx="910" cy="145" r="29"/>
-  <circle cx="1030" cy="250" r="24"/><circle cx="1095" cy="220" r="31"/><circle cx="1170" cy="205" r="26"/>
-  <circle cx="205" cy="665" r="31"/><circle cx="260" cy="715" r="27"/><circle cx="350" cy="780" r="31"/>
-  <circle cx="535" cy="845" r="24"/><circle cx="930" cy="860" r="24"/><circle cx="1450" cy="810" r="30"/>
+<g fill="#31383a">
+  <rect x="284" y="326" width="20" height="38"/><rect x="310" y="326" width="20" height="38"/><rect x="336" y="326" width="20" height="38"/>
+  <rect x="362" y="326" width="20" height="38"/><rect x="388" y="326" width="20" height="38"/><rect x="414" y="326" width="20" height="38"/>
+  <rect x="440" y="326" width="20" height="38"/><rect x="466" y="326" width="20" height="38"/>
 </g>
-<!-- subtle mowing / terrain texture -->
-<g fill="none" stroke="#83916f" stroke-width="7" opacity=".18">
-  <path d="M80 520 C300 465 430 475 600 540"/>
-  <path d="M120 760 C330 700 500 720 685 785"/>
-  <path d="M980 250 C1190 210 1380 230 1550 275"/>
+<g fill="#f0f2ed" stroke="#7b8480" stroke-width="1">
+  <rect x="290" y="332" width="13" height="24"/><rect x="316" y="332" width="13" height="24"/><rect x="342" y="332" width="13" height="24"/>
+  <rect x="368" y="332" width="13" height="24"/><rect x="394" y="332" width="13" height="24"/><rect x="420" y="332" width="13" height="24"/>
+</g>
+
+<!-- infield service roads -->
+<g fill="none" stroke-linecap="round">
+  <path d="M215 354 C335 355 430 388 535 420 C626 448 690 428 750 374" stroke="#2d3535" stroke-width="26"/>
+  <path d="M215 354 C335 355 430 388 535 420 C626 448 690 428 750 374" stroke="#717b70" stroke-width="16"/>
+  <path d="M330 640 C390 586 472 566 548 593 S682 669 760 628" stroke="#303838" stroke-width="25"/>
+  <path d="M330 640 C390 586 472 566 548 593 S682 669 760 628" stroke="#707a70" stroke-width="15"/>
+  <path d="M610 205 C655 286 655 342 620 412 S597 520 650 570" stroke="#303838" stroke-width="22"/>
+  <path d="M610 205 C655 286 655 342 620 412 S597 520 650 570" stroke="#6c776d" stroke-width="13"/>
+  <path d="M720 305 C805 278 870 250 938 224 S1100 194 1220 205" stroke="#313939" stroke-width="22"/>
+  <path d="M720 305 C805 278 870 250 938 224 S1100 194 1220 205" stroke="#6d786e" stroke-width="13"/>
+</g>
+
+<!-- lake, kept inside functional circuit loop -->
+<path d="M720 390
+ C850 346 1080 340 1270 360
+ C1418 375 1492 425 1510 514
+ C1534 632 1450 714 1335 744
+ C1170 786 935 786 778 754
+ C673 732 628 675 632 593
+ C636 503 657 421 720 390Z"
+ fill="url(#water)" stroke="#254f47" stroke-width="14"/>
+<path d="M720 390
+ C850 346 1080 340 1270 360
+ C1418 375 1492 425 1510 514
+ C1534 632 1450 714 1335 744
+ C1170 786 935 786 778 754
+ C673 732 628 675 632 593
+ C636 503 657 421 720 390Z"
+ fill="url(#waterLines)" opacity=".9"/>
+<path d="M705 380 C820 330 1060 327 1280 347 C1420 360 1507 412 1524 507" fill="none" stroke="#7fa56b" stroke-width="13" opacity=".65"/>
+
+<!-- gravel / runoff -->
+<g fill="#c7ad78" stroke="#94784c" stroke-width="3" opacity=".96">
+  <path d="M1510 340 C1584 375 1610 442 1608 520 C1605 580 1587 621 1550 652 C1574 575 1578 494 1562 424 C1552 388 1535 362 1510 340Z"/>
+  <path d="M1450 755 C1510 744 1550 725 1580 690 C1565 748 1537 788 1488 812 L1422 805Z"/>
+  <path d="M198 690 C245 650 287 646 325 672 C286 678 250 704 220 747Z"/>
+</g>
+
+<!-- grandstands -->
+<g opacity=".96">
+  <use href="#stand" x="520" y="72" width="132" height="37"/>
+  <use href="#stand" x="137" y="470" width="118" height="33" transform="rotate(-78 196 486)"/>
+  <use href="#stand" x="1120" y="838" width="126" height="35"/>
+  <use href="#stand" x="1460" y="762" width="118" height="33" transform="rotate(-62 1519 778)"/>
+</g>
+
+<!-- small oval / facilities to upper right -->
+<ellipse cx="1456" cy="138" rx="91" ry="50" fill="#7f8f62" stroke="#485548" stroke-width="10"/>
+<ellipse cx="1456" cy="138" rx="63" ry="31" fill="#667d4e" stroke="#8f9b76" stroke-width="6"/>
+<g fill="url(#roof)" stroke="#5b6460" stroke-width="3">
+  <rect x="1110" y="112" width="96" height="42" rx="3"/><rect x="1218" y="94" width="105" height="46" rx="3"/>
+  <rect x="1280" y="172" width="88" height="38" rx="3"/><rect x="1378" y="198" width="72" height="34" rx="3"/>
+</g>
+
+<!-- tree clusters: layered crowns, not simple dots -->
+<g>
+  <use href="#tree" x="108" y="132" width="42" height="48"/><use href="#tree" x="152" y="157" width="38" height="44"/><use href="#tree" x="196" y="116" width="45" height="51"/>
+  <use href="#tree" x="790" y="124" width="44" height="50"/><use href="#tree" x="834" y="145" width="38" height="45"/><use href="#tree" x="884" y="116" width="47" height="54"/>
+  <use href="#tree" x="958" y="190" width="40" height="47"/><use href="#tree" x="1002" y="214" width="46" height="52"/><use href="#tree" x="1050" y="182" width="42" height="48"/>
+  <use href="#tree" x="1175" y="240" width="43" height="50"/><use href="#tree" x="1222" y="226" width="39" height="46"/><use href="#tree" x="1264" y="242" width="45" height="51"/>
+  <use href="#tree" x="1320" y="274" width="43" height="50"/><use href="#tree" x="1360" y="258" width="40" height="47"/><use href="#tree" x="1404" y="268" width="45" height="52"/>
+  <use href="#tree" x="102" y="540" width="49" height="56"/><use href="#tree" x="144" y="578" width="42" height="49"/><use href="#tree" x="188" y="615" width="46" height="53"/>
+  <use href="#tree" x="222" y="758" width="45" height="52"/><use href="#tree" x="278" y="790" width="43" height="50"/><use href="#tree" x="342" y="821" width="48" height="55"/>
+  <use href="#tree" x="438" y="846" width="42" height="49"/><use href="#tree" x="520" y="862" width="47" height="54"/><use href="#tree" x="610" y="852" width="40" height="47"/>
+  <use href="#tree" x="730" y="847" width="45" height="52"/><use href="#tree" x="825" y="855" width="43" height="50"/><use href="#tree" x="920" y="842" width="47" height="54"/>
+  <use href="#tree" x="1025" y="850" width="42" height="49"/><use href="#tree" x="1325" y="820" width="46" height="53"/><use href="#tree" x="1400" y="804" width="42" height="49"/>
+  <use href="#tree" x="1510" y="218" width="45" height="52"/><use href="#tree" x="1540" y="270" width="40" height="47"/><use href="#tree" x="1570" y="330" width="44" height="51"/>
+</g>
+
+<!-- scattered shrub masses around lake -->
+<g fill="#21452a" opacity=".9">
+  <path d="M685 366 q28-35 60-7 q22-25 47 3 q-4 29-34 32 q-43 8-73-28Z"/>
+  <path d="M1015 333 q24-31 54-8 q23-20 45 6 q-8 29-37 31 q-38 5-62-29Z"/>
+  <path d="M1308 345 q29-27 56-2 q26-18 48 12 q-11 27-40 28 q-39 1-64-38Z"/>
+  <path d="M690 746 q25-25 51-4 q21-19 43 7 q-9 25-34 26 q-35 2-60-29Z"/>
+</g>
+
+<!-- subtle service markings -->
+<g fill="none" stroke="#c7d1c0" stroke-width="2" opacity=".16">
+  <path d="M135 410 C280 430 420 470 545 520"/>
+  <path d="M174 735 C330 700 485 721 590 770"/>
+  <path d="M1005 256 C1170 230 1340 244 1490 280"/>
 </g>
 </svg>
