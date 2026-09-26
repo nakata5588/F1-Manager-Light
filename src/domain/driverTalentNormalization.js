@@ -198,6 +198,7 @@ function buildSeasonEvidence(events=[],carCompetitiveness=[]){
       const peers=(teamRows.get(tid)||[]).filter(peer=>driverId(peer.row)!==did);
       const car=carIndex.get(String(year)+"|"+tid)||{};
       const eventSignals=[];
+      const eventTeammateSignals=[];
 
       let gridPct=null;
       if(validGrid){
@@ -210,6 +211,7 @@ function buildSeasonEvidence(events=[],carCompetitiveness=[]){
           const value=normalizedPositionDelta(grid,peerGrid,fieldSize);
           if(!Number.isFinite(value))continue;
           season.teammateQualifying.push(value);
+          eventTeammateSignals.push(value);
           season.teammateQualifyingComparisons.push({
             peer_id:driverId(peer.row),
             value,
@@ -233,6 +235,7 @@ function buildSeasonEvidence(events=[],carCompetitiveness=[]){
           const value=normalizedPositionDelta(position,peerPosition,fieldSize);
           if(!Number.isFinite(value))continue;
           season.teammateRace.push(value);
+          eventTeammateSignals.push(value);
           season.teammateRaceComparisons.push({
             peer_id:driverId(peer.row),
             value,
@@ -267,11 +270,7 @@ function buildSeasonEvidence(events=[],carCompetitiveness=[]){
         }
       }
 
-      const teammateEvent=[
-        ...season.teammateQualifying.slice(-Math.min(peers.length,season.teammateQualifying.length)),
-        ...season.teammateRace.slice(-Math.min(peers.length,season.teammateRace.length)),
-      ].filter(Number.isFinite);
-      if(teammateEvent.length)eventSignals.push(mean(teammateEvent));
+      if(eventTeammateSignals.length)eventSignals.push(mean(eventTeammateSignals));
       if(eventSignals.length)season.eventPerformance.push(mean(eventSignals));
     }
   }
