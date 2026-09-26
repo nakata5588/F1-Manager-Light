@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Buenos Aires Circuit No. 15 — 1980 historical environment</title>
+  <desc id="desc">Presentation-only historical environment layer. Race geometry and results remain engine-owned.</desc>
+  <defs>
+    <pattern id="grass" width="24" height="24" patternUnits="userSpaceOnUse">
+      <rect width="24" height="24" fill="#6f8752"/><path d="M0 20L20 0M8 24L24 8" stroke="#819761" stroke-width="1" opacity=".35"/>
+    </pattern>
+    <pattern id="checker" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#f5f2e8"/><rect width="8" height="8" fill="#1f2428"/><rect x="8" y="8" width="8" height="8" fill="#1f2428"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="760" fill="url(#grass)"/>
+  <path d="M130 195H880C1035 195 1090 250 1090 350C1090 455 1010 520 910 565L760 635C650 685 545 650 485 565L420 470C390 425 340 415 295 450L185 535C125 580 55 540 62 470C66 425 105 390 155 355L255 285C310 247 285 195 225 195Z" fill="none" stroke="#d6d1c4" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M130 195H880C1035 195 1090 250 1090 350C1090 455 1010 520 910 565L760 635C650 685 545 650 485 565L420 470C390 425 340 415 295 450L185 535C125 580 55 540 62 470C66 425 105 390 155 355L255 285C310 247 285 195 225 195Z" fill="none" stroke="#33383b" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M130 195H880" stroke="#f0efe8" stroke-width="3" stroke-dasharray="14 16" opacity=".55"/>
+  <rect x="515" y="161" width="18" height="68" fill="url(#checker)" transform="rotate(90 524 195)"/>
+  <g opacity=".72" fill="#c8b99d"><rect x="180" y="90" width="180" height="42" rx="4"/><rect x="690" y="82" width="220" height="46" rx="4"/><rect x="930" y="250" width="120" height="54" rx="4"/></g>
+  <g opacity=".48" fill="#56684a"><ellipse cx="260" cy="640" rx="125" ry="44"/><ellipse cx="880" cy="690" rx="170" ry="38"/><ellipse cx="1050" cy="100" rx="100" ry="34"/></g>
+</svg>
