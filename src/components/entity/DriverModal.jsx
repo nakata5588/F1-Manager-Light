@@ -289,6 +289,10 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     [driversList, idNorm]
   );
   const driverIdentityName = displayValue(driver?.display_name ?? driver?.name, "");
+  const isRetired = String(driver?.status||"").toLowerCase()==="retired";
+  const retiredTabs = new Set(["relationships","races","career"]);
+  const visibleTabs = isRetired ? TABS.filter((tab)=>retiredTabs.has(tab.key)) : TABS;
+  const effectiveTab = isRetired && !retiredTabs.has(activeTab) ? "career" : activeTab;
 
 
   const attrs = useMemo(
@@ -878,11 +882,21 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   }, [gs,achievementsList,careerAll,simulatedCareerRows,teamsList,gameYear]);
 
   const yearsRaced = useMemo(() => {
-    const rookie = Number(unbox(driver?.f1_rookie_season));
-    if (!Number.isFinite(rookie) || !Number.isFinite(gameYear)) return null;
-    const v = gameYear - rookie;
-    return v < 0 ? 0 : v;
-  }, [driver?.f1_rookie_season, gameYear]);
+    const recordedYears=new Set(
+      [...(careerAll||[]),...(simulatedCareerRows||[])]
+        .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")
+        .map((row)=>Number(unbox(row?.year)))
+        .filter((year)=>Number.isInteger(year)&&(!Number.isFinite(gameYear)||year<=gameYear))
+    );
+    if(recordedYears.size)return recordedYears.size;
+
+    const rookieRaw=unbox(driver?.f1_rookie_season);
+    const rookie=rookieRaw===null||rookieRaw===undefined||rookieRaw===""?NaN:Number(rookieRaw);
+    const endRaw=unbox(driver?.career_end_year??driver?.last_f1_season);
+    const end=endRaw===null||endRaw===undefined||endRaw===""?gameYear:Number(endRaw);
+    if(!Number.isFinite(rookie)||!Number.isFinite(end))return null;
+    return Math.max(0,Math.min(gameYear,end)-rookie+1);
+  }, [careerAll,simulatedCareerRows,driver?.f1_rookie_season,driver?.career_end_year,driver?.last_f1_season,gameYear]);
 
   const computedAge = useMemo(() => {
     const explicit = Number(driver?.age);
@@ -1032,7 +1046,12 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         </div>
 
-        {(contractTeamId || profileSnapshot?.teamId) ? (
+        {isRetired ? (
+          <div className="mt-4 rounded-xl border border-amber-400/15 bg-amber-500/[0.05] p-3">
+            <div className="text-sm font-medium text-amber-200">Retired</div>
+            <div className="mt-0.5 text-xs text-slate-500">Historical profile · no active F1 role</div>
+          </div>
+        ) : (contractTeamId || profileSnapshot?.teamId) ? (
           <button
             type="button"
             data-entity="team"
@@ -1053,13 +1072,15 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <ProfileMetric label="OVR" value={overallLabel} compact/>
-          <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"} compact/>
-          <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0} compact/>
-        </div>
+        {!isRetired&&(
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <ProfileMetric label="OVR" value={overallLabel} compact/>
+            <ProfileMetric label="Champ" value={profileSnapshot?.season?.championshipPosition ? `P${profileSnapshot.season.championshipPosition}` : "—"} compact/>
+            <ProfileMetric label="Points" value={profileSnapshot?.season?.points ?? 0} compact/>
+          </div>
+        )}
 
-        {knowledge?.canSeeCondition&&(
+        {!isRetired&&knowledge?.canSeeCondition&&(
           <div className="mt-4 space-y-3">
             <ConditionBar label="Confidence" value={condition?.confidence ?? 50}/>
             <ConditionBar label="Morale" value={condition?.morale ?? 50}/>
@@ -1117,20 +1138,22 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
         </div>
 
-        <div className="mt-4 border-t border-white/10 pt-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Contract</div>
-          <div className="mt-2 space-y-2 text-xs text-slate-400">
-            <div className="flex justify-between gap-3"><span>Team</span><strong className="max-w-[150px] truncate text-right text-slate-200">{contractTeam||"Free Agent"}</strong></div>
-            <div className="flex justify-between gap-3"><span>Role</span><strong className="text-right text-slate-200">{contractRole||"—"}</strong></div>
-            <div className="flex justify-between gap-3"><span>Salary</span><strong className="text-right text-slate-200">{contract?fmtMoney(contractSalary):"—"}</strong></div>
-            <div className="flex justify-between gap-3"><span>Ends</span><strong className="text-right text-slate-200">{contractEnd||"—"}</strong></div>
-          </div>
-          {futureTransfer && (
-            <div className="mt-3 rounded-lg border border-purple-400/20 bg-purple-500/10 p-2 text-[11px] text-purple-200">
-              Joins {futureTransfer.team_name} {futureTransfer.whenLabel}.
+        {!isRetired&&(
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Contract</div>
+            <div className="mt-2 space-y-2 text-xs text-slate-400">
+              <div className="flex justify-between gap-3"><span>Team</span><strong className="max-w-[150px] truncate text-right text-slate-200">{contractTeam||"Free Agent"}</strong></div>
+              <div className="flex justify-between gap-3"><span>Role</span><strong className="text-right text-slate-200">{contractRole||"—"}</strong></div>
+              <div className="flex justify-between gap-3"><span>Salary</span><strong className="text-right text-slate-200">{contract?fmtMoney(contractSalary):"—"}</strong></div>
+              <div className="flex justify-between gap-3"><span>Ends</span><strong className="text-right text-slate-200">{contractEnd||"—"}</strong></div>
             </div>
-          )}
-        </div>
+            {futureTransfer && (
+              <div className="mt-3 rounded-lg border border-purple-400/20 bg-purple-500/10 p-2 text-[11px] text-purple-200">
+                Joins {futureTransfer.team_name} {futureTransfer.whenLabel}.
+              </div>
+            )}
+          </div>
+        )}
       </aside>
 
       <main className="min-w-0 flex-1 flex flex-col bg-[#0c0f15]">
@@ -1140,7 +1163,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Driver Profile</div>
               <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                 <h2 className="text-2xl font-semibold truncate">{driverName}</h2>
-                <span className="text-sm text-slate-400">· {contractTeam || profileSnapshot?.teamName || "Free Agent"} · {contractRole || "No active role"}</span>
+                <span className="text-sm text-slate-400">
+                  {isRetired
+                    ?"· Retired · Historical profile"
+                    :`· ${contractTeam || profileSnapshot?.teamName || "Free Agent"} · ${contractRole || "No active role"}`}
+                </span>
                 {isOwnDriver && <span className="rounded bg-emerald-500/15 px-2 py-1 text-[10px] font-medium text-emerald-300">YOUR DRIVER</span>}
                 {!profileSnapshot?.availability?.available && (
                   <span className="rounded bg-rose-500/15 px-2 py-1 text-[10px] font-medium uppercase text-rose-300">
@@ -1148,7 +1175,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                   </span>
                 )}
               </div>
-              {knowledge?.canSeeCondition && Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))&&(
+              {!isRetired&&knowledge?.canSeeCondition && Number.isFinite(Number(profileSnapshot?.conditionImpact?.total))&&(
                 <div className="mt-0.5 text-[11px] text-slate-500">
                   Current performance {Number(profileSnapshot.conditionImpact.total)>=0?"+":""}{Number(profileSnapshot.conditionImpact.total).toFixed(1)}
                 </div>
@@ -1156,7 +1183,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             </div>
 
             <div className="flex items-center gap-2">
-              <DriverActionsMenu
+              {!isRetired&&<DriverActionsMenu
                 driver={driver}
                 condition={condition}
                 isOwnDriver={!!isOwnDriver}
@@ -1172,7 +1199,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
                 renewalPending={renewalPending}
                 releaseCost={releaseCost}
                 marketEligibility={marketEligibility}
-              />
+              />}
               {!pageMode && (
                 <button onClick={onClose} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5 hover:text-white" aria-label="Close">
                   <X size={18} />
@@ -1182,11 +1209,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
           </div>
 
           <nav className="mt-4 flex gap-1 overflow-x-auto px-5">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${activeTab === t.key ? "border-sky-300 text-white" : "border-transparent text-slate-500 hover:text-slate-200"}`}
+                className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${effectiveTab === t.key ? "border-sky-300 text-white" : "border-transparent text-slate-500 hover:text-slate-200"}`}
               >
                 {t.label}
               </button>
@@ -1195,7 +1222,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
         </header>
 
         <section className="min-h-0 flex-1 overflow-y-auto p-5">
-          {activeTab === "overview" && (
+          {effectiveTab === "overview" && (
             <OverviewTab
               snapshot={profileSnapshot}
               condition={condition}
@@ -1211,7 +1238,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             />
           )}
 
-          {activeTab === "attributes" && (
+          {effectiveTab === "attributes" && (
             <AttributesTab
               attrs={meaningfulAttrs}
               knowledge={knowledge}
@@ -1233,7 +1260,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             />
           )}
 
-          {activeTab === "development" && (
+          {effectiveTab === "development" && (
             <DevelopmentTab
               attrs={meaningfulAttrs}
               log={developmentLog}
@@ -1251,7 +1278,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             />
           )}
 
-          {activeTab === "form" && (
+          {effectiveTab === "form" && (
             <FormTab
               form={profileSnapshot?.form}
               items={profileSnapshot?.performanceHistory||[]}
@@ -1259,11 +1286,11 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             />
           )}
 
-          {activeTab === "relationships" && (
+          {effectiveTab === "relationships" && (
             <RelationshipsTab gameState={gs} driverId={driverId} />
           )}
 
-          {activeTab === "races" && (
+          {effectiveTab === "races" && (
             <DriverRacesTab
               rows={driverRaceRows}
               stats={driverRaceStats}
@@ -1273,7 +1300,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             />
           )}
 
-          {activeTab === "career" && (
+          {effectiveTab === "career" && (
             <div className="space-y-5">
               <div>
                 <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Career Statistics</div>
