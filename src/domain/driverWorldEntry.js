@@ -99,7 +99,6 @@ function f1DebutFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverD
 function f1LastYearFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driverDevelopmentHistory=[],driverHistory=[]}={}){
   const direct=yearOf(driver?.career_end_year??driver?.last_f1_season);
   const did=driverId(driver);
-  const statusLast=earliestYear([]); // keeps null semantics explicit below
   const years=[];
 
   if(Number.isInteger(direct))years.push(direct);
@@ -125,7 +124,6 @@ function f1LastYearFromEvidence(driver,{driverYearStatus=[],driverCareer=[],driv
     const year=yearOf(row?.year??row?.season_year);
     if(Number.isInteger(year))years.push(year);
   }
-  void statusLast;
   return years.length?Math.max(...years):null;
 }
 
