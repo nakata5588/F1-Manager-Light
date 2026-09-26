@@ -14,6 +14,7 @@ import {
   createTeamIdentityResolver,
   normalizeTeamIdentityName,
 } from "./teamIdentity.js";
+import { createHistoricalResultTeamResolver } from "./historicalResultTeamResolver.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&!Array.isArray(value)){
@@ -185,6 +186,7 @@ export function createTeamConstructorBridgeResolver({
       .filter(([id,name])=>id!=null&&name)
   );
   const entryIndex=buildEntryIndex(entryRows);
+  const historicalTeamResolver=createHistoricalResultTeamResolver({teams,constructorReference});
   const teamNamesById=new Map();
   for(const team of Array.isArray(teams)?teams:[]){
     const id=canonicalTeamId(first(team,["team_id","constructor_id","id"]));
@@ -200,6 +202,22 @@ export function createTeamConstructorBridgeResolver({
     let entrant=explicitEntrantFromRow(row,teamResolver);
     if(!entrant){
       entrant=entrantFromEntryList({year,driverId,entryIndex,teamResolver});
+    }
+    if(!entrant){
+      const archiveConstructorId=integer(row?.constructorId??row?.constructorID);
+      if(archiveConstructorId!=null){
+        const historical=historicalTeamResolver.resolve(row,{ignoreDirectIds:true});
+        if(historical.known&&historical.id){
+          const resolved=teamResolver.resolve({team_id:historical.id,team_name:historical.name});
+          if(resolved.id){
+            entrant={
+              resolved,
+              basis:"historical_result_resolver",
+              confidence:"MEDIUM",
+            };
+          }
+        }
+      }
     }
     if(!entrant){
       entrant=entrantFromConstructorFamily(constructor,teamResolver);
