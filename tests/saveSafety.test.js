@@ -186,6 +186,34 @@ test("legacy Race Weekend collections normalize before entering the UI", () => {
   assert.equal(weekend.sessions.find((row)=>row.id==="grid")?.type, "grid");
 });
 
+test("legacy Race Weekend grid driver aliases canonicalize to driver_id", () => {
+  const restored = migrateGameState({
+    activeYear: 1980,
+    currentDateISO: "1980-05-18",
+    team: { team_id: "t_williams" },
+    raceWeekendState: {
+      phase: "grid_ready",
+      startingGrid: {
+        rows: {
+          d_0178: { driverId: "d_0178", team_id: "t_williams", grid: 1 },
+          d_0137: { id: "d_0137", team_id: "t_brabham", grid: 2 },
+          d_0199: { driver: { driver_id: "d_0199" }, team_id: "t_lotus", grid: 3 },
+          d_0203: { team_id: "t_renault", grid: 4 },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(
+    restored.raceWeekendState.startingGrid.rows.map((row)=>row.driver_id),
+    ["d_0178","d_0137","d_0199","d_0203"]
+  );
+  assert.deepEqual(
+    restored.raceWeekendState.grid.map((row)=>row.driver_id),
+    ["d_0178","d_0137","d_0199","d_0203"]
+  );
+});
+
 test("legacy array-shaped startingGrid is upgraded to the current rows container", () => {
   const restored = migrateGameState({
     activeYear: 1980,
