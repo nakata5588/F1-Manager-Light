@@ -20,7 +20,7 @@ async function readJson(name,fallback=[]){
   catch{return fallback;}
 }
 
-const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory]=await Promise.all([
+const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory]=await Promise.all([
   readJson("drivers.json",[]),
   readJson("driver_year_status.json",[]),
   readJson("driver_career.json",[]),
@@ -29,7 +29,7 @@ const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory]=await Pro
 
 if(!drivers.length)throw new Error("D7.W1 requires public/data/drivers.json.");
 
-const context={driverYearStatus,driverCareer,driverDevelopmentHistory};
+const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
 const entries=inferDriverWorldEntries(drivers,context);
 const audit=buildDriverWorldEntryAudit(entries,drivers);
 
