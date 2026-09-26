@@ -45,9 +45,11 @@ const [rows,teams,drivers,constructorReference,entryRows]=await Promise.all([
 
 const driverNameToId=new Map();
 const driverArchiveIdToId=new Map();
+const driverIds=new Set();
 for(const driver of drivers){
   const id=String(first(driver,["driver_id","id"],""));
   if(!id)continue;
+  driverIds.add(id);
   const archiveId=Number(first(driver,["driverID_arch","driverId_arch","driverId"],NaN));
   if(Number.isFinite(archiveId))driverArchiveIdToId.set(archiveId,id);
   for(const value of [driver.display_name,driver.driver_name,driver.name,driver.full_name]){
@@ -58,11 +60,11 @@ for(const driver of drivers){
 
 function resolveDriver(row){
   const direct=String(first(row,["driver_id","person_id"],""));
-  if(direct)return direct;
+  if(direct&&driverIds.has(direct))return direct;
   const archiveId=Number(first(row,["driverId","driverID"],NaN));
   if(Number.isFinite(archiveId)&&driverArchiveIdToId.has(archiveId))return driverArchiveIdToId.get(archiveId);
   const name=first(row,["driver_name","display_name","driverName","name"],"");
-  return driverNameToId.get(canon(name))||"";
+  return driverNameToId.get(canon(name))||direct||"";
 }
 
 const bridgeResolver=createTeamConstructorBridgeResolver({
