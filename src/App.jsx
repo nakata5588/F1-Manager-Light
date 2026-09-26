@@ -182,6 +182,7 @@ export default function App() {
         <Route path="/NewGame" element={<NewGame />} />
         <Route path="/CreateTeam" element={<CreateTeam />} />
         <Route path="/LoadGame" element={<LoadGame />} />
+        <Route path="/Settings" element={<Settings />} />
 
         <Route element={<HubLayout />}>
           <Route path="/Home" element={<Home />} />
@@ -196,7 +197,7 @@ export default function App() {
           <Route path="/MyStaff" element={<MyStaff />} />
           <Route path="/Standings" element={<Standings />} />
           <Route path="/Results" element={<Results />} />
-          <Route path="/Settings" element={<Settings />} />
+          <Route path="/GameSettings" element={<Settings embedded />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
           <Route path="/Development" element={<Navigate to="/Car?view=development" replace />} />
           <Route path="/Car" element={<CarPage />} />
