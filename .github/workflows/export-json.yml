@@ -66,6 +66,7 @@ jobs:
         run: |
           node scripts/build-race-results-archive.mjs
           npm run test:talent-evidence:real
+          npm run talent:evidence
 
       - name: Test Drivers cross-system integration
         run: npm run test:driver-integration
