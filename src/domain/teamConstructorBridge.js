@@ -33,7 +33,8 @@ function text(value){
 
 function first(row,keys){
   for(const key of keys){
-    const value=text(row?.[key]);
+    if(!row||!Object.prototype.hasOwnProperty.call(row,key))continue;
+    const value=text(row[key]);
     if(value)return value;
   }
   return "";
