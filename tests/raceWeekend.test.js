@@ -15,7 +15,7 @@ import {
 import { PRACTICE_PROGRAMMES, teamEngineeringSupport, trackSetupProfile } from "../src/engine/PracticeSetupEngine.js";
 import { conditionModifier, practiceWeekendImpact } from "../src/domain/driverPerformance.js";
 import { normalizePhysicalPartState, partUnitById } from "../src/domain/partUnits.js";
-import { normalizeRaceWeekendResumeState, raceWindowForWeekend } from "../src/domain/raceWeekendResume.js";
+import { normalizeRaceWeekendResumeState, raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../src/domain/raceWeekendResume.js";
 
 const gp={
   gp_id:"monaco",
@@ -568,4 +568,24 @@ test("refresh recovery does not reopen a finished Live Race over Results", () =>
 
   assert.equal(resumed, weekend);
   assert.equal(raceWindowForWeekend(resumed), "classification");
+});
+
+
+test("finished live race exposes an explicit finalization gate",()=>{
+  const weekend={
+    phase:"race",
+    active_session_id:"race",
+    live_race:{status:"finished",current_lap:53,current_sector:3,total_laps:53},
+  };
+  assert.equal(raceWeekendCanFinalizeLiveRace(weekend),true);
+  assert.equal(raceWindowForWeekend(weekend),"live");
+
+  assert.equal(raceWeekendCanFinalizeLiveRace({
+    ...weekend,
+    live_race:{...weekend.live_race,status:"running"},
+  }),false);
+  assert.equal(raceWeekendCanFinalizeLiveRace({
+    ...weekend,
+    live_race:{...weekend.live_race,current_lap:52},
+  }),false);
 });
