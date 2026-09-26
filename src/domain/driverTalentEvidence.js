@@ -6,6 +6,7 @@
 // later stages can infer a permanent Talent Profile without annual attributes.
 
 import { historicalResultInfo } from "./historicalRaceStatus.js";
+import { applyDriverTalentNormalization } from "./driverTalentNormalization.js";
 
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const round=(value,digits=4)=>{
@@ -473,7 +474,12 @@ export function buildDriverTalentEvidence({
     .map(acc=>finalizeAccumulator(acc,careerIndex.get(acc.driver_id)))
     .sort((a,b)=>a.driver_id.localeCompare(b.driver_id));
 
-  return attachTalentEvidencePercentiles(finalized);
+  const r1aEvidence=attachTalentEvidencePercentiles(finalized);
+  return applyDriverTalentNormalization({
+    baseEvidence:r1aEvidence,
+    events,
+    carCompetitiveness,
+  });
 }
 
 export function buildDriverTalentEvidenceAudit(rows=[]){
@@ -534,9 +540,9 @@ export function buildDriverTalentEvidenceAudit(rows=[]){
 
   return {
     format:"f1ml-driver-talent-evidence-audit",
-    schema_version:1,
+    schema_version:2,
     generated_at:null,
-    stage:"D7.R1A",
+    stage:"D7.R1B",
     authority:"analysis_only",
     total_drivers:source.length,
     drivers_with_f1_event_records:source.filter(row=>num(row?.sample?.event_records,0)>0).length,
@@ -545,8 +551,18 @@ export function buildDriverTalentEvidenceAudit(rows=[]){
     signal_coverage,
     top_relative_evidence,
     high_evidence_low_confidence,
+    normalization_coverage:{
+      era_normalized:source.filter(row=>Number.isFinite(num(row?.era_normalized_percentiles?.composite,null))).length,
+      opposition_context:source.filter(row=>
+        Number.isFinite(num(row?.opposition_context?.average_teammate_strength,null))||
+        Number.isFinite(num(row?.opposition_context?.average_field_strength,null))
+      ).length,
+    },
     notes:[
       "Comparative evidence percentiles are diagnostics, not gameplay ratings or Talent Profile ceilings.",
+      "R1B normalizes evidence within each season before aggregating careers, reducing cross-era scale bias.",
+      "R1B treats grid-to-finish as an expectation residual and keeps finish quality separate, so front-row drivers are not penalized for having few positions available to gain.",
+      "R1B adjusts teammate comparisons conservatively for inferred opponent strength and records average field strength.",
       "Teammate and car-adjusted signals are reliability-shrunk so tiny samples cannot masquerade as high-confidence talent.",
       "DNFs are retained as context only and are not automatically treated as driver-error or crash-talent evidence.",
       "Wet, technical feedback, leadership and team-player talent are not inferred from race results in D7.R1A without dedicated evidence.",
