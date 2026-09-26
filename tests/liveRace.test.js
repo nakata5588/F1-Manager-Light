@@ -5,7 +5,7 @@ import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
 import { damageStateFromComponents, incidentDamageStateThrough } from "../src/engine/CarDamageEngine.js";
 import { advanceLivePitClock, advanceLiveRace, advanceLiveRaceSector, assessLiveRaceRestart, cancelLiveRaceCommand, createLiveRaceState, fastForwardLiveRaceRestart, finalizedLiveRaceRows, formatRaceIncidentMessage, issueLiveRaceCommand, liveRaceReadyToFinalize, prepareLiveRaceRestart, projectObservedRaceState, restartLiveRaceFromRedFlag, resumeLiveRace } from "../src/engine/LiveRaceEngine.js";
 import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveMeta } from "../src/core/saveSafety.js";
-import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
+import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMarkerLaneOffset, raceMarkerScaleForCamera, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayMs, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 import { liveSectorShares, liveSectorTimesForLap } from "../src/domain/liveSectorPace.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
@@ -1406,6 +1406,25 @@ test("RW6.6 motion duration bridges playback ticks without long idle gaps",()=>{
     assert.ok(motion>=delay,`motion should cover the full ${speed}x playback interval`);
     assert.ok(motion-delay<=100,`motion should not lag far behind at ${speed}x`);
   }
+});
+
+test("Track 2.0 follow zoom counter-scales driver markers instead of magnifying them",()=>{
+  assert.equal(raceMarkerScaleForCamera("fit",9),1);
+  const scale45=raceMarkerScaleForCamera("follow",4.5);
+  const scale9=raceMarkerScaleForCamera("follow",9);
+  assert.ok(scale45<0.3&&scale45>0.2);
+  assert.ok(scale9<scale45);
+  assert.ok(Math.abs((4.5*scale45)-(9*scale9))<0.02,"apparent marker size should stay stable across zoom levels");
+});
+
+test("Track 2.0 follow view only spreads nearby non-selected cars",()=>{
+  assert.equal(raceMarkerLaneOffset(1,{cameraMode:"fit",zoom:5,closeBattle:true}),0);
+  assert.equal(raceMarkerLaneOffset(1,{cameraMode:"follow",zoom:5,closeBattle:false}),0);
+  assert.equal(raceMarkerLaneOffset(1,{cameraMode:"follow",zoom:5,closeBattle:true,selected:true}),0);
+  assert.notEqual(raceMarkerLaneOffset(1,{cameraMode:"follow",zoom:5,closeBattle:true}),0);
+  const offset5=Math.abs(raceMarkerLaneOffset(4,{cameraMode:"follow",zoom:5,closeBattle:true}));
+  const offset10=Math.abs(raceMarkerLaneOffset(4,{cameraMode:"follow",zoom:10,closeBattle:true}));
+  assert.ok(Math.abs((offset5*5)-(offset10*10))<1e-9,"lateral spread should stay screen-space stable");
 });
 
 test("RW6.6 track progress unwrap crosses start-finish in the forward direction",()=>{
