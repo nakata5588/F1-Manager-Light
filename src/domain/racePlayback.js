@@ -21,6 +21,24 @@ export function raceMotionDurationMs(speed,baseSectorMs=30000){
   return Math.max(300,delay+Math.round(80/Math.sqrt(normalized)));
 }
 
+export function raceMarkerScaleForCamera(cameraMode="fit",zoom=1){
+  if(String(cameraMode)!=="follow")return 1;
+  const normalized=Math.max(1,Math.min(12,Number(zoom)||1));
+  // Follow zoom shrinks the SVG viewBox, which would otherwise make driver
+  // markers grow by the same factor on screen. Counter-scale the marker so
+  // its apparent size remains nearly constant while the track itself zooms.
+  return Math.max(0.12,Math.min(0.5,1.15/normalized));
+}
+
+export function raceMarkerLaneOffset(index,{cameraMode="fit",zoom=1,closeBattle=false,selected=false}={}){
+  if(String(cameraMode)!=="follow"||!closeBattle||selected)return 0;
+  const normalized=Math.max(1,Math.min(12,Number(zoom)||1));
+  const slots=[-1,-0.5,0,0.5,1];
+  const slot=slots[Math.abs(Number(index)||0)%slots.length]||0;
+  // Keep the visual spread screen-space stable as the camera zoom changes.
+  return (slot*10)/normalized;
+}
+
 export function raceReferenceSectorMs(rows,currentSector,{fallbackLapMs=90000}={}){
   const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
   const field=`sector_${sector}_ms`;
