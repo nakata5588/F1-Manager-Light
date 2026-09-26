@@ -187,9 +187,10 @@ export const DRIVER_FEEDER_PLACEMENT_DEFAULTS=DEFAULTS;
 
 
 export function feederPlacementRuntimePatch(placement){
-  if(!placement||placement.authority!=="analysis_only"&&placement.stage!=="D7.W2")return null;
+  if(!placement||!(placement.authority==="analysis_only"||placement.stage==="D7.W2"))return null;
   const base={
     feeder_placement:placement.placement,
+    age:num(placement.age,null),
     world_entry_year:num(placement.first_world_year,null),
     reference_f1_debut_year:num(placement.reference_f1_debut_year,null),
     active_lower_series:Boolean(placement.active_pre_f1_world),
