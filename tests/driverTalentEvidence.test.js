@@ -134,6 +134,11 @@ test("every canonical driver receives an evidence row, including drivers without
   assert.equal(none.sample.starts,0);
   assert.equal(none.confidence.band,"INSUFFICIENT");
   assert.ok(none.evidence_flags.includes("NO_F1_RACE_EVIDENCE"));
+  assert.equal(none.era_normalized_percentiles.qualifying,null);
+  assert.equal(none.era_normalized_percentiles.race,null);
+  assert.equal(none.comparative_evidence_percentiles.qualifying,null);
+  assert.equal(none.comparative_evidence_percentiles.race,null);
+  assert.equal(none.comparative_evidence_percentiles.composite,null);
 });
 
 test("R1B remains analysis-only, preserves R1A diagnostics and is deterministic",()=>{
