@@ -44,8 +44,11 @@ test("real historical archive produces one analysis row per canonical driver",as
   }
 
   const audit=buildDriverTalentEvidenceAudit(evidence);
+  assert.equal(audit.stage,"D7.R1B");
   assert.equal(audit.total_drivers,drivers.length);
   assert.ok(audit.top_relative_evidence.length>0);
+  assert.ok(audit.normalization_coverage.era_normalized>100);
+  assert.ok(audit.normalization_coverage.opposition_context>100);
 });
 
 test("well-documented historical stars are recognized as high-confidence evidence cases",async(t)=>{
@@ -67,5 +70,8 @@ test("well-documented historical stars are recognized as high-confidence evidenc
     assert.ok(row.sample.starts>=100,wanted+" should have a large historical race sample");
     assert.equal(row.confidence.band,"HIGH",wanted+" should be a high-confidence evidence case");
     assert.ok(Number.isFinite(row.comparative_evidence_percentiles.composite));
+    assert.ok(Number.isFinite(row.era_normalized_percentiles.composite));
+    assert.ok(row.r1a_comparative_evidence_percentiles);
+    assert.equal(row.normalization_context.stage,"D7.R1B");
   }
 });
