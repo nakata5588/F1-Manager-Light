@@ -8,7 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
-import { raceWindowForWeekend } from "../domain/raceWeekendResume.js";
+import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import Track2DView from "../components/race/Track2DView.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Pause, Play, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
@@ -643,6 +643,7 @@ export default function RaceWeekend(){
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
+  const canFinalizeLiveRace=raceWeekendCanFinalizeLiveRace(weekend);
   const hasActivePitStop=Object.values(liveRace?.pit_states||{}).some((state)=>state?.active);
   const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
@@ -969,6 +970,10 @@ export default function RaceWeekend(){
   const continueRaceWeekend=()=>perform(async()=>{
     await continueWeekend();
   });
+  const finalizeLiveRace=()=>perform(async()=>{
+    const nextWeekend=await runRace();
+    if(String(nextWeekend?.phase||"")==="results")setActiveWindow("classification");
+  });
   const toggleRacePlayback=()=>{
     if(busy||String(liveRace?.status||"")!=="running")return;
     if(racePlaying){
@@ -1055,6 +1060,16 @@ export default function RaceWeekend(){
           <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
           <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
           <button disabled={busy} className="rounded-md bg-slate-100 px-2 py-1.5 text-[9px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1));}}>Finish</button>
+        </div>:canFinalizeLiveRace?<div className="flex shrink-0 items-center gap-2">
+          <span className="hidden rounded border border-emerald-400/20 bg-emerald-500/[0.08] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300 md:inline-flex">Race finished</span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={finalizeLiveRace}
+            className="rounded-md bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-950 hover:bg-white disabled:opacity-50"
+          >
+            {busy?"Finalising…":"View Results"}
+          </button>
         </div>:null}
       </div>
     </nav>
