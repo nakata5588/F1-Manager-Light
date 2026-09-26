@@ -19,9 +19,9 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints, visualTrackProgress } from "../../domain/trackLayout.js";
-import { raceAverageSpeedKmh, raceMarkerLaneOffset, raceMarkerScaleForCamera, raceMotionDurationMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../../domain/racePlayback.js";
-import { buildRaceVisualModel, interpolateVisualGap, visualMotionProgress } from "../../domain/raceVisualModel.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
+import { raceAverageSpeedKmh, raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
+import { advanceVisualTimelineProgress, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -209,108 +209,89 @@ function orderModeValue(row,index,mode){
   return index===0?"LEAD":formatInterval(row?.gap_to_leader_ms);
 }
 
-function useSmoothTrackProgress(target,{duration=700,individualDuration=null,running=false,onFrame=null}={}){
-  const normalizedTarget=Number(target)||0;
-  const currentRef=useRef(normalizedTarget);
-  const targetRef=useRef(normalizedTarget);
-  const frameRef=useRef(null);
-  const onFrameRef=useRef(onFrame);
-  const [display,setDisplay]=useState(normalizedTarget);
-
-  useEffect(()=>{onFrameRef.current=onFrame;},[onFrame]);
+function useVisualRaceTimeline({
+  rows,
+  currentLap,
+  currentSector,
+  referenceLapMs,
+  playbackRunning,
+  playbackSpeed,
+  playbackBaseSectorMs,
+  currentControl,
+}){
+  const snapshotKey=useMemo(
+    ()=>raceVisualSnapshotKey(rows,{currentLap,currentSector}),
+    [rows,currentLap,currentSector]
+  );
+  const previousSnapshotRef=useRef(null);
+  const previousContextRef=useRef(null);
+  const progressRef=useRef(1);
+  const [progress,setProgress]=useState(1);
+  const [timeline,setTimeline]=useState(()=>createVisualRaceTimeline(rows,rows,{
+    previousLap:currentLap,
+    previousSector:currentSector,
+    currentLap,
+    currentSector,
+    referenceLapMs,
+    playbackSpeed,
+    globalSectorMs:playbackBaseSectorMs,
+    currentControl,
+  }));
 
   useEffect(()=>{
-    if(frameRef.current)cancelAnimationFrame(frameRef.current);
-    const from=currentRef.current;
-    const previousTarget=targetRef.current;
-    const to=unwrapTrackProgress(from,normalizedTarget);
-    const previousUnwrapped=unwrapTrackProgress(from,previousTarget);
-    const targetChanged=Math.abs(to-previousUnwrapped)>0.000001;
-    targetRef.current=to;
+    const previousSnapshot=previousSnapshotRef.current;
+    const previousContext=previousContextRef.current;
+    const nextTimeline=createVisualRaceTimeline(previousSnapshot?.rows||rows,rows,{
+      previousLap:previousContext?.lap??currentLap,
+      previousSector:previousContext?.sector??currentSector,
+      currentLap,
+      currentSector,
+      referenceLapMs,
+      playbackSpeed,
+      globalSectorMs:playbackBaseSectorMs,
+      currentControl,
+    });
+    const shouldAnimate=Boolean(
+      previousSnapshot
+      &&previousSnapshot.key!==snapshotKey
+      &&Number(currentLap)>0
+      &&Number(currentSector)>0
+    );
+    previousSnapshotRef.current={
+      key:snapshotKey,
+      rows:(rows||[]).map((row)=>({...row})),
+    };
+    previousContextRef.current={lap:currentLap,sector:currentSector};
+    setTimeline(nextTimeline);
+    progressRef.current=shouldAnimate?0:1;
+    setProgress(shouldAnimate?0:1);
+  // Snapshot changes are the only event that starts a new visual transition.
+  // Speed/pause changes must continue the existing transition without teleporting.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[snapshotKey]);
 
-    if(!running){
-      if(targetChanged){
-        currentRef.current=to;
-        setDisplay(to);
-        onFrameRef.current?.(to);
-      }
-      return undefined;
-    }
-
-    if(Math.abs(to-from)<0.000001){
-      onFrameRef.current?.(from);
-      return undefined;
-    }
-
-    const started=performance.now();
-    const motionDuration=Math.max(1,Number(duration)||700);
+  const durationMs=racePlaybackDelayMs(playbackSpeed,playbackBaseSectorMs);
+  useEffect(()=>{
+    if(!playbackRunning||progressRef.current>=1)return undefined;
+    let frame=null;
+    let previousTime=performance.now();
     const tick=(now)=>{
-      const t=Math.min(1,(now-started)/motionDuration);
-      const visualT=visualMotionProgress(t,{
-        individualDurationMs:individualDuration??motionDuration,
-        globalDurationMs:motionDuration,
+      const delta=Math.max(0,now-previousTime);
+      previousTime=now;
+      const next=advanceVisualTimelineProgress(progressRef.current,{
+        deltaMs:delta,
+        durationMs,
+        running:true,
       });
-      const value=from+(to-from)*visualT;
-      currentRef.current=value;
-      setDisplay(value);
-      onFrameRef.current?.(value);
-      if(t<1)frameRef.current=requestAnimationFrame(tick);
+      progressRef.current=next;
+      setProgress(next);
+      if(next<1)frame=requestAnimationFrame(tick);
     };
-    frameRef.current=requestAnimationFrame(tick);
-    return ()=>{if(frameRef.current)cancelAnimationFrame(frameRef.current);};
-  },[normalizedTarget,running,duration,individualDuration]);
+    frame=requestAnimationFrame(tick);
+    return ()=>{if(frame)cancelAnimationFrame(frame);};
+  },[playbackRunning,durationMs,timeline]);
 
-  return display;
-}
-
-function useSmoothNumber(target,{duration=700,running=false}={}){
-  const normalized=target==null?NaN:Number(target);
-  const valid=Number.isFinite(normalized);
-  const currentRef=useRef(valid?normalized:null);
-  const targetRef=useRef(valid?normalized:null);
-  const frameRef=useRef(null);
-  const [display,setDisplay]=useState(valid?normalized:null);
-
-  useEffect(()=>{
-    if(frameRef.current)cancelAnimationFrame(frameRef.current);
-    const next=target==null?NaN:Number(target);
-    if(!Number.isFinite(next)){
-      currentRef.current=null;
-      targetRef.current=null;
-      setDisplay(null);
-      return undefined;
-    }
-    const from=currentRef.current==null?next:Number(currentRef.current);
-    const previousTarget=targetRef.current;
-    const changed=previousTarget==null||!Number.isFinite(Number(previousTarget))||Math.abs(next-Number(previousTarget))>0.001;
-    targetRef.current=next;
-
-    if(!running||!changed){
-      currentRef.current=next;
-      setDisplay(next);
-      return undefined;
-    }
-
-    const started=performance.now();
-    const motionDuration=Math.max(1,Number(duration)||700);
-    const tick=(now)=>{
-      const t=Math.min(1,(now-started)/motionDuration);
-      const value=interpolateVisualGap(from,next,t);
-      currentRef.current=value;
-      setDisplay(value);
-      if(t<1)frameRef.current=requestAnimationFrame(tick);
-    };
-    frameRef.current=requestAnimationFrame(tick);
-    return ()=>{if(frameRef.current)cancelAnimationFrame(frameRef.current);};
-  },[target,running,duration]);
-
-  return display;
-}
-
-function AnimatedGapValue({target,leader=false,retired=false,running=false,duration=700,className=""}){
-  const display=useSmoothNumber(target,{duration,running});
-  const text=retired?"DNF":leader?"LEAD":formatInterval(display);
-  return <span className={className}>{text}</span>;
+  return useMemo(()=>visualRaceTimelineFrame(timeline,progress),[timeline,progress]);
 }
 
 function AnimatedMarker({
@@ -326,17 +307,14 @@ function AnimatedMarker({
   markerScale=1,
   laneOffset=0,
   onSelect,
-  motionRunning=false,
-  motionDuration=700,
-  individualMotionDuration=null,
   onVisualProgress=null,
 }){
-  const display=useSmoothTrackProgress(progress,{
-    duration:motionDuration,
-    individualDuration:individualMotionDuration,
-    running:motionRunning,
-    onFrame:onVisualProgress,
-  });
+  const display=Number(progress)||0;
+
+  useEffect(()=>{
+    onVisualProgress?.(display);
+  },[display,onVisualProgress]);
+
   const trackPoint=pointAtTrackProgress(geometry,display);
   if(!trackPoint)return null;
 
@@ -501,22 +479,25 @@ export default function Track2DView({
   const geometry=resolved.geometry;
   const displayGeometry=useMemo(()=>orientTrackGeometry(geometry),[geometry]);
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
-  const activeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
-  const referenceLapMs=activeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
+  const authoritativeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
+  const referenceLapMs=authoritativeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
+  const visualFrame=useVisualRaceTimeline({
+    rows:authoritativeRows,
+    currentLap,
+    currentSector,
+    referenceLapMs,
+    playbackRunning,
+    playbackSpeed,
+    playbackBaseSectorMs,
+    currentControl,
+  });
+  const activeRows=visualFrame.rows;
   const [cameraMode,setCameraMode]=useState("fit");
   const [followZoom,setFollowZoom]=useState(5.25);
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
-  const motionDuration=raceMotionDurationMs(playbackSpeed,playbackBaseSectorMs);
   const markerScale=raceMarkerScaleForCamera(cameraMode,followZoom);
-  const visualModel=useMemo(()=>buildRaceVisualModel(activeRows,{
-    currentSector:Math.max(1,Number(currentSector)||1),
-    playbackSpeed,
-    globalSectorMs:playbackBaseSectorMs,
-    currentControl,
-  }),[activeRows,currentSector,playbackSpeed,playbackBaseSectorMs,currentControl]);
-  const visualByDriver=useMemo(()=>new globalThis.Map(visualModel.map((row)=>[String(row.driver_id),row])),[visualModel]);
   const averageSpeedKmh=raceAverageSpeedKmh(lapLengthKm,referenceLapMs);
 
   useEffect(()=>{
@@ -526,9 +507,8 @@ export default function Track2DView({
 
   const resolvedSelectedId=String(selectedDriverId||"");
   const selectedRow=activeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||null;
-  const selectedIndex=Math.max(0,activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId));
   const selectedVisibleOnTrack=selectedRow?retiredCarVisibleOnTrack(selectedRow,{currentLap,currentSector,currentControl}):false;
-  const selectedProgress=selectedRow&&selectedVisibleOnTrack?visualTrackProgress(selectedRow,{currentLap,currentSector,referenceLapMs,index:selectedIndex}):null;
+  const selectedProgress=selectedRow&&selectedVisibleOnTrack?Number(selectedRow?.visual_track_progress):null;
   const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
   const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
     ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
@@ -696,8 +676,7 @@ export default function Track2DView({
             const selected=did===resolvedSelectedId;
             const visibleOnTrack=retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl});
             if(!visibleOnTrack)return null;
-            const progress=visualTrackProgress(row,{currentLap,currentSector,referenceLapMs,index});
-            const visualRow=visualByDriver.get(did);
+            const progress=Number(row?.visual_track_progress)||0;
             const palette=markerPalette(teamBrands,tid,year);
             const previousGap=Number(row?.interval_ms);
             const nextGap=Number(activeRows[index+1]?.interval_ms);
@@ -724,9 +703,6 @@ export default function Track2DView({
               laneOffset={laneOffset}
               onSelect={()=>selectDriver(did)}
               retired={Boolean(row?.retired)}
-              motionRunning={Boolean(playbackRunning)}
-              motionDuration={motionDuration}
-              individualMotionDuration={visualRow?.motion_duration_ms??motionDuration}
               onVisualProgress={selected?followSelectedVisualProgress:null}
               title={`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`}
             />;
@@ -808,23 +784,13 @@ export default function Track2DView({
               <span className="text-right text-[10px] font-black italic leading-none text-slate-100">{row?.position??index+1}</span>
               <span className="flex items-center justify-center"><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/></span>
               <span className={`truncate text-[10px] font-black leading-none tracking-[0.04em] ${mine?"text-amber-200":"text-slate-100"}`}>{shortDriverName(drivers,did)}</span>
-              <AnimatedGapValue
-                target={row?.gap_to_leader_ms}
-                leader={index===0}
-                retired={Boolean(row?.retired)}
-                running={Boolean(playbackRunning)}
-                duration={motionDuration}
-                className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}
-              />
+              <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}>
+                {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.gap_to_leader_ms)}
+              </span>
               <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={12}/></span>
-              <AnimatedGapValue
-                target={row?.interval_ms??row?.gap_to_previous_ms}
-                leader={index===0}
-                retired={Boolean(row?.retired)}
-                running={Boolean(playbackRunning)}
-                duration={motionDuration}
-                className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}
-              />
+              <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}>
+                {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.interval_ms??row?.gap_to_previous_ms)}
+              </span>
             </button>;
           })}
           {!activeRows.length?<div className="px-2 py-6 text-center text-xs text-slate-600">Cars are forming on the grid.</div>:null}
@@ -869,7 +835,7 @@ export default function Track2DView({
           </div>
           {selectedRow?<div className="rounded border border-white/10 bg-white/[0.035] px-2 py-1.5">
             <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
-            <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><AnimatedGapValue target={selectedRow?.gap_to_leader_ms} leader={Number(selectedRow.position)===1} retired={Boolean(selectedRow.retired)} running={Boolean(playbackRunning)} duration={motionDuration}/></div>
+            <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><span>{selectedRow?.retired?"DNF":Number(selectedRow.position)===1?"LEAD":formatInterval(selectedRow?.gap_to_leader_ms)}</span></div>
             <div className="mt-1 flex items-center gap-1"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={15}/><span className="text-[8px] text-slate-400">{selectedRow?.tyre?.compound||"—"} · {Number.isFinite(Number(selectedRow?.tyre?.condition))?Number(selectedRow.tyre.condition).toFixed(0)+"%":"—"}</span></div>
           </div>:null}
         </div>
