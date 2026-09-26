@@ -55,7 +55,7 @@ export function runDailyTickPipeline(state, { stages = DEFAULT_DAILY_TICK_STAGES
   }
 
   const dateISO = String(state.currentDateISO || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateISO)) {
     throw new TypeError("runDailyTickPipeline requires gameState.currentDateISO.");
   }
 
