@@ -416,95 +416,11 @@ export function materializeSeasonPack(globalData,yearInput){
     );
   }
 
-  const assignedDrivers=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
-  const historicalPoolForTeam=(tid)=>{
-    const ranked=new Map();
-    for(const row of seasonRows.filter((r)=>teamId(r)===tid)){
-      const details=Array.isArray(row.drivers)&&row.drivers.length
-        ? row.drivers
-        : (Array.isArray(row.driver_ids)?row.driver_ids.map((id,index)=>({driver_id:id,first_source_index:index,appearances:0})):[]);
-      for(const rec of details){
-        const id=String(rec?.driver_id||"");
-        if(!id)continue;
-        const prev=ranked.get(id);
-        const score={
-          driver_id:id,
-          first_round:Number.isFinite(Number(rec?.first_round))?Number(rec.first_round):999,
-          first_source_index:Number.isFinite(Number(rec?.first_source_index))?Number(rec.first_source_index):999999,
-          appearances:Number(rec?.appearances||0),
-        };
-        if(!prev || score.first_round<prev.first_round || (score.first_round===prev.first_round && score.first_source_index<prev.first_source_index)) ranked.set(id,score);
-      }
-    }
-    for(const row of f1Career.filter((r)=>teamId(r)===tid)){
-      const id=driverId(row);
-      if(id&&!ranked.has(id))ranked.set(id,{driver_id:id,first_round:998,first_source_index:999998,appearances:Number(pick(row,["races","starts"],0))||0});
-    }
-    return [...ranked.values()]
-      .sort((a,b)=>a.first_round-b.first_round || a.first_source_index-b.first_source_index || b.appearances-a.appearances || a.driver_id.localeCompare(b.driver_id))
-      .map((x)=>x.driver_id);
-  };
-
-  const addBootstrapContract=(tid,did,source)=>{
-    const teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
-    const role=teamContracts.length===0?"Main Driver":"Second Driver";
-    contracts.push({
-      year,
-      team_id:tid,
-      team_name:teamNameById.get(tid)||tid,
-      driver_id:did,
-      driver_name:driverNameForBootstrap(did),
-      role,
-      status:"active",
-      contract_start_year:year,
-      contract_until_year:year,
-      synthetic:true,
-      source,
-    });
-    assignedDrivers.add(did);
-  };
-
-  if(!hasOpeningState){
-    for(const tid of teamIds){
-      let teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
-      const historicalCandidates=historicalPoolForTeam(tid);
-    for(const did of historicalCandidates){
-      if(teamContracts.length>=2)break;
-      if(assignedDrivers.has(did))continue;
-        addBootstrapContract(tid,did,"season_results_bootstrap");
-        teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
-      }
-    }
-
-    // Last-resort playable-grid bootstrap. This should only be used when the
-  // historical source lacks a resolvable second seat.
-  const bootstrapRatings=new Map(
-    driverRatingsForSeason(g,year,null).map((r)=>[driverId(r),r])
-  );
-  const fallbackDrivers=(g.drivers||[])
-    .filter((d)=>{
-      const id=driverId(d);
-      if(!id||assignedDrivers.has(id))return false;
-      const debut=asNum(pick(d,["f1_rookie_season","f1_debut_year"],NaN),NaN);
-      const end=asNum(pick(d,["career_end_year","last_f1_season"],Infinity),Infinity);
-      const death=asNum(String(pick(d,["death_date"],"")).slice(0,4),Infinity);
-      return Number.isFinite(debut)&&debut<=year&&year<=end&&year<death;
-    })
-    .sort((a,b)=>{
-      const ar=asNum(pick(bootstrapRatings.get(driverId(a))||{},["current_ability","pace"],0),0);
-      const br=asNum(pick(bootstrapRatings.get(driverId(b))||{},["current_ability","pace"],0),0);
-      return br-ar || driverId(a).localeCompare(driverId(b));
-    });
-  for(const tid of teamIds){
-    let teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
-    while(teamContracts.length<2){
-      const next=fallbackDrivers.find((d)=>!assignedDrivers.has(driverId(d)));
-      if(!next)break;
-        addBootstrapContract(tid,driverId(next),"ai_grid_bootstrap");
-        teamContracts=contracts.filter((r)=>teamId(r)===tid && isRaceDriverContract(r));
-      }
-    }
-  }
+  // Historical Starting Conditions -> Dynamic Alternative Future:
+  // New Game preserves the contracts that exist on the opening date.
+  // Do NOT fill vacant seats from later-season Results or from strong free
+  // agents. Once the Save World starts, MarketEngine handles AI recruitment
+  // through normal negotiations.
 
   const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const gridDriverIds=new Set(contractedDriverIds);

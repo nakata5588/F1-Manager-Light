@@ -37,7 +37,7 @@ function discoverForRegion(gs,zone,assignmentId){
   }).sort((a,b)=>b.score-a.score).slice(0,amount).map(x=>x.id);
 }
 
-function buildDriverReport(gs,driverId){
+function buildDriverReport(gs,driverId,depth="deep"){
   const d=(gs?.drivers||[]).find(x=>idOf(x)===String(driverId));
   const r=(gs?.driverRatings||[]).find(x=>idOf(x)===String(driverId))||{};
   if(!d)return {subject:"Scouting report completed",body:"The scouting assignment is complete, but the driver record is no longer available."};
@@ -45,9 +45,12 @@ function buildDriverReport(gs,driverId){
   const ability=pick(r,["current_ability","overall","pace"],"unknown");
   const potential=pick(r,["potential_ability","potential"],"unknown");
   const age=Number.isFinite(Number(d.age))?d.age:"—";
+  const deep=String(depth||"deep").toLowerCase()==="deep";
   return {
-    subject:`Scouting report — ${name}`,
-    body:`${name} · Age ${age} · ${driverCountry(d)||"Unknown nationality"}\n\nCurrent Ability: ${ability}\nPotential: ${potential}\nSeries: ${d.lower_series_name||"Lower Series"}\n\nThe full report is now available in Scouting → Prospects.`,
+    subject:`${deep?"Deep":"Light"} scouting report — ${name}`,
+    body:deep
+      ?`${name} · Age ${age} · ${driverCountry(d)||"Unknown nationality"}\n\nCurrent Ability: ${ability}\nPotential: ${potential}\nSeries: ${d.lower_series_name||"Lower Series"}\n\nThe full report is now available in the driver profile.`
+      :`${name} · Age ${age} · ${driverCountry(d)||"Unknown nationality"}\n\nThe light report is complete. Overall and attribute estimate ranges have been narrowed. Potential remains an estimate. Commission Deep scouting for exact current ratings and the full potential assessment.`,
   };
 }
 
@@ -84,7 +87,7 @@ export function processScoutingTick(gs){
       return {...a,status:"completed",completed_at:today,discovered_ids,report_delivered:true};
     }
 
-    const report=buildDriverReport(gs,a.prospect_id);
+    const report=buildDriverReport(gs,a.prospect_id,a.depth||"deep");
     messages.push({
       id:`scouting_report_${a.id}`,
       date:today,

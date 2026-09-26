@@ -4,6 +4,7 @@
 // presentation layer so hidden information is not leaked accidentally.
 
 import { activeDriverContract, driverIdOf, teamIdOf } from "./driverContracts.js";
+import { driverScoutingFamiliarity } from "./scoutingPolicy.js";
 
 const unwrap=(value)=>{
   if(value&&typeof value==="object"&&!Array.isArray(value)){
@@ -52,11 +53,16 @@ function academySupported(gs,driverId){
   );
 }
 function completedSpecificReport(gs,driverId){
-  return asRows(gs?.scouting?.assignments)
+  const completed=asRows(gs?.scouting?.assignments)
     .filter((row)=>String(row?.status||"").toLowerCase()==="completed")
     .filter((row)=>String(row?.mode||"driver").toLowerCase()!=="region")
     .filter((row)=>sameDriver(row?.prospect_id??row?.driver_id,driverId))
-    .sort((a,b)=>String(b?.completed_at||b?.finishes_at||"").localeCompare(String(a?.completed_at||a?.finishes_at||"")))[0]||null;
+    .sort((a,b)=>String(b?.completed_at||b?.finishes_at||"").localeCompare(String(a?.completed_at||a?.finishes_at||"")));
+  // Knowledge is cumulative: once a Deep report has unlocked exact current
+  // ratings, a later Light report must never downgrade that knowledge.
+  return completed.find((row)=>String(row?.depth||row?.scouting_depth||"deep").toLowerCase()!=="light")
+    ||completed[0]
+    ||null;
 }
 function completedRegionalDiscovery(gs,driverId){
   return asRows(gs?.scouting?.assignments)
@@ -99,6 +105,7 @@ export const DRIVER_KNOWLEDGE_LEVELS=Object.freeze({
   OWN:"own",
   ACADEMY:"academy",
   SCOUTED:"scouted",
+  SCOUTED_LIGHT:"scouted_light",
   DISCOVERED:"discovered",
   PUBLIC:"public",
   UNKNOWN:"unknown",
@@ -111,6 +118,8 @@ export function driverKnowledgeState(gs,driverOrId){
   const myTeam=playerTeamId(gs);
   const specific=completedSpecificReport(gs,driverId);
   const regional=completedRegionalDiscovery(gs,driverId);
+  const specificDepth=String(specific?.depth||specific?.scouting_depth||"deep").toLowerCase();
+  const familiarity=driverScoutingFamiliarity(gs,driver||driverId);
   const isOwn=Boolean(contract&&myTeam&&String(teamIdOf(contract))===myTeam);
   const isAcademy=academySupported(gs,driverId);
 
@@ -126,10 +135,14 @@ export function driverKnowledgeState(gs,driverOrId){
     level=DRIVER_KNOWLEDGE_LEVELS.ACADEMY;
     source="academy";
     label="Academy data";
+  }else if(specific&&specificDepth==="light"){
+    level=DRIVER_KNOWLEDGE_LEVELS.SCOUTED_LIGHT;
+    source="driver_report_light";
+    label="Light scout report";
   }else if(specific){
     level=DRIVER_KNOWLEDGE_LEVELS.SCOUTED;
-    source="driver_report";
-    label="Full scout report";
+    source="driver_report_deep";
+    label="Deep scout report";
   }else if(regional){
     level=DRIVER_KNOWLEDGE_LEVELS.DISCOVERED;
     source="regional_report";
@@ -146,15 +159,22 @@ export function driverKnowledgeState(gs,driverOrId){
     DRIVER_KNOWLEDGE_LEVELS.SCOUTED,
   ].includes(level);
   const rangedAbility=[
+    DRIVER_KNOWLEDGE_LEVELS.SCOUTED_LIGHT,
     DRIVER_KNOWLEDGE_LEVELS.DISCOVERED,
     DRIVER_KNOWLEDGE_LEVELS.PUBLIC,
+    DRIVER_KNOWLEDGE_LEVELS.UNKNOWN,
   ].includes(level);
   const exactPotential=[
     DRIVER_KNOWLEDGE_LEVELS.OWN,
     DRIVER_KNOWLEDGE_LEVELS.ACADEMY,
     DRIVER_KNOWLEDGE_LEVELS.SCOUTED,
   ].includes(level);
-  const rangedPotential=level===DRIVER_KNOWLEDGE_LEVELS.DISCOVERED;
+  const rangedPotential=[
+    DRIVER_KNOWLEDGE_LEVELS.SCOUTED_LIGHT,
+    DRIVER_KNOWLEDGE_LEVELS.DISCOVERED,
+    DRIVER_KNOWLEDGE_LEVELS.PUBLIC,
+    DRIVER_KNOWLEDGE_LEVELS.UNKNOWN,
+  ].includes(level);
 
   return {
     driver_id:String(driverId),
@@ -176,6 +196,7 @@ export function driverKnowledgeState(gs,driverOrId){
     canSeeExactPotential:exactPotential,
     specificReport:specific,
     regionalReport:regional,
+    familiarity,
   };
 }
 
@@ -189,28 +210,30 @@ function stableHash(text){
 }
 function rangeFor(knowledge,field,value,kind){
   const raw=clamp(Math.round(Number(value)),0,100);
+  const familiarity=Number(knowledge?.familiarity?.score||0);
   let span;
-  if(kind==="potential")span=14;
-  else if(knowledge.level===DRIVER_KNOWLEDGE_LEVELS.PUBLIC)span=6;
-  else span=10;
 
-  span=Math.max(2,Math.min(20,span));
-  const left=1+(stableHash(`${knowledge.driver_id}:${field}:${knowledge.level}`)%(span-1));
+  if(knowledge?.level===DRIVER_KNOWLEDGE_LEVELS.SCOUTED_LIGHT){
+    span=kind==="potential"?9:4;
+  }else if(knowledge?.level===DRIVER_KNOWLEDGE_LEVELS.DISCOVERED){
+    span=kind==="potential"?15:10;
+  }else if(knowledge?.level===DRIVER_KNOWLEDGE_LEVELS.PUBLIC){
+    const publicSpan=familiarity>=82?4:familiarity>=65?6:familiarity>=45?8:10;
+    span=kind==="potential"?publicSpan+6:publicSpan;
+  }else{
+    const unknownSpan=familiarity>=60?10:familiarity>=35?13:17;
+    span=kind==="potential"?unknownSpan+6:unknownSpan;
+  }
+
+  span=Math.max(2,Math.min(24,Math.round(span)));
+  const left=1+(stableHash(`${knowledge.driver_id}:${field}:${knowledge.level}`)%Math.max(1,span-1));
   let min=raw-left;
   min=Math.max(0,Math.min(100-span,min));
   let max=min+span;
 
-  // Never make the exact value trivially recoverable as the midpoint of a
-  // displayed estimate range. Keep the real value inside the interval while
-  // shifting the range when necessary.
   if((min+max)/2===raw){
-    if(max<100){
-      min+=1;
-      max+=1;
-    }else if(min>0){
-      min-=1;
-      max-=1;
-    }
+    if(max<100){min+=1;max+=1;}
+    else if(min>0){min-=1;max-=1;}
   }
   return {min,max};
 }

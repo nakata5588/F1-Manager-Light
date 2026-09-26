@@ -157,6 +157,26 @@ test("constructor-family fallback groups technical variants without rewriting co
   assert.deepEqual(grouped[0].constructor_names,["Lotus-BRM","Lotus-Climax"]);
 });
 
+test("team-season bridge keeps exact technical identity separate from estimated constructor-family evidence",()=>{
+  const exact={
+    year:1980,team_id:"t_0005",team_name:"Lotus",
+    constructor_id:"t_lotus",constructor_name:"Lotus-Ford",
+    chassis_name:"Lotus",engine_name:"Ford",exact_entrant:true,
+    relation_basis:"entry_list_driver",confidence:"HIGH",
+  };
+  const estimated={
+    year:1980,team_id:"t_0005",team_name:"Lotus",
+    constructor_id:"t_other",constructor_name:"Shadow-Ford",
+    chassis_name:"Shadow",engine_name:"Ford",exact_entrant:false,
+    relation_basis:"historical_result_resolver",confidence:"MEDIUM",
+  };
+  const grouped=groupBridgeByTeamSeason([exact,estimated]);
+  assert.equal(grouped.length,1);
+  assert.deepEqual(grouped[0].exact_chassis_names,["Lotus"]);
+  assert.deepEqual(grouped[0].exact_constructor_names,["Lotus-Ford"]);
+  assert.deepEqual(grouped[0].chassis_names,["Lotus","Shadow"]);
+});
+
 test("technical constructor parsing does not claim an entrant identity",()=>{
   assert.deepEqual(constructorTechnicalIdentity("BRP-BRM"),{
     constructor_name:"BRP-BRM",

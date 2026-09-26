@@ -100,6 +100,10 @@ for(const row of Array.isArray(rows)?rows:[]){
       constructor_names:new Set(),
       chassis_names:new Set(),
       engine_names:new Set(),
+      exact_constructor_ids:new Set(),
+      exact_constructor_names:new Set(),
+      exact_chassis_names:new Set(),
+      exact_engine_names:new Set(),
       relation_basis:new Set(),
       confidence:new Set(),
       exact_entrant_rows:0,
@@ -134,6 +138,12 @@ for(const row of Array.isArray(rows)?rows:[]){
   if(link.constructor_name)rec.constructor_names.add(String(link.constructor_name));
   if(link.chassis_name)rec.chassis_names.add(String(link.chassis_name));
   if(link.engine_name)rec.engine_names.add(String(link.engine_name));
+  if(link.exact_entrant){
+    if(link.constructor_id)rec.exact_constructor_ids.add(String(link.constructor_id));
+    if(link.constructor_name)rec.exact_constructor_names.add(String(link.constructor_name));
+    if(link.chassis_name)rec.exact_chassis_names.add(String(link.chassis_name));
+    if(link.engine_name)rec.exact_engine_names.add(String(link.engine_name));
+  }
   if(link.relation_basis)rec.relation_basis.add(String(link.relation_basis));
   if(link.confidence)rec.confidence.add(String(link.confidence));
   if(link.exact_entrant)rec.exact_entrant_rows+=1;
@@ -164,6 +174,10 @@ const output=[...byKey.values()]
     constructor_names:[...row.constructor_names].sort(),
     chassis_names:[...row.chassis_names].sort(),
     engine_names:[...row.engine_names].sort(),
+    exact_constructor_ids:[...row.exact_constructor_ids].sort(),
+    exact_constructor_names:[...row.exact_constructor_names].sort(),
+    exact_chassis_names:[...row.exact_chassis_names].sort(),
+    exact_engine_names:[...row.exact_engine_names].sort(),
     constructor_count:row.constructor_ids.size||row.constructor_names.size,
     relation_basis:[...row.relation_basis].sort(),
     identity_confidence:[...row.confidence].sort(),

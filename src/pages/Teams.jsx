@@ -24,6 +24,7 @@ export default function Teams(){
   const career=gs?.dbDriverCareer||[];
   const achievements=Array.isArray(gs?.dbAchievements)?gs.dbAchievements:(gs?.dbAchievements?.list||[]);
   const teamSeasons=Array.isArray(gs?.dbTeamSeasons)?gs.dbTeamSeasons:[];
+  const teamEngines=Array.isArray(gs?.dbTeamEngines)?gs.dbTeamEngines:[];
 
   const rows=useMemo(()=>{
     const y=Number(year);
@@ -111,6 +112,13 @@ export default function Teams(){
       const exactEntrantRows=Number(pick(seasonRec,["exact_entrant_rows"],0))||0;
       const estimatedRows=Number(pick(seasonRec,["estimated_rows"],0))||0;
       const historicalDriverCount=Number(pick(seasonRec,["driver_count"],0))||0;
+      const exactConstructors=Array.isArray(seasonRec?.exact_constructor_names)?seasonRec.exact_constructor_names:[];
+      const exactChassis=Array.isArray(seasonRec?.exact_chassis_names)?seasonRec.exact_chassis_names:[];
+      const exactEngines=Array.isArray(seasonRec?.exact_engine_names)?seasonRec.exact_engine_names:[];
+      const engineRec=teamEngines.find((row)=>
+        Number(pick(row,["year","season_year"],NaN))===y&&teamIdOf(row)===id
+      )||{};
+      const detailedEngine=String(pick(engineRec,["engine_name","power_unit","engine_supplier","supplier"],"")||"").trim();
       const fallbackCareerDriverCount=career.filter((r)=>
         Number(pick(r,["year"],NaN))===y &&
         String(pick(r,["series_division"],"")).toUpperCase()==="F1" &&
@@ -135,14 +143,16 @@ export default function Teams(){
         staffRoles,
         staffAssignments,
         reputation:y===currentYear?teamReputation(gs,id):null,
-        constructors:Array.isArray(seasonRec?.constructor_names)?seasonRec.constructor_names:[],
-        chassis:Array.isArray(seasonRec?.chassis_names)?seasonRec.chassis_names:[],
-        engines:Array.isArray(seasonRec?.engine_names)?seasonRec.engine_names:[],
+        // Estimated constructor-family reconciliation is useful for
+        // participation, but is not safe enough to display as the Team's car.
+        constructors:exactChassis.length?exactChassis:exactConstructors,
+        chassis:exactChassis,
+        engines:detailedEngine?[detailedEngine]:exactEngines,
         identityConfidence:Array.isArray(seasonRec?.identity_confidence)?seasonRec.identity_confidence:[],
         estimatedIdentity:hasSeasonAuthority&&estimatedRows>0&&exactEntrantRows===0,
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
-  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,year,currentYear,gs]);
+  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,teamEngines,year,currentYear,gs]);
 
   const filtered=rows.filter(r=>!q||[`${r.name}`,`${r.country}`,`${r.principal}`].some(v=>v.toLowerCase().includes(q.toLowerCase())));
 

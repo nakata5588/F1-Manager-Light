@@ -68,16 +68,16 @@ for(const year of targetYears){
 
     const driverContracts=(state.contracts||[]).filter(isRaceDriverContract);
     const assignedDriverIds=new Set();
-    for(const team of state.teams){
-      const tid=String(team.team_id);
-      const seats=driverContracts.filter((row)=>String(row.team_id)===tid);
-      assert.ok(seats.length>=2,`${year} team ${tid} must start with at least two drivers, found ${seats.length}`);
-      for(const seat of seats.slice(0,2)){
-        const did=String(seat.driver_id);
-        assert.equal(assignedDriverIds.has(did),false,`${year} driver ${did} cannot occupy two starting teams`);
-        assignedDriverIds.add(did);
-      }
+    for(const seat of driverContracts){
+      const did=String(seat.driver_id);
+      assert.equal(assignedDriverIds.has(did),false,`${year} driver ${did} cannot occupy two starting teams`);
+      assignedDriverIds.add(did);
     }
+    assert.equal(
+      (state.contracts||[]).some((row)=>["season_results_bootstrap","ai_grid_bootstrap"].includes(String(row?.source||""))),
+      false,
+      `${year} New Game must not invent Jan-1 driver contracts`
+    );
 
     for(const race of state.calendar||[]){
       for(const forbidden of ["winner","winner_id","winner_driver_id","winner_team_id","race_winner","classification","results"]){
@@ -115,7 +115,7 @@ test("1980 Shadow keeps test drivers separate from its two race seats",async()=>
   const contracts=(pack.state.contracts||[]).filter((c)=>String(c.team_id)===String(shadow.team_id));
   const raceSeats=contracts.filter(isRaceDriverContract);
   const testDrivers=contracts.filter((c)=>/test|reserve/i.test(String(c.role||"")));
-  assert.ok(raceSeats.length>=2,"Shadow must have two race seats, found "+raceSeats.length);
+  assert.equal(raceSeats.length,1,"Shadow must preserve its single known Jan-1 race seat instead of inventing a second signing");
   assert.ok(testDrivers.length>=1,"Shadow test-driver contract should remain available without occupying a race seat");
   assert.equal(raceSeats.some((c)=>String(c.driver_id)==="d_0862"),false,"David Kennedy test_driver must not be treated as a race seat");
 });

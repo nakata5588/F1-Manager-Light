@@ -120,6 +120,23 @@ test("opening state is authoritative and blocks season-outcome grid leakage",()=
   assert.equal(d1.role,"Main Driver","opening role must override stale test-driver contract metadata");
 });
 
+test("missing opening-state coverage preserves known Jan-1 contracts and leaves vacancies for AI negotiation",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[
+    {year:1980,team_id:"T1",team_name:"Canonical Team",driver_id:"D1",role:"main_driver"},
+  ];
+  const pack=materializeSeasonPack(data,1980);
+  const raceContracts=pack.state.contracts.filter((c)=>/main|second|race/i.test(String(c.role||"")));
+  assert.equal(raceContracts.length,1);
+  assert.equal(String(raceContracts[0].driver_id),"D1");
+  assert.equal(
+    pack.state.contracts.some((c)=>["season_results_bootstrap","ai_grid_bootstrap"].includes(String(c.source||""))),
+    false,
+    "future Results/free-agent strength must never create Jan-1 contracts"
+  );
+});
+
 test("opening market policy is honest and scoped to the New Game season",()=>{
   const pack=materializeSeasonPack(fixture(),1980);
   const prospect=pack.state.drivers.find((d)=>d.driver_id==="P1");

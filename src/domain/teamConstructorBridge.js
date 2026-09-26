@@ -276,6 +276,10 @@ export function groupBridgeByTeamSeason(rows){
         constructor_names:new Set(),
         chassis_names:new Set(),
         engine_names:new Set(),
+        exact_constructor_ids:new Set(),
+        exact_constructor_names:new Set(),
+        exact_chassis_names:new Set(),
+        exact_engine_names:new Set(),
         relation_basis:new Set(),
         confidence:new Set(),
       });
@@ -285,6 +289,12 @@ export function groupBridgeByTeamSeason(rows){
     if(row?.constructor_name)rec.constructor_names.add(String(row.constructor_name));
     if(row?.chassis_name)rec.chassis_names.add(String(row.chassis_name));
     if(row?.engine_name)rec.engine_names.add(String(row.engine_name));
+    if(row?.exact_entrant){
+      if(row?.constructor_id)rec.exact_constructor_ids.add(String(row.constructor_id));
+      if(row?.constructor_name)rec.exact_constructor_names.add(String(row.constructor_name));
+      if(row?.chassis_name)rec.exact_chassis_names.add(String(row.chassis_name));
+      if(row?.engine_name)rec.exact_engine_names.add(String(row.engine_name));
+    }
     if(row?.relation_basis)rec.relation_basis.add(String(row.relation_basis));
     if(row?.confidence)rec.confidence.add(String(row.confidence));
   }
@@ -297,6 +307,10 @@ export function groupBridgeByTeamSeason(rows){
     constructor_names:[...rec.constructor_names].sort(),
     chassis_names:[...rec.chassis_names].sort(),
     engine_names:[...rec.engine_names].sort(),
+    exact_constructor_ids:[...rec.exact_constructor_ids].sort(),
+    exact_constructor_names:[...rec.exact_constructor_names].sort(),
+    exact_chassis_names:[...rec.exact_chassis_names].sort(),
+    exact_engine_names:[...rec.exact_engine_names].sort(),
     relation_basis:[...rec.relation_basis].sort(),
     confidence:[...rec.confidence].sort(),
   }));

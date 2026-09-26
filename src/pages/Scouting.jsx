@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DriverPortrait, TeamLogo, flagFromCountry } from "@/components/entity/EntityVisuals.jsx";
 import { driverKnowledgeState, presentDriverKnowledgeValue } from "@/domain/driverKnowledge.js";
+import { specificScoutingPlan } from "@/domain/scoutingPolicy.js";
 
 const DAY = 86_400_000;
 const unbox = (v) => v && typeof v === "object" && !Array.isArray(v)
@@ -102,6 +103,7 @@ export default function Scouting() {
   const [mode,setMode] = useState("driver");
   const [target,setTarget] = useState("");
   const [zoneId,setZoneId] = useState("");
+  const [depth,setDepth] = useState("light");
   const [q,setQ] = useState("");
 
   const ratingById = useMemo(() => new Map(ratings.map((r) => [idOf(r), r])), [ratings]);
@@ -183,15 +185,25 @@ export default function Scouting() {
     };
   },[staffContracts,staffCore,staffRatings,teamId,year]);
 
-  const baseDuration = effectiveZone
-    ? Number(effectiveZone.travel_time_days || 0) + (mode === "region" ? 21 : 10)
+  const weeklyCost = Number(effectiveZone?.cost_per_week || 0);
+  const regionalBaseDuration = effectiveZone
+    ? Number(effectiveZone.travel_time_days || 0) + 21
     : 0;
   const networkDurationFactor=Math.max(0.72,Math.min(1.18,1.15-(scoutingNetworkQuality.quality-50)*0.006));
-  const duration=baseDuration?Math.max(3,Math.round(baseDuration*networkDurationFactor)):0;
-  const weeklyCost = Number(effectiveZone?.cost_per_week || 0);
-  const cost = effectiveZone
-    ? Math.round(Math.ceil(duration / 7) * weeklyCost * (mode === "region" ? 1.25 : 1))
-    : 0;
+  const specificPlan=mode==="driver"&&selectedDriver&&effectiveZone
+    ?specificScoutingPlan(gameState,selectedDriver,{
+      depth,
+      travelDays:Number(effectiveZone.travel_time_days||0),
+      networkQuality:scoutingNetworkQuality.quality,
+      weeklyCost,
+    })
+    :null;
+  const duration=mode==="driver"
+    ?Number(specificPlan?.duration||0)
+    :(regionalBaseDuration?Math.max(3,Math.round(regionalBaseDuration*networkDurationFactor)):0);
+  const cost=mode==="driver"
+    ?Number(specificPlan?.cost||0)
+    :(effectiveZone?Math.round(Math.ceil(duration/7)*weeklyCost*1.25):0);
   const budget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
 
   const discoverForRegion = (zone, assignmentId) => {
@@ -265,12 +277,13 @@ export default function Scouting() {
     if (mode === "driver" && !selectedDriver) return;
 
     const title = mode === "driver"
-      ? `Driver report: ${selectedDriver.display_name || selectedDriver.name}`
+      ? `${depth==="deep"?"Deep":"Light"} report: ${selectedDriver.display_name || selectedDriver.name}`
       : `Regional search: ${effectiveZone.name}`;
 
     const a = {
       id:`scout_${Date.now()}`,
       mode,
+      depth:mode==="driver"?depth:null,
       title,
       prospect_id:mode === "driver" ? idOf(selectedDriver) : null,
       zone_id:String(effectiveZone.zone_id),
@@ -382,6 +395,25 @@ export default function Scouting() {
                 {zones.map((z)=><option key={z.zone_id} value={z.zone_id}>{z.name}</option>)}
               </select>
             </label>
+          )}
+
+          {mode==="driver"&&selectedDriver&&(
+            <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Report depth</div>
+              <div className="grid gap-2 md:grid-cols-2">
+                <button type="button" onClick={()=>setDepth("light")} className={`rounded-lg border p-3 text-left ${depth==="light"?"border-sky-400/60 bg-sky-400/10":"border-white/10 bg-black/10"}`}>
+                  <div className="font-semibold">Light scouting</div>
+                  <div className="mt-1 text-xs text-slate-400">Faster and cheaper. Narrows Overall and attribute ranges, but does not reveal everything.</div>
+                </button>
+                <button type="button" onClick={()=>setDepth("deep")} className={`rounded-lg border p-3 text-left ${depth==="deep"?"border-emerald-400/60 bg-emerald-400/10":"border-white/10 bg-black/10"}`}>
+                  <div className="font-semibold">Deep scouting</div>
+                  <div className="mt-1 text-xs text-slate-400">Longer full report. Reveals exact current ratings and a full potential assessment.</div>
+                </button>
+              </div>
+              {specificPlan?<div className="mt-2 text-xs text-slate-500">
+                Familiarity {Math.round(specificPlan.familiarity.score)}/100 · Reputation {Math.round(specificPlan.familiarity.reputation)} · F1 starts {specificPlan.familiarity.starts}. Known drivers are quicker to scout.
+              </div>:null}
+            </div>
           )}
 
           {effectiveZone && (

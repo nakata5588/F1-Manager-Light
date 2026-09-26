@@ -6,6 +6,7 @@ import {
   pointsForPosition,
 } from "../src/domain/championshipRules.js";
 import {
+  canonicalTeamName,
   createTeamIdentityResolver,
   normalizeTeamIdentityName,
 } from "../src/domain/teamIdentity.js";
@@ -100,7 +101,7 @@ function rawConstructorName(row){
 }
 
 function constructorIdentity(rawName){
-  const name=String(rawName||"").trim();
+  const name=canonicalTeamName(String(rawName||"").trim());
   const resolved=teamResolver.resolve({team_name:name});
   if(resolved.id)return {id:resolved.id,name:resolved.name||name};
   const key=normalizeTeamIdentityName(name);

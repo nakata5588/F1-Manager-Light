@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
 import { aggregateHistoricalConstructors, aggregateHistoricalDrivers } from "../domain/championshipHistory.js";
+import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
+import { historicalRaceStarted } from "../domain/historicalRaceStatus.js";
 
 const str=(v)=>(v==null?"":String(v));
 const firstArray=(...items)=>items.find(Array.isArray)||[];
@@ -11,7 +13,95 @@ function driverName(driver,fallback="—"){
   return driver?.display_name||driver?.name||`${driver?.first_name??""} ${driver?.last_name??""}`.trim()||fallback;
 }
 function teamName(team,fallback="—"){
-  return team?.team_name||team?.name||team?.short_name||fallback;
+  return canonicalTeamName(team?.team_name||team?.name||team?.short_name||fallback);
+}
+function normalizedTeamStatsKey(value){
+  return canonicalTeamName(value||"")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"")
+    .trim();
+}
+function normalizedTeamBaseKey(value){
+  return canonicalTeamName(value||"")
+    .split(/\s*[-–—]\s*/)[0]
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"")
+    .trim();
+}
+function mergeHistoricalWithRaceStats(official,raceStats){
+  const driversById=new Map((raceStats?.drivers||[]).map((row)=>[String(row.id),row]));
+  const teamsByName=new Map();
+  const teamsByIdCandidates=new Map();
+  const teamsByBaseCandidates=new Map();
+
+  for(const row of raceStats?.teams||[]){
+    const nameKey=normalizedTeamStatsKey(row.name);
+    if(nameKey&&!teamsByName.has(nameKey))teamsByName.set(nameKey,row);
+
+    const idKey=canonicalTeamId(row.id);
+    if(idKey){
+      if(!teamsByIdCandidates.has(idKey))teamsByIdCandidates.set(idKey,[]);
+      teamsByIdCandidates.get(idKey).push(row);
+    }
+
+    const baseKey=normalizedTeamBaseKey(row.name);
+    if(baseKey){
+      if(!teamsByBaseCandidates.has(baseKey))teamsByBaseCandidates.set(baseKey,[]);
+      teamsByBaseCandidates.get(baseKey).push(row);
+    }
+  }
+
+  const uniqueCandidate=(map,key)=>{
+    const candidates=map.get(key)||[];
+    return candidates.length===1?candidates[0]:null;
+  };
+
+  const drivers=(official?.drivers||[]).map((row)=>{
+    const stats=driversById.get(String(row.id))||{};
+    const races=num(stats.races,0);
+    return {
+      ...row,
+      races,
+      wins:num(stats.wins,0),
+      podiums:num(stats.podiums,0),
+      fastestLaps:num(stats.fastestLaps,0),
+      poles:num(stats.poles,0),
+      dnfs:num(stats.dnfs,0),
+      bestFinish:stats.bestFinish??null,
+      averageFinish:stats.averageFinish??null,
+      pointsPerRace:races?Number((num(row.points,0)/races).toFixed(2)):0,
+      teamId:stats.teamId||row.teamId,
+      teamName:canonicalTeamName(stats.teamName||row.teamName),
+    };
+  });
+
+  const teams=(official?.teams||[]).map((row)=>{
+    const canonicalId=canonicalTeamId(row.id);
+    const exactName=teamsByName.get(normalizedTeamStatsKey(row.name));
+    const uniqueId=uniqueCandidate(teamsByIdCandidates,canonicalId);
+    const uniqueBase=uniqueCandidate(teamsByBaseCandidates,normalizedTeamBaseKey(row.name));
+    // Exact technical Constructor name wins. ID/base fallbacks are accepted
+    // only when unique, so Lotus-Climax and Lotus-BRM can never be conflated.
+    const stats=exactName||uniqueId||uniqueBase||{};
+    const races=num(stats.races,0);
+    return {
+      ...row,
+      id:canonicalId||row.id,
+      name:canonicalTeamName(row.name),
+      races,
+      wins:num(stats.wins,0),
+      podiums:num(stats.podiums,0),
+      fastestLaps:num(stats.fastestLaps,0),
+      poles:num(stats.poles,0),
+      dnfs:num(stats.dnfs,0),
+      pointsPerRace:races?Number((num(row.points,0)/races).toFixed(2)):0,
+    };
+  });
+  return {drivers,teams};
 }
 function resultYear(row){return Number(row?.year??row?.season_year);}
 function finishPosition(row,index){return Number(row?.position??row?.pos??index+1);}
@@ -30,9 +120,12 @@ function aggregateCareerResults(results,year,driversById,teamsById){
     const raceKey=String(race?.key??`${year}_${race?.round??race?.gp_id??race?.name??"race"}`);
     const poleIds=qualifyingPoleIds(race);
     for(const [index,row] of (race?.classification||[]).entries()){
+      if(!historicalRaceStarted(row))continue;
       const did=str(row?.driver_id??row?.id);
       if(!did)continue;
       const tid=str(row?.team_id??row?.constructor_id);
+      const constructorName=canonicalTeamName(row?.constructor_name||"");
+      const technicalTeamKey=constructorName?`constructor:${normalizedTeamStatsKey(constructorName)}`:tid;
       const pos=finishPosition(row,index);
       const retired=isRetired(row);
       const points=num(row?.points,0);
@@ -59,10 +152,12 @@ function aggregateCareerResults(results,year,driversById,teamsById){
       if(tid)d._teamStarts.set(tid,(d._teamStarts.get(tid)||0)+1);
       driverMap.set(did,d);
 
-      if(tid){
-        const t=teamMap.get(tid)||{
-          id:tid,name:teamName(dbTeam,row?.team_name||tid),points:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,races:new Set(),
-          team:dbTeam||{team_id:tid,team_name:row?.team_name||tid},
+      if(tid||constructorName){
+        const t=teamMap.get(technicalTeamKey)||{
+          id:tid||technicalTeamKey,
+          name:constructorName||teamName(dbTeam,row?.team_name||tid),
+          points:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,races:new Set(),
+          team:dbTeam||{team_id:tid,team_name:constructorName||row?.team_name||tid},
         };
         t.points+=points;
         t.races.add(raceKey);
@@ -71,7 +166,7 @@ function aggregateCareerResults(results,year,driversById,teamsById){
         if(row?.fastest_lap)t.fastestLaps+=1;
         if(poleIds.has(did))t.poles+=1;
         if(retired)t.dnfs+=1;
-        teamMap.set(tid,t);
+        teamMap.set(technicalTeamKey,t);
       }
     }
   }
@@ -116,6 +211,8 @@ export default function Standings(){
   const activeYear=Number(gameState?.activeYear);
   const [tab,setTab]=useState("teams");
   const [yearFilter,setYearFilter]=useState(()=>String(activeYear||""));
+  const [historicalResultEvents,setHistoricalResultEvents]=useState([]);
+  const [historicalResultYear,setHistoricalResultYear]=useState(null);
 
   useEffect(()=>{ if(Number.isFinite(activeYear))setYearFilter(String(activeYear)); },[activeYear]);
 
@@ -170,6 +267,33 @@ export default function Standings(){
   },[activeYear,results,history]);
 
   const selectedYear=Number(yearFilter||activeYear);
+
+  useEffect(()=>{
+    if(!Number.isFinite(selectedYear)||selectedYear===activeYear){
+      setHistoricalResultEvents([]);
+      setHistoricalResultYear(null);
+      return;
+    }
+    let cancelled=false;
+    const decade=Math.floor(selectedYear/10)*10;
+    fetch(`/data/race_results_archive_${decade}s.json`,{cache:"no-store"})
+      .then((res)=>{
+        if(!res.ok)throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((rows)=>{
+        if(cancelled)return;
+        setHistoricalResultEvents(Array.isArray(rows)?rows:[]);
+        setHistoricalResultYear(selectedYear);
+      })
+      .catch(()=>{
+        if(cancelled)return;
+        setHistoricalResultEvents([]);
+        setHistoricalResultYear(selectedYear);
+      });
+    return ()=>{cancelled=true;};
+  },[selectedYear,activeYear]);
+
   const careerArchive=useMemo(
     ()=>aggregateCareerResults(results,selectedYear,driversById,teamsById),
     [results,selectedYear,driversById,teamsById]
@@ -177,6 +301,19 @@ export default function Standings(){
   const historicalArchive=useMemo(
     ()=>aggregateHistorical(history,selectedYear,driversById,teamsById,historicalChampionships),
     [history,selectedYear,driversById,teamsById,historicalChampionships]
+  );
+  const historicalRaceArchive=useMemo(
+    ()=>aggregateCareerResults(
+      historicalResultYear===selectedYear?historicalResultEvents:[],
+      selectedYear,
+      driversById,
+      teamsById
+    ),
+    [historicalResultEvents,historicalResultYear,selectedYear,driversById,teamsById]
+  );
+  const historicalWithRaceStats=useMemo(
+    ()=>mergeHistoricalWithRaceStats(historicalArchive,historicalRaceArchive),
+    [historicalArchive,historicalRaceArchive]
   );
 
   const hasCareerResults=results.some((r)=>resultYear(r)===selectedYear);
@@ -225,8 +362,8 @@ export default function Standings(){
     dataset=careerArchive;
     sourceLabel="Career archive";
   }else{
-    dataset=historicalArchive;
-    sourceLabel="Historical F1 archive";
+    dataset=historicalWithRaceStats;
+    sourceLabel="Historical F1 archive · Results stats";
   }
 
   const rows=tab==="drivers"?dataset.drivers:dataset.teams;
@@ -253,7 +390,7 @@ export default function Standings(){
           <tr>
             <th className="px-4 py-3 text-right w-16">Pos</th>
             <th className="px-4 py-3 text-left">{tab==="drivers"?"Driver":"Team"}</th>
-            {tab==="drivers"&&<th className="px-4 py-3 text-left">{sourceLabel==="Historical F1 archive"?"Car / Constructor":"Team"}</th>}
+            {tab==="drivers"&&<th className="px-4 py-3 text-left">{sourceLabel.startsWith("Historical F1 archive")?"Car / Constructor":"Team"}</th>}
             <th className="px-4 py-3 text-right">Races</th>
             <th className="px-4 py-3 text-right">Wins</th>
             <th className="px-4 py-3 text-right">Podiums</th>

@@ -5,6 +5,7 @@ import {
   driverKnowledgeState,
   presentDriverKnowledgeValue,
 } from "../src/domain/driverKnowledge.js";
+import { driverScoutingFamiliarity, specificScoutingPlan } from "../src/domain/scoutingPolicy.js";
 
 function baseState(){
   return {
@@ -101,15 +102,78 @@ test("regional scouting exposes estimate ranges without revealing exact midpoint
   assert.notEqual(potential.sortValue,86);
 });
 
-test("unknown prospects do not leak current ability, potential or condition",()=>{
+test("unknown prospects expose broad rating estimates without leaking private condition",()=>{
   const gs=baseState();
   const knowledge=driverKnowledgeState(gs,"D4");
 
-  assert.equal(presentDriverKnowledgeValue(knowledge,"pace",65,{kind:"attribute"}).label,"?");
-  assert.equal(presentDriverKnowledgeValue(knowledge,"potential_ability",90,{kind:"potential"}).label,"?");
+  const pace=presentDriverKnowledgeValue(knowledge,"pace",65,{kind:"attribute"});
+  const potential=presentDriverKnowledgeValue(knowledge,"potential_ability",90,{kind:"potential"});
+  assert.equal(pace.visibility,"range");
+  assert.equal(potential.visibility,"range");
+  assert.ok(pace.min<=65&&pace.max>=65);
+  assert.ok(potential.min<=90&&potential.max>=90);
   assert.equal(presentDriverKnowledgeValue(knowledge,"fatigue",12,{kind:"condition"}).label,"?");
   assert.equal(knowledge.canSeeCondition,false);
   assert.equal(knowledge.canSeeDevelopmentHistory,false);
+});
+
+test("light scouting narrows estimates while deep scouting reveals exact ratings",()=>{
+  const gs=baseState();
+  const unknown=driverKnowledgeState(gs,"D4");
+  const before=presentDriverKnowledgeValue(unknown,"pace",65,{kind:"attribute"});
+
+  gs.scouting.assignments.push({
+    id:"driver_light",mode:"driver",depth:"light",status:"completed",
+    completed_at:"1980-03-20",prospect_id:"D4",
+  });
+  const light=driverKnowledgeState(gs,"D4");
+  const lightValue=presentDriverKnowledgeValue(light,"pace",65,{kind:"attribute"});
+  assert.equal(light.level,DRIVER_KNOWLEDGE_LEVELS.SCOUTED_LIGHT);
+  assert.equal(lightValue.visibility,"range");
+  assert.ok((lightValue.max-lightValue.min)<(before.max-before.min));
+
+  gs.scouting.assignments.push({
+    id:"driver_deep",mode:"driver",depth:"deep",status:"completed",
+    completed_at:"1980-03-25",prospect_id:"D4",
+  });
+  const deep=driverKnowledgeState(gs,"D4");
+  assert.equal(deep.level,DRIVER_KNOWLEDGE_LEVELS.SCOUTED);
+  assert.equal(presentDriverKnowledgeValue(deep,"pace",65,{kind:"attribute"}).label,"65");
+});
+
+test("a later light report never downgrades previously unlocked deep knowledge",()=>{
+  const gs=baseState();
+  gs.scouting.assignments.push({
+    id:"deep_first",mode:"driver",depth:"deep",status:"completed",
+    completed_at:"1980-03-20",prospect_id:"D4",
+  });
+  gs.scouting.assignments.push({
+    id:"light_later",mode:"driver",depth:"light",status:"completed",
+    completed_at:"1980-03-25",prospect_id:"D4",
+  });
+  const knowledge=driverKnowledgeState(gs,"D4");
+  assert.equal(knowledge.level,DRIVER_KNOWLEDGE_LEVELS.SCOUTED);
+  assert.equal(presentDriverKnowledgeValue(knowledge,"pace",65,{kind:"attribute"}).label,"65");
+});
+
+test("reputation and F1 experience reduce scouting duration, and light reports are quicker",()=>{
+  const gs=baseState();
+  gs.drivers.push({driver_id:"STAR",display_name:"Established Star",reputation:90,status:"eligible"});
+  gs.driverRatings.push({driver_id:"STAR",current_ability:88,potential_ability:90,pace:89,reputation:90});
+  gs.driverCareer.push({year:1978,driver_id:"STAR",series_division:"F1",starts:16});
+  gs.driverCareer.push({year:1979,driver_id:"STAR",series_division:"F1",starts:15});
+  gs.contracts.push({year:1980,team_id:"T2",driver_id:"STAR",role:"Main Driver",status:"active"});
+
+  const star=driverScoutingFamiliarity(gs,"STAR");
+  const youth=driverScoutingFamiliarity(gs,"D4");
+  assert.ok(star.score>youth.score);
+
+  const starDeep=specificScoutingPlan(gs,"STAR",{depth:"deep",travelDays:4,networkQuality:60,weeklyCost:20000});
+  const youthDeep=specificScoutingPlan(gs,"D4",{depth:"deep",travelDays:4,networkQuality:60,weeklyCost:20000});
+  const youthLight=specificScoutingPlan(gs,"D4",{depth:"light",travelDays:4,networkQuality:60,weeklyCost:20000});
+  assert.ok(starDeep.duration<youthDeep.duration);
+  assert.ok(youthLight.duration<youthDeep.duration);
+  assert.ok(youthLight.cost<youthDeep.cost);
 });
 
 test("only current team drivers expose private condition while Academy keeps full rating knowledge",()=>{
