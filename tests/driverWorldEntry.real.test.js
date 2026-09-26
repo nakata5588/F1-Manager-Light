@@ -24,15 +24,16 @@ const norm=(value)=>String(value||"")
   .trim();
 
 test("real canonical population produces deterministic world-entry candidates",async()=>{
-  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory]=await Promise.all([
+  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory]=await Promise.all([
     readJson("drivers.json",[]),
     readJson("driver_year_status.json",[]),
     readJson("driver_career.json",[]),
     readJson("driver_development_history.json",[]),
+    readJson("driver_f1_history.json",[]),
   ]);
 
   assert.ok(drivers.length>500);
-  const context={driverYearStatus,driverCareer,driverDevelopmentHistory};
+  const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
   const a=inferDriverWorldEntries(drivers,context);
   const b=inferDriverWorldEntries(drivers,context);
 
@@ -53,7 +54,7 @@ test("1980 world-entry audit includes Senna pre-F1 but excludes much later gener
     readJson("driver_career.json",[]),
     readJson("driver_development_history.json",[]),
   ]);
-  const context={driverYearStatus,driverCareer,driverDevelopmentHistory};
+  const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
   const entries=inferDriverWorldEntries(drivers,context);
 
   const findDriver=(name)=>drivers.find(row=>norm(row.display_name)===norm(name));
@@ -88,7 +89,7 @@ test("1980 known F1 drivers remain in the historical F1 reference window",async(
     readJson("driver_career.json",[]),
     readJson("driver_development_history.json",[]),
   ]);
-  const context={driverYearStatus,driverCareer,driverDevelopmentHistory};
+  const context={driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory};
   const entries=inferDriverWorldEntries(drivers,context);
 
   for(const name of ["Alain Prost","Nelson Piquet"]){
