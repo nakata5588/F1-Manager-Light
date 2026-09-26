@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore";
+import { DriverPortrait } from "../components/entity/EntityVisuals.jsx";
+import { newGameTeamPreview } from "../domain/newGameTeamPreview.js";
 import {
   MANAGER_ATTRIBUTES,
   MANAGER_BACKGROUNDS,
@@ -45,6 +47,17 @@ function safeText(v, fallback = "—") {
   if (v?.result != null) return String(v.result);
   if (v?.value != null && typeof v.value !== "object") return String(v.value);
   try { return JSON.stringify(v); } catch { return fallback; }
+}
+
+function fmtMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
 }
 
 function FallbackAvatar({ title, large=false }) {
@@ -209,6 +222,15 @@ export default function NewGame() {
   const selectedTeamTitle=teamId==="create"
     ?"Create New Team"
     :safeText(getTeamDisplayName?.(selectedTeam)??pick(selectedTeam,["team_name","name","short_name"],teamId),"—");
+  const teamPreviews=useMemo(()=>{
+    const previews=new Map();
+    for(const team of teamsForYear){
+      const id=getTeamId(team);
+      previews.set(id,newGameTeamPreview(gameState,team));
+    }
+    return previews;
+  },[gameState,teamsForYear]);
+  const selectedTeamPreview=selectedTeam?teamPreviews.get(getTeamId(selectedTeam))||null:null;
   const managerPreview=useMemo(
     ()=>createManagerProfile(manager,{year:+year,team:selectedTeam||{name:teamId==="create"?"New Team":"Unattached"}}),
     [manager,year,selectedTeam,teamId]
@@ -382,28 +404,130 @@ export default function NewGame() {
 
               {step === 3 && (
                 <div className="space-y-4">
-                  <h2 className="text-xl font-semibold">Choose Team</h2>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <button onClick={() => setTeamId("create")} className={"p-4 rounded-xl border text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>
-                      <div className="font-medium text-lg">Create New Team</div><div className="text-xs opacity-70">Start as a brand-new privateer entry</div>
-                    </button>
-                    {teamsForYear.map((t) => {
-                      const id = getTeamId(t);
-                      const engineRec = gameState?.teamEngines?.find?.((e) => sameTeam(e, t));
-                      const title = safeText(getTeamDisplayName?.(t) ?? pick(t, ["team_name", "name", "short_name"], id), id);
-                      const driverNames = contracts.filter((c) => sameTeam(c, t) && /driver/i.test(String(pick(c, ["role", "position"], ""))))
-                        .map((c) => safeText(pick(c, ["driver_name", "name", "full_name"], ""))).filter(Boolean);
-                      return (
-                        <button key={id} onClick={() => setTeamId(id)} className={"p-4 rounded-xl border text-left "+(teamId === id ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 hover:border-white/30")}>
-                          <div className="flex items-center gap-3"><TeamLogo candidates={getTeamLogoCandidates?.(t) || []} title={title} /><div className="font-medium text-lg">{title}</div></div>
-                          <div className="mt-2 text-xs opacity-80 space-y-1">
-                            <div>Base: {safeText(pick(t, ["team_base", "base", "country", "location"], "—"))}</div>
-                            <div>Engine: {safeText(pick(engineRec, ["engine_name", "name", "engine"], "—"))}</div>
-                            <div>Drivers: {driverNames.length ? driverNames.slice(0, 2).join(", ") : "—"}</div>
+                  <div>
+                    <h2 className="text-xl font-semibold">Choose Team</h2>
+                    <p className="mt-1 text-sm text-slate-400">Compare the historical opening conditions for {year}. These values describe the team you are taking over before the Save World begins.</p>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.6fr)]">
+                    <div className="max-h-[66vh] space-y-2 overflow-y-auto pr-1">
+                      <button onClick={() => setTeamId("create")} className={"w-full rounded-xl border p-3 text-left "+(teamId === "create" ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
+                        <div className="font-medium">Create New Team</div>
+                        <div className="mt-1 text-xs text-slate-400">Start as a brand-new privateer entry</div>
+                      </button>
+
+                      {teamsForYear.map((t) => {
+                        const id = getTeamId(t);
+                        const title = safeText(getTeamDisplayName?.(t) ?? pick(t, ["team_name", "name", "short_name"], id), id);
+                        const preview=teamPreviews.get(id);
+                        const selected=teamId===id;
+                        return (
+                          <button key={id} onClick={() => setTeamId(id)} className={"w-full rounded-xl border p-3 text-left transition "+(selected ? "border-emerald-400 bg-emerald-400/10" : "border-white/10 bg-[#0d0f15] hover:border-white/30")}>
+                            <div className="flex items-center gap-3">
+                              <TeamLogo candidates={getTeamLogoCandidates?.(t) || []} title={title} />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-medium">{title}</div>
+                                <div className="truncate text-[11px] text-slate-500">{preview?.championshipExpectationLabel||"—"}</div>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-3 gap-1.5">
+                              <div className="rounded-md bg-white/[0.04] px-2 py-1.5"><div className="text-[9px] uppercase tracking-wide text-slate-500">Rep</div><div className="text-xs font-semibold">{preview?.reputation!=null?Math.round(preview.reputation):"—"}</div></div>
+                              <div className="rounded-md bg-white/[0.04] px-2 py-1.5"><div className="text-[9px] uppercase tracking-wide text-slate-500">Car</div><div className="text-xs font-semibold">{preview?.car?.overall!=null?Math.round(preview.car.overall):"—"}</div></div>
+                              <div className="rounded-md bg-white/[0.04] px-2 py-1.5"><div className="text-[9px] uppercase tracking-wide text-slate-500">Budget</div><div className="truncate text-xs font-semibold">{fmtMoney(preview?.startingBudget)}</div></div>
+                            </div>
+                            <div className="mt-2 truncate text-[11px] text-slate-400">
+                              {preview?.drivers?.length
+                                ?preview.drivers.map((driver)=>driver.name+" "+(driver.overall==null?"—":(driver.estimated?"~":"")+Math.round(driver.overall))).join(" · ")
+                                :"Drivers —"}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="min-h-[420px] rounded-xl border border-white/10 bg-[#0d0f15] p-4 lg:sticky lg:top-4 lg:self-start">
+                      {teamId==="create" ? (
+                        <div className="flex h-full min-h-[380px] flex-col items-center justify-center text-center">
+                          <FallbackAvatar title="Create New Team" large/>
+                          <div className="mt-4 text-xl font-semibold">Create New Team</div>
+                          <p className="mt-2 max-w-md text-sm text-slate-400">Build a new privateer entry instead of inheriting an existing constructor. Your starting identity, finances and technical package will be configured in the next screen.</p>
+                        </div>
+                      ) : selectedTeam && selectedTeamPreview ? (
+                        <div className="space-y-5">
+                          <div className="flex items-start gap-4">
+                            <TeamLogo candidates={getTeamLogoCandidates?.(selectedTeam) || []} title={selectedTeamTitle} large />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-2xl font-semibold">{selectedTeamTitle}</div>
+                              <div className="mt-1 text-sm text-slate-400">
+                                {safeText(pick(selectedTeam,["team_base","base","country","location"],"—"))}
+                                {selectedTeamPreview.engineName?" · "+selectedTeamPreview.engineName:""}
+                              </div>
+                              <div className="mt-2 text-xs text-slate-500">Historical opening conditions · {year}</div>
+                            </div>
                           </div>
-                        </button>
-                      );
-                    })}
+
+                          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Reputation</div>
+                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.reputation!=null?Math.round(selectedTeamPreview.reputation)+"/100":"—"}</div>
+                              <div className="text-xs text-slate-500">{selectedTeamPreview.reputationLabel}</div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Starting Budget</div>
+                              <div className="mt-1 text-lg font-semibold">{fmtMoney(selectedTeamPreview.startingBudget)}</div>
+                              <div className="text-xs text-slate-500">Career opening funds</div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Car Overall</div>
+                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.car?.overall!=null?selectedTeamPreview.car.overall.toFixed(1):"—"}</div>
+                              <div className="text-xs text-slate-500">Historical technical package</div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Drivers OVR</div>
+                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.driversOverall!=null?selectedTeamPreview.driversOverall.toFixed(1):"—"}</div>
+                              <div className="text-xs text-slate-500">Main + Second average</div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Facilities</div>
+                              <div className="mt-1 text-lg font-semibold">{selectedTeamPreview.facilities?.average!=null?selectedTeamPreview.facilities.average.toFixed(1)+"/10":"—"}</div>
+                              <div className="text-xs text-slate-500">{selectedTeamPreview.facilities?.available||0} era-available areas</div>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Championship Expectation</div>
+                              <div className="mt-1 text-sm font-semibold leading-5">{selectedTeamPreview.championshipExpectationLabel}</div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Race Drivers</div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {selectedTeamPreview.drivers.map((row)=>(
+                                <div key={row.slot+"_"+row.id} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                                  <DriverPortrait driver={row.driver||{display_name:row.name}} size="h-16 w-16"/>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[10px] uppercase tracking-wide text-slate-500">{row.slot==="main"?"Main Driver":"Second Driver"}</div>
+                                    <div className="truncate font-semibold">{row.name}</div>
+                                    <div className="mt-1 text-sm text-slate-300">OVR {row.overall==null?"—":(row.estimated?"~":"")+Math.round(row.overall)}</div>
+                                  </div>
+                                </div>
+                              ))}
+                              {!selectedTeamPreview.drivers.length?<div className="text-sm text-slate-500">No race-driver lineup is available for this season.</div>:null}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Car Performance</div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Qualifying</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.qualifying!=null?selectedTeamPreview.car.qualifying.toFixed(1):"—"}</div></div>
+                              <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Race Pace</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.race!=null?selectedTeamPreview.car.race.toFixed(1):"—"}</div></div>
+                              <div className="rounded-lg bg-white/[0.03] p-3"><div className="text-[10px] uppercase text-slate-500">Reliability</div><div className="mt-1 font-semibold">{selectedTeamPreview.car?.reliability!=null?selectedTeamPreview.car.reliability.toFixed(1):"—"}</div></div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex min-h-[380px] items-center justify-center text-center text-sm text-slate-500">Select a team to inspect its starting conditions.</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
