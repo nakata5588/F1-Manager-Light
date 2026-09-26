@@ -276,19 +276,7 @@ function ordinal(position){
   return String(n)+suffix;
 }
 
-function championshipProjection(gs,targetTeamId){
-  const teams=collection(gs?.teams,gs?.dbTeams);
-  const field=(teams.length?teams:[]).map((team)=>rawTeamSnapshot(gs,team));
-  if(!field.some((row)=>row.teamId===String(targetTeamId)))return null;
-
-  const budgets=field.map((row)=>row.startingBudget).filter((value)=>Number.isFinite(Number(value))&&Number(value)>0);
-  const scored=field.map((row)=>{
-    const factors=factorBundle(row,budgets);
-    const strength=strengthScore(factors);
-    return {...row,factors,...strength};
-  }).filter((row)=>Number.isFinite(row.score));
-
-  scored.sort((a,b)=>b.score-a.score||String(a.teamId).localeCompare(String(b.teamId)));
+function projectionFromScored(scored,targetTeamId){
   const target=scored.find((row)=>row.teamId===String(targetTeamId));
   if(!target)return null;
 
@@ -325,13 +313,45 @@ function championshipProjection(gs,targetTeamId){
   };
 }
 
+export function newGameTeamPreviews(gs){
+  const teams=collection(gs?.teams,gs?.dbTeams);
+  if(!teams.length)return new Map();
+
+  // Critical performance rule: each team snapshot is derived exactly once.
+  // The championship table is then scored/sorted once and shared by all previews.
+  const field=teams.map((team)=>rawTeamSnapshot(gs,team));
+  const budgets=field
+    .map((row)=>row.startingBudget)
+    .filter((value)=>Number.isFinite(Number(value))&&Number(value)>0);
+
+  const scored=field.map((row)=>{
+    const factors=factorBundle(row,budgets);
+    const strength=strengthScore(factors);
+    return {...row,factors,...strength};
+  }).filter((row)=>Number.isFinite(row.score));
+
+  scored.sort((a,b)=>b.score-a.score||String(a.teamId).localeCompare(String(b.teamId)));
+
+  const previews=new Map();
+  for(const snapshot of field){
+    const projection=projectionFromScored(scored,snapshot.teamId);
+    previews.set(snapshot.teamId,{
+      ...snapshot,
+      championshipProjection:projection,
+      championshipExpectation:projection,
+      championshipExpectationLabel:projection?.label||"—",
+    });
+  }
+  return previews;
+}
+
 export function newGameTeamPreview(gs,team){
-  const snapshot=rawTeamSnapshot(gs,team);
-  const projection=championshipProjection(gs,snapshot.teamId);
-  return {
-    ...snapshot,
-    championshipProjection:projection,
-    championshipExpectation:projection,
-    championshipExpectationLabel:projection?.label||"—",
+  const teamId=teamIdOf(team);
+  return newGameTeamPreviews(gs).get(teamId)||{
+    ...rawTeamSnapshot(gs,team),
+    championshipProjection:null,
+    championshipExpectation:null,
+    championshipExpectationLabel:"—",
   };
 }
+
