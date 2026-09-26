@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useGame } from "../state/GameStore.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
-import { aggregateHistoricalConstructors } from "../domain/championshipHistory.js";
+import { aggregateHistoricalConstructors, aggregateHistoricalDrivers } from "../domain/championshipHistory.js";
 
 const str=(v)=>(v==null?"":String(v));
 const firstArray=(...items)=>items.find(Array.isArray)||[];
@@ -98,52 +98,12 @@ function aggregateCareerResults(results,year,driversById,teamsById){
 }
 
 function aggregateHistorical(history,year,driversById,teamsById){
-  const rows=history.filter((r)=>Number(r?.year)===Number(year));
-  const driverMap=new Map();
-
-  for(const row of rows){
-    const did=str(row?.driver_id);
-    if(!did)continue;
-    const tid=str(row?.team_id);
-    const starts=num(row?.starts??row?.races,0);
-    const dbDriver=driversById.get(did);
-    const dbTeam=teamsById.get(tid);
-
-    const d=driverMap.get(did)||{
-      id:did,name:row?.driver_name||driverName(dbDriver,did),teamId:tid,
-      teamName:row?.team_name||teamName(dbTeam,tid||"—"),
-      points:0,races:0,wins:0,podiums:0,fastestLaps:0,poles:0,dnfs:0,bestFinish:null,finishWeighted:0,finishWeight:0,
-      driver:dbDriver||{driver_id:did,display_name:row?.driver_name||did},_teams:[],
-    };
-    d.points+=num(row?.points,0);
-    d.races+=num(row?.races??row?.starts,0);
-    d.wins+=num(row?.wins,0);
-    d.podiums+=num(row?.podiums,0);
-    d.fastestLaps+=num(row?.fastest_laps,0);
-    d.poles+=num(row?.poles,0);
-    d.dnfs+=num(row?.dnf,0);
-    const best=Number(row?.best_finish);
-    if(Number.isFinite(best)&&best>0)d.bestFinish=d.bestFinish==null?best:Math.min(d.bestFinish,best);
-    const avg=Number(row?.average_finish);
-    const finishWeight=num(row?.classified_finishes,row?.races??row?.starts??0);
-    if(Number.isFinite(avg)&&finishWeight>0){d.finishWeighted+=avg*finishWeight;d.finishWeight+=finishWeight;}
-    d._teams.push({id:tid,name:row?.team_name||teamName(dbTeam,tid||"—"),starts,points:num(row?.points,0)});
-    driverMap.set(did,d);
-
-  }
-
-  const drivers=[...driverMap.values()].map((row)=>{
-    const preferred=row._teams.slice().sort((a,b)=>b.starts-a.starts||b.points-a.points)[0];
-    return {
-      ...row,
-      teamId:preferred?.id||row.teamId,
-      teamName:preferred?.name||row.teamName,
-      averageFinish:row.finishWeight?Number((row.finishWeighted/row.finishWeight).toFixed(2)):null,
-      pointsPerRace:row.races?Number((row.points/row.races).toFixed(2)):0,
-      _teams:undefined,finishWeighted:undefined,finishWeight:undefined,
-    };
-  }).sort((a,b)=>b.points-a.points||b.wins-a.wins||a.name.localeCompare(b.name));
-
+  const drivers=aggregateHistoricalDrivers(history,year,driversById,teamsById).map((row)=>({
+    ...row,
+    teamId:row.team_id,
+    teamName:row.team_name,
+    driver:driversById.get(row.id)||{driver_id:row.id,display_name:row.name},
+  }));
   const teams=aggregateHistoricalConstructors(history,year,teamsById).map((row)=>({
     ...row,
     team:teamsById.get(row.id)||{team_id:row.id,team_name:row.name},

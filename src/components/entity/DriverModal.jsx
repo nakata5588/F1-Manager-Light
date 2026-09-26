@@ -20,7 +20,7 @@ import {
   mergeHistoricalCareerSources,
   resolveHistoricalTeamId,
 } from "../../domain/driverCareerIdentity.js";
-import { driverConstructorChampionships } from "../../domain/championshipHistory.js";
+import { driverChampionshipResults, driverConstructorChampionships } from "../../domain/championshipHistory.js";
 import {
   driverAttributeGroups,
   driverAttributeGroupScore,
@@ -252,14 +252,13 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     ),
     [gs?.driverCareer, gs?.dbDriverCareer, gs?.dbTeams, gs?.teams]
   );
-  const generatedHistoryRaw = useMemo(
-    () => [...toArraySafe(gs?.driverHistory), ...toArraySafe(gs?.dbDriverHistory)],
-    [gs?.driverHistory, gs?.dbDriverHistory]
-  );
-  const achievementsArr = useMemo(
-    () => toArraySafe(gs?.achievements).length ? toArraySafe(gs?.achievements) : toArraySafe(gs?.dbAchievements),
-    [gs?.achievements, gs?.dbAchievements]
-  );
+  // dbDriverHistory is the complete result-derived historical cache.
+  // driverHistory is season-pack scoped and must never be concatenated with it:
+  // doing so double-counts active-era drivers (e.g. Fittipaldi 1973).
+  const generatedHistoryRaw = useMemo(() => {
+    const canonical=toArraySafe(gs?.dbDriverHistory);
+    return canonical.length?canonical:toArraySafe(gs?.driverHistory);
+  }, [gs?.driverHistory, gs?.dbDriverHistory]);
   const results = useMemo(() => toArraySafe(gs?.results), [gs?.results]);
   const historySeasons = useMemo(() => toArraySafe(gs?.historySeasons), [gs?.historySeasons]);
   const teamsList = useMemo(() => {
@@ -741,46 +740,26 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     };
   }, [careerTimeline]);
 
-  // Achievements are championship outcomes, not a duplicate wins/podium log.
-  // Historical seasons use career/achievement data; played seasons use the
-  // archived standings derived from actual race results.
-  const achievementsList = useMemo(() => {
-    const map=new Map();
-    const add=(row,priority=0)=>{
-      const year=Number(unbox(row?.year));
-      const pos=Number(unbox(
-        row?.driver_championship ??
-        row?.championship_position ??
-        row?.champ_pos ??
-        row?.position
-      ));
-      if(!Number.isFinite(year)||year>=Number(gameYear))return;
-      if(!Number.isFinite(pos)||pos<1||pos>3)return;
-      const series=String(getSeries(row)||"F1").toUpperCase();
-      if(series&&series!=="F1")return;
-      const key=String(year);
-      const prev=map.get(key);
-      if(prev&&Number(prev.__priority||0)>priority)return;
-      map.set(key,{
-        year,
-        position:pos,
-        achievement:pos===1?"World Champion":`Championship P${pos}`,
-        team_id:unbox(row?.team_id)??null,
-        team_name:displayValue(row?.team_name??row?.team,"—"),
-        __priority:priority,
-      });
-    };
+  // Championship outcomes come from the central standings resolver.
+  // Historical seasons are result-derived; played seasons come from Save World.
+  const achievementsList = useMemo(() => (
+    driverChampionshipResults(gs,{
+      driverId,
+      driverName:driverIdentityName,
+    })
+      .filter((row)=>Number(row?.year)<Number(gameYear))
+      .filter((row)=>Number(row?.position)>=1&&Number(row?.position)<=3)
+      .map((row)=>({
+        year:Number(row.year),
+        position:Number(row.position),
+        achievement:Number(row.position)===1?"World Champion":`Championship P${row.position}`,
+        team_id:row.team_id??null,
+        team_name:displayValue(row.team_name,"—"),
+        source:row.source,
+      }))
+      .sort((a,b)=>a.year-b.year)
+  ), [gs,driverId,driverIdentityName,gameYear]);
 
-    for(const row of achievementsArr||[]){
-      if(sameDriver(extractDriverId(row),idNorm))add(row,1);
-    }
-    for(const row of careerAll||[])add(row,2);
-    for(const row of simulatedCareerRows||[])add(row,3);
-
-    return [...map.values()]
-      .map(({__priority,...row})=>row)
-      .sort((a,b)=>Number(a.year)-Number(b.year));
-  }, [achievementsArr,careerAll,simulatedCareerRows,idNorm,gameYear]);
   const shortF1Career = useMemo(() => {
     const source=[...(careerAll||[]),...(simulatedCareerRows||[])]
       .filter((row)=>String(getSeries(row)||"F1").toUpperCase()==="F1")

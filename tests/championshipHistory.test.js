@@ -2,8 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   aggregateHistoricalConstructors,
+  aggregateHistoricalDrivers,
   constructorChampionForYear,
   constructorChampionshipHistory,
+  driverChampionshipResult,
+  driverChampionshipResults,
+  driverStandingsForYear,
   driverConstructorChampionships,
   teamChampionshipSummary,
 } from "../src/domain/championshipHistory.js";
@@ -101,4 +105,96 @@ test("driver constructor titles only include seasons where his team was champion
   ];
   const titles=driverConstructorChampionships(gs,career);
   assert.deepEqual(titles.map((row)=>[row.year,row.team_id]),[[1979,"FERRARI"]]);
+});
+
+
+test("1973 driver championship comes from historical standings, not duplicated season-pack history",()=>{
+  const gs={
+    activeYear:1980,
+    careerMeta:{sourceSeason:1980},
+    dbDrivers:[
+      {driver_id:"STEWART",display_name:"Jackie Stewart"},
+      {driver_id:"FITTI",display_name:"Emerson Fittipaldi"},
+    ],
+    dbTeams:[
+      {team_id:"TYRRELL",team_name:"Tyrrell"},
+      {team_id:"LOTUS",team_name:"Lotus"},
+    ],
+    dbDriverHistory:[
+      {year:1973,series_division:"F1",driver_id:"STEWART",driver_name:"Jackie Stewart",team_id:"TYRRELL",team_name:"Tyrrell",points:71,wins:5,podiums:8,races:15},
+      {year:1973,series_division:"F1",driver_id:"FITTI",driver_name:"Emerson Fittipaldi",team_id:"LOTUS",team_name:"Lotus",points:55,wins:3,podiums:8,races:15},
+    ],
+    // The season-pack scoped history may contain the active 1980 driver again.
+    // It must never be concatenated with dbDriverHistory.
+    driverHistory:[
+      {year:1973,series_division:"F1",driver_id:"FITTI",driver_name:"Emerson Fittipaldi",team_id:"LOTUS",team_name:"Lotus",points:55,wins:3,podiums:8,races:15},
+    ],
+    // Deliberately wrong legacy metadata proves results/standings have priority.
+    dbAchievements:[
+      {year:1973,driver_id:"FITTI",driver_name:"Emerson Fittipaldi",team_id:"LOTUS",team_name:"Lotus",driver_championship:1},
+      {year:1973,driver_id:"STEWART",driver_name:"Jackie Stewart",team_id:"TYRRELL",team_name:"Tyrrell",driver_championship:2},
+    ],
+    historySeasons:[],
+    results:[],
+  };
+
+  const standings=driverStandingsForYear(gs,1973);
+  assert.equal(standings[0].driver_id,"STEWART");
+  assert.equal(standings[0].position,1);
+  assert.equal(standings[0].points,71);
+  assert.equal(standings[1].driver_id,"FITTI");
+  assert.equal(standings[1].position,2);
+  assert.equal(standings[1].points,55);
+
+  const fittipaldi=driverChampionshipResult(gs,1973,{
+    driverId:"FITTI",
+    driverName:"Emerson Fittipaldi",
+  });
+  assert.equal(fittipaldi.position,2);
+  assert.equal(fittipaldi.source,"historical_results");
+});
+
+test("driver championship results use Save World after the New Game source season",()=>{
+  const gs={
+    activeYear:1981,
+    careerMeta:{sourceSeason:1980},
+    dbDrivers:[
+      {driver_id:"LAUDA",display_name:"Niki Lauda"},
+      {driver_id:"JONES",display_name:"Alan Jones"},
+    ],
+    dbTeams:[
+      {team_id:"ALFA",team_name:"Alfa Romeo"},
+      {team_id:"WILLIAMS",team_name:"Williams"},
+    ],
+    dbDriverHistory:[],
+    dbAchievements:[
+      {year:1980,driver_id:"JONES",driver_name:"Alan Jones",team_id:"WILLIAMS",team_name:"Williams",driver_championship:1},
+    ],
+    historySeasons:[{
+      year:1980,
+      standings:{
+        drivers:[
+          {driver_id:"LAUDA",name:"Niki Lauda",team_id:"ALFA",team_name:"Alfa Romeo",position:1,points:68},
+          {driver_id:"JONES",name:"Alan Jones",team_id:"WILLIAMS",team_name:"Williams",position:2,points:61},
+        ],
+        teams:[],
+      },
+    }],
+    results:[],
+  };
+
+  const lauda=driverChampionshipResults(gs,{driverId:"LAUDA",driverName:"Niki Lauda"});
+  assert.equal(lauda.length,1);
+  assert.equal(lauda[0].year,1980);
+  assert.equal(lauda[0].position,1);
+  assert.equal(lauda[0].source,"save_world_archive");
+});
+
+test("central historical driver aggregation matches Standings ordering",()=>{
+  const gs=fixture();
+  const standings=aggregateHistoricalDrivers(gs.dbDriverHistory,1978,[],gs.dbTeams);
+  assert.deepEqual(
+    standings.slice(0,3).map((row)=>[row.position,row.driver_id,row.points]),
+    [[1,"A",64],[2,"B",51],[3,"C",48]]
+  );
 });
