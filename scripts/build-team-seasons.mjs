@@ -81,10 +81,11 @@ for(const row of Array.isArray(rows)?rows:[]){
   if(!Number.isFinite(year)){sourceIndex+=1;continue;}
 
   const link=bridgeResolver.resolve(row,{driverId});
-  // If an entrant cannot yet be resolved, preserve the technical constructor
-  // as a compatibility fallback rather than silently dropping participation.
-  const teamId=canonicalTeamId(link.team_id||link.constructor_id);
-  const teamName=canonicalTeamName(link.team_name||link.chassis_name||link.constructor_name||teamId);
+  // team_seasons is the managerial participation authority. Never promote an
+  // unresolved technical constructor/chassis into a Team just to keep a row.
+  // The technical identity remains preserved in team_constructor_bridge.json.
+  const teamId=canonicalTeamId(link.team_id);
+  const teamName=canonicalTeamName(link.team_name||teamId);
   if(!teamId){sourceIndex+=1;continue;}
 
   const key=`${year}|${teamId}`;
@@ -108,7 +109,10 @@ for(const row of Array.isArray(rows)?rows:[]){
   }
 
   const rec=byKey.get(key);
-  if(driverId){
+  // Only exact entrant evidence is allowed to populate a historical roster.
+  // Estimated constructor-family/name reconciliation may establish that a Team
+  // participated, but must not claim that the driver was entered by that Team.
+  if(driverId&&link.exact_entrant){
     rec.driver_ids.add(driverId);
     const roundRaw=Number(first(row,["round","raceRound","roundNumber"],NaN));
     const raceDate=String(first(row,["race_date","date","dateISO"],""));
