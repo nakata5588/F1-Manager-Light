@@ -557,9 +557,32 @@ export default function NewGame() {
                               <div className="text-xs text-slate-500">{selectedTeamPreview.facilities?.available||0} era-available areas</div>
                             </div>
                             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Championship Expectation</div>
-                              <div className="mt-1 text-sm font-semibold leading-5">{selectedTeamPreview.championshipExpectationLabel}</div>
+                              <div className="text-[10px] uppercase tracking-wide text-slate-500">Championship Projection</div>
+                              <div className="mt-1 text-lg font-semibold leading-5">{selectedTeamPreview.championshipExpectationLabel}</div>
+                              <div className="mt-1 text-xs text-slate-500">Model strength {selectedTeamPreview.championshipProjection?.score?.toFixed?.(1)??"—"}/100</div>
                             </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-2 text-xs uppercase tracking-[0.15em] text-slate-500">Projection Factors</div>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                              {[
+                                ["Car","car"],
+                                ["Drivers","drivers"],
+                                ["Staff","staff"],
+                                ["Facilities","facilities"],
+                                ["Budget","budget"],
+                                ["Reputation","reputation"],
+                              ].map(([label,key])=>{
+                                const value=selectedTeamPreview.championshipProjection?.factors?.[key];
+                                const weight=selectedTeamPreview.championshipProjection?.weights?.[key];
+                                return <div key={key} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                                  <div className="text-[9px] uppercase tracking-wide text-slate-500">{label} · {weight?Math.round(weight*100):0}%</div>
+                                  <div className="mt-1 text-sm font-semibold">{Number.isFinite(Number(value))?Number(value).toFixed(1):"—"}</div>
+                                </div>;
+                              })}
+                            </div>
+                            <div className="mt-2 text-[11px] text-slate-600">Projected finishing range is calculated against the full {selectedTeamPreview.championshipProjection?.fieldSize||teamsForYear.length}-team field. Missing historical factors are excluded and the remaining weights are rebalanced.</div>
                           </div>
 
                           <div>
