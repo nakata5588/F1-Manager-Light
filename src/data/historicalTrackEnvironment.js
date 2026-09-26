@@ -8,7 +8,10 @@ export const HISTORICAL_TRACK_ENVIRONMENTS=Object.freeze({
     start_finish_location:"upper_straight",
     start_finish_direction:"right",
     sector_colors:["#ef4444","#22d3ee","#facc15"],
-    pit_lane_color:"#2563eb"
+    pit_lane_color:"#2563eb",
+    contains_track_surface:true,
+    contains_track_intel:true,
+    visual_style:"approved_raster_environment"
   })
 });
 
