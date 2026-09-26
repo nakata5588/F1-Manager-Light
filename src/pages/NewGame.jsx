@@ -326,7 +326,7 @@ export default function NewGame() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="w-full max-w-[1600px] mx-auto px-4 py-6 sm:px-6 xl:px-8">
+      <div className="f1ml-responsive-shell py-6">
         <h1 className="text-3xl font-bold mb-6">New Game</h1>
 
         <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs mb-6">
