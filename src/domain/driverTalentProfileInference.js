@@ -26,82 +26,121 @@ const ATTRIBUTE_SPECS=Object.freeze({
   pace:Object.freeze({
     source:"direct",
     confidence_multiplier:1.00,
-    weights:Object.freeze({qualifying:0.45,race:0.25,peak:0.30}),
+    weights:Object.freeze({
+      peak_qualifying:0.35,peak_race:0.25,peak:0.20,
+      qualifying:0.10,race:0.10,
+    }),
   }),
   qualifying:Object.freeze({
     source:"direct",
     confidence_multiplier:1.00,
-    weights:Object.freeze({qualifying:0.65,peak:0.35}),
+    weights:Object.freeze({peak_qualifying:0.60,qualifying:0.20,peak:0.20}),
   }),
   racecraft:Object.freeze({
     source:"direct",
     confidence_multiplier:1.00,
-    weights:Object.freeze({race:0.55,peak:0.30,qualifying:0.15}),
+    weights:Object.freeze({peak_race:0.50,race:0.20,peak:0.20,peak_composite:0.10}),
   }),
   consistency:Object.freeze({
     source:"direct",
     confidence_multiplier:0.95,
-    weights:Object.freeze({consistency:0.65,race:0.25,qualifying:0.10}),
+    weights:Object.freeze({peak_consistency:0.50,consistency:0.35,peak_composite:0.15}),
   }),
   race_intelligence:Object.freeze({
     source:"derived",
     confidence_multiplier:0.85,
-    weights:Object.freeze({race:0.50,consistency:0.25,peak:0.25}),
+    weights:Object.freeze({
+      peak_race:0.35,peak_composite:0.25,
+      race:0.20,consistency:0.20,
+    }),
   }),
   pressure_handling:Object.freeze({
     source:"derived",
     confidence_multiplier:0.80,
-    weights:Object.freeze({peak:0.45,qualifying:0.25,consistency:0.30}),
+    weights:Object.freeze({
+      peak:0.30,peak_composite:0.30,
+      peak_qualifying:0.20,consistency:0.20,
+    }),
   }),
   mentality:Object.freeze({
     source:"derived",
     confidence_multiplier:0.75,
-    weights:Object.freeze({peak:0.30,race:0.35,consistency:0.35}),
+    weights:Object.freeze({
+      peak_composite:0.35,peak:0.25,
+      consistency:0.25,race:0.15,
+    }),
   }),
   adaptability:Object.freeze({
     source:"derived",
     confidence_multiplier:0.65,
-    weights:Object.freeze({race:0.30,qualifying:0.25,consistency:0.25,peak:0.20}),
+    weights:Object.freeze({
+      peak_composite:0.30,peak_race:0.20,
+      race:0.20,qualifying:0.10,consistency:0.10,peak:0.10,
+    }),
   }),
   tire_management:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.60,
-    weights:Object.freeze({race:0.45,consistency:0.35,peak:0.20}),
+    weights:Object.freeze({
+      peak_race:0.30,peak_consistency:0.25,
+      race:0.25,consistency:0.20,
+    }),
   }),
   start_launch:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.50,
-    weights:Object.freeze({qualifying:0.35,race:0.30,peak:0.35}),
+    weights:Object.freeze({
+      peak_qualifying:0.35,peak_race:0.25,
+      qualifying:0.15,race:0.10,peak:0.15,
+    }),
   }),
   wet_skill:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.38,
-    weights:Object.freeze({composite:0.45,peak:0.35,consistency:0.20}),
+    weights:Object.freeze({
+      peak_composite:0.35,composite:0.25,
+      peak:0.25,consistency:0.15,
+    }),
   }),
   technical_feedback:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.30,
-    weights:Object.freeze({composite:0.45,consistency:0.30,peak:0.25}),
+    weights:Object.freeze({
+      peak_composite:0.35,composite:0.25,
+      consistency:0.25,peak:0.15,
+    }),
   }),
   ers_fuel_management:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.28,
-    weights:Object.freeze({race:0.40,consistency:0.40,peak:0.20}),
+    weights:Object.freeze({
+      peak_race:0.30,race:0.25,
+      peak_consistency:0.25,consistency:0.20,
+    }),
   }),
   leadership:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.24,
-    weights:Object.freeze({composite:0.40,peak:0.35,consistency:0.25}),
+    weights:Object.freeze({
+      peak_composite:0.40,composite:0.20,
+      peak:0.25,consistency:0.15,
+    }),
   }),
   team_player:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.20,
-    weights:Object.freeze({consistency:0.45,composite:0.35,race:0.20}),
+    weights:Object.freeze({
+      peak_consistency:0.35,consistency:0.30,
+      composite:0.20,race:0.15,
+    }),
   }),
   car_development_impact:Object.freeze({
     source:"proxy",
     confidence_multiplier:0.24,
-    weights:Object.freeze({composite:0.40,consistency:0.30,peak:0.30}),
+    weights:Object.freeze({
+      peak_composite:0.35,composite:0.25,
+      peak_consistency:0.20,peak:0.20,
+    }),
   }),
 });
 
@@ -126,6 +165,13 @@ function weightedAverage(parts=[]){
     weight+=w;
   }
   return weight>0?sum/weight:null;
+}
+
+function topMean(values,fraction=0.25){
+  const finite=(values||[]).filter(Number.isFinite).sort((a,b)=>b-a);
+  if(!finite.length)return null;
+  const count=Math.max(1,Math.min(5,Math.ceil(finite.length*fraction)));
+  return finite.slice(0,count).reduce((sum,value)=>sum+value,0)/count;
 }
 
 function confidenceBand(score){
@@ -164,12 +210,33 @@ export function regularizeTalentPercentile(percentile,confidenceScore,multiplier
 
 function evidencePercentiles(row){
   const source=row?.comparative_evidence_percentiles||{};
+  const seasons=Array.isArray(row?.normalization_context?.season_evidence)
+    ?row.normalization_context.season_evidence
+    :[];
+  const seasonTop=(key,fallback)=>{
+    const value=topMean(
+      seasons.map(item=>num(item?.[key],null)).filter(Number.isFinite),
+      0.25
+    );
+    return Number.isFinite(value)?value:fallback;
+  };
+
+  const qualifying=num(source.qualifying,null);
+  const race=num(source.race,null);
+  const peak=num(source.peak,null);
+  const consistency=num(source.consistency,null);
+  const composite=num(source.composite,null);
+
   return {
-    qualifying:num(source.qualifying,null),
-    race:num(source.race,null),
-    peak:num(source.peak,null),
-    consistency:num(source.consistency,null),
-    composite:num(source.composite,null),
+    qualifying,
+    race,
+    peak,
+    consistency,
+    composite,
+    peak_qualifying:seasonTop("qualifying",qualifying),
+    peak_race:seasonTop("race",race),
+    peak_consistency:seasonTop("consistency",consistency),
+    peak_composite:seasonTop("composite",composite),
   };
 }
 
@@ -231,17 +298,23 @@ function peakAbilityFromAttributes(attributes,row){
       weight,
     ])
   );
+  const evidence=evidencePercentiles(row);
+  const latentPeak=weightedAverage([
+    [num(evidence.peak,null),0.45],
+    [num(evidence.peak_composite,null),0.55],
+  ]);
   const peakPercentile=regularizeTalentPercentile(
-    num(row?.comparative_evidence_percentiles?.peak,50),
+    Number.isFinite(latentPeak)?latentPeak:50,
     num(row?.confidence?.score,0),
     1
   );
   const peakSignal=talentCeilingFromPercentile(peakPercentile);
 
   if(!Number.isFinite(core))return peakSignal;
-  // Peak evidence can lift a driver whose career-average evidence is diluted by
-  // rookie/decline seasons, but it cannot fully replace multi-dimensional skill.
-  return round1(clamp(core*0.70+peakSignal*0.30,35,99));
+  // Talent ceilings care about the best established level, not an arithmetic
+  // average of rookie, peak and decline years. Core breadth still prevents one
+  // isolated peak from defining the whole profile.
+  return round1(clamp(core*0.60+peakSignal*0.40,35,99));
 }
 
 function talentBand(value){
@@ -323,6 +396,9 @@ export function inferDriverTalentProfile(row){
       peak:round1(num(row?.comparative_evidence_percentiles?.peak,null)),
       consistency:round1(num(row?.comparative_evidence_percentiles?.consistency,null)),
       composite:round1(num(row?.comparative_evidence_percentiles?.composite,null)),
+      peak_season_composite:round1(evidencePercentiles(row).peak_composite),
+      peak_season_qualifying:round1(evidencePercentiles(row).peak_qualifying),
+      peak_season_race:round1(evidencePercentiles(row).peak_race),
       starts:num(row?.sample?.starts,0),
       seasons:num(row?.sample?.seasons,0),
       teams:num(row?.sample?.teams,0),
