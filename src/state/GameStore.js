@@ -22,6 +22,7 @@ import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
 import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
 import { DEFAULT_USER_SETTINGS, mergeUserSettings, readUserSettings, writeUserSettings } from "@/domain/userPreferences";
+import { championshipPointsSystem } from "@/domain/championshipRules";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -1224,9 +1225,8 @@ export const useGame = create((set, get) => ({
 
     const pointsSystemRec = (() => {
       const exact = filterByYear(prev.dbPointsSystems, y);
-      if (exact.length) return exact[0];
-      const ranged = filterByYearRange(prev.dbPointsSystems, y);
-      return ranged.length ? ranged[0] : null;
+      const ranged = exact.length ? exact : filterByYearRange(prev.dbPointsSystems, y);
+      return championshipPointsSystem(y,ranged.length ? ranged[0] : null);
     })();
 
     const qualifyingRules = qualifyingRulesForYear(prev.dbQualifyingRules,prev.dbQualifyingRuleOverrides,y);
