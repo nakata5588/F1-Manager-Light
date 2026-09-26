@@ -9,6 +9,7 @@ import { driverContractsOf, driverIdOf, teamIdOf } from "../../domain/driverCont
 import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.js";
 import { entityProfilePath } from "../../domain/entityRoutes.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
+import { canonicalTeamId } from "../../domain/teamIdentity.js";
 import { DriverPortrait, StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v.text??v):v;
@@ -206,7 +207,7 @@ export function DriverQuickView({entity,onClose}){
 export function TeamQuickView({entity,onClose}){
   const navigate=useNavigate();
   const gs=useGame((s)=>s.gameState);
-  const id=String(entity?.id??"");
+  const id=canonicalTeamId(String(entity?.id??""));
   const year=Number(gs?.activeYear);
   const teams=[...asRows(gs?.dbTeams),...asRows(gs?.teams)];
   const brands=[...asRows(gs?.dbTeamBrands),...asRows(gs?.teamBrands)];
