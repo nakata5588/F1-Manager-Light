@@ -764,8 +764,8 @@ export default function Track2DView({
           <div className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-slate-600">Sector {Math.max(1,Number(currentSector)||1)} · Gap to leader / interval</div>
         </div>
 
-        <div className="grid grid-cols-[34px_22px_42px_minmax(56px,1fr)_34px_24px_52px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
-          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-right">Gain</span><span className="text-center">Tyre</span><span className="text-right">Int.</span>
+        <div className="grid grid-cols-[34px_22px_42px_minmax(56px,1fr)_24px_52px_34px] items-center gap-1 border-b border-white/10 bg-[#0b1017] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-600">
+          <span className="text-right">Pos</span><span/><span>Drv</span><span className="text-right">Leader</span><span className="text-center">Tyre</span><span className="text-right">Int.</span><span className="text-right">Gain</span>
         </div>
 
         <div className="grid min-h-0 flex-1 p-0.5" style={{gridTemplateRows:`repeat(${Math.max(1,activeRows.length)},minmax(0,1fr))`}}>
@@ -785,7 +785,7 @@ export default function Track2DView({
               type="button"
               key={did||index}
               onClick={()=>selectDriver(did)}
-              className={`min-h-0 grid w-full grid-cols-[34px_22px_42px_minmax(56px,1fr)_34px_24px_52px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
+              className={`min-h-0 grid w-full grid-cols-[34px_22px_42px_minmax(56px,1fr)_24px_52px_34px] items-center gap-1 border-l-[3px] px-1 py-0 text-left transition ${selected?"bg-white/[0.13]":"hover:bg-white/[0.055]"}`}
               style={{borderLeftColor:row?.retired?"#7f1d1d":palette.primary}}
             >
               <span className="flex items-center justify-end gap-0.5 text-right text-[10px] font-black italic leading-none text-slate-100">
@@ -797,12 +797,12 @@ export default function Track2DView({
               <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"font-bold text-slate-100":"text-slate-300"}`}>
                 {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.gap_to_leader_ms)}
               </span>
-              <span className={`text-right font-mono text-[9px] font-bold ${row?.retired||gridGain==null?"text-slate-600":gridGain>0?"text-emerald-300":gridGain<0?"text-red-300":"text-slate-500"}`}>
-                {row?.retired||gridGain==null?"—":gridGain>0?`+${gridGain}`:String(gridGain)}
-              </span>
               <span className="flex justify-center"><MiniTyreIcon compound={row?.tyre?.compound} size={12}/></span>
               <span className={`text-right font-mono text-[9px] ${row?.retired?"text-red-300":index===0?"text-slate-600":"text-sky-300"}`}>
                 {row?.retired?"DNF":index===0?"LEAD":formatInterval(row?.interval_ms??row?.gap_to_previous_ms)}
+              </span>
+              <span className={`text-right font-mono text-[9px] font-bold ${row?.retired||gridGain==null?"text-slate-600":gridGain>0?"text-emerald-300":gridGain<0?"text-red-300":"text-slate-500"}`}>
+                {row?.retired||gridGain==null?"—":gridGain>0?`+${gridGain}`:String(gridGain)}
               </span>
             </button>;
           })}
