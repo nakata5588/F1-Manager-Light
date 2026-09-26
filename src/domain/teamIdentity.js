@@ -72,6 +72,40 @@ export function canonicalTeamIdentity(row){
   return out;
 }
 
+// Runtime/gameplay datasets canonicalize managerial Team/Entrant identity
+// without rewriting technical Constructor/Chassis identity.
+export function canonicalManagerialTeamIdentity(row){
+  if(!row||typeof row!=="object"||Array.isArray(row))return row;
+  const out={...row};
+  const idFields=["team_id","entrant_id","managerial_team_id","entry_team_id","primary_team_id"];
+  const nameFields=["team_name","entrant_name","managerial_team_name","entry_team_name","primary_team_name"];
+
+  for(const key of idFields){
+    if(Object.prototype.hasOwnProperty.call(out,key)){
+      out[key]=mapIdentityValue(out[key],canonicalTeamId);
+    }
+  }
+  for(const key of nameFields){
+    if(Object.prototype.hasOwnProperty.call(out,key)){
+      out[key]=mapIdentityValue(out[key],canonicalTeamName);
+    }
+  }
+
+  if(Object.prototype.hasOwnProperty.call(out,"team")){
+    out.team=mapIdentityValue(out.team,(value)=>{
+      const raw=String(identityScalar(value)??"").trim();
+      if(!raw)return raw;
+      const id=canonicalTeamId(raw);
+      return id!==raw?id:canonicalTeamName(raw);
+    });
+  }
+  return out;
+}
+
+export function canonicalManagerialTeamRows(rows){
+  return (Array.isArray(rows)?rows:[]).map(canonicalManagerialTeamIdentity);
+}
+
 
 const TEAM_ID_FIELDS=Object.freeze(["team_id","constructor_id","teamId","constructorId"]);
 const TEAM_NAME_FIELDS=Object.freeze([
@@ -150,8 +184,10 @@ export function createTeamIdentityResolver(teams=[]){
     const name=canonicalTeamName(
       identityText(team?.team_name??team?.name??team?.short_name??id)
     )||id;
-    const candidate={team,id,name,names};
-    if(!byId.has(id))byId.set(id,candidate);
+    const rawId=identityText(team?.team_id??team?.constructor_id??team?.id);
+    const candidate={team,id,name,names,rawId,canonicalSource:rawId===id};
+    const existing=byId.get(id);
+    if(!existing||(!existing.canonicalSource&&candidate.canonicalSource))byId.set(id,candidate);
     for(const entry of names){
       if(!byName.has(entry.key))byName.set(entry.key,new Set());
       byName.get(entry.key).add(id);
