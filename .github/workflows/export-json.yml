@@ -71,6 +71,9 @@ jobs:
       - name: Test generic feeder placement principles
         run: npm run test:world-placement
 
+      - name: Test Starting Rating materializer principles
+        run: npm run test:starting-ratings
+
       - name: Test historical talent evidence against real archive
         run: |
           node scripts/build-race-results-archive.mjs
@@ -92,6 +95,9 @@ jobs:
         run: |
           npm run test:world-placement:real
           npm run world:placement
+
+      - name: Test Starting Rating calibration against real archive
+        run: npm run test:starting-ratings:real
 
       - name: Test Drivers cross-system integration
         run: npm run test:driver-integration
