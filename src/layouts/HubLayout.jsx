@@ -26,6 +26,7 @@ const PAGE_TITLES = {
   "/Staff": "Staff Market",
   "/RaceWeekend": "Race Weekend",
   "/Settings": "Settings",
+  "/GameSettings": "Settings",
   "/AssetTest": "Asset Test",
 };
 
