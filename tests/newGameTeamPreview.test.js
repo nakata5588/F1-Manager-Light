@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { newGameTeamPreview } from "../src/domain/newGameTeamPreview.js";
+import { newGameTeamPreview, newGameTeamPreviews } from "../src/domain/newGameTeamPreview.js";
 
 function state(){
   return {
@@ -114,4 +114,19 @@ test("board expectation does not drive the New Game championship projection",()=
   assert.equal(original.championshipExpectationLabel,after.championshipExpectationLabel);
   assert.equal(original.championshipProjection.score,after.championshipProjection.score);
   assert.notEqual(original.boardExpectation,after.boardExpectation);
+});
+
+
+test("batch preview derives the whole field with one shared championship table",()=>{
+  const gs=state();
+  const previews=newGameTeamPreviews(gs);
+  assert.equal(previews.size,2);
+
+  const first=previews.get("T1");
+  const second=previews.get("T2");
+  assert.equal(first.championshipProjection.fieldSize,2);
+  assert.equal(second.championshipProjection.fieldSize,2);
+  assert.ok(first.championshipProjection.score>second.championshipProjection.score);
+  assert.equal(first.championshipProjection.nominalPosition,1);
+  assert.equal(second.championshipProjection.nominalPosition,2);
 });
