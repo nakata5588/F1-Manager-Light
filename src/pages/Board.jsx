@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
 import { deriveBoardState } from "@/domain/boardState.js";
+import { gameplayRngFor } from "@/core/random.js";
 
 const DAY = 86_400_000;
 const clamp01 = (x) => Math.max(0, Math.min(1, Number(x) || 0));
@@ -275,7 +276,13 @@ export default function Board() {
     if (!amount || budgetCooldown) return;
 
     if (!requestJustification.trim()) return;
-    const approved = Math.random() < budgetApprovalChance;
+    const budgetAttempt = budgetRequests.length + 1;
+    const budgetRng = gameplayRngFor(
+      gameState,
+      "board-budget-request",
+      `${year}:${date}:${teamId}:attempt-${budgetAttempt}`
+    );
+    const approved = budgetRng.chance(budgetApprovalChance);
     const explanation = approved
       ? `Approved: ${fmtMoney(amount)} for ${requestReason.toLowerCase()}. The board accepted the case: "${requestJustification.trim()}". Estimated approval chance was ${Math.round(budgetApprovalChance*100)}%.`
       : `Declined: ${fmtMoney(amount)} for ${requestReason.toLowerCase()}. The board judged the request too aggressive for the current ${pct(overallConfidence)} confidence level and ${fmtMoney(approvalCeiling)} comfort ceiling. Estimated approval chance was ${Math.round(budgetApprovalChance*100)}%.`;

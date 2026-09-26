@@ -48,4 +48,10 @@ export function rngFor(gameState, entropyKey) {
   return createRng(`${getSaveSeed(gameState)}::${String(entropyKey ?? "default")}`);
 }
 
+export function gameplayRngFor(gameState, scope, entropyKey = "default") {
+  const domain = String(scope ?? "").trim();
+  if (!domain) throw new TypeError("gameplayRngFor requires a non-empty scope.");
+  return rngFor(gameState, `gameplay:${domain}:${String(entropyKey ?? "default")}`);
+}
+
 export { hashSeed };

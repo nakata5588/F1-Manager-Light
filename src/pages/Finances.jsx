@@ -5,6 +5,7 @@ import { useGame } from "@/state/GameStore";
 import { activeDriverContracts } from "@/domain/driverContracts";
 import { activeStaffContracts } from "@/domain/liveContracts";
 import { managerGameplayEffects } from "@/domain/managerProfile";
+import { gameplayRngFor } from "@/core/random";
 
 /* ----------------- utils ----------------- */
 const fmtMoney = (n) => {
@@ -701,7 +702,13 @@ function SponsorsTab({ sponsors }) {
     const managerCommercial=managerGameplayEffects(gameState,{teamId}).sponsorAcceptanceDelta;
     const acceptance=Math.max(0.05,Math.min(0.95,0.68+relationship*0.25-demandPressure-roundPenalty+managerCommercial));
 
-    if(Math.random()<acceptance){
+    const sponsorId=String(pick(negotiating,["sponsor_id","id","name"],"sponsor"));
+    const sponsorRng=gameplayRngFor(
+      gameState,
+      "sponsor-negotiation",
+      `${Y}:${todayISO}:${teamId}:${sponsorId}:round-${negotiationRound}`
+    );
+    if(sponsorRng.chance(acceptance)){
       finalizeSponsor(negotiating,{
         annual_income:Math.round(Number(offerAnnual||0)),
         cash_upfront:Math.round(Number(offerUpfront||0)),
@@ -722,7 +729,7 @@ function SponsorsTab({ sponsors }) {
         ? "The sponsor is close to walking away. This is effectively their final counter-offer."
         : `Counter-offer received. Estimated acceptance of your last proposal was ${Math.round(acceptance*100)}%.`
     );
-  },[negotiating,offerAnnual,offerUpfront,offerWinBonus,commercialScore,negotiationRound,sponsorEligibility,finalizeSponsor,gameState,teamId]);
+  },[negotiating,offerAnnual,offerUpfront,offerWinBonus,commercialScore,negotiationRound,sponsorEligibility,finalizeSponsor,gameState,teamId,Y,todayISO]);
 
   return (
     <>

@@ -307,10 +307,10 @@ function processMonthEnd(gs) {
 
   // 2.5 RD Projects (se existirem) — opcionalmente por projeto
   const rdList = Array.isArray(gs.rdProjectsActive) ? gs.rdProjectsActive : [];
-  for (const p of rdList) {
+  for (const [projectIndex, p] of rdList.entries()) {
     const monthly = N(p.costMonthly ?? p.monthly_cost ?? p.cost ?? 0, 0);
     if (!monthly) continue;
-    const pid = String(p.id ?? p.key ?? p.name ?? Math.random().toString(36).slice(2, 7));
+    const pid = String(p.id ?? p.key ?? p.name ?? `rd_${projectIndex}`);
     const tx = {
       dateISO: prevMonthISO,
       type: "expense",
