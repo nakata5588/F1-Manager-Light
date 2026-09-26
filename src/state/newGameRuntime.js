@@ -17,7 +17,7 @@ export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
   "dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides",
   "dbPenaltiesRules","dbFinancialRules","dbBoardGoals","dbAgendaBlocks",
   "dbLogosIndex","dbAIDifficulty","dbContractRules","dbYouthIntakeRules",
-  "dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbCoreTracks",
+  "dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbCoreTracks",
   "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
 
   // Dataset discovery / selected Season Pack metadata.
