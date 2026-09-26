@@ -249,10 +249,10 @@ export default function Settings(){
               <input type="checkbox" className="h-4 w-4" checked={draft.display.tooltips!==false} onChange={(e)=>set("display.tooltips",e.target.checked)}/>
               <span>Enable contextual tooltips</span>
             </label>
-            <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" className="h-4 w-4" checked={draft.display.responsiveLayout!==false} onChange={(e)=>set("display.responsiveLayout",e.target.checked)}/>
-              <span>Responsive screen layout</span>
-            </label>
+            <div className="flex items-center gap-3 text-sm text-slate-400">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400/15 text-[10px] text-emerald-300">✓</span>
+              <span>Responsive screen layout · always automatic</span>
+            </div>
           </div>
 
           <div className="rounded-lg border border-sky-400/15 bg-sky-400/[0.05] p-3 text-xs text-slate-400">
