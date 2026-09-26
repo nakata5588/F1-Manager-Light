@@ -513,27 +513,28 @@ function finalOppositionNormalization({
     const field=num(opp.field_strength,50);
     const fieldAdjustment=(field-50)*0.06;
 
-    const qualifying=clamp(
-      weightedAverage([
-        [num(era.qualifying,null),0.80],
-        [num(qMap.get(did),null),0.20],
-      ])??num(era.qualifying,50),
-      0,100
-    );
-    const race=clamp(
-      weightedAverage([
-        [num(era.race,null),0.78],
-        [num(raceMap.get(did),null),0.22],
-      ])??num(era.race,50),
-      0,100
-    );
+    // Missing evidence must remain missing. A neutral score of 50 is a real
+    // analytical value, so using it as a fallback would fabricate evidence for
+    // drivers with no qualifying/race observations.
+    const qualifying=weightedAverage([
+      [num(era.qualifying,null),0.80],
+      [num(qMap.get(did),null),0.20],
+    ]);
+    const race=weightedAverage([
+      [num(era.race,null),0.78],
+      [num(raceMap.get(did),null),0.22],
+    ]);
     const peak=Number.isFinite(num(era.peak,null))
       ?clamp(num(era.peak,50)+fieldAdjustment*0.50,0,100)
       :null;
     const consistency=num(era.consistency,null);
 
-    const finalQ=clamp(qualifying+fieldAdjustment,0,100);
-    const finalRace=clamp(race+fieldAdjustment,0,100);
+    const finalQ=Number.isFinite(qualifying)
+      ?clamp(qualifying+fieldAdjustment,0,100)
+      :null;
+    const finalRace=Number.isFinite(race)
+      ?clamp(race+fieldAdjustment,0,100)
+      :null;
     const composite=weightedAverage([
       [finalQ,0.35],
       [finalRace,0.40],
