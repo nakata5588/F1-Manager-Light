@@ -1824,6 +1824,15 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  setRaceWeekendRedFlagStrategy: async (command={}) => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.setRedFlagRestartStrategy(gs,command);
+    set({gameState:next});
+    checkpointRaceWeekendState(next);
+    return next?.raceWeekendState?.live_race||null;
+  },
+
   assessRaceWeekendLiveRaceRestart: async () => {
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
@@ -1855,6 +1864,15 @@ export const useGame = create((set, get) => ({
     const gs=get().gameState;
     const mod=await import("@/engine/RaceWeekendEngine");
     const next=mod.resumeLiveRaceSession(gs);
+    set({gameState:next});
+    checkpointRaceWeekendState(next);
+    return next?.raceWeekendState?.live_race||null;
+  },
+
+  restartRaceWeekendLiveRace: async () => {
+    const gs=get().gameState;
+    const mod=await import("@/engine/RaceWeekendEngine");
+    const next=mod.restartLiveRaceFromRedFlagSession(gs);
     set({gameState:next});
     checkpointRaceWeekendState(next);
     return next?.raceWeekendState?.live_race||null;
