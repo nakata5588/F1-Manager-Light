@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { historicalResultCode, historicalResultInfo } from "../src/domain/historicalRaceStatus.js";
+import { createHistoricalResultTeamResolver } from "../src/domain/historicalResultTeamResolver.js";
 
 const root=process.cwd();
 const dataDir=path.join(root,"public","data");
@@ -60,42 +61,12 @@ for(const d of drivers){
   }
 }
 
-const constructorIdToName=new Map(
-  (constructorRef?.constructors||[]).map((r)=>[Number(r.constructorId),String(r.constructorName||"")])
-);
-const teamNameToId=new Map();
-const teamNameById=new Map();
-for(const t of teams){
-  const id=String(first(t,["team_id","id"],""));
-  if(!id)continue;
-  const name=String(first(t,["team_name","name","short_name"],id));
-  teamNameById.set(id,name);
-  for(const n of [t.team_name,t.name,t.short_name,t.official_name]){
-    const key=canon(n);
-    if(key&&!teamNameToId.has(key))teamNameToId.set(key,id);
-  }
-}
-function managerialTeamName(name){
-  const raw=String(name||"").trim();
-  if(!raw)return raw;
-  if(/^team lotus$/i.test(raw))return "Lotus";
-  const dash=raw.indexOf("-");
-  if(dash>0){
-    const base=raw.slice(0,dash).trim();
-    if(teamNameToId.has(canon(base)))return base;
-  }
-  return raw;
-}
+const historicalTeamResolver=createHistoricalResultTeamResolver({
+  teams,
+  constructorReference:constructorRef,
+});
 function resolveTeam(row){
-  const direct=String(first(row,["team_id","constructor_id"],""));
-  if(direct&&teamNameById.has(direct))return direct;
-  const constructorId=num(first(row,["constructorId"],null),null);
-  const refName=constructorId!=null?constructorIdToName.get(constructorId):"";
-  const raw=String(first(row,["team_name","constructor_name","constructorName","constructor","team"],refName||""));
-  const mapped=teamNameToId.get(canon(managerialTeamName(raw)));
-  if(mapped)return mapped;
-  if(direct)return direct;
-  return constructorId!=null?`archive_constructor_${constructorId}`:raw;
+  return historicalTeamResolver.resolveId(row,{fallback:"raw"});
 }
 function resolveDriver(row){
   const direct=String(first(row,["driver_id","person_id"],""));
@@ -140,7 +111,7 @@ for(const row of Array.isArray(rows)?rows:[]){
   const driver_id=resolveDriver(row);
   const team_id=resolveTeam(row);
   const driver_name=driverNameById.get(driver_id)||String(first(row,["driver_name","driverName","display_name","name"],driver_id||"—"));
-  const team_name=teamNameById.get(team_id)||String(first(row,["team_name","constructorName","constructor_name","constructor","team"],team_id||"—"));
+  const team_name=historicalTeamResolver.nameForId(team_id)||String(first(row,["team_name","constructorName","constructor_name","constructor","team"],team_id||"—"));
   const position=num(first(row,["position","positionOrder","position_order","finish_position","pos"],null),null);
   const grid=num(first(row,["grid","gridPosition","grid_position","starting_grid"],null),null);
   const statusInfo=historicalResultInfo(row);
