@@ -13,6 +13,25 @@ function careerSeed(state){
   return String(state?.saveMeta?.seed??"");
 }
 
+export function compactRaceWeekendForRecovery(weekend){
+  const normalized=normalizeRaceWeekendResumeState(weekend??null);
+  const live=normalized?.live_race;
+  const status=String(live?.status||"").toLowerCase();
+  if(!live||!["running","red_flag"].includes(status))return normalized;
+  // The deterministic engine rebuilds future projections on the next sector.
+  // Keeping those large derived arrays in the tab refresh journal can exhaust
+  // Web Storage and leave recovery stuck on an older race checkpoint.
+  const {
+    projected_race: _projectedRace,
+    projected_summary: _projectedSummary,
+    ...compactLive
+  }=live;
+  return {
+    ...normalized,
+    live_race:compactLive,
+  };
+}
+
 export function buildSessionRecoverySnapshot(state){
   if(!state||typeof state!=="object")return null;
   return {
@@ -23,7 +42,7 @@ export function buildSessionRecoverySnapshot(state){
     currentRound:state?.currentRound??null,
     team:state?.team??null,
     raceEntryState:state?.raceEntryState??null,
-    raceWeekendState:normalizeRaceWeekendResumeState(state?.raceWeekendState??null),
+    raceWeekendState:compactRaceWeekendForRecovery(state?.raceWeekendState??null),
   };
 }
 
