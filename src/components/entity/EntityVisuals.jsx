@@ -239,8 +239,9 @@ function UploadableVisual({children,editable=false,type,entityId,activeYear,labe
   );
 }
 
-export function DriverPortrait({ driver, size = "h-8 w-8", className = "", editable = false }) {
-  const activeYear=useActiveVisualYear();
+export function DriverPortrait({ driver, size = "h-8 w-8", className = "", editable = false, year = null }) {
+  const runtimeYear=useActiveVisualYear();
+  const activeYear=Number.isFinite(Number(year))?Number(year):runtimeYear;
   const name = driver?.display_name || driver?.name || driver?.driver_name ||
     [driver?.first_name,driver?.last_name].filter(Boolean).join(" ") || "Driver";
   const driverId=driver?.driver_id??driver?.id??driver?.driverId??driver?.code??"";
@@ -316,8 +317,10 @@ export function TeamLogo({
   className = "",
   fallbacks = [],
   editable = false,
+  year = null,
 }) {
-  const activeYear=useActiveVisualYear();
+  const runtimeYear=useActiveVisualYear();
+  const activeYear=Number.isFinite(Number(year))?Number(year):runtimeYear;
   const id=String(teamId||"");
   const legacyFallbacks=[
     ...(Array.isArray(fallbacks)?fallbacks:[fallbacks]),
