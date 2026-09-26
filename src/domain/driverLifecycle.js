@@ -75,7 +75,8 @@ function safeHistoricalRookieYear(gs,driver){
   if(!Number.isFinite(year)||!Number.isFinite(boundary)||year>boundary)return null;
   return year;
 }
-export function driverCareerExperience(gs,driver){
+export function driverCareerExperience(gs,driverOrId){
+  const driver=driverOf(gs,driverOrId);
   const driverId=idOf(driver);
   const year=Number(gs?.activeYear);
   const playedYears=actualRaceYears(gs,driverId);
