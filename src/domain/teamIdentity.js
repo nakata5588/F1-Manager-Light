@@ -17,6 +17,7 @@ function identityScalar(value){
   if(value&&typeof value==="object"&&!Array.isArray(value)){
     if(Object.prototype.hasOwnProperty.call(value,"result"))return identityScalar(value.result);
     if(Object.prototype.hasOwnProperty.call(value,"value"))return identityScalar(value.value);
+    if(Object.prototype.hasOwnProperty.call(value,"text"))return identityScalar(value.text);
   }
   return value;
 }
@@ -69,6 +70,172 @@ export function canonicalTeamIdentity(row){
     out.teams=mapIdentityValue(out.teams,canonicalTeamName);
   }
   return out;
+}
+
+
+const TEAM_ID_FIELDS=Object.freeze(["team_id","constructor_id","teamId","constructorId"]);
+const TEAM_NAME_FIELDS=Object.freeze([
+  "team_name",
+  "constructor_name",
+  "constructorName",
+  "teamName",
+  "team",
+  "constructor",
+]);
+
+function identityText(value){
+  const raw=identityScalar(value);
+  if(raw===undefined||raw===null||raw==="")return "";
+  if(typeof raw==="object")return "";
+  return String(raw).trim();
+}
+
+function firstIdentityText(row,fields){
+  for(const field of fields){
+    const value=identityText(row?.[field]);
+    if(value)return value;
+  }
+  return "";
+}
+
+export function normalizeTeamIdentityName(value){
+  return canonicalTeamName(identityText(value))
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"")
+    .trim();
+}
+
+function teamCandidateNames(team){
+  const values=[
+    team?.team_name,
+    team?.name,
+    team?.short_name,
+    team?.official_name,
+    team?.team_official_name,
+  ];
+  const seen=new Set();
+  const names=[];
+  for(const value of values){
+    const label=canonicalTeamName(identityText(value));
+    const key=normalizeTeamIdentityName(label);
+    if(!key||seen.has(key))continue;
+    seen.add(key);
+    names.push({label,key});
+  }
+  return names;
+}
+
+function resolvedCandidate(candidate,match,rawName="",ambiguousCandidateIds=[]){
+  return {
+    id:candidate?.id||"",
+    name:candidate?.name||canonicalTeamName(rawName),
+    match,
+    raw_name:identityText(rawName),
+    ambiguous_candidate_ids:ambiguousCandidateIds,
+  };
+}
+
+export function createTeamIdentityResolver(teams=[]){
+  const source=Array.isArray(teams)?teams:[];
+  const byId=new Map();
+  const byName=new Map();
+
+  for(const team of source){
+    if(!team||typeof team!=="object")continue;
+    const id=canonicalTeamId(team?.team_id??team?.constructor_id??team?.id);
+    if(!id)continue;
+    const names=teamCandidateNames(team);
+    const name=canonicalTeamName(
+      identityText(team?.team_name??team?.name??team?.short_name??id)
+    )||id;
+    const candidate={team,id,name,names};
+    if(!byId.has(id))byId.set(id,candidate);
+    for(const entry of names){
+      if(!byName.has(entry.key))byName.set(entry.key,new Set());
+      byName.get(entry.key).add(id);
+    }
+  }
+
+  const resolve=(row,options={})=>{
+    const directRaw=firstIdentityText(row,TEAM_ID_FIELDS);
+    const direct=canonicalTeamId(directRaw);
+    if(direct&&byId.has(direct)){
+      return resolvedCandidate(byId.get(direct),"direct_id");
+    }
+
+    const rawNames=[];
+    for(const field of TEAM_NAME_FIELDS){
+      const value=identityText(row?.[field]);
+      if(value)rawNames.push(value);
+    }
+    const fallbackName=identityText(options?.fallbackName);
+    if(fallbackName)rawNames.push(fallbackName);
+
+    const exactAmbiguous=new Set();
+    for(const rawName of rawNames){
+      const key=normalizeTeamIdentityName(rawName);
+      if(!key)continue;
+      const ids=byName.get(key);
+      if(ids?.size===1){
+        const id=[...ids][0];
+        return resolvedCandidate(byId.get(id),"exact_name",rawName);
+      }
+      if(ids?.size>1)for(const id of ids)exactAmbiguous.add(id);
+    }
+
+    // Historical imports sometimes include founder/sponsor prefixes
+    // (for example "Walter Wolf" for the canonical "Wolf" team). Fuzzy
+    // reconciliation is accepted only when every match points to one unique
+    // canonical ID, so labels such as "Haas Lola" are never guessed.
+    const fuzzyIds=new Set();
+    let fuzzyRawName="";
+    for(const rawName of rawNames){
+      const wanted=normalizeTeamIdentityName(rawName);
+      if(wanted.length<4)continue;
+      for(const candidate of byId.values()){
+        if(candidate.names.some((entry)=>
+          entry.key.length>=4&&(wanted.includes(entry.key)||entry.key.includes(wanted))
+        )){
+          fuzzyIds.add(candidate.id);
+          fuzzyRawName=fuzzyRawName||rawName;
+        }
+      }
+    }
+    if(fuzzyIds.size===1){
+      const id=[...fuzzyIds][0];
+      return resolvedCandidate(byId.get(id),"fuzzy_name",fuzzyRawName);
+    }
+
+    const unresolvedName=rawNames[0]||"";
+    const ambiguous=[...new Set([...exactAmbiguous,...fuzzyIds])].sort();
+    return {
+      id:direct||"",
+      name:canonicalTeamName(unresolvedName),
+      match:direct?"unresolved_id":(ambiguous.length?"ambiguous_name":(unresolvedName?"unresolved_name":"unresolved")),
+      raw_name:unresolvedName,
+      ambiguous_candidate_ids:ambiguous,
+    };
+  };
+
+  return Object.freeze({
+    resolve,
+    resolveId:(row,options={})=>resolve(row,options).id,
+  });
+}
+
+export function resolveHistoricalTeamIdentity(row,teams=[],options={}){
+  return createTeamIdentityResolver(teams).resolve(row,options);
+}
+
+export function resolveHistoricalTeamId(row,teams=[],options={}){
+  return resolveHistoricalTeamIdentity(row,teams,options).id;
+}
+
+export function canonicalHistoricalTeam(row,teams=[],options={}){
+  const resolved=resolveHistoricalTeamIdentity(row,teams,options);
+  return {id:resolved.id,name:resolved.name};
 }
 
 export function mergeCanonicalTeamRows(rows){
