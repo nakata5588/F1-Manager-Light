@@ -6,8 +6,8 @@
 import { driverIdOf, driverLineupSlots } from "./driverContracts.js";
 import { driverOverallPresentation } from "./driverMarketEvaluation.js";
 import { teamCarPerformance } from "./carPerformance.js";
-import { BOARD_EXPECTATION_LABEL, normalizeBoardExpectation } from "./boardState.js";
 import { teamReputation, teamReputationLabel } from "./teamReputation.js";
+import { teamStaffStructure } from "./staffRoles.js";
 
 const unwrap=(value)=>{
   if(value&&typeof value==="object"&&!Array.isArray(value)){
@@ -25,6 +25,7 @@ const pick=(obj,keys,fallback=undefined)=>{
   return fallback;
 };
 
+const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 const teamIdOf=(row)=>String(pick(row,["team_id","constructor_id","id","team","constructor"],""));
 const yearOf=(row)=>Number(pick(row,["year","season_year"],NaN));
 
@@ -79,8 +80,8 @@ function facilitySnapshot(gs,teamId,year){
   return {
     available:levels.length,
     average:levels.length
-      ? Math.round((levels.reduce((sum,value)=>sum+value,0)/levels.length)*10)/10
-      : null,
+      ?Math.round((levels.reduce((sum,value)=>sum+value,0)/levels.length)*10)/10
+      :null,
     items,
   };
 }
@@ -127,21 +128,65 @@ function driverPreview(gs,contract,slot){
   };
 }
 
-export function newGameTeamPreview(gs,team){
+const STAFF_META_KEYS=new Set([
+  "staff_id","person_id","id","staff_name","display_name","name",
+  "year","season_year","role","position","team_id","team_name",
+]);
+
+function staffRatingForYear(gs,id,year){
+  const rows=collection(gs?.staffRatings,gs?.dbStaffRatings)
+    .filter((row)=>String(pick(row,["staff_id","person_id","id"],""))===String(id));
+  const exact=rows.find((row)=>Number(pick(row,["year","season_year"],NaN))===Number(year));
+  if(exact)return exact;
+  return rows
+    .filter((row)=>Number(pick(row,["year","season_year"],-Infinity))<=Number(year))
+    .sort((a,b)=>Number(pick(b,["year","season_year"],0))-Number(pick(a,["year","season_year"],0)))[0]
+    ||rows[0]||null;
+}
+
+function staffOverall(rating){
+  if(!rating)return null;
+  const values=Object.entries(rating)
+    .filter(([key,value])=>!STAFF_META_KEYS.has(key)&&Number.isFinite(Number(unwrap(value))))
+    .map(([,value])=>Number(unwrap(value)));
+  return values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
+}
+
+function staffSnapshot(gs,teamId,year){
+  const structure=teamStaffStructure(gs,teamId);
+  const rows=structure.map((contract)=>{
+    const id=String(contract?.staff_id||"");
+    const overall=staffOverall(staffRatingForYear(gs,id,year));
+    return {
+      id,
+      role:contract?.role_label||contract?.canonical_role||pick(contract,["role","position"],"Staff"),
+      overall:Number.isFinite(overall)?Math.round(overall*10)/10:null,
+    };
+  });
+  const known=rows.map((row)=>row.overall).filter(Number.isFinite);
+  return {
+    count:rows.length,
+    rated:known.length,
+    overall:known.length?Math.round((known.reduce((sum,value)=>sum+value,0)/known.length)*10)/10:null,
+    rows,
+  };
+}
+
+function rawTeamSnapshot(gs,team){
   const year=Number(gs?.activeYear)||Number(gs?.seasonPackMeta?.year)||1980;
   const teamId=teamIdOf(team);
   const world=historicalWorld(gs,team);
   const brand=brandForTeam(gs,teamId,year);
   const lineup=driverLineupSlots(gs,teamId);
-  const expectation=normalizeBoardExpectation(pick(brand,["board_expectation","season_expectation","expectation"],"midfield"));
 
   let reputation=null;
   let car=null;
-  try{ reputation=teamReputation(world,teamId); }catch{ reputation=null; }
-  try{ car=teamCarPerformance(world,teamId); }catch{ car=null; }
+  try{reputation=teamReputation(world,teamId);}catch{reputation=null;}
+  try{car=teamCarPerformance(world,teamId);}catch{car=null;}
 
   const finance=financeSnapshot(gs,team,teamId,year);
   const facilities=facilitySnapshot(gs,teamId,year);
+  const staff=staffSnapshot(gs,teamId,year);
   const engine=rowForTeam(collection(gs?.teamEngines,gs?.dbTeamEngines),teamId,year)||{};
   const drivers=[
     driverPreview(gs,lineup?.main,"main"),
@@ -150,14 +195,14 @@ export function newGameTeamPreview(gs,team){
   const knownDriverOveralls=drivers.map((row)=>row.overall).filter(Number.isFinite);
 
   return {
+    team,
     teamId,
     year,
     reputation:Number.isFinite(Number(reputation))?Number(reputation):null,
     reputationLabel:Number.isFinite(Number(reputation))?teamReputationLabel(reputation):"Unknown",
     startingBudget:finance.startingBudget,
     budgetSource:finance.source,
-    championshipExpectation:expectation,
-    championshipExpectationLabel:BOARD_EXPECTATION_LABEL[expectation]||"Competitive season",
+    boardExpectation:String(pick(brand,["board_expectation","season_expectation","expectation"],"")||"")||null,
     car:car?{
       overall:Number(car.overall),
       qualifying:Number(car.qualifying),
@@ -165,10 +210,128 @@ export function newGameTeamPreview(gs,team){
       reliability:Number(car.reliability),
     }:null,
     facilities,
+    staff,
     engineName:String(pick(engine,["engine_name","name","engine"],""))||null,
     drivers,
     driversOverall:knownDriverOveralls.length
-      ? Math.round((knownDriverOveralls.reduce((sum,value)=>sum+value,0)/knownDriverOveralls.length)*10)/10
-      : null,
+      ?Math.round((knownDriverOveralls.reduce((sum,value)=>sum+value,0)/knownDriverOveralls.length)*10)/10
+      :null,
+  };
+}
+
+export const CHAMPIONSHIP_PROJECTION_WEIGHTS=Object.freeze({
+  car:0.35,
+  drivers:0.25,
+  staff:0.15,
+  facilities:0.10,
+  budget:0.10,
+  reputation:0.05,
+});
+
+function relativeBudgetScore(value,allBudgets){
+  const raw=Number(value);
+  if(!Number.isFinite(raw)||raw<=0)return null;
+  const logs=(allBudgets||[])
+    .map(Number)
+    .filter((item)=>Number.isFinite(item)&&item>0)
+    .map((item)=>Math.log(item));
+  if(!logs.length)return null;
+  const current=Math.log(raw);
+  const min=Math.min(...logs);
+  const max=Math.max(...logs);
+  if(Math.abs(max-min)<1e-9)return 50;
+  return clamp(((current-min)/(max-min))*100);
+}
+
+function factorBundle(snapshot,budgets){
+  return {
+    car:Number.isFinite(snapshot?.car?.overall)?clamp(snapshot.car.overall):null,
+    drivers:Number.isFinite(snapshot?.driversOverall)?clamp(snapshot.driversOverall):null,
+    staff:Number.isFinite(snapshot?.staff?.overall)?clamp(snapshot.staff.overall):null,
+    facilities:Number.isFinite(snapshot?.facilities?.average)?clamp(snapshot.facilities.average*10):null,
+    budget:relativeBudgetScore(snapshot?.startingBudget,budgets),
+    reputation:Number.isFinite(snapshot?.reputation)?clamp(snapshot.reputation):null,
+  };
+}
+
+function strengthScore(factors){
+  let weighted=0;
+  let weightUsed=0;
+  for(const [key,weight] of Object.entries(CHAMPIONSHIP_PROJECTION_WEIGHTS)){
+    const value=Number(factors?.[key]);
+    if(!Number.isFinite(value))continue;
+    weighted+=value*weight;
+    weightUsed+=weight;
+  }
+  return {
+    score:weightUsed>0?weighted/weightUsed:null,
+    completeness:weightUsed,
+  };
+}
+
+function ordinal(position){
+  const n=Math.max(1,Math.round(Number(position)||1));
+  const mod100=n%100;
+  const suffix=(mod100>=11&&mod100<=13)?"th":n%10===1?"st":n%10===2?"nd":n%10===3?"rd":"th";
+  return String(n)+suffix;
+}
+
+function championshipProjection(gs,targetTeamId){
+  const teams=collection(gs?.teams,gs?.dbTeams);
+  const field=(teams.length?teams:[]).map((team)=>rawTeamSnapshot(gs,team));
+  if(!field.some((row)=>row.teamId===String(targetTeamId)))return null;
+
+  const budgets=field.map((row)=>row.startingBudget).filter((value)=>Number.isFinite(Number(value))&&Number(value)>0);
+  const scored=field.map((row)=>{
+    const factors=factorBundle(row,budgets);
+    const strength=strengthScore(factors);
+    return {...row,factors,...strength};
+  }).filter((row)=>Number.isFinite(row.score));
+
+  scored.sort((a,b)=>b.score-a.score||String(a.teamId).localeCompare(String(b.teamId)));
+  const target=scored.find((row)=>row.teamId===String(targetTeamId));
+  if(!target)return null;
+
+  const nominal=scored.findIndex((row)=>row.teamId===target.teamId)+1;
+  const tolerance=4.0+(1-clamp(target.completeness,0,1))*5.0;
+  let minPosition=1+scored.filter((row)=>row.score>target.score+tolerance).length;
+  let maxPosition=scored.filter((row)=>row.score>=target.score-tolerance).length;
+
+  minPosition=Math.min(minPosition,nominal);
+  maxPosition=Math.max(maxPosition,nominal);
+  if(minPosition===maxPosition&&scored.length>1){
+    if(nominal===1)maxPosition=Math.min(scored.length,2);
+    else if(nominal===scored.length)minPosition=Math.max(1,nominal-1);
+    else{
+      minPosition=Math.max(1,nominal-1);
+      maxPosition=Math.min(scored.length,nominal+1);
+    }
+  }
+
+  return {
+    nominalPosition:nominal,
+    minPosition,
+    maxPosition,
+    label:minPosition===maxPosition?ordinal(minPosition):ordinal(minPosition)+"–"+ordinal(maxPosition),
+    score:Math.round(target.score*10)/10,
+    completeness:Math.round(target.completeness*100),
+    factors:Object.fromEntries(Object.entries(target.factors).map(([key,value])=>[
+      key,
+      Number.isFinite(Number(value))?Math.round(Number(value)*10)/10:null,
+    ])),
+    weights:CHAMPIONSHIP_PROJECTION_WEIGHTS,
+    fieldSize:scored.length,
+    method:"competitive_strength_v1",
+  };
+}
+
+export function newGameTeamPreview(gs,team){
+  const snapshot=rawTeamSnapshot(gs,team);
+  const projection=championshipProjection(gs,snapshot.teamId);
+  return {
+    ...snapshot,
+    championshipProjection:projection,
+    championshipExpectation:projection,
+    championshipExpectationLabel:projection?.label||"—",
   };
 }
