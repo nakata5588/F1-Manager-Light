@@ -208,6 +208,11 @@ test("derived team-season driver refs never create object-string pseudo drivers"
   const data=fixture();
   data.driverOpeningState=[];
   data.contracts=[];
+  data.drivers=data.drivers.map((row)=>
+    row.driver_id==="D2"
+      ?{...row,driver_id:{formula:"=\"D2\"",result:{text:"D2"}}}
+      :row
+  );
   data.teamSeasons=[{
     year:1980,
     team_id:"T1",
