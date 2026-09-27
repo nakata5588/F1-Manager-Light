@@ -27,7 +27,9 @@ function clamp(value,min,max){
 
 function normalizeTrackProgress(value){
   const number=finite(value);
-  return number==null?null:((number%1)+1)%1;
+  if(number==null)return null;
+  if(number>=0&&number<1)return number;
+  return ((number%1)+1)%1;
 }
 
 function pitStateOf(row){
