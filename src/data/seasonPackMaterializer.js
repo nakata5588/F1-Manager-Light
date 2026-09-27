@@ -28,6 +28,7 @@ const unbox=(v)=>{
     if(v.result!==undefined&&v.result!==null&&v.result!=="")return unbox(v.result);
     if(v.value!==undefined&&v.value!==null&&v.value!=="")return unbox(v.value);
     if(v.text!==undefined&&v.text!==null&&v.text!=="")return unbox(v.text);
+    if(Object.prototype.hasOwnProperty.call(v,"formula"))return null;
   }
   return v;
 };
