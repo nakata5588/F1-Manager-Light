@@ -148,15 +148,15 @@ export function inferDriverFeederPlacement(driver,entry,year,options={}){
 }
 
 export function inferDriverFeederPlacements(drivers=[],entries=[],year,options={}){
-  const entryById=new Map((entries||[]).map(row=>[String(row?.driver_id||""),row]));
+  const entryById=new Map((entries||[]).map(row=>[text(row?.driver_id),row]));
   return (Array.isArray(drivers)?drivers:[])
     .map(driver=>{
-      const id=String(driver?.driver_id??driver?.id??"");
+      const id=text(driver?.driver_id??driver?.id);
       const entry=entryById.get(id);
       return entry?inferDriverFeederPlacement(driver,entry,year,options):null;
     })
     .filter(Boolean)
-    .sort((a,b)=>String(a.driver_id).localeCompare(String(b.driver_id)));
+    .sort((a,b)=>text(a.driver_id).localeCompare(text(b.driver_id)));
 }
 
 export function buildDriverFeederPlacementAudit(placements=[]){
