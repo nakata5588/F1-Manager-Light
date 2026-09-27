@@ -103,12 +103,12 @@ test("W3 runtime patch converts generic feeder placement into existing market fl
 
 test("feeder placement unwraps exported Excel value objects for identity matching",()=>{
   const d=driver({
-    driver_id:{formula:"=\"d_wrapped\"",result:"d_wrapped"},
+    driver_id:{formula:"=\"d_wrapped\"",result:{text:"d_wrapped"}},
     display_name:{value:"Wrapped Driver"},
     dob:{value:"1960-03-21"},
   });
   const e=entry({
-    driver_id:{value:"d_wrapped"},
+    driver_id:{formula:"=\"d_wrapped\"",result:{text:"d_wrapped"}},
     display_name:{value:"Wrapped Driver"},
     first_world_year:{value:1978},
     reference_f1_debut_year:{value:1984},
