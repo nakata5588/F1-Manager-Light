@@ -8,7 +8,8 @@
 const unwrap=(value)=>{
   if(value&&typeof value==="object"&&!Array.isArray(value)){
     if(value.result!==undefined&&value.result!==null&&value.result!=="")return unwrap(value.result);
-    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unwrap(value.value);\n    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unwrap(value.text);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unwrap(value.value);
+    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unwrap(value.text);
   }
   return value;
 };
