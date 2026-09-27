@@ -21,7 +21,7 @@ import {
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
-import { advanceVisualTimelineProgress, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
+import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -218,6 +218,9 @@ function useVisualRaceTimeline({
   playbackSpeed,
   playbackBaseSectorMs,
   currentControl,
+  hasPitLane=false,
+  pitEntryProgress=null,
+  pitExitProgress=null,
 }){
   const snapshotKey=useMemo(
     ()=>raceVisualSnapshotKey(rows,{currentLap,currentSector}),
@@ -292,12 +295,92 @@ function useVisualRaceTimeline({
     return ()=>{if(frame)cancelAnimationFrame(frame);};
   },[playbackRunning,durationMs,timeline]);
 
-  return useMemo(()=>visualRaceTimelineFrame(timeline,progress),[timeline,progress]);
+  const frame=useMemo(()=>visualRaceTimelineFrame(timeline,progress),[timeline,progress]);
+  return useMemo(()=>({
+    ...frame,
+    rows:applyVisualPitLaneState(frame.rows,rows,{
+      hasPitLane,
+      pitEntryProgress,
+      pitExitProgress,
+    }),
+  }),[frame,rows,hasPitLane,pitEntryProgress,pitExitProgress]);
+}
+
+function pointAtOpenPolylineProgress(points,progress){
+  const valid=(Array.isArray(points)?points:[])
+    .filter((point)=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1])))
+    .map((point)=>[Number(point[0]),Number(point[1])]);
+  if(valid.length<2)return null;
+  const segments=[];
+  let total=0;
+  for(let index=0;index<valid.length-1;index+=1){
+    const [ax,ay]=valid[index];
+    const [bx,by]=valid[index+1];
+    const length=Math.hypot(bx-ax,by-ay);
+    segments.push({start:total,length,ax,ay,bx,by});
+    total+=length;
+  }
+  if(total<=0)return {x:valid[0][0],y:valid[0][1]};
+  const t=Math.max(0,Math.min(1,Number(progress)||0));
+  const target=t*total;
+  let segment=segments.at(-1);
+  for(const candidate of segments){
+    if(target<=candidate.start+candidate.length){
+      segment=candidate;
+      break;
+    }
+  }
+  const local=segment.length>0?Math.max(0,Math.min(1,(target-segment.start)/segment.length)):0;
+  return {
+    x:segment.ax+(segment.bx-segment.ax)*local,
+    y:segment.ay+(segment.by-segment.ay)*local,
+  };
+}
+
+function markerVisualPoint(geometry,{
+  trackProgress=0,
+  pitLaneProgress=null,
+  pitLaneMix=0,
+  laneOffset=0,
+}={}){
+  const trackPoint=pointAtTrackProgress(geometry,Number(trackProgress)||0);
+  if(!trackPoint)return null;
+  const mix=Math.max(0,Math.min(1,Number(pitLaneMix)||0));
+  const pitPoint=Number.isFinite(Number(pitLaneProgress))
+    ?pointAtOpenPolylineProgress(geometry?.pit_lane_points,Number(pitLaneProgress))
+    :null;
+  const effectiveMix=pitPoint?mix:0;
+  let point=pitPoint&&effectiveMix>0
+    ?{
+      x:trackPoint.x+(pitPoint.x-trackPoint.x)*effectiveMix,
+      y:trackPoint.y+(pitPoint.y-trackPoint.y)*effectiveMix,
+    }
+    :trackPoint;
+
+  const lateral=(Number(laneOffset)||0)*(1-effectiveMix);
+  if(Math.abs(lateral)>0.0001){
+    const before=pointAtTrackProgress(geometry,Number(trackProgress||0)-0.0045);
+    const after=pointAtTrackProgress(geometry,Number(trackProgress||0)+0.0045);
+    if(before&&after){
+      const dx=after.x-before.x;
+      const dy=after.y-before.y;
+      const length=Math.hypot(dx,dy);
+      if(length>0.0001){
+        point={
+          x:point.x+(-dy/length)*lateral,
+          y:point.y+(dx/length)*lateral,
+        };
+      }
+    }
+  }
+  return point;
 }
 
 function AnimatedMarker({
   geometry,
   progress,
+  pitLaneProgress=null,
+  pitLaneMix=0,
   color,
   secondaryColor="#e2e8f0",
   label,
@@ -308,16 +391,18 @@ function AnimatedMarker({
   markerScale=1,
   laneOffset=0,
   onSelect,
-  onVisualProgress=null,
+  onVisualPoint=null,
 }){
   const display=Number(progress)||0;
   const laneTarget=Number(laneOffset)||0;
   const laneDisplayRef=useRef(laneTarget);
   const [laneDisplay,setLaneDisplay]=useState(laneTarget);
-
-  useEffect(()=>{
-    onVisualProgress?.(display);
-  },[display,onVisualProgress]);
+  const pitTarget={
+    progress:Number.isFinite(Number(pitLaneProgress))?Math.max(0,Math.min(1,Number(pitLaneProgress))):0,
+    mix:Math.max(0,Math.min(1,Number(pitLaneMix)||0)),
+  };
+  const pitDisplayRef=useRef(pitTarget);
+  const [pitDisplay,setPitDisplay]=useState(pitTarget);
 
   useEffect(()=>{
     let frame=null;
@@ -342,28 +427,44 @@ function AnimatedMarker({
     return ()=>{if(frame)cancelAnimationFrame(frame);};
   },[laneTarget]);
 
-  const trackPoint=pointAtTrackProgress(geometry,display);
-  if(!trackPoint)return null;
+  useEffect(()=>{
+    let frame=null;
+    const tick=()=>{
+      const current=pitDisplayRef.current;
+      const next={
+        progress:current.progress+(pitTarget.progress-current.progress)*0.34,
+        mix:current.mix+(pitTarget.mix-current.mix)*0.34,
+      };
+      const settled=Math.abs(next.progress-pitTarget.progress)<0.001&&Math.abs(next.mix-pitTarget.mix)<0.001;
+      const value=settled?pitTarget:next;
+      pitDisplayRef.current=value;
+      setPitDisplay(value);
+      if(!settled)frame=requestAnimationFrame(tick);
+    };
+    const current=pitDisplayRef.current;
+    if(Math.abs(current.progress-pitTarget.progress)<0.001&&Math.abs(current.mix-pitTarget.mix)<0.001){
+      pitDisplayRef.current=pitTarget;
+      setPitDisplay(pitTarget);
+      return undefined;
+    }
+    frame=requestAnimationFrame(tick);
+    return ()=>{if(frame)cancelAnimationFrame(frame);};
+  },[pitTarget.progress,pitTarget.mix]);
+
+  const point=markerVisualPoint(geometry,{
+    trackProgress:display,
+    pitLaneProgress:pitDisplay.progress,
+    pitLaneMix:pitDisplay.mix,
+    laneOffset:laneDisplay,
+  });
+
+  useEffect(()=>{
+    if(point)onVisualPoint?.(point);
+  },[point?.x,point?.y,onVisualPoint]);
+
+  if(!point)return null;
 
   const scale=Math.max(0.08,Math.min(1.25,Number(markerScale)||1));
-  const lateral=Number(laneDisplay)||0;
-  let point=trackPoint;
-  if(Math.abs(lateral)>0.0001){
-    const before=pointAtTrackProgress(geometry,Number(display||0)-0.0045);
-    const after=pointAtTrackProgress(geometry,Number(display||0)+0.0045);
-    if(before&&after){
-      const dx=after.x-before.x;
-      const dy=after.y-before.y;
-      const length=Math.hypot(dx,dy);
-      if(length>0.0001){
-        point={
-          x:trackPoint.x+(-dy/length)*lateral,
-          y:trackPoint.y+(dx/length)*lateral,
-        };
-      }
-    }
-  }
-
   const radius=(selected?11.5:mine?9.5:8.5)*scale;
   const textSize=(selected?6.9:mine?6.2:5.8)*scale;
   const outerGap=2.3*scale;
@@ -534,6 +635,13 @@ export default function Track2DView({
   },[environmentViewBox,fittedViewBox,historicalEnvironment]);
   const authoritativeRows=useMemo(()=>(rows||[]).slice().sort((a,b)=>Number(a?.position??999)-Number(b?.position??999)),[rows]);
   const referenceLapMs=authoritativeRows.map((row)=>Number(row?.last_lap_ms||row?.best_lap_ms)).filter((value)=>Number.isFinite(value)&&value>0).sort((a,b)=>a-b)[0]||90000;
+  const hasValidatedPitLane=Boolean(
+    Array.isArray(displayGeometry?.pit_lane_points)
+    &&displayGeometry.pit_lane_points.length>1
+    &&String(layout?.geometry_status||displayGeometry?.quality||"").toLowerCase().includes("verified")
+    &&Number.isFinite(Number(intelligence?.pit_entry_progress))
+    &&Number.isFinite(Number(intelligence?.pit_exit_progress))
+  );
   const visualFrame=useVisualRaceTimeline({
     rows:authoritativeRows,
     currentLap,
@@ -543,6 +651,9 @@ export default function Track2DView({
     playbackSpeed,
     playbackBaseSectorMs,
     currentControl,
+    hasPitLane:hasValidatedPitLane,
+    pitEntryProgress:intelligence?.pit_entry_progress,
+    pitExitProgress:intelligence?.pit_exit_progress,
   });
   const activeRows=visualFrame.rows;
   const [cameraMode,setCameraMode]=useState("fit");
@@ -575,7 +686,11 @@ export default function Track2DView({
     :null;
   const selectedVisibleOnTrack=selectedRow?retiredCarVisibleOnTrack(selectedRow,{currentLap,currentSector,currentControl}):false;
   const selectedProgress=selectedRow&&selectedVisibleOnTrack?Number(selectedRow?.visual_track_progress):null;
-  const selectedPoint=selectedProgress==null?null:pointAtTrackProgress(displayGeometry,selectedProgress);
+  const selectedPoint=selectedProgress==null?null:markerVisualPoint(displayGeometry,{
+    trackProgress:selectedProgress,
+    pitLaneProgress:selectedRow?.visual_pit_lane_progress,
+    pitLaneMix:selectedRow?.visual_pit_lane_mix,
+  });
   const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
     ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
     :fittedViewBox;
@@ -587,10 +702,8 @@ export default function Track2DView({
     setCameraMode("follow");
     onSelectDriver?.(String(driverId||""));
   };
-  const followSelectedVisualProgress=(progress)=>{
-    if(cameraMode!=="follow"||!svgRef.current)return;
-    const point=pointAtTrackProgress(displayGeometry,progress);
-    if(!point)return;
+  const followSelectedVisualPoint=(point)=>{
+    if(cameraMode!=="follow"||!svgRef.current||!point)return;
     followCameraTargetRef.current=focusTrackViewBox(fittedViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
     if(followCameraFrameRef.current)return;
     const tick=()=>{
@@ -818,6 +931,10 @@ export default function Track2DView({
             const visibleOnTrack=retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl});
             if(!visibleOnTrack)return null;
             const progress=Number(row?.visual_track_progress)||0;
+            const pitLaneProgress=Number.isFinite(Number(row?.visual_pit_lane_progress))
+              ?Number(row.visual_pit_lane_progress)
+              :null;
+            const pitLaneMix=Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0));
             const palette=markerPalette(teamBrands,tid,year);
             const previousGap=Number(row?.interval_ms);
             const nextGap=Number(activeRows[index+1]?.interval_ms);
@@ -835,6 +952,8 @@ export default function Track2DView({
               key={did||index}
               geometry={displayGeometry}
               progress={progress}
+              pitLaneProgress={pitLaneProgress}
+              pitLaneMix={pitLaneMix}
               color={palette.primary}
               secondaryColor={palette.secondary}
               label={shortDriverName(drivers,did)}
@@ -844,7 +963,7 @@ export default function Track2DView({
               laneOffset={laneOffset}
               onSelect={()=>selectDriver(did)}
               retired={Boolean(row?.retired)}
-              onVisualProgress={selected?followSelectedVisualProgress:null}
+              onVisualPoint={selected?followSelectedVisualPoint:null}
               title={`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`}
             />;
           })}
