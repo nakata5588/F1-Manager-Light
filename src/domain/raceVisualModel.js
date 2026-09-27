@@ -88,7 +88,8 @@ export function visualPitLaneState(row,{
     return {...base,path:"pit_transition",track_anchor_progress:entry,pit_lane_progress:0,pit_lane_mix:phaseT};
   }
   if(phase==="pit_lane"){
-    return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:box*phaseT,pit_lane_mix:1};
+    const laneTarget=finite(state?.queue_total_ms,0)>0?queueProgress:box;
+    return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:laneTarget*phaseT,pit_lane_mix:1};
   }
   if(phase==="pit_queue"){
     return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:queueProgress,pit_lane_mix:1,stopped:true};
