@@ -288,7 +288,11 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
   const legacy=exactOrLatest(g.driverRatings||[],year,driverId,wanted);
   for(const row of legacy){
     const id=driverId(row);
-    if(id&&!byId.has(id))byId.set(id,{...clean(row),year,source:pick(row,["source"],"legacy_driver_ratings")});
+    if(!id||byId.has(id))continue;
+    const normalized={...clean(row),year,source:pick(row,["source"],"legacy_driver_ratings")};
+    const aggression=asNum(pick(normalized,["aggression","agression"],NaN),NaN);
+    if(Number.isFinite(aggression))normalized.aggression=aggression;
+    byId.set(id,normalized);
   }
   return materializeMissingStartingRatings({
     drivers,
