@@ -162,7 +162,7 @@ test("death before January opening excludes a driver without erasing same-season
 
 test("world-entry unwraps exported Excel value objects before building driver identity",()=>{
   const d=driver({
-    driver_id:{formula:"=\"d_wrapped\"",result:"d_wrapped"},
+    driver_id:{formula:"=\"d_wrapped\"",result:{text:"d_wrapped"}},
     display_name:{value:"Wrapped Driver"},
     dob:{value:"1960-03-21"},
     career_start_year:{value:1978},
