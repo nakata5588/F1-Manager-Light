@@ -1,4 +1,7 @@
 import "./historicalTrackGeometry.js";
+import { HISTORICAL_TRACK_ENVIRONMENTS } from "./historicalTrackEnvironment.js";
+
+const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
 // User-supplied circuit artwork manifest. Historical ranges can be refined without changing callers.
 export const TRACK_LAYOUT_ASSETS = [
@@ -9,8 +12,10 @@ export const TRACK_LAYOUT_ASSETS = [
     "year_from": 1974,
     "year_to": 1981,
     "reference_year": 1980,
-    "asset": "/tracks/historical/buenos-aires-no15-1980.svg",
-    "environment_view_box": [0,0,1649,954],
+    "environment": BUENOS_AIRES_ENVIRONMENT,
+    "asset": BUENOS_AIRES_ENVIRONMENT.asset,
+    "environment_view_box": BUENOS_AIRES_ENVIRONMENT.view_box,
+    "environment_transform": BUENOS_AIRES_ENVIRONMENT.calibration_transform,
     "historical_status": "verified",
     "geometry_status": "historical_verified",
     "lap_length_km": 5.968,
@@ -22,10 +27,10 @@ export const TRACK_LAYOUT_ASSETS = [
     "pit_exit_progress": 0.0789,
     "sector_colors": ["#ef4444","#22d3ee","#facc15"],
     "pit_lane_color": "#2563eb",
-    "environment_contains_track_surface": true,
-    "environment_contains_track_intel": true,
+    "environment_contains_track_surface": BUENOS_AIRES_ENVIRONMENT.contains_track_surface,
+    "environment_contains_track_intel": BUENOS_AIRES_ENVIRONMENT.contains_track_intel,
     "track_intelligence_status": "historical_verified",
-    "source_label": "Buenos Aires Circuit No. 15 — approved raster-backed historical environment; functional centreline remains engine-independent"
+    "source_label": "Buenos Aires Circuit No. 15 — approved single-image historical environment; functional centreline remains engine-independent"
   },
   {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
