@@ -202,3 +202,26 @@ test("W3 supplements authoritative Opening State with valid pre-F1 world entrant
     "supplemental feeder placement must never fabricate an F1 contract"
   );
 });
+
+
+test("derived team-season driver refs never create object-string pseudo drivers",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[];
+  data.teamSeasons=[{
+    year:1980,
+    team_id:"T1",
+    team_name:"Canonical Team",
+    driver_ids:[{driver_id:"D2"}],
+  }];
+
+  const pack=materializeSeasonPack(data,1980);
+  const ids=(pack.state.drivers||[]).map((row)=>String(row.driver_id));
+
+  assert.equal(ids.includes("[object Object]"),false);
+  assert.ok(ids.includes("D2"));
+  assert.equal(
+    (pack.state.driverRatings||[]).some((row)=>String(row.driver_id)==="[object Object]"),
+    false
+  );
+});
