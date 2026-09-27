@@ -289,7 +289,14 @@ for(const year of supportedYears){
     if(rows.length===0){
       missing++;
       unusable++;
-      failures.push(`${year} ${id}: visible driver has no rating row`);
+      const visibleDriver=visibleDrivers.find((row)=>driverId(row)===id)||null;
+      const rawDriverMatches=(drivers||[]).filter((row)=>driverId(row)===id).slice(0,3);
+      const worldMatches=(pack?.state?.driverWorldEntry||[]).filter((row)=>driverId(row)===id).slice(0,3);
+      const feederMatches=(pack?.state?.driverFeederPlacement||[]).filter((row)=>driverId(row)===id).slice(0,3);
+      failures.push(
+        `${year} ${id}: visible driver has no rating row; context=`+
+        JSON.stringify({visibleDriver,rawDriverMatches,worldMatches,feederMatches})
+      );
       continue;
     }
     if(rows.length!==1){
