@@ -158,3 +158,19 @@ test("death before January opening excludes a driver without erasing same-season
   assert.equal(after.active_world,false);
   assert.equal(after.stage,"DECEASED");
 });
+
+
+test("world-entry unwraps exported Excel value objects before building driver identity",()=>{
+  const d=driver({
+    driver_id:{formula:"=\"d_wrapped\"",result:"d_wrapped"},
+    display_name:{value:"Wrapped Driver"},
+    dob:{value:"1960-03-21"},
+    career_start_year:{value:1978},
+    f1_rookie_season:{value:1984},
+  });
+  const entry=inferDriverWorldEntry(d,{});
+  assert.equal(entry.driver_id,"d_wrapped");
+  assert.equal(entry.display_name,"Wrapped Driver");
+  assert.equal(entry.first_world_year,1978);
+  assert.notEqual(entry.driver_id,"[object Object]");
+});
