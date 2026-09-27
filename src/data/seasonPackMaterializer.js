@@ -26,7 +26,7 @@ const unbox=(v)=>{
       return v.result===undefined||v.result===null||v.result==="" ? null : unbox(v.result);
     }
     if(v.result!==undefined&&v.result!==null&&v.result!=="")return unbox(v.result);
-    if(v.value!==undefined&&v.value!==null&&v.value!=="")return unbox(v.value);
+    if(v.value!==undefined&&v.value!==null&&v.value!=="")return unbox(v.value);\n    if(v.text!==undefined&&v.text!==null&&v.text!=="")return unbox(v.text);
   }
   return v;
 };
