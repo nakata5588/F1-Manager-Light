@@ -56,6 +56,13 @@ const yearOf=(row)=>{
   return NaN;
 };
 const driverId=(r)=>String(pick(r,["driver_id","person_id","id"],""));
+const driverRefId=(value)=>{
+  const raw=value&&typeof value==="object"&&!Array.isArray(value)
+    ?pick(value,["driver_id","person_id","id","value","result"],"")
+    :unbox(value);
+  const id=String(raw??"").trim();
+  return id&&!/^\[object Object\]$/i.test(id)?id:"";
+};
 const staffId=(r)=>String(pick(r,["staff_id","person_id","id"],""));
 const teamId=(r)=>String(pick(r,["team_id","constructor_id","team","constructor","id"],""));
 const sponsorId=(r)=>String(pick(r,["sponsor_id","id"],""));
@@ -439,7 +446,12 @@ export function materializeSeasonPack(globalData,yearInput){
   const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const gridDriverIds=new Set(contractedDriverIds);
   if(!hasOpeningState){
-    for(const row of seasonRows)for(const id of Array.isArray(row.driver_ids)?row.driver_ids:[])if(id)gridDriverIds.add(String(id));
+    for(const row of seasonRows){
+      for(const rawId of Array.isArray(row.driver_ids)?row.driver_ids:[]){
+        const id=driverRefId(rawId);
+        if(id)gridDriverIds.add(id);
+      }
+    }
     for(const row of f1Career){const id=driverId(row);if(id)gridDriverIds.add(id);}
   }
 
