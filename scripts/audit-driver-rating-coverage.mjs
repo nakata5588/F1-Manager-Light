@@ -45,7 +45,8 @@ function unbox(value){
       return value.result===undefined||value.result===null||value.result===""?null:unbox(value.result);
     }
     if(value.result!==undefined&&value.result!==null&&value.result!=="")return unbox(value.result);
-    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unbox(value.value);\n    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unbox(value.text);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unbox(value.value);
+    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unbox(value.text);
   }
   return value;
 }
