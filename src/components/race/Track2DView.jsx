@@ -19,7 +19,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
 import { advanceVisualTimelineProgress, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
@@ -502,14 +502,21 @@ export default function Track2DView({
 }){
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const layout=resolved.layout;
+  const environment=resolved.environment;
   const intelligence=useMemo(()=>trackIntelligenceProfile(layout),[layout]);
   const geometry=resolved.geometry;
-  const displayGeometry=useMemo(()=>orientTrackGeometry(geometry),[geometry]);
+  const calibratedGeometry=useMemo(()=>trackPresentationGeometry(geometry,layout),[geometry,layout]);
+  const displayGeometry=useMemo(
+    ()=>environment?.asset?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
+    [calibratedGeometry,environment?.asset]
+  );
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
-  const environmentViewBox=Array.isArray(layout?.environment_view_box)&&layout.environment_view_box.length===4?layout.environment_view_box.map(Number):(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
-  const historicalEnvironment=Boolean(layout?.asset&&layout?.historical_status==="verified");
-  const environmentContainsTrackSurface=Boolean(layout?.environment_contains_track_surface);
-  const environmentContainsTrackIntel=Boolean(layout?.environment_contains_track_intel);
+  const environmentViewBox=Array.isArray(environment?.view_box)&&environment.view_box.length===4
+    ?environment.view_box.map(Number)
+    :(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
+  const historicalEnvironment=Boolean(environment?.asset&&layout?.historical_status==="verified");
+  const environmentContainsTrackSurface=Boolean(environment?.contains_track_surface);
+  const environmentContainsTrackIntel=Boolean(environment?.contains_track_intel);
   const fitViewBox=useMemo(()=>{
     if(!historicalEnvironment)return fittedViewBox;
     const [gx,gy,gw,gh]=fittedViewBox;
@@ -655,7 +662,7 @@ export default function Track2DView({
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
-          {layout?.asset?<image href={layout.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
+          {environment?.asset?<image href={environment.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
