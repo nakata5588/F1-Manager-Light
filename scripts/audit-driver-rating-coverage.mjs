@@ -47,6 +47,7 @@ function unbox(value){
     if(value.result!==undefined&&value.result!==null&&value.result!=="")return unbox(value.result);
     if(value.value!==undefined&&value.value!==null&&value.value!=="")return unbox(value.value);
     if(value.text!==undefined&&value.text!==null&&value.text!=="")return unbox(value.text);
+    if(Object.prototype.hasOwnProperty.call(value,"formula"))return null;
   }
   return value;
 }
