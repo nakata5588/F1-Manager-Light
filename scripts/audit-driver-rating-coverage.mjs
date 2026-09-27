@@ -36,12 +36,34 @@ const PERMANENT_FIELDS=[
 
 const EXPECTED_YEARS=Array.from({length:75},(_,index)=>1950+index);
 
+function unbox(value){
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(
+      Object.prototype.hasOwnProperty.call(value,"formula") &&
+      Object.prototype.hasOwnProperty.call(value,"result")
+    ){
+      return value.result===undefined||value.result===null||value.result===""?null:unbox(value.result);
+    }
+    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unbox(value.result);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unbox(value.value);
+  }
+  return value;
+}
+
+function pick(row,keys,fallback=undefined){
+  for(const key of keys){
+    const value=unbox(row?.[key]);
+    if(value!==undefined&&value!==null&&value!=="")return value;
+  }
+  return fallback;
+}
+
 function driverId(row){
-  return String(row?.driver_id??row?.person_id??row?.id??"").trim();
+  return String(pick(row,["driver_id","person_id","id"],"")).trim();
 }
 
 function rowYear(row){
-  const value=Number(row?.year??row?.season_year??row?.season);
+  const value=Number(pick(row,["year","season_year","season"],NaN));
   return Number.isInteger(value)?value:null;
 }
 
