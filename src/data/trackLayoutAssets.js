@@ -22,8 +22,10 @@ export const TRACK_LAYOUT_ASSETS = [
     "pit_exit_progress": 0.0789,
     "sector_colors": ["#ef4444","#22d3ee","#facc15"],
     "pit_lane_color": "#2563eb",
+    "environment_contains_track_surface": true,
+    "environment_contains_track_intel": true,
     "track_intelligence_status": "historical_verified",
-    "source_label": "Buenos Aires Circuit No. 15 — 1980 detailed video-game environment; functional centreline remains engine-independent"
+    "source_label": "Buenos Aires Circuit No. 15 — approved raster-backed historical environment; functional centreline remains engine-independent"
   },
   {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},

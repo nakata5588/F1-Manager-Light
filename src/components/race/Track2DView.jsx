@@ -508,6 +508,8 @@ export default function Track2DView({
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=Array.isArray(layout?.environment_view_box)&&layout.environment_view_box.length===4?layout.environment_view_box.map(Number):(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
   const historicalEnvironment=Boolean(layout?.asset&&layout?.historical_status==="verified");
+  const environmentContainsTrackSurface=Boolean(layout?.environment_contains_track_surface);
+  const environmentContainsTrackIntel=Boolean(layout?.environment_contains_track_intel);
   const fitViewBox=useMemo(()=>{
     if(!historicalEnvironment)return fittedViewBox;
     const [gx,gy,gw,gh]=fittedViewBox;
@@ -658,17 +660,19 @@ export default function Track2DView({
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
-              {historicalEnvironment?<>
-                <polyline points={polyline} fill="none" stroke="#03070b" strokeWidth="38" strokeLinejoin="round" strokeLinecap="round" opacity=".42"/>
-                <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
-                <polyline points={polyline} fill="none" stroke="#e53e3e" strokeWidth="30" strokeDasharray="17 17" strokeLinejoin="round" strokeLinecap="butt" opacity=".98"/>
-                <polyline points={polyline} fill="none" stroke="#20252b" strokeWidth="22" strokeLinejoin="round" strokeLinecap="round" opacity=".995"/>
-                <polyline points={polyline} fill="none" stroke="#343b43" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
-              </>:<>
-                <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
-                <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".74"/>
-              </>}
-              {showTrackIntel&&historicalEnvironment?[1,2,3].map((sector)=>{
+              {historicalEnvironment
+                ?(!environmentContainsTrackSurface?<>
+                  <polyline points={polyline} fill="none" stroke="#03070b" strokeWidth="38" strokeLinejoin="round" strokeLinecap="round" opacity=".42"/>
+                  <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
+                  <polyline points={polyline} fill="none" stroke="#e53e3e" strokeWidth="30" strokeDasharray="17 17" strokeLinejoin="round" strokeLinecap="butt" opacity=".98"/>
+                  <polyline points={polyline} fill="none" stroke="#20252b" strokeWidth="22" strokeLinejoin="round" strokeLinecap="round" opacity=".995"/>
+                  <polyline points={polyline} fill="none" stroke="#343b43" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
+                </>:null)
+                :<>
+                  <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
+                  <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".74"/>
+                </>}
+              {showTrackIntel&&historicalEnvironment&&!environmentContainsTrackIntel?[1,2,3].map((sector)=>{
                 const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:110});
                 const colors=Array.isArray(layout?.sector_colors)&&layout.sector_colors.length>=3?layout.sector_colors:["#ef4444","#22d3ee","#facc15"];
                 return <polyline
@@ -682,7 +686,7 @@ export default function Track2DView({
                   strokeDasharray="11 9"
                   opacity=".98"
                 />;
-              }):showTrackIntel&&Number(currentSector)>0?(()=>{
+              }):showTrackIntel&&!historicalEnvironment&&Number(currentSector)>0?(()=>{
                 const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
                 const segment=trackSectorPolylinePoints(displayGeometry,sector,intelligence,{samples:42});
                 return <polyline
@@ -696,7 +700,7 @@ export default function Track2DView({
                 />;
               })():null}
               {!historicalEnvironment?<polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>:null}
-              {historicalEnvironment&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<g>
+              {historicalEnvironment&&!environmentContainsTrackSurface&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<g>
                 <polyline
                   points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                   fill="none"
@@ -716,7 +720,7 @@ export default function Track2DView({
                   opacity=".99"
                 />
               </g>:null}
-              {showTrackIntel&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
+              {showTrackIntel&&(!historicalEnvironment||!environmentContainsTrackIntel)&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
                 points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                 fill="none"
                 stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"}
