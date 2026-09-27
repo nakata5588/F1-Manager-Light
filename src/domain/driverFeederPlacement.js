@@ -12,12 +12,20 @@
 
 import { driverWorldStageAtYear } from "./driverWorldEntry.js";
 
+const unwrap=(value)=>{
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unwrap(value.result);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unwrap(value.value);
+  }
+  return value;
+};
 const num=(value,fallback=null)=>{
-  if(value===undefined||value===null||value==="")return fallback;
-  const parsed=Number(value);
+  const raw=unwrap(value);
+  if(raw===undefined||raw===null||raw==="")return fallback;
+  const parsed=Number(raw);
   return Number.isFinite(parsed)?parsed:fallback;
 };
-const text=(value)=>String(value??"").trim();
+const text=(value)=>String(unwrap(value)??"").trim();
 
 const DEFAULTS=Object.freeze({
   youth_max_age:19,
