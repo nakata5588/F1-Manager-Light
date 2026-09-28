@@ -198,3 +198,56 @@ test("central historical driver aggregation matches Standings ordering",()=>{
     [[1,"A",64],[2,"B",51],[3,"C",48]]
   );
 });
+
+test("official Constructors championship history never invents pre-1958 champions",()=>{
+  const gs={
+    activeYear:1960,
+    careerMeta:{sourceSeason:1960},
+    dbTeams:[{team_id:"A",team_name:"Alpha"},{team_id:"B",team_name:"Beta"}],
+    dbDriverHistory:[
+      {year:1957,series_division:"F1",driver_id:"D1",team_id:"A",points:40,wins:4},
+      {year:1957,series_division:"F1",driver_id:"D2",team_id:"B",points:20,wins:2},
+    ],
+    dbHistoricalChampionships:{drivers:[],constructors:[]},
+    historySeasons:[],
+  };
+  assert.equal(constructorChampionForYear(gs,1957),null);
+  assert.equal(constructorChampionshipHistory(gs).some((row)=>Number(row.year)<1958),false);
+});
+
+test("Team championship summary follows verified organisational lineage",()=>{
+  const gs={
+    activeYear:1980,
+    careerMeta:{sourceSeason:1980},
+    dbTeamSeasons:[
+      {year:1978,team_id:"OLD",exact_entrant_rows:2},
+      {year:1979,team_id:"OLD",exact_entrant_rows:2},
+      {year:1955,team_id:"NEW",exact_entrant_rows:2},
+    ],
+    dbDriverHistory:[
+      {year:1978,series_division:"F1",driver_id:"D1",team_id:"OLD",wins:1,podiums:2,starts:16},
+      {year:1979,series_division:"F1",driver_id:"D1",team_id:"OLD",wins:2,podiums:4,starts:16},
+      {year:1955,series_division:"F1",driver_id:"X",team_id:"NEW",wins:8,podiums:10,starts:10},
+    ],
+    dbTeamLineageHistory:[
+      {predecessor_team_id:"OLD",successor_team_id:"NEW",effective_from_year:1980,verified:true},
+    ],
+    dbHistoricalChampionships:{
+      constructors:[
+        {year:1979,constructor_id:"OLD",position:1},
+        {year:1955,constructor_id:"NEW",position:1},
+      ],
+      drivers:[
+        {year:1979,constructor_id:"OLD",position:1,driver_id:"D1"},
+        {year:1955,constructor_id:"NEW",position:1,driver_id:"X"},
+      ],
+    },
+    historySeasons:[],
+  };
+
+  const summary=teamChampionshipSummary(gs,"NEW");
+  assert.equal(summary.constructors,1);
+  assert.equal(summary.driversTitles,1);
+  assert.deepEqual(summary.constructorTitles.map((row)=>Number(row.year)),[1979]);
+  assert.deepEqual(summary.driverTitles.map((row)=>Number(row.year)),[1979]);
+});
