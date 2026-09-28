@@ -19,6 +19,7 @@ import {
 import { createLivePitState } from "../src/engine/LivePitStopEngine.js";
 import { normaliseRaceCarDamage, raceCarDamageSummary, raceCarEraForYear } from "../src/domain/raceCarVisual.js";
 import { raceCarOverlapMetric, resolveRaceCarPhysicalLayout } from "../src/domain/raceCarOccupancy.js";
+import { historicalRaceCarLiveriesForYear, historicalRaceCarLivery } from "../src/domain/raceCarLiveries.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
   const fast={driver_id:"fast",sector_2_ms:29000};
@@ -497,4 +498,30 @@ test("Cars 4.0B does not move cars that are already physically separated",()=>{
   ];
   const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:1,lod:"overview"});
   assert.deepEqual(resolved.map((row)=>row.point),source.map((row)=>row.point));
+});
+
+
+test("Cars 4.0C provides distinct historical livery profiles for all 15 active 1980 teams",()=>{
+  const liveries=historicalRaceCarLiveriesForYear(1980);
+  assert.equal(liveries.length,15);
+  assert.equal(new Set(liveries.map((row)=>row.team_id)).size,15);
+  for(const row of liveries){
+    assert.match(row.primary,/^#[0-9A-F]{6}$/i);
+    assert.match(row.secondary,/^#[0-9A-F]{6}$/i);
+    assert.match(row.accent,/^#[0-9A-F]{6}$/i);
+    assert.ok(row.pattern);
+    assert.ok(row.sponsor);
+    assert.ok(row.model);
+  }
+});
+
+test("Cars 4.0C uses historically recognisable 1980 visual identities without changing other years",()=>{
+  const brabham=historicalRaceCarLivery({year:1980,teamId:"t_0003"});
+  const mclaren=historicalRaceCarLivery({year:1980,teamId:"t_0009"});
+  const lotus=historicalRaceCarLivery({year:1980,teamId:"t_0005"});
+  assert.equal(brabham.sponsor,"PARMALAT");
+  assert.equal(brabham.model,"BT49");
+  assert.equal(mclaren.pattern,"marlboro_chevron");
+  assert.equal(lotus.sponsor,"ESSEX");
+  assert.equal(historicalRaceCarLivery({year:1981,teamId:"t_0003"}),null);
 });
