@@ -606,16 +606,17 @@ export default function Track2DView({
   const environment=resolved.environment;
   const intelligence=useMemo(()=>trackIntelligenceProfile(layout),[layout]);
   const geometry=resolved.geometry;
+  const environmentAssetActive=Boolean(environment?.asset&&environment?.runtime_mode!=="legacy_vector_fallback");
   const calibratedGeometry=useMemo(()=>trackPresentationGeometry(geometry,layout),[geometry,layout]);
   const displayGeometry=useMemo(
-    ()=>environment?.asset?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
-    [calibratedGeometry,environment?.asset]
+    ()=>environmentAssetActive?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
+    [calibratedGeometry,environmentAssetActive]
   );
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=Array.isArray(environment?.view_box)&&environment.view_box.length===4
     ?environment.view_box.map(Number)
     :(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
-  const historicalEnvironment=Boolean(environment?.asset&&layout?.historical_status==="verified");
+  const historicalEnvironment=Boolean(environmentAssetActive&&layout?.historical_status==="verified");
   const environmentContainsTrackSurface=Boolean(environment?.contains_track_surface);
   const environmentContainsTrackIntel=Boolean(environment?.contains_track_intel);
   const fitViewBox=useMemo(()=>{
@@ -775,7 +776,7 @@ export default function Track2DView({
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
-          {environment?.asset?<image href={environment.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
+          {environmentAssetActive?<image href={environment.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
