@@ -6,7 +6,7 @@ import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 import { materializeSeasonPackFromDatabaseState } from "../src/data/seasonPackLoader.js";
 
 const root=process.cwd();
-const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2007,2011,2012,2014,2015,2020];
+const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1988,1989,1999,2007,2011,2012,2014,2015,2020];
 const expectedTeamCounts={
   1975:19,
   1980:15,
@@ -91,6 +91,52 @@ for(const year of targetYears){
     }
   });
 }
+
+
+
+test("historical rating calibration keeps 1988 McLaren elite without stale rookie ratings",async()=>{
+  const pack=await readPack(1988);
+  const ratingById=new Map((pack.state.driverRatings||[]).map((row)=>[String(row.driver_id),row]));
+  const contractById=new Map((pack.state.contracts||[]).map((row)=>[String(row.driver_id),row]));
+  const prost=ratingById.get("d_0117");
+  const senna=ratingById.get("d_0102");
+  assert.ok(prost&&senna,"1988 Prost and Senna ratings must exist");
+  assert.equal(prost.source,"talent_profile_starting_materializer");
+  assert.ok(Number(prost.current_ability)>=90,prost.current_ability);
+  assert.ok(Number(senna.current_ability)>=90,senna.current_ability);
+  assert.ok(Number(prost.potential_ability)>=Number(prost.current_ability));
+  assert.ok(Number(senna.potential_ability)>=Number(senna.current_ability));
+  assert.equal(contractById.get("d_0117")?.role,"Main Driver");
+  assert.equal(contractById.get("d_0102")?.role,"Second Driver");
+});
+
+test("2011 Maldonado receives an F1-career-backed latent floor without selected-season replay",async()=>{
+  const pack=await readPack(2011);
+  const rating=(pack.state.driverRatings||[]).find((row)=>String(row.driver_id)==="d_0812");
+  assert.ok(rating,"2011 Maldonado rating must exist");
+  assert.equal(rating.source,"talent_profile_starting_materializer");
+  assert.equal(rating.talent_profile_repair_source,"full_f1_career_achievement_floor");
+  assert.ok(Number(rating.current_ability)>=60&&Number(rating.current_ability)<=70,rating.current_ability);
+  assert.ok(Number(rating.potential_ability)>=75,rating.potential_ability);
+  assert.ok(Number(rating.potential_ability)>=Number(rating.current_ability));
+});
+
+test("2020 Alfa hierarchy favors Räikkönen and all generated potentials stay valid",async()=>{
+  const pack=await readPack(2020);
+  const ratingById=new Map((pack.state.driverRatings||[]).map((row)=>[String(row.driver_id),row]));
+  const contractById=new Map((pack.state.contracts||[]).map((row)=>[String(row.driver_id),row]));
+  const kimi=ratingById.get("d_0008");
+  const gio=ratingById.get("d_0840");
+  assert.ok(kimi&&gio,"2020 Alfa driver ratings must exist");
+  assert.equal(contractById.get("d_0008")?.role,"Main Driver");
+  assert.equal(contractById.get("d_0840")?.role,"Second Driver");
+  assert.ok(Number(kimi.current_ability)>Number(gio.current_ability));
+  assert.ok(Number(kimi.current_ability)>=85&&Number(kimi.current_ability)<=93,kimi.current_ability);
+  assert.ok(Number(gio.current_ability)>=55&&Number(gio.current_ability)<=70,gio.current_ability);
+  assert.ok(Number(kimi.potential_ability)>=Number(kimi.current_ability));
+  assert.ok(Number(gio.potential_ability)>=Number(gio.current_ability));
+  assert.equal(gio.talent_profile_repair_source,"full_f1_career_achievement_floor");
+});
 
 test("Season Pack index exposes the requested multi-era validation years",async()=>{
   const index=JSON.parse(await fs.readFile(path.join(root,"public","data","seasons","index.json"),"utf8"));
