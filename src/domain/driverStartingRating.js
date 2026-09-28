@@ -263,6 +263,97 @@ export function priorCareerCurrentAbilityFloor(historyRows=[],championshipRows=[
   return round1(clamp(floor,0,99));
 }
 
+function generatedPreviousYearRating({
+  driver,
+  profile,
+  year,
+  calibration,
+  historicalSnapshots=[],
+  historyRows=[],
+  championshipRows=[],
+}={}){
+  const previousYear=Number(year)-1;
+  if(!driver||!profile||!Number.isInteger(previousYear)||previousYear<1950)return null;
+  const id=driverId(driver)||driverId(profile);
+  const snapshot=(Array.isArray(historicalSnapshots)?historicalSnapshots:[]).find((row)=>
+    driverId(row)===id&&num(row?.year??row?.season_year,NaN)===previousYear
+  );
+  if(snapshot){
+    const current=num(snapshot?.current_ability,null);
+    if(Number.isFinite(current))return {
+      year:previousYear,
+      current_ability:current,
+      source:"historical_rating_snapshot_r2b",
+    };
+  }
+
+  const generated=materializeDriverStartingRating({
+    driver,
+    profile,
+    year:previousYear,
+    placement:null,
+    calibration,
+  });
+  return applyPriorCareerCurrentAbilityFloor(generated,{
+    historyRows,
+    championshipRows,
+    year:previousYear,
+  });
+}
+
+function applyGeneratedYearToYearContinuity(rating,{
+  driver,
+  profile,
+  year,
+  calibration,
+  historicalSnapshots=[],
+  historyRows=[],
+  championshipRows=[],
+  maxIncrease=15,
+}={}){
+  if(!rating||String(rating?.source||"")!=="talent_profile_starting_materializer")return rating;
+  if(String(rating?.career_stage||"")==="Rookie")return rating;
+  const current=num(rating?.current_ability,null);
+  if(!Number.isFinite(current))return rating;
+
+  const previous=generatedPreviousYearRating({
+    driver,
+    profile,
+    year,
+    calibration,
+    historicalSnapshots,
+    historyRows,
+    championshipRows,
+  });
+  const prior=num(previous?.current_ability,null);
+  if(!Number.isFinite(prior)||current-prior<=maxIncrease)return rating;
+
+  const target=round1(prior+maxIncrease);
+  const patched={...rating};
+  const reduction=current-target;
+  for(const [currentKey] of ATTRIBUTE_BLUEPRINT){
+    const raw=num(patched?.[currentKey],null);
+    if(Number.isFinite(raw))patched[currentKey]=round1(clamp(raw-reduction,0,99));
+  }
+  const score=abilityAttributeScore(patched);
+  patched.current_ability=round1(clamp(
+    Number.isFinite(score)?Math.min(score,target):target
+  ));
+  patched.potential_ability=round1(clamp(Math.max(
+    num(patched?.potential_ability,patched.current_ability),
+    patched.current_ability
+  )));
+  patched.development_headroom=round1(Math.max(
+    0,
+    patched.potential_ability-patched.current_ability
+  ));
+  patched.historical_continuity_cap_applied=true;
+  patched.historical_continuity_previous_ovr=round1(prior);
+  patched.historical_continuity_max_increase=maxIncrease;
+  patched.calibration_model="D7.R4";
+  return patched;
+}
+
 function applyPriorCareerCurrentAbilityFloor(rating,{
   historyRows=[],
   championshipRows=[],
@@ -595,12 +686,31 @@ export function materializeMissingStartingRatings({
     if(rating)byId.set(id,rating);
   }
 
+  const driverById=new Map(
+    (Array.isArray(drivers)?drivers:[]).map((driver)=>[driverId(driver),driver]).filter(([id])=>id)
+  );
   return [...byId.values()].map((rating)=>{
     const id=driverId(rating);
-    return applyPriorCareerCurrentAbilityFloor(rating,{
-      historyRows:historyById.get(id)||[],
-      championshipRows:championshipsById.get(id)||[],
+    const historyRows=historyById.get(id)||[];
+    const championshipRows=championshipsById.get(id)||[];
+    const calibrated=applyPriorCareerCurrentAbilityFloor(rating,{
+      historyRows,
+      championshipRows,
       year,
+    });
+    if(String(rating?.source||"")!=="talent_profile_starting_materializer")return calibrated;
+    const profile=profileById.get(id);
+    const driver=driverById.get(id);
+    if(!profile||!driver)return calibrated;
+    const effectiveProfile=repairTalentProfileFromF1Career(profile,historyRows);
+    return applyGeneratedYearToYearContinuity(calibrated,{
+      driver,
+      profile:effectiveProfile,
+      year,
+      calibration,
+      historicalSnapshots,
+      historyRows,
+      championshipRows,
     });
   });
 }
