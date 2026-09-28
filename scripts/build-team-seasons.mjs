@@ -96,6 +96,7 @@ for(const row of Array.isArray(rows)?rows:[]){
       team_name:teamName,
       driver_ids:new Set(),
       drivers:new Map(),
+      resolved_drivers:new Map(),
       constructor_ids:new Set(),
       constructor_names:new Set(),
       chassis_names:new Set(),
@@ -113,13 +114,38 @@ for(const row of Array.isArray(rows)?rows:[]){
   }
 
   const rec=byKey.get(key);
-  // Only exact entrant evidence is allowed to populate a historical roster.
-  // Estimated constructor-family/name reconciliation may establish that a Team
-  // participated, but must not claim that the driver was entered by that Team.
+  const roundRaw=Number(first(row,["round","raceRound","roundNumber"],NaN));
+  const raceDate=String(first(row,["race_date","date","dateISO"],""));
+
+  // Keep a separate Results-derived relationship cache for New Game fallback.
+  // This is deliberately NOT the confirmed historical roster: estimated
+  // Team/Entrant resolution may be used only as explicit Round 1 opening
+  // evidence, never as silent proof of a season-long historical contract.
+  if(driverId){
+    const prev=rec.resolved_drivers.get(driverId)||{
+      driver_id:driverId,
+      appearances:0,
+      first_round:null,
+      first_date:null,
+      first_source_index:sourceIndex,
+      exact_entrant:false,
+      relation_basis:new Set(),
+      confidence:new Set(),
+    };
+    prev.appearances+=1;
+    if(Number.isFinite(roundRaw)&&(prev.first_round==null||roundRaw<prev.first_round))prev.first_round=roundRaw;
+    if(raceDate&&(!prev.first_date||raceDate<prev.first_date))prev.first_date=raceDate;
+    prev.first_source_index=Math.min(prev.first_source_index,sourceIndex);
+    prev.exact_entrant=Boolean(prev.exact_entrant||link.exact_entrant);
+    if(link.relation_basis)prev.relation_basis.add(String(link.relation_basis));
+    if(link.confidence)prev.confidence.add(String(link.confidence));
+    rec.resolved_drivers.set(driverId,prev);
+  }
+
+  // Only exact entrant evidence is allowed to populate a confirmed historical
+  // roster. The fallback cache above remains separately labelled.
   if(driverId&&link.exact_entrant){
     rec.driver_ids.add(driverId);
-    const roundRaw=Number(first(row,["round","raceRound","roundNumber"],NaN));
-    const raceDate=String(first(row,["race_date","date","dateISO"],""));
     const prev=rec.drivers.get(driverId)||{
       driver_id:driverId,
       appearances:0,
@@ -170,6 +196,24 @@ const output=[...byKey.values()]
         b.appearances-a.appearances||
         a.driver_id.localeCompare(b.driver_id);
     }),
+    first_race_driver_candidates:[...row.resolved_drivers.values()]
+      .filter((driver)=>Number(driver.first_round)===1)
+      .map((driver)=>({
+        driver_id:driver.driver_id,
+        appearances:driver.appearances,
+        first_round:driver.first_round,
+        first_date:driver.first_date,
+        first_source_index:driver.first_source_index,
+        exact_entrant:Boolean(driver.exact_entrant),
+        relation_basis:[...driver.relation_basis].sort(),
+        confidence:[...driver.confidence].sort(),
+        source:"race_results_round_1",
+      }))
+      .sort((a,b)=>
+        a.first_source_index-b.first_source_index||
+        b.appearances-a.appearances||
+        a.driver_id.localeCompare(b.driver_id)
+      ),
     constructor_ids:[...row.constructor_ids].sort(),
     constructor_names:[...row.constructor_names].sort(),
     chassis_names:[...row.chassis_names].sort(),
