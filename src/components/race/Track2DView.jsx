@@ -19,10 +19,10 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
-import { raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
+import { raceMarkerLaneOffset, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
 import { openPolylineHeadingDegrees, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
-import { panTrackViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
+import { panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
@@ -619,21 +619,22 @@ function ProceduralTrackEnvironment({environment,viewBox=[0,0,1000,1000]}){
 
 function TrackMiniMap({geometry,rows=[],teamBrands=[],year,currentControl="GREEN"}){
   if(!geometry||!Array.isArray(geometry?.points)||geometry.points.length<2)return null;
-  const viewBox=trackGeometryViewBox(geometry,{paddingRatio:.08,minPadding:24});
-  const closed=[...geometry.points,geometry.points[0]];
-  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[190px] rounded-lg border border-white/15 bg-[#05080d]/90 p-2 shadow-xl backdrop-blur-md 2xl:w-[220px]">
-    <div className="mb-1 flex items-center justify-between text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">
-      <span>Mini Map</span><span className={String(currentControl).includes("YELLOW")?"text-amber-300":"text-emerald-300"}>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
+  const viewBox=trackGeometryViewBox(geometry,{paddingRatio:.07,minPadding:22});
+  const loop=[...geometry.points,geometry.points[0]];
+  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[176px] rounded-md bg-black/15 p-1.5 2xl:w-[196px]">
+    <div className="mb-0.5 flex items-center justify-between px-0.5 text-[7px] font-bold uppercase tracking-[0.12em] text-white/55">
+      <span>Mini Map</span><span className={String(currentControl).includes("YELLOW")?"text-amber-300/80":"text-emerald-300/80"}>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
     </div>
-    <svg className="h-[112px] w-full" viewBox={viewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Circuit mini map">
-      <polyline points={polygonPoints(closed)} fill="none" stroke="#020617" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round"/>
-      <polyline points={polygonPoints(closed)} fill="none" stroke="#cbd5e1" strokeWidth="14" strokeLinejoin="round" strokeLinecap="round"/>
-      <polyline points={polygonPoints(closed)} fill="none" stroke="#334155" strokeWidth="9" strokeLinejoin="round" strokeLinecap="round"/>
+    <svg className="h-[104px] w-full opacity-90" viewBox={viewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Circuit mini map">
+      <polyline points={polygonPoints(loop)} fill="none" stroke="#020617" strokeWidth="12" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
+      <polyline points={polygonPoints(loop)} fill="none" stroke="#e5e7eb" strokeWidth="5.2" strokeLinejoin="round" strokeLinecap="round" opacity=".9"/>
+      <polyline points={polygonPoints(loop)} fill="none" stroke="#4b5563" strokeWidth="3.1" strokeLinejoin="round" strokeLinecap="round"/>
+      {Array.isArray(geometry?.pit_lane_points)&&geometry.pit_lane_points.length>1?<polyline points={polygonPoints(geometry.pit_lane_points)} fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" opacity=".65"/>:null}
       {(rows||[]).filter((row)=>!row?.retired).map((row,index)=>{
         const point=pointAtTrackProgress(geometry,Number(row?.visual_track_progress));
         if(!point)return null;
         const color=markerColor(teamBrands,row?.team_id,year);
-        return <circle key={String(row?.driver_id||index)} cx={point.x} cy={point.y} r="8" fill={color} stroke="#f8fafc" strokeWidth="2"/>;
+        return <circle key={String(row?.driver_id||index)} cx={point.x} cy={point.y} r="4.2" fill={color} stroke="#fff" strokeWidth="1.1"/>;
       })}
     </svg>
   </div>;
@@ -684,11 +685,13 @@ export default function Track2DView({
     ()=>(environmentAssetActive||proceduralEnvironmentActive)?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
     [calibratedGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
-  const miniMapGeometry=useMemo(()=>trackMiniMapGeometry(layout,geometry),[layout,geometry]);
+  const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
-  const environmentViewBox=Array.isArray(environment?.view_box)&&environment.view_box.length===4
-    ?environment.view_box.map(Number)
-    :(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
+  const environmentViewBox=useMemo(()=>(
+    Array.isArray(environment?.view_box)&&environment.view_box.length===4
+      ?environment.view_box.map(Number)
+      :(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000])
+  ),[environment?.view_box,geometry?.view_box]);
   const historicalEnvironment=Boolean((environmentAssetActive||proceduralEnvironmentActive)&&layout?.historical_status==="verified");
   const environmentContainsTrackSurface=Boolean(environment?.contains_track_surface);
   const environmentContainsTrackIntel=Boolean(environment?.contains_track_intel);
@@ -739,7 +742,6 @@ export default function Track2DView({
   const followCameraTargetRef=useRef(null);
   const followCameraFrameRef=useRef(null);
   const panGestureRef=useRef(null);
-  const markerScale=raceMarkerScaleForCamera(cameraMode,followZoom);
 
   useEffect(()=>{
     followViewBoxRef.current=null;
@@ -771,13 +773,15 @@ export default function Track2DView({
     pitLaneMix:selectedRow?.visual_pit_lane_mix,
   });
   const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
-    ?focusTrackViewBox(fittedViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
-    :fittedViewBox;
+    ?focusTrackViewBox(fitViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
+    :fitViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
     :cameraMode==="free"&&freeViewBox
       ?freeViewBox
       :fitViewBox;
+  const effectiveCameraZoom=trackCameraZoomFactor(renderedViewBox,fitViewBox);
+  const markerScale=trackMarkerScaleForViewBox(renderedViewBox,fitViewBox,{power:.72,min:.16,max:1});
   const selectDriver=(driverId)=>{
     followViewBoxRef.current=null;
     setCameraMode("follow");
@@ -785,7 +789,7 @@ export default function Track2DView({
   };
   const followSelectedVisualPoint=(point)=>{
     if(cameraMode!=="follow"||!svgRef.current||!point)return;
-    followCameraTargetRef.current=focusTrackViewBox(fittedViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
+    followCameraTargetRef.current=focusTrackViewBox(fitViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
     if(followCameraFrameRef.current)return;
     const tick=()=>{
       if(cameraMode!=="follow"||!svgRef.current){
@@ -849,7 +853,7 @@ export default function Track2DView({
       :cameraMode==="free"&&freeViewBox
         ?freeViewBox
         :fitViewBox;
-    const factor=event.deltaY<0?0.82:1.22;
+    const factor=event.deltaY<0?0.87:1.15;
     stopFollowCamera();
     setCameraMode("free");
     setFreeViewBox(zoomTrackViewBox(current,fitViewBox,{
@@ -973,11 +977,11 @@ export default function Track2DView({
                   points={segment.map((point)=>point.join(",")).join(" ")}
                   fill="none"
                   stroke={colors[sector-1]}
-                  strokeWidth="5.5"
+                  strokeWidth={fullTrackSceneActive?"1.7":"4.2"}
                   strokeLinejoin="round"
                   strokeLinecap="round"
-                  strokeDasharray="11 9"
-                  opacity=".98"
+                  strokeDasharray={fullTrackSceneActive?"7 10":"11 9"}
+                  opacity={fullTrackSceneActive?".55":".9"}
                 />;
               }):showTrackIntel&&!historicalEnvironment&&Number(currentSector)>0?(()=>{
                 const sector=Math.max(1,Math.min(3,Number(currentSector)||1));
@@ -1017,7 +1021,7 @@ export default function Track2DView({
                 points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                 fill="none"
                 stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"}
-                strokeWidth={historicalEnvironment?"5.5":"8"}
+                strokeWidth={historicalEnvironment?(fullTrackSceneActive?"1.8":"4.5"):"8"}
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 strokeDasharray={historicalEnvironment?"12 8":"10 5"}
@@ -1116,8 +1120,8 @@ export default function Track2DView({
               ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
             );
             const laneOffset=raceMarkerLaneOffset(index,{
-              cameraMode,
-              zoom:followZoom,
+              cameraMode:cameraMode==="fit"?"fit":"follow",
+              zoom:effectiveCameraZoom,
               closeBattle,
               selected,
             });
