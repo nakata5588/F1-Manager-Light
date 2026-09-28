@@ -14,8 +14,6 @@ const round1=(n)=>Math.round(Number(n||0)*10)/10;
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=o?.[k];if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
-const staffIdOf=(o)=>String(pick(o,["staff_id","person_id","id"],""));
-const teamIdOf=(o)=>String(pick(o,["team_id","constructor_id","team","constructor"],""));
 
 export const PRACTICE_PROGRAMMES=Object.freeze({
   balanced:Object.freeze({
