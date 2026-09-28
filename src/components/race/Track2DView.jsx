@@ -1004,6 +1004,7 @@ export default function Track2DView({
       const palette=markerPalette(teamBrands,tid,year);
       return [{
         id:did||String(index),
+        raceOrder:Number(row?.position??index+1),
         progress:Number(row?.visual_track_progress)||0,
         pitLaneProgress:Number.isFinite(Number(row?.visual_pit_lane_progress))?Number(row.visual_pit_lane_progress):0,
         pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
@@ -1066,6 +1067,7 @@ export default function Track2DView({
       const visualSeed=Number(activeRowByDriver.get(did)?.visual_world_progress);
       return [{
         id:did||String(index),
+        raceOrder:Number(row?.position??index+1),
         initialWorldProgress:Number.isFinite(visualSeed)?visualSeed:targetWorldProgress,
         targetWorldProgress,
         motionDurationMs:driverVisualMotionDurationMs(row,{
