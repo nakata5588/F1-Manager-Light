@@ -174,7 +174,7 @@ function ageAdjustedFactors(factors,stage,age,declineStartAge){
   return {
     ...base,
     factor_speed:clamp(num(base.factor_speed,0.96)-years*0.045,0.58,1),
-    factor_experience:clamp(num(base.factor_experience,0.997)-Math.max(0,years-4)*0.010,0.88,1),
+    factor_experience:clamp(num(base.factor_experience,0.997)-years*0.018,0.84,1),
     factor_mental:clamp(num(base.factor_mental,0.995)-years*0.020,0.78,1),
     factor_team:clamp(num(base.factor_team,0.988)-years*0.015,0.80,1),
   };
