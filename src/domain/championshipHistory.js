@@ -563,19 +563,35 @@ export function teamChampionshipSummary(gs,teamId){
     ?teamOrganizationHistoryFromState(gs,id,sourceSeason)
     :null;
 
-  const historicalConstructorTitles=rows(historical?.constructor_title_rows).map((row)=>({
-    ...row,
-    team_id:id,
-    year:Number(unbox(row?.year)),
-    source:str(row?.source)||"historical_organization_history",
-  }));
-  const historicalDriverTitles=rows(historical?.driver_title_rows).map((row)=>({
-    ...row,
-    team_id:id,
-    year:Number(unbox(row?.year)),
-    source:str(row?.source)||"historical_organization_history",
-  }));
+  const canonicalHistoryAvailable=
+    rows(gs?.dbHistoricalChampionships?.drivers).length>0||
+    rows(gs?.dbHistoricalChampionships?.constructors).length>0;
 
+  const historicalConstructorTitles=canonicalHistoryAvailable
+    ?rows(historical?.constructor_title_rows).map((row)=>({
+      ...row,
+      team_id:id,
+      year:Number(unbox(row?.year)),
+      source:str(row?.source)||"historical_organization_history",
+    }))
+    :constructorChampionshipHistory(gs).filter((row)=>
+      Number(row?.year)<sourceSeason&&String(row?.team_id)===id
+    );
+
+  const historicalDriverTitles=canonicalHistoryAvailable
+    ?rows(historical?.driver_title_rows).map((row)=>({
+      ...row,
+      team_id:id,
+      year:Number(unbox(row?.year)),
+      source:str(row?.source)||"historical_organization_history",
+    }))
+    :driverChampionshipHistory(gs).filter((row)=>
+      Number(row?.year)<sourceSeason&&String(row?.team_id)===id
+    );
+
+  // Compatibility fallback above exists only for old/sparse states without the
+  // canonical championship cache. Normal New Game and current saves always use
+  // Results-derived historical_championships + Organisation History.
   // Once a career begins, real-world history stops at sourceSeason. Played
   // Save World seasons extend the same summary without consulting future data.
   const playedConstructorTitles=constructorChampionshipHistory(gs).filter((row)=>
