@@ -68,7 +68,7 @@ export function CarShape({
       historicalModel={historicalModel}
     />
     {(selected||mine||lod==="close")?<g data-car-label="true" transform="translate(0 -15.5)">
-      <rect x="-10.5" y="-3.8" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#fff":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity={lod==="close"?.94:.82}/>
+      <rect x="-10.5" y="-3.8" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#fff":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity={lod==="close"?0.94:0.82}/>
       <text x="0" y="1.5" textAnchor="middle" fontSize="5.7" fontWeight="900" fill="#fff">{label}</text>
     </g>:null}
   </>;
