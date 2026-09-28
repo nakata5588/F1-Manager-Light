@@ -9,6 +9,7 @@ const targets=[
   {year:2020,names:["Kimi Raikkonen","Kimi Räikkönen","Antonio Giovinazzi"]},
 ];
 const profiles=JSON.parse(await fs.readFile(path.join(root,"public","data","driver_rating_profiles.json"),"utf8"));
+const f1History=JSON.parse(await fs.readFile(path.join(root,"public","data","driver_f1_history.json"),"utf8"));
 
 const norm=(value)=>String(value||"")
   .normalize("NFD")
@@ -33,6 +34,14 @@ for(const group of targets){
     const rating=ratings.find((row)=>idOf(row)===did)||null;
     const contract=contracts.find((row)=>idOf(row)===did)||null;
     const profile=profiles.find((row)=>idOf(row)===did)||null;
+    const career=f1History.filter((row)=>idOf(row)===did);
+    const careerTotals=career.reduce((acc,row)=>({
+      starts:acc.starts+Number(row.starts||row.races||0),
+      wins:acc.wins+Number(row.wins||0),
+      podiums:acc.podiums+Number(row.podiums||0),
+      poles:acc.poles+Number(row.poles||0),
+      best_finish:Math.min(acc.best_finish,Number(row.best_finish||999)),
+    }),{starts:0,wins:0,podiums:0,poles:0,best_finish:999});
     console.log(JSON.stringify({
       year:group.year,
       driver_id:did,
@@ -59,6 +68,11 @@ for(const group of targets){
       profile_peak_racecraft:profile?.peak_racecraft??null,
       profile_confidence:profile?.rating_confidence??profile?.profile_confidence??null,
       profile_tier:profile?.tier??profile?.rating_tier??null,
+      full_f1_history:{
+        ...careerTotals,
+        best_finish:careerTotals.best_finish===999?null:careerTotals.best_finish,
+        seasons:career.length,
+      },
     }));
   }
 }
