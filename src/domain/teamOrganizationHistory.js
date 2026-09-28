@@ -316,7 +316,7 @@ function populatedArray(primary,fallback){
 }
 
 export function teamOrganizationHistoryFromState(gs,teamId,yearInput=null){
-  const explicit=Number(yearInput);
+  const explicit=yearInput==null?null:Number(yearInput);
   const sourceSeason=Number(gs?.careerMeta?.sourceSeason);
   const activeYear=Number(gs?.activeYear??gs?.seasonPackMeta?.year);
   const year=Number.isInteger(explicit)
