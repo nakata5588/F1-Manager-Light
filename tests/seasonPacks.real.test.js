@@ -6,13 +6,14 @@ import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 import { materializeSeasonPackFromDatabaseState } from "../src/data/seasonPackLoader.js";
 
 const root=process.cwd();
-const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1988,1989,1999,2007,2011,2012,2014,2015,2020];
+const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1988,1989,1999,2007,2009,2011,2012,2014,2015,2020];
 const expectedTeamCounts={
   1975:19,
   1980:15,
   1989:20,
   1999:11,
   2007:11,
+  2009:10,
   2011:12,
   2012:12,
   2014:11,
