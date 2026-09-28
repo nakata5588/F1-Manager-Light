@@ -8,6 +8,8 @@ import { prepareGameStateForSave, extractGameStateFromStoredSave, createNewSaveM
 import { RACE_PLAYBACK_SPEEDS, raceAverageSpeedKmh, raceEventRequiresPause, raceMarkerLaneOffset, raceMarkerScaleForCamera, raceMotionDurationMs, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs, retiredCarVisibleOnTrack, unwrapTrackProgress } from "../src/domain/racePlayback.js";
 import { liveSectorShares, liveSectorTimesForLap } from "../src/domain/liveSectorPace.js";
 import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "../src/domain/sessionRecovery.js";
+import { applyVisualPitLaneState, buildRaceVisualSnapshot, visualPitLaneState } from "../src/domain/raceVisualModel.js";
+import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../src/domain/raceWeekendResume.js";
 
 const gp={gp_id:"test_gp",track_id:"test_track",gp_name:"Test GP",race_date:"1980-05-18"};
 const tyres=[
@@ -1549,4 +1551,149 @@ test("Track 2.1A compact refresh recovery can continue the live race",()=>{
   const afterOrdinal=(Number(after.current_lap)-1)*3+Number(after.current_sector);
   assert.equal(afterOrdinal,beforeOrdinal+1);
   assert.ok(Array.isArray(after.projected_race)&&after.projected_race.length>0);
+});
+
+
+test("RW6 FINAL A — engine, visual pit playback and both persistence paths stay deterministic together",()=>{
+  const seed="rw6-final-pit-persistence";
+  let gs=createLiveRaceState(fixture(seed),{gp});
+
+  for(let step=0;step<5;step+=1)gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  assert.equal(gs.raceWeekendState.live_race.current_lap,2);
+  assert.equal(gs.raceWeekendState.live_race.current_sector,2);
+
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+
+  const entryLive=gs.raceWeekendState.live_race;
+  const entryRow=entryLive.classification.find((row)=>row.driver_id==="D1");
+  assert.equal(entryRow.pit_state.phase,"pit_entry");
+
+  const visualContext={hasPitLane:true,pitEntryProgress:0.9499,pitExitProgress:0.0789};
+  const entryVisual=visualPitLaneState(entryRow,visualContext);
+  assert.equal(entryVisual.path,"pit_transition");
+  assert.equal(entryVisual.track_anchor_progress,0.9499);
+
+  const authoritativeSnapshot=buildRaceVisualSnapshot(entryLive.classification,{
+    currentLap:entryLive.current_lap,
+    currentSector:entryLive.current_sector,
+    referenceLapMs:90000,
+    playbackSpeed:1,
+    globalSectorMs:30000,
+    currentControl:entryLive.current_control,
+  });
+  const authoritativeD1=authoritativeSnapshot.find((row)=>row.driver_id==="D1");
+  const visualRows=applyVisualPitLaneState(authoritativeSnapshot,entryLive.classification,visualContext);
+  const visualD1=visualRows.find((row)=>row.driver_id==="D1");
+  assert.equal(visualD1.authoritative_position,authoritativeD1.authoritative_position);
+  assert.equal(visualD1.authoritative_gap_ms,authoritativeD1.authoritative_gap_ms);
+  assert.equal(visualD1.visual_path,"pit_transition");
+
+  gs=advanceLivePitClock(gs,{deltaMs:5000});
+  const midLive=gs.raceWeekendState.live_race;
+  const midRow=midLive.classification.find((row)=>row.driver_id==="D1");
+  const midVisual=visualPitLaneState(midRow,visualContext);
+  assert.ok(["pit_lane","pit_box"].includes(midRow.pit_state.phase));
+  assert.ok(["pit_lane"].includes(midVisual.path));
+  assert.ok(Number(midVisual.pit_lane_progress)>=0);
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW6 FINAL mid-pit"},gameState:stored});
+  const loadedRow=loaded.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1");
+  assert.deepEqual(loaded.raceWeekendState.live_race.pit_states.D1,midLive.pit_states.D1);
+  assert.deepEqual(visualPitLaneState(loadedRow,visualContext),midVisual);
+
+  const recovery=buildSessionRecoverySnapshot(gs);
+  assert.equal(Object.hasOwn(recovery.raceWeekendState.live_race,"projected_race"),false);
+  const stale=createLiveRaceState(fixture(seed),{gp});
+  const recovered=applySessionRecoverySnapshot(stale,recovery);
+  const recoveredRow=recovered.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1");
+  assert.deepEqual(recovered.raceWeekendState.live_race.pit_states.D1,midLive.pit_states.D1);
+  assert.deepEqual(visualPitLaneState(recoveredRow,visualContext),midVisual);
+
+  const continuedLoaded=advanceLivePitClock(loaded,{deltaMs:2500});
+  const continuedRecovered=advanceLivePitClock(recovered,{deltaMs:2500});
+  assert.deepEqual(
+    continuedLoaded.raceWeekendState.live_race.pit_states.D1,
+    continuedRecovered.raceWeekendState.live_race.pit_states.D1
+  );
+  assert.deepEqual(
+    continuedLoaded.raceWeekendState.live_race.classification,
+    continuedRecovered.raceWeekendState.live_race.classification
+  );
+});
+
+test("RW6 FINAL B — Red Flag save/load resumes the same race and still reaches the finish gate",()=>{
+  let gs=createLiveRaceState(fixture("rw6-final-red-flag-finish"),{gp});
+  gs=advanceTo(gs,4);
+  const beforeControl=gs.raceWeekendState.live_race.classification;
+
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      live_race:{
+        ...gs.raceWeekendState.live_race,
+        status:"red_flag",
+        current_control:"RED_FLAG",
+        red_flag_period:{type:"RED_FLAG",from_lap:4,from_sector:3,to_lap:4,cause:"incident"},
+      },
+    },
+  };
+
+  gs=assessLiveRaceRestart(gs);
+  assert.equal(gs.raceWeekendState.live_race.red_flag_lifecycle.restart_monitor.restart_authorized,true);
+  gs=prepareLiveRaceRestart(gs);
+  assert.equal(gs.raceWeekendState.live_race.red_flag_lifecycle.phase,"restart_pending");
+
+  const stored=prepareGameStateForSave(gs);
+  const loaded=extractGameStateFromStoredSave({meta:{name:"RW6 FINAL red flag"},gameState:stored});
+  assert.equal(loaded.raceWeekendState.live_race.status,"red_flag");
+  assert.equal(raceWindowForWeekend(loaded.raceWeekendState),"live");
+
+  gs=resumeLiveRace(loaded);
+  assert.equal(gs.raceWeekendState.live_race.status,"running");
+  assert.deepEqual(gs.raceWeekendState.live_race.classification,beforeControl);
+
+  gs=advanceTo(gs,12);
+  assert.equal(gs.raceWeekendState.live_race.status,"finished");
+  assert.equal(liveRaceReadyToFinalize(gs),true);
+  assert.equal(raceWeekendCanFinalizeLiveRace(gs.raceWeekendState),true);
+  assert.equal(raceWindowForWeekend(gs.raceWeekendState),"live");
+
+  const rows=finalizedLiveRaceRows(gs);
+  assert.equal(rows.length,gs.raceWeekendState.live_race.classification.length);
+  const liveByDriver=new Map(gs.raceWeekendState.live_race.classification.map((row)=>[row.driver_id,row]));
+  for(const row of rows){
+    const liveRow=liveByDriver.get(String(row?.driver?.driver_id??row?.driver_id??""));
+    assert.ok(liveRow);
+    assert.equal(Number(row.pos),Number(liveRow.position));
+    assert.equal(Number(row.total_time_ms),Number(liveRow.elapsed_ms));
+  }
+});
+
+test("RW6 FINAL C — completed pit history survives to finalized race rows without changing authoritative pit loss",()=>{
+  let gs=createLiveRaceState(fixture("rw6-final-pit-to-results"),{gp});
+  for(let step=0;step<5;step+=1)gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  gs=issueLiveRaceCommand(gs,{driverId:"D1",type:"pit",tyreId:"gy_s"});
+  gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+  gs=advanceLivePitClock(gs,{deltaMs:60000});
+
+  const completed=gs.raceWeekendState.live_race.pit_history.find((row)=>row.driver_id==="D1"&&row.stop_lap===3);
+  assert.ok(completed?.completed);
+  const authoritativeLoss=completed.loss_total_ms;
+
+  gs=advanceTo(gs,12);
+  assert.equal(liveRaceReadyToFinalize(gs),true);
+  const rows=finalizedLiveRaceRows(gs);
+  const d1=rows.find((row)=>String(row?.driver?.driver_id??row?.driver_id)==="D1");
+  assert.ok(d1);
+
+  const stop=(d1.pit_stops||[]).find((row)=>Number(row.lap)===3);
+  assert.ok(stop);
+  assert.equal(Math.round(Number(stop.total_loss_s)*1000),authoritativeLoss);
+  assert.equal(
+    Number(d1.total_time_ms),
+    Number(gs.raceWeekendState.live_race.classification.find((row)=>row.driver_id==="D1").elapsed_ms)
+  );
 });
