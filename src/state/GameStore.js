@@ -865,14 +865,14 @@ export const useGame = create((set, get) => ({
         .filter((row) => row?.ready !== false)
         .map((row) => Number(row?.year))
         .filter(Number.isInteger);
-      const yearsAvailable = packYears.length
-        ? Array.from(new Set(packYears)).sort((a,b)=>a-b)
-        : Array.from(
-            new Set((calendar || []).map((gp) => {
-              const yr = gp?.season_year ?? gp?.year ?? (typeof gp?.race_date === "string" ? gp.race_date.slice(0, 4) : null);
-              return yr != null ? Number(yr) : null;
-            }).filter((x) => x != null))
-          ).sort((a, b) => a - b);
+      const calendarYears=(calendar || []).map((gp) => {
+        const yr = gp?.season_year ?? gp?.year ?? (typeof gp?.race_date === "string" ? gp.race_date.slice(0, 4) : null);
+        return yr != null ? Number(yr) : null;
+      }).filter(Number.isInteger);
+      // Season Packs are a cache/materialization layer, not the authority for
+      // which historical years exist. Keep New Game resilient when the local
+      // ignored Season Pack index is missing, stale, or only partially built.
+      const yearsAvailable=Array.from(new Set([...calendarYears,...packYears])).sort((a,b)=>a-b);
 
       set((s) => ({
         gameState: {
