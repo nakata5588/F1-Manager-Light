@@ -259,12 +259,16 @@ for(const year of supportedYears){
     }
 
     if(kind==="generated"&&profileById.has(id)){
-      const expectedPeak=Number(profileById.get(id)?.peak_ability);
+      const profilePeak=Number(profileById.get(id)?.peak_ability);
+      const current=Number(rating?.current_ability);
       const actualPotential=Number(rating?.potential_ability);
-      if(Number.isFinite(expectedPeak)&&Math.abs(actualPotential-expectedPeak)>0.11){
+      const expectedPotential=Number.isFinite(profilePeak)
+        ?Math.max(profilePeak,Number.isFinite(current)?current:profilePeak)
+        :current;
+      if(Number.isFinite(expectedPotential)&&Math.abs(actualPotential-expectedPotential)>0.11){
         provenanceErrors++;
         failures.push(
-          `${year} ${id}: generated potential ${actualPotential} does not match Talent Profile peak ${expectedPeak}`
+          `${year} ${id}: generated potential ${actualPotential} does not match safe ceiling ${expectedPotential}`
         );
       }
     }
