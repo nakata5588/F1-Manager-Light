@@ -4,8 +4,12 @@ export const RACE_VISUAL_MOTION_MODES=Object.freeze({
   RACING:"RACING",
   PIT_ENTRY:"PIT_ENTRY",
   PIT_LANE:"PIT_LANE",
+  PIT_QUEUE:"PIT_QUEUE",
+  PIT_BOX:"PIT_BOX",
+  PIT_RELEASE:"PIT_RELEASE",
   PIT_STOPPED:"PIT_STOPPED",
   PIT_EXIT:"PIT_EXIT",
+  REJOIN:"REJOIN",
   VSC:"VSC",
   SAFETY_CAR:"SAFETY_CAR",
   RED_FLAG:"RED_FLAG",
@@ -21,13 +25,127 @@ function clamp(value,min,max){
   return Math.max(min,Math.min(max,value));
 }
 
+function normalizeTrackProgress(value){
+  const number=finite(value);
+  if(number==null)return null;
+  if(number>=0&&number<1)return number;
+  return ((number%1)+1)%1;
+}
+
+function pitStateOf(row){
+  const raw=row?.pit_state;
+  if(raw&&typeof raw==="object")return raw;
+  const phase=String(raw??row?.pit_phase??"").trim().toLowerCase();
+  return phase?{phase}:null;
+}
+
+export function pitPhase(row){
+  return String(pitStateOf(row)?.phase||"").trim().toLowerCase();
+}
+
+function pitPhaseProgress(state){
+  const total=Math.max(0,finite(state?.phase_total_ms,0));
+  const elapsed=Math.max(0,finite(state?.phase_elapsed_ms,0));
+  if(total<=0)return elapsed>0?1:0;
+  return clamp(elapsed/total,0,1);
+}
+
+export function visualPitLaneState(row,{
+  hasPitLane=false,
+  pitEntryProgress=null,
+  pitExitProgress=null,
+  boxProgress=0.5,
+  queueSpacing=0.04,
+}={}){
+  const state=pitStateOf(row);
+  const phase=String(state?.phase||"").toLowerCase();
+  const completed=Boolean(state?.completed)||phase==="completed";
+  const base={
+    active:Boolean(state&&!completed&&phase),
+    phase:phase||null,
+    path:"track",
+    track_anchor_progress:null,
+    pit_lane_progress:null,
+    pit_lane_mix:0,
+    stopped:false,
+    fallback:false,
+  };
+  if(!base.active)return base;
+
+  const entry=normalizeTrackProgress(pitEntryProgress);
+  const exit=normalizeTrackProgress(pitExitProgress);
+  const validated=Boolean(hasPitLane&&entry!=null&&exit!=null);
+  if(!validated)return {...base,fallback:true};
+
+  const phaseT=pitPhaseProgress(state);
+  const box=clamp(finite(boxProgress,0.5),0.2,0.8);
+  const queuePosition=Math.max(1,Math.round(finite(
+    state?.pit_traffic?.box_queue_position??state?.box_queue_position,
+    1
+  )));
+  const spacing=clamp(finite(queueSpacing,0.04),0.015,0.10);
+  const queueProgress=clamp(box-(spacing*queuePosition),0,Math.max(0,box-0.01));
+
+  if(phase==="pit_entry"){
+    return {...base,path:"pit_transition",track_anchor_progress:entry,pit_lane_progress:0,pit_lane_mix:phaseT};
+  }
+  if(phase==="pit_lane"){
+    const laneTarget=finite(state?.queue_total_ms,0)>0?queueProgress:box;
+    return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:laneTarget*phaseT,pit_lane_mix:1};
+  }
+  if(phase==="pit_queue"){
+    return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:queueProgress,pit_lane_mix:1,stopped:true};
+  }
+  if(phase==="pit_box"){
+    return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:box,pit_lane_mix:1,stopped:true};
+  }
+  if(phase==="pit_release"){
+    return {...base,path:"pit_lane",track_anchor_progress:exit,pit_lane_progress:box,pit_lane_mix:1,stopped:true};
+  }
+  if(phase==="pit_exit"){
+    return {...base,path:"pit_lane",track_anchor_progress:exit,pit_lane_progress:box+((1-box)*phaseT),pit_lane_mix:1};
+  }
+  if(phase==="rejoin"){
+    return {...base,path:"pit_transition",track_anchor_progress:exit,pit_lane_progress:1,pit_lane_mix:1-phaseT};
+  }
+  return {...base,fallback:true};
+}
+
+export function applyVisualPitLaneState(frameRows,authoritativeRows,context={}){
+  const latestByDriver=new Map((Array.isArray(authoritativeRows)?authoritativeRows:[]).map((row)=>[
+    String(row?.driver_id??row?.id??""),
+    row,
+  ]));
+  return (Array.isArray(frameRows)?frameRows:[]).map((row)=>{
+    const driverId=String(row?.driver_id??row?.id??"");
+    const latest=latestByDriver.get(driverId)||row;
+    const pit=visualPitLaneState(latest,context);
+    return {
+      ...row,
+      pit_state:latest?.pit_state??row?.pit_state??null,
+      in_pit:latest?.in_pit??row?.in_pit??false,
+      visual_path:pit.path,
+      visual_pit_phase:pit.phase,
+      visual_pit_lane_progress:pit.pit_lane_progress,
+      visual_pit_lane_mix:pit.pit_lane_mix,
+      visual_pit_stopped:pit.stopped,
+      visual_pit_fallback:pit.fallback,
+      visual_track_progress:pit.track_anchor_progress??row?.visual_track_progress,
+    };
+  });
+}
+
 export function visualMotionMode(row,{currentControl="GREEN"}={}){
   if(row?.retired)return RACE_VISUAL_MOTION_MODES.RETIRED;
-  const pitState=String(row?.pit_state||row?.pit_phase||"").toUpperCase();
-  if(pitState.includes("ENTRY"))return RACE_VISUAL_MOTION_MODES.PIT_ENTRY;
-  if(pitState.includes("STOP"))return RACE_VISUAL_MOTION_MODES.PIT_STOPPED;
-  if(pitState.includes("EXIT"))return RACE_VISUAL_MOTION_MODES.PIT_EXIT;
-  if(pitState.includes("PIT"))return RACE_VISUAL_MOTION_MODES.PIT_LANE;
+  const phase=pitPhase(row);
+  if(phase==="pit_entry")return RACE_VISUAL_MOTION_MODES.PIT_ENTRY;
+  if(phase==="pit_lane")return RACE_VISUAL_MOTION_MODES.PIT_LANE;
+  if(phase==="pit_queue")return RACE_VISUAL_MOTION_MODES.PIT_QUEUE;
+  if(phase==="pit_box")return RACE_VISUAL_MOTION_MODES.PIT_BOX;
+  if(phase==="pit_release")return RACE_VISUAL_MOTION_MODES.PIT_RELEASE;
+  if(phase==="pit_exit")return RACE_VISUAL_MOTION_MODES.PIT_EXIT;
+  if(phase==="rejoin")return RACE_VISUAL_MOTION_MODES.REJOIN;
+  if(phase.includes("stop"))return RACE_VISUAL_MOTION_MODES.PIT_STOPPED;
   const control=String(currentControl||"GREEN").toUpperCase();
   if(control==="VSC")return RACE_VISUAL_MOTION_MODES.VSC;
   if(control.includes("SAFETY_CAR"))return RACE_VISUAL_MOTION_MODES.SAFETY_CAR;
@@ -46,7 +164,13 @@ export function driverReferenceSectorMs(row,currentSector,{fallbackSectorMs=3000
 
 export function driverVisualMotionDurationMs(row,{currentSector=1,playbackSpeed=1,globalSectorMs=30000,currentControl="GREEN"}={}){
   const mode=visualMotionMode(row,{currentControl});
-  if(mode===RACE_VISUAL_MOTION_MODES.PIT_STOPPED||mode===RACE_VISUAL_MOTION_MODES.RED_FLAG)return raceMotionDurationMs(playbackSpeed,globalSectorMs);
+  if([
+    RACE_VISUAL_MOTION_MODES.PIT_QUEUE,
+    RACE_VISUAL_MOTION_MODES.PIT_BOX,
+    RACE_VISUAL_MOTION_MODES.PIT_RELEASE,
+    RACE_VISUAL_MOTION_MODES.PIT_STOPPED,
+    RACE_VISUAL_MOTION_MODES.RED_FLAG,
+  ].includes(mode))return raceMotionDurationMs(playbackSpeed,globalSectorMs);
   const individual=driverReferenceSectorMs(row,currentSector,{fallbackSectorMs:globalSectorMs});
   return raceMotionDurationMs(playbackSpeed,individual);
 }
@@ -120,13 +244,20 @@ export function raceVisualSnapshotKey(rows,{currentLap=0,currentSector=0}={}){
   return [
     Math.max(0,Number(currentLap)||0),
     Math.max(0,Math.min(3,Number(currentSector)||0)),
-    ...ordered.map((row)=>[
-      String(row?.driver_id??row?.id??""),
-      finite(row?.position,""),
-      finite(row?.gap_to_leader_ms,""),
-      finite(row?.interval_ms??row?.gap_to_previous_ms,""),
-      row?.retired?1:0,
-    ].join(":")),
+    ...ordered.map((row)=>{
+      const pit=pitStateOf(row);
+      return [
+        String(row?.driver_id??row?.id??""),
+        finite(row?.position,""),
+        finite(row?.gap_to_leader_ms,""),
+        finite(row?.interval_ms??row?.gap_to_previous_ms,""),
+        row?.retired?1:0,
+        String(pit?.phase||""),
+        pit?.active?1:0,
+        pit?.completed?1:0,
+        finite(pit?.pit_traffic?.box_queue_position??pit?.box_queue_position,""),
+      ].join(":");
+    }),
   ].join("|");
 }
 

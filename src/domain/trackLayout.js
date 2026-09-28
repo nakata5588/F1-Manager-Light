@@ -93,6 +93,7 @@ function resolved(layout,resolution,requestedYear){
   return {
     layout,
     geometry,
+    environment:trackEnvironmentProfile(layout),
     resolution,
     requested_year:requestedYear,
     source_year:sourceYear(layout),
@@ -110,6 +111,90 @@ export function trackLayoutResolutionLabel(resolution){
     nearest_fallback:"Nearest available layout",
     none:"No layout asset",
   }[String(resolution||"")]||"Layout";
+}
+
+function finiteNumber(value,fallback=0){
+  const number=Number(value);
+  return Number.isFinite(number)?number:fallback;
+}
+
+export function trackEnvironmentProfile(layout){
+  const nested=layout?.environment&&typeof layout.environment==="object"?layout.environment:{};
+  const rawViewBox=Array.isArray(nested?.view_box)&&nested.view_box.length===4
+    ?nested.view_box
+    :(Array.isArray(layout?.environment_view_box)&&layout.environment_view_box.length===4?layout.environment_view_box:[0,0,1000,1000]);
+  const viewBox=rawViewBox.map(Number);
+  const [vx,vy,vw,vh]=viewBox;
+  const rawTransform=nested?.calibration_transform??layout?.environment_transform??{};
+  const calibrationTransform={
+    x:finiteNumber(rawTransform?.x??rawTransform?.translate_x,0),
+    y:finiteNumber(rawTransform?.y??rawTransform?.translate_y,0),
+    scale_x:finiteNumber(rawTransform?.scale_x,1),
+    scale_y:finiteNumber(rawTransform?.scale_y,1),
+    rotation_deg:finiteNumber(rawTransform?.rotation_deg??rawTransform?.rotation,0),
+    origin_x:finiteNumber(rawTransform?.origin_x,vx+(vw/2)),
+    origin_y:finiteNumber(rawTransform?.origin_y,vy+(vh/2)),
+  };
+  return {
+    asset:nested?.asset??layout?.asset??null,
+    native_width:finiteNumber(nested?.native_width,vw),
+    native_height:finiteNumber(nested?.native_height,vh),
+    view_box:viewBox,
+    calibration_transform:calibrationTransform,
+    contains_track_surface:Boolean(nested?.contains_track_surface??layout?.environment_contains_track_surface),
+    contains_track_intel:Boolean(nested?.contains_track_intel??layout?.environment_contains_track_intel),
+    presentation_only:nested?.presentation_only!==false,
+    runtime_mode:String(nested?.runtime_mode||"environment_asset"),
+    fallback_reason:String(nested?.fallback_reason||""),
+    visual_style:String(nested?.visual_style||""),
+  };
+}
+
+function calibratePoint(point,transform){
+  const x=finiteNumber(point?.[0],0);
+  const y=finiteNumber(point?.[1],0);
+  const originX=finiteNumber(transform?.origin_x,0);
+  const originY=finiteNumber(transform?.origin_y,0);
+  const scaleX=finiteNumber(transform?.scale_x,1);
+  const scaleY=finiteNumber(transform?.scale_y,1);
+  const translatedX=(x-originX)*scaleX;
+  const translatedY=(y-originY)*scaleY;
+  const radians=finiteNumber(transform?.rotation_deg,0)*(Math.PI/180);
+  const cos=Math.cos(radians);
+  const sin=Math.sin(radians);
+  return [
+    Number((originX+(translatedX*cos-translatedY*sin)+finiteNumber(transform?.x,0)).toFixed(3)),
+    Number((originY+(translatedX*sin+translatedY*cos)+finiteNumber(transform?.y,0)).toFixed(3)),
+  ];
+}
+
+export function calibrateTrackGeometry(geometry,transform={}){
+  if(!geometry||typeof geometry!=="object")return null;
+  const points=Array.isArray(geometry?.points)?geometry.points.map((point)=>calibratePoint(point,transform)):[];
+  const pitLanePoints=Array.isArray(geometry?.pit_lane_points)
+    ?geometry.pit_lane_points.map((point)=>calibratePoint(point,transform))
+    :geometry?.pit_lane_points;
+  return {
+    ...geometry,
+    points,
+    pit_lane_points:pitLanePoints,
+    presentation_calibration:{...transform},
+  };
+}
+
+export function trackPresentationGeometry(geometry,layout){
+  const environment=trackEnvironmentProfile(layout);
+  const legacyFallback=environment.runtime_mode==="legacy_vector_fallback"
+    ?layout?.presentation_fallback_geometry
+    :null;
+  if(legacyFallback&&Array.isArray(legacyFallback?.points)&&legacyFallback.points.length>1){
+    return {
+      ...legacyFallback,
+      presentation_fallback:true,
+      presentation_fallback_reason:environment.fallback_reason||"legacy_vector_fallback",
+    };
+  }
+  return calibrateTrackGeometry(geometry,environment.calibration_transform);
 }
 
 const trackArcCache=new WeakMap();

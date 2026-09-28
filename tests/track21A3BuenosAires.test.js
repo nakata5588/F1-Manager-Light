@@ -15,7 +15,7 @@ test("Track 2.1A.5 resolves Buenos Aires 1980 as verified Circuit No. 15",()=>{
   assert.equal(resolved.layout.historical_status,"verified");
   assert.equal(resolved.layout.geometry_status,"historical_verified");
   assert.equal(resolved.layout.lap_length_km,5.968);
-  assert.equal(resolved.layout.asset,"/tracks/historical/buenos-aires-no15-1980.svg");
+  assert.equal(resolved.layout.asset,"/tracks/historical/buenos-aires-no15-1980.webp");
   assert.equal(resolved.geometry.quality,"historical_verified");
 });
 
@@ -49,15 +49,17 @@ test("Track 2.1A.5 keeps environment artwork non-authoritative",()=>{
 });
 
 
-test("Track 2.1A.6 historical environment uses the approved self-contained artwork",()=>{
-  const assetPath=path.join(root,"public/tracks/historical/buenos-aires-no15-1980.svg");
-  const svg=fs.readFileSync(assetPath,"utf8");
-  assert.match(svg,/approved historical environment/);
-  assert.match(svg,/id="approved-environment-raster"/);
-  assert.match(svg,/data:image\/webp;base64,/);
-  assert.equal((svg.match(/data-strip=/g)||[]).length,12);
-  assert.ok(svg.length>70000,"approved environment must not regress to a blank/simplified wrapper");
-  const {layout}=resolveTrackLayout({trackId:"tr_0018",year:1980});
-  assert.equal(layout.environment_contains_track_surface,true);
-  assert.equal(layout.environment_contains_track_intel,true);
+test("Track 1.0C historical environment uses the approved single WebP artwork",()=>{
+  const assetPath=path.join(root,"public/tracks/historical/buenos-aires-no15-1980.webp");
+  const bytes=fs.readFileSync(assetPath);
+  assert.equal(bytes.subarray(0,4).toString("ascii"),"RIFF");
+  assert.equal(bytes.subarray(8,12).toString("ascii"),"WEBP");
+  assert.ok(bytes.length>10000,"approved environment must remain a real WebP");
+  assert.equal(fs.existsSync(path.join(root,"public/tracks/historical/buenos-aires-no15-1980.svg")),false);
+  const {layout,environment}=resolveTrackLayout({trackId:"tr_0018",year:1980});
+  assert.equal(environment.contains_track_surface,true);
+  assert.equal(environment.contains_track_intel,true);
+  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
+  assert.equal(layout.environment.asset,environment.asset);
+  assert.equal(layout.presentation_fallback_geometry.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
 });
