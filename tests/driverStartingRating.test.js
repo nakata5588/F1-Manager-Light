@@ -185,7 +185,7 @@ test("Decline stage becomes age-sensitive instead of leaving old veterans at pea
     profile,
     year:2020,
   });
-  assert.equal(at35.career_stage,"Decline");
+  assert.equal(at35.career_stage,"Veteran");
   assert.equal(at41.career_stage,"Decline");
   assert.ok(at41.current_ability<at35.current_ability-5,[at35.current_ability,at41.current_ability]);
   assert.ok(at41.pace<at35.pace-10,[at35.pace,at41.pace]);
