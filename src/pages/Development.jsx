@@ -26,6 +26,7 @@ import {
 } from "@/domain/developmentProject.js";
 import { teamOperationalMorale, teamWorkRateLabel, teamWorkRateMultiplier } from "@/domain/teamMorale.js";
 import { managerGameplayEffects } from "@/domain/managerProfile.js";
+import { staffPitTrainingMultiplier } from "@/domain/staffPerformance.js";
 import {
   aeroAllocationPerformanceEquivalents,
   aeroTestingRemaining,
@@ -220,7 +221,8 @@ export default function Development({ embedded = false, initialTab = "projects",
   const effectivePitCrew=pitCrewEffectiveProfile(rawPitCrew);
   const pitCrewFacilityLevel=levelOf("pitcrew_training_level");
   const pitCrewLoadEffects=pitCrewTrainingLoadEffects(rawPitCrew.training_load??50);
-  const pitCrewSevenDay=projectPitCrewTraining(rawPitCrew,pitCrewFacilityLevel,7);
+  const pitCrewStaffMultiplier=staffPitTrainingMultiplier(gameState,teamId);
+  const pitCrewSevenDay=projectPitCrewTraining(rawPitCrew,pitCrewFacilityLevel,7,pitCrewStaffMultiplier);
   const teamMorale=teamOperationalMorale(gameState,teamId);
   const moraleWorkRate=teamWorkRateLabel(gameState,teamId);
   const moraleTimeFactor=teamWorkRateMultiplier(gameState,teamId);
