@@ -1,5 +1,6 @@
 import { HISTORICAL_TRACK_PRESENTATION_FALLBACKS } from "./historicalTrackGeometry.js";
 import { HISTORICAL_TRACK_ENVIRONMENTS } from "./historicalTrackEnvironment.js";
+import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
 
@@ -9,29 +10,30 @@ export const TRACK_LAYOUT_ASSETS = [
     "layout_id": "tr_0018_provisional",
     "track_id": "tr_0018",
     "label": "Buenos Aires — Circuit No. 15",
-    "year_from": 1974,
-    "year_to": 1981,
-    "reference_year": 1980,
+    "track_package": ARGENTINA_1974_1981_F1TRACK,
+    "year_from": ARGENTINA_1974_1981_F1TRACK.year_from,
+    "year_to": ARGENTINA_1974_1981_F1TRACK.year_to,
+    "reference_year": ARGENTINA_1974_1981_F1TRACK.reference_year,
     "environment": BUENOS_AIRES_ENVIRONMENT,
     "presentation_fallback_geometry": HISTORICAL_TRACK_PRESENTATION_FALLBACKS.tr_0018_provisional,
-    "asset": BUENOS_AIRES_ENVIRONMENT.asset,
+    "asset": null,
     "environment_view_box": BUENOS_AIRES_ENVIRONMENT.view_box,
     "environment_transform": BUENOS_AIRES_ENVIRONMENT.calibration_transform,
     "historical_status": "verified",
     "geometry_status": "historical_verified",
-    "lap_length_km": 5.968,
-    "start_finish_progress": 0,
-    "sector_boundaries": [0.3246,0.6940],
-    "race_direction": "clockwise",
-    "start_finish_direction": "right",
-    "pit_entry_progress": 0.9499,
-    "pit_exit_progress": 0.0789,
-    "sector_colors": ["#ef4444","#22d3ee","#facc15"],
-    "pit_lane_color": "#2563eb",
+    "lap_length_km": ARGENTINA_1974_1981_F1TRACK.lap_length_km,
+    "start_finish_progress": ARGENTINA_1974_1981_F1TRACK.intelligence.start_finish_progress,
+    "sector_boundaries": ARGENTINA_1974_1981_F1TRACK.intelligence.sector_boundaries,
+    "race_direction": ARGENTINA_1974_1981_F1TRACK.race_direction,
+    "start_finish_direction": ARGENTINA_1974_1981_F1TRACK.start_finish_direction,
+    "pit_entry_progress": ARGENTINA_1974_1981_F1TRACK.intelligence.pit_entry_progress,
+    "pit_exit_progress": ARGENTINA_1974_1981_F1TRACK.intelligence.pit_exit_progress,
+    "sector_colors": ARGENTINA_1974_1981_F1TRACK.intelligence.sector_colors,
+    "pit_lane_color": ARGENTINA_1974_1981_F1TRACK.intelligence.pit_lane_color,
     "environment_contains_track_surface": BUENOS_AIRES_ENVIRONMENT.contains_track_surface,
     "environment_contains_track_intel": BUENOS_AIRES_ENVIRONMENT.contains_track_intel,
     "track_intelligence_status": "historical_verified",
-    "source_label": "Buenos Aires Circuit No. 15 — legacy vector presentation fallback active after raster playtest failure; functional centreline remains engine-independent"
+    "source_label": "Buenos Aires Circuit No. 15 — unified F1Track package with functional, minimap and procedural race-view layers"
   },
   {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
