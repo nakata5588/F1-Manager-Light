@@ -178,6 +178,13 @@ test("Virgin-Marussia-Manor identity follows the Results timeline",async()=>{
       (row)=>isRaceDriverContract(row)&&String(row.team_id)===item.id
     );
     assert.equal(raceContracts.length,2,item.year+" "+item.name+" must have two opening race drivers");
+    if(item.year===2015){
+      assert.ok(
+        raceContracts.every((row)=>String(row.source||"")==="first_team_appearance_seed"),
+        "2015 Manor must use the guarded first-Team-appearance fallback"
+      );
+      assert.ok(raceContracts.every((row)=>Number(row.source_round)===2));
+    }
 
     const wrongIds=expected
       .filter((other)=>other.year!==item.year)
