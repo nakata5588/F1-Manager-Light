@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef } from "react";
+import React, { memo, useEffect, useRef } from "react";
 import { openPolylineHeadingDegrees, sampleOpenPolylinePoint, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
 import { pointAtTrackProgress } from "../../domain/trackLayout.js";
 import { unwrapTrackProgress } from "../../domain/racePlayback.js";
@@ -56,7 +56,10 @@ function CarShape({color,secondary,label,selected,mine,retired}){
 function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSelectedPoint}){
   const refs=useRef(new Map());
   const motion=useRef(new Map());
-  const targets=useMemo(()=>new Map(cars.map((car)=>[car.id,car])),[cars]);
+  const carsRef=useRef(cars);
+  const selectedPointRef=useRef(onSelectedPoint);
+  useEffect(()=>{carsRef.current=cars;},[cars]);
+  useEffect(()=>{selectedPointRef.current=onSelectedPoint;},[onSelectedPoint]);
 
   useEffect(()=>{
     let frame=null;
@@ -64,7 +67,7 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
     const tick=(now)=>{
       const dt=Math.max(1,Math.min(50,now-previous)); previous=now;
       const alpha=1-Math.exp(-dt/48);
-      for(const car of cars){
+      for(const car of carsRef.current){
         const node=refs.current.get(car.id);
         if(!node)continue;
         let state=motion.current.get(car.id);
@@ -85,13 +88,13 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
         node.setAttribute("transform",`translate(${point.x} ${point.y}) scale(${markerScale})`);
         const body=node.querySelector('[data-car-body="true"]');
         if(body)body.setAttribute("transform",`rotate(${point.heading})`);
-        if(car.selected)onSelectedPoint?.(point);
+        if(car.selected)selectedPointRef.current?.(point);
       }
       frame=requestAnimationFrame(tick);
     };
     frame=requestAnimationFrame(tick);
     return ()=>{if(frame)cancelAnimationFrame(frame);};
-  },[geometry,cars,markerScale,playbackRunning,onSelectedPoint,targets]);
+  },[geometry,markerScale,playbackRunning]);
 
   return <g>
     {cars.map((car)=><g
