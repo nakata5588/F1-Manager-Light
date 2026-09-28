@@ -973,7 +973,7 @@ export default function Track2DView({
     const message=String(event?.display_text||event?.message||"").toLowerCase();
     return type==="incident"||type==="race_control"||control.includes("YELLOW")||control==="RED_FLAG"||/dnf|retir|collision|crash/.test(message);
   }).slice(0,8);
-  const raceCars=activeRows
+  const raceCarsLegacy=activeRows
     .map((row,index)=>({row,index}))
     .sort((a,b)=>{
       const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
@@ -997,6 +997,68 @@ export default function Track2DView({
         progress:Number(row?.visual_track_progress)||0,
         pitLaneProgress:Number.isFinite(Number(row?.visual_pit_lane_progress))?Number(row.visual_pit_lane_progress):0,
         pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
+        laneOffset:raceMarkerLaneOffset(index,{
+          cameraMode:cameraMode==="fit"?"fit":"follow",
+          zoom:targetCameraZoom,
+          closeBattle,
+          selected,
+        }),
+        color:palette.primary,
+        secondary:palette.secondary,
+        label:shortDriverName(drivers,did),
+        mine:tid===String(playerTeamId||""),
+        selected,
+        retired:Boolean(row?.retired),
+        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        onSelect:()=>selectDriver(did),
+      }];
+    });
+
+  const raceCarsV3=authoritativeRows
+    .map((row,index)=>({row,index}))
+    .sort((a,b)=>{
+      const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
+      const bSelected=String(b.row?.driver_id||"")===resolvedSelectedId?1:0;
+      return aSelected-bSelected;
+    })
+    .flatMap(({row,index})=>{
+      const did=String(row?.driver_id||"");
+      const tid=String(row?.team_id||"");
+      const selected=did===resolvedSelectedId;
+      if(!retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl}))return [];
+      const pit=visualPitLaneState(row,{
+        hasPitLane:hasValidatedPitLane,
+        pitEntryProgress:intelligence?.pit_entry_progress,
+        pitExitProgress:intelligence?.pit_exit_progress,
+      });
+      const baseWorld=authoritativeRaceWorldProgress(row,{
+        currentLap,
+        currentSector,
+        referenceLapMs,
+        index,
+      });
+      const targetWorldProgress=pit.track_anchor_progress==null
+        ?baseWorld
+        :Number(pit.track_anchor_progress);
+      const previousGap=Number(row?.interval_ms);
+      const nextGap=Number(authoritativeRows[index+1]?.interval_ms);
+      const closeBattle=(
+        (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
+        ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
+      );
+      const palette=markerPalette(teamBrands,tid,year);
+      return [{
+        id:did||String(index),
+        targetWorldProgress,
+        motionDurationMs:driverVisualMotionDurationMs(row,{
+          currentSector:Math.max(1,Number(currentSector)||1),
+          playbackSpeed,
+          globalSectorMs:playbackBaseSectorMs,
+          currentControl,
+        }),
+        targetPitLaneProgress:Number.isFinite(Number(pit.pit_lane_progress))?Number(pit.pit_lane_progress):0,
+        targetPitLaneMix:Math.max(0,Math.min(1,Number(pit.pit_lane_mix)||0)),
+        stopped:Boolean(pit.stopped||row?.retired||String(currentControl||"").toUpperCase()==="RED_FLAG"),
         laneOffset:raceMarkerLaneOffset(index,{
           cameraMode:cameraMode==="fit"?"fit":"follow",
           zoom:targetCameraZoom,
