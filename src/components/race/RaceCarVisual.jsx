@@ -35,6 +35,84 @@ function Wing1980({x,primary,secondary,accent,damage=0,rear=false}){
   </g>;
 }
 
+function LiveryPattern1980({pattern,primary,secondary,accent,detailed=false}){
+  if(!pattern)return null;
+  switch(pattern){
+    case "saudia_stripes":
+      return <g opacity=".96">
+        <path d="M -11.5 -3.65 L 5.2 -3.85 L 8.0 -3.0" fill="none" stroke={secondary} strokeWidth="1.25"/>
+        <path d="M -11.5 3.65 L 5.2 3.85 L 8.0 3.0" fill="none" stroke={accent} strokeWidth="1.0"/>
+        {detailed?<path d="M 8.2 -1.85 L 15.7 -.9 M 8.2 1.85 L 15.7 .9" stroke={secondary} strokeWidth=".7"/>:null}
+      </g>;
+    case "parmalat_navy":
+      return <g>
+        <path d="M -13.0 -2.7 L 7.0 -2.45 L 14.9 -1.1 L 18.3 0 L 14.9 1.1 L 7.0 2.45 L -13.0 2.7 Z" fill={secondary} opacity=".97"/>
+        <path d="M -12.5 -3.15 L 5.8 -3.15 M -12.5 3.15 L 5.8 3.15" stroke={accent} strokeWidth=".75"/>
+      </g>;
+    case "renault_yellow":
+      return <g>
+        <path d="M -11.2 -4.15 L 4.7 -4.35 L 7.0 -3.15 L 7.0 3.15 L 4.7 4.35 L -11.2 4.15 Z" fill={secondary} opacity=".96"/>
+        <path d="M 7.0 -2.2 L 15.5 -.95 L 18.7 0 L 15.5 .95 L 7.0 2.2 Z" fill={primary}/>
+        <path d="M -10.2 -1.0 L 12.5 -.75 L 17.1 0 L 12.5 .75 L -10.2 1.0 Z" fill={accent} opacity=".82"/>
+      </g>;
+    case "essex_stripes":
+      return <g>
+        <path d="M -12.5 -3.8 L 4.8 -4.0 L 7.1 -3.0" fill="none" stroke={secondary} strokeWidth="1.1"/>
+        <path d="M -12.5 3.8 L 4.8 4.0 L 7.1 3.0" fill="none" stroke={secondary} strokeWidth="1.1"/>
+        <path d="M -12.3 -2.7 L 7.8 -2.45 M -12.3 2.7 L 7.8 2.45" stroke={accent} strokeWidth=".9"/>
+      </g>;
+    case "marlboro_chevron":
+      return <g>
+        <path d="M -9.0 -4.35 L 3.9 -4.6 L 8.0 -3.25 L 4.4 0 L 8.0 3.25 L 3.9 4.6 L -9.0 4.35 L -4.8 0 Z" fill={secondary} opacity=".98"/>
+        <path d="M 8.0 -1.55 L 16.0 -.78 L 18.8 0 L 16.0 .78 L 8.0 1.55 Z" fill={primary}/>
+      </g>;
+    case "gitanes_blue":
+      return <g>
+        <path d="M -11.6 -4.0 L 4.6 -4.2 L 7.2 -3.1 L 7.2 3.1 L 4.6 4.2 L -11.6 4.0 Z" fill={primary}/>
+        <path d="M -11.0 -1.0 L 13.8 -.75 L 18.3 0 L 13.8 .75 L -11.0 1.0 Z" fill={secondary} opacity=".98"/>
+        <path d="M -9.5 -3.35 L 4.3 -3.55 M -9.5 3.35 L 4.3 3.55" stroke={accent} strokeWidth=".65"/>
+      </g>;
+    case "warsteiner_gold":
+      return <g>
+        <path d="M -12.5 -3.8 L 4.2 -4.0 L 7.0 -2.85 L 7.0 2.85 L 4.2 4.0 L -12.5 3.8 Z" fill={primary}/>
+        <path d="M -11.8 -1.3 L 13.0 -.85 L 18.2 0 L 13.0 .85 L -11.8 1.3 Z" fill={secondary}/>
+      </g>;
+    case "skol_yellow":
+      return <g>
+        <path d="M -12.0 -3.9 L 5.0 -4.05 L 7.2 -3.0 L 7.2 3.0 L 5.0 4.05 L -12.0 3.9 Z" fill={primary}/>
+        <path d="M -11.5 -1.35 L 12.9 -.9 L 18.1 0 L 12.9 .9 L -11.5 1.35 Z" fill={secondary}/>
+        <path d="M -10.5 -2.7 L 5.0 -2.85 M -10.5 2.7 L 5.0 2.85" stroke={accent} strokeWidth=".8"/>
+      </g>;
+    case "ferrari_red":
+    case "alfa_red":
+      return <g>
+        <path d="M 8.0 -1.85 L 15.8 -.85 L 18.5 0 L 15.8 .85 L 8.0 1.85 Z" fill={secondary} opacity=".96"/>
+        {detailed?<path d="M -8.0 -4.2 L -1.8 -4.45 M -8.0 4.2 L -1.8 4.45" stroke={accent} strokeWidth=".75"/>:null}
+      </g>;
+    case "tyrrell_blue":
+    case "osella_blue":
+      return <g>
+        <path d="M -11.8 -3.8 L 4.7 -4.0 L 7.2 -3.0 L 7.2 3.0 L 4.7 4.0 L -11.8 3.8 Z" fill={primary}/>
+        <path d="M -10.8 -1.15 L 14.2 -.78 L 18.6 0 L 14.2 .78 L -10.8 1.15 Z" fill={secondary}/>
+        <path d="M -9.5 -3.1 L 4.0 -3.2 M -9.5 3.1 L 4.0 3.2" stroke={accent} strokeWidth=".65"/>
+      </g>;
+    case "ats_yellow":
+      return <g>
+        <path d="M -12.0 -4.0 L 5.0 -4.15 L 7.2 -3.0 L 7.2 3.0 L 5.0 4.15 L -12.0 4.0 Z" fill={primary}/>
+        <path d="M -11.2 -1.25 L 14.0 -.8 L 18.4 0 L 14.0 .8 L -11.2 1.25 Z" fill={secondary}/>
+      </g>;
+    case "ensign_dark":
+    case "shadow_black":
+      return <g>
+        <path d="M -12.0 -3.9 L 4.8 -4.05 L 7.2 -3.0 L 7.2 3.0 L 4.8 4.05 L -12.0 3.9 Z" fill={primary}/>
+        <path d="M -11.2 -1.2 L 13.6 -.82 L 18.2 0 L 13.6 .82 L -11.2 1.2 Z" fill={secondary}/>
+        {detailed?<path d="M -8.5 -3.2 L 3.8 -3.35 M -8.5 3.2 L 3.8 3.35" stroke={accent} strokeWidth=".7"/>:null}
+      </g>;
+    default:
+      return null;
+  }
+}
+
 function Historic1980Body({
   color,
   secondary,
@@ -45,6 +123,8 @@ function Historic1980Body({
   damageState=null,
   driverNumber=null,
   sponsorLabel=null,
+  liveryPattern=null,
+  historicalModel=null,
 }){
   const damage=normaliseRaceCarDamage(damageState);
   const suspensionDamage=damage.suspension;
@@ -54,7 +134,7 @@ function Historic1980Body({
   const detailed=lod==="close"||lod==="medium";
   const bodyColor=retired?"#7f1d1d":color;
   const number=driverNumber==null||driverNumber===""?null:String(driverNumber).slice(0,3);
-  const sponsor=sponsorLabel?String(sponsorLabel).slice(0,8).toUpperCase():null;
+  const sponsor=sponsorLabel?String(sponsorLabel).slice(0,10).toUpperCase():null;
 
   return <g data-car-body="true" opacity={retired?0.62:1}>
     <ellipse cx="-1.3" cy="1.9" rx="22.5" ry="8.6" fill="#020617" opacity=".28"/>
@@ -91,6 +171,8 @@ function Historic1980Body({
     <path d="M -12.2 -4.2 L -3.5 -4.8 L 4.8 -4.35 L 6.9 -3.1 L 6.9 3.1 L 4.8 4.35 L -3.5 4.8 L -12.2 4.2 Z" fill={secondary} opacity=".96"/>
     <path d="M -13.5 -1.45 L 7.3 -1.28 L 15.8 -.72 L 18.9 0 L 15.8 .72 L 7.3 1.28 L -13.5 1.45 Z" fill={accent} opacity=".9"/>
 
+    <LiveryPattern1980 pattern={liveryPattern} primary={bodyColor} secondary={secondary} accent={accent} detailed={detailed}/>
+
     <path d="M -8.4 -3.45 L -1.8 -3.75 L 1.2 -2.75 L 1.2 2.75 L -1.8 3.75 L -8.4 3.45 Z" fill={bodyColor} opacity=".98"/>
     <path d="M -7.8 -1.9 L -3.1 -2.35 L -1.0 -1.55 L -1.0 1.55 L -3.1 2.35 L -7.8 1.9 Z" fill="#111827" stroke="#64748b" strokeWidth=".55"/>
     <ellipse cx="-3.4" cy="0" rx="1.7" ry="2.0" fill={accent} stroke="#e2e8f0" strokeWidth=".45"/>
@@ -110,8 +192,9 @@ function Historic1980Body({
     </>:null}
 
     {close&&sponsor?<>
-      <text x="1.1" y="-3.15" textAnchor="middle" fontSize="2.1" fontWeight="900" letterSpacing=".12" fill={bodyColor}>{sponsor}</text>
-      <text x="1.1" y="4.15" textAnchor="middle" fontSize="2.1" fontWeight="900" letterSpacing=".12" fill={bodyColor}>{sponsor}</text>
+      <text x="1.1" y="-3.15" textAnchor="middle" fontSize="2.0" fontWeight="900" letterSpacing=".08" fill={bodyColor}>{sponsor}</text>
+      <text x="1.1" y="4.15" textAnchor="middle" fontSize="2.0" fontWeight="900" letterSpacing=".08" fill={bodyColor}>{sponsor}</text>
+      {historicalModel?<text x="-14.8" y=".95" textAnchor="middle" fontSize="1.55" fontWeight="800" fill={secondary} opacity=".85">{String(historicalModel).slice(0,9)}</text>:null}
     </>:null}
 
     {damage.cooling>=30?<g opacity={Math.min(.95,.45+damage.cooling/180)}>
@@ -154,6 +237,8 @@ export default function RaceCarVisual({
   damageState=null,
   driverNumber=null,
   sponsorLabel=null,
+  liveryPattern=null,
+  historicalModel=null,
 }){
   const era=raceCarEraForYear(year);
   if(era==="ground_effect_1980"){
@@ -167,6 +252,8 @@ export default function RaceCarVisual({
       damageState={damageState}
       driverNumber={driverNumber}
       sponsorLabel={sponsorLabel}
+      liveryPattern={liveryPattern}
+      historicalModel={historicalModel}
     />;
   }
   return <GenericBody color={color} secondary={secondary} selected={selected} retired={retired}/>;
