@@ -24,6 +24,7 @@ import { raceMarkerLaneOffset, racePlaybackDelayMs, retiredCarVisibleOnTrack } f
 import { openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
 import { panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
+import RaceCarsLayer from "./RaceCarsLayer.jsx";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
@@ -284,7 +285,9 @@ function useVisualRaceTimeline({
     let previousTime=performance.now();
     let previousCommit=previousTime;
     const speed=Math.max(1,Number(playbackSpeed)||1);
-    const frameIntervalMs=speed>=8?34:speed>=4?30:speed>=2?24:18;
+    // React updates the timing panels/targets at a modest cadence. The car layer
+    // interpolates those targets independently at display refresh rate.
+    const frameIntervalMs=speed>=8?36:speed>=4?40:50;
     const tick=(now)=>{
       const delta=Math.max(0,now-previousTime);
       previousTime=now;
@@ -752,6 +755,7 @@ export default function Track2DView({
   const [freeViewBox,setFreeViewBox]=useState(null);
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
+  const worldSvgRef=useRef(null);
   const followViewBoxRef=useRef(null);
   const followCameraTargetRef=useRef(null);
   const followCameraFrameRef=useRef(null);
@@ -821,6 +825,7 @@ export default function Track2DView({
       const box=settled?target:next;
       followViewBoxRef.current=box;
       svgRef.current.setAttribute("viewBox",box.join(" "));
+      worldSvgRef.current?.setAttribute("viewBox",box.join(" "));
       if(settled){
         followCameraFrameRef.current=null;
       }else{
@@ -933,6 +938,46 @@ export default function Track2DView({
     const message=String(event?.display_text||event?.message||"").toLowerCase();
     return type==="incident"||type==="race_control"||control.includes("YELLOW")||control==="RED_FLAG"||/dnf|retir|collision|crash/.test(message);
   }).slice(0,8);
+  const raceCars=activeRows
+    .map((row,index)=>({row,index}))
+    .sort((a,b)=>{
+      const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
+      const bSelected=String(b.row?.driver_id||"")===resolvedSelectedId?1:0;
+      return aSelected-bSelected;
+    })
+    .flatMap(({row,index})=>{
+      const did=String(row?.driver_id||"");
+      const tid=String(row?.team_id||"");
+      const selected=did===resolvedSelectedId;
+      if(!retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl}))return [];
+      const previousGap=Number(row?.interval_ms);
+      const nextGap=Number(activeRows[index+1]?.interval_ms);
+      const closeBattle=(
+        (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
+        ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
+      );
+      const palette=markerPalette(teamBrands,tid,year);
+      return [{
+        id:did||String(index),
+        progress:Number(row?.visual_track_progress)||0,
+        pitLaneProgress:Number.isFinite(Number(row?.visual_pit_lane_progress))?Number(row.visual_pit_lane_progress):0,
+        pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
+        laneOffset:raceMarkerLaneOffset(index,{
+          cameraMode:cameraMode==="fit"?"fit":"follow",
+          zoom:effectiveCameraZoom,
+          closeBattle,
+          selected,
+        }),
+        color:palette.primary,
+        secondary:palette.secondary,
+        label:shortDriverName(drivers,did),
+        mine:tid===String(playerTeamId||""),
+        selected,
+        retired:Boolean(row?.retired),
+        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        onSelect:()=>selectDriver(did),
+      }];
+    });
   const progressPct=Math.max(0,Math.min(100,(((Math.max(0,Number(currentLap||0)-1))+(Number(currentSector||0)/3))/Math.max(1,Number(totalLaps||1)))*100));
 
   if(!layout){
@@ -960,12 +1005,20 @@ export default function Track2DView({
 
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
+        {displayGeometry&&fullTrackSceneActive?<svg
+          ref={worldSvgRef}
+          className="pointer-events-none absolute inset-0 h-full w-full p-1 md:p-2"
+          viewBox={renderedViewBox.join(" ")}
+          preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"}
+          aria-hidden="true"
+        >
+          <TrackSceneRenderer geometry={displayGeometry} environment={environment.procedural_environment} style={environment.race_view_style} viewBox={environmentViewBox} wetness={sceneWetness}/>
+        </svg>:null}
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full touch-none p-1 md:p-2" onWheel={handleTrackWheel} onPointerDown={handleTrackPointerDown} onPointerMove={handleTrackPointerMove} onPointerUp={handleTrackPointerUp} onPointerCancel={handleTrackPointerUp} viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
           <defs>
             <pattern id="track-grass-grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M 0 28 L 28 0 M -7 7 L 7 -7 M 21 35 L 35 21" stroke="#9cc36d" strokeWidth="2" opacity=".28"/></pattern>
             <pattern id="track-water" width="36" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 Q9 2 18 8 T36 8" fill="none" stroke="#71d5e7" strokeWidth="2" opacity=".6"/></pattern>
           </defs>
-          {fullTrackSceneActive?<TrackSceneRenderer geometry={displayGeometry} environment={environment.procedural_environment} style={environment.race_view_style} viewBox={environmentViewBox} wetness={sceneWetness}/>:null}
           {environmentAssetActive?<image href={environment.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
@@ -1107,57 +1160,14 @@ export default function Track2DView({
               }):null}
             </>;
           })()}
-          {activeRows
-            .map((row,index)=>({row,index}))
-            .sort((a,b)=>{
-              const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
-              const bSelected=String(b.row?.driver_id||"")===resolvedSelectedId?1:0;
-              return aSelected-bSelected;
-            })
-            .map(({row,index})=>{
-            const did=String(row?.driver_id||"");
-            const tid=String(row?.team_id||"");
-            const mine=tid===String(playerTeamId||"");
-            const selected=did===resolvedSelectedId;
-            const visibleOnTrack=retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl});
-            if(!visibleOnTrack)return null;
-            const progress=Number(row?.visual_track_progress)||0;
-            const pitLaneProgress=Number.isFinite(Number(row?.visual_pit_lane_progress))
-              ?Number(row.visual_pit_lane_progress)
-              :null;
-            const pitLaneMix=Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0));
-            const palette=markerPalette(teamBrands,tid,year);
-            const previousGap=Number(row?.interval_ms);
-            const nextGap=Number(activeRows[index+1]?.interval_ms);
-            const closeBattle=(
-              (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
-              ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
-            );
-            const laneOffset=raceMarkerLaneOffset(index,{
-              cameraMode:cameraMode==="fit"?"fit":"follow",
-              zoom:effectiveCameraZoom,
-              closeBattle,
-              selected,
-            });
-            return <AnimatedMarker
-              key={did||index}
-              geometry={displayGeometry}
-              progress={progress}
-              pitLaneProgress={pitLaneProgress}
-              pitLaneMix={pitLaneMix}
-              color={palette.primary}
-              secondaryColor={palette.secondary}
-              label={shortDriverName(drivers,did)}
-              mine={mine}
-              selected={selected}
-              markerScale={markerScale}
-              laneOffset={laneOffset}
-              onSelect={()=>selectDriver(did)}
-              retired={Boolean(row?.retired)}
-              onVisualPoint={selected?followSelectedVisualPoint:null}
-              title={`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`}
-            />;
-          })}
+          <RaceCarsLayer
+            geometry={displayGeometry}
+            cars={raceCars}
+            markerScale={markerScale}
+            playbackRunning={playbackRunning}
+            onSelectedPoint={followSelectedVisualPoint}
+          />
+
         </svg>:null}
         <TrackMiniMap geometry={miniMapGeometry} rows={activeRows} teamBrands={teamBrands} year={year} currentControl={currentControl}/>
 
