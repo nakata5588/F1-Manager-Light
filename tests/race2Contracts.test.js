@@ -83,10 +83,10 @@ function fixture(){
 }
 
 test("RW8.0A publishes the seven boundary contracts needed by RW2",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,1);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,2);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","TrackState","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("distanceAlongLapM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("absoluteDistanceM"));
@@ -111,6 +111,10 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.deepEqual(a,b);
   assert.equal(a.engineVersion,"rw2");
   assert.equal(a.seed,"rw8-contracts");
+  assert.equal(a.track.schemaVersion,1);
+  assert.equal(a.track.trackId,"test_track");
+  assert.equal(a.track.lengthM,5000);
+  assert.equal(a.track.laps,60);
   assert.deepEqual(a.drivers.map((row)=>row.driverId),["D1","D2"]);
   assert.deepEqual(a.cars.map((row)=>row.carId),["ai_T2_car_1","car_1"]);
 
