@@ -252,16 +252,3 @@ test("Track 2.0 keeps functional, race-view and mini-map geometries separate",()
   assert.notDeepEqual(presentation.points[0],resolved.geometry.points[0],"race-view transform must not mutate functional geometry");
   assert.notDeepEqual(minimap.points[0],resolved.geometry.points[0],"mini-map must remain an independent presentation");
 });
-  const environment=trackEnvironmentProfile(resolved.layout);
-  assert.deepEqual(environment.calibration_transform,{
-    x:0,y:0,scale_x:1,scale_y:1,rotation_deg:0,origin_x:824.5,origin_y:477
-  });
-  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
-  assert.equal(resolved.geometry.quality,"historical_verified");
-  const presentation=trackPresentationGeometry(resolved.geometry,resolved.layout);
-  assert.equal(presentation.presentation_fallback,true);
-  assert.equal(presentation.quality,"legacy_presentation_fallback");
-  assert.equal(presentation.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
-  assert.deepEqual(presentation.view_box,[0,0,1000,1000]);
-  assert.notDeepEqual(presentation.points[0],resolved.geometry.points[0],"visual fallback must not replace functional geometry");
-});
