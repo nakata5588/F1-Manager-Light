@@ -1215,6 +1215,10 @@ export const useGame = create((set, get) => ({
       year:y,
       placements:feederPlacements,
       historicalSnapshots:[],
+      careerHistory:prev.dbDriverHistory||[],
+      championshipHistory:Array.isArray(prev.dbHistoricalChampionships?.drivers)
+        ?prev.dbHistoricalChampionships.drivers
+        :[],
     });
 
     const staffRatingMap = new Map();

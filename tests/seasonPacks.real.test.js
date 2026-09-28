@@ -455,7 +455,7 @@ test("1980 Senna receives materialized starting attributes from Talent Profile",
   const rating=(pack.state?.driverRatings||[]).find((row)=>String(row.driver_id)==="d_0102");
   assert.ok(rating,"1980 Senna must have a runtime rating row");
   assert.equal(rating.source,"talent_profile_starting_materializer");
-  assert.equal(rating.rating_model,"D7.R2");
+  assert.equal(rating.rating_model,"D7.R4");
   assert.equal(Number(rating.potential_ability),99);
   assert.ok(Number(rating.current_ability)>=60&&Number(rating.current_ability)<=64,String(rating.current_ability));
   assert.ok(Number(rating.pace)>=68&&Number(rating.pace)<=71,String(rating.pace));

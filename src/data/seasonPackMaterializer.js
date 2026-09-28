@@ -511,6 +511,9 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     placements,
     historicalSnapshots:g.historicalRatingSnapshots||[],
     careerHistory:g.driverHistory||[],
+    championshipHistory:Array.isArray(g.historicalChampionships?.drivers)
+      ?g.historicalChampionships.drivers
+      :(Array.isArray(g.historicalChampionships)?g.historicalChampionships:[]),
   }).map((row)=>{
     const current=asNum(pick(row,["current_ability","overall"],NaN),NaN);
     const potential=asNum(pick(row,["potential_ability","potential"],NaN),NaN);
@@ -795,7 +798,7 @@ export function materializeSeasonPack(globalData,yearInput){
   const ratingModel=driverRatings.some((r)=>String(r?.source||"")==="historical_rating_snapshot_r2b")
     ?"R2B"
     :driverRatings.some((r)=>String(r?.source||"")==="talent_profile_starting_materializer")
-      ?"D7.R2"
+      ?"D7.R4"
       :"legacy";
 
   const pack={
