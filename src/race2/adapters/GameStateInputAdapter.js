@@ -1,0 +1,127 @@
+// src/race2/adapters/GameStateInputAdapter.js
+import { getSaveSeed } from "../../core/random.js";
+import {
+  RACE_WEEKEND_CONTRACT_VERSION,
+  RACE_WEEKEND_ENGINES,
+  cloneRaceContractValue,
+  normalizeRaceWeekendEngineVersion,
+} from "../contracts/raceContracts.js";
+
+const text=(value)=>String(value??"");
+const idOf=(row)=>text(row?.driver_id??row?.id);
+const teamIdOf=(row)=>text(row?.team_id??row?.constructor_id??row?.team);
+
+function finite(value,fallback=null){
+  const parsed=Number(value);
+  return Number.isFinite(parsed)?parsed:fallback;
+}
+
+function normalizedGp(gp,weekend){
+  return {
+    gp_id:text(gp?.gp_id??gp?.id??weekend?.gp_id)||null,
+    name:gp?.gp_name??gp?.name??weekend?.gp_name??null,
+    track_id:text(gp?.track_id??weekend?.track_id)||null,
+    dateISO:gp?.dateISO??gp?.race_date??gp?.date??weekend?.raceDate??null,
+  };
+}
+
+function normalizedEntries(gs,weekend){
+  const source=Array.isArray(weekend?.entrants)&&weekend.entrants.length
+    ?weekend.entrants
+    :Array.isArray(gs?.raceEntryState?.entries)
+      ?gs.raceEntryState.entries
+      :[];
+  return source.map((entry)=>({
+    driverId:text(entry?.driver_id)||null,
+    teamId:text(entry?.team_id)||null,
+    carId:entry?.car_id==null?null:text(entry.car_id),
+    status:entry?.status??null,
+  }));
+}
+
+function normalizedDrivers(gs,entries){
+  const driversById=new Map((gs?.drivers||[]).map((row)=>[idOf(row),row]));
+  const ratingsById=new Map((gs?.driverRatings||[]).map((row)=>[idOf(row),row]));
+  const teamByDriver=new Map(entries.filter((entry)=>entry.driverId).map((entry)=>[entry.driverId,entry.teamId]));
+  return [...new Set(entries.map((entry)=>entry.driverId).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b))
+    .map((driverId)=>({
+      driverId,
+      teamId:teamByDriver.get(driverId)||teamIdOf(driversById.get(driverId))||null,
+      profile:cloneRaceContractValue(driversById.get(driverId)||{}),
+      ratings:cloneRaceContractValue(ratingsById.get(driverId)||{}),
+      condition:cloneRaceContractValue(gs?.driverAttributes?.[driverId]||{}),
+      availability:cloneRaceContractValue(gs?.driverAvailability?.[driverId]||null),
+    }));
+}
+
+function garageCarsForTeam(gs,teamId){
+  const tid=text(teamId);
+  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
+  if(tid&&playerTeamId&&tid===playerTeamId)return gs?.garage?.cars||[];
+  return gs?.aiTechnicalWorld?.teams?.[tid]?.garage?.cars||[];
+}
+
+function normalizedCars(gs,entries){
+  const seen=new Set();
+  const cars=[];
+
+  for(const entry of entries){
+    if(!entry?.teamId||!entry?.carId||seen.has(entry.carId))continue;
+    const car=(garageCarsForTeam(gs,entry.teamId)||[])
+      .find((row)=>text(row?.id)===entry.carId);
+    if(!car)continue;
+
+    seen.add(entry.carId);
+    cars.push({
+      carId:entry.carId,
+      driverId:entry.driverId||null,
+      teamId:entry.teamId,
+      kind:car?.kind??null,
+      state:cloneRaceContractValue(car),
+    });
+  }
+
+  return cars.sort((a,b)=>a.carId.localeCompare(b.carId));
+}
+
+export function buildRaceWeekendInput(gs,{gp=null,engineVersion=null}={}){
+  const weekend=gs?.raceWeekendState||null;
+  const entries=normalizedEntries(gs,weekend);
+  const lockedEngine=weekend
+    ?normalizeRaceWeekendEngineVersion(weekend.engine_version,{fallback:RACE_WEEKEND_ENGINES.LEGACY})
+    :normalizeRaceWeekendEngineVersion(engineVersion,{fallback:RACE_WEEKEND_ENGINES.LEGACY});
+  const roundIndex=finite(weekend?.roundIndex,finite(gs?.currentRound,0));
+
+  return {
+    schemaVersion:RACE_WEEKEND_CONTRACT_VERSION,
+    engineVersion:lockedEngine,
+    weekendKey:weekend?.key??null,
+    seed:getSaveSeed(gs),
+    year:finite(weekend?.year,finite(gs?.activeYear,null)),
+    round:finite(weekend?.round,roundIndex==null?null:roundIndex+1),
+    gp:normalizedGp(gp,weekend),
+    entries:cloneRaceContractValue(entries),
+    drivers:normalizedDrivers(gs,entries),
+    cars:normalizedCars(gs,entries),
+    rules:cloneRaceContractValue({
+      qualifying:weekend?.qualifying_rule_snapshot??null,
+      race:weekend?.race_strategy?.rules_snapshot??null,
+      points:gs?.pointsSystem??null,
+    }),
+    track:cloneRaceContractValue(
+      weekend?.race_strategy?.track_snapshot
+      ??(gp?{track_id:gp?.track_id??null}:null)
+    ),
+    weather:cloneRaceContractValue(
+      weekend?.race_strategy?.weather_snapshot
+      ??weekend?.weekend_weather
+      ??null
+    ),
+    startingGrid:cloneRaceContractValue(
+      weekend?.startingGrid?.rows
+      ??weekend?.grid
+      ??[]
+    ),
+  };
+}
