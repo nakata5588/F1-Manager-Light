@@ -423,3 +423,55 @@ test("first Team appearance after Round 2 does not create January race seats",()
   assert.equal(raceContracts.length,0);
   assert.equal(pack.state.contracts.some((row)=>row.source==="first_team_appearance_seed"),false);
 });
+
+
+test("relationship-only race seats use rating and prior history for Main/Second hierarchy",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[];
+  data.historicalRatingSnapshots=[
+    rating("D1",88,92),
+    rating("D2",72,84),
+  ];
+  data.teamSeasons=[{
+    year:1980,
+    team_id:"T1",
+    team_name:"Canonical Team",
+    driver_ids:["D1","D2"],
+    first_race_driver_candidates:[
+      {driver_id:"D2",first_round:1,first_source_index:1,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"]},
+      {driver_id:"D1",first_round:1,first_source_index:2,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"]},
+    ],
+  }];
+  data.driverHistory=[
+    {year:1979,driver_id:"D1",team_id:"OLD",starts:15,wins:3,podiums:7,poles:2},
+    {year:1979,driver_id:"D2",team_id:"OLD2",starts:10,wins:0,podiums:0,poles:0},
+  ];
+
+  const pack=materializeSeasonPack(data,1980);
+  const d1=pack.state.contracts.find((row)=>String(row.driver_id)==="D1");
+  const d2=pack.state.contracts.find((row)=>String(row.driver_id)==="D2");
+  assert.equal(d1?.role,"Main Driver");
+  assert.equal(d2?.role,"Second Driver");
+  assert.equal(d1?.role_source,"historical_strength_hierarchy");
+  assert.equal(d2?.role_source,"historical_strength_hierarchy");
+});
+
+test("explicit historical race-seat roles are never reordered by strength",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[
+    {year:1980,team_id:"T1",driver_id:"D1",role:"second_driver"},
+    {year:1980,team_id:"T1",driver_id:"D2",role:"main_driver"},
+  ];
+  data.historicalRatingSnapshots=[
+    rating("D1",95,98),
+    rating("D2",65,75),
+  ];
+
+  const pack=materializeSeasonPack(data,1980);
+  const d1=pack.state.contracts.find((row)=>String(row.driver_id)==="D1");
+  const d2=pack.state.contracts.find((row)=>String(row.driver_id)==="D2");
+  assert.equal(d1?.role,"second_driver");
+  assert.equal(d2?.role,"main_driver");
+});
