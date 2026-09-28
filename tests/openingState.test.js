@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { materializeSeasonPack } from "../src/data/seasonPackMaterializer.js";
+import { materializeSeasonPackFromDatabaseState } from "../src/data/seasonPackLoader.js";
 import { f1HireEligibility } from "../src/domain/driverEligibility.js";
 
 function rating(driverId,current=65,peak=80){
@@ -309,5 +310,67 @@ test("Round 1 LOW-confidence team relations do not fabricate a race seat",()=>{
     pack.state.contracts.some((row)=>String(row.source||"")==="first_race_seed"),
     false,
     "LOW-confidence Results mapping must remain a vacancy for normal AI recruitment"
+  );
+});
+
+
+test("runtime Season Pack fallback reuses the Results-first opening grid",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[
+    {year:1980,team_id:"T1",team_name:"Canonical Team",driver_id:"D1",role:"main_driver"},
+  ];
+
+  const dbState={
+    dbDrivers:data.drivers,
+    dbCalendar:data.calendar,
+    dbTeams:data.teams,
+    dbDriverRatings:data.driverRatings,
+    dbHistoricalRatingSnapshots:data.historicalRatingSnapshots,
+    dbDriverRatingProfiles:data.driverRatingProfiles||[],
+    dbDriverYearStatus:data.driverYearStatus||[],
+    dbDriverOpeningState:data.driverOpeningState,
+    dbDriverDevelopmentHistory:data.driverDevelopmentHistory||[],
+    dbDriverAvailabilityHistory:data.driverAvailabilityHistory||[],
+    dbDriverTeamHistory:data.driverTeamHistory,
+    dbTeamEngineHistory:data.teamEngineHistory||[],
+    dbCarCompetitiveness:data.carCompetitiveness||[],
+    dbDriverCareer:data.driverCareer,
+    dbDriverHistory:data.driverHistory,
+    dbStaffRatings:data.staffRatings,
+    dbStaffCore:data.staffCore,
+    dbTeamBrands:data.teamBrands,
+    dbTeamEngines:data.teamEngines,
+    dbContracts:data.contracts,
+    dbSponsorsContracts:data.sponsorsContracts,
+    dbRules:data.rules,
+    dbQualifyingRules:data.qualifyingRules,
+    dbQualifyingRuleOverrides:data.qualifyingRuleOverrides,
+    dbEraSafety:data.eraSafety,
+    dbAccidentModel:data.accidentModel,
+    dbFacilities:data.facilities,
+    dbCarStats:data.carStats,
+    dbStaffContracts:data.staffContracts,
+    dbTyres:data.tyres,
+    dbPointsSystems:data.pointsSystems,
+    dbPenaltiesRules:data.penaltiesRules,
+    dbFinancialRules:data.financialRules,
+    dbAgendaBlocks:data.agendaBlocks,
+    dbContractRules:data.contractRules,
+    dbYouthIntakeRules:data.youthIntakeRules,
+    dbScoutingZones:data.scoutingZones,
+    dbTrackLayoutByYear:data.trackLayoutByYear,
+    dbTeamSeasons:data.teamSeasons,
+    dbCoreTracks:data.coreTracks,
+  };
+
+  const pack=materializeSeasonPackFromDatabaseState(dbState,1980);
+  assert.equal(pack.validation.ok,true,JSON.stringify(pack.validation));
+  const raceContracts=pack.state.contracts.filter((row)=>/main|second|race/i.test(String(row.role||"")));
+  assert.deepEqual(raceContracts.map((row)=>String(row.driver_id)).sort(),["D1","D2"]);
+  assert.equal(
+    raceContracts.find((row)=>String(row.driver_id)==="D2")?.source,
+    "first_race_seed",
+    "runtime fallback must use the same Round 1 relationship seed as generated Season Packs"
   );
 });
