@@ -1,7 +1,8 @@
 // src/domain/driverDerivedRatings.js
-// Canonical derived driver ratings used by presentation/comparison surfaces.
+// Canonical derived driver ratings used by presentation/comparison surfaces
+// and, where explicitly appropriate, as read-model inputs to simulation.
 // These are composites of existing permanent attributes; they are NOT new
-// persisted driver attributes and must never replace the raw simulation inputs.
+// persisted driver attributes and do not replace their underlying raw inputs.
 
 const DEFINITIONS=Object.freeze({
   overtaking:Object.freeze({
