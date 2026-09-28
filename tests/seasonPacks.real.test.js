@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isRaceDriverContract } from "../src/domain/contractRoles.js";
+import { materializeSeasonPackFromDatabaseState } from "../src/data/seasonPackLoader.js";
 
 const root=process.cwd();
 const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2007,2011,2012,2014,2015,2020];
@@ -159,6 +160,65 @@ test("1980 Shadow uses Round 1 evidence to repair incomplete race-seat metadata"
 
 
 
+
+
+
+test("2011 runtime fallback keeps Virgin identity and its two Round 1 drivers",async()=>{
+  const generated=await readPack(2011);
+  const teamSeasons=JSON.parse(
+    await fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8")
+  );
+  const dbState={
+    dbDrivers:generated.state.drivers,
+    dbCalendar:generated.state.calendar,
+    dbTeams:generated.state.teams,
+    dbDriverRatings:generated.state.driverRatings,
+    dbDriverRatingProfiles:[],
+    dbDriverOpeningState:[],
+    dbDriverCareer:generated.state.driverCareer||[],
+    dbDriverHistory:generated.state.driverHistory||[],
+    dbStaffRatings:generated.state.staffRatings||[],
+    dbStaffCore:generated.state.staffCore||[],
+    dbTeamBrands:generated.state.teamBrands||[],
+    dbTeamEngines:generated.state.teamEngines||[],
+    dbContracts:[],
+    dbSponsorsContracts:generated.state.sponsorsContracts||[],
+    dbRules:generated.state.rules||[],
+    dbQualifyingRules:[generated.state.qualifyingRules].filter(Boolean),
+    dbQualifyingRuleOverrides:[],
+    dbEraSafety:generated.state.eraSafety||[],
+    dbAccidentModel:generated.state.accidentModel||[],
+    dbFacilities:generated.state.facilities||[],
+    dbCarStats:generated.state.carStats||[],
+    dbStaffContracts:generated.state.staffContracts||[],
+    dbTyres:generated.state.tyres||[],
+    dbPointsSystems:generated.state.pointsSystem?[generated.state.pointsSystem]:[],
+    dbPenaltiesRules:generated.state.penaltiesRules||[],
+    dbFinancialRules:generated.state.financialRules||[],
+    dbAgendaBlocks:generated.state.agendaBlocks||[],
+    dbContractRules:[],
+    dbYouthIntakeRules:[],
+    dbScoutingZones:[],
+    dbTrackLayoutByYear:generated.state.trackLayoutByYear||[],
+    dbTeamSeasons:teamSeasons,
+    dbCoreTracks:generated.state.coreTracks||[],
+  };
+
+  const runtime=materializeSeasonPackFromDatabaseState(dbState,2011);
+  const virgin=(runtime.state.teams||[]).find((row)=>String(row.team_id)==="t_0166");
+  assert.ok(virgin,"runtime fallback must keep the 2011 Virgin Team identity");
+  assert.equal(String(virgin.team_name),"Virgin");
+  assert.equal(
+    (runtime.state.teams||[]).some((row)=>["t_0204","t_0207"].includes(String(row.team_id))),
+    false,
+    "2011 runtime fallback must not replace Virgin with a later Marussia/Manor identity"
+  );
+  const seats=(runtime.state.contracts||[]).filter(
+    (row)=>isRaceDriverContract(row)&&String(row.team_id)==="t_0166"
+  );
+  assert.equal(seats.length,2,"2011 Virgin must retain its two Results-derived opening drivers");
+  assert.ok(seats.every((row)=>String(row.source||"")==="first_race_seed"));
+});
 
 test("Virgin-Marussia-Manor identity follows the Results timeline",async()=>{
   const expected=[
