@@ -433,6 +433,7 @@ export function materializeHistoricalTeamStrengths({
 
 
 export function teamHistoricalStrengthLabel(value){
+  if(value===null||value===undefined||value==="")return "Unknown";
   const score=Number(value);
   if(!Number.isFinite(score))return "Unknown";
   if(score>=90)return "Elite";
