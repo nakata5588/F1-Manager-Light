@@ -79,7 +79,7 @@ function V3CarsLayer({
             token,
             segment:createContinuousRaceSegment({
               position:initial,
-              targetPosition:initial,
+              targetPosition:Number(car?.targetWorldProgress)||initial,
               durationMs:Number(car?.motionDurationMs)||1000,
               clockMs:clock,
               stopped:Boolean(car?.stopped),
