@@ -263,6 +263,7 @@ export async function runLiveParityRace(seed = "rw7.1-parity", {
 }
 
 function finiteOrNull(value) {
+  if (value == null || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -341,6 +342,26 @@ export function normalizeRaceParityResult(gs) {
     || gs?.lastRace?.strategySummary?.race_control
     || null;
   const incidents = sortedIncidents(plan);
+  const damageEventsByDriver = new Map();
+  for (const incident of plan?.incidents || []) {
+    if (!incident?.damage) continue;
+    const did = String(incident?.driver_id ?? "");
+    if (!damageEventsByDriver.has(did)) damageEventsByDriver.set(did, []);
+    const damage = incident.damage;
+    const lap = finiteOrNull(incident?.lap);
+    const sector = finiteOrNull(incident?.sector);
+    const derivedOrdinal = lap != null && sector != null ? (lap - 1) * 3 + sector : null;
+    damageEventsByDriver.get(did).push({
+      ordinal: finiteOrNull(incident?.damage_ordinal) ?? derivedOrdinal,
+      lap,
+      sector,
+      severity: incident?.severity ?? damage?.severity ?? null,
+      components: Array.isArray(damage?.damaged_components) ? damage.damaged_components.map(String).sort() : [],
+    });
+  }
+  for (const events of damageEventsByDriver.values()) {
+    events.sort((a, b) => (a.ordinal ?? Infinity) - (b.ordinal ?? Infinity));
+  }
   const periods = (plan?.periods || []).map((row) => ({
     type: row?.type ?? null,
     from_lap: finiteOrNull(row?.from_lap),
@@ -362,9 +383,12 @@ export function normalizeRaceParityResult(gs) {
     })),
     damage: sortByDriver(rows.map(({ classification: row, driver_id: did }) => ({
       driver_id: did,
-      severity: row?.damage_severity ?? row?.damage_state?.severity ?? "none",
-      components: Array.isArray(row?.damaged_components) ? row.damaged_components.map(String).sort() : [],
-      pace_loss_s_per_lap: finiteOrNull(row?.damage_pace_loss_s_per_lap ?? row?.damage_state?.pace_loss_s_per_lap),
+      occurrences: damageEventsByDriver.get(did) || [],
+      final_state: {
+        severity: row?.damage_severity ?? row?.damage_state?.severity ?? "none",
+        components: Array.isArray(row?.damaged_components) ? row.damaged_components.map(String).sort() : [],
+        pace_loss_s_per_lap: finiteOrNull(row?.damage_pace_loss_s_per_lap ?? row?.damage_state?.pace_loss_s_per_lap),
+      },
     }))),
     dnf: sortByDriver(rows.map(({ classification: row, driver_id: did }) => ({
       driver_id: did,
