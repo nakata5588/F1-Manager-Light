@@ -73,7 +73,7 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
         let state=motion.current.get(car.id);
         const targetProgress=Number(car.progress)||0;
         if(!state){
-          state={progress:targetProgress,pitProgress:Number(car.pitLaneProgress)||0,pitMix:Number(car.pitLaneMix)||0,laneOffset:Number(car.laneOffset)||0};
+          state={progress:targetProgress,pitProgress:Number(car.pitLaneProgress)||0,pitMix:Number(car.pitLaneMix)||0,laneOffset:Number(car.laneOffset)||0,body:null,lastTransform:"",lastHeading:null};
           motion.current.set(car.id,state);
         }else{
           const unwrapped=unwrapTrackProgress(state.progress,targetProgress);
@@ -85,9 +85,16 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
         }
         const point=visualPoint(geometry,state);
         if(!point)continue;
-        node.setAttribute("transform",`translate(${point.x} ${point.y}) scale(${markerScale})`);
-        const body=node.querySelector('[data-car-body="true"]');
-        if(body)body.setAttribute("transform",`rotate(${point.heading})`);
+        const transform=`translate(${point.x.toFixed(3)} ${point.y.toFixed(3)}) scale(${markerScale})`;
+        if(transform!==state.lastTransform){
+          node.setAttribute("transform",transform);
+          state.lastTransform=transform;
+        }
+        state.body=state.body||node.querySelector('[data-car-body="true"]');
+        if(state.body&&(!Number.isFinite(state.lastHeading)||Math.abs(point.heading-state.lastHeading)>.03)){
+          state.body.setAttribute("transform",`rotate(${point.heading.toFixed(3)})`);
+          state.lastHeading=point.heading;
+        }
         if(car.selected)selectedPointRef.current?.(point);
       }
       frame=requestAnimationFrame(tick);
