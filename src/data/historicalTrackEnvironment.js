@@ -11,11 +11,13 @@ const BUENOS_AIRES_CALIBRATION=Object.freeze({
 export const HISTORICAL_TRACK_ENVIRONMENTS=Object.freeze({
   tr_0018_provisional:Object.freeze({
     asset:"/tracks/historical/buenos-aires-no15-1980.webp",
-    native_width:1649,
-    native_height:954,
+    native_width:800,
+    native_height:463,
     view_box:[0,0,1649,954],
     calibration_transform:BUENOS_AIRES_CALIBRATION,
     presentation_only:true,
+    runtime_mode:"legacy_vector_fallback",
+    fallback_reason:"single_raster_environment_failed_visual_playtest_2026_09_28",
     reference_year:1980,
     layout:"Circuit No. 15",
     start_finish_location:"upper_straight",
@@ -24,7 +26,7 @@ export const HISTORICAL_TRACK_ENVIRONMENTS=Object.freeze({
     pit_lane_color:"#2563eb",
     contains_track_surface:true,
     contains_track_intel:true,
-    visual_style:"single_raster_environment"
+    visual_style:"single_raster_environment_with_legacy_runtime_fallback"
   })
 });
 

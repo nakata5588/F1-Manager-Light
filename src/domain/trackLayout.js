@@ -144,6 +144,8 @@ export function trackEnvironmentProfile(layout){
     contains_track_surface:Boolean(nested?.contains_track_surface??layout?.environment_contains_track_surface),
     contains_track_intel:Boolean(nested?.contains_track_intel??layout?.environment_contains_track_intel),
     presentation_only:nested?.presentation_only!==false,
+    runtime_mode:String(nested?.runtime_mode||"environment_asset"),
+    fallback_reason:String(nested?.fallback_reason||""),
     visual_style:String(nested?.visual_style||""),
   };
 }
@@ -182,6 +184,16 @@ export function calibrateTrackGeometry(geometry,transform={}){
 
 export function trackPresentationGeometry(geometry,layout){
   const environment=trackEnvironmentProfile(layout);
+  const legacyFallback=environment.runtime_mode==="legacy_vector_fallback"
+    ?layout?.presentation_fallback_geometry
+    :null;
+  if(legacyFallback&&Array.isArray(legacyFallback?.points)&&legacyFallback.points.length>1){
+    return {
+      ...legacyFallback,
+      presentation_fallback:true,
+      presentation_fallback_reason:environment.fallback_reason||"legacy_vector_fallback",
+    };
+  }
   return calibrateTrackGeometry(geometry,environment.calibration_transform);
 }
 

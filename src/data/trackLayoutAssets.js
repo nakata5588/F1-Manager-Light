@@ -1,4 +1,4 @@
-import "./historicalTrackGeometry.js";
+import { HISTORICAL_TRACK_PRESENTATION_FALLBACKS } from "./historicalTrackGeometry.js";
 import { HISTORICAL_TRACK_ENVIRONMENTS } from "./historicalTrackEnvironment.js";
 
 const BUENOS_AIRES_ENVIRONMENT=HISTORICAL_TRACK_ENVIRONMENTS.tr_0018_provisional;
@@ -13,6 +13,7 @@ export const TRACK_LAYOUT_ASSETS = [
     "year_to": 1981,
     "reference_year": 1980,
     "environment": BUENOS_AIRES_ENVIRONMENT,
+    "presentation_fallback_geometry": HISTORICAL_TRACK_PRESENTATION_FALLBACKS.tr_0018_provisional,
     "asset": BUENOS_AIRES_ENVIRONMENT.asset,
     "environment_view_box": BUENOS_AIRES_ENVIRONMENT.view_box,
     "environment_transform": BUENOS_AIRES_ENVIRONMENT.calibration_transform,
@@ -30,7 +31,7 @@ export const TRACK_LAYOUT_ASSETS = [
     "environment_contains_track_surface": BUENOS_AIRES_ENVIRONMENT.contains_track_surface,
     "environment_contains_track_intel": BUENOS_AIRES_ENVIRONMENT.contains_track_intel,
     "track_intelligence_status": "historical_verified",
-    "source_label": "Buenos Aires Circuit No. 15 — approved single-image historical environment; functional centreline remains engine-independent"
+    "source_label": "Buenos Aires Circuit No. 15 — legacy vector presentation fallback active after raster playtest failure; functional centreline remains engine-independent"
   },
   {"layout_id":"tr_0028_provisional","track_id":"tr_0028","label":"Interlagos","year_from":null,"year_to":null,"reference_year":null,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"User supplied SVG; source year not encoded"},
   {"layout_id":"tr_0067_provisional","track_id":"tr_0067","label":"Kyalami","year_from":2016,"year_to":2016,"reference_year":2016,"asset":null,"historical_status":"provisional","geometry_status":"derived_provisional","source_label":"2016 Circuit"},
