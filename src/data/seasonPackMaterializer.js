@@ -158,12 +158,16 @@ function reconcileSeedDriverContracts(rows,year,teamHistory=[]){
   }
   return [...nonRace,...raceByDriver.values()];
 }
-function acceptedFirstRaceCandidate(row){
-  if(!row||Number(pick(row,["first_round"],NaN))!==1)return false;
+function acceptedHistoricalTeamDriverCandidate(row){
+  if(!row)return false;
   if(Boolean(pick(row,["exact_entrant"],false)))return true;
   const raw=pick(row,["confidence"],[]);
   const levels=Array.isArray(raw)?raw:[raw];
   return levels.some((value)=>["HIGH","MEDIUM"].includes(String(value||"").toUpperCase()));
+}
+function acceptedFirstRaceCandidate(row){
+  return Number(pick(row,["first_round"],NaN))===1&&
+    acceptedHistoricalTeamDriverCandidate(row);
 }
 
 function applyFirstRaceDriverSeeds({
@@ -200,7 +204,7 @@ function applyFirstRaceDriverSeeds({
         :[]
     ).filter((candidate)=>
       Number(pick(candidate,["first_round"],NaN))===firstTeamRound&&
-      acceptedFirstRaceCandidate({...candidate,first_round:1})
+      acceptedHistoricalTeamDriverCandidate(candidate)
     );
     const candidates=(roundOneCandidates.length?roundOneCandidates:firstTeamAppearanceCandidates)
       .sort((a,b)=>
