@@ -84,7 +84,9 @@ function numericAttribute(attrs,key){
   if(!attrs)return null;
   const aliases=key==="aggression"?["aggression","agression"]:[key];
   for(const alias of aliases){
-    const value=Number(unwrap(attrs?.[alias]));
+    const raw=unwrap(attrs?.[alias]);
+    if(raw===null||raw===undefined||String(raw).trim()==="")continue;
+    const value=Number(raw);
     if(Number.isFinite(value))return clamp(value);
   }
   return null;
