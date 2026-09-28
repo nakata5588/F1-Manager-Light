@@ -117,3 +117,33 @@ test("materializer returns one strength row per canonical Team",()=>{
   assert.equal(result.length,2);
   assert.deepEqual(new Set(result.map((row)=>row.team_id)),new Set(["A","B"]));
 });
+
+
+test("technical Constructor championship rows resolve through the Team season bridge",()=>{
+  const strength=teamHistoricalStrength({
+    teamId:"TEAM",
+    year:1980,
+    teamSeasons:[
+      {year:1978,team_id:"TEAM",constructor_ids:["TECH"],exact_constructor_ids:["TECH"]},
+      {year:1979,team_id:"TEAM",constructor_ids:["TECH"],exact_constructor_ids:["TECH"]},
+    ],
+    driverHistory:[
+      {year:1978,team_id:"TEAM",series_division:"F1",wins:2,podiums:5,starts:30,points:50},
+      {year:1979,team_id:"TEAM",series_division:"F1",wins:3,podiums:6,starts:30,points:70},
+    ],
+    historicalChampionships:{
+      constructors:[
+        {year:1978,constructor_id:"TECH",position:2},
+        {year:1979,constructor_id:"TECH",position:1},
+        {year:1979,constructor_id:"OTHER",position:2},
+      ],
+      drivers:[
+        {year:1979,constructor_id:"TECH",position:1},
+      ],
+    },
+  });
+  assert.equal(strength.constructors_titles,1);
+  assert.equal(strength.drivers_titles,1);
+  assert.equal(strength.last_constructor_title_year,1979);
+  assert.ok(strength.recent_competitiveness>=80,strength.recent_competitiveness);
+});
