@@ -12,6 +12,7 @@ import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incident
 import { rngFor } from "../core/random.js";
 import { teamOrderComplianceProfile } from "../domain/driverRelationshipConsequences.js";
 import { liveSectorTimesForLap } from "../domain/liveSectorPace.js";
+import { materializeOfficialRaceRows } from "./RaceFinalizationEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -2153,7 +2154,7 @@ export function finalizedLiveRaceRows(gs){
   const byId=new Map(classification.map((row)=>[String(row?.driver_id??""),row]));
   const totalLaps=Math.max(1,Number(live?.total_laps)||1);
 
-  return projected
+  const rows=projected
     .map((row,index)=>{
       const did=idOf(row?.driver||row);
       const visible=byId.get(did);
@@ -2259,4 +2260,5 @@ export function finalizedLiveRaceRows(gs){
       };
     })
     .sort((a,b)=>Number(a?.pos??999)-Number(b?.pos??999));
+  return materializeOfficialRaceRows(rows,{raceControlPlan:plan});
 }

@@ -24,6 +24,7 @@ import { applyRaceRelationshipConsequences } from "../domain/driverRelationshipC
 import { damageFromIncident, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { normalPitRepairRecord } from "./PitServiceEngine.js";
 import { championshipRuleForYear, countChampionshipPoints, racePointsForResult } from "../domain/championshipRules.js";
+import { materializeOfficialRaceRows } from "./RaceFinalizationEngine.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
@@ -914,7 +915,7 @@ export async function runRaceWeekend(gs, {
   gs=managedRace.gameState;
   Object.assign(next,managedRace.gameState);
   const raceWet=Boolean(managedRace?.weather?.wet_race)||wet;
-  const race = hasRaceOverride
+  const rawRace = hasRaceOverride
     ? raceOverride
         .map((row,index)=>({
           ...row,
@@ -924,6 +925,7 @@ export async function runRaceWeekend(gs, {
         }))
         .sort((a,b)=>Number(a.pos)-Number(b.pos))
     : applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng, raceControlPlan);
+  const race=materializeOfficialRaceRows(rawRace,{raceControlPlan});
 
   const gpName = gp?.gp_name || gp?.name || `Round ${roundIndex+1}`;
   const year = Number(gs.activeYear) || Number(gp?.year) || activeYear || null;

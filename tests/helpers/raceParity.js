@@ -57,10 +57,7 @@ export const PARITY_DOMAINS = [
   "final_timing",
 ];
 
-export const KNOWN_RACE_PARITY_GAPS = Object.freeze({
-  damage: "RW7.1 measures a remaining difference in the finalized damage snapshot between direct Autosim and Live Race.",
-  final_timing: "RW7.1 measures path-dependent final total/gap timing even though lap-time and final-position parity already pass.",
-});
+export const KNOWN_RACE_PARITY_GAPS = Object.freeze({});
 
 function fixture(seed) {
   const teams = [
