@@ -158,12 +158,16 @@ function reconcileSeedDriverContracts(rows,year,teamHistory=[]){
   }
   return [...nonRace,...raceByDriver.values()];
 }
-function acceptedFirstRaceCandidate(row){
-  if(!row||Number(pick(row,["first_round"],NaN))!==1)return false;
+function acceptedHistoricalTeamDriverCandidate(row){
+  if(!row)return false;
   if(Boolean(pick(row,["exact_entrant"],false)))return true;
   const raw=pick(row,["confidence"],[]);
   const levels=Array.isArray(raw)?raw:[raw];
   return levels.some((value)=>["HIGH","MEDIUM"].includes(String(value||"").toUpperCase()));
+}
+function acceptedFirstRaceCandidate(row){
+  return Number(pick(row,["first_round"],NaN))===1&&
+    acceptedHistoricalTeamDriverCandidate(row);
 }
 
 function applyFirstRaceDriverSeeds({
@@ -187,10 +191,22 @@ function applyFirstRaceDriverSeeds({
     if(raceRows().length>=2)continue;
 
     const season=seasonByTeam.get(tid)||{};
-    const candidates=(Array.isArray(season.first_race_driver_candidates)
+    const roundOneCandidates=(Array.isArray(season.first_race_driver_candidates)
       ?season.first_race_driver_candidates
       :[])
-      .filter(acceptedFirstRaceCandidate)
+      .filter(acceptedFirstRaceCandidate);
+    const firstTeamRound=asNum(pick(season,["first_team_appearance_round"],NaN),NaN);
+    const firstTeamAppearanceCandidates=(
+      Number.isFinite(firstTeamRound)&&firstTeamRound>1&&firstTeamRound<=2&&roundOneCandidates.length===0
+        ?(Array.isArray(season.first_team_appearance_driver_candidates)
+          ?season.first_team_appearance_driver_candidates
+          :[])
+        :[]
+    ).filter((candidate)=>
+      Number(pick(candidate,["first_round"],NaN))===firstTeamRound&&
+      acceptedHistoricalTeamDriverCandidate(candidate)
+    );
+    const candidates=(roundOneCandidates.length?roundOneCandidates:firstTeamAppearanceCandidates)
       .sort((a,b)=>
         asNum(pick(a,["first_source_index"],999999),999999)-
         asNum(pick(b,["first_source_index"],999999),999999)||
@@ -224,6 +240,9 @@ function applyFirstRaceDriverSeeds({
       );
       const base=sameTeamExistingIndex>=0?next[sameTeamExistingIndex]:{};
 
+      const evidenceSource=String(pick(candidate,["source"],"race_results_round_1"));
+      const evidenceRound=asNum(pick(candidate,["first_round"],1),1);
+      const isRoundOne=evidenceSource==="race_results_round_1"&&evidenceRound===1;
       const seeded={
         ...base,
         year,
@@ -241,10 +260,11 @@ function applyFirstRaceDriverSeeds({
           pick(base,["contract_until_year","contract_until","end_year"],year),
           year
         ),
-        source:"first_race_seed",
-        first_race_seed:true,
-        source_round:1,
-        historical_evidence:"race_results_round_1",
+        source:isRoundOne?"first_race_seed":"first_team_appearance_seed",
+        first_race_seed:isRoundOne,
+        first_team_appearance_seed:!isRoundOne,
+        source_round:evidenceRound,
+        historical_evidence:evidenceSource,
         relationship_only:true,
         contract_terms_known:false,
         relationship_exact:Boolean(pick(candidate,["exact_entrant"],false)),
@@ -554,7 +574,9 @@ export function materializeSeasonPack(globalData,yearInput){
   // Historical Starting Conditions -> Dynamic Alternative Future:
   // New Game preserves known opening contracts. When they are incomplete,
   // Round 1 Results may establish only the missing race-seat relationship.
-  // Later-season Results and strong free agents must never create Jan-1 seats.
+  // If a full-season Team has no Round 1 result at all, its first competitive
+  // appearance may be used only through Round 2. Later-season Results and
+  // strong free agents must never create Jan-1 seats.
   // Once the Save World starts, MarketEngine handles AI recruitment normally.
 
   const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));

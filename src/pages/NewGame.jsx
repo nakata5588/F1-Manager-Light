@@ -216,7 +216,7 @@ export default function NewGame() {
     Promise.resolve(loadSeasonPack?.(+target))
       .then((res)=>{
         if(cancelled)return;
-        setYearSource(res?.source==="season-pack"?"Season Pack":"Legacy fallback");
+        setYearSource(res?.source==="season-pack"?"Season Pack":res?.source==="runtime-materializer"?"Season Pack (runtime)":"Legacy fallback");
         if(!res?.ok)setYearError(String(res?.error?.message||"Unable to load season."));
       })
       .catch((err)=>{
@@ -242,7 +242,7 @@ export default function NewGame() {
     setYearError("");
     try{
       const res=await loadSeasonPack?.(+y);
-      setYearSource(res?.source==="season-pack"?"Season Pack":"Legacy fallback");
+      setYearSource(res?.source==="season-pack"?"Season Pack":res?.source==="runtime-materializer"?"Season Pack (runtime)":"Legacy fallback");
       if(!res?.ok)setYearError(String(res?.error?.message||"Unable to load season."));
     }catch(err){
       applyYearFilter(+y);

@@ -107,6 +107,7 @@ for(const row of Array.isArray(rows)?rows:[]){
       exact_engine_names:new Set(),
       relation_basis:new Set(),
       confidence:new Set(),
+      rounds:new Set(),
       exact_entrant_rows:0,
       estimated_rows:0,
       unresolved_rows:0,
@@ -116,6 +117,7 @@ for(const row of Array.isArray(rows)?rows:[]){
   const rec=byKey.get(key);
   const roundRaw=Number(first(row,["round","raceRound","roundNumber"],NaN));
   const raceDate=String(first(row,["race_date","date","dateISO"],""));
+  if(Number.isFinite(roundRaw))rec.rounds.add(roundRaw);
 
   // Keep a separate Results-derived relationship cache for New Game fallback.
   // This is deliberately NOT the confirmed historical roster: estimated
@@ -216,6 +218,28 @@ const output=[...byKey.values()]
         relation_basis:[...driver.first_relation_basis].sort(),
         confidence:[...driver.first_confidence].sort(),
         source:"race_results_round_1",
+      }))
+      .sort((a,b)=>
+        a.first_source_index-b.first_source_index||
+        b.appearances-a.appearances||
+        a.driver_id.localeCompare(b.driver_id)
+      ),
+    first_team_appearance_round:row.rounds.size?Math.min(...row.rounds):null,
+    first_team_appearance_driver_candidates:[...row.resolved_drivers.values()]
+      .filter((driver)=>{
+        const firstTeamRound=row.rounds.size?Math.min(...row.rounds):null;
+        return firstTeamRound!=null&&Number(driver.first_round)===firstTeamRound;
+      })
+      .map((driver)=>({
+        driver_id:driver.driver_id,
+        appearances:driver.appearances,
+        first_round:driver.first_round,
+        first_date:driver.first_date,
+        first_source_index:driver.first_source_index,
+        exact_entrant:Boolean(driver.first_exact_entrant),
+        relation_basis:[...driver.first_relation_basis].sort(),
+        confidence:[...driver.first_confidence].sort(),
+        source:"race_results_first_team_appearance",
       }))
       .sort((a,b)=>
         a.first_source_index-b.first_source_index||

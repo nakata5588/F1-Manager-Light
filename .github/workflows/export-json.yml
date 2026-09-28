@@ -189,6 +189,11 @@ jobs:
       - name: Audit Teams 3.0 Results-first opening state
         run: npm run audit:teams:results-first
 
+      - name: Audit Teams 3.1B Results-to-Team identity
+        run: |
+          npm run audit:teams:identity -- --year=2011 --window=2
+          npm run audit:teams:identity -- --year=2015 --window=1
+
       - name: Validate runtime JSON
         run: npm run validate:data
 
