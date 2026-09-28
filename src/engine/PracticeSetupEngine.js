@@ -7,7 +7,7 @@ import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
 import { raceEngineerPreparationProfile } from "../domain/driverRelationshipConsequences.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
-import { resolveStaffId } from "../domain/staffRoles.js";
+import { teamStaffCapability } from "../domain/staffPerformance.js";
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const round1=(n)=>Math.round(Number(n||0)*10)/10;
@@ -166,52 +166,8 @@ export function trackSetupProfile(gs,gp={},sessionWeather=null){
   };
 }
 
-function activeStaffContracts(gs,teamId){
-  const year=Number(gs?.activeYear);
-  const rows=gs?.staffContracts?.length?gs.staffContracts:(gs?.dbStaffContracts||[]);
-  return rows.filter((row)=>{
-    if(teamIdOf(row)!==String(teamId))return false;
-    const rowYear=num(pick(row,["year","season_year"],year),year);
-    const start=num(pick(row,["contract_start","contract_start_year","start_year"],rowYear),rowYear);
-    const end=num(pick(row,["contract_until","contract_until_year","end_year"],rowYear),rowYear);
-    const status=String(row?.status??"active").toLowerCase();
-    return year>=start&&year<=end&&!["terminated","expired","inactive"].includes(status);
-  });
-}
-
-function staffRating(gs,id){
-  const year=Number(gs?.activeYear);
-  const rows=(gs?.staffRatings?.length?gs.staffRatings:(gs?.dbStaffRatings||[]))
-    .filter((row)=>staffIdOf(row)===String(id));
-  const exact=rows.find((row)=>Number(pick(row,["year","season_year"],NaN))===year);
-  if(exact)return exact;
-  return rows
-    .filter((row)=>Number(pick(row,["year","season_year"],-Infinity))<=year)
-    .sort((a,b)=>Number(pick(b,["year","season_year"],0))-Number(pick(a,["year","season_year"],0)))[0]
-    ||rows[0]
-    ||{};
-}
-
 export function teamEngineeringSupport(gs,teamId){
-  const rows=activeStaffContracts(gs,teamId);
-  const scored=rows.map((contract)=>{
-    const rating=staffRating(gs,resolveStaffId(gs,contract));
-    const role=String(contract?.role??contract?.position??"").toLowerCase();
-    const relevance=/engineer|technical|designer/.test(role)?1
-      :/strateg/.test(role)?0.80
-        :/principal|owner/.test(role)?0.45:0.60;
-    const quality=
-      num(rating?.technical,50)*0.42+
-      num(rating?.data_analysis,50)*0.28+
-      num(rating?.communication,50)*0.18+
-      num(rating?.reliability_focus,50)*0.12;
-    return {quality,relevance,score:quality*relevance};
-  }).sort((a,b)=>b.score-a.score).slice(0,3);
-
-  if(!scored.length)return 50;
-  const weighted=scored.reduce((sum,row)=>sum+row.quality*row.relevance,0);
-  const weight=scored.reduce((sum,row)=>sum+row.relevance,0);
-  return round1(weight?weighted/weight:50);
+  return teamStaffCapability(gs,teamId,"setup");
 }
 
 function ratingFor(gs,driverId){
