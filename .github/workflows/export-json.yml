@@ -186,6 +186,9 @@ jobs:
       - name: Audit all-years driver rating coverage
         run: npm run audit:driver-ratings:all-years
 
+      - name: Audit Teams 3.0 Results-first opening state
+        run: npm run audit:teams:results-first
+
       - name: Validate runtime JSON
         run: npm run validate:data
 
