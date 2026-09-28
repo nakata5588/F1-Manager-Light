@@ -8,6 +8,7 @@ import {
   sampleContinuousRaceSegment,
 } from "../../domain/raceMotionV3.js";
 import { CarShape } from "./RaceCarsLayer.jsx";
+import { resolveRaceCarPhysicalLayout } from "../../domain/raceCarOccupancy.js";
 
 function clamp(value,min,max){
   return Math.max(min,Math.min(max,value));
@@ -63,6 +64,7 @@ function V3CarsLayer({
       const clock=clockRef.current;
       const smoothingAlpha=motionDt>0?1-Math.exp(-motionDt/72):0;
       const activeIds=new Set();
+      const placements=[];
 
       for(const car of carsRef.current){
         const id=String(car?.id||"");
@@ -122,6 +124,20 @@ function V3CarsLayer({
           heading:blendHeading(trackPose.heading,pitHeading,pitMix),
         };
 
+        placements.push({
+          id,
+          raceOrder:Number(car.raceOrder)||999,
+          selected:Boolean(car.selected),
+          car,
+          node,
+          state,
+          point,
+        });
+      }
+
+      const resolved=resolveRaceCarPhysicalLayout(placements,{markerScale,lod});
+      for(const placement of resolved){
+        const {car,node,state,point}=placement;
         const transform=`translate(${point.x.toFixed(3)} ${point.y.toFixed(3)}) scale(${markerScale})`;
         if(transform!==state.lastTransform){
           node.setAttribute("transform",transform);
