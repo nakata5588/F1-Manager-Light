@@ -11,7 +11,7 @@ import { preferLiveRows } from "../domain/liveContracts.js";
 import { carReliabilityProfile, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { applyRaceComponentWear } from "../domain/componentWear.js";
 import { simulateManagedRace } from "./RaceStrategyEngine.js";
-import { accidentConditionalRetirementChance, accidentIncidentChance, accidentRetirementChance, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
+import { accidentConditionalRetirementChance, accidentIncidentChance, accidentRetirementChance, createRaceControlPlan, incidentForDriver, mechanicalRetirementChance } from "./RaceControlEngine.js";
 import { sessionWeatherIsWet, sessionWeatherPerformanceMultiplier, weekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { applyRacePerformanceEvaluation, driverPerformanceEntries } from "../domain/driverForm.js";
 import { applyRaceReputation } from "../domain/driverReputation.js";
@@ -21,7 +21,8 @@ import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
 import { applyRaceDriverRivalries } from "../domain/driverRivalries.js";
 import { applyRaceRelationshipConsequences } from "../domain/driverRelationshipConsequences.js";
-import { damageFromIncident, mergeDamageStates } from "./CarDamageEngine.js";
+import { damageFromIncident, damagePenaltyMsThroughOrdinal, incidentDamageStateThrough } from "./CarDamageEngine.js";
+import { normalPitRepairRecord } from "./PitServiceEngine.js";
 import { championshipRuleForYear, countChampionshipPoints, racePointsForResult } from "../domain/championshipRules.js";
 
 function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
@@ -173,10 +174,31 @@ export function raceAccidentChance(gs,rating,driverId){
   return clamp(0.012+crashLik*damageProb*0.32+fatigueRisk,0.01,0.16);
 }
 
-function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
+function projectedPitRepairRecords(row,driverId){
+  return (row?.pit_stops||[])
+    .map((stop,index)=>{
+      const record=normalPitRepairRecord({
+        driverId,
+        teamId:row?.team_id,
+        service:stop?.service,
+        lap:stop?.lap,
+        sector:3,
+        stopKey:`autosim:${driverId}:${Number(stop?.lap)||0}:${index}`,
+        source:"autosim_projected_pit_repair",
+      });
+      if(!record)return null;
+      const projectedOrdinal=Number(stop?.service?.repair_ordinal);
+      return Number.isFinite(projectedOrdinal)
+        ?{...record,repair_ordinal:projectedOrdinal}
+        :record;
+    })
+    .filter(Boolean);
+}
+
+function applyRetirements(gs, timedRace, ratings, roundIndex, rng, raceControlPlan=null) {
   const finishers=[];
   const retirees=[];
-  const livePlan=gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
+  const livePlan=raceControlPlan||gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
 
   for(const row of timedRace){
     const driverId=String(row?.driver?.driver_id??row?.driver_id??"");
@@ -208,25 +230,45 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng) {
     }
     if(livePlan){
       const damageIncidents=plannedIncidents.filter((incident)=>incident?.retirement===false&&incident?.damage);
-      const damageState=mergeDamageStates(damageIncidents.map((incident)=>incident.damage));
       const raceLaps=Math.max(1,Number(row?.race_laps)||60);
-      const damageLossMs=damageIncidents.reduce((sum,incident)=>{
-        const remaining=Math.max(0,raceLaps-Math.max(1,Number(incident?.lap)||1));
-        return sum+remaining*1000*Math.max(0,Number(incident?.damage?.pace_loss_s_per_lap)||0);
-      },0);
+      const repairs=projectedPitRepairRecords(row,driverId);
+      const raceEndOrdinal=raceLaps*3;
+      const damageState=incidentDamageStateThrough(
+        livePlan?.incidents||[],
+        driverId,
+        raceEndOrdinal,
+        repairs
+      );
+      const damageLossMs=damagePenaltyMsThroughOrdinal(
+        livePlan?.incidents||[],
+        driverId,
+        raceEndOrdinal,
+        repairs
+      );
+      const incidentLossMs=damageIncidents.reduce(
+        (sum,incident)=>sum+Math.max(0,Number(incident?.time_loss_s)||0)*1000,
+        0
+      );
+      const latestDamageIncident=damageIncidents.at(-1)||null;
       finishers.push({
         ...row,
         status:"Finished",
         retired:false,
         retirement_reason:null,
-        incident_kind:damageIncidents.at(-1)?.kind??null,
-        incident_reason:damageIncidents.at(-1)?.reason??null,
-        incident_lap:damageIncidents.at(-1)?.lap??null,
+        incident_kind:latestDamageIncident?.kind??null,
+        incident_reason:latestDamageIncident?.reason??null,
+        incident_lap:latestDamageIncident?.lap??null,
+        incident_severity:latestDamageIncident?.severity??null,
+        incident_severity_score:latestDamageIncident?.severity_score??null,
+        incident_with_driver_id:latestDamageIncident?.other_driver_id??null,
         damage_state:damageState?.damaged_components?.length?damageState:null,
         damage_severity:damageState?.damaged_components?.length?damageState.severity:"none",
+        damage_pace_loss_s_per_lap:damageState?.damaged_components?.length
+          ?Number(damageState.pace_loss_s_per_lap||0)
+          :0,
         damaged_components:damageState?.damaged_components||[],
         total_time_ms:Number.isFinite(Number(row?.total_time_ms))
-          ?Number(row.total_time_ms)+damageLossMs
+          ?Number(row.total_time_ms)+damageLossMs+incidentLossMs
           :row?.total_time_ms,
       });
       continue;
@@ -832,16 +874,38 @@ export async function runRaceWeekend(gs, {
       ?qualifyingFromOverride(gs,qualifyingOverride)
       :(qualifyingSession?.qualifying||[]);
 
-  const managedRace=simulateManagedRace(gs,{
+  const preliminaryRace=simulateManagedRace(gs,{
     gp,
     grid:qualy,
     ratings,
     roundIndex,
   });
+  const hasRaceOverride=Array.isArray(raceOverride)&&raceOverride.length>0;
+  const existingRaceControlPlan=gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
+  const raceControlPlan=hasRaceOverride
+    ?existingRaceControlPlan
+    :existingRaceControlPlan||createRaceControlPlan(preliminaryRace.gameState,{
+      gp,
+      race:preliminaryRace.race,
+      weather:preliminaryRace.weather,
+      track:preliminaryRace.track,
+    });
+  // RW5.3D: autosim now performs a second deterministic strategy projection
+  // against the same Race Control world used by Live Race. Damage therefore
+  // exists before later pit decisions instead of being appended after them.
+  const managedRace=hasRaceOverride
+    ?preliminaryRace
+    :simulateManagedRace(preliminaryRace.gameState,{
+      gp,
+      grid:qualy,
+      ratings,
+      roundIndex,
+      raceControlPlan,
+    });
   gs=managedRace.gameState;
   Object.assign(next,managedRace.gameState);
   const raceWet=Boolean(managedRace?.weather?.wet_race)||wet;
-  const race = Array.isArray(raceOverride)&&raceOverride.length
+  const race = hasRaceOverride
     ? raceOverride
         .map((row,index)=>({
           ...row,
@@ -850,7 +914,7 @@ export async function runRaceWeekend(gs, {
           status:row?.status||(row?.retired?"DNF":"Finished"),
         }))
         .sort((a,b)=>Number(a.pos)-Number(b.pos))
-    : applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng);
+    : applyRetirements(gs, managedRace.race, ratings, roundIndex, incidentRng, raceControlPlan);
 
   const gpName = gp?.gp_name || gp?.name || `Round ${roundIndex+1}`;
   const year = Number(gs.activeYear) || Number(gp?.year) || activeYear || null;
