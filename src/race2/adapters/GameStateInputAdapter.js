@@ -1,5 +1,6 @@
 // src/race2/adapters/GameStateInputAdapter.js
 import { getSaveSeed } from "../../core/random.js";
+import { buildTrackModel } from "../track/TrackModel.js";
 import {
   RACE_WEEKEND_CONTRACT_VERSION,
   RACE_WEEKEND_ENGINES,
@@ -109,10 +110,12 @@ export function buildRaceWeekendInput(gs,{gp=null,engineVersion=null}={}){
       race:weekend?.race_strategy?.rules_snapshot??null,
       points:gs?.pointsSystem??null,
     }),
-    track:cloneRaceContractValue(
-      weekend?.race_strategy?.track_snapshot
-      ??(gp?{track_id:gp?.track_id??null}:null)
-    ),
+    track:cloneRaceContractValue(buildTrackModel(gs,{
+      gp,
+      trackId:weekend?.track_id??gp?.track_id??null,
+      year:weekend?.year??gs?.activeYear??gp?.year??null,
+      trackSnapshot:weekend?.race_strategy?.track_snapshot??null,
+    })),
     weather:cloneRaceContractValue(
       weekend?.race_strategy?.weather_snapshot
       ??weekend?.weekend_weather
