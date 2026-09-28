@@ -510,6 +510,7 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     year,
     placements,
     historicalSnapshots:g.historicalRatingSnapshots||[],
+    careerHistory:g.driverHistory||[],
   }).map((row)=>{
     const current=asNum(pick(row,["current_ability","overall"],NaN),NaN);
     const potential=asNum(pick(row,["potential_ability","potential"],NaN),NaN);
