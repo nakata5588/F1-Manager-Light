@@ -54,14 +54,16 @@ for(const item of index.years||[]){
   const ratings=new Map((pack.state.driverRatings||[]).map((row)=>[idOf(row),row]).filter(([id])=>id));
   const drivers=new Map((pack.state.drivers||[]).map((row)=>[idOf(row),row]).filter(([id])=>id));
   const raceContracts=(pack.state.contracts||[]).filter(isRaceDriverContract);
+  const raceSeatByDriver=new Map(raceContracts.map((row)=>[idOf(row),row]).filter(([id])=>id));
 
-  for(const contract of raceContracts){
-    const id=idOf(contract);
+  // Audit every driver visible in the New Game world, not only race-seat drivers.
+  for(const [id,driver] of drivers){
     const rating=ratings.get(id)||{};
-    const driver=drivers.get(id)||{};
+    const contract=raceSeatByDriver.get(id)||null;
     const current=num(rating.current_ability??rating.overall,NaN);
     const potential=num(rating.potential_ability??rating.potential,NaN);
     if(!Number.isFinite(current))continue;
+
     const prior=(champByDriver.get(id)||[]).filter((row)=>num(row.year)<year);
     const prev=prior.find((row)=>num(row.year)===year-1)||null;
     const titles=prior.filter((row)=>num(row.position)===1).length;
@@ -77,8 +79,10 @@ for(const item of index.years||[]){
       driver_id:id,
       name:String(driver.display_name??driver.driver_name??rating.driver_name??id),
       age:num(driver.age,NaN),
-      team_id:String(contract.team_id||""),
-      role:String(contract.role||""),
+      team_id:contract?String(contract.team_id||""):"",
+      role:contract?String(contract.role||""):"",
+      race_seat:Boolean(contract),
+      world_status:String(driver.status??driver.feeder_placement??""),
       source:String(rating.source||""),
       current,
       potential:Number.isFinite(potential)?potential:null,
@@ -95,6 +99,7 @@ for(const item of index.years||[]){
   }
 }
 
+const raceObservations=observations.filter((row)=>row.race_seat);
 const decadeGroups=new Map();
 for(const row of observations){
   const decade=Math.floor(row.year/10)*10;
@@ -103,7 +108,8 @@ for(const row of observations){
 }
 
 console.log("\nD7.R4 — All-Eras Historical Rating Audit");
-console.log(`Race-seat observations: ${observations.length}`);
+console.log(`Visible driver-season observations: ${observations.length}`);
+console.log(`Race-seat observations: ${raceObservations.length}`);
 console.log("Decade  Rows  P10   Median  P90   Min   Max");
 for(const [decade,values] of [...decadeGroups.entries()].sort((a,b)=>a[0]-b[0])){
   const min=Math.min(...values),max=Math.max(...values);
@@ -113,9 +119,9 @@ for(const [decade,values] of [...decadeGroups.entries()].sort((a,b)=>a[0]-b[0]))
 }
 
 const invalidPotential=observations.filter((row)=>Number.isFinite(row.potential)&&row.potential+1e-9<row.current);
-const previousChampions=observations.filter((row)=>row.previousPosition===1);
-const previousTop3=observations.filter((row)=>Number.isFinite(row.previousPosition)&&row.previousPosition<=3);
-const titleHolders=observations.filter((row)=>row.titles>0);
+const previousChampions=raceObservations.filter((row)=>row.previousPosition===1);
+const previousTop3=raceObservations.filter((row)=>Number.isFinite(row.previousPosition)&&row.previousPosition<=3);
+const titleHolders=raceObservations.filter((row)=>row.titles>0);
 const implausiblyLowPreviousChampion=previousChampions.filter((row)=>row.current<84);
 const implausiblyLowRecentTop3=previousTop3.filter((row)=>row.current<78);
 
@@ -131,7 +137,12 @@ for(const rows of byDriver.values()){
     const prev=rows[i-1],cur=rows[i];
     if(cur.year!==prev.year+1)continue;
     const delta=Number((cur.current-prev.current).toFixed(1));
-    if(Math.abs(delta)>=18)jumps.push({driver_id:cur.driver_id,name:cur.name,from:prev.year,to:cur.year,from_ovr:prev.current,to_ovr:cur.current,delta});
+    if(Math.abs(delta)>=18)jumps.push({
+      driver_id:cur.driver_id,name:cur.name,from:prev.year,to:cur.year,
+      from_ovr:prev.current,to_ovr:cur.current,delta,
+      from_stage:prev.stage,to_stage:cur.stage,
+      from_race_seat:prev.race_seat,to_race_seat:cur.race_seat,
+    });
   }
 }
 
@@ -146,29 +157,30 @@ console.table(weakest(titleHolders).map((row)=>({
   YEAR:row.year,DRIVER:row.name,OVR:row.current,POT:row.potential,AGE:row.age,TITLES:row.titles,LAST_TITLE:row.lastTitleYear,SOURCE:row.source,
 })));
 
-console.log("\nLargest year-to-year OVR jumps (>=18)");
+console.log("\nLargest visible-driver year-to-year OVR jumps (>=18)");
 console.table(jumps
   .slice()
   .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||a.from-b.from)
   .slice(0,20)
   .map((row)=>({
-    DRIVER:row.name,
-    FROM:row.from,
-    TO:row.to,
-    FROM_OVR:row.from_ovr,
-    TO_OVR:row.to_ovr,
-    DELTA:row.delta,
+    DRIVER:row.name,FROM:row.from,TO:row.to,FROM_OVR:row.from_ovr,TO_OVR:row.to_ovr,
+    DELTA:row.delta,FROM_STAGE:row.from_stage,TO_STAGE:row.to_stage,
   })));
 
 console.log("\nDiagnostics");
 console.log(JSON.stringify({
-  observations:observations.length,
-  potential_below_current:invalidPotential.length,
+  visible_observations:observations.length,
+  race_seat_observations:raceObservations.length,
+  potential_below_current_all_visible:invalidPotential.length,
   reigning_champion_below_84:implausiblyLowPreviousChampion.length,
   previous_top3_below_78:implausiblyLowRecentTop3.length,
-  year_to_year_jumps_ge_18:jumps.length,
+  visible_year_to_year_jumps_ge_18:jumps.length,
 },null,2));
 
+if(observations.length<6000){
+  console.error(`Expected broad all-era visible-driver coverage; found only ${observations.length} observations.`);
+  process.exitCode=1;
+}
 if(invalidPotential.length){
   console.error("Potential < Current Ability examples:",invalidPotential.slice(0,20));
   process.exitCode=1;
