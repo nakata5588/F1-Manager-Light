@@ -4,8 +4,10 @@ import {
   buildStartingRatingCalibration,
   driverOpeningAge,
   driverStartingStage,
+  f1CareerTalentFloor,
   materializeDriverStartingRating,
   materializeMissingStartingRatings,
+  repairTalentProfileFromF1Career,
 } from "../src/domain/driverStartingRating.js";
 
 const peakProfile=(overrides={})=>({
@@ -130,4 +132,62 @@ test("calibration falls back deterministically when no archive is supplied",()=>
   assert.equal(calibration.version,"D7.R1D_CALIBRATION_V1");
   assert.equal(calibration.source_rows,0);
   assert.equal(calibration.stage_factors["Junior / Prospect"].factor_speed,0.542);
+});
+
+
+test("full F1 career evidence repairs implausibly low latent ceilings without naming drivers",()=>{
+  const weak=peakProfile({
+    peak_ability:56.2,
+    peak_pace:63.6,
+    peak_qualifying:63.2,
+    peak_racecraft:63.6,
+    peak_consistency:55,
+  });
+  const history=[
+    {year:2011,driver_id:"D1",starts:19,wins:0,podiums:0,poles:0,best_finish:10},
+    {year:2012,driver_id:"D1",starts:20,wins:1,podiums:1,poles:1,best_finish:1},
+    {year:2013,driver_id:"D1",starts:19,wins:0,podiums:0,poles:0,best_finish:5},
+  ];
+  assert.equal(f1CareerTalentFloor(history),80);
+  const repaired=repairTalentProfileFromF1Career(weak,history);
+  assert.equal(repaired.peak_ability,80);
+  assert.ok(repaired.peak_pace>=80);
+  assert.ok(repaired.peak_racecraft>=80);
+  assert.equal(repaired._talent_profile_repair_source,"full_f1_career_achievement_floor");
+
+  const rows=materializeMissingStartingRatings({
+    drivers:[{driver_id:"D1",display_name:"Generic F1 Winner",dob:"1984-03-09",f1_rookie_season:2011}],
+    existingRatings:[],
+    profiles:[weak],
+    year:2011,
+    placements:[],
+    historicalSnapshots:[],
+    careerHistory:history,
+  });
+  assert.equal(rows.length,1);
+  assert.ok(rows[0].current_ability>=60,rows[0].current_ability);
+  assert.equal(rows[0].potential_ability,80);
+  assert.ok(rows[0].potential_ability>=rows[0].current_ability);
+});
+
+test("Decline stage becomes age-sensitive instead of leaving old veterans at peak pace",()=>{
+  const profile=peakProfile({
+    decline_start_age:35,
+    peak_ability:99,
+  });
+  const at35=materializeDriverStartingRating({
+    driver:{driver_id:"D1",display_name:"Veteran",dob:"1985-01-01",f1_rookie_season:2005},
+    profile,
+    year:2020,
+  });
+  const at41=materializeDriverStartingRating({
+    driver:{driver_id:"D1",display_name:"Veteran",dob:"1979-01-01",f1_rookie_season:2001},
+    profile,
+    year:2020,
+  });
+  assert.equal(at35.career_stage,"Decline");
+  assert.equal(at41.career_stage,"Decline");
+  assert.ok(at41.current_ability<at35.current_ability-5,[at35.current_ability,at41.current_ability]);
+  assert.ok(at41.pace<at35.pace-10,[at35.pace,at41.pace]);
+  assert.equal(at41.potential_ability,99);
 });
