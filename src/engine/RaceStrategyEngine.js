@@ -8,7 +8,7 @@
 import { rngFor } from "../core/random.js";
 import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
-import { teamStaffCapability } from "../domain/staffPerformance.js";
+import { staffStrategyDecisionDelta } from "../domain/staffPerformance.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { incidentForDriver, raceControlAtLap } from "./RaceControlEngine.js";
 import { incidentDamageStateThrough } from "./CarDamageEngine.js";
@@ -812,8 +812,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const wearDriverMult=clamp(1+(60-management)*0.004+(Math.max(0,fatigue-50))*0.003,0.74,1.32);
     const trackWearMult=0.62+(track.tyre_wear/100)*0.72;
     const crew=pitCrew(working,tid);
-    const strategySupport=tid!==userTeam?teamStaffCapability(working,tid,"strategy"):50;
-    const strategyDecisionDelta=(strategySupport-50)*0.003;
+    const strategyDecisionDelta=tid!==userTeam?staffStrategyDecisionDelta(working,tid):0;
     const retirement=honorRetirements
       ?retirementCutoff(strategyState?.race_control_plan,did,track.laps)
       :{incident:null,lap:null,sector:null,completedLaps:track.laps};
