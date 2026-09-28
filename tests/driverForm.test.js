@@ -41,7 +41,7 @@ function baseState(){
   };
 }
 
-function result({d1Retired=false,d1Reason=null,d1Position=1}={}){
+function result({d1Retired=false,d1Reason=null,d1Position=1,d1IncidentKind=null,d1IncidentReason=null}={}){
   return {
     key:"1980_5_test",
     year:1980,
@@ -62,7 +62,7 @@ function result({d1Retired=false,d1Reason=null,d1Position=1}={}){
       {driver_id:"D4",team_id:"T2",grid:4},
     ],
     classification:[
-      {driver_id:"D1",team_id:"T1",position:d1Position,retired:d1Retired,status:d1Retired?"DNF":"Finished",retirement_reason:d1Reason,best_lap_ms:81234,fastest_lap:true},
+      {driver_id:"D1",team_id:"T1",position:d1Position,retired:d1Retired,status:d1Retired?"DNF":"Finished",retirement_reason:d1Reason,incident_kind:d1IncidentKind,incident_reason:d1IncidentReason,best_lap_ms:81234,fastest_lap:true},
       {driver_id:"D3",team_id:"T2",position:d1Position===1?2:1,retired:false,status:"Finished"},
       {driver_id:"D2",team_id:"T1",position:3,retired:false,status:"Finished"},
       {driver_id:"D4",team_id:"T2",position:4,retired:false,status:"Finished"},
@@ -104,6 +104,23 @@ test("mechanical DNF is neutralised while driver-error DNF is penalised",()=>{
   assert.equal(mechanical.teammate_race_delta,null);
   assert.ok(mechanical.factors.some((row)=>row.key==="mechanical_dnf"&&row.value===0));
   assert.ok(mechanical.score>accident.score+8,"mechanical failure must not be treated as a driving mistake");
+});
+
+test("played non-DNF incidents reuse the canonical responsibility classifier",()=>{
+  const spin=evaluateDriverRacePerformance(
+    baseState(),
+    result({d1IncidentKind:"spin",d1IncidentReason:"Spin"}),
+    "D1"
+  );
+  const contact=evaluateDriverRacePerformance(
+    baseState(),
+    result({d1IncidentKind:"collision",d1IncidentReason:"Collision"}),
+    "D1"
+  );
+
+  assert.equal(spin.incident_responsibility,"driver_error");
+  assert.equal(spin.incident_reason,"Spin");
+  assert.equal(contact.incident_responsibility,"racing_incident");
 });
 
 test("rolling form weights recent races more heavily",()=>{
