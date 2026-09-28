@@ -1257,20 +1257,34 @@ export default function Track2DView({
               }):null}
             </>;
           })()}
-          <RaceCarsLayer
+          {motionEngine==="v3"?<RaceCarsLayerV3
             geometry={displayGeometry}
-            cars={raceCars}
+            racingLine={racingLineV3}
+            cars={raceCarsV3}
             markerScale={markerScale}
             playbackRunning={playbackRunning}
             onSelectedPoint={followSelectedVisualPoint}
             lod={trackLod}
-          />
+          />:<RaceCarsLayer
+            geometry={displayGeometry}
+            cars={raceCarsLegacy}
+            markerScale={markerScale}
+            playbackRunning={playbackRunning}
+            onSelectedPoint={followSelectedVisualPoint}
+            lod={trackLod}
+          />}
 
         </svg>:null}
         <TrackMiniMap geometry={miniMapGeometry} rows={activeRows} teamBrands={teamBrands} year={year} currentControl={currentControl}/>
 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05080d]/85 to-transparent"/>
         <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-1.5">
+          <button
+            type="button"
+            title="Toggle continuous V3 motion / legacy Track 2.5 motion"
+            onClick={()=>{setMotionEngine((value)=>value==="v3"?"legacy":"v3");resetTrackCamera();}}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[9px] font-semibold shadow-lg backdrop-blur ${motionEngine==="v3"?"border-emerald-400/30 bg-emerald-500/15 text-emerald-200":"border-white/15 bg-[#0a0f16]/90 text-slate-400"}`}
+          >{motionEngine==="v3"?"V3 Motion":"Legacy Motion"}</button>
           {proceduralEnvironmentActive?<button
             type="button"
             title="T · Switch full 2D / schematic view"
