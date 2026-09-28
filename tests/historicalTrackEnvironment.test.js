@@ -15,8 +15,10 @@ test("Buenos Aires historical environment is explicitly presentation-only",()=>{
   assert.equal(environment.pit_lane_color,"#2563eb");
   assert.equal(environment.contains_track_surface,true);
   assert.equal(environment.contains_track_intel,true);
-  assert.equal(environment.native_width,1649);
-  assert.equal(environment.native_height,954);
+  assert.equal(environment.native_width,800);
+  assert.equal(environment.native_height,463);
   assert.deepEqual(environment.calibration_transform,{x:0,y:0,scale_x:1,scale_y:1,rotation_deg:0,origin_x:824.5,origin_y:477});
-  assert.equal(environment.visual_style,"single_raster_environment");
+  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
+  assert.match(environment.fallback_reason,/failed_visual_playtest/);
+  assert.equal(environment.visual_style,"single_raster_environment_with_legacy_runtime_fallback");
 });
