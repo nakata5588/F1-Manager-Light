@@ -183,6 +183,24 @@ test("RW3 1980 rule creates two timed Qualifying sessions and a persistent sessi
   assert.equal(gs.raceWeekendState.sessions.length,5);
 });
 
+test("RW8.0A fixes engine_version at GP entry and preserves it through save/load",()=>{
+  const legacy=createRaceWeekendState(fixture({seed:"rw8-legacy"}),{roundIndex:0,gp});
+  assert.equal(legacy.raceWeekendState.engine_version,"legacy");
+
+  let rw2=createRaceWeekendState(
+    fixture({seed:"rw8-rw2"}),
+    {roundIndex:0,gp,engineVersion:"rw2"}
+  );
+  assert.equal(rw2.raceWeekendState.engine_version,"rw2");
+
+  const attemptedSwitch=createRaceWeekendState(rw2,{roundIndex:0,gp,engineVersion:"legacy"});
+  assert.equal(attemptedSwitch.raceWeekendState.engine_version,"rw2");
+
+  const saved=prepareGameStateForSave(rw2);
+  rw2=extractGameStateFromStoredSave({meta:{name:"RW8.0A engine lock"},gameState:saved});
+  assert.equal(rw2.raceWeekendState.engine_version,"rw2");
+});
+
 test("RW3.1 Practice always exposes its report before same-day Qualifying",()=>{
   let gs=createRaceWeekendState(fixture(),{roundIndex:0,gp});
   gs=completePracticeSession(gs,{gp});
