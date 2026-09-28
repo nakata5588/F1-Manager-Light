@@ -454,6 +454,7 @@ export const useGame = create((set, get) => ({
     dbTrackLayoutByYear: [],
     dbTeamSeasons: [],
     dbTeamConstructorBridge: [],
+    dbTeamLineageHistory: [],
     dbCoreTracks: [],
     dbWeatherProfiles: [],
     dbWeatherStates: [],
@@ -759,7 +760,7 @@ export const useGame = create((set, get) => ({
         rulesRaw, eraSafetyRaw, accidentModelRaw, facilitiesRaw, carStatsRaw, carPartsRaw, staffContractsRaw,
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
-        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, teamConstructorBridgeRaw, coreTracksRaw,
+        scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, teamConstructorBridgeRaw, teamLineageHistoryRaw, coreTracksRaw,
         weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
@@ -802,6 +803,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/track_layout_by_year.json", []),
         fetchOptional("/data/team_seasons.json", []),
         fetchOptional("/data/team_constructor_bridge.json", []),
+        fetchOptional("/data/team_lineage_history.json", []),
         fetchOptional("/data/core_tracks.json", []),
         fetchOptional("/data/weather_profiles.json", []),
         fetchOptional("/data/weather_states.json", []),
@@ -851,6 +853,7 @@ export const useGame = create((set, get) => ({
       const trackLayoutByYear  = unexcelDeep(trackLayoutByYearRaw);
       const teamSeasons         = canonicalManagerialTeamRows(unexcelDeep(teamSeasonsRaw));
       const teamConstructorBridge = canonicalManagerialTeamRows(unexcelDeep(teamConstructorBridgeRaw));
+      const teamLineageHistory = unexcelDeep(teamLineageHistoryRaw);
       const coreTracks          = unexcelDeep(coreTracksRaw);
       const weatherProfiles     = unexcelDeep(weatherProfilesRaw);
       const weatherStates       = unexcelDeep(weatherStatesRaw);
@@ -913,6 +916,7 @@ export const useGame = create((set, get) => ({
           dbTrackLayoutByYear: trackLayoutByYear,
           dbTeamSeasons: teamSeasons,
           dbTeamConstructorBridge: teamConstructorBridge,
+          dbTeamLineageHistory: teamLineageHistory,
           dbCoreTracks: coreTracks,
           dbWeatherProfiles: weatherProfiles,
           dbWeatherStates: weatherStates,
