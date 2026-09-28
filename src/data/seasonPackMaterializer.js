@@ -18,6 +18,7 @@ import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { inferDriverWorldEntries } from "../domain/driverWorldEntry.js";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../domain/driverFeederPlacement.js";
 import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
+import { materializeHistoricalTeamStrengths } from "../domain/teamHistoricalStrength.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -587,6 +588,14 @@ export function materializeSeasonPack(globalData,yearInput){
       team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(base,["team_name","name","short_name"],pick(seasonRec,["team_name"],id))),
     };
   });
+  const teamHistoricalStrength=materializeHistoricalTeamStrengths({
+    teamIds:[...teamIds],
+    year,
+    teamSeasons:g.teamSeasons||[],
+    driverHistory:g.driverHistory||[],
+    historicalChampionships:g.historicalChampionships||{drivers:[],constructors:[]},
+    lineageRows:g.teamLineageHistory||[],
+  });
   // Race-result participation and F1 career rows repair incomplete contract data.
   const seasonRows=seasonTeamRows;
   const f1Career=rowsAtYear(g.driverCareer,year)
@@ -823,6 +832,7 @@ export function materializeSeasonPack(globalData,yearInput){
       staffRatings,
       staffContracts,
       teamBrands,
+      teamHistoricalStrength,
       teamEngines,
       facilities,
       carStats,
