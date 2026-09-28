@@ -1,7 +1,7 @@
 // src/race2/contracts/raceContracts.js
 // RW8.0A: stable, engine-agnostic contracts for the Race Weekend 2.0 boundary.
 
-export const RACE_WEEKEND_CONTRACT_VERSION=2;
+export const RACE_WEEKEND_CONTRACT_VERSION=3;
 
 export const RACE_WEEKEND_ENGINES=Object.freeze({
   LEGACY:"legacy",
@@ -28,15 +28,16 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
     "gp","entries","drivers","cars","rules","track","weather","startingGrid",
   ]),
   RaceState:Object.freeze([
-    "schemaVersion","seed","tick","simulationTimeMs","session","status","cars",
-    "trackState","weatherState","raceControlState","commandQueue","pitLaneState",
-    "events","nextEventSequence","rngState","result",
+    "schemaVersion","contractVersion","engineVersion","weekendKey","seed","tick",
+    "simulationTimeMs","session","status","track","cars","trackState","weatherState",
+    "raceControlState","commandQueue","pitLaneState","events","nextEventSequence",
+    "rngState","result",
   ]),
   CarState:Object.freeze([
-    "carId","driverId","teamId","lap","distanceAlongLapM","absoluteDistanceM",
-    "speedMs","speedKmh","accelerationMs2","lateralOffsetM","zoneId","zoneType",
-    "elapsedMs","status","tyre","fuelKg","engineTemperature","components",
-    "damage","commands","pitState","dnf",
+    "carId","driverId","teamId","gridPosition","lap","completedLaps","sector",
+    "distanceAlongLapM","absoluteDistanceM","speedMs","speedKmh","accelerationMs2",
+    "lateralOffsetM","zoneId","zoneType","elapsedMs","status","tyre","fuelKg",
+    "engineTemperature","components","damage","commands","pitState","dnf",
   ]),
   TrackModel:Object.freeze([
     "schemaVersion","trackId","layoutId","year","label","lengthM","laps",
