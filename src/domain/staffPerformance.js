@@ -301,6 +301,11 @@ export function staffTeamEnvironmentModifiers(gs,teamId){
   };
 }
 
+export function staffStrategyDecisionDelta(gs,teamId){
+  const capability=teamStaffCapability(gs,teamId,"strategy");
+  return round(clamp((capability-50)*0.003,-0.12,0.12),3);
+}
+
 export function staffPitTrainingMultiplier(gs,teamId){
   const capability=teamStaffCapability(gs,teamId,"pit_operations");
   return round(clamp(0.90+capability*0.002,0.90,1.10),3);
