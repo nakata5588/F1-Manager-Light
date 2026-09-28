@@ -5,12 +5,13 @@ import path from "node:path";
 import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 
 const root=process.cwd();
-const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2014,2020];
+const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2007,2014,2020];
 const expectedTeamCounts={
   1975:19,
   1980:15,
   1989:20,
   1999:11,
+  2007:11,
   2014:11,
   2020:10,
 };
@@ -108,18 +109,92 @@ test("derived F1 history covers the sparse manual-career eras",async()=>{
 });
 
 
-test("1980 Shadow keeps test drivers separate from its two race seats",async()=>{
+test("1980 Shadow uses Round 1 evidence to repair incomplete race-seat metadata",async()=>{
   const pack=await readPack(1980);
   const shadow=(pack.state.teams||[]).find((t)=>String(t.team_name||t.name)==="Shadow");
   assert.ok(shadow,"1980 Shadow must exist");
+
+  const teamSeasons=JSON.parse(
+    await fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8")
+  );
+  const shadowSeason=teamSeasons.find((row)=>
+    Number(row.year)===1980&&String(row.team_id)===String(shadow.team_id)
+  );
+  assert.ok(shadowSeason,"1980 Shadow Results-derived team-season row must exist");
+
+  const acceptedRoundOne=new Set(
+    (Array.isArray(shadowSeason.first_race_driver_candidates)?shadowSeason.first_race_driver_candidates:[])
+      .filter((row)=>{
+        if(Number(row.first_round)!==1)return false;
+        if(row.exact_entrant===true)return true;
+        const levels=Array.isArray(row.confidence)?row.confidence:[row.confidence];
+        return levels.some((value)=>["HIGH","MEDIUM"].includes(String(value||"").toUpperCase()));
+      })
+      .map((row)=>String(row.driver_id))
+  );
+
   const contracts=(pack.state.contracts||[]).filter((c)=>String(c.team_id)===String(shadow.team_id));
   const raceSeats=contracts.filter(isRaceDriverContract);
-  const testDrivers=contracts.filter((c)=>/test|reserve/i.test(String(c.role||"")));
-  assert.equal(raceSeats.length,1,"Shadow must preserve its single known Jan-1 race seat instead of inventing a second signing");
-  assert.ok(testDrivers.length>=1,"Shadow test-driver contract should remain available without occupying a race seat");
-  assert.equal(raceSeats.some((c)=>String(c.driver_id)==="d_0862"),false,"David Kennedy test_driver must not be treated as a race seat");
+  assert.equal(raceSeats.length,2,"Round 1 evidence should fill Shadow's missing opening race seat");
+
+  const seeded=raceSeats.filter((row)=>String(row.source||"")==="first_race_seed");
+  assert.ok(seeded.length>=1,"Shadow should expose the repaired seat as an explicit first_race_seed");
+  assert.ok(
+    seeded.every((row)=>acceptedRoundOne.has(String(row.driver_id))),
+    "Shadow fallback seats must be supported by accepted Round 1 Results evidence"
+  );
+
+  const kennedyWasRoundOneEvidence=acceptedRoundOne.has("d_0862");
+  assert.equal(
+    raceSeats.some((row)=>String(row.driver_id)==="d_0862"),
+    kennedyWasRoundOneEvidence,
+    "stale test-driver metadata may be upgraded only when Round 1 Results prove the race relationship"
+  );
 });
 
+
+
+
+test("2007 opening grid is seeded only from Round 1 Results when contracts are absent",async()=>{
+  const pack=await readPack(2007);
+  const teams=pack.state?.teams||[];
+  const raceContracts=(pack.state?.contracts||[]).filter(isRaceDriverContract);
+  const byTeam=new Map();
+  for(const row of raceContracts){
+    const tid=String(row.team_id);
+    if(!byTeam.has(tid))byTeam.set(tid,[]);
+    byTeam.get(tid).push(row);
+  }
+
+  assert.equal(teams.length,11);
+  assert.equal(raceContracts.length,22,"2007 must start with two race seats per participating team");
+  for(const team of teams){
+    const seats=byTeam.get(String(team.team_id))||[];
+    assert.equal(seats.length,2,String(team.team_name||team.team_id)+" must have two opening race seats");
+    assert.ok(
+      seats.every((row)=>String(row.source||"")==="first_race_seed"),
+      String(team.team_name||team.team_id)+" 2007 seats must come from the explicit Round 1 fallback"
+    );
+    assert.ok(seats.every((row)=>Number(row.source_round)===1));
+    assert.ok(seats.every((row)=>row.relationship_only===true));
+    assert.ok(seats.every((row)=>row.synthetic===false));
+  }
+
+  const seasonRows=JSON.parse(
+    await fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8")
+  ).filter((row)=>Number(row.year)===2007);
+  const roundOneIds=new Set(
+    seasonRows.flatMap((row)=>
+      (Array.isArray(row.first_race_driver_candidates)?row.first_race_driver_candidates:[])
+        .filter((candidate)=>Number(candidate.first_round)===1)
+        .map((candidate)=>String(candidate.driver_id))
+    )
+  );
+  assert.ok(
+    raceContracts.every((row)=>roundOneIds.has(String(row.driver_id))),
+    "2007 opening grid must not include a driver whose evidence starts after Round 1"
+  );
+});
 
 test("1980-1985 Season Packs use exact R2B historical rating snapshots",async()=>{
   for(const year of [1980,1981,1982,1983,1984,1985]){

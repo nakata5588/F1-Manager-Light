@@ -42,7 +42,17 @@ function fixture(){
       {driver_id:"LEAK",display_name:"Season Outcome Leak",dob:"1952-01-01",f1_rookie_season:1979},
     ],
     teams:[{team_id:"T1",team_name:"Canonical Team",founded_year:1970}],
-    teamSeasons:[{year:1980,team_id:"T1",team_name:"Canonical Team",driver_ids:["LEAK"]}],
+    teamSeasons:[{
+      year:1980,
+      team_id:"T1",
+      team_name:"Canonical Team",
+      driver_ids:["LEAK"],
+      first_race_driver_candidates:[
+        {driver_id:"D1",first_round:1,first_source_index:1,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"]},
+        {driver_id:"D2",first_round:1,first_source_index:2,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"]},
+        {driver_id:"LEAK",first_round:2,first_source_index:50,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"]},
+      ],
+    }],
     teamBrands:[{year:1980,team_id:"T1",team_name:"Canonical Team"}],
     carStats:[{year:1980,team_id:"T1"}],
     contracts:[
@@ -120,7 +130,7 @@ test("opening state is authoritative and blocks season-outcome grid leakage",()=
   assert.equal(d1.role,"Main Driver","opening role must override stale test-driver contract metadata");
 });
 
-test("missing opening-state coverage preserves known Jan-1 contracts and leaves vacancies for AI negotiation",()=>{
+test("missing opening-state coverage preserves known contracts and fills only missing seats from Round 1 Results",()=>{
   const data=fixture();
   data.driverOpeningState=[];
   data.contracts=[
@@ -128,12 +138,24 @@ test("missing opening-state coverage preserves known Jan-1 contracts and leaves 
   ];
   const pack=materializeSeasonPack(data,1980);
   const raceContracts=pack.state.contracts.filter((c)=>/main|second|race/i.test(String(c.role||"")));
-  assert.equal(raceContracts.length,1);
-  assert.equal(String(raceContracts[0].driver_id),"D1");
+  assert.equal(raceContracts.length,2);
+  assert.deepEqual(raceContracts.map((row)=>String(row.driver_id)).sort(),["D1","D2"]);
+  const seed=raceContracts.find((row)=>String(row.driver_id)==="D2");
+  assert.equal(seed?.source,"first_race_seed");
+  assert.equal(seed?.source_round,1);
+  assert.equal(seed?.historical_evidence,"race_results_round_1");
+  assert.equal(seed?.relationship_only,true);
+  assert.equal(seed?.contract_terms_known,false);
+  assert.equal(seed?.synthetic,false);
+  assert.equal(
+    pack.state.contracts.some((c)=>String(c.driver_id)==="LEAK"),
+    false,
+    "a driver who first appears after Round 1 must not be promoted into the opening grid"
+  );
   assert.equal(
     pack.state.contracts.some((c)=>["season_results_bootstrap","ai_grid_bootstrap"].includes(String(c.source||""))),
     false,
-    "future Results/free-agent strength must never create Jan-1 contracts"
+    "legacy season-outcome/free-agent bootstraps must stay disabled"
   );
 });
 
@@ -246,6 +268,7 @@ test("unresolved contract formulas do not create object-string pseudo drivers",(
       role:"second_driver",
     },
   ];
+  data.teamSeasons=data.teamSeasons.map((row)=>({...row,first_race_driver_candidates:[]}));
 
   const pack=materializeSeasonPack(data,1980);
   const ids=(pack.state.drivers||[]).map((row)=>String(row.driver_id));
@@ -258,5 +281,33 @@ test("unresolved contract formulas do not create object-string pseudo drivers",(
     (pack.state.contracts||[]).filter((row)=>/main|second|race/i.test(String(row.role||""))).length,
     1,
     "an unresolved historical formula must leave the seat vacant rather than invent a driver"
+  );
+});
+
+
+test("Round 1 LOW-confidence team relations do not fabricate a race seat",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[
+    {year:1980,team_id:"T1",team_name:"Canonical Team",driver_id:"D1",role:"main_driver"},
+  ];
+  data.teamSeasons=[{
+    year:1980,
+    team_id:"T1",
+    team_name:"Canonical Team",
+    driver_ids:[],
+    first_race_driver_candidates:[
+      {driver_id:"LEAK",first_round:1,first_source_index:1,exact_entrant:false,confidence:["LOW"],relation_basis:["legacy_team_id_fallback"]},
+    ],
+  }];
+
+  const pack=materializeSeasonPack(data,1980);
+  const raceContracts=pack.state.contracts.filter((row)=>/main|second|race/i.test(String(row.role||"")));
+  assert.equal(raceContracts.length,1);
+  assert.equal(String(raceContracts[0].driver_id),"D1");
+  assert.equal(
+    pack.state.contracts.some((row)=>String(row.source||"")==="first_race_seed"),
+    false,
+    "LOW-confidence Results mapping must remain a vacancy for normal AI recruitment"
   );
 });
