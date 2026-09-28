@@ -10,6 +10,7 @@ import { contractRoleLabel, isDriverContract } from "../../domain/contractRoles.
 import { entityProfilePath } from "../../domain/entityRoutes.js";
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { canonicalTeamId } from "../../domain/teamIdentity.js";
+import { staffRoleRating } from "../../domain/staffPerformance.js";
 import { DriverPortrait, StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v.text??v):v;
@@ -299,11 +300,12 @@ export function StaffQuickView({entity,onClose}){
   )||null;
   const name=pick(staff,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id));
   const country=pick(staff,["country_name","country","nationality"],"");
-  const role=nice(pick(contract,["role","position"],pick(staff,["role_primary"],"Staff")));
+  const roleRaw=pick(contract,["role","position"],pick(staff,["role_primary"],"Staff"));
+  const role=nice(roleRaw);
   const skills=Object.entries(rating||{})
     .filter(([key,value])=>!["staff_id","staff_name","year"].includes(key)&&Number.isFinite(Number(value)))
     .sort((a,b)=>Number(b[1])-Number(a[1]));
-  const overall=skills.length?Math.round(skills.reduce((sum,[,value])=>sum+Number(value),0)/skills.length):null;
+  const overall=staffRoleRating(rating,roleRaw).score;
 
   return (
     <QuickShell onClose={onClose} onFullProfile={()=>openFull(navigate,onClose,entityProfilePath("staff",id))}>
