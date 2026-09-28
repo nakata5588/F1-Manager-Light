@@ -2,6 +2,7 @@ import React, { memo, useEffect, useRef } from "react";
 import { openPolylineHeadingDegrees, sampleOpenPolylinePoint, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
 import { pointAtTrackProgress } from "../../domain/trackLayout.js";
 import { unwrapTrackProgress } from "../../domain/racePlayback.js";
+import RaceCarVisual from "./RaceCarVisual.jsx";
 
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 function wrap01(value){const n=Number(value)||0;return ((n%1)+1)%1;}
@@ -30,23 +31,38 @@ function visualPoint(geometry,state){
   return {x,y,heading};
 }
 
-function CarShape({color,secondary,label,selected,mine,retired,lod="overview"}){
+function CarShape({
+  color,
+  secondary,
+  accent,
+  label,
+  selected,
+  mine,
+  retired,
+  lod="overview",
+  year,
+  damageState=null,
+  driverNumber=null,
+  sponsorLabel=null,
+}){
   return <>
-    {selected?<circle cx="0" cy="0" r="16" fill="none" stroke="#fff" strokeWidth="1.6" opacity=".38">
-      <animate attributeName="r" values="13;17;13" dur="1.1s" repeatCount="indefinite"/>
+    {selected?<circle cx="0" cy="0" r="18" fill="none" stroke="#fff" strokeWidth="1.35" opacity=".28">
+      <animate attributeName="r" values="15;19;15" dur="1.1s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".42;.14;.42" dur="1.1s" repeatCount="indefinite"/>
     </circle>:null}
-    <g data-car-body="true" opacity={retired?0.6:1}>
-      <ellipse cx="-1.5" cy="2.2" rx="13.8" ry="5.2" fill="#020617" opacity=".3"/>
-      <rect x="-8.5" y="-7.2" width="5.4" height="4.2" rx="1" fill="#05070a"/>
-      <rect x="-8.5" y="3" width="5.4" height="4.2" rx="1" fill="#05070a"/>
-      <rect x="5.1" y="-6.6" width="5.2" height="3.8" rx="1" fill="#05070a"/>
-      <rect x="5.1" y="2.8" width="5.2" height="3.8" rx="1" fill="#05070a"/>
-      <rect x="-12" y="-5.6" width="3.4" height="11.2" rx=".7" fill={secondary} stroke="#020617" strokeWidth=".8"/>
-      <path d="M -9 -3.9 L -5.3 -5.1 L 2.8 -4.3 L 7.4 -2.5 L 13.8 -1.4 L 16 0 L 13.8 1.4 L 7.4 2.5 L 2.8 4.3 L -5.3 5.1 L -9 3.9 Z" fill={retired?"#7f1d1d":color} stroke={selected?"#fff":"#0b0f16"} strokeWidth={selected?1.5:1}/>
-      <path d="M -6.8 -2.8 L -1.5 -3.3 L 2.6 -2.4 L 2.6 2.4 L -1.5 3.3 L -6.8 2.8 Z" fill={secondary} opacity=".9"/>
-      <ellipse cx="1.1" cy="0" rx="2.8" ry="2.25" fill="#111827" stroke="#cbd5e1" strokeWidth=".65"/>
-    </g>
-    {(selected||mine||lod==="close")?<g data-car-label="true" transform="translate(0 -14)">
+    <RaceCarVisual
+      year={year}
+      color={color}
+      secondary={secondary}
+      accent={accent}
+      selected={selected}
+      retired={retired}
+      lod={lod}
+      damageState={damageState}
+      driverNumber={driverNumber}
+      sponsorLabel={sponsorLabel}
+    />
+    {(selected||mine||lod==="close")?<g data-car-label="true" transform="translate(0 -15.5)">
       <rect x="-10.5" y="-3.8" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#fff":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity={lod==="close"?.94:.82}/>
       <text x="0" y="1.5" textAnchor="middle" fontSize="5.7" fontWeight="900" fill="#fff">{label}</text>
     </g>:null}
