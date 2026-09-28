@@ -82,12 +82,17 @@ function fixture(){
   };
 }
 
-test("RW8.0A publishes the seven boundary contracts needed by RW2",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,2);
+test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,3);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
     ["RaceWeekendInput","RaceState","CarState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
   );
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("gridPosition"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("completedLaps"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("sector"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("distanceAlongLapM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("absoluteDistanceM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.Command.includes("effectiveAtTick"));
