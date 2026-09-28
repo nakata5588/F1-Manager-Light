@@ -19,7 +19,7 @@ await fs.mkdir(outRoot,{recursive:true});
 const [
   drivers,calendar,teams,driverRatings,historicalRatingSnapshots,driverRatingProfiles,
   driverYearStatus,driverOpeningState,driverDevelopmentHistory,driverAvailabilityHistory,driverTeamHistory,
-  teamEngineHistory,carCompetitiveness,driverCareer,driverHistory,staffRatings,staffCore,
+  teamEngineHistory,carCompetitiveness,driverCareer,driverHistory,historicalChampionships,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
@@ -40,6 +40,7 @@ const [
   readJson("car_competitiveness_by_year.json"),
   readJson("driver_career.json"),
   readJson("driver_f1_history.json"),
+  readJson("historical_championships.json",{drivers:[],constructors:[]}),
   readJson("staff_ratings.json"),
   readJson("staff_core.json"),
   readJson("team_brands.json"),
@@ -70,7 +71,7 @@ const [
 const globalData={
   drivers,calendar,teams,driverRatings,historicalRatingSnapshots,driverRatingProfiles,
   driverYearStatus,driverOpeningState,driverDevelopmentHistory,driverAvailabilityHistory,driverTeamHistory,
-  teamEngineHistory,carCompetitiveness,driverCareer,driverHistory,staffRatings,staffCore,
+  teamEngineHistory,carCompetitiveness,driverCareer,driverHistory,historicalChampionships,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
