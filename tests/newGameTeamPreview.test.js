@@ -33,6 +33,10 @@ function state(){
       {year:1980,team_id:"T1",starting_budget:12_500_000,board_expectation:"race_wins"},
       {year:1980,team_id:"T2",starting_budget:4_000_000,board_expectation:"championship"},
     ],
+    teamHistoricalStrength:[
+      {year:1980,team_id:"T1",overall:82.5,structural_strength:88,competitive_strength:77,heritage_strength:90,sporting_strength:84,recent_competitiveness:72,evidence_through_year:1979},
+      {year:1980,team_id:"T2",overall:44.5,structural_strength:46,competitive_strength:43,heritage_strength:48,sporting_strength:40,recent_competitiveness:45,evidence_through_year:1979},
+    ],
     teamEngines:[
       {year:1980,team_id:"T1",engine_name:"Test V8",power:82,reliability:0.84},
       {year:1980,team_id:"T2",engine_name:"Slow V8",power:60,reliability:0.72},
@@ -87,6 +91,15 @@ test("New Game team preview uses historical opening conditions",()=>{
   assert.ok(preview.championshipProjection.factors.staff>80);
   assert.equal(preview.championshipProjection.completeness,100);
   assert.equal(preview.engineName,"Test V8");
+  assert.deepEqual(preview.historicalStrength,{
+    overall:82.5,
+    structural:88,
+    competitive:77,
+    heritage:90,
+    sporting:84,
+    recent:72,
+    evidenceThroughYear:1979,
+  });
   assert.equal(preview.drivers.length,2);
   assert.equal(preview.drivers[0].name,"Driver One");
   assert.equal(preview.drivers[0].overall,82);
