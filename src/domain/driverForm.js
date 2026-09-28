@@ -336,7 +336,7 @@ function hydrateTeammateComparison(gs,driverId,entry){
   const teammateId=String(entry?.teammate_driver_id??driverIdOf(teamRace)??"");
   const next={
     ...entry,
-    teammate_driver_id:teammateId||entry?.teammate_driver_id??null,
+    teammate_driver_id:teammateId||(entry?.teammate_driver_id??null),
     best_lap_ms:entry?.best_lap_ms??num(race?.best_lap_ms??race?.bestLapMs,null),
     best_lap_number:entry?.best_lap_number??num(race?.best_lap_number??race?.bestLapNumber,null),
     fastest_lap:entry?.fastest_lap??Boolean(race?.fastest_lap??race?.fastestLap),
