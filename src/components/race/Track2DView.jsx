@@ -29,6 +29,7 @@ import RaceCarsLayerV3 from "./RaceCarsLayerV3.jsx";
 import { buildClosedRacingLine } from "../../domain/raceSplineV3.js";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, authoritativeRaceWorldProgress, createVisualRaceTimeline, driverVisualMotionDurationMs, raceVisualSnapshotKey, visualPitLaneState, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 import { raceCarDamageSummary } from "../../domain/raceCarVisual.js";
+import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -78,11 +79,19 @@ function brandForTeam(teamBrands,teamId,year){
 
 function markerPalette(teamBrands,teamId,year){
   const brand=brandForTeam(teamBrands,teamId,year);
+  const historical=historicalRaceCarLivery({
+    year,
+    teamId,
+    teamName:brand?.team_name||brand?.team_official_name,
+  });
   return {
-    primary:brand?.primary_color||"#94a3b8",
-    secondary:brand?.secondary_color||"#e2e8f0",
-    accent:brand?.accent_color||brand?.secondary_color||"#e2e8f0",
+    primary:historical?.primary||brand?.primary_color||"#94a3b8",
+    secondary:historical?.secondary||brand?.secondary_color||"#e2e8f0",
+    accent:historical?.accent||brand?.accent_color||brand?.secondary_color||"#e2e8f0",
     shortName:brand?.short_name||null,
+    sponsor:historical?.sponsor||brand?.short_name||null,
+    liveryPattern:historical?.pattern||null,
+    historicalModel:historical?.model||null,
   };
 }
 function markerColor(teamBrands,teamId,year){
@@ -1020,7 +1029,9 @@ export default function Track2DView({
         accent:palette.accent,
         label:shortDriverName(drivers,did),
         driverNumber:authoritativeRow?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null,
-        sponsorLabel:palette.shortName,
+        sponsorLabel:palette.sponsor,
+        liveryPattern:palette.liveryPattern,
+        historicalModel:palette.historicalModel,
         damageState:authoritativeRow?.damage_state??row?.damage_state??null,
         mine:tid===String(playerTeamId||""),
         selected,
@@ -1091,7 +1102,9 @@ export default function Track2DView({
         accent:palette.accent,
         label:shortDriverName(drivers,did),
         driverNumber:row?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null,
-        sponsorLabel:palette.shortName,
+        sponsorLabel:palette.sponsor,
+        liveryPattern:palette.liveryPattern,
+        historicalModel:palette.historicalModel,
         damageState:row?.damage_state??null,
         mine:tid===String(playerTeamId||""),
         selected,
