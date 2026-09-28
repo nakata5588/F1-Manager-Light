@@ -62,7 +62,7 @@
     "test:world-placement:real": "node --test tests/driverFeederPlacement.real.test.js",
     "test:starting-ratings": "node --test tests/driverStartingRating.test.js",
     "test:starting-ratings:real": "node --test tests/driverStartingRating.real.test.js",
-    "audit:teams:results-first": "node scripts/audit-team-results-first.mjs --year=2007"
+    "audit:teams:results-first": "node scripts/audit-team-results-first.mjs"
   },
   "keywords": [
     "f1",
