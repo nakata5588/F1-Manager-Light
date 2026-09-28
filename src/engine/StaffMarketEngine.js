@@ -19,9 +19,11 @@ import {
 import {
   staffMarketScore,
   staffRatingForYear,
+  staffReputation,
   staffRoleRating,
   teamStaffCapability,
 } from "../domain/staffPerformance.js";
+import { teamReputation } from "../domain/teamReputation.js";
 
 const MANAGED_ROLES=Object.freeze([
   "team_principal",
@@ -91,6 +93,18 @@ function expectedStaffSalary(gs,staffId,role){
   const score=staffMarketScore(gs,staffId,role);
   const ratio=Math.max(0,Math.min(1,score/100));
   return Math.round((min+(max-min)*ratio*ratio)/5_000)*5_000;
+}
+function staffWillingToJoin(gs,teamId,candidate){
+  const reputation=staffReputation(staffRatingForYear(gs,candidate.staff_id));
+  let teamRep=50;
+  try{
+    const value=Number(teamReputation(gs,teamId));
+    if(Number.isFinite(value))teamRep=value;
+  }catch{}
+  // Free agents can move upward or sideways freely. The very highest-profile
+  // Staff require at least a credible team; this is market willingness, not a
+  // technical-performance modifier.
+  return teamRep+45>=reputation;
 }
 function affordableStaffSalary(gs,teamId,salary){
   const {max}=salaryBounds(gs);
@@ -187,7 +201,8 @@ function fillOrUpgradeRole(gs,team,role,{upgradeGap=8}={}){
     .filter((contract)=>staffContractRole(contract)===role)
     .sort((a,b)=>roleScore(gs,b)-roleScore(gs,a))[0]||null;
   const candidates=freeCandidates(gs,role)
-    .filter((candidate)=>affordableStaffSalary(gs,tid,candidate.salary));
+    .filter((candidate)=>affordableStaffSalary(gs,tid,candidate.salary))
+    .filter((candidate)=>staffWillingToJoin(gs,tid,candidate));
   const best=candidates[0]||null;
   if(!best)return gs;
 
