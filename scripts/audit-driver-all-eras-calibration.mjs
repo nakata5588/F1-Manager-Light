@@ -38,6 +38,13 @@ for(const row of champRows){
 }
 for(const rows of champByDriver.values())rows.sort((a,b)=>num(a.year)-num(b.year));
 
+const auditedYears=(index.years||[])
+  .map((row)=>num(row?.year,NaN))
+  .filter((year)=>Number.isInteger(year)&&year>=1950&&year<=2024);
+if(auditedYears.length!==75||Math.min(...auditedYears)!==1950||Math.max(...auditedYears)!==2024){
+  throw new Error(`D7.R4 requires all 75 Season Packs (1950-2024); found ${auditedYears.length}.`);
+}
+
 const observations=[];
 for(const item of index.years||[]){
   const year=num(item?.year,NaN);
