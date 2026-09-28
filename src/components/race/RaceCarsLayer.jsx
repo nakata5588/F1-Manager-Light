@@ -30,7 +30,7 @@ function visualPoint(geometry,state){
   return {x,y,heading};
 }
 
-function CarShape({color,secondary,label,selected,mine,retired}){
+function CarShape({color,secondary,label,selected,mine,retired,lod="overview"}){
   return <>
     {selected?<circle cx="0" cy="0" r="16" fill="none" stroke="#fff" strokeWidth="1.6" opacity=".38">
       <animate attributeName="r" values="13;17;13" dur="1.1s" repeatCount="indefinite"/>
@@ -46,14 +46,14 @@ function CarShape({color,secondary,label,selected,mine,retired}){
       <path d="M -6.8 -2.8 L -1.5 -3.3 L 2.6 -2.4 L 2.6 2.4 L -1.5 3.3 L -6.8 2.8 Z" fill={secondary} opacity=".9"/>
       <ellipse cx="1.1" cy="0" rx="2.8" ry="2.25" fill="#111827" stroke="#cbd5e1" strokeWidth=".65"/>
     </g>
-    <g data-car-label="true" transform="translate(0 -14)">
-      <rect x="-10.5" y="-3.8" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#fff":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity=".94"/>
+    {(selected||mine||lod==="close")?<g data-car-label="true" transform="translate(0 -14)">
+      <rect x="-10.5" y="-3.8" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#fff":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity={lod==="close"?.94:.82}/>
       <text x="0" y="1.5" textAnchor="middle" fontSize="5.7" fontWeight="900" fill="#fff">{label}</text>
-    </g>
+    </g>:null}
   </>;
 }
 
-function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSelectedPoint}){
+function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSelectedPoint,lod="overview"}){
   const refs=useRef(new Map());
   const motion=useRef(new Map());
   const carsRef=useRef(cars);
@@ -115,7 +115,7 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
       onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();car.onSelect?.();}}}
     >
       <title>{car.title}</title>
-      <CarShape {...car}/>
+      <CarShape {...car} lod={lod}/>
     </g>)}
   </g>;
 }
