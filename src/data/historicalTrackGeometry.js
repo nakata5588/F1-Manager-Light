@@ -1,5 +1,18 @@
 import { TRACK_LAYOUT_GEOMETRY } from "./trackLayoutGeometry.js";
 
+const LEGACY_BUENOS_AIRES_GEOMETRY=TRACK_LAYOUT_GEOMETRY.tr_0018_provisional
+  ?Object.freeze({
+    ...TRACK_LAYOUT_GEOMETRY.tr_0018_provisional,
+    points:Object.freeze((TRACK_LAYOUT_GEOMETRY.tr_0018_provisional.points||[]).map((point)=>Object.freeze([...point]))),
+    source_svg:String(TRACK_LAYOUT_GEOMETRY.tr_0018_provisional.source_svg||"Autodromo-Oscar-y-Juan-Galvez-White.svg"),
+    quality:"legacy_presentation_fallback",
+  })
+  :null;
+
+export const HISTORICAL_TRACK_PRESENTATION_FALLBACKS=Object.freeze({
+  tr_0018_provisional:LEGACY_BUENOS_AIRES_GEOMETRY
+});
+
 // Historical functional geometry traced from the user-approved Argentina reference.
 // Progress 0 is the start/finish line; point order is race direction.
 // Environment artwork remains presentation-only; these points drive live movement.
