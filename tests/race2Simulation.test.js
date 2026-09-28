@@ -114,6 +114,42 @@ test("RW8.2 the same initial state and fixed number of steps are deterministic",
   assert.deepEqual(a,b);
 });
 
+
+test("RW8.2 braking to zero inside a fixed step integrates only until the stop time",()=>{
+  let state=startRaceState(createRaceState(input({laps:3,cars:1}),{stepMs:1000}));
+  state=withKinematics(state,"car_1",{
+    speedMs:10,
+    speedKmh:36,
+    accelerationMs2:-100,
+  });
+  const next=stepRaceState(state);
+  const car=next.cars[0];
+
+  assert.equal(car.speedMs,0);
+  assert.equal(car.speedKmh,0);
+  assert.equal(car.absoluteDistanceM,0.5);
+  assert.equal(car.distanceAlongLapM,0.5);
+  assert.equal(car.completedLaps,0);
+});
+
+test("RW8.2 lap fields derive from the stored canonical absolute distance",()=>{
+  let state=startRaceState(createRaceState(input({laps:3,cars:1})));
+  state=withKinematics(state,"car_1",{
+    absoluteDistanceM:99.9999996,
+    distanceAlongLapM:99.9999996,
+    speedMs:0,
+    speedKmh:0,
+  });
+  const next=stepRaceState(state);
+  const car=next.cars[0];
+
+  assert.equal(car.absoluteDistanceM,100);
+  assert.equal(car.distanceAlongLapM,0);
+  assert.equal(car.completedLaps,1);
+  assert.equal(car.lap,2);
+  assert.equal(car.sector,1);
+});
+
 test("RW8.2 DNF cars are frozen while the same core continues advancing active cars",()=>{
   let state=startRaceState(createRaceState(input()));
   state={
