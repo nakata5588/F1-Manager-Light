@@ -86,11 +86,21 @@ const requested=requestedArg
 const supported=discoverSupportedYears(globalData);
 const years=requested?.length?requested:supported;
 
+let existingIndex={years:[]};
+if(requested?.length){
+  try{
+    existingIndex=JSON.parse(await fs.readFile(path.join(outRoot,"index.json"),"utf8"));
+  }catch{
+    existingIndex={years:[]};
+  }
+}
 const index={
   format:"f1ml-season-index",
   schemaVersion:1,
   generatedAt:null,
-  years:[],
+  years:requested?.length&&Array.isArray(existingIndex?.years)
+    ?existingIndex.years.filter((row)=>!years.includes(Number(row?.year)))
+    :[],
 };
 
 for(const year of years){
@@ -108,6 +118,7 @@ for(const year of years){
   });
 }
 
+index.years.sort((a,b)=>Number(a?.year)-Number(b?.year));
 await fs.writeFile(path.join(outRoot,"index.json"),JSON.stringify(index,null,2)+"\n","utf8");
 
 const ready=index.years.filter((x)=>x.ready).length;
