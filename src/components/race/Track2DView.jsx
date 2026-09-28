@@ -742,12 +742,13 @@ export default function Track2DView({
     &&Number.isFinite(Number(intelligence?.pit_entry_progress))
     &&Number.isFinite(Number(intelligence?.pit_exit_progress))
   );
+  const [motionEngine,setMotionEngine]=useState("v3");
   const visualFrame=useVisualRaceTimeline({
     rows:authoritativeRows,
     currentLap,
     currentSector,
     referenceLapMs,
-    playbackRunning,
+    playbackRunning:motionEngine==="legacy"&&playbackRunning,
     playbackSpeed,
     playbackBaseSectorMs,
     currentControl,
@@ -756,7 +757,6 @@ export default function Track2DView({
     pitExitProgress:intelligence?.pit_exit_progress,
   });
   const activeRows=visualFrame.rows;
-  const [motionEngine,setMotionEngine]=useState("v3");
   const [cameraMode,setCameraMode]=useState("fit");
   const [followZoom,setFollowZoom]=useState(5.25);
   const [freeViewBox,setFreeViewBox]=useState(null);
