@@ -7,7 +7,7 @@ import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 import { deterministicTrackScatter, offsetTrackPolyline, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
-import { clampTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
+import { clampTrackViewBox, dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -356,4 +356,41 @@ test("Track 2.3 Argentina presentation reduces noisy anchors without changing th
   assert.ok(smoothed.points.length<resolved.geometry.points.length/2);
   assert.deepEqual(smoothed.points[0],presentation.points[0]);
   assert.equal(resolved.geometry.points.length,280,"authoritative geometry must stay unchanged");
+});
+
+
+test("Track 2.5 wheel zoom preserves follow semantics by changing zoom only",()=>{
+  assert.ok(trackFollowZoomFromWheel(5,-100)>5);
+  assert.ok(trackFollowZoomFromWheel(5,100)<5);
+  assert.equal(trackFollowZoomFromWheel(12,-100,{max:12}),12);
+  assert.equal(trackFollowZoomFromWheel(1.35,100,{min:1.35}),1.35);
+});
+
+test("Track 2.5 follow camera adds bounded look-ahead without leaving track bounds",()=>{
+  const full=[0,0,1000,600];
+  const right=followTrackViewBox(full,{x:500,y:300,heading:0},{zoom:5,minWidth:80,minHeight:60,lookAheadRatio:.1});
+  assert.equal(right[2],200);
+  assert.equal(right[3],120);
+  assert.ok(right[0]>400,"right-facing car should be framed slightly ahead");
+  const edge=followTrackViewBox(full,{x:990,y:300,heading:0},{zoom:5,minWidth:80,minHeight:60,lookAheadRatio:.2});
+  assert.ok(edge[0]+edge[2]<=1000.001);
+});
+
+test("Track 2.5 damped camera converges smoothly",()=>{
+  const current=[0,0,1000,600];
+  const target=[400,240,200,120];
+  const next=dampTrackViewBox(current,target,16,{timeConstantMs:82,snap:.001});
+  assert.ok(next[0]>0&&next[0]<400);
+  assert.ok(next[2]<1000&&next[2]>200);
+  const snapped=dampTrackViewBox(target,target,16);
+  assert.deepEqual(snapped,target);
+});
+
+test("Track 2.5 renderer LOD follows camera zoom",()=>{
+  assert.equal(trackLodForZoom(1),"overview");
+  assert.equal(trackLodForZoom(1.84),"overview");
+  assert.equal(trackLodForZoom(1.85),"medium");
+  assert.equal(trackLodForZoom(4.49),"medium");
+  assert.equal(trackLodForZoom(4.5),"close");
+  assert.equal(trackLodForZoom(10),"close");
 });

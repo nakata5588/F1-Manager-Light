@@ -19,10 +19,10 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
+import { orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
 import { openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
-import { panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
+import { dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import RaceCarsLayer from "./RaceCarsLayer.jsx";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
@@ -759,6 +759,7 @@ export default function Track2DView({
   const followViewBoxRef=useRef(null);
   const followCameraTargetRef=useRef(null);
   const followCameraFrameRef=useRef(null);
+  const followCameraTimeRef=useRef(null);
   const panGestureRef=useRef(null);
 
   useEffect(()=>{
@@ -790,8 +791,16 @@ export default function Track2DView({
     pitLaneProgress:selectedRow?.visual_pit_lane_progress,
     pitLaneMix:selectedRow?.visual_pit_lane_mix,
   });
-  const snapshotFocusViewBox=cameraMode==="follow"&&selectedPoint
-    ?focusTrackViewBox(fitViewBox,selectedPoint,{zoom:followZoom,minWidth:88,minHeight:64})
+  const selectedTrackHeading=selectedProgress==null?0:trackHeadingDegrees(displayGeometry,selectedProgress);
+  const selectedPitHeading=openPolylineHeadingDegrees(displayGeometry?.pit_lane_points,selectedRow?.visual_pit_lane_progress);
+  const selectedPitMix=Math.max(0,Math.min(1,Number(selectedRow?.visual_pit_lane_mix)||0));
+  const selectedHeadingDelta=((selectedPitHeading-selectedTrackHeading+540)%360)-180;
+  const selectedCameraPoint=selectedPoint?{
+    ...selectedPoint,
+    heading:selectedTrackHeading+selectedHeadingDelta*selectedPitMix,
+  }:null;
+  const snapshotFocusViewBox=cameraMode==="follow"&&selectedCameraPoint
+    ?followTrackViewBox(fitViewBox,selectedCameraPoint,{zoom:followZoom,minWidth:88,minHeight:64,lookAheadRatio:.10})
     :fitViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
@@ -799,7 +808,13 @@ export default function Track2DView({
       ?freeViewBox
       :fitViewBox;
   const effectiveCameraZoom=trackCameraZoomFactor(renderedViewBox,fitViewBox);
-  const markerScale=trackMarkerScaleForViewBox(renderedViewBox,fitViewBox,{power:.72,min:.16,max:1});
+  const targetCameraZoom=cameraMode==="follow"?followZoom:effectiveCameraZoom;
+  const trackLod=trackLodForZoom(targetCameraZoom);
+  const markerScale=trackMarkerScaleForViewBox(
+    cameraMode==="follow"?snapshotFocusViewBox:renderedViewBox,
+    fitViewBox,
+    {power:.72,min:.16,max:1}
+  );
   const selectDriver=(driverId)=>{
     followViewBoxRef.current=null;
     setCameraMode("follow");
@@ -807,27 +822,38 @@ export default function Track2DView({
   };
   const followSelectedVisualPoint=(point)=>{
     if(cameraMode!=="follow"||!svgRef.current||!point)return;
-    followCameraTargetRef.current=focusTrackViewBox(fitViewBox,point,{zoom:followZoom,minWidth:88,minHeight:64});
+    followCameraTargetRef.current=followTrackViewBox(fitViewBox,point,{
+      zoom:followZoom,
+      minWidth:88,
+      minHeight:64,
+      lookAheadRatio:.10,
+    });
     if(followCameraFrameRef.current)return;
-    const tick=()=>{
+    const tick=(now)=>{
       if(cameraMode!=="follow"||!svgRef.current){
         followCameraFrameRef.current=null;
+        followCameraTimeRef.current=null;
         return;
       }
       const target=followCameraTargetRef.current;
       if(!target){
         followCameraFrameRef.current=null;
+        followCameraTimeRef.current=null;
         return;
       }
+      const previous=followCameraTimeRef.current??now;
+      const delta=Math.max(1,Math.min(50,now-previous));
+      followCameraTimeRef.current=now;
       const current=followViewBoxRef.current||target;
-      const next=current.map((value,index)=>value+(target[index]-value)*0.34);
-      const settled=next.every((value,index)=>Math.abs(value-target[index])<0.03);
-      const box=settled?target:next;
+      const box=dampTrackViewBox(current,target,delta,{timeConstantMs:82,snap:.02});
+      const settled=box.every((value,index)=>Math.abs(value-target[index])<0.001);
       followViewBoxRef.current=box;
-      svgRef.current.setAttribute("viewBox",box.join(" "));
-      worldSvgRef.current?.setAttribute("viewBox",box.join(" "));
+      const viewBoxText=box.join(" ");
+      svgRef.current.setAttribute("viewBox",viewBoxText);
+      worldSvgRef.current?.setAttribute("viewBox",viewBoxText);
       if(settled){
         followCameraFrameRef.current=null;
+        followCameraTimeRef.current=null;
       }else{
         followCameraFrameRef.current=requestAnimationFrame(tick);
       }
@@ -837,11 +863,12 @@ export default function Track2DView({
   useEffect(()=>{
     followViewBoxRef.current=null;
     followCameraTargetRef.current=null;
+    followCameraTimeRef.current=null;
     if(followCameraFrameRef.current){
       cancelAnimationFrame(followCameraFrameRef.current);
       followCameraFrameRef.current=null;
     }
-  },[resolvedSelectedId,cameraMode,followZoom]);
+  },[resolvedSelectedId,cameraMode]);
   useEffect(()=>()=>{if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);},[]);
   const svgPointFromEvent=(event)=>{
     const svg=svgRef.current;
@@ -861,17 +888,18 @@ export default function Track2DView({
       cancelAnimationFrame(followCameraFrameRef.current);
       followCameraFrameRef.current=null;
     }
+    followCameraTimeRef.current=null;
   };
   const handleTrackWheel=(event)=>{
     if(!svgRef.current)return;
     event.preventDefault();
+    if(cameraMode==="follow"&&selectedVisibleOnTrack){
+      setFollowZoom((value)=>Number(trackFollowZoomFromWheel(value,event.deltaY,{min:1.35,max:12,step:1.12}).toFixed(3)));
+      return;
+    }
     const anchor=svgPointFromEvent(event);
     if(!anchor)return;
-    const current=cameraMode==="follow"
-      ?(followViewBoxRef.current||snapshotFocusViewBox)
-      :cameraMode==="free"&&freeViewBox
-        ?freeViewBox
-        :fitViewBox;
+    const current=cameraMode==="free"&&freeViewBox?freeViewBox:fitViewBox;
     const factor=event.deltaY<0?0.87:1.15;
     stopFollowCamera();
     setCameraMode("free");
@@ -964,7 +992,7 @@ export default function Track2DView({
         pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
         laneOffset:raceMarkerLaneOffset(index,{
           cameraMode:cameraMode==="fit"?"fit":"follow",
-          zoom:effectiveCameraZoom,
+          zoom:targetCameraZoom,
           closeBattle,
           selected,
         }),
@@ -1012,7 +1040,7 @@ export default function Track2DView({
           preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"}
           aria-hidden="true"
         >
-          <TrackSceneRenderer geometry={displayGeometry} environment={environment.procedural_environment} style={environment.race_view_style} viewBox={environmentViewBox} wetness={sceneWetness}/>
+          <TrackSceneRenderer geometry={displayGeometry} environment={environment.procedural_environment} style={environment.race_view_style} viewBox={environmentViewBox} wetness={sceneWetness} lod={trackLod}/>
         </svg>:null}
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full touch-none p-1 md:p-2" onWheel={handleTrackWheel} onPointerDown={handleTrackPointerDown} onPointerMove={handleTrackPointerMove} onPointerUp={handleTrackPointerUp} onPointerCancel={handleTrackPointerUp} viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
           <defs>
@@ -1166,6 +1194,7 @@ export default function Track2DView({
             markerScale={markerScale}
             playbackRunning={playbackRunning}
             onSelectedPoint={followSelectedVisualPoint}
+            lod={trackLod}
           />
 
         </svg>:null}
@@ -1189,20 +1218,14 @@ export default function Track2DView({
               <button
                 type="button"
                 title="Zoom out"
-                onClick={()=>{
-                  followViewBoxRef.current=null;
-                  setFollowZoom((value)=>Math.max(2.5,Number((value-0.75).toFixed(2))));
-                }}
+                onClick={()=>setFollowZoom((value)=>Number(trackFollowZoomFromWheel(value,1,{min:1.35,max:12,step:1.16}).toFixed(3)))}
                 className="inline-flex h-7 w-7 items-center justify-center text-slate-300 hover:bg-white/[0.10]"
               ><Minus className="h-3.5 w-3.5"/></button>
-              <span className="min-w-[42px] border-x border-white/10 px-1.5 text-center text-[9px] font-bold text-slate-300">{followZoom.toFixed(2)}×</span>
+              <span className="min-w-[54px] border-x border-white/10 px-1.5 text-center text-[9px] font-bold text-slate-300">{followZoom.toFixed(2)}× · {trackLod==="close"?"C":trackLod==="medium"?"M":"O"}</span>
               <button
                 type="button"
                 title="Zoom in"
-                onClick={()=>{
-                  followViewBoxRef.current=null;
-                  setFollowZoom((value)=>Math.min(9,Number((value+0.75).toFixed(2))));
-                }}
+                onClick={()=>setFollowZoom((value)=>Number(trackFollowZoomFromWheel(value,-1,{min:1.35,max:12,step:1.16}).toFixed(3)))}
                 className="inline-flex h-7 w-7 items-center justify-center text-slate-300 hover:bg-white/[0.10]"
               ><Plus className="h-3.5 w-3.5"/></button>
             </div>

@@ -8,6 +8,7 @@ import {
   trackHeadingDegrees,
   trackRibbonPolygon,
 } from "../../domain/trackSceneGeometry.js";
+import { trackLodRank } from "../../domain/trackCamera.js";
 
 function pointsAttr(points=[]){
   return (points||[]).map((point)=>point.join(",")).join(" ");
@@ -37,33 +38,33 @@ function TreeSprite({tree,index=0}){
   </g>;
 }
 
-function Grandstand({point,heading=0,length=78,depth=18,index=0}){
+function Grandstand({point,heading=0,length=78,depth=18,index=0,lod="overview"}){
   if(!point)return null;
   return <g transform={`translate(${point.x} ${point.y}) rotate(${heading})`} pointerEvents="none">
     <rect x={-length/2+4} y={-depth/2+5} width={length} height={depth} rx="1.5" fill="#111827" opacity=".28"/>
     <rect x={-length/2} y={-depth/2} width={length} height={depth} rx="1.5" fill="#4b5563" stroke="#1f2937" strokeWidth="1.2"/>
-    {Array.from({length:5},(_,row)=><line
+    {Array.from({length:lod==="overview"?3:5},(_,row)=><line
       key={row}
       x1={-length/2+3}
-      y1={-depth/2+3+row*((depth-6)/4)}
+      y1={-depth/2+3+row*((depth-6)/(lod==="overview"?2:4))}
       x2={length/2-3}
-      y2={-depth/2+3+row*((depth-6)/4)}
+      y2={-depth/2+3+row*((depth-6)/(lod==="overview"?2:4))}
       stroke={row%2?"#cbd5e1":"#6b7280"}
       strokeWidth="1.1"
       opacity=".8"
     />)}
-    {Array.from({length:Math.max(5,Math.floor(length/12))},(_,seat)=><circle
+    {lod!=="overview"?Array.from({length:Math.max(5,Math.floor(length/(lod==="close"?9:12)))},(_,seat)=><circle
       key={seat}
       cx={-length/2+7+seat*((length-14)/Math.max(1,Math.floor(length/12)-1))}
       cy={(seat+index)%2?2:-2}
       r="1.2"
       fill={(seat+index)%3===0?"#eab308":(seat+index)%3===1?"#dc2626":"#e5e7eb"}
       opacity=".8"
-    />)}
+    />):null}
   </g>;
 }
 
-function PitComplex({geometry,environment}){
+function PitComplex({geometry,environment,lod="overview"}){
   const pit=geometry?.pit_lane_points;
   if(!environment?.pit_complex||!Array.isArray(pit)||pit.length<2)return null;
   const middle=sampleOpenPolylinePoint(pit,.52);
@@ -76,15 +77,51 @@ function PitComplex({geometry,environment}){
     <rect x={-length/2+5} y={-depth/2+6} width={length} height={depth} fill="#111827" opacity=".28"/>
     <rect x={-length/2} y={-depth/2} width={length} height={depth} fill="#b8bcc0" stroke="#555b61" strokeWidth="1.4"/>
     <rect x={-length/2+4} y={-depth/2+4} width={length-8} height={depth*.34} fill="#d8dbde"/>
-    {Array.from({length:12},(_,garage)=>{
+    {lod!=="overview"?Array.from({length:12},(_,garage)=>{
       const bay=length/12;
       const x=-length/2+garage*bay;
       return <g key={garage}>
         <line x1={x} y1={-depth/2+depth*.34} x2={x} y2={depth/2} stroke="#747b82" strokeWidth=".8"/>
         <rect x={x+2.2} y={depth*.02} width={Math.max(2,bay-4.4)} height={depth*.36} fill={garage%2?"#30353a":"#3b4146"} opacity=".85"/>
       </g>;
-    })}
+    }):null}
     <line x1={-length/2} y1={-depth/2+depth*.34} x2={length/2} y2={-depth/2+depth*.34} stroke="#8f969c" strokeWidth="1"/>
+    {lod==="close"?<>
+      <rect x={-length/2} y={depth/2+5} width={length} height="2.2" fill="#d1d5db" opacity=".9"/>
+      {Array.from({length:12},(_,box)=>{
+        const bay=length/12;
+        const x=-length/2+box*bay+bay*.5;
+        return <path key={box} d={`M ${x-4} ${depth/2+2} H ${x+4} V ${depth/2+8} H ${x-4}`} fill="none" stroke="#f3f4f6" strokeWidth=".8" opacity=".75"/>;
+      })}
+    </>:null}
+  </g>;
+}
+
+function TracksideDetails({geometry,lod="overview"}){
+  if(lod==="overview")return null;
+  const marshalProgress=[.12,.29,.47,.66,.84,.94];
+  const tyreProgress=lod==="close"?[.18,.38,.58,.76,.9]:[.38,.76];
+  return <g pointerEvents="none">
+    {marshalProgress.map((progress,index)=>{
+      const point=sampleTrackPoint(geometry,progress);
+      const heading=trackHeadingDegrees(geometry,progress);
+      const side=index%2?1:-1;
+      const shifted=offsetFromHeading(point,heading,side*(lod==="close"?25:22));
+      if(!shifted)return null;
+      return <g key={"marshal-"+index} transform={`translate(${shifted.x} ${shifted.y}) rotate(${heading})`}>
+        <rect x="-3.5" y="-2.8" width="7" height="5.6" rx=".6" fill="#f59e0b" stroke="#4b5563" strokeWidth=".7"/>
+        {lod==="close"?<line x1="0" y1="-7" x2="0" y2="-2.8" stroke="#d1d5db" strokeWidth=".7"/>:null}
+      </g>;
+    })}
+    {tyreProgress.map((progress,index)=>{
+      const point=sampleTrackPoint(geometry,progress);
+      const heading=trackHeadingDegrees(geometry,progress);
+      const shifted=offsetFromHeading(point,heading,(index%2?1:-1)*18);
+      if(!shifted)return null;
+      return <g key={"tyres-"+index} transform={`translate(${shifted.x} ${shifted.y}) rotate(${heading})`} opacity=".9">
+        {Array.from({length:lod==="close"?5:3},(_,tyre)=><circle key={tyre} cx={(tyre-(lod==="close"?2:1))*3.2} cy="0" r="2.2" fill="#171717" stroke="#6b7280" strokeWidth=".45"/>)}
+      </g>;
+    })}
   </g>;
 }
 
@@ -108,8 +145,10 @@ function TrackSceneRenderer({
   style={},
   viewBox=[0,0,1000,1000],
   wetness=0,
+  lod="overview",
 }){
   const points=Array.isArray(geometry?.points)?geometry.points:[];
+  const lodRank=trackLodRank(lod);
   const roadWidth=Math.max(14,Number(style?.road_width||20));
   const halfWidth=roadWidth/2;
   const shoulder=useMemo(()=>trackRibbonPolygon(points,halfWidth+2.7),[points,halfWidth]);
@@ -146,6 +185,8 @@ function TrackSceneRenderer({
 
   const wet=Math.max(0,Math.min(1,Number(wetness)||0));
   const landmarks=environment?.render_landmarks!==false;
+  const visibleTreeCount=lodRank===0?Math.ceil(scatteredTrees.length*.5):lodRank===1?Math.ceil(scatteredTrees.length*.78):scatteredTrees.length;
+  const visibleTrees=scatteredTrees.slice(0,visibleTreeCount);
 
   return <g aria-hidden="true">
     <defs>
@@ -170,7 +211,7 @@ function TrackSceneRenderer({
     </defs>
 
     <rect x={vx} y={vy} width={vw} height={vh} fill="url(#f1track-ground)"/>
-    <rect x={vx} y={vy} width={vw} height={vh} fill="url(#f1track-ground-mottle)"/>
+    {lod!=="overview"?<rect x={vx} y={vy} width={vw} height={vh} fill="url(#f1track-ground-mottle)"/>:null}
 
     {landmarks?(environment?.roads||[]).map((road,index)=><g key={"road-"+index} pointerEvents="none">
       <polyline points={pointsAttr(road.points)} fill="none" stroke="#4d5052" strokeWidth={Number(road.width||12)} strokeLinecap="round" strokeLinejoin="round"/>
@@ -180,15 +221,15 @@ function TrackSceneRenderer({
     {landmarks?(environment?.sand||[]).map((zone,index)=><polygon key={"sand-"+index} points={pointsAttr(zone)} fill="#b8a461" stroke="#9f8b4f" strokeWidth="2"/>):null}
     {landmarks?(environment?.runoffs||[]).map((zone,index)=><polygon key={"runoff-"+index} points={pointsAttr(zone)} fill="#64925d" stroke="#7ca176" strokeWidth="1.5"/>):null}
 
-    {scatteredTrees.map((tree,index)=><TreeSprite key={index} tree={tree} index={index}/>)}
-    {grandstands.map((row)=><Grandstand key={row.index} {...row}/>)}
-    <PitComplex geometry={geometry} environment={environment}/>
+    {visibleTrees.map((tree,index)=><TreeSprite key={index} tree={tree} index={index}/>)}
+    {grandstands.map((row)=><Grandstand key={row.index} {...row} lod={lod}/>)}
+    <PitComplex geometry={geometry} environment={environment} lod={lod}/>
 
     {ribbon.length>2?<g pointerEvents="none">
       <polygon points={pointsAttr(trackRibbonPolygon(points,halfWidth+6.5))} fill="#394821" opacity=".55"/>
       <polygon points={pointsAttr(shoulder)} fill="#9ca3a8"/>
       <polygon points={pointsAttr(ribbon)} fill="url(#f1track-asphalt)"/>
-      <polygon points={pointsAttr(ribbon)} fill="url(#f1track-asphalt-grain)" opacity=".8"/>
+      {lod!=="overview"?<polygon points={pointsAttr(ribbon)} fill="url(#f1track-asphalt-grain)" opacity={lod==="close"?.92:.62}/>:null}
       {wet>0?<polygon points={pointsAttr(ribbon)} fill="#8fd5e3" opacity={wet*.08}/>:null}
       <polyline points={pointsAttr(closed(points))} fill="none" stroke="#e5e7eb" strokeWidth=".55" strokeDasharray="2 14" opacity=".12"/>
     </g>:null}
@@ -202,8 +243,8 @@ function TrackSceneRenderer({
 
     <g pointerEvents="none" opacity=".72">
       {[leftBarrier,rightBarrier].map((barrier,index)=><g key={index}>
-        <polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#374151" strokeWidth="2.6" strokeLinejoin="round"/>
-        <polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#d1d5db" strokeWidth=".8" strokeDasharray="5 5" strokeLinejoin="round"/>
+        <polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#374151" strokeWidth={lod==="overview"?2:2.6} strokeLinejoin="round"/>
+        {lod!=="overview"?<polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#d1d5db" strokeWidth=".8" strokeDasharray="5 5" strokeLinejoin="round"/>:null}
       </g>)}
     </g>
 
@@ -213,7 +254,8 @@ function TrackSceneRenderer({
       <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#e5e7eb" strokeWidth=".8" strokeDasharray="7 6" opacity=".7"/>
     </g>:null}
 
-    <GridMarkings geometry={geometry}/>
+    {lod!=="overview"?<GridMarkings geometry={geometry}/>:null}
+    <TracksideDetails geometry={geometry} lod={lod}/>
   </g>;
 }
 
