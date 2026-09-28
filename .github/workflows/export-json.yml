@@ -105,6 +105,9 @@ jobs:
       - name: Test driver simulation core
         run: npm run test:simulation
 
+      - name: Test Historical Team Strength principles
+        run: npm run test:team-strength
+
       - name: Test management systems
         run: npm run test:management
 
@@ -193,6 +196,9 @@ jobs:
 
       - name: Audit all-years driver rating coverage
         run: npm run audit:driver-ratings:all-years
+
+      - name: Audit Teams T3.2 Historical Team Strength
+        run: npm run audit:teams:historical-strength
 
       - name: Audit Teams 3.0 Results-first opening state
         run: npm run audit:teams:results-first

@@ -18,6 +18,7 @@ import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { inferDriverWorldEntries } from "../domain/driverWorldEntry.js";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../domain/driverFeederPlacement.js";
 import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
+import { materializeHistoricalTeamStrengths } from "../domain/teamHistoricalStrength.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -587,6 +588,14 @@ export function materializeSeasonPack(globalData,yearInput){
       team_name:pick(brandRec,["team_name","team_official_name","short_name"],pick(base,["team_name","name","short_name"],pick(seasonRec,["team_name"],id))),
     };
   });
+  const teamHistoricalStrength=materializeHistoricalTeamStrengths({
+    teamIds:[...teamIds],
+    year,
+    teamSeasons:g.teamSeasons||[],
+    driverHistory:g.driverHistory||[],
+    historicalChampionships:g.historicalChampionships||{drivers:[],constructors:[]},
+    lineageRows:g.teamLineageHistory||[],
+  });
   // Race-result participation and F1 career rows repair incomplete contract data.
   const seasonRows=seasonTeamRows;
   const f1Career=rowsAtYear(g.driverCareer,year)
@@ -823,6 +832,7 @@ export function materializeSeasonPack(globalData,yearInput){
       staffRatings,
       staffContracts,
       teamBrands,
+      teamHistoricalStrength,
       teamEngines,
       facilities,
       carStats,
@@ -860,6 +870,9 @@ export function validateSeasonPack(pack){
   if(year>=1980&&year<=1985&&pack?.ratingModel!=="R2B")issues.push("missing_r2b_driver_ratings");
 
   const teamIds=new Set((s.teams||[]).map(teamId).filter(Boolean));
+  const strengthIds=new Set((s.teamHistoricalStrength||[]).map(teamId).filter(Boolean));
+  const missingStrength=[...teamIds].filter((id)=>!strengthIds.has(id));
+  if(missingStrength.length)issues.push(`missing_team_historical_strength:${missingStrength.length}`);
   const driverIds=new Set((s.drivers||[]).map(driverId).filter(Boolean));
   const orphanContracts=(s.contracts||[]).filter((r)=>!teamIds.has(teamId(r))||!driverIds.has(driverId(r))).length;
   if(orphanContracts)issues.push(`orphan_driver_contracts:${orphanContracts}`);
@@ -909,6 +922,7 @@ export function validateSeasonPack(pack){
     counts:{
       calendar:(s.calendar||[]).length,
       teams:(s.teams||[]).length,
+      teamHistoricalStrength:(s.teamHistoricalStrength||[]).length,
       drivers:(s.drivers||[]).length,
       driverRatings:(s.driverRatings||[]).length,
       openingState:(s.driverOpeningState||[]).length,
