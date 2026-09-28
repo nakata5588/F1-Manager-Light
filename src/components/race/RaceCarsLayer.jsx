@@ -30,7 +30,7 @@ function visualPoint(geometry,state){
   return {x,y,heading};
 }
 
-function CarShape({color,secondary,label,selected,mine,retired,lod="overview"}){
+export function CarShape({color,secondary,label,selected,mine,retired,lod="overview"}){
   return <>
     {selected?<circle cx="0" cy="0" r="16" fill="none" stroke="#fff" strokeWidth="1.6" opacity=".38">
       <animate attributeName="r" values="13;17;13" dur="1.1s" repeatCount="indefinite"/>
