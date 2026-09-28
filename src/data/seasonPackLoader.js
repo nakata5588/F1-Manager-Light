@@ -1,5 +1,6 @@
 // src/data/seasonPackLoader.js
 import { hydrateDriverPortraitRows } from "../domain/driverPortraits.js";
+import { materializeSeasonPack } from "./seasonPackMaterializer.js";
 export class SeasonPackError extends Error {
   constructor(message, details = null) {
     super(message);
@@ -23,6 +24,60 @@ export function validateLoadedSeasonPack(pack, expectedYear) {
     throw new SeasonPackError(`Season ${year} is not structurally ready.`, pack.validation);
   }
   return pack;
+}
+
+
+
+export function seasonPackGlobalDataFromDatabaseState(state={}) {
+  return {
+    drivers:state.dbDrivers||[],
+    calendar:state.dbCalendar||[],
+    teams:state.dbTeams||[],
+    driverRatings:state.dbDriverRatings||[],
+    historicalRatingSnapshots:state.dbHistoricalRatingSnapshots||[],
+    driverRatingProfiles:state.dbDriverRatingProfiles||[],
+    driverYearStatus:state.dbDriverYearStatus||[],
+    driverOpeningState:state.dbDriverOpeningState||[],
+    driverDevelopmentHistory:state.dbDriverDevelopmentHistory||[],
+    driverAvailabilityHistory:state.dbDriverAvailabilityHistory||[],
+    driverTeamHistory:state.dbDriverTeamHistory||[],
+    teamEngineHistory:state.dbTeamEngineHistory||[],
+    carCompetitiveness:state.dbCarCompetitiveness||[],
+    driverCareer:state.dbDriverCareer||[],
+    driverHistory:state.dbDriverHistory||[],
+    staffRatings:state.dbStaffRatings||[],
+    staffCore:state.dbStaffCore||[],
+    teamBrands:state.dbTeamBrands||[],
+    teamEngines:state.dbTeamEngines||[],
+    contracts:state.dbContracts||[],
+    sponsorsContracts:state.dbSponsorsContracts||[],
+    rules:state.dbRules||[],
+    qualifyingRules:state.dbQualifyingRules||[],
+    qualifyingRuleOverrides:state.dbQualifyingRuleOverrides||[],
+    eraSafety:state.dbEraSafety||[],
+    accidentModel:state.dbAccidentModel||[],
+    facilities:state.dbFacilities||[],
+    carStats:state.dbCarStats||[],
+    staffContracts:state.dbStaffContracts||[],
+    tyres:state.dbTyres||[],
+    pointsSystems:state.dbPointsSystems||[],
+    penaltiesRules:state.dbPenaltiesRules||[],
+    financialRules:state.dbFinancialRules||[],
+    agendaBlocks:state.dbAgendaBlocks||[],
+    contractRules:state.dbContractRules||[],
+    youthIntakeRules:state.dbYouthIntakeRules||[],
+    scoutingZones:state.dbScoutingZones||[],
+    trackLayoutByYear:state.dbTrackLayoutByYear||[],
+    teamSeasons:state.dbTeamSeasons||[],
+    coreTracks:state.dbCoreTracks||[],
+  };
+}
+
+export function materializeSeasonPackFromDatabaseState(state,yearInput) {
+  const year=Number(yearInput);
+  if(!Number.isInteger(year))throw new SeasonPackError("Season year must be an integer.");
+  const pack=materializeSeasonPack(seasonPackGlobalDataFromDatabaseState(state),year);
+  return validateLoadedSeasonPack(pack,year);
 }
 
 export async function fetchSeasonIndex() {
