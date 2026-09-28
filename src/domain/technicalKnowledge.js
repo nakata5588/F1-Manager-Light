@@ -77,18 +77,6 @@ function facilitySnapshot(gs,teamId){
   };
 }
 
-function staffRating(gs,staffId){
-  const year=activeYearOf(gs);
-  const rows=(Array.isArray(gs?.staffRatings)&&gs.staffRatings.length
-    ?gs.staffRatings
-    :Array.isArray(gs?.dbStaffRatings)?gs.dbStaffRatings:[])
-    .filter((row)=>str(row?.staff_id??row?.id)===str(staffId));
-  return rows.find((row)=>Number(row?.year)===year)
-    ||rows.filter((row)=>Number(row?.year)<=year).sort((a,b)=>num(b?.year)-num(a?.year))[0]
-    ||rows[0]
-    ||{};
-}
-
 function technicalStaffQuality(gs,teamId){
   return teamStaffCapability(gs,teamId,"technical_program");
 }
