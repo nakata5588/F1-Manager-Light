@@ -32,7 +32,7 @@ import {
   warehousePartUnitsForDesign,
 } from "../domain/partUnits.js";
 import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
-import { staffCostEfficiencyMultiplier } from "../domain/staffPerformance.js";
+import { staffCostEfficiencyMultiplier, teamStaffCapability } from "../domain/staffPerformance.js";
 import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
 import { componentWearForRaceRow } from "../domain/componentWear.js";
 import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
@@ -357,15 +357,18 @@ function aiDevelopmentObjective(gs,teamId,state,need){
 function projectQuote(gs,teamId,state,need){
   const strength=engineeringStrength(gs,teamId);
   const moraleTime=teamWorkRateMultiplier(gs,teamId);
+  const technicalStaff=teamStaffCapability(gs,teamId,"technical_program");
+  const staffTime=clamp(1-(technicalStaff-50)*0.0016,0.92,1.08);
+  const staffOutput=clamp(1+(technicalStaff-50)*0.0016,0.92,1.08);
   const prior=completedDesignCount(state,need.slot);
   const incumbent=bestDesignStrength(state,need.slot);
   const headroom=Math.max(0,MAX_SLOT_DEVELOPMENT_STRENGTH-incumbent);
   const baseDays=Math.max(18,34-prior*2);
-  const days=Math.max(10,Math.round(baseDays*Math.max(0.72,1.16-strength*0.045)*moraleTime));
+  const days=Math.max(10,Math.round(baseDays*Math.max(0.72,1.16-strength*0.045)*moraleTime*staffTime));
   const cost=Math.round(
     ((145_000+strength*42_000+prior*55_000)*staffCostEfficiencyMultiplier(gs,teamId))/10_000
   )*10_000;
-  const rawIncrement=0.38+strength*0.072+Math.max(0,78-need.baseline)*0.014+Math.min(8,need.gap||0)*0.025;
+  const rawIncrement=(0.38+strength*0.072+Math.max(0,78-need.baseline)*0.014+Math.min(8,need.gap||0)*0.025)*staffOutput;
   const diminishing=Math.max(0.34,1-(incumbent/MAX_SLOT_DEVELOPMENT_STRENGTH)*0.62);
   const increment=Math.min(headroom,Math.max(0.12,rawIncrement*diminishing));
   const targetPerf=Math.min(MAX_SLOT_DEVELOPMENT_STRENGTH,incumbent+increment);
@@ -377,6 +380,7 @@ function projectQuote(gs,teamId,state,need){
     incumbent:Number(incumbent.toFixed(3)),
     headroom:Number(headroom.toFixed(3)),
     strength,
+    technical_staff:technicalStaff,
   };
 }
 function activeProjects(state){return (state?.development?.projects||[]).filter((p)=>p?.status==="active");}
