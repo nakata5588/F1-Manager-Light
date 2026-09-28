@@ -1622,6 +1622,7 @@ export default function RaceWeekend(){
               <Track2DView
                 trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
                 year={weekend?.year||gs?.activeYear}
+                round={weekend?.round??null}
                 rows={liveRows}
                 drivers={drivers}
                 teams={teams}

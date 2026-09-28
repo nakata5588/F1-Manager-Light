@@ -28,6 +28,8 @@ import RaceCarsLayer from "./RaceCarsLayer.jsx";
 import RaceCarsLayerV3 from "./RaceCarsLayerV3.jsx";
 import { buildClosedRacingLine } from "../../domain/raceSplineV3.js";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, authoritativeRaceWorldProgress, createVisualRaceTimeline, driverVisualMotionDurationMs, raceVisualSnapshotKey, visualPitLaneState, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
+import { raceCarDamageSummary } from "../../domain/raceCarVisual.js";
+import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -75,11 +77,24 @@ function brandForTeam(teamBrands,teamId,year){
   return past[0]||rows[0];
 }
 
-function markerPalette(teamBrands,teamId,year){
+function markerPalette(teamBrands,teamId,year,{round=null,driverNumber=null,driverName=""}={}){
   const brand=brandForTeam(teamBrands,teamId,year);
+  const historical=historicalRaceCarLivery({
+    year,
+    teamId,
+    teamName:brand?.team_name||brand?.team_official_name,
+    round,
+    driverNumber,
+    driverName,
+  });
   return {
-    primary:brand?.primary_color||"#94a3b8",
-    secondary:brand?.secondary_color||"#e2e8f0",
+    primary:historical?.primary||brand?.primary_color||"#94a3b8",
+    secondary:historical?.secondary||brand?.secondary_color||"#e2e8f0",
+    accent:historical?.accent||brand?.accent_color||brand?.secondary_color||"#e2e8f0",
+    shortName:brand?.short_name||null,
+    sponsor:historical?.sponsor||brand?.short_name||null,
+    liveryPattern:historical?.pattern||null,
+    historicalModel:historical?.model||null,
   };
 }
 function markerColor(teamBrands,teamId,year){
@@ -654,6 +669,7 @@ function TrackMiniMap({geometry,rows=[],teamBrands=[],year,currentControl="GREEN
 export default function Track2DView({
   trackId,
   year,
+  round=null,
   rows=[],
   drivers=[],
   teams=[],
@@ -782,6 +798,10 @@ export default function Track2DView({
   const resolvedSelectedId=String(selectedDriverId||"");
   const selectedIndex=activeRows.findIndex((row)=>String(row?.driver_id||"")===resolvedSelectedId);
   const selectedRow=selectedIndex>=0?activeRows[selectedIndex]:null;
+  const authoritativeSelectedRow=resolvedSelectedId
+    ?authoritativeRows.find((row)=>String(row?.driver_id||"")===resolvedSelectedId)||selectedRow
+    :selectedRow;
+  const selectedDamageSummary=raceCarDamageSummary(authoritativeSelectedRow?.damage_state||selectedRow?.damage_state);
   const selectedAheadGapRaw=selectedRow?.interval_ms??selectedRow?.gap_to_previous_ms;
   const selectedAheadGapMs=selectedRow&&!selectedRow?.retired&&selectedIndex>0&&selectedAheadGapRaw!=null&&Number.isFinite(Number(selectedAheadGapRaw))
     ?Number(selectedAheadGapRaw)
@@ -984,6 +1004,8 @@ export default function Track2DView({
     .flatMap(({row,index})=>{
       const did=String(row?.driver_id||"");
       const tid=String(row?.team_id||"");
+      const driver=driverObject(drivers,did);
+      const authoritativeRow=authoritativeRows.find((candidate)=>String(candidate?.driver_id||"")===did)||row;
       const selected=did===resolvedSelectedId;
       if(!retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl}))return [];
       const previousGap=Number(row?.interval_ms);
@@ -992,9 +1014,12 @@ export default function Track2DView({
         (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
         ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
       );
-      const palette=markerPalette(teamBrands,tid,year);
+      const driverNumber=authoritativeRow?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null;
+      const driverDisplayName=driverName(drivers,did);
+      const palette=markerPalette(teamBrands,tid,year,{round,driverNumber,driverName:driverDisplayName});
       return [{
         id:did||String(index),
+        raceOrder:Number(row?.position??index+1),
         progress:Number(row?.visual_track_progress)||0,
         pitLaneProgress:Number.isFinite(Number(row?.visual_pit_lane_progress))?Number(row.visual_pit_lane_progress):0,
         pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
@@ -1004,13 +1029,20 @@ export default function Track2DView({
           closeBattle,
           selected,
         }),
+        year,
         color:palette.primary,
         secondary:palette.secondary,
+        accent:palette.accent,
         label:shortDriverName(drivers,did),
+        driverNumber,
+        sponsorLabel:palette.sponsor,
+        liveryPattern:palette.liveryPattern,
+        historicalModel:palette.historicalModel,
+        damageState:authoritativeRow?.damage_state??row?.damage_state??null,
         mine:tid===String(playerTeamId||""),
         selected,
         retired:Boolean(row?.retired),
-        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        title:`P${row?.position??index+1} · ${driverDisplayName} · ${teamName(teams,tid)}`,
         onSelect:()=>selectDriver(did),
       }];
     });
@@ -1025,6 +1057,7 @@ export default function Track2DView({
     .flatMap(({row,index})=>{
       const did=String(row?.driver_id||"");
       const tid=String(row?.team_id||"");
+      const driver=driverObject(drivers,did);
       const selected=did===resolvedSelectedId;
       if(!retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl}))return [];
       const pit=visualPitLaneState(row,{
@@ -1047,10 +1080,13 @@ export default function Track2DView({
         (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
         ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
       );
-      const palette=markerPalette(teamBrands,tid,year);
+      const driverNumber=row?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null;
+      const driverDisplayName=driverName(drivers,did);
+      const palette=markerPalette(teamBrands,tid,year,{round,driverNumber,driverName:driverDisplayName});
       const visualSeed=Number(activeRowByDriver.get(did)?.visual_world_progress);
       return [{
         id:did||String(index),
+        raceOrder:Number(row?.position??index+1),
         initialWorldProgress:Number.isFinite(visualSeed)?visualSeed:targetWorldProgress,
         targetWorldProgress,
         motionDurationMs:driverVisualMotionDurationMs(row,{
@@ -1068,13 +1104,20 @@ export default function Track2DView({
           closeBattle,
           selected,
         }),
+        year,
         color:palette.primary,
         secondary:palette.secondary,
+        accent:palette.accent,
         label:shortDriverName(drivers,did),
+        driverNumber,
+        sponsorLabel:palette.sponsor,
+        liveryPattern:palette.liveryPattern,
+        historicalModel:palette.historicalModel,
+        damageState:row?.damage_state??null,
         mine:tid===String(playerTeamId||""),
         selected,
         retired:Boolean(row?.retired),
-        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        title:`P${row?.position??index+1} · ${driverDisplayName} · ${teamName(teams,tid)}`,
         onSelect:()=>selectDriver(did),
       }];
     });
@@ -1428,6 +1471,19 @@ export default function Track2DView({
             <div className="truncate text-[9px] font-bold text-slate-200">{driverName(drivers,selectedRow.driver_id)}</div>
             <div className="mt-0.5 flex justify-between text-[8px] text-slate-500"><span>P{selectedRow.position??"—"}</span><span>{selectedRow?.retired?"DNF":Number(selectedRow.position)===1?"LEAD":formatInterval(selectedRow?.gap_to_leader_ms)}</span></div>
             <div className="mt-1 flex items-center gap-1"><MiniTyreIcon compound={selectedRow?.tyre?.compound} size={15}/><span className="text-[8px] text-slate-400">{selectedRow?.tyre?.compound||"—"} · {Number.isFinite(Number(selectedRow?.tyre?.condition))?Number(selectedRow.tyre.condition).toFixed(0)+"%":"—"}</span></div>
+            <div className={`mt-1 rounded border px-1.5 py-1 ${selectedDamageSummary.damaged_components.length?"border-rose-400/20 bg-rose-500/[0.07]":"border-emerald-400/10 bg-emerald-500/[0.04]"}`}>
+              <div className="flex items-center justify-between gap-2 text-[7px] font-bold uppercase tracking-[0.10em]">
+                <span className="inline-flex items-center gap-1 text-slate-500"><Wrench className="h-2.5 w-2.5"/>Car damage</span>
+                <span className={selectedDamageSummary.damaged_components.length?"text-rose-300":"text-emerald-300"}>
+                  {selectedDamageSummary.damaged_components.length?`${selectedDamageSummary.overall_damage_pct.toFixed(0)}% · ${selectedDamageSummary.severity}`:"Clear"}
+                </span>
+              </div>
+              {selectedDamageSummary.damaged_components.length?<div className="mt-1 flex flex-wrap gap-1">
+                {selectedDamageSummary.damaged_components.slice(0,4).map((damage)=><span key={damage.component} className="rounded bg-black/25 px-1 py-0.5 text-[7px] text-slate-300">{damage.label} <strong className="text-rose-200">{damage.damage_pct.toFixed(0)}%</strong></span>)}
+                {selectedDamageSummary.damaged_components.length>4?<span className="rounded bg-black/25 px-1 py-0.5 text-[7px] text-slate-500">+{selectedDamageSummary.damaged_components.length-4}</span>:null}
+                {selectedDamageSummary.pace_loss_s_per_lap>0?<span className="rounded bg-black/25 px-1 py-0.5 text-[7px] font-bold text-amber-200">+{selectedDamageSummary.pace_loss_s_per_lap.toFixed(2)}s/lap</span>:null}
+              </div>:<div className="mt-0.5 text-[7px] text-slate-600">No current accident damage.</div>}
+            </div>
             <div className="mt-1 grid grid-cols-2 gap-1 border-t border-white/5 pt-1 text-[8px]">
               <div className="rounded bg-black/20 px-1.5 py-1"><span className="text-slate-600">Ahead</span><div className="font-mono font-bold text-sky-300">{selectedRow?.retired?"—":selectedIndex===0?"LEAD":Number.isFinite(selectedAheadGapMs)?formatInterval(selectedAheadGapMs):"—"}</div></div>
               <div className="rounded bg-black/20 px-1.5 py-1"><span className="text-slate-600">Behind</span><div className="font-mono font-bold text-slate-300">{selectedRow?.retired?"—":Number.isFinite(selectedBehindGapMs)?formatInterval(selectedBehindGapMs):"—"}</div></div>

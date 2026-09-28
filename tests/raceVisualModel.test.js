@@ -17,6 +17,20 @@ import {
   visualRaceTimelineFrame,
 } from "../src/domain/raceVisualModel.js";
 import { createLivePitState } from "../src/engine/LivePitStopEngine.js";
+import { normaliseRaceCarDamage, raceCarDamageSummary, raceCarEraForYear } from "../src/domain/raceCarVisual.js";
+import { raceCarOverlapMetric, resolveRaceCarPhysicalLayout } from "../src/domain/raceCarOccupancy.js";
+import { historicalRaceCarLiveriesForYear, historicalRaceCarLivery } from "../src/domain/raceCarLiveries.js";
+import {
+  RACE_CAR_ROUNDS_1980,
+  historicalRaceCarModel,
+  historicalRaceCarModelOverridesForYear,
+  historicalRaceCarModelTimelineForYear,
+} from "../src/domain/raceCarModels.js";
+import {
+  historicalRaceCarGeometry,
+  historicalRaceCarGeometryFamiliesForYear,
+  historicalRaceCarGeometryModelsForYear,
+} from "../src/domain/raceCarGeometry.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
   const fast={driver_id:"fast",sector_2_ms:29000};
@@ -425,4 +439,239 @@ test("RW6.7B live pit clock updates visual placement without restarting the sect
   const earlyApplied=applyVisualPitLaneState(frame,[early],VERIFIED_PIT_CONTEXT)[0];
   const lateApplied=applyVisualPitLaneState(frame,[late],VERIFIED_PIT_CONTEXT)[0];
   assert.ok(lateApplied.visual_pit_lane_progress>earlyApplied.visual_pit_lane_progress);
+});
+
+
+test("Cars Visuals 4.0A selects the 1980 ground-effect family for the target era",()=>{
+  assert.equal(raceCarEraForYear(1976),"generic");
+  assert.equal(raceCarEraForYear(1977),"ground_effect_1980");
+  assert.equal(raceCarEraForYear(1980),"ground_effect_1980");
+  assert.equal(raceCarEraForYear(1982),"ground_effect_1980");
+  assert.equal(raceCarEraForYear(1983),"generic");
+});
+
+test("Cars Visuals 4.0A maps authoritative race damage without changing race physics",()=>{
+  const damage={
+    components:{
+      front_wing:{damage_pct:72.4},
+      floor:{damage_pct:38},
+      suspension:{damage_pct:12.5},
+    },
+    overall_damage_pct:58.2,
+    severity:"moderate",
+    pace_loss_s_per_lap:0.842,
+    can_continue:true,
+  };
+  const values=normaliseRaceCarDamage(damage);
+  assert.equal(values.front_wing,72.4);
+  assert.equal(values.floor,38);
+  assert.equal(values.rear_wing,0);
+
+  const summary=raceCarDamageSummary(damage);
+  assert.equal(summary.overall_damage_pct,58.2);
+  assert.equal(summary.severity,"moderate");
+  assert.equal(summary.pace_loss_s_per_lap,0.842);
+  assert.deepEqual(
+    summary.damaged_components.map((row)=>row.component),
+    ["front_wing","floor","suspension"]
+  );
+});
+
+
+test("Cars 4.0B separates cars that would occupy the same Race View space",()=>{
+  const source=[
+    {id:"leader",raceOrder:1,point:{x:100,y:100,heading:0}},
+    {id:"trailer",raceOrder:2,point:{x:100,y:100,heading:0}},
+  ];
+  const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:1,lod:"overview"});
+  assert.equal(resolved.length,2);
+  assert.ok(raceCarOverlapMetric(resolved[0],resolved[1],{markerScale:1,lod:"overview"})>=0.99);
+  assert.notDeepEqual(resolved[0].point,resolved[1].point);
+});
+
+test("Cars 4.0B keeps the selected car anchored while resolving overlap around it",()=>{
+  const source=[
+    {id:"selected",raceOrder:2,selected:true,point:{x:40,y:50,heading:15}},
+    {id:"other",raceOrder:1,point:{x:40,y:50,heading:15}},
+  ];
+  const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:.5,lod:"close"});
+  const selected=resolved.find((row)=>row.id==="selected");
+  const other=resolved.find((row)=>row.id==="other");
+  assert.equal(selected.point.x,40);
+  assert.equal(selected.point.y,50);
+  assert.ok(raceCarOverlapMetric(selected,other,{markerScale:.5,lod:"close"})>=0.99);
+});
+
+test("Cars 4.0B does not move cars that are already physically separated",()=>{
+  const source=[
+    {id:"a",raceOrder:1,point:{x:0,y:0,heading:0}},
+    {id:"b",raceOrder:2,point:{x:80,y:0,heading:0}},
+  ];
+  const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:1,lod:"overview"});
+  assert.deepEqual(resolved.map((row)=>row.point),source.map((row)=>row.point));
+});
+
+
+test("Cars 4.0C provides distinct historical livery profiles for all 15 active 1980 teams",()=>{
+  const liveries=historicalRaceCarLiveriesForYear(1980);
+  assert.equal(liveries.length,15);
+  assert.equal(new Set(liveries.map((row)=>row.team_id)).size,15);
+  for(const row of liveries){
+    assert.match(row.primary,/^#[0-9A-F]{6}$/i);
+    assert.match(row.secondary,/^#[0-9A-F]{6}$/i);
+    assert.match(row.accent,/^#[0-9A-F]{6}$/i);
+    assert.ok(row.pattern);
+    assert.ok(row.sponsor);
+    assert.ok(row.model);
+  }
+});
+
+test("Cars 4.0C uses historically recognisable 1980 visual identities without changing other years",()=>{
+  const brabham=historicalRaceCarLivery({year:1980,teamId:"t_0003"});
+  const mclaren=historicalRaceCarLivery({year:1980,teamId:"t_0009"});
+  const lotus=historicalRaceCarLivery({year:1980,teamId:"t_0005"});
+  assert.equal(brabham.sponsor,"PARMALAT");
+  assert.equal(brabham.model,"BT49");
+  assert.equal(mclaren.pattern,"marlboro_chevron");
+  assert.equal(lotus.sponsor,"ESSEX");
+  assert.equal(historicalRaceCarLivery({year:1981,teamId:"t_0003"}),null);
+});
+
+
+test("Cars 4.1A maps the complete 14-round 1980 championship calendar",()=>{
+  assert.equal(RACE_CAR_ROUNDS_1980.length,14);
+  assert.deepEqual(
+    RACE_CAR_ROUNDS_1980.map((row)=>row.round),
+    Array.from({length:14},(_,index)=>index+1)
+  );
+  assert.equal(RACE_CAR_ROUNDS_1980[0].gp,"Argentina");
+  assert.equal(RACE_CAR_ROUNDS_1980.at(-1).gp,"USA");
+});
+
+test("Cars 4.1A resolves clean team-wide chassis changes by round",()=>{
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0006",round:2}).model,"009");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0006",round:3}).model,"010");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:7}).model,"F7");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:9}).model,"F8");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:2}).model,"D3");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:4}).model,"D4");
+});
+
+test("Cars 4.1A preserves mixed-chassis weekends with entry overrides",()=>{
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0001",round:1,driverName:"Alan Jones",driverNumber:27}).model,"FW07");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0001",round:1,driverName:"Carlos Reutemann",driverNumber:28}).model,"FW07B");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0005",round:10,driverName:"Nigel Mansell"}).model,"81B");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0005",round:10,driverName:"Mario Andretti"}).model,"81");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:8,driverName:"Emerson Fittipaldi"}).model,"F8");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:8,driverName:"Keke Rosberg"}).model,"F7");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0009",round:11,driverName:"Alain Prost"}).model,"M30");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0009",round:11,driverName:"John Watson"}).model,"M29");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:3,driverName:"Jan Lammers",driverNumber:9}).model,"D3");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:3,driverName:"Marc Surer",driverNumber:9}).model,"D4");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0015",round:5,driverName:"Geoff Lees"}).model,"DN12");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0015",round:5,driverName:"David Kennedy"}).model,"DN11");
+});
+
+test("Cars 4.1A keeps timeline data declarative and outside the renderer",()=>{
+  const timeline=historicalRaceCarModelTimelineForYear(1980);
+  const overrides=historicalRaceCarModelOverridesForYear(1980);
+  assert.equal(new Set(timeline.map((row)=>row.team_id)).size,15);
+  assert.ok(timeline.some((row)=>row.team_id==="t_0006"&&row.model==="010"&&row.from_round===3));
+  assert.ok(overrides.some((row)=>row.team_id==="t_0009"&&row.model==="M30"));
+  assert.equal(historicalRaceCarModel({year:1981,teamId:"t_0001",round:1}),null);
+});
+
+test("Cars 4.1A feeds the round-specific model into the existing 1980 livery profile",()=>{
+  assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0006",round:2}).model,"009");
+  assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0006",round:3}).model,"010");
+  assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0009",round:11,driverName:"Alain Prost"}).model,"M30");
+});
+
+
+test("Cars 4.1B defines seven reusable 1980 geometry families",()=>{
+  const families=historicalRaceCarGeometryFamiliesForYear(1980);
+  assert.equal(families.length,7);
+  assert.equal(new Set(families.map((row)=>row.geometry_family)).size,7);
+  assert.deepEqual(
+    new Set(families.map((row)=>row.geometry_family)),
+    new Set([
+      "classic_wedge",
+      "narrow_wedge",
+      "long_venturi",
+      "turbo_long",
+      "wide_lowbody",
+      "compact_transition",
+      "late_ground_effect",
+    ])
+  );
+});
+
+test("Cars 4.1B maps every historical 1980 model used by the game to geometry",()=>{
+  const rows=historicalRaceCarGeometryModelsForYear(1980);
+  assert.equal(rows.length,22);
+  assert.equal(new Set(rows.map((row)=>row.model)).size,22);
+  for(const row of rows){
+    assert.ok(row.geometry_family);
+    assert.ok(Number.isFinite(row.noseTipX));
+    assert.ok(Number.isFinite(row.frontAxleX));
+    assert.ok(Number.isFinite(row.rearAxleX));
+    assert.ok(row.frontAxleX>row.rearAxleX);
+  }
+});
+
+test("Cars 4.1B gives representative 1980 chassis recognisably different silhouettes",()=>{
+  const fw=historicalRaceCarGeometry({year:1980,model:"FW07B"});
+  const bt=historicalRaceCarGeometry({year:1980,model:"BT49"});
+  const lotus=historicalRaceCarGeometry({year:1980,model:"81"});
+  const renault=historicalRaceCarGeometry({year:1980,model:"RE20"});
+  const ferrari=historicalRaceCarGeometry({year:1980,model:"312T5"});
+  const tyrrell=historicalRaceCarGeometry({year:1980,model:"010"});
+  const mclaren=historicalRaceCarGeometry({year:1980,model:"M30"});
+
+  assert.equal(fw.geometry_family,"classic_wedge");
+  assert.equal(bt.geometry_family,"narrow_wedge");
+  assert.equal(lotus.geometry_family,"long_venturi");
+  assert.equal(renault.geometry_family,"turbo_long");
+  assert.equal(ferrari.geometry_family,"wide_lowbody");
+  assert.equal(tyrrell.geometry_family,"compact_transition");
+  assert.equal(mclaren.geometry_family,"late_ground_effect");
+
+  assert.ok((renault.frontAxleX-renault.rearAxleX)>(fw.frontAxleX-fw.rearAxleX));
+  assert.ok(ferrari.sidepodRearHalfWidth>tyrrell.sidepodRearHalfWidth);
+  assert.ok(ferrari.frontWingHalfWidth>bt.frontWingHalfWidth);
+  assert.notEqual(fw.sidepodRearHalfWidth,bt.sidepodRearHalfWidth);
+});
+
+test("Cars 4.1B distinguishes chassis revisions without duplicating renderers",()=>{
+  const fw07=historicalRaceCarGeometry({year:1980,model:"FW07"});
+  const fw07b=historicalRaceCarGeometry({year:1980,model:"FW07B"});
+  const lotus81=historicalRaceCarGeometry({year:1980,model:"81"});
+  const lotus81b=historicalRaceCarGeometry({year:1980,model:"81B"});
+  const m29=historicalRaceCarGeometry({year:1980,model:"M29"});
+  const m30=historicalRaceCarGeometry({year:1980,model:"M30"});
+
+  assert.equal(fw07.geometry_family,fw07b.geometry_family);
+  assert.notEqual(fw07.sidepodRearHalfWidth,fw07b.sidepodRearHalfWidth);
+  assert.equal(lotus81.geometry_family,lotus81b.geometry_family);
+  assert.notEqual(lotus81.frontWingHalfWidth,lotus81b.frontWingHalfWidth);
+  assert.notEqual(m29.geometry_family,m30.geometry_family);
+});
+
+test("Cars 4.1B keeps geometry inside the current Race View visual envelope",()=>{
+  for(const row of historicalRaceCarGeometryModelsForYear(1980)){
+    assert.ok(row.noseTipX<=20.6);
+    assert.ok(row.rearWingX>=-19.6);
+    assert.ok(row.frontWingHalfWidth<=10.05);
+    assert.ok(row.rearWingHalfWidth<=10.1);
+    assert.ok(row.sidepodRearHalfWidth<=6.5);
+    assert.ok(row.frontTrackY<=8.65);
+    assert.ok(row.rearTrackY<=8.2);
+  }
+});
+
+test("Cars 4.1B resolves combined season labels safely and leaves other years untouched",()=>{
+  assert.equal(historicalRaceCarGeometry({year:1980,model:"FW07/FW07B"}).model,"FW07B");
+  assert.equal(historicalRaceCarGeometry({year:1980,model:"81/81B"}).model,"81");
+  assert.equal(historicalRaceCarGeometry({year:1980,model:"M29/M30"}).model,"M29");
+  assert.equal(historicalRaceCarGeometry({year:1981,model:"FW07B"}),null);
 });
