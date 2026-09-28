@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { deterministicTrackScatter, offsetTrackPolyline, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
+import { clampTrackViewBox, panTrackViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -251,4 +253,42 @@ test("Track 2.0 keeps functional, race-view and mini-map geometries separate",()
   assert.equal(minimap.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
   assert.notDeepEqual(presentation.points[0],resolved.geometry.points[0],"race-view transform must not mutate functional geometry");
   assert.notDeepEqual(minimap.points[0],resolved.geometry.points[0],"mini-map must remain an independent presentation");
+});
+
+
+test("Track 2.1 generated ribbon keeps both edges around the centreline",()=>{
+  const geometry={points:[[0,0],[100,0],[100,100],[0,100]]};
+  const left=offsetTrackPolyline(geometry,10);
+  const right=offsetTrackPolyline(geometry,-10);
+  const ribbon=trackRibbonPolygon(geometry,10);
+  assert.equal(left.length,4);
+  assert.equal(right.length,4);
+  assert.equal(ribbon.length,8);
+  assert.ok(left.every((point)=>point.every(Number.isFinite)));
+  assert.ok(right.every((point)=>point.every(Number.isFinite)));
+});
+
+test("Track 2.1 heading follows circuit direction",()=>{
+  const geometry={points:[[0,0],[100,0],[100,100],[0,100]]};
+  const heading=trackHeadingDegrees(geometry,.125);
+  assert.ok(Math.abs(heading)<3,"first straight should point right");
+  const second=trackHeadingDegrees(geometry,.375);
+  assert.ok(second>80&&second<100,"second straight should point down");
+});
+
+test("Track 2.1 deterministic scenery scatter is stable and avoids the track",()=>{
+  const geometry={points:[[100,100],[900,100],[900,500],[100,500]]};
+  const a=deterministicTrackScatter({bounds:[0,0,1000,600],geometry,count:24,seed:"argentina",minTrackDistance:45});
+  const b=deterministicTrackScatter({bounds:[0,0,1000,600],geometry,count:24,seed:"argentina",minTrackDistance:45});
+  assert.deepEqual(a,b);
+  assert.equal(a.length,24);
+});
+
+test("Track 2.1 free camera zoom anchors at cursor and stays inside bounds",()=>{
+  const bounds=[0,0,1000,600];
+  const zoomed=zoomTrackViewBox(bounds,bounds,{x:800,y:300,factor:.5,minWidth:100,minHeight:60});
+  assert.deepEqual(zoomed,[400,150,500,300]);
+  const panned=panTrackViewBox(zoomed,bounds,500,500);
+  assert.deepEqual(panned,[500,300,500,300]);
+  assert.deepEqual(clampTrackViewBox([-50,-50,1200,800],bounds),bounds);
 });
