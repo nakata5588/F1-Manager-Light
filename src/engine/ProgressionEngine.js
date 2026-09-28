@@ -24,6 +24,7 @@ import {
 } from "../domain/driverLifecycle.js";
 import { advancePitCrewTrainingDay } from "../domain/pitCrewTraining.js";
 import { advanceTechnicalResearch } from "../domain/technicalResearch.js";
+import { staffPitTrainingMultiplier, teamStaffCapability } from "../domain/staffPerformance.js";
 
 function clamp(n,a=0,b=100){return Math.max(a,Math.min(b,Number(n)||0));}
 function today(gs){return String(gs?.currentDateISO||"").slice(0,10);}
@@ -82,7 +83,8 @@ function applyPitCrewTraining(gs,dateISO){
     pitCrews[teamId]=advancePitCrewTrainingDay(
       raw||{},
       pitCrewFacilityLevel(gs,teamId),
-      dateISO
+      dateISO,
+      staffPitTrainingMultiplier(gs,teamId)
     );
     changed=true;
   }
@@ -183,6 +185,9 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
     const sim=simulatorLevel(gs,teamId);
     const curve=ageCurve(age);
     const facilityFactor=0.80+Math.max(0,Math.min(10,sim))*0.035;
+    const staffDevelopmentFactor=teamId
+      ?clamp(0.90+teamStaffCapability(gs,teamId,"driver_development")*0.002,0.90,1.10)
+      :1;
 
     if(curve>=0){
       const potentialFactor=Math.max(0.15,Math.min(1.35,gap/12||0.15));
@@ -223,7 +228,7 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
       }
       developmentSource=developmentGroup?`development_focus_${developmentGroup}`:null;
       const attendance=Math.max(0,Math.min(1,developmentTrainingDays/18));
-      developmentGain=0.44*attendance*(0.90+Math.max(0,Math.min(10,sim))*0.02)*(age<=32?1:0.60);
+      developmentGain=0.44*attendance*(0.90+Math.max(0,Math.min(10,sim))*0.02)*(age<=32?1:0.60)*staffDevelopmentFactor;
     }else if(teamId){
       const available=driverAttributeGroups()
         .map((group)=>({key:group.key,score:driverAttributeGroupScore(rating,group.key)}))
@@ -231,7 +236,7 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
         .sort((a,b)=>Number(a.score)-Number(b.score)||a.key.localeCompare(b.key));
       developmentGroup=available[0]?.key||null;
       developmentSource=developmentGroup?`ai_development_${developmentGroup}`:null;
-      developmentGain=0.24*(0.90+Math.max(0,Math.min(10,sim))*0.02)*(age<=32?1:0.55);
+      developmentGain=0.24*(0.90+Math.max(0,Math.min(10,sim))*0.02)*(age<=32?1:0.55)*staffDevelopmentFactor;
     }
 
     if(developmentGroup&&developmentGain>0){
@@ -248,9 +253,13 @@ function monthlyProgression(gs,ratings,dateISO,{trainingLedger={}}={}){
       const deltas=academyProgramDefinition(plan).deltas;
       const youthLevel=youthProgrammeLevel(gs);
       const formal=String(academyEntry.mode||"").toLowerCase()==="academy";
-      const supportFactor=formal
+      const academyStaffFactor=clamp(
+        0.90+teamStaffCapability(gs,userTeamId,"driver_development")*0.002,
+        0.90,1.10
+      );
+      const supportFactor=(formal
         ?Math.max(0.85,Math.min(1.35,0.90+youthLevel*0.045))
-        :0.68;
+        :0.68)*academyStaffFactor;
       const ageFactor=age<=22?1:age<=25?0.75:0.45;
       for(const [key,delta] of Object.entries(deltas)){
         applyDelta(rating,key,delta*supportFactor*ageFactor,changes,did,dateISO,"academy_"+plan.toLowerCase().replaceAll(" ","_"));
