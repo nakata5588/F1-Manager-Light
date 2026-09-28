@@ -619,7 +619,7 @@ function TrackMiniMap({geometry,rows=[],teamBrands=[],year,currentControl="GREEN
   if(!geometry||!Array.isArray(geometry?.points)||geometry.points.length<2)return null;
   const viewBox=trackGeometryViewBox(geometry,{paddingRatio:.08,minPadding:24});
   const closed=[...geometry.points,geometry.points[0]];
-  return <div className="pointer-events-none absolute right-3 top-3 z-20 w-[190px] rounded-lg border border-white/15 bg-[#05080d]/90 p-2 shadow-xl backdrop-blur-md 2xl:w-[220px]">
+  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[190px] rounded-lg border border-white/15 bg-[#05080d]/90 p-2 shadow-xl backdrop-blur-md 2xl:w-[220px]">
     <div className="mb-1 flex items-center justify-between text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">
       <span>Mini Map</span><span className={String(currentControl).includes("YELLOW")?"text-amber-300":"text-emerald-300"}>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
     </div>
