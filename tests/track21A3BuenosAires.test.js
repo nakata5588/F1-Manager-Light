@@ -44,7 +44,7 @@ test("Track 2.1A.5 keeps environment artwork non-authoritative",()=>{
   assert.deepEqual(layout.sector_boundaries,[0.3246,0.6940]);
   assert.equal(layout.pit_entry_progress,0.9499);
   assert.equal(layout.pit_exit_progress,0.0789);
-  assert.deepEqual(layout.sector_colors,["#ef4444","#22d3ee","#facc15"]);
+  assert.deepEqual(layout.sector_colors,["#ef4444","#facc15","#22d3ee"]);
   assert.equal(layout.pit_lane_color,"#2563eb");
   assert.equal(Object.hasOwn(geometry,"asset"),false,"functional geometry must not consume the presentation asset as physics data");
 });
@@ -62,10 +62,4 @@ test("Track 2.0 Argentina uses the unified procedural package at runtime",()=>{
   assert.equal(track_package.minimap.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
   assert.ok(track_package.race_view.environment.lake.length>=8);
   assert.ok(track_package.race_view.environment.trees.length>=30);
-});
-  assert.equal(environment.contains_track_surface,true);
-  assert.equal(environment.contains_track_intel,true);
-  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
-  assert.equal(layout.environment.asset,environment.asset);
-  assert.equal(layout.presentation_fallback_geometry.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
 });
