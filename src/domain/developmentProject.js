@@ -5,6 +5,7 @@
 import { carComponentDefinition } from "./carComponents.js";
 import { componentDevelopmentRule } from "./developmentRegulations.js";
 import { componentTechnicalBaseline, derivePartTechnicalProfile } from "./carPartPerformance.js";
+import { staffCostEfficiencyMultiplier } from "./staffPerformance.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -255,7 +256,7 @@ export function realizeDevelopmentProjection(project){
 export function objectiveProjectModifiers(gs,slot,objectiveId,teamId=null){
   const objective=developmentObjective(gs,slot,objectiveId,teamId)||OBJECTIVES.balanced;
   return {
-    cost_multiplier:num(objective.cost,1),
+    cost_multiplier:num(objective.cost,1)*staffCostEfficiencyMultiplier(gs,teamId),
     duration_multiplier:num(objective.duration,1),
     risk_multiplier:num(objective.risk,1),
   };
