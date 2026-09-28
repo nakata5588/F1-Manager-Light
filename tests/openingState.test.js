@@ -374,3 +374,52 @@ test("runtime Season Pack fallback reuses the Results-first opening grid",()=>{
     "runtime fallback must use the same Round 1 relationship seed as generated Season Packs"
   );
 });
+
+
+test("a Team absent from Round 1 may use its first competitive appearance in Round 2",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[];
+  data.teamSeasons=[{
+    year:1980,
+    team_id:"T1",
+    team_name:"Canonical Team",
+    driver_ids:[],
+    first_race_driver_candidates:[],
+    first_team_appearance_round:2,
+    first_team_appearance_driver_candidates:[
+      {driver_id:"D1",first_round:2,first_source_index:10,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"],source:"race_results_first_team_appearance"},
+      {driver_id:"D2",first_round:2,first_source_index:11,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"],source:"race_results_first_team_appearance"},
+    ],
+  }];
+
+  const pack=materializeSeasonPack(data,1980);
+  const raceContracts=pack.state.contracts.filter((row)=>/main|second|race/i.test(String(row.role||"")));
+  assert.equal(raceContracts.length,2);
+  assert.ok(raceContracts.every((row)=>row.source==="first_team_appearance_seed"));
+  assert.ok(raceContracts.every((row)=>Number(row.source_round)===2));
+  assert.ok(raceContracts.every((row)=>row.historical_evidence==="race_results_first_team_appearance"));
+});
+
+test("first Team appearance after Round 2 does not create January race seats",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[];
+  data.teamSeasons=[{
+    year:1980,
+    team_id:"T1",
+    team_name:"Canonical Team",
+    driver_ids:[],
+    first_race_driver_candidates:[],
+    first_team_appearance_round:3,
+    first_team_appearance_driver_candidates:[
+      {driver_id:"D1",first_round:3,first_source_index:20,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"],source:"race_results_first_team_appearance"},
+      {driver_id:"D2",first_round:3,first_source_index:21,exact_entrant:false,confidence:["MEDIUM"],relation_basis:["historical_result_resolver"],source:"race_results_first_team_appearance"},
+    ],
+  }];
+
+  const pack=materializeSeasonPack(data,1980);
+  const raceContracts=pack.state.contracts.filter((row)=>/main|second|race/i.test(String(row.role||"")));
+  assert.equal(raceContracts.length,0);
+  assert.equal(pack.state.contracts.some((row)=>row.source==="first_team_appearance_seed"),false);
+});
