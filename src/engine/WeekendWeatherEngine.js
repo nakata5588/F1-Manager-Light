@@ -8,7 +8,6 @@ import { teamStaffCapability } from "../domain/staffPerformance.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
-const staffId=(r)=>String(r?.staff_id??r?.person_id??r?.id??"");
 const teamId=(r)=>String(r?.team_id??r?.team??r?.constructor_id??"");
 const lower=(v)=>String(v??"").toLowerCase();
 
