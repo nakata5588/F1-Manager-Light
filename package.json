@@ -62,7 +62,8 @@
     "test:world-placement:real": "node --test tests/driverFeederPlacement.real.test.js",
     "test:starting-ratings": "node --test tests/driverStartingRating.test.js",
     "test:starting-ratings:real": "node --test tests/driverStartingRating.real.test.js",
-    "audit:teams:results-first": "node scripts/audit-team-results-first.mjs"
+    "audit:teams:results-first": "node scripts/audit-team-results-first.mjs",
+    "audit:teams:identity": "node scripts/audit-team-identity-coverage.mjs"
   },
   "keywords": [
     "f1",
