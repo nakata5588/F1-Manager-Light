@@ -104,6 +104,28 @@ if(p2009?.state){
   }
 }
 
+
+// Modern rebrands/acquisitions must preserve verified organisational structure
+// without reviving disconnected historical incarnations of the same name.
+const p2024=await readJson(path.join(seasonsDir,"2024","season.json"),null);
+if(p2024?.state){
+  const byId=new Map((p2024.state.teamHistoricalStrength||[]).map((row)=>[idOf(row),row]));
+  for(const [id,required] of [
+    ["t_0117",["t_0209","t_0021"]],
+    ["t_0211",["t_0004","t_0032"]],
+    ["t_0212",["t_0210","t_0017","t_0029"]],
+  ]){
+    const row=byId.get(id);
+    if(!row){
+      problems.push({year:2024,team_id:id,issue:"missing_lineage_strength"});
+      continue;
+    }
+    const inherited=new Set(row.inherited_team_ids||[]);
+    const missing=required.filter((value)=>!inherited.has(value));
+    if(missing.length)problems.push({year:2024,team_id:id,issue:"missing_verified_predecessors",missing});
+  }
+}
+
 console.log("\nT3.2 — Historical Team Strength Audit");
 console.log(JSON.stringify({
   seasons:years.length,
