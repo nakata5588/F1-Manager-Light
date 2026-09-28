@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:refresh": "npm run season:generate && vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "build:data": "node scripts/convert-excel.mjs",
@@ -12,7 +13,6 @@
     "check": "npm run test:career && npm run test:entities && npm run test:drivers && npm run test:talent-evidence && npm run test:talent-profiles && npm run test:world-entry && npm run test:world-placement && npm run test:starting-ratings && npm run test:driver-integration && npm run test:simulation && npm run test:team-strength && npm run test:management && npm run test:manager && npm run test:management-events && npm run test:management-depth && npm run test:development && npm run test:development-regulations && npm run test:technical-department && npm run test:ai-technical && npm run test:technology-adoption && npm run test:ai-technical-soak && npm run test:save-safety && npm run test:race-entry && npm run test:race-weekend && npm run test:race-strategy && npm run test:live-race && npm run test:race-parity && npm run test:track-layout && npm run test:race-control && npm run test:weekend-weather && npm run test:injuries && npm run test:health && npm run test:replacements && npm run test:ai-reserves && npm run test:negotiations && npm run test:roles && npm run test:opening-state && npm run test:season-packs && npm run audit:driver-ratings:all-years && npm run test:talent-evidence:real && npm run test:talent-profiles:real && npm run test:world-entry:real && npm run test:world-placement:real && npm run test:starting-ratings:real && npm run validate:data && npm run build && npm run audit:teams:results-first && npm run audit:teams:historical-strength",
     "dev:all": "npm-run-all -p dev watch:data",
     "watch:data": "chokidar \"data/**/*.xlsx\" -c \"npm run season:generate\"",
-    "predev": "npm run season:generate",
     "prebuild": "npm run season:generate",
     "test:career": "node --test tests/careerBoundary.test.js",
     "season:generate": "npm run build:data && node scripts/build-team-constructor-bridge.mjs && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-historical-championships.mjs && node scripts/build-race-results-archive.mjs && node scripts/build-season-packs.mjs && node scripts/build-historical-assets.mjs",
