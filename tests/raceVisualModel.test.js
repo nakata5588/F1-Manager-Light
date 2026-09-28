@@ -18,6 +18,7 @@ import {
 } from "../src/domain/raceVisualModel.js";
 import { createLivePitState } from "../src/engine/LivePitStopEngine.js";
 import { normaliseRaceCarDamage, raceCarDamageSummary, raceCarEraForYear } from "../src/domain/raceCarVisual.js";
+import { raceCarOverlapMetric, resolveRaceCarPhysicalLayout } from "../src/domain/raceCarOccupancy.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
   const fast={driver_id:"fast",sector_2_ms:29000};
@@ -462,4 +463,38 @@ test("Cars Visuals 4.0A maps authoritative race damage without changing race phy
     summary.damaged_components.map((row)=>row.component),
     ["front_wing","floor","suspension"]
   );
+});
+
+
+test("Cars 4.0B separates cars that would occupy the same Race View space",()=>{
+  const source=[
+    {id:"leader",raceOrder:1,point:{x:100,y:100,heading:0}},
+    {id:"trailer",raceOrder:2,point:{x:100,y:100,heading:0}},
+  ];
+  const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:1,lod:"overview"});
+  assert.equal(resolved.length,2);
+  assert.ok(raceCarOverlapMetric(resolved[0],resolved[1],{markerScale:1,lod:"overview"})>=0.99);
+  assert.notDeepEqual(resolved[0].point,resolved[1].point);
+});
+
+test("Cars 4.0B keeps the selected car anchored while resolving overlap around it",()=>{
+  const source=[
+    {id:"selected",raceOrder:2,selected:true,point:{x:40,y:50,heading:15}},
+    {id:"other",raceOrder:1,point:{x:40,y:50,heading:15}},
+  ];
+  const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:.5,lod:"close"});
+  const selected=resolved.find((row)=>row.id==="selected");
+  const other=resolved.find((row)=>row.id==="other");
+  assert.equal(selected.point.x,40);
+  assert.equal(selected.point.y,50);
+  assert.ok(raceCarOverlapMetric(selected,other,{markerScale:.5,lod:"close"})>=0.99);
+});
+
+test("Cars 4.0B does not move cars that are already physically separated",()=>{
+  const source=[
+    {id:"a",raceOrder:1,point:{x:0,y:0,heading:0}},
+    {id:"b",raceOrder:2,point:{x:80,y:0,heading:0}},
+  ];
+  const resolved=resolveRaceCarPhysicalLayout(source,{markerScale:1,lod:"overview"});
+  assert.deepEqual(resolved.map((row)=>row.point),source.map((row)=>row.point));
 });
