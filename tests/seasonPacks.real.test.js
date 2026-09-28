@@ -109,16 +109,47 @@ test("derived F1 history covers the sparse manual-career eras",async()=>{
 });
 
 
-test("1980 Shadow keeps test drivers separate from its two race seats",async()=>{
+test("1980 Shadow uses Round 1 evidence to repair incomplete race-seat metadata",async()=>{
   const pack=await readPack(1980);
   const shadow=(pack.state.teams||[]).find((t)=>String(t.team_name||t.name)==="Shadow");
   assert.ok(shadow,"1980 Shadow must exist");
+
+  const teamSeasons=JSON.parse(
+    await fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8")
+  );
+  const shadowSeason=teamSeasons.find((row)=>
+    Number(row.year)===1980&&String(row.team_id)===String(shadow.team_id)
+  );
+  assert.ok(shadowSeason,"1980 Shadow Results-derived team-season row must exist");
+
+  const acceptedRoundOne=new Set(
+    (Array.isArray(shadowSeason.first_race_driver_candidates)?shadowSeason.first_race_driver_candidates:[])
+      .filter((row)=>{
+        if(Number(row.first_round)!==1)return false;
+        if(row.exact_entrant===true)return true;
+        const levels=Array.isArray(row.confidence)?row.confidence:[row.confidence];
+        return levels.some((value)=>["HIGH","MEDIUM"].includes(String(value||"").toUpperCase()));
+      })
+      .map((row)=>String(row.driver_id))
+  );
+
   const contracts=(pack.state.contracts||[]).filter((c)=>String(c.team_id)===String(shadow.team_id));
   const raceSeats=contracts.filter(isRaceDriverContract);
-  const testDrivers=contracts.filter((c)=>/test|reserve/i.test(String(c.role||"")));
-  assert.equal(raceSeats.length,1,"Shadow must preserve its single known Jan-1 race seat instead of inventing a second signing");
-  assert.ok(testDrivers.length>=1,"Shadow test-driver contract should remain available without occupying a race seat");
-  assert.equal(raceSeats.some((c)=>String(c.driver_id)==="d_0862"),false,"David Kennedy test_driver must not be treated as a race seat");
+  assert.equal(raceSeats.length,2,"Round 1 evidence should fill Shadow's missing opening race seat");
+
+  const seeded=raceSeats.filter((row)=>String(row.source||"")==="first_race_seed");
+  assert.ok(seeded.length>=1,"Shadow should expose the repaired seat as an explicit first_race_seed");
+  assert.ok(
+    seeded.every((row)=>acceptedRoundOne.has(String(row.driver_id))),
+    "Shadow fallback seats must be supported by accepted Round 1 Results evidence"
+  );
+
+  const kennedyWasRoundOneEvidence=acceptedRoundOne.has("d_0862");
+  assert.equal(
+    raceSeats.some((row)=>String(row.driver_id)==="d_0862"),
+    kennedyWasRoundOneEvidence,
+    "stale test-driver metadata may be upgraded only when Round 1 Results prove the race relationship"
+  );
 });
 
 
