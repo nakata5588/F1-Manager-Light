@@ -1,0 +1,236 @@
+[
+  {
+    "predecessor_team_id": "t_0028",
+    "successor_team_id": "t_0024",
+    "effective_from_year": 2006,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Aston Martin roots"
+  },
+  {
+    "predecessor_team_id": "t_0024",
+    "successor_team_id": "t_0023",
+    "effective_from_year": 2007,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Aston Martin roots"
+  },
+  {
+    "predecessor_team_id": "t_0023",
+    "successor_team_id": "t_0021",
+    "effective_from_year": 2008,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Aston Martin roots"
+  },
+  {
+    "predecessor_team_id": "t_0021",
+    "successor_team_id": "t_0209",
+    "effective_from_year": 2019,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Aston Martin history"
+  },
+  {
+    "predecessor_team_id": "t_0209",
+    "successor_team_id": "t_0117",
+    "effective_from_year": 2021,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Aston Martin history"
+  },
+  {
+    "predecessor_team_id": "t_0034",
+    "successor_team_id": "t_0030",
+    "effective_from_year": 2000,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Red Bull roots"
+  },
+  {
+    "predecessor_team_id": "t_0030",
+    "successor_team_id": "t_0020",
+    "effective_from_year": 2005,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Red Bull roots"
+  },
+  {
+    "predecessor_team_id": "t_0006",
+    "successor_team_id": "t_0027",
+    "effective_from_year": 1999,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Mercedes roots"
+  },
+  {
+    "predecessor_team_id": "t_0027",
+    "successor_team_id": "t_0022",
+    "effective_from_year": 2006,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Mercedes roots"
+  },
+  {
+    "predecessor_team_id": "t_0022",
+    "successor_team_id": "t_0033",
+    "effective_from_year": 2009,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Mercedes history"
+  },
+  {
+    "predecessor_team_id": "t_0033",
+    "successor_team_id": "t_0131",
+    "effective_from_year": 2010,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Mercedes history"
+  },
+  {
+    "predecessor_team_id": "t_0029",
+    "successor_team_id": "t_0017",
+    "effective_from_year": 2006,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Racing Bulls roots"
+  },
+  {
+    "predecessor_team_id": "t_0017",
+    "successor_team_id": "t_0210",
+    "effective_from_year": 2020,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Racing Bulls roots"
+  },
+  {
+    "predecessor_team_id": "t_0210",
+    "successor_team_id": "t_0212",
+    "effective_from_year": 2024,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Racing Bulls roots"
+  },
+  {
+    "predecessor_team_id": "t_0057",
+    "successor_team_id": "t_0032",
+    "effective_from_year": 1986,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Alpine roots"
+  },
+  {
+    "predecessor_team_id": "t_0032",
+    "successor_team_id": "t_0004",
+    "effective_from_year": 2002,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Alpine roots"
+  },
+  {
+    "predecessor_team_id": "t_0004",
+    "successor_team_id": "t_0206",
+    "effective_from_year": 2012,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Alpine history"
+  },
+  {
+    "predecessor_team_id": "t_0206",
+    "successor_team_id": "t_0004",
+    "effective_from_year": 2016,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Alpine history"
+  },
+  {
+    "predecessor_team_id": "t_0004",
+    "successor_team_id": "t_0211",
+    "effective_from_year": 2021,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 team family tree / Alpine roots"
+  },
+  {
+    "predecessor_team_id": "t_0026",
+    "successor_team_id": "t_0016",
+    "effective_from_year": 2006,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Sauber history"
+  },
+  {
+    "predecessor_team_id": "t_0016",
+    "successor_team_id": "t_0026",
+    "effective_from_year": 2010,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Sauber history"
+  },
+  {
+    "predecessor_team_id": "t_0026",
+    "successor_team_id": "t_0011",
+    "effective_from_year": 2019,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Sauber/Alfa Romeo history"
+  },
+  {
+    "predecessor_team_id": "t_0011",
+    "successor_team_id": "t_0026",
+    "effective_from_year": 2024,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Sauber history"
+  },
+  {
+    "predecessor_team_id": "t_0166",
+    "successor_team_id": "t_0204",
+    "effective_from_year": 2012,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Virgin/Marussia history"
+  },
+  {
+    "predecessor_team_id": "t_0204",
+    "successor_team_id": "t_0207",
+    "effective_from_year": 2015,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Formula1 Marussia/Manor history"
+  },
+  {
+    "predecessor_team_id": "t_0005",
+    "successor_team_id": "t_0205",
+    "effective_from_year": 2012,
+    "relationship": "organizational_continuity",
+    "confidence": "HIGH",
+    "verified": true,
+    "source": "Autosport Team Lotus to Caterham rebrand"
+  }
+]
