@@ -268,6 +268,7 @@ test("unresolved contract formulas do not create object-string pseudo drivers",(
       role:"second_driver",
     },
   ];
+  data.teamSeasons=data.teamSeasons.map((row)=>({...row,first_race_driver_candidates:[]}));
 
   const pack=materializeSeasonPack(data,1980);
   const ids=(pack.state.drivers||[]).map((row)=>String(row.driver_id));
