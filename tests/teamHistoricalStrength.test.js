@@ -217,3 +217,28 @@ test("historical strength labels use one shared UI scale",()=>{
   assert.equal(teamHistoricalStrengthLabel(25),"Emerging");
   assert.equal(teamHistoricalStrengthLabel(null),"Unknown");
 });
+
+test("estimated constructor-family bridges cannot fabricate championship titles",()=>{
+  const strength=teamHistoricalStrength({
+    teamId:"TEAM",
+    year:1980,
+    teamSeasons:[
+      {
+        year:1979,
+        team_id:"TEAM",
+        constructor_ids:["TECH"],
+        exact_constructor_ids:[],
+        exact_entrant_rows:0,
+      },
+    ],
+    driverHistory:[
+      {year:1979,team_id:"TEAM",series_division:"F1",wins:0,podiums:0,starts:30,points:5},
+    ],
+    historicalChampionships:{
+      constructors:[{year:1979,constructor_id:"TECH",position:1}],
+      drivers:[{year:1979,constructor_id:"TECH",position:1}],
+    },
+  });
+  assert.equal(strength.constructors_titles,0);
+  assert.equal(strength.drivers_titles,0);
+});
