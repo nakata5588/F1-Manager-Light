@@ -39,6 +39,10 @@ test("RW7.1 records direct Autosim versus Live Race parity by semantic domain", 
 
   t.diagnostic(`RW7.1 parity matrix ${JSON.stringify(matrix)}`);
   t.diagnostic(`RW7.1 divergent domains ${JSON.stringify(failed)}`);
+  for (const domain of failed) {
+    t.diagnostic(`RW7.1 ${domain} direct ${JSON.stringify(direct[domain])}`);
+    t.diagnostic(`RW7.1 ${domain} live ${JSON.stringify(live[domain])}`);
+  }
 
   assert.deepEqual(Object.keys(matrix), PARITY_DOMAINS);
   assert.deepEqual(unexpected, [], `unexpected parity divergence outside the RW7 audit: ${unexpected.join(", ")}`);
