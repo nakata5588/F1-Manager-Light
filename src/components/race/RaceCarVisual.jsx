@@ -56,7 +56,7 @@ function Historic1980Body({
   const number=driverNumber==null||driverNumber===""?null:String(driverNumber).slice(0,3);
   const sponsor=sponsorLabel?String(sponsorLabel).slice(0,8).toUpperCase():null;
 
-  return <g data-car-body="true" opacity={retired?.62:1}>
+  return <g data-car-body="true" opacity={retired?0.62:1}>
     <ellipse cx="-1.3" cy="1.9" rx="22.5" ry="8.6" fill="#020617" opacity=".28"/>
 
     <path d="M -14.8 -5.6 L 7.6 -5.3 L 15.8 -2.2 L 20.0 -1.25 L 20.0 1.25 L 15.8 2.2 L 7.6 5.3 L -14.8 5.6 Z" fill="#0b1017" stroke="#020617" strokeWidth=".7"/>
@@ -130,7 +130,7 @@ function Historic1980Body({
 }
 
 function GenericBody({color,secondary,selected=false,retired=false}){
-  return <g data-car-body="true" opacity={retired?.6:1}>
+  return <g data-car-body="true" opacity={retired?0.6:1}>
     <ellipse cx="-1.5" cy="2.2" rx="13.8" ry="5.2" fill="#020617" opacity=".3"/>
     <rect x="-8.5" y="-7.2" width="5.4" height="4.2" rx="1" fill="#05070a"/>
     <rect x="-8.5" y="3" width="5.4" height="4.2" rx="1" fill="#05070a"/>
