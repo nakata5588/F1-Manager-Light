@@ -133,11 +133,11 @@ export function pitCrewEffectiveProfile(crewInput={}){
   };
 }
 
-export function projectPitCrewTraining(crewInput={},facilityLevel=5,days=7){
+export function projectPitCrewTraining(crewInput={},facilityLevel=5,days=7,staffMultiplier=1){
   let crew={...(crewInput||{})};
   const count=Math.max(0,Math.floor(num(days,7)));
   for(let i=0;i<count;i+=1){
-    crew=advancePitCrewTrainingDay(crew,facilityLevel,null);
+    crew=advancePitCrewTrainingDay(crew,facilityLevel,null,staffMultiplier);
   }
   return {
     raw:crew,
