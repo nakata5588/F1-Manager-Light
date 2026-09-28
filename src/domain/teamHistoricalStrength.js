@@ -74,19 +74,23 @@ function aggregateRaceAchievements(segments,driverHistory=[]){
 }
 
 function titleEvidence(segments,historicalChampionships,teamSeasons,driverHistory){
+  // Championship membership is comparatively expensive because technical
+  // Constructor IDs may need resolving through Team/Entrant history. Reject
+  // non-title rows first: there is only one champion per season, rather than
+  // resolving every classified championship row for every Team.
   const constructors=rows(historicalChampionships?.constructors).filter((row)=>
+    Number(num(row?.position,999))===1&&
     Number(yearOf(row))>=1958&&
-    organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons)&&
-    Number(num(row?.position,999))===1
+    organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons)
   );
   const drivers=rows(historicalChampionships?.drivers).filter((row)=>
+    Number(num(row?.position,999))===1&&
     organizationDriverChampionshipRowBelongsToSegments(
       row,
       segments,
       teamSeasons,
       driverHistory
-    )&&
-    Number(num(row?.position,999))===1
+    )
   );
   return {
     constructors:constructors.length,
