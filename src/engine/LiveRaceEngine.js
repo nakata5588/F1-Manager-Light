@@ -1391,7 +1391,7 @@ export function advanceLiveRace(gs,{gp={},laps=1,sectors=null}={}){
   const planBefore=working?.raceWeekendState?.race_strategy?.race_control_plan||null;
 
   // Recalculate only future hazards. Observed sectors are locked in the Save World.
-  const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0});
+  const hazardSimulation=simulateManagedRace(working,{gp,grid:gridForWeekend(working),ratings:working?.driverRatings||[],roundIndex:Number(weekend?.roundIndex)||0,honorRetirements:false});
   const freshPlan=createRaceControlPlan(hazardSimulation.gameState,{gp,race:hazardSimulation.race,weather:hazardSimulation.weather,track:hazardSimulation.track});
   let plan=mergeRaceControlHistory(planBefore,freshPlan,currentLap,currentSector||3);
   // Race Control recalculation owns future hazards, but completed pit repairs are
