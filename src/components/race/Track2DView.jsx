@@ -25,7 +25,9 @@ import { openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHea
 import { dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import RaceCarsLayer from "./RaceCarsLayer.jsx";
-import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
+import RaceCarsLayerV3 from "./RaceCarsLayerV3.jsx";
+import { buildClosedRacingLine } from "../../domain/raceSplineV3.js";
+import { advanceVisualTimelineProgress, applyVisualPitLaneState, authoritativeRaceWorldProgress, createVisualRaceTimeline, driverVisualMotionDurationMs, raceVisualSnapshotKey, visualPitLaneState, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -702,6 +704,10 @@ export default function Track2DView({
     ()=>(environmentAssetActive||proceduralEnvironmentActive)?smoothedPresentationGeometry:orientTrackGeometry(smoothedPresentationGeometry),
     [smoothedPresentationGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
+  const racingLineV3=useMemo(
+    ()=>buildClosedRacingLine(displayGeometry?.points,{samplesPerSegment:8}),
+    [displayGeometry]
+  );
   const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=useMemo(()=>(
@@ -750,6 +756,7 @@ export default function Track2DView({
     pitExitProgress:intelligence?.pit_exit_progress,
   });
   const activeRows=visualFrame.rows;
+  const [motionEngine,setMotionEngine]=useState("v3");
   const [cameraMode,setCameraMode]=useState("fit");
   const [followZoom,setFollowZoom]=useState(5.25);
   const [freeViewBox,setFreeViewBox]=useState(null);
