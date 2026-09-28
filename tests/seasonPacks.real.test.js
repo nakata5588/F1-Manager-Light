@@ -491,3 +491,43 @@ test("2009 long-term Team structure separates Ferrari from recent Force India wi
   assert.equal(Number(ferrari.evidence_through_year),2008);
   assert.equal(Number(forceIndia.evidence_through_year),2008);
 });
+
+
+test("2024 organisational successors inherit verified structural continuity without collapsing identities",async()=>{
+  const pack=await readPack(2024);
+  const byId=new Map((pack.state?.teamHistoricalStrength||[]).map((row)=>[String(row.team_id),row]));
+
+  const aston=byId.get("t_0117");
+  assert.ok(aston,"2024 Aston Martin strength must exist");
+  assert.ok(aston.inherited_team_ids.includes("t_0209"),aston);
+  assert.ok(aston.inherited_team_ids.includes("t_0021"),aston);
+  assert.ok(Number(aston.structural_strength)>=60,aston);
+
+  const alpine=byId.get("t_0211");
+  assert.ok(alpine,"2024 Alpine strength must exist");
+  assert.ok(alpine.inherited_team_ids.includes("t_0004"),alpine);
+  assert.ok(alpine.inherited_team_ids.includes("t_0032"),alpine);
+  assert.ok(Number(alpine.structural_strength)>=80,alpine);
+
+  const rb=byId.get("t_0212");
+  assert.ok(rb,"2024 RB strength must exist");
+  assert.ok(rb.inherited_team_ids.includes("t_0210"),rb);
+  assert.ok(rb.inherited_team_ids.includes("t_0017"),rb);
+  assert.ok(rb.inherited_team_ids.includes("t_0029"),rb);
+  assert.ok(Number(rb.structural_strength)>25,rb);
+});
+
+test("2010 Mercedes strength follows Brawn-Honda-BAR-Tyrrell rather than 1950s Mercedes revival",async()=>{
+  const pack=await readPack(2010);
+  const mercedes=(pack.state?.teamHistoricalStrength||[]).find((row)=>String(row.team_id)==="t_0131");
+  assert.ok(mercedes,"2010 Mercedes strength must exist");
+  assert.deepEqual(
+    new Set(mercedes.inherited_team_ids),
+    new Set(["t_0006","t_0027","t_0022","t_0033"])
+  );
+  assert.equal(mercedes.first_historical_season,1970);
+  assert.ok(
+    !(mercedes.lineage_segments||[]).some((segment)=>String(segment.team_id)==="t_0131"&&Number(segment.year_to)<1970),
+    "1954-55 Mercedes must not leak into the modern Brackley lineage"
+  );
+});
