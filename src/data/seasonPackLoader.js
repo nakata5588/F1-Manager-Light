@@ -45,6 +45,7 @@ export function seasonPackGlobalDataFromDatabaseState(state={}) {
     carCompetitiveness:state.dbCarCompetitiveness||[],
     driverCareer:state.dbDriverCareer||[],
     driverHistory:state.dbDriverHistory||[],
+    historicalChampionships:state.dbHistoricalChampionships||{drivers:[],constructors:[]},
     staffRatings:state.dbStaffRatings||[],
     staffCore:state.dbStaffCore||[],
     teamBrands:state.dbTeamBrands||[],
