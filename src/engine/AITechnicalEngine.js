@@ -32,6 +32,7 @@ import {
   warehousePartUnitsForDesign,
 } from "../domain/partUnits.js";
 import { teamWorkRateMultiplier } from "../domain/teamMorale.js";
+import { staffCostEfficiencyMultiplier } from "../domain/staffPerformance.js";
 import { activeDriverContracts, driverIdOf } from "../domain/driverContracts.js";
 import { componentWearForRaceRow } from "../domain/componentWear.js";
 import { PART_CONDITION_RELIABILITY_RISK } from "../domain/garage.js";
@@ -361,7 +362,9 @@ function projectQuote(gs,teamId,state,need){
   const headroom=Math.max(0,MAX_SLOT_DEVELOPMENT_STRENGTH-incumbent);
   const baseDays=Math.max(18,34-prior*2);
   const days=Math.max(10,Math.round(baseDays*Math.max(0.72,1.16-strength*0.045)*moraleTime));
-  const cost=Math.round((145_000+strength*42_000+prior*55_000)/10_000)*10_000;
+  const cost=Math.round(
+    ((145_000+strength*42_000+prior*55_000)*staffCostEfficiencyMultiplier(gs,teamId))/10_000
+  )*10_000;
   const rawIncrement=0.38+strength*0.072+Math.max(0,78-need.baseline)*0.014+Math.min(8,need.gap||0)*0.025;
   const diminishing=Math.max(0.34,1-(incumbent/MAX_SLOT_DEVELOPMENT_STRENGTH)*0.62);
   const increment=Math.min(headroom,Math.max(0.12,rawIncrement*diminishing));
