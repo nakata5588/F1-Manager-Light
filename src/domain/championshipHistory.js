@@ -10,6 +10,8 @@
 // Profiles, team summaries and championship history should consume this domain
 // instead of independently recalculating championship outcomes.
 
+import { teamOrganizationHistoryFromState } from "./teamOrganizationHistory.js";
+
 const rows=(value)=>Array.isArray(value)?value:[];
 const unbox=(value)=>{
   if(value&&typeof value==="object"&&!Array.isArray(value)){
@@ -463,6 +465,10 @@ function archivedConstructorChampion(gs,year){
 export function constructorChampionForYear(gs,year){
   const y=Number(year);
   if(!Number.isFinite(y))return null;
+  // The FIA Constructors' Championship did not exist before 1958. Historical
+  // Team standings may still be derived for comparison, but never promoted to
+  // an official title.
+  if(y<1958)return null;
 
   const archived=archivedConstructorChampion(gs,y);
   if(archived)return archived;
@@ -548,8 +554,44 @@ export function driverConstructorChampionships(gs,careerRows=[]){
 
 export function teamChampionshipSummary(gs,teamId){
   const id=String(teamId??"");
-  const constructorTitles=constructorChampionshipHistory(gs).filter((row)=>String(row.team_id)===id);
-  const driverTitles=driverChampionshipHistory(gs).filter((row)=>String(row.team_id)===id);
+  if(!id){
+    return {constructors:0,driversTitles:0,constructorTitles:[],driverTitles:[]};
+  }
+
+  const sourceSeason=careerSourceSeason(gs);
+  const historical=Number.isFinite(sourceSeason)
+    ?teamOrganizationHistoryFromState(gs,id,sourceSeason)
+    :null;
+
+  const historicalConstructorTitles=rows(historical?.constructor_title_rows).map((row)=>({
+    ...row,
+    team_id:id,
+    year:Number(unbox(row?.year)),
+    source:str(row?.source)||"historical_organization_history",
+  }));
+  const historicalDriverTitles=rows(historical?.driver_title_rows).map((row)=>({
+    ...row,
+    team_id:id,
+    year:Number(unbox(row?.year)),
+    source:str(row?.source)||"historical_organization_history",
+  }));
+
+  // Once a career begins, real-world history stops at sourceSeason. Played
+  // Save World seasons extend the same summary without consulting future data.
+  const playedConstructorTitles=constructorChampionshipHistory(gs).filter((row)=>
+    Number(row?.year)>=sourceSeason&&String(row?.team_id)===id
+  );
+  const playedDriverTitles=driverChampionshipHistory(gs).filter((row)=>
+    Number(row?.year)>=sourceSeason&&String(row?.team_id)===id
+  );
+
+  const dedupe=(items)=>[
+    ...new Map(items.map((row)=>[`${Number(row?.year)}|${String(row?.team_id||id)}`,row])).values(),
+  ].sort((a,b)=>Number(a?.year)-Number(b?.year));
+
+  const constructorTitles=dedupe([...historicalConstructorTitles,...playedConstructorTitles]);
+  const driverTitles=dedupe([...historicalDriverTitles,...playedDriverTitles]);
+
   return {
     constructors:constructorTitles.length,
     driversTitles:driverTitles.length,
