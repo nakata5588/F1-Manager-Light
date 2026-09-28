@@ -312,26 +312,44 @@ function hydrateTeammateComparison(gs,driverId,entry){
   const needsQualifying=entry?.teammate_qualifying_delta==null;
   const needsDriver=entry?.teammate_driver_id==null;
   const needsBestLap=entry?.best_lap_ms==null||entry?.fastest_lap==null;
-  if(!needsRace&&!needsQualifying&&!needsDriver&&!needsBestLap)return entry;
+  const needsIncidentEvidence=
+    entry?.incident_responsibility==null||
+    entry?.incident_kind==null||
+    entry?.incident_reason==null;
+  if(!needsRace&&!needsQualifying&&!needsDriver&&!needsBestLap&&!needsIncidentEvidence)return entry;
 
   const event=resultEventForEntry(gs,entry);
   if(!event)return entry;
   const race=rowForDriver(event?.classification,driverId);
   if(!race)return entry;
+
+  const driverRetired=Boolean(race?.retired)||String(race?.status||"").toUpperCase()==="DNF";
+  const retirement=driverRetired?retirementResponsibility(race?.retirement_reason):null;
+  const incidentReason=race?.incident_reason??race?.incident_kind??null;
+  const incident=incidentReason?retirementResponsibility(incidentReason):null;
+  const incidentResponsibility=driverRetired&&retirement?.key!=="unknown"
+    ?retirement
+    :incident;
+
   const teamId=teamIdOf(race)||String(entry?.team_id??"");
   const teamRace=teammateRow(event?.classification,driverId,teamId);
   const teammateId=String(entry?.teammate_driver_id??driverIdOf(teamRace)??"");
-  if(!teammateId)return entry;
-
-  const qualifying=rowForDriver(event?.qualifying,driverId);
-  const teamQual=rowForDriver(event?.qualifying,teammateId);
   const next={
     ...entry,
-    teammate_driver_id:teammateId,
+    teammate_driver_id:teammateId||entry?.teammate_driver_id??null,
     best_lap_ms:entry?.best_lap_ms??num(race?.best_lap_ms??race?.bestLapMs,null),
     best_lap_number:entry?.best_lap_number??num(race?.best_lap_number??race?.bestLapNumber,null),
     fastest_lap:entry?.fastest_lap??Boolean(race?.fastest_lap??race?.fastestLap),
+    retirement_responsibility:entry?.retirement_responsibility??retirement?.key??null,
+    incident_kind:entry?.incident_kind??race?.incident_kind??null,
+    incident_reason:entry?.incident_reason??race?.incident_reason??null,
+    incident_responsibility:entry?.incident_responsibility??incidentResponsibility?.key??null,
   };
+
+  if(!teammateId)return next;
+
+  const qualifying=rowForDriver(event?.qualifying,driverId);
+  const teamQual=rowForDriver(event?.qualifying,teammateId);
 
   if(needsQualifying&&qualifying&&teamQual){
     const driverPos=num(qualifying?.position);
@@ -342,13 +360,11 @@ function hydrateTeammateComparison(gs,driverId,entry){
   }
 
   if(needsRace&&teamRace){
-    const driverRetired=Boolean(race?.retired)||String(race?.status||"").toUpperCase()==="DNF";
-    const driverResponsibility=driverRetired?retirementResponsibility(race?.retirement_reason):null;
     const mateRetired=Boolean(teamRace?.retired)||String(teamRace?.status||"").toUpperCase()==="DNF";
     const mateResponsibility=mateRetired?retirementResponsibility(teamRace?.retirement_reason):null;
     const driverFinish=num(race?.position);
     const mateFinish=num(teamRace?.position);
-    const comparableDriver=!driverRetired||driverResponsibility?.key!=="mechanical";
+    const comparableDriver=!driverRetired||retirement?.key!=="mechanical";
     const comparableMate=!mateRetired||mateResponsibility?.key!=="mechanical";
     if(comparableDriver&&comparableMate&&Number.isFinite(driverFinish)&&Number.isFinite(mateFinish)){
       next.teammate_race_delta=round1(clamp(mateFinish-driverFinish,-5,5));
