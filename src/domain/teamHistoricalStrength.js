@@ -11,6 +11,7 @@
 import {
   historicalTeamLineageSegments,
   organizationChampionshipRowBelongsToSegments,
+  organizationDriverChampionshipRowBelongsToSegments,
   organizationRowInSegments,
   organizationSegmentForTeamYear,
 } from "./teamOrganizationHistory.js";
@@ -72,14 +73,19 @@ function aggregateRaceAchievements(segments,driverHistory=[]){
   return {wins,podiums,starts};
 }
 
-function titleEvidence(segments,historicalChampionships,teamSeasons){
+function titleEvidence(segments,historicalChampionships,teamSeasons,driverHistory){
   const constructors=rows(historicalChampionships?.constructors).filter((row)=>
     Number(yearOf(row))>=1958&&
     organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons)&&
     Number(num(row?.position,999))===1
   );
   const drivers=rows(historicalChampionships?.drivers).filter((row)=>
-    organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons)&&
+    organizationDriverChampionshipRowBelongsToSegments(
+      row,
+      segments,
+      teamSeasons,
+      driverHistory
+    )&&
     Number(num(row?.position,999))===1
   );
   return {
@@ -208,7 +214,7 @@ export function teamHistoricalStrength({
   });
   const seasons=participationYears(lineage.segments,teamSeasons,driverHistory);
   const achievements=aggregateRaceAchievements(lineage.segments,driverHistory);
-  const titles=titleEvidence(lineage.segments,historicalChampionships,teamSeasons);
+  const titles=titleEvidence(lineage.segments,historicalChampionships,teamSeasons,driverHistory);
   const recent=recentConstructorEvidence(
     lineage.segments,
     historicalChampionships,
