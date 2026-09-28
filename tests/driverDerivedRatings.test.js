@@ -111,3 +111,25 @@ test("Mistake Propensity accepts legacy agression and remains deterministic",()=
   assert.equal(a.value,b.value);
   assert.equal(a.evidenceAdjustment,b.evidenceAdjustment);
 });
+
+
+test("null and blank required attributes keep Mistake Propensity unavailable",()=>{
+  const nullProfile={
+    racecraft:null,
+    aggression:null,
+    race_intelligence:null,
+    pressure_handling:null,
+    consistency:null,
+    mentality:null,
+    adaptability:null,
+    crash_likelihood:null,
+  };
+  const blankProfile={
+    ...attrs,
+    consistency:"",
+  };
+
+  assert.equal(driverMistakePropensity(nullProfile).value,null);
+  assert.equal(driverMistakePropensity(blankProfile).value,null);
+  assert.equal(driverDerivedRating({...attrs,racecraft:null},"overtaking"),null);
+});
