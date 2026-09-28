@@ -828,54 +828,52 @@ export default function Track2DView({
     onSelectDriver?.(String(driverId||""));
   };
   const followSelectedVisualPoint=(point)=>{
-    if(cameraMode!=="follow"||!svgRef.current||!point)return;
+    if(cameraMode!=="follow"||!point)return;
     followCameraTargetRef.current=followTrackViewBox(fitViewBox,point,{
       zoom:followZoom,
       minWidth:88,
       minHeight:64,
       lookAheadRatio:.10,
     });
-    if(followCameraFrameRef.current)return;
-    const tick=(now)=>{
-      if(cameraMode!=="follow"||!svgRef.current){
-        followCameraFrameRef.current=null;
-        followCameraTimeRef.current=null;
-        return;
-      }
-      const target=followCameraTargetRef.current;
-      if(!target){
-        followCameraFrameRef.current=null;
-        followCameraTimeRef.current=null;
-        return;
-      }
-      const previous=followCameraTimeRef.current??now;
-      const delta=Math.max(1,Math.min(50,now-previous));
-      followCameraTimeRef.current=now;
-      const current=followViewBoxRef.current||target;
-      const box=dampTrackViewBox(current,target,delta,{timeConstantMs:82,snap:.02});
-      const settled=box.every((value,index)=>Math.abs(value-target[index])<0.001);
-      followViewBoxRef.current=box;
-      const viewBoxText=box.join(" ");
-      svgRef.current.setAttribute("viewBox",viewBoxText);
-      worldSvgRef.current?.setAttribute("viewBox",viewBoxText);
-      if(settled){
-        followCameraFrameRef.current=null;
-        followCameraTimeRef.current=null;
-      }else{
-        followCameraFrameRef.current=requestAnimationFrame(tick);
-      }
-    };
-    followCameraFrameRef.current=requestAnimationFrame(tick);
+    if(!followViewBoxRef.current)followViewBoxRef.current=followCameraTargetRef.current;
   };
+
+  useEffect(()=>{
+    if(cameraMode!=="follow")return undefined;
+    let frame=null;
+    followCameraTimeRef.current=null;
+    const tick=(now)=>{
+      const target=followCameraTargetRef.current;
+      if(svgRef.current&&target){
+        const previous=followCameraTimeRef.current??now;
+        const delta=Math.max(1,Math.min(50,now-previous));
+        followCameraTimeRef.current=now;
+        const current=followViewBoxRef.current||target;
+        const box=dampTrackViewBox(current,target,delta,{timeConstantMs:96,snap:.008});
+        followViewBoxRef.current=box;
+        const text=box.join(" ");
+        svgRef.current.setAttribute("viewBox",text);
+        worldSvgRef.current?.setAttribute("viewBox",text);
+      }
+      frame=requestAnimationFrame(tick);
+      followCameraFrameRef.current=frame;
+    };
+    frame=requestAnimationFrame(tick);
+    followCameraFrameRef.current=frame;
+    return ()=>{
+      if(frame)cancelAnimationFrame(frame);
+      if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);
+      followCameraFrameRef.current=null;
+      followCameraTimeRef.current=null;
+    };
+  },[cameraMode]);
+
   useEffect(()=>{
     followViewBoxRef.current=null;
     followCameraTargetRef.current=null;
     followCameraTimeRef.current=null;
-    if(followCameraFrameRef.current){
-      cancelAnimationFrame(followCameraFrameRef.current);
-      followCameraFrameRef.current=null;
-    }
-  },[resolvedSelectedId,cameraMode]);
+  },[resolvedSelectedId]);
+
   useEffect(()=>()=>{if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);},[]);
   const svgPointFromEvent=(event)=>{
     const svg=svgRef.current;
