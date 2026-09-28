@@ -476,6 +476,7 @@ export const useGame = create((set, get) => ({
     staffRatings: [],
     staffCore: [],
     teamBrands: [],
+    teamHistoricalStrength: [],
     teamEngines: [],
     contracts: [],
     sponsorsContracts: [],
