@@ -183,6 +183,8 @@ function aggregateResultRows(rows,{opening=false}={}){
         estimatedRows:0,
         drivers:new Map(),
         openingDrivers:new Map(),
+        resolvedDrivers:new Map(),
+        openingResolvedDrivers:new Map(),
         constructors:new Set(),
         chassis:new Set(),
         engines:new Set(),
@@ -199,9 +201,15 @@ function aggregateResultRows(rows,{opening=false}={}){
     if(link.chassis_name)rec.chassis.add(String(link.chassis_name));
     if(link.engine_name)rec.engines.add(String(link.engine_name));
 
-    // Driver/team relationships are only accepted as historical evidence when
-    // entrant identity is exact. Estimated constructor-family matching is not
-    // enough to claim that a driver belonged to a managerial Team.
+    // Keep all resolved Results relationships visible to the audit, but keep
+    // exact entrant evidence separate. This lets T3.1 distinguish a usable
+    // Round 1 candidate from a relationship that still needs stronger proof.
+    if(did){
+      rec.resolvedDrivers.set(did,displayDriver(did,row));
+      if(opening&&rowRound(row)===openingRound){
+        rec.openingResolvedDrivers.set(did,displayDriver(did,row));
+      }
+    }
     if(did&&link.exact_entrant){
       rec.drivers.set(did,displayDriver(did,row));
       if(opening&&rowRound(row)===openingRound){
@@ -288,11 +296,14 @@ for(const [teamId,resultRec] of [...currentByTeam.entries()].sort((a,b)=>
 )){
   const master=teamMasterById.get(teamId)||{};
   const contractsMap=raceContractsByTeam.get(teamId)||new Map();
-  const r1Map=resultRec.openingDrivers;
-  const seasonMap=resultRec.drivers;
-  const openingEvidence=new Map([...contractsMap,...r1Map]);
+  const r1ExactMap=resultRec.openingDrivers;
+  const r1ResolvedMap=resultRec.openingResolvedDrivers;
+  const seasonExactMap=resultRec.drivers;
+  const seasonResolvedMap=resultRec.resolvedDrivers;
+  const openingEvidence=new Map([...contractsMap,...r1ResolvedMap]);
+  const openingExactEvidence=new Map([...contractsMap,...r1ExactMap]);
 
-  for(const [did] of r1Map){
+  for(const [did] of r1ResolvedMap){
     if(!roundOneDriverTeams.has(did))roundOneDriverTeams.set(did,new Set());
     roundOneDriverTeams.get(did).add(teamId);
   }
@@ -311,7 +322,8 @@ for(const [teamId,resultRec] of [...currentByTeam.entries()].sort((a,b)=>
   const issues=[];
 
   if(resultRec.exactEntrantRows===0)issues.push("entrant_estimated_only");
-  if(r1Map.size===0)issues.push("no_round1_driver_evidence");
+  if(r1ResolvedMap.size===0)issues.push("no_round1_driver_evidence");
+  if(r1ResolvedMap.size>r1ExactMap.size)issues.push("round1_driver_relation_needs_proof");
   if(openingEvidence.size<2)issues.push("opening_driver_evidence_lt2");
   if(!country&&!base)issues.push("hq_country_uncovered");
   if(budget===null)issues.push("budget_not_curated");
@@ -330,10 +342,13 @@ for(const [teamId,resultRec] of [...currentByTeam.entries()].sort((a,b)=>
     exact_entrant_rows:resultRec.exactEntrantRows,
     estimated_result_rows:resultRec.estimatedRows,
     opening_round:openingRound,
-    round1_drivers:[...r1Map.values()],
+    round1_drivers:[...r1ResolvedMap.values()],
+    round1_exact_drivers:[...r1ExactMap.values()],
     contracted_drivers:[...contractsMap.values()],
     opening_driver_evidence:[...openingEvidence.values()],
-    season_result_drivers:[...seasonMap.values()],
+    opening_exact_evidence:[...openingExactEvidence.values()],
+    season_result_drivers:[...seasonResolvedMap.values()],
+    season_exact_drivers:[...seasonExactMap.values()],
     constructors:[...resultRec.constructors].sort(),
     chassis:[...resultRec.chassis].sort(),
     result_engines:[...resultRec.engines].sort(),
@@ -369,7 +384,9 @@ const summary={
   teams:rows.length,
   teams_with_exact_entrant_evidence:rows.filter((row)=>row.exact_entrant_rows>0).length,
   teams_with_round1_driver_evidence:rows.filter((row)=>row.round1_drivers.length>0).length,
+  teams_with_exact_round1_driver_evidence:rows.filter((row)=>row.round1_exact_drivers.length>0).length,
   teams_with_two_opening_driver_evidence:rows.filter((row)=>row.opening_driver_evidence.length>=2).length,
+  teams_with_two_exact_opening_driver_evidence:rows.filter((row)=>row.opening_exact_evidence.length>=2).length,
   teams_with_budget:rows.filter((row)=>row.starting_budget!==null).length,
   teams_with_facilities:rows.filter((row)=>row.facility_levels>0).length,
   teams_with_staff:rows.filter((row)=>row.active_staff>0).length,
@@ -393,6 +410,7 @@ if(jsonOnly){
     RESULTS:row.result_rows,
     EXACT:row.exact_entrant_rows,
     R1_DRV:row.round1_drivers.length,
+    R1_EXACT:row.round1_exact_drivers.length,
     CONTRACT_DRV:row.contracted_drivers.length,
     OPENING_DRV:row.opening_driver_evidence.length,
     SEASON_DRV:row.season_result_drivers.length,
@@ -410,7 +428,9 @@ if(jsonOnly){
   console.log(`  Teams from Results: ${summary.teams}`);
   console.log(`  Exact entrant evidence: ${summary.teams_with_exact_entrant_evidence}/${summary.teams}`);
   console.log(`  Round ${openingRound} driver evidence: ${summary.teams_with_round1_driver_evidence}/${summary.teams}`);
-  console.log(`  >=2 opening driver evidence (contracts + Round ${openingRound}): ${summary.teams_with_two_opening_driver_evidence}/${summary.teams}`);
+  console.log(`  Exact Round ${openingRound} entrant+driver evidence: ${summary.teams_with_exact_round1_driver_evidence}/${summary.teams}`);
+  console.log(`  >=2 opening driver candidates (contracts + Round ${openingRound}): ${summary.teams_with_two_opening_driver_evidence}/${summary.teams}`);
+  console.log(`  >=2 exact opening driver evidence: ${summary.teams_with_two_exact_opening_driver_evidence}/${summary.teams}`);
   console.log(`  HQ/country known: ${summary.teams_with_hq_or_country}/${summary.teams}`);
   console.log(`  Curated starting budget: ${summary.teams_with_budget}/${summary.teams}`);
   console.log(`  Facilities coverage: ${summary.teams_with_facilities}/${summary.teams}`);
