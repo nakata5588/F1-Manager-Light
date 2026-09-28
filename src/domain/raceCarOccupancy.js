@@ -145,7 +145,7 @@ export function resolveRaceCarPhysicalLayout(entries,{markerScale=1,lod="overvie
 
   if(out.length<2)return out;
 
-  const rounds=Math.max(1,Math.min(8,Math.round(Number(iterations)||5));
+  const rounds=Math.max(1,Math.min(8,Math.round(Number(iterations)||5)));
   for(let round=0;round<rounds;round+=1){
     let changed=false;
     for(let i=0;i<out.length;i+=1){
