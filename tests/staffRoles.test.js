@@ -7,7 +7,7 @@ import {
   staffRoleDepartment,
   staffRoleLabel,
 } from "../src/domain/staffRoles.js";
-import { teamEngineeringSupport } from "../src/engine/PracticeSetupEngine.js";
+import { teamEngineeringSupport, teamSetupSupport } from "../src/engine/PracticeSetupEngine.js";
 import { forecastAccuracyForTeam } from "../src/engine/WeekendWeatherEngine.js";
 import { seedTechnicalKnowledge } from "../src/domain/technicalKnowledge.js";
 import {
@@ -161,7 +161,7 @@ test("Race Engineer quality improves setup support through the canonical Staff m
       motivation:quality,reliability_focus:quality,conflict_management:quality,
     }],
   });
-  assert.ok(teamEngineeringSupport(make(90),"T1")>teamEngineeringSupport(make(45),"T1")+35);
+  assert.ok(teamSetupSupport(make(90),"T1")>teamSetupSupport(make(45),"T1")+35);
 });
 
 test("Technical Staff improves technical knowledge through the intended capability",()=>{
