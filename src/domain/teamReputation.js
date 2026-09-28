@@ -7,7 +7,7 @@
 //
 // Reputation never changes car pace directly.
 
-import { teamChampionshipSummary } from "./championshipHistory.js";
+import { teamOrganizationHistoryFromState } from "./teamOrganizationHistory.js";
 
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 const round1=(value)=>Math.round(Number(value||0)*10)/10;
@@ -39,29 +39,56 @@ function currentTeamForDriver(gs,driverId){
   return active?teamIdOf(active):"";
 }
 
-function historicalBaseline(gs,teamId){
-  const activeYear=Number(gs?.activeYear);
-  const historySource=rows(gs?.driverHistory).length?rows(gs?.driverHistory):rows(gs?.dbDriverHistory);
-  const history=historySource.filter((row)=>{
-      const year=num(row?.year,NaN);
-      const series=String(unbox(row?.series_division??row?.series)??"F1").toUpperCase();
-      return teamIdOf(row)===String(teamId)&&series==="F1"&&Number.isFinite(year)&&(!Number.isFinite(activeYear)||year<activeYear);
-    });
-  const wins=history.reduce((sum,row)=>sum+num(row?.wins,0),0);
-  const podiums=history.reduce((sum,row)=>sum+num(row?.podiums,0),0);
-  const titles=teamChampionshipSummary(gs,teamId);
+function historicalStrengthRow(gs,teamId,year){
+  const source=rows(gs?.teamHistoricalStrength).length
+    ?rows(gs?.teamHistoricalStrength)
+    :rows(gs?.dbTeamHistoricalStrength);
+  return source.find((row)=>
+    String(row?.team_id??row?.id??"")===String(teamId)&&
+    (!Number.isInteger(Number(row?.year))||Number(row.year)===Number(year))
+  )||source.find((row)=>String(row?.team_id??row?.id??"")===String(teamId))||null;
+}
 
-  // Neutral teams start around 45–50. Sustained historical success raises the
-  // seed, and Constructors titles now come from the same standings-derived
-  // championship history used by the Team/Standings UI.
+function saturation(value,scale){
+  const raw=Math.max(0,Number(value)||0);
+  const divisor=Math.max(0.001,Number(scale)||1);
+  return clamp(100*(1-Math.exp(-raw/divisor)));
+}
+
+function historicalBaseline(gs,teamId){
+  const sourceSeason=Number(gs?.careerMeta?.sourceSeason);
+  const activeYear=Number(gs?.activeYear??gs?.seasonPackMeta?.year);
+  const year=Number.isInteger(sourceSeason)?sourceSeason:activeYear;
+  const history=teamOrganizationHistoryFromState(gs,teamId,year);
+  if(!history)return 45;
+
+  const strength=historicalStrengthRow(gs,teamId,year);
+  const recent=Number.isFinite(Number(strength?.recent_competitiveness))
+    ?clamp(strength.recent_competitiveness)
+    :(Number.isFinite(Number(history?.recent_competitiveness))
+      ?clamp(history.recent_competitiveness)
+      :(history.seasons_before_start?45:30));
+
+  // Reputation is prestige/attractiveness, not current car pace and not
+  // Historical Strength itself. It uses the same Results-first organisation
+  // history but weights accumulated success and recent visibility differently.
+  const longevity=clamp((Number(history.seasons_before_start)||0)*(100/30));
+  const wins=saturation(history.historical_wins,35);
+  const podiums=saturation(history.historical_podiums,90);
+  const titleWeight=
+    Math.max(0,Number(history.constructors_titles)||0)*1.25+
+    Math.max(0,Number(history.drivers_titles)||0);
+  const titles=saturation(titleWeight,6);
+
   return round1(clamp(
-    45+
-    Math.min(20,wins*0.40)+
-    Math.min(8,podiums*0.06)+
-    Math.min(12,titles.driversTitles*2.5)+
-    Math.min(15,titles.constructors*3),
+    30+
+    longevity*0.12+
+    wins*0.10+
+    podiums*0.06+
+    titles*0.22+
+    recent*0.20,
     30,
-    92
+    95
   ));
 }
 
