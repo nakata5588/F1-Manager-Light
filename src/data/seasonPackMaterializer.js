@@ -3,7 +3,7 @@
 // Pure materializer for a historical starting season.
 // Global data is editorial/reference data; the returned pack is only the
 // playable state at the chosen starting year.
-import { isDriverContract, isRaceDriverContract } from "../domain/contractRoles.js";
+import { driverRoleSlot, isDriverContract, isRaceDriverContract } from "../domain/contractRoles.js";
 import {
   applyOpeningStateToDriver,
   openingDriverId,
@@ -158,6 +158,110 @@ function reconcileSeedDriverContracts(rows,year,teamHistory=[]){
   }
   return [...nonRace,...raceByDriver.values()];
 }
+function acceptedFirstRaceCandidate(row){
+  if(!row||Number(pick(row,["first_round"],NaN))!==1)return false;
+  if(Boolean(pick(row,["exact_entrant"],false)))return true;
+  const raw=pick(row,["confidence"],[]);
+  const levels=Array.isArray(raw)?raw:[raw];
+  return levels.some((value)=>["HIGH","MEDIUM"].includes(String(value||"").toUpperCase()));
+}
+
+function applyFirstRaceDriverSeeds({
+  contracts,
+  seasonRows,
+  year,
+  teamIds,
+  teamNameById,
+  driverNameForBootstrap,
+}){
+  const next=[...(contracts||[])];
+  const globallyAssigned=new Set(
+    next.filter(isRaceDriverContract).map(driverId).filter(Boolean)
+  );
+  const seasonByTeam=new Map(
+    (seasonRows||[]).map((row)=>[teamId(row),row]).filter(([id])=>id)
+  );
+
+  for(const tid of teamIds||[]){
+    const raceRows=()=>next.filter((row)=>teamId(row)===tid&&isRaceDriverContract(row));
+    if(raceRows().length>=2)continue;
+
+    const season=seasonByTeam.get(tid)||{};
+    const candidates=(Array.isArray(season.first_race_driver_candidates)
+      ?season.first_race_driver_candidates
+      :[])
+      .filter(acceptedFirstRaceCandidate)
+      .sort((a,b)=>
+        asNum(pick(a,["first_source_index"],999999),999999)-
+        asNum(pick(b,["first_source_index"],999999),999999)||
+        driverRefId(a).localeCompare(driverRefId(b))
+      );
+
+    for(const candidate of candidates){
+      if(raceRows().length>=2)break;
+      const did=driverRefId(candidate);
+      if(!did||globallyAssigned.has(did))continue;
+
+      const conflictingTeam=next.find((row)=>
+        driverId(row)===did&&teamId(row)!==tid
+      );
+      if(conflictingTeam)continue;
+
+      const occupiedSlots=new Set(raceRows().map(driverRoleSlot).filter(Boolean));
+      const role=!occupiedSlots.has("main")
+        ?"Main Driver"
+        :!occupiedSlots.has("second")
+          ?"Second Driver"
+          :null;
+      if(!role)break;
+
+      const confidenceRaw=pick(candidate,["confidence"],[]);
+      const basisRaw=pick(candidate,["relation_basis"],[]);
+      const confidence=Array.isArray(confidenceRaw)?confidenceRaw:[confidenceRaw];
+      const relationBasis=Array.isArray(basisRaw)?basisRaw:[basisRaw];
+      const sameTeamExistingIndex=next.findIndex((row)=>
+        driverId(row)===did&&teamId(row)===tid&&!isRaceDriverContract(row)
+      );
+      const base=sameTeamExistingIndex>=0?next[sameTeamExistingIndex]:{};
+
+      const seeded={
+        ...base,
+        year,
+        team_id:tid,
+        team_name:teamNameById.get(tid)||tid,
+        driver_id:did,
+        driver_name:driverNameForBootstrap(did),
+        role,
+        status:"active",
+        contract_start_year:asNum(
+          pick(base,["contract_start_year","contract_start","start_year"],year),
+          year
+        ),
+        contract_until_year:asNum(
+          pick(base,["contract_until_year","contract_until","end_year"],year),
+          year
+        ),
+        source:"first_race_seed",
+        first_race_seed:true,
+        source_round:1,
+        historical_evidence:"race_results_round_1",
+        relationship_only:true,
+        contract_terms_known:false,
+        relationship_exact:Boolean(pick(candidate,["exact_entrant"],false)),
+        relationship_confidence:confidence.filter(Boolean),
+        relationship_basis:relationBasis.filter(Boolean),
+        synthetic:false,
+      };
+
+      if(sameTeamExistingIndex>=0)next[sameTeamExistingIndex]=seeded;
+      else next.push(seeded);
+      globallyAssigned.add(did);
+    }
+  }
+
+  return next;
+}
+
 function teamIdsForSeason(g,year){
   const ids=new Set();
   const authoritative=rowsAtYear(g.teamSeasons,year);
@@ -437,13 +541,21 @@ export function materializeSeasonPack(globalData,yearInput){
       year,
       seedTeamHistory
     );
+    contracts=applyFirstRaceDriverSeeds({
+      contracts,
+      seasonRows,
+      year,
+      teamIds,
+      teamNameById,
+      driverNameForBootstrap,
+    });
   }
 
   // Historical Starting Conditions -> Dynamic Alternative Future:
-  // New Game preserves the contracts that exist on the opening date.
-  // Do NOT fill vacant seats from later-season Results or from strong free
-  // agents. Once the Save World starts, MarketEngine handles AI recruitment
-  // through normal negotiations.
+  // New Game preserves known opening contracts. When they are incomplete,
+  // Round 1 Results may establish only the missing race-seat relationship.
+  // Later-season Results and strong free agents must never create Jan-1 seats.
+  // Once the Save World starts, MarketEngine handles AI recruitment normally.
 
   const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const gridDriverIds=new Set(contractedDriverIds);
