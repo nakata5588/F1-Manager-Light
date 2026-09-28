@@ -141,3 +141,82 @@ test("historical reputation baseline does not double-count mirrored runtime hist
   },"T1");
   assert.equal(mirrored,once);
 });
+
+test("historical Reputation inherits verified organisation history and ignores selected-season future results",()=>{
+  const base={
+    activeYear:1980,
+    dbTeamSeasons:[
+      {year:1977,team_id:"OLD"},
+      {year:1978,team_id:"OLD"},
+      {year:1979,team_id:"OLD"},
+    ],
+    dbDriverHistory:[
+      {year:1977,series_division:"F1",driver_id:"D1",team_id:"OLD",wins:3,podiums:6,starts:17,points:55},
+      {year:1978,series_division:"F1",driver_id:"D1",team_id:"OLD",wins:2,podiums:5,starts:16,points:45},
+      {year:1979,series_division:"F1",driver_id:"D1",team_id:"OLD",wins:1,podiums:4,starts:15,points:35},
+      {year:1980,series_division:"F1",driver_id:"D2",team_id:"NEW",wins:15,podiums:25,starts:30,points:300},
+    ],
+    dbHistoricalChampionships:{
+      constructors:[
+        {year:1978,constructor_id:"OLD",position:1},
+        {year:1979,constructor_id:"OLD",position:2},
+        {year:1980,constructor_id:"NEW",position:1},
+      ],
+      drivers:[
+        {year:1978,constructor_id:"OLD",position:1,driver_id:"D1"},
+        {year:1980,constructor_id:"NEW",position:1,driver_id:"D2"},
+      ],
+    },
+    teamHistoricalStrength:[
+      {year:1980,team_id:"NEW",recent_competitiveness:72},
+    ],
+  };
+
+  const noLineage=teamReputation(base,"NEW");
+  const withLineage=teamReputation({
+    ...base,
+    dbTeamLineageHistory:[
+      {predecessor_team_id:"OLD",successor_team_id:"NEW",effective_from_year:1980,verified:true},
+    ],
+  },"NEW");
+  assert.ok(withLineage>noLineage,[withLineage,noLineage]);
+
+  const withoutSelectedSeason={
+    ...base,
+    dbDriverHistory:base.dbDriverHistory.filter((row)=>Number(row.year)<1980),
+    dbHistoricalChampionships:{
+      constructors:base.dbHistoricalChampionships.constructors.filter((row)=>Number(row.year)<1980),
+      drivers:base.dbHistoricalChampionships.drivers.filter((row)=>Number(row.year)<1980),
+    },
+    dbTeamLineageHistory:[
+      {predecessor_team_id:"OLD",successor_team_id:"NEW",effective_from_year:1980,verified:true},
+    ],
+  };
+  assert.equal(withLineage,teamReputation(withoutSelectedSeason,"NEW"));
+});
+
+test("career source season freezes the historical Reputation seed",()=>{
+  const gs={
+    activeYear:1980,
+    dbTeamSeasons:[
+      {year:1978,team_id:"T1"},
+      {year:1979,team_id:"T1"},
+      {year:1980,team_id:"T1"},
+    ],
+    dbDriverHistory:[
+      {year:1978,series_division:"F1",driver_id:"D1",team_id:"T1",wins:1,podiums:2,starts:16},
+      {year:1979,series_division:"F1",driver_id:"D1",team_id:"T1",wins:1,podiums:3,starts:16},
+      {year:1980,series_division:"F1",driver_id:"D1",team_id:"T1",wins:12,podiums:20,starts:16},
+    ],
+    dbHistoricalChampionships:{constructors:[],drivers:[]},
+    teamHistoricalStrength:[{year:1980,team_id:"T1",recent_competitiveness:55}],
+  };
+  const january=teamReputation(gs,"T1");
+  const later=teamReputation({
+    ...gs,
+    activeYear:1982,
+    careerMeta:{sourceSeason:1980},
+    teamReputationState:{},
+  },"T1");
+  assert.equal(later,january);
+});
