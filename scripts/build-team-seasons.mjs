@@ -128,17 +128,25 @@ for(const row of Array.isArray(rows)?rows:[]){
       first_round:null,
       first_date:null,
       first_source_index:sourceIndex,
-      exact_entrant:false,
-      relation_basis:new Set(),
-      confidence:new Set(),
+      first_exact_entrant:false,
+      first_relation_basis:new Set(),
+      first_confidence:new Set(),
     };
     prev.appearances+=1;
-    if(Number.isFinite(roundRaw)&&(prev.first_round==null||roundRaw<prev.first_round))prev.first_round=roundRaw;
-    if(raceDate&&(!prev.first_date||raceDate<prev.first_date))prev.first_date=raceDate;
-    prev.first_source_index=Math.min(prev.first_source_index,sourceIndex);
-    prev.exact_entrant=Boolean(prev.exact_entrant||link.exact_entrant);
-    if(link.relation_basis)prev.relation_basis.add(String(link.relation_basis));
-    if(link.confidence)prev.confidence.add(String(link.confidence));
+    if(Number.isFinite(roundRaw)&&(prev.first_round==null||roundRaw<prev.first_round)){
+      prev.first_round=roundRaw;
+      prev.first_date=raceDate||null;
+      prev.first_source_index=sourceIndex;
+      prev.first_exact_entrant=Boolean(link.exact_entrant);
+      prev.first_relation_basis=new Set(link.relation_basis?[String(link.relation_basis)]:[]);
+      prev.first_confidence=new Set(link.confidence?[String(link.confidence)]:[]);
+    }else if(Number.isFinite(roundRaw)&&roundRaw===prev.first_round){
+      if(raceDate&&(!prev.first_date||raceDate<prev.first_date))prev.first_date=raceDate;
+      prev.first_source_index=Math.min(prev.first_source_index,sourceIndex);
+      prev.first_exact_entrant=Boolean(prev.first_exact_entrant||link.exact_entrant);
+      if(link.relation_basis)prev.first_relation_basis.add(String(link.relation_basis));
+      if(link.confidence)prev.first_confidence.add(String(link.confidence));
+    }
     rec.resolved_drivers.set(driverId,prev);
   }
 
@@ -204,9 +212,9 @@ const output=[...byKey.values()]
         first_round:driver.first_round,
         first_date:driver.first_date,
         first_source_index:driver.first_source_index,
-        exact_entrant:Boolean(driver.exact_entrant),
-        relation_basis:[...driver.relation_basis].sort(),
-        confidence:[...driver.confidence].sort(),
+        exact_entrant:Boolean(driver.first_exact_entrant),
+        relation_basis:[...driver.first_relation_basis].sort(),
+        confidence:[...driver.first_confidence].sort(),
         source:"race_results_round_1",
       }))
       .sort((a,b)=>
