@@ -1668,7 +1668,13 @@ test("RW6 FINAL B — Red Flag save/load resumes the same race and still reaches
     const liveRow=liveByDriver.get(String(row?.driver?.driver_id??row?.driver_id??""));
     assert.ok(liveRow);
     assert.equal(Number(row.pos),Number(liveRow.position));
-    assert.equal(Number(row.total_time_ms),Number(liveRow.elapsed_ms));
+    if(liveRow.retired){
+      assert.equal(row.total_time_ms,null);
+      assert.equal(row.gap_to_winner_ms,null);
+      assert.equal(row.gap_to_previous_ms,null);
+    }else{
+      assert.equal(Number(row.total_time_ms),Number(liveRow.elapsed_ms));
+    }
   }
 });
 
