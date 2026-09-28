@@ -260,10 +260,12 @@ for(const year of supportedYears){
 
     if(kind==="generated"&&profileById.has(id)){
       const profilePeak=Number(profileById.get(id)?.peak_ability);
+      const repairedPeak=Number(rating?.talent_profile_peak_effective);
+      const effectivePeak=Number.isFinite(repairedPeak)?repairedPeak:profilePeak;
       const current=Number(rating?.current_ability);
       const actualPotential=Number(rating?.potential_ability);
-      const expectedPotential=Number.isFinite(profilePeak)
-        ?Math.max(profilePeak,Number.isFinite(current)?current:profilePeak)
+      const expectedPotential=Number.isFinite(effectivePeak)
+        ?Math.max(effectivePeak,Number.isFinite(current)?current:effectivePeak)
         :current;
       if(Number.isFinite(expectedPotential)&&Math.abs(actualPotential-expectedPotential)>0.11){
         provenanceErrors++;
