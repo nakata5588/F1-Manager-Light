@@ -20,6 +20,12 @@ import { createLivePitState } from "../src/engine/LivePitStopEngine.js";
 import { normaliseRaceCarDamage, raceCarDamageSummary, raceCarEraForYear } from "../src/domain/raceCarVisual.js";
 import { raceCarOverlapMetric, resolveRaceCarPhysicalLayout } from "../src/domain/raceCarOccupancy.js";
 import { historicalRaceCarLiveriesForYear, historicalRaceCarLivery } from "../src/domain/raceCarLiveries.js";
+import {
+  RACE_CAR_ROUNDS_1980,
+  historicalRaceCarModel,
+  historicalRaceCarModelOverridesForYear,
+  historicalRaceCarModelTimelineForYear,
+} from "../src/domain/raceCarModels.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
   const fast={driver_id:"fast",sector_2_ms:29000};
@@ -524,4 +530,54 @@ test("Cars 4.0C uses historically recognisable 1980 visual identities without ch
   assert.equal(mclaren.pattern,"marlboro_chevron");
   assert.equal(lotus.sponsor,"ESSEX");
   assert.equal(historicalRaceCarLivery({year:1981,teamId:"t_0003"}),null);
+});
+
+
+test("Cars 4.1A maps the complete 14-round 1980 championship calendar",()=>{
+  assert.equal(RACE_CAR_ROUNDS_1980.length,14);
+  assert.deepEqual(
+    RACE_CAR_ROUNDS_1980.map((row)=>row.round),
+    Array.from({length:14},(_,index)=>index+1)
+  );
+  assert.equal(RACE_CAR_ROUNDS_1980[0].gp,"Argentina");
+  assert.equal(RACE_CAR_ROUNDS_1980.at(-1).gp,"USA");
+});
+
+test("Cars 4.1A resolves clean team-wide chassis changes by round",()=>{
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0006",round:2}).model,"009");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0006",round:3}).model,"010");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:7}).model,"F7");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:9}).model,"F8");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:2}).model,"D3");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:4}).model,"D4");
+});
+
+test("Cars 4.1A preserves mixed-chassis weekends with entry overrides",()=>{
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0001",round:1,driverName:"Alan Jones",driverNumber:27}).model,"FW07");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0001",round:1,driverName:"Carlos Reutemann",driverNumber:28}).model,"FW07B");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0005",round:10,driverName:"Nigel Mansell"}).model,"81B");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0005",round:10,driverName:"Mario Andretti"}).model,"81");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:8,driverName:"Emerson Fittipaldi"}).model,"F8");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0008",round:8,driverName:"Keke Rosberg"}).model,"F7");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0009",round:11,driverName:"Alain Prost"}).model,"M30");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0009",round:11,driverName:"John Watson"}).model,"M29");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:3,driverName:"Jan Lammers",driverNumber:9}).model,"D3");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0012",round:3,driverName:"Marc Surer",driverNumber:9}).model,"D4");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0015",round:5,driverName:"Geoff Lees"}).model,"DN12");
+  assert.equal(historicalRaceCarModel({year:1980,teamId:"t_0015",round:5,driverName:"David Kennedy"}).model,"DN11");
+});
+
+test("Cars 4.1A keeps timeline data declarative and outside the renderer",()=>{
+  const timeline=historicalRaceCarModelTimelineForYear(1980);
+  const overrides=historicalRaceCarModelOverridesForYear(1980);
+  assert.equal(new Set(timeline.map((row)=>row.team_id)).size,15);
+  assert.ok(timeline.some((row)=>row.team_id==="t_0006"&&row.model==="010"&&row.from_round===3));
+  assert.ok(overrides.some((row)=>row.team_id==="t_0009"&&row.model==="M30"));
+  assert.equal(historicalRaceCarModel({year:1981,teamId:"t_0001",round:1}),null);
+});
+
+test("Cars 4.1A feeds the round-specific model into the existing 1980 livery profile",()=>{
+  assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0006",round:2}).model,"009");
+  assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0006",round:3}).model,"010");
+  assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0009",round:11,driverName:"Alain Prost"}).model,"M30");
 });

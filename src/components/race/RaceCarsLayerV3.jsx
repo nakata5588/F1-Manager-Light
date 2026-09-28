@@ -143,7 +143,11 @@ function V3CarsLayer({
           node.setAttribute("transform",transform);
           state.lastTransform=transform;
         }
-        state.body=state.body||node.querySelector('[data-car-body="true"]');
+        const currentBody=node.querySelector('[data-car-body="true"]');
+        if(currentBody!==state.body){
+          state.body=currentBody;
+          state.lastHeading=null;
+        }
         if(state.body&&(!Number.isFinite(state.lastHeading)||Math.abs(point.heading-state.lastHeading)>.02)){
           state.body.setAttribute("transform",`rotate(${point.heading.toFixed(3)})`);
           state.lastHeading=point.heading;

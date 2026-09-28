@@ -1,3 +1,5 @@
+import { historicalRaceCarModel } from "./raceCarModels.js";
+
 // src/domain/raceCarLiveries.js
 // Historical Race View livery profiles.
 // These are original vector approximations for gameplay readability; they do
@@ -26,12 +28,34 @@ const BY_NAME=Object.freeze(Object.fromEntries(
   Object.entries(LIVERIES_1980).map(([teamId,profile])=>[profile.team.toLowerCase(),{...profile,team_id:teamId}])
 ));
 
-export function historicalRaceCarLivery({year,teamId,teamName}={}){
+export function historicalRaceCarLivery({
+  year,
+  teamId,
+  teamName,
+  round=null,
+  driverNumber=null,
+  driverName="",
+}={}){
   if(Number(year)!==1980)return null;
   const id=String(teamId||"");
-  if(LIVERIES_1980[id])return {...LIVERIES_1980[id],team_id:id,year:1980};
-  const byName=BY_NAME[String(teamName||"").trim().toLowerCase()];
-  return byName?{...byName,year:1980}:null;
+  const byId=LIVERIES_1980[id]?{...LIVERIES_1980[id],team_id:id}:null;
+  const byName=BY_NAME[String(teamName||"").trim().toLowerCase()]||null;
+  const profile=byId||byName;
+  if(!profile)return null;
+  const resolvedTeamId=String(profile.team_id||id||"");
+  const timeline=historicalRaceCarModel({
+    year,
+    teamId:resolvedTeamId,
+    round,
+    driverNumber,
+    driverName,
+  });
+  return {
+    ...profile,
+    model:timeline?.model||profile.model,
+    model_resolution:timeline?.resolution||"season_profile",
+    year:1980,
+  };
 }
 
 export function historicalRaceCarLiveriesForYear(year){

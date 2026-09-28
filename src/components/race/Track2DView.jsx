@@ -77,12 +77,15 @@ function brandForTeam(teamBrands,teamId,year){
   return past[0]||rows[0];
 }
 
-function markerPalette(teamBrands,teamId,year){
+function markerPalette(teamBrands,teamId,year,{round=null,driverNumber=null,driverName=""}={}){
   const brand=brandForTeam(teamBrands,teamId,year);
   const historical=historicalRaceCarLivery({
     year,
     teamId,
     teamName:brand?.team_name||brand?.team_official_name,
+    round,
+    driverNumber,
+    driverName,
   });
   return {
     primary:historical?.primary||brand?.primary_color||"#94a3b8",
@@ -666,6 +669,7 @@ function TrackMiniMap({geometry,rows=[],teamBrands=[],year,currentControl="GREEN
 export default function Track2DView({
   trackId,
   year,
+  round=null,
   rows=[],
   drivers=[],
   teams=[],
@@ -1010,7 +1014,9 @@ export default function Track2DView({
         (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
         ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
       );
-      const palette=markerPalette(teamBrands,tid,year);
+      const driverNumber=authoritativeRow?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null;
+      const driverDisplayName=driverName(drivers,did);
+      const palette=markerPalette(teamBrands,tid,year,{round,driverNumber,driverName:driverDisplayName});
       return [{
         id:did||String(index),
         raceOrder:Number(row?.position??index+1),
@@ -1028,7 +1034,7 @@ export default function Track2DView({
         secondary:palette.secondary,
         accent:palette.accent,
         label:shortDriverName(drivers,did),
-        driverNumber:authoritativeRow?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null,
+        driverNumber,
         sponsorLabel:palette.sponsor,
         liveryPattern:palette.liveryPattern,
         historicalModel:palette.historicalModel,
@@ -1036,7 +1042,7 @@ export default function Track2DView({
         mine:tid===String(playerTeamId||""),
         selected,
         retired:Boolean(row?.retired),
-        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        title:`P${row?.position??index+1} · ${driverDisplayName} · ${teamName(teams,tid)}`,
         onSelect:()=>selectDriver(did),
       }];
     });
@@ -1074,7 +1080,9 @@ export default function Track2DView({
         (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
         ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
       );
-      const palette=markerPalette(teamBrands,tid,year);
+      const driverNumber=row?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null;
+      const driverDisplayName=driverName(drivers,did);
+      const palette=markerPalette(teamBrands,tid,year,{round,driverNumber,driverName:driverDisplayName});
       const visualSeed=Number(activeRowByDriver.get(did)?.visual_world_progress);
       return [{
         id:did||String(index),
@@ -1101,7 +1109,7 @@ export default function Track2DView({
         secondary:palette.secondary,
         accent:palette.accent,
         label:shortDriverName(drivers,did),
-        driverNumber:row?.driver_number??driver?.prefered_number??driver?.preferred_number??driver?.driver_number??null,
+        driverNumber,
         sponsorLabel:palette.sponsor,
         liveryPattern:palette.liveryPattern,
         historicalModel:palette.historicalModel,
@@ -1109,7 +1117,7 @@ export default function Track2DView({
         mine:tid===String(playerTeamId||""),
         selected,
         retired:Boolean(row?.retired),
-        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        title:`P${row?.position??index+1} · ${driverDisplayName} · ${teamName(teams,tid)}`,
         onSelect:()=>selectDriver(did),
       }];
     });
