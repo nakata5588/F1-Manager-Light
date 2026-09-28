@@ -4,7 +4,7 @@ import { triggerDailyTick } from "@/engine/EventEngine";
 import { processScoutingTick } from "@/engine/ScoutingEngine";
 import { createCareerMeta } from "@/core/careerBoundary";
 import { rolloverSeasonPure } from "@/core/season";
-import { fetchSeasonPack, seasonPackStatePatch } from "@/data/seasonPackLoader";
+import { fetchSeasonPack, materializeSeasonPackFromDatabaseState, seasonPackStatePatch } from "@/data/seasonPackLoader";
 import { defaultDriverCondition } from "@/domain/driverRating";
 import { hydrateDriverPortraitRows, resolveDriverPortrait } from "@/domain/driverPortraits";
 import { historicalAssetCandidatesWithOverrides } from "@/domain/historicalAssets";
@@ -611,21 +611,40 @@ export const useGame = create((set, get) => ({
       }));
       return { ok: true, source: "season-pack", pack };
     } catch (error) {
-      console.warn(`[SeasonPack] ${year} unavailable; using legacy materializer.`, error);
+      console.warn(`[SeasonPack] ${year} generated file unavailable; materializing from loaded historical DB.`, error);
       if (fallback) {
-        get().applyYearFilter(year, { normalizeDate: true });
-        set((s) => ({
-          gameState: {
-            ...s.gameState,
-            seasonPackMeta: {
-              format: "legacy-year-filter",
-              schemaVersion: 0,
-              year,
-              error: String(error?.message || error),
+        try {
+          const pack = materializeSeasonPackFromDatabaseState(get().gameState, year);
+          const patch = seasonPackStatePatch(pack);
+          set((s) => ({
+            gameState: {
+              ...s.gameState,
+              ...patch,
+              seasonPackMeta: {
+                ...(patch.seasonPackMeta || {}),
+                source: "runtime_materializer",
+                generated_file_error: String(error?.message || error),
+              },
             },
-          },
-        }));
-        return { ok: true, source: "legacy", error };
+          }));
+          return { ok: true, source: "runtime-materializer", pack, error };
+        } catch (materializeError) {
+          console.warn(`[SeasonPack] ${year} runtime materializer failed; using final legacy fallback.`, materializeError);
+          get().applyYearFilter(year, { normalizeDate: true });
+          set((s) => ({
+            gameState: {
+              ...s.gameState,
+              seasonPackMeta: {
+                format: "legacy-year-filter",
+                schemaVersion: 0,
+                year,
+                error: String(materializeError?.message || materializeError),
+                generated_file_error: String(error?.message || error),
+              },
+            },
+          }));
+          return { ok: true, source: "legacy", error: materializeError };
+        }
       }
       return { ok: false, source: "season-pack", error };
     }
