@@ -31,7 +31,7 @@ function headingVector(degrees){
 
 export function raceCarPhysicalEnvelope({markerScale=1,lod="overview"}={}){
   const scale=clamp(finite(markerScale,1),0.08,1.4);
-  const lodFactor=lod==="close"?1:lod==="medium"?.96:.9;
+  const lodFactor=lod==="close"?1:lod==="medium"?0.96:.9;
   return {
     longitudinal:24*scale*lodFactor,
     lateral:12*scale*lodFactor,
