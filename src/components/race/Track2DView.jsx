@@ -497,7 +497,7 @@ function AnimatedMarker({
       />
       <animate attributeName="opacity" values=".62;.18;.62" dur="1.15s" repeatCount="indefinite"/>
     </circle>:null}
-    <g transform={`translate(${point.x} ${point.y}) rotate(${heading}) scale(${scale})`} opacity={retired?.62:1}>
+    <g transform={`translate(${point.x} ${point.y}) rotate(${heading}) scale(${scale})`} opacity={retired?0.62:1}>
       <ellipse cx="-1.5" cy="2.2" rx="13.8" ry="5.2" fill="#020617" opacity=".35"/>
       <rect x="-8.5" y="-7.2" width="5.4" height="4.2" rx="1" fill="#05070a"/>
       <rect x="-8.5" y="3" width="5.4" height="4.2" rx="1" fill="#05070a"/>
@@ -523,7 +523,7 @@ function AnimatedMarker({
       const arm=4.8*scale;
       return <path d={`M ${point.x-arm} ${point.y-arm} L ${point.x+arm} ${point.y+arm} M ${point.x+arm} ${point.y-arm} L ${point.x-arm} ${point.y+arm}`} stroke="#fff" strokeWidth={1.6*scale}/>;
     })():null}
-  </g>;;
+  </g>;
 }
 
 function Stat({label,value,tone="text-slate-100",icon=null,sub=null}){
@@ -849,7 +849,7 @@ export default function Track2DView({
       :cameraMode==="free"&&freeViewBox
         ?freeViewBox
         :fitViewBox;
-    const factor=event.deltaY<0?.82:1.22;
+    const factor=event.deltaY<0?0.82:1.22;
     stopFollowCamera();
     setCameraMode("free");
     setFreeViewBox(zoomTrackViewBox(current,fitViewBox,{
