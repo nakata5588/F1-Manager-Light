@@ -146,6 +146,20 @@ console.table(weakest(titleHolders).map((row)=>({
   YEAR:row.year,DRIVER:row.name,OVR:row.current,POT:row.potential,AGE:row.age,TITLES:row.titles,LAST_TITLE:row.lastTitleYear,SOURCE:row.source,
 })));
 
+console.log("\nLargest year-to-year OVR jumps (>=18)");
+console.table(jumps
+  .slice()
+  .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||a.from-b.from)
+  .slice(0,20)
+  .map((row)=>({
+    DRIVER:row.name,
+    FROM:row.from,
+    TO:row.to,
+    FROM_OVR:row.from_ovr,
+    TO_OVR:row.to_ovr,
+    DELTA:row.delta,
+  })));
+
 console.log("\nDiagnostics");
 console.log(JSON.stringify({
   observations:observations.length,
