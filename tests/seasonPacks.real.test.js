@@ -5,14 +5,17 @@ import path from "node:path";
 import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 
 const root=process.cwd();
-const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2007,2014,2020];
+const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1989,1999,2007,2011,2012,2014,2015,2020];
 const expectedTeamCounts={
   1975:19,
   1980:15,
   1989:20,
   1999:11,
   2007:11,
+  2011:12,
+  2012:12,
   2014:11,
+  2015:10,
   2020:10,
 };
 
@@ -154,6 +157,38 @@ test("1980 Shadow uses Round 1 evidence to repair incomplete race-seat metadata"
 
 
 
+
+
+
+test("Virgin-Marussia-Manor identity follows the Results timeline",async()=>{
+  const expected=[
+    {year:2011,id:"t_0166",name:"Virgin"},
+    {year:2012,id:"t_0204",name:"Marussia"},
+    {year:2015,id:"t_0207",name:"Manor Marussia"},
+  ];
+
+  for(const item of expected){
+    const pack=await readPack(item.year);
+    const teams=pack.state?.teams||[];
+    const team=teams.find((row)=>String(row.team_id)===item.id);
+    assert.ok(team,item.year+" must contain "+item.name+" with canonical ID "+item.id);
+    assert.equal(String(team.team_name||team.name),item.name);
+
+    const raceContracts=(pack.state?.contracts||[]).filter(
+      (row)=>isRaceDriverContract(row)&&String(row.team_id)===item.id
+    );
+    assert.equal(raceContracts.length,2,item.year+" "+item.name+" must have two opening race drivers");
+
+    const wrongIds=expected
+      .filter((other)=>other.year!==item.year)
+      .map((other)=>other.id);
+    assert.equal(
+      teams.some((row)=>wrongIds.includes(String(row.team_id))),
+      false,
+      item.year+" must not materialize another era of the Virgin/Marussia/Manor lineage"
+    );
+  }
+});
 
 test("2007 opening grid is seeded only from Round 1 Results when contracts are absent",async()=>{
   const pack=await readPack(2007);
