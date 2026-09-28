@@ -186,6 +186,9 @@ jobs:
       - name: Audit historical driver ratings and roles
         run: npm run audit:drivers:historical-calibration
 
+      - name: Audit all-eras historical driver calibration
+        run: npm run audit:drivers:all-eras
+
       - name: Audit all-years driver rating coverage
         run: npm run audit:driver-ratings:all-years
 
