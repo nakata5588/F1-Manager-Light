@@ -10,6 +10,7 @@ export const TRACK_MODEL_SCHEMA_VERSION=1;
 
 const text=(value)=>String(value??"");
 const finite=(value,fallback=null)=>{
+  if(value===null||value===undefined||value==="")return fallback;
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
