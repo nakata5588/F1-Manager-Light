@@ -7,8 +7,7 @@
 // Research, completed development work, staff and facilities.
 
 import { carComponentDefinition } from "./carComponents.js";
-import { activeStaffContracts } from "./liveContracts.js";
-import { resolveStaffId } from "./staffRoles.js";
+import { teamStaffCapability } from "./staffPerformance.js";
 import { nextSeasonRegulationImpact } from "./nextSeasonRegulations.js";
 
 const str=(v)=>String(v??"");
@@ -91,25 +90,7 @@ function staffRating(gs,staffId){
 }
 
 function technicalStaffQuality(gs,teamId){
-  const contracts=activeStaffContracts(gs,{teamId});
-  const scored=contracts.map((contract)=>{
-    const role=str(contract?.role??contract?.position).toLowerCase();
-    const relevance=/technical|designer|engineer|aero/.test(role)?1
-      :/strateg/.test(role)?0.72
-        :/principal|owner/.test(role)?0.35:0.50;
-    const rating=staffRating(gs,resolveStaffId(gs,contract));
-    const quality=
-      num(rating?.technical,50)*0.42+
-      num(rating?.innovation,50)*0.24+
-      num(rating?.data_analysis,50)*0.18+
-      num(rating?.reliability_focus,50)*0.10+
-      num(rating?.communication,50)*0.06;
-    return {quality,relevance,score:quality*relevance};
-  }).sort((a,b)=>b.score-a.score).slice(0,3);
-  if(!scored.length)return 50;
-  const weighted=scored.reduce((sum,row)=>sum+row.quality*row.relevance,0);
-  const weights=scored.reduce((sum,row)=>sum+row.relevance,0);
-  return round(weights?weighted/weights:50,1);
+  return teamStaffCapability(gs,teamId,"technical_program");
 }
 
 function currentCarTechnicalCalibration(gs,teamId){
