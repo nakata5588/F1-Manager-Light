@@ -9,7 +9,7 @@ import { rngFor } from "../core/random.js";
 import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
-import { raceControlAtLap } from "./RaceControlEngine.js";
+import { incidentForDriver, raceControlAtLap } from "./RaceControlEngine.js";
 import { incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { buildPitServiceSchedule } from "./PitServiceEngine.js";
 import { aiPitRepairDecision } from "./AIPitRepairEngine.js";
@@ -24,6 +24,24 @@ import {
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const idOf=(row)=>String(row?.driver_id??row?.driver?.driver_id??row?.id??"");
+function retirementCutoff(plan,driverId,totalLaps){
+  const incident=incidentForDriver(plan,driverId);
+  if(!incident)return {
+    incident:null,
+    lap:null,
+    sector:null,
+    completedLaps:Math.max(0,Math.round(num(totalLaps,0))),
+  };
+  const laps=Math.max(1,Math.round(num(totalLaps,1)));
+  const lap=Math.max(1,Math.min(laps,Math.round(num(incident?.lap,1))));
+  const sector=Math.max(1,Math.min(3,Math.round(num(incident?.sector,1))));
+  return {
+    incident,
+    lap,
+    sector,
+    completedLaps:Math.max(0,Math.min(laps,sector>=3?lap:lap-1)),
+  };
+}
 const canon=(v)=>String(v??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
 
 export const RACE_PACE_MODES=Object.freeze({
@@ -748,7 +766,7 @@ function stintRecord(tyre,start,end,condition,tempSum,tempCount){
   };
 }
 
-export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings||[],roundIndex=0,raceControlPlan=null}={}){
+export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings||[],roundIndex=0,raceControlPlan=null,honorRetirements=true}={}){
   let working=ensureRaceStrategyWorld(gs);
   let strategyState=working?.raceWeekendState?.race_strategy||null;
   if(!strategyState){
@@ -793,6 +811,10 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const wearDriverMult=clamp(1+(60-management)*0.004+(Math.max(0,fatigue-50))*0.003,0.74,1.32);
     const trackWearMult=0.62+(track.tyre_wear/100)*0.72;
     const crew=pitCrew(working,tid);
+    const retirement=honorRetirements
+      ?retirementCutoff(strategyState?.race_control_plan,did,track.laps)
+      :{incident:null,lap:null,sector:null,completedLaps:track.laps};
+    const simulatedLaps=retirement.incident?retirement.completedLaps:track.laps;
     const plannedBase=Math.max(2,Math.min(track.laps-2,Math.round(num(strategy.planned_stop_lap,track.laps*0.52))));
     let plannedLap=plannedBase;
     let plannedReason="planned";
@@ -833,6 +855,8 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     ];
 
     for(let lap=1;lap<=track.laps;lap++){
+      if(lap>simulatedLaps)break;
+      const retiringThisLap=Boolean(retirement.incident&&lap===retirement.lap);
       const commandsThisLap=[];
       while(liveCommandIndex<liveCommands.length&&Number(liveCommands[liveCommandIndex]?.effective_lap||0)<=lap){
         commandsThisLap.push(liveCommands[liveCommandIndex]);
@@ -870,7 +894,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       }
 
       const pace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
-      const forcedPit=commandsThisLap.find((command)=>command?.type==="pit");
+      const forcedPit=retiringThisLap?null:commandsThisLap.find((command)=>command?.type==="pit");
       const teamOrder=commandsThisLap.find((command)=>command?.type==="team_order"&&command?.team_order==="yield");
       const teamOrderPenalty=teamOrder?2.4:0;
       if(teamOrder){
@@ -944,7 +968,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       const interactivePlayer=!isAi&&Boolean(working?.raceWeekendState?.live_race);
       let stopReason=null;
 
-      if(lap>1){
+      if(lap>1&&!retiringThisLap){
         if(forcedPit&&remaining>1)stopReason="player_call";
         else if((isAi||!interactivePlayer)&&!playerTyreAuthority&&crossover.should_pit&&remaining>2)stopReason="weather";
         else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
@@ -975,7 +999,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         :Boolean(stopReason);
       const fuelDelay=plannedRefuel?(Number(working?.activeYear)<=1983?9:6):0;
       const crewFactor=clamp(expectedService/6.8,0.82,1.20);
-      const aiRepair=isAi&&lap>1&&remaining>1
+      const aiRepair=isAi&&!retiringThisLap&&lap>1&&remaining>1
         ?aiPitRepairDecision({
           year:Number(working?.activeYear)||1980,
           damageState,
@@ -1203,13 +1227,16 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       });
     }
 
-    stints.push(stintRecord(tyre,stintStart,track.laps,condition,tempSum,tempCount));
+    if(simulatedLaps>=stintStart){
+      stints.push(stintRecord(tyre,stintStart,simulatedLaps,condition,tempSum,tempCount));
+    }
     const weatherRisk=raceRiskFromWeather(working,weather,track);
     const finalPace=RACE_PACE_MODES[activePaceMode]||RACE_PACE_MODES.balanced;
     const incidentRisk=clamp(weatherRisk*finalPace.risk_mult*maxTyreRiskMultiplier,0.7,4);
     const mechanicalRisk=clamp(finalPace.risk_mult*(strategy.fuel_plan==="light_start"?1.025:1),0.8,1.3);
-    const averageFatigueMult=track.laps?accumulatedFatigueLoad/track.laps:1;
-    const raceFatigueGain=Number((16*averageFatigueMult+(weather.wet_race?3:0)).toFixed(2));
+    const participation=track.laps?simulatedLaps/track.laps:0;
+    const averageFatigueMult=track.laps?accumulatedFatigueLoad/track.laps:0;
+    const raceFatigueGain=Number((16*averageFatigueMult+(weather.wet_race?3*participation:0)).toFixed(2));
 
     raceRows.push({
       pos:0,
@@ -1222,6 +1249,13 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       best_lap_ms:Number.isFinite(bestLapMs)?bestLapMs:null,
       fastest_lap:false,
       race_laps:track.laps,
+      projected_laps_completed:simulatedLaps,
+      projected_retirement:retirement.incident?{
+        lap:retirement.lap,
+        sector:retirement.sector,
+        reason:retirement.incident?.reason||"Incident",
+        kind:retirement.incident?.kind||null,
+      }:null,
       pit_stops:pits,
       stints,
       tyre_supplier:tyre?.supplier||working?.raceStrategyWorld?.teamSuppliers?.[tid]||null,
@@ -1252,6 +1286,13 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         fuel_stop_targets:fuelStopTargets.slice(),
         fuel_stop_laps:pits.filter((pit)=>pit.refuelled).map((pit)=>pit.lap),
         race_fatigue_gain:raceFatigueGain,
+        projected_laps_completed:simulatedLaps,
+        projected_retirement:retirement.incident?{
+          lap:retirement.lap,
+          sector:retirement.sector,
+          reason:retirement.incident?.reason||"Incident",
+          kind:retirement.incident?.kind||null,
+        }:null,
         lowest_tyre_condition:Number(lowestCondition.toFixed(1)),
         strategy_decisions:strategyDecisions,
       },
@@ -1277,11 +1318,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     previousGap=gap;
   }
   if(raceRows.length){
-    let fastest=0;
-    for(let i=1;i<raceRows.length;i++){
-      if(num(raceRows[i].best_lap_ms,Infinity)<num(raceRows[fastest].best_lap_ms,Infinity))fastest=i;
-    }
-    raceRows[fastest].fastest_lap=true;
+    const eligible=raceRows
+      .map((row,index)=>({index,time:Number(row?.best_lap_ms)}))
+      .filter((item)=>Number.isFinite(item.time)&&item.time>0)
+      .sort((a,b)=>a.time-b.time||a.index-b.index);
+    if(eligible.length)raceRows[eligible[0].index].fastest_lap=true;
   }
 
   return {
