@@ -35,7 +35,7 @@ function CarShape({color,secondary,label,selected,mine,retired}){
     {selected?<circle cx="0" cy="0" r="16" fill="none" stroke="#fff" strokeWidth="1.6" opacity=".38">
       <animate attributeName="r" values="13;17;13" dur="1.1s" repeatCount="indefinite"/>
     </circle>:null}
-    <g data-car-body="true" opacity={retired?.6:1}>
+    <g data-car-body="true" opacity={retired?0.6:1}>
       <ellipse cx="-1.5" cy="2.2" rx="13.8" ry="5.2" fill="#020617" opacity=".3"/>
       <rect x="-8.5" y="-7.2" width="5.4" height="4.2" rx="1" fill="#05070a"/>
       <rect x="-8.5" y="3" width="5.4" height="4.2" rx="1" fill="#05070a"/>
