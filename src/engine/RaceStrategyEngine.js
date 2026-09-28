@@ -748,7 +748,7 @@ function stintRecord(tyre,start,end,condition,tempSum,tempCount){
   };
 }
 
-export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings||[],roundIndex=0}={}){
+export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings||[],roundIndex=0,raceControlPlan=null}={}){
   let working=ensureRaceStrategyWorld(gs);
   let strategyState=working?.raceWeekendState?.race_strategy||null;
   if(!strategyState){
@@ -758,6 +758,12 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     if(working?.raceWeekendState){
       working={...working,raceWeekendState:{...working.raceWeekendState,race_strategy:strategyState}};
     }
+  }
+  // RW5.3D: direct/fast simulations can consume the same authoritative
+  // Race Control world as Live Race without requiring a live_race UI state.
+  // This keeps incident -> damage -> repair decisions causal in both paths.
+  if(raceControlPlan){
+    strategyState={...strategyState,race_control_plan:raceControlPlan};
   }
 
   const rules=strategyState.rules_snapshot||raceStrategyRulesForYear(working?.activeYear);
