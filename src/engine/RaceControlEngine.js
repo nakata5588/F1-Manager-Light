@@ -5,6 +5,8 @@ import { rngFor } from "../core/random.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
+import { driverMistakePropensity } from "../domain/driverDerivedRatings.js";
+import { driverPerformanceEntries } from "../domain/driverForm.js";
 import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvironmentEngine.js";
 import { evaluateRaceability } from "./RaceabilityEngine.js";
@@ -242,6 +244,26 @@ function activeYearRow(rows,year){
 function ratingFor(gs,did){
   return (gs?.driverRatings||[]).find((row)=>String(row?.driver_id??row?.id??"")===String(did))||{};
 }
+function mistakePropensityFor(gs,did){
+  const rating=ratingFor(gs,did);
+  const result=driverMistakePropensity(rating,{
+    performanceEntries:driverPerformanceEntries(gs,did),
+  });
+  if(result?.value==null)return null;
+  const value=Number(result.value);
+  return Number.isFinite(value)?clamp(value,0,100):null;
+}
+function repairableIncidentMultiplier(gs,row){
+  const did=idOf(row?.driver||row);
+  const propensity=mistakePropensityFor(gs,did);
+  // Preserve the previous 1.4x behaviour for incomplete legacy ratings.
+  // With a complete profile, Mistake Propensity changes how often a driver
+  // has a repairable/avoidable incident, while crash_likelihood continues to
+  // own the calibrated DNF target. This avoids counting the same risk twice.
+  return propensity===null
+    ?1.4
+    :clamp(1.15+(propensity/100)*0.50,1.15,1.65);
+}
 function teamIdForDriver(gs,did){
   return raceEntryTeamForDriver(gs?.raceEntryState,did)
     ||String((gs?.drivers||[]).find((driver)=>idOf(driver)===String(did))?.team_id||"");
@@ -265,10 +287,12 @@ export function accidentRetirementChance(gs,row){
 
 export function accidentIncidentChance(gs,row){
   const target=accidentRetirementChance(gs,row);
-  // Add a repairable-incident layer without erasing the calibrated DNF target.
-  // 1.4x means roughly 29% of baseline crash incidents can be survivable before
-  // structural damage forces an additional retirement.
-  return clamp(target*1.4,target,0.75);
+  // Mistake Propensity controls the frequency of repairable/avoidable driving
+  // incidents. The calibrated DNF target remains owned by crash_likelihood,
+  // fatigue, weather and era reliability, so this does not create a second
+  // independent crash multiplier.
+  const multiplier=repairableIncidentMultiplier(gs,row);
+  return clamp(target*multiplier,target,0.75);
 }
 
 export function accidentConditionalRetirementChance(gs,row){
@@ -496,6 +520,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
       accident_target_dnf_chance:kind==="mechanical"?null:Number(accidentTarget.toFixed(4)),
       accident_incident_chance:kind==="mechanical"?null:Number(accident.toFixed(4)),
       accident_conditional_dnf_chance:kind==="mechanical"?null:Number(accidentConditional.toFixed(4)),
+      mistake_propensity:kind==="mechanical"?null:mistakePropensityFor(gs,driverId),
       retirement:kind==="mechanical"?true:Boolean(damage?.retirement_required),
     };
     incidents.push(incident);
@@ -604,6 +629,7 @@ export function createRaceControlPlan(gs,{gp={},race=[],weather,track}={}){
     aquaplaning_model:"rw5.2d4.2",
     race_control_policy_model:"rw5.2d4.3",
     damage_model:"rw5.3a",
+    driver_mistake_model:"mistake-propensity-v1",
     rules,
     weather_assessments:weatherAssessments,
     incidents:incidents.sort((a,b)=>a.lap-b.lap||Number(a?.sector??1)-Number(b?.sector??1)),

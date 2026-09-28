@@ -94,6 +94,84 @@ test("RW5.3A.1 weather raises incident frequency without changing target-vs-cond
   assert.ok(Math.abs(incident*conditional-target)<1e-12);
 });
 
+test("Mistake Propensity changes repairable incident frequency without changing the calibrated DNF target",()=>{
+  const row={
+    driver:{driver_id:"D1"},
+    incident_risk_multiplier:1,
+    mechanical_risk_multiplier:1,
+  };
+  const low=gs(1980);
+  low.driverRatings=low.driverRatings.map((rating)=>rating.driver_id==="D1"?{
+    ...rating,
+    consistency:95,
+    pressure_handling:95,
+    race_intelligence:95,
+    racecraft:95,
+    adaptability:95,
+    mentality:95,
+    aggression:60,
+  }:rating);
+  const high=gs(1980);
+  high.driverRatings=high.driverRatings.map((rating)=>rating.driver_id==="D1"?{
+    ...rating,
+    consistency:20,
+    pressure_handling:20,
+    race_intelligence:20,
+    racecraft:20,
+    adaptability:20,
+    mentality:20,
+    aggression:100,
+  }:rating);
+
+  const lowTarget=accidentRetirementChance(low,row);
+  const highTarget=accidentRetirementChance(high,row);
+  const lowIncident=accidentIncidentChance(low,row);
+  const highIncident=accidentIncidentChance(high,row);
+  const lowConditional=accidentConditionalRetirementChance(low,row);
+  const highConditional=accidentConditionalRetirementChance(high,row);
+
+  assert.equal(lowTarget,highTarget,"Mistake Propensity must not move the calibrated crash/DNF target");
+  assert.ok(highIncident>lowIncident,"mistake-prone drivers should have more repairable incidents");
+  assert.ok(highConditional<lowConditional,"more frequent incidents should be individually less likely to force a DNF");
+  assert.ok(Math.abs(lowIncident*lowConditional-lowTarget)<1e-12);
+  assert.ok(Math.abs(highIncident*highConditional-highTarget)<1e-12);
+});
+
+test("recent confirmed driver errors modestly increase future repairable incident frequency",()=>{
+  const row={
+    driver:{driver_id:"D1"},
+    incident_risk_multiplier:1,
+    mechanical_risk_multiplier:1,
+  };
+  const base=gs(1980);
+  base.driverRatings=base.driverRatings.map((rating)=>rating.driver_id==="D1"?{
+    ...rating,
+    consistency:70,
+    pressure_handling:70,
+    race_intelligence:70,
+    racecraft:70,
+    adaptability:70,
+    mentality:70,
+    aggression:70,
+  }:rating);
+  const withErrors={
+    ...base,
+    driverPerformanceLog:{
+      D1:[
+        {year:1980,round:1,dateISO:"1980-01-20",incident_kind:"accident",incident_reason:"Accident",incident_responsibility:"driver_error"},
+        {year:1980,round:2,dateISO:"1980-02-17",incident_kind:"spin",incident_reason:"Spin",incident_responsibility:"driver_error"},
+        {year:1980,round:3,dateISO:"1980-03-30",incident_kind:"accident",incident_reason:"Accident",incident_responsibility:"driver_error"},
+      ],
+    },
+  };
+
+  const baseline=accidentIncidentChance(base,row);
+  const afterErrors=accidentIncidentChance(withErrors,row);
+  assert.ok(afterErrors>baseline);
+  assert.ok(afterErrors-baseline<0.02,"recent evidence should be a modest adjustment, not a runaway feedback loop");
+  assert.equal(accidentRetirementChance(withErrors,row),accidentRetirementChance(base,row));
+});
+
 test("race control availability follows the era",()=>{
   const y1980=raceControlRulesForYear(1980);
   assert.equal(y1980.safety_car,false);
