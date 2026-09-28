@@ -283,7 +283,13 @@ function applyPriorCareerCurrentAbilityFloor(rating,{
     historical_previous_championship_position:summary.previous_championship_position,
     historical_recent_best_championship_position:summary.recent_best_championship_position,
   };
-  if(current>=floor)return {...rating,...metadata};
+  if(current>=floor)return {
+    ...rating,
+    ...metadata,
+    historical_current_floor_applied:false,
+    historical_current_floor_source:"preseason_f1_record",
+    calibration_model:"D7.R4",
+  };
 
   const patched={...rating,...metadata};
   const raiseAttributes=(amount)=>{
@@ -310,6 +316,7 @@ function applyPriorCareerCurrentAbilityFloor(rating,{
   ));
   patched.historical_current_floor_applied=true;
   patched.historical_current_floor_source="preseason_f1_record";
+  patched.calibration_model="D7.R4";
   return patched;
 }
 
@@ -585,11 +592,15 @@ export function materializeMissingStartingRatings({
       placement:placementById.get(id)||null,
       calibration,
     });
-    if(rating)byId.set(id,applyPriorCareerCurrentAbilityFloor(rating,{
+    if(rating)byId.set(id,rating);
+  }
+
+  return [...byId.values()].map((rating)=>{
+    const id=driverId(rating);
+    return applyPriorCareerCurrentAbilityFloor(rating,{
       historyRows:historyById.get(id)||[],
       championshipRows:championshipsById.get(id)||[],
       year,
-    }));
-  }
-  return [...byId.values()];
+    });
+  });
 }
