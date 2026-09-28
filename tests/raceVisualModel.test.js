@@ -599,7 +599,7 @@ test("Cars 4.1B defines seven reusable 1980 geometry families",()=>{
       "narrow_wedge",
       "long_venturi",
       "turbo_long",
-      "wide_flat12",
+      "wide_lowbody",
       "compact_transition",
       "late_ground_effect",
     ])
@@ -632,7 +632,7 @@ test("Cars 4.1B gives representative 1980 chassis recognisably different silhoue
   assert.equal(bt.geometry_family,"narrow_wedge");
   assert.equal(lotus.geometry_family,"long_venturi");
   assert.equal(renault.geometry_family,"turbo_long");
-  assert.equal(ferrari.geometry_family,"wide_flat12");
+  assert.equal(ferrari.geometry_family,"wide_lowbody");
   assert.equal(tyrrell.geometry_family,"compact_transition");
   assert.equal(mclaren.geometry_family,"late_ground_effect");
 

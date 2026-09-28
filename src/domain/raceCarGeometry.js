@@ -88,7 +88,7 @@ export const RACE_CAR_GEOMETRY_FAMILIES_1980=Object.freeze({
     frontWingHalfWidth:9.45,
     cockpitX:-3.0,
   }),
-  wide_flat12:Object.freeze({
+  wide_lowbody:Object.freeze({
     ...BASE,
     rearBodyX:-14.45,
     rearBodyHalfWidth:5.8,
@@ -174,8 +174,8 @@ const MODEL_PROFILES_1980=Object.freeze({
   F8:{family:"late_ground_effect",params:{sidepodRearHalfWidth:5.85,sidepodFrontHalfWidth:5.65,noseTipX:19.55,cockpitX:-2.65}},
   M29:{family:"narrow_wedge",params:{rearBodyX:-14.25,sidepodRearHalfWidth:5.7,sidepodFrontHalfWidth:5.35,noseTipX:20.15,cockpitX:-3.2}},
   M30:{family:"late_ground_effect",params:{sidepodRearHalfWidth:5.9,sidepodFrontHalfWidth:5.7,noseTipX:19.35,cockpitX:-2.45,frontWingHalfWidth:9.5}},
-  "312T5":{family:"wide_flat12",params:{rearBodyHalfWidth:5.95,sidepodRearHalfWidth:6.45,sidepodFrontHalfWidth:6.05,frontWingHalfWidth:9.95,rearWingHalfWidth:10.05}},
-  "179":{family:"wide_flat12",params:{rearBodyHalfWidth:5.7,sidepodRearHalfWidth:6.2,sidepodFrontHalfWidth:5.85,noseTipX:20.25,rearWingHalfWidth:9.8}},
+  "312T5":{family:"wide_lowbody",params:{rearBodyHalfWidth:5.95,sidepodRearHalfWidth:6.45,sidepodFrontHalfWidth:6.05,frontWingHalfWidth:9.95,rearWingHalfWidth:10.05}},
+  "179":{family:"wide_lowbody",params:{rearBodyHalfWidth:5.7,sidepodRearHalfWidth:6.2,sidepodFrontHalfWidth:5.85,noseTipX:20.25,rearWingHalfWidth:9.8}},
   D3:{family:"narrow_wedge",params:{sidepodRearHalfWidth:5.5,sidepodFrontHalfWidth:5.2,noseTipX:20.1,rearWingHalfWidth:9.2}},
   D4:{family:"compact_transition",params:{sidepodRearHalfWidth:5.35,sidepodFrontHalfWidth:5.1,noseTipX:19.7,cockpitX:-2.9}},
   N180:{family:"compact_transition",params:{sidepodRearHalfWidth:5.45,noseTipX:19.45,frontWingHalfWidth:8.95,cockpitX:-3.0}},
