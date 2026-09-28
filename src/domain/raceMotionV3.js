@@ -113,6 +113,7 @@ export function continuousRaceTargetToken(car){
     Number(car?.targetWorldProgress||0).toFixed(7),
     Number(car?.targetPitLaneProgress||0).toFixed(5),
     Number(car?.targetPitLaneMix||0).toFixed(4),
+    Math.round(Number(car?.motionDurationMs)||0),
     car?.stopped?1:0,
     car?.retired?1:0,
   ].join(":");
