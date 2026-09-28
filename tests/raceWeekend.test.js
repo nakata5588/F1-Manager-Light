@@ -16,6 +16,7 @@ import { PRACTICE_PROGRAMMES, teamEngineeringSupport, trackSetupProfile } from "
 import { conditionModifier, practiceWeekendImpact } from "../src/domain/driverPerformance.js";
 import { normalizePhysicalPartState, partUnitById } from "../src/domain/partUnits.js";
 import { normalizeRaceWeekendResumeState, raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../src/domain/raceWeekendResume.js";
+import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 
 const gp={
   gp_id:"monaco",
@@ -588,4 +589,70 @@ test("finished live race exposes an explicit finalization gate",()=>{
     ...weekend,
     live_race:{...weekend.live_race,current_lap:52},
   }),false);
+});
+
+
+test("RW5.3D direct Race autosim creates and consumes an authoritative Race Control plan",async()=>{
+  let gs=finish1980Qualifying({seed:"rw5.3d-autosim-plan"});
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
+  assert.equal(gs.raceWeekendState.phase,"race");
+
+  gs=await completeRaceSession(gs,{gp});
+
+  const plan=gs?.lastRace?.strategySummary?.race_control;
+  assert.ok(plan,"direct autosim must expose the Race Control world used by strategy");
+  assert.ok(Array.isArray(plan.incidents));
+  assert.ok(Array.isArray(plan.periods));
+  assert.ok(Array.isArray(plan.weather_timeline));
+});
+
+test("RW5.3D direct Race damage can trigger an AI repair and final damage reflects that repair",async()=>{
+  let gs=finish1980Qualifying({seed:"rw5.3d-autosim-repair"});
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
+  assert.equal(gs.raceWeekendState.phase,"race");
+
+  const damage=damageStateFromComponents({front_wing:75});
+  const plan={
+    model:"rw5.3d-test",
+    rules:{},
+    incidents:[{
+      driver_id:"D3",
+      other_driver_id:null,
+      lap:5,
+      sector:3,
+      kind:"collision",
+      reason:"Collision",
+      severity:"medium",
+      severity_score:0.6,
+      damage_ordinal:15,
+      damage,
+      retirement:false,
+      time_loss_s:0,
+    }],
+    damage_repairs:[],
+    periods:[],
+    weather_timeline:[],
+  };
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:plan,
+      },
+    },
+  };
+
+  gs=await completeRaceSession(gs,{gp});
+
+  const d3=gs.results[0].classification.find((row)=>row.driver_id==="D3");
+  assert.ok(d3);
+  const repairStop=(d3.pit_stops||[]).find((stop)=>stop?.service?.repair?.repaired_components?.includes("front_wing"));
+  assert.ok(repairStop,"AI must be able to pit for a worthwhile repair during direct autosim");
+  assert.equal(d3.retired,false);
+  assert.ok(
+    Number(d3.damage_pace_loss_s_per_lap)<Number(damage.pace_loss_s_per_lap),
+    "final damage must reflect the repair instead of charging unrepaired damage to the finish"
+  );
 });
