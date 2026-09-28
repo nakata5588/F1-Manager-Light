@@ -58,18 +58,8 @@ export const PARITY_DOMAINS = [
 ];
 
 export const KNOWN_RACE_PARITY_GAPS = Object.freeze({
-  incidents: "Live currently rebuilds future Race Control plans while direct autosim consumes one full-race plan.",
-  damage: "Direct autosim does not yet materialize every damage loss into per-lap timing the same way as Live.",
-  dnf: "Retirement outcomes can follow regenerated future incidents in Live.",
-  pits: "Live repeatedly reprojects strategy and materializes pit state incrementally.",
-  repairs: "Live and direct repair histories are materialized through different orchestration paths.",
-  tyres: "Tyre state can inherit pit/reprojection differences between the two paths.",
-  race_control: "SC/VSC/Local Yellow/Red Flag ownership is not yet unified.",
-  red_flag: "Only Live currently executes the full Red Flag lifecycle and restart work.",
-  lap_times: "Damage/incident time loss is not yet represented identically in direct lap_times_ms.",
-  fastest_lap: "Fastest-lap parity depends on lap_times_ms parity.",
-  final_position: "Live position is rebuilt from observed elapsed timing while direct result order is finalized separately.",
-  final_timing: "Direct and Live do not yet share one authoritative timing clock.",
+  damage: "RW7.1 measures a remaining difference in the finalized damage snapshot between direct Autosim and Live Race.",
+  final_timing: "RW7.1 measures path-dependent final total/gap timing even though lap-time and final-position parity already pass.",
 });
 
 function fixture(seed) {
