@@ -91,6 +91,31 @@ export function trackHeadingDegrees(input,progress){
   return Math.atan2(after.y-before.y,after.x-before.x)*(180/Math.PI);
 }
 
+export function sampleOpenPolylinePoint(points,progress){
+  const valid=validPoints(points);
+  if(!valid.length)return null;
+  if(valid.length===1)return {x:valid[0][0],y:valid[0][1]};
+  const segments=[];
+  let total=0;
+  for(let index=0;index<valid.length-1;index+=1){
+    const a=valid[index],b=valid[index+1];
+    const length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    segments.push({a,b,start:total,length});
+    total+=length;
+  }
+  if(total<=0)return {x:valid[0][0],y:valid[0][1]};
+  const target=Math.max(0,Math.min(1,Number(progress)||0))*total;
+  let segment=segments.at(-1);
+  for(const candidate of segments){
+    if(target<=candidate.start+candidate.length){segment=candidate;break;}
+  }
+  const local=segment.length>0?(target-segment.start)/segment.length:0;
+  return {
+    x:segment.a[0]+(segment.b[0]-segment.a[0])*local,
+    y:segment.a[1]+(segment.b[1]-segment.a[1])*local,
+  };
+}
+
 export function openPolylineHeadingDegrees(points,progress){
   const valid=validPoints(points);
   if(valid.length<2)return 0;

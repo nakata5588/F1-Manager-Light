@@ -44,3 +44,22 @@ export function panTrackViewBox(viewBox,bounds,dx=0,dy=0){
     current[3],
   ],bounds);
 }
+
+
+export function trackCameraZoomFactor(viewBox,bounds){
+  const current=numericBox(viewBox);
+  const limit=numericBox(bounds);
+  const xRatio=limit[2]>0?limit[2]/Math.max(1,current[2]):1;
+  const yRatio=limit[3]>0?limit[3]/Math.max(1,current[3]):1;
+  return Math.max(1,Math.sqrt(xRatio*yRatio));
+}
+
+export function trackMarkerScaleForViewBox(viewBox,bounds,{power=.72,min=.16,max=1}={}){
+  const current=numericBox(viewBox);
+  const limit=numericBox(bounds);
+  const widthRatio=limit[2]>0?Math.max(0.01,Math.min(1,current[2]/limit[2])):1;
+  const heightRatio=limit[3]>0?Math.max(0.01,Math.min(1,current[3]/limit[3])):1;
+  const ratio=Math.sqrt(widthRatio*heightRatio);
+  const scale=Math.pow(ratio,Math.max(.35,Math.min(1,Number(power)||.72)));
+  return Math.max(Number(min)||.16,Math.min(Number(max)||1,scale));
+}
