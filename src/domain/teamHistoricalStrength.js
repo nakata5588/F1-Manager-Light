@@ -8,6 +8,16 @@
 // - Verified predecessor links may carry infrastructure/history through a
 //   rename or acquisition; disconnected revivals of the same name/ID do not.
 
+import {
+  historicalTeamLineageSegments,
+  organizationChampionshipRowBelongsToSegments,
+  organizationDriverChampionshipRowBelongsToSegments,
+  organizationRowInSegments,
+  organizationSegmentForTeamYear,
+} from "./teamOrganizationHistory.js";
+
+export { historicalTeamLineageSegments } from "./teamOrganizationHistory.js";
+
 const rows=(value)=>Array.isArray(value)?value:[];
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 const round1=(value)=>Math.round(Number(value||0)*10)/10;
@@ -39,143 +49,13 @@ function f1HistoryRow(row){
   return !series||series==="F1";
 }
 
-function verifiedTransitions(lineageRows=[]){
-  return rows(lineageRows)
-    .map((row)=>({
-      predecessor_team_id:text(row?.predecessor_team_id??row?.from_team_id),
-      successor_team_id:text(row?.successor_team_id??row?.to_team_id??row?.team_id),
-      effective_from_year:num(row?.effective_from_year??row?.year_from??row?.year,null),
-      relationship:text(row?.relationship)||"organizational_continuity",
-      confidence:String(row?.confidence??"").toUpperCase()||"VERIFIED",
-      verified:Boolean(row?.verified??row?.explicit??false),
-      source:text(row?.source)||"verified_lineage",
-    }))
-    .filter((row)=>
-      row.predecessor_team_id&&
-      row.successor_team_id&&
-      Number.isInteger(row.effective_from_year)&&
-      (row.verified||["HIGH","VERIFIED"].includes(row.confidence))
-    );
-}
-
-function participationYearSet(teamId,teamSeasons=[],driverHistory=[]){
-  const id=String(teamId||"");
-  const years=new Set();
-  for(const row of rows(teamSeasons)){
-    if(teamIdOf(row)!==id)continue;
-    const y=yearOf(row);
-    if(Number.isInteger(y))years.add(y);
-  }
-  for(const row of rows(driverHistory)){
-    if(!f1HistoryRow(row)||teamIdOf(row)!==id)continue;
-    const y=yearOf(row);
-    if(Number.isInteger(y))years.add(y);
-  }
-  return years;
-}
-
-function latestInboundTransition(teamId,upperExclusive,lineageRows=[]){
-  const id=String(teamId||"");
-  return verifiedTransitions(lineageRows)
-    .filter((row)=>
-      row.successor_team_id===id&&
-      row.effective_from_year<=Number(upperExclusive)
-    )
-    .sort((a,b)=>b.effective_from_year-a.effective_from_year)[0]||null;
-}
-
-function contiguousDirectSegment(teamId,upperExclusive,teamSeasons=[],driverHistory=[]){
-  const id=String(teamId||"");
-  const end=Number(upperExclusive)-1;
-  if(!id||!Number.isInteger(end))return null;
-  const active=participationYearSet(id,teamSeasons,driverHistory);
-  if(!active.has(end))return null;
-  let start=end;
-  while(active.has(start-1))start-=1;
-  return {team_id:id,year_from:start,year_to:end,basis:"direct_contiguous_identity"};
-}
-
-export function historicalTeamLineageSegments({
-  teamId,
-  year,
-  teamSeasons=[],
-  driverHistory=[],
-  lineageRows=[],
-}={}){
-  const target=String(teamId||"");
-  const targetYear=Number(year);
-  if(!target||!Number.isInteger(targetYear))return {segments:[],transitions:[]};
-
-  const segments=[];
-  const transitions=[];
-  const visited=new Set();
-  let currentId=target;
-  let upperExclusive=targetYear;
-
-  for(let depth=0;depth<24;depth+=1){
-    const visitKey=`${currentId}|${upperExclusive}`;
-    if(visited.has(visitKey))break;
-    visited.add(visitKey);
-
-    const inbound=latestInboundTransition(currentId,upperExclusive,lineageRows);
-    if(inbound){
-      const start=inbound.effective_from_year;
-      const end=upperExclusive-1;
-      if(start<=end){
-        segments.push({
-          team_id:currentId,
-          year_from:start,
-          year_to:end,
-          basis:"verified_successor_segment",
-        });
-      }
-      transitions.push(inbound);
-      currentId=inbound.predecessor_team_id;
-      upperExclusive=inbound.effective_from_year;
-      continue;
-    }
-
-    const direct=contiguousDirectSegment(
-      currentId,
-      upperExclusive,
-      teamSeasons,
-      driverHistory
-    );
-    if(direct)segments.push(direct);
-    break;
-  }
-
-  return {
-    segments:segments
-      .filter((segment)=>segment.year_from<=segment.year_to)
-      .sort((a,b)=>a.year_from-b.year_from||a.team_id.localeCompare(b.team_id)),
-    transitions:transitions.sort((a,b)=>a.effective_from_year-b.effective_from_year),
-  };
-}
-
-function segmentForTeamYear(segments,teamId,year){
-  const id=String(teamId||"");
-  const y=Number(year);
-  return rows(segments).find((segment)=>
-    segment.team_id===id&&
-    y>=Number(segment.year_from)&&
-    y<=Number(segment.year_to)
-  )||null;
-}
-
-function rowInSegments(row,segments){
-  const y=yearOf(row);
-  if(!Number.isInteger(y))return false;
-  return Boolean(segmentForTeamYear(segments,teamIdOf(row),y));
-}
-
 function participationYears(segments,teamSeasons=[],driverHistory=[]){
   const years=new Set();
   for(const row of rows(teamSeasons)){
-    if(rowInSegments(row,segments))years.add(yearOf(row));
+    if(organizationRowInSegments(row,segments))years.add(yearOf(row));
   }
   for(const row of rows(driverHistory)){
-    if(f1HistoryRow(row)&&rowInSegments(row,segments))years.add(yearOf(row));
+    if(f1HistoryRow(row)&&organizationRowInSegments(row,segments))years.add(yearOf(row));
   }
   return [...years].sort((a,b)=>a-b);
 }
@@ -185,7 +65,7 @@ function aggregateRaceAchievements(segments,driverHistory=[]){
   let podiums=0;
   let starts=0;
   for(const row of rows(driverHistory)){
-    if(!f1HistoryRow(row)||!rowInSegments(row,segments))continue;
+    if(!f1HistoryRow(row)||!organizationRowInSegments(row,segments))continue;
     wins+=Math.max(0,num(row?.wins,0));
     podiums+=Math.max(0,num(row?.podiums,0));
     starts+=Math.max(0,num(row?.starts??row?.races,0));
@@ -193,33 +73,19 @@ function aggregateRaceAchievements(segments,driverHistory=[]){
   return {wins,podiums,starts};
 }
 
-function championshipRowBelongsToSegments(row,segments,teamSeasons=[]){
-  const y=yearOf(row);
-  if(!Number.isInteger(y))return false;
-  const technicalId=text(row?.constructor_id??row?.team_id??row?.entrant_id??row?.id);
-  if(!technicalId)return false;
-
-  // Resolve technical Constructor championship identity back through the
-  // Results-derived managerial Team/Entrant season bridge.
-  return rows(teamSeasons).some((season)=>{
-    if(Number(yearOf(season))!==y||!rowInSegments(season,segments))return false;
-    const managerialId=teamIdOf(season);
-    if(technicalId===managerialId)return true;
-    const technicalIds=[
-      ...(Array.isArray(season?.exact_constructor_ids)?season.exact_constructor_ids:[]),
-      ...(Array.isArray(season?.constructor_ids)?season.constructor_ids:[]),
-    ].map(String);
-    return technicalIds.includes(technicalId);
-  });
-}
-
-function titleEvidence(segments,historicalChampionships,teamSeasons){
+function titleEvidence(segments,historicalChampionships,teamSeasons,driverHistory){
   const constructors=rows(historicalChampionships?.constructors).filter((row)=>
-    championshipRowBelongsToSegments(row,segments,teamSeasons)&&
+    Number(yearOf(row))>=1958&&
+    organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons)&&
     Number(num(row?.position,999))===1
   );
   const drivers=rows(historicalChampionships?.drivers).filter((row)=>
-    championshipRowBelongsToSegments(row,segments,teamSeasons)&&
+    organizationDriverChampionshipRowBelongsToSegments(
+      row,
+      segments,
+      teamSeasons,
+      driverHistory
+    )&&
     Number(num(row?.position,999))===1
   );
   return {
@@ -258,7 +124,7 @@ function recentConstructorEvidence(
 
     const seasonConstructors=constructorRows.filter((row)=>Number(yearOf(row))===y);
     const own=seasonConstructors
-      .filter((row)=>championshipRowBelongsToSegments(row,activeSegments,teamSeasons))
+      .filter((row)=>organizationChampionshipRowBelongsToSegments(row,activeSegments,teamSeasons))
       .sort((a,b)=>num(a?.position,999)-num(b?.position,999))[0]||null;
 
     let score=null;
@@ -285,7 +151,7 @@ function recentConstructorEvidence(
       const ranked=[...pointsByTeam.entries()]
         .map(([id,points])=>({id,points}))
         .sort((a,b)=>b.points-a.points||a.id.localeCompare(b.id));
-      const index=ranked.findIndex((row)=>Boolean(segmentForTeamYear(activeSegments,row.id,y)));
+      const index=ranked.findIndex((row)=>Boolean(organizationSegmentForTeamYear(activeSegments,row.id,y)));
       if(index>=0){
         position=index+1;
         fieldSize=ranked.length;
@@ -348,7 +214,7 @@ export function teamHistoricalStrength({
   });
   const seasons=participationYears(lineage.segments,teamSeasons,driverHistory);
   const achievements=aggregateRaceAchievements(lineage.segments,driverHistory);
-  const titles=titleEvidence(lineage.segments,historicalChampionships,teamSeasons);
+  const titles=titleEvidence(lineage.segments,historicalChampionships,teamSeasons,driverHistory);
   const recent=recentConstructorEvidence(
     lineage.segments,
     historicalChampionships,

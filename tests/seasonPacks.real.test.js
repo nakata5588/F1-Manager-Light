@@ -4,6 +4,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isRaceDriverContract } from "../src/domain/contractRoles.js";
 import { materializeSeasonPackFromDatabaseState } from "../src/data/seasonPackLoader.js";
+import { teamOrganizationHistoryFromState } from "../src/domain/teamOrganizationHistory.js";
+import { teamChampionshipSummary } from "../src/domain/championshipHistory.js";
+import { teamReputation } from "../src/domain/teamReputation.js";
 
 const root=process.cwd();
 const targetYears=[1975,1980,1981,1982,1983,1984,1985,1987,1988,1989,1999,2007,2009,2010,2011,2012,2014,2015,2020];
@@ -532,3 +535,120 @@ test("2010 Mercedes strength follows Brawn-Honda-BAR-Tyrrell rather than 1950s M
     "1954-55 Mercedes must not leak into the modern Brackley lineage"
   );
 });
+
+test("Teams 4.0A/B real-data regressions keep organisation history canonical and preseason-safe",async()=>{
+  const [pack2009,pack2010,pack2020,teamSeasons,driverHistory,historicalChampionships,lineageRows]=await Promise.all([
+    readPack(2009),
+    readPack(2010),
+    readPack(2020),
+    fs.readFile(path.join(root,"public","data","team_seasons.json"),"utf8").then(JSON.parse),
+    fs.readFile(path.join(root,"public","data","driver_f1_history.json"),"utf8").then(JSON.parse),
+    fs.readFile(path.join(root,"public","data","historical_championships.json"),"utf8").then(JSON.parse),
+    fs.readFile(path.join(root,"public","data","team_lineage_history.json"),"utf8").then(JSON.parse),
+  ]);
+
+  const domainState=(pack,year)=>({
+    ...(pack.state||{}),
+    activeYear:year,
+    dbTeams:pack.state?.teams||[],
+    dbTeamSeasons:teamSeasons,
+    dbDriverHistory:driverHistory,
+    dbHistoricalChampionships:historicalChampionships,
+    dbTeamLineageHistory:lineageRows,
+    historySeasons:[],
+    results:[],
+    standings:{drivers:[],teams:[]},
+  });
+
+  // Ferrari 2009: the official Results/rules cache is the single title truth.
+  const state2009=domainState(pack2009,2009);
+  const ferrariHistory=teamOrganizationHistoryFromState(state2009,"t_0010",2009);
+  const ferrariStrength=(pack2009.state?.teamHistoricalStrength||[])
+    .find((row)=>String(row.team_id)==="t_0010");
+  const ferrariTitles=teamChampionshipSummary({
+    ...state2009,
+    careerMeta:{sourceSeason:2009},
+  },"t_0010");
+  assert.equal(ferrariHistory?.drivers_titles,15);
+  assert.equal(ferrariHistory?.constructors_titles,16);
+  assert.equal(ferrariStrength?.drivers_titles,15);
+  assert.equal(ferrariStrength?.constructors_titles,16);
+  assert.equal(ferrariTitles.driversTitles,15);
+  assert.equal(ferrariTitles.constructors,16);
+  assert.equal(
+    ferrariTitles.constructorTitles.some((row)=>Number(row.year)<1958),
+    false,
+    "Ferrari must not receive an artificial pre-1958 Constructors title"
+  );
+
+  // Force India 2009: inherit only the verified Jordan -> Midland -> Spyker chain.
+  const forceIndiaHistory=teamOrganizationHistoryFromState(state2009,"t_0021",2009);
+  assert.deepEqual(
+    new Set(forceIndiaHistory?.inherited_team_ids||[]),
+    new Set(["t_0028","t_0024","t_0023"])
+  );
+  assert.equal(Number(forceIndiaHistory?.evidence_through_year),2008);
+  assert.equal(
+    (forceIndiaHistory?.lineage_segments||[]).some((segment)=>Number(segment.year_to)>=2009),
+    false,
+    "2009 opening history must stop at 2008"
+  );
+
+  // Mercedes 2010: modern Brackley lineage, not the disconnected 1950s Mercedes team.
+  const state2010=domainState(pack2010,2010);
+  const mercedesHistory=teamOrganizationHistoryFromState(state2010,"t_0131",2010);
+  assert.deepEqual(
+    new Set(mercedesHistory?.inherited_team_ids||[]),
+    new Set(["t_0006","t_0027","t_0022","t_0033"])
+  );
+  assert.equal(Number(mercedesHistory?.evidence_through_year),2009);
+  assert.equal(Number(mercedesHistory?.first_historical_season),1970);
+  assert.equal(
+    (mercedesHistory?.lineage_segments||[]).some((segment)=>
+      String(segment.team_id)==="t_0131"&&Number(segment.year_to)<1970
+    ),
+    false,
+    "1954-55 Mercedes must remain disconnected from the 2010 organisation"
+  );
+
+  // Williams 2020: New Game and the freshly-started career must share one seed.
+  const state2020=domainState(pack2020,2020);
+  const williams=(pack2020.state?.teams||[]).find((row)=>
+    /williams/i.test(String(row.team_name??row.name??""))
+  );
+  assert.ok(williams,"2020 Williams must exist");
+  const williamsId=String(williams.team_id??williams.id);
+  const previewRep=teamReputation(state2020,williamsId);
+  const freshCareerRep=teamReputation({
+    ...state2020,
+    careerMeta:{sourceSeason:2020},
+    teamReputationState:{},
+    teamReputationLog:{},
+  },williamsId);
+  assert.equal(freshCareerRep,previewRep);
+  assert.ok(previewRep>=60,"Williams 2020 reputation unexpectedly low: "+previewRep);
+
+  const futureInjected=teamReputation({
+    ...state2020,
+    dbDriverHistory:[
+      ...driverHistory,
+      {year:2020,series_division:"F1",driver_id:"future",team_id:williamsId,wins:20,podiums:30,starts:40,points:500},
+    ],
+    dbHistoricalChampionships:{
+      drivers:[
+        ...(historicalChampionships.drivers||[]),
+        {year:2020,constructor_id:williamsId,driver_id:"future",position:1},
+      ],
+      constructors:[
+        ...(historicalChampionships.constructors||[]),
+        {year:2020,constructor_id:williamsId,position:1},
+      ],
+    },
+  },williamsId);
+  assert.equal(
+    futureInjected,
+    previewRep,
+    "selected-season Results must not change the January 2020 Reputation seed"
+  );
+});
+
