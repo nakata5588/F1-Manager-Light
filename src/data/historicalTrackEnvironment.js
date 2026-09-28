@@ -1,32 +1,29 @@
-const BUENOS_AIRES_CALIBRATION=Object.freeze({
-  x:0,
-  y:0,
-  scale_x:1,
-  scale_y:1,
-  rotation_deg:0,
-  origin_x:824.5,
-  origin_y:477
-});
+import ARGENTINA_1974_1981_F1TRACK from "./tracks/tr_0018_1974_1981.f1track.js";
+
+const raceView=ARGENTINA_1974_1981_F1TRACK.race_view;
 
 export const HISTORICAL_TRACK_ENVIRONMENTS=Object.freeze({
   tr_0018_provisional:Object.freeze({
-    asset:"/tracks/historical/buenos-aires-no15-1980.webp",
-    native_width:800,
-    native_height:463,
-    view_box:[0,0,1649,954],
-    calibration_transform:BUENOS_AIRES_CALIBRATION,
+    asset:null,
+    native_width:Number(raceView.view_box?.[2]||1619),
+    native_height:Number(raceView.view_box?.[3]||971),
+    view_box:raceView.view_box,
+    calibration_transform:raceView.geometry_transform,
     presentation_only:true,
-    runtime_mode:"legacy_vector_fallback",
-    fallback_reason:"single_raster_environment_failed_visual_playtest_2026_09_28",
-    reference_year:1980,
+    runtime_mode:"f1track_procedural",
+    package_id:ARGENTINA_1974_1981_F1TRACK.package_id,
+    reference_year:ARGENTINA_1974_1981_F1TRACK.reference_year,
     layout:"Circuit No. 15",
     start_finish_location:"upper_straight",
-    start_finish_direction:"right",
-    sector_colors:["#ef4444","#22d3ee","#facc15"],
-    pit_lane_color:"#2563eb",
-    contains_track_surface:true,
-    contains_track_intel:true,
-    visual_style:"single_raster_environment_with_legacy_runtime_fallback"
+    start_finish_direction:ARGENTINA_1974_1981_F1TRACK.start_finish_direction,
+    sector_colors:ARGENTINA_1974_1981_F1TRACK.intelligence.sector_colors,
+    pit_lane_color:ARGENTINA_1974_1981_F1TRACK.intelligence.pit_lane_color,
+    contains_track_surface:false,
+    contains_track_intel:false,
+    visual_style:"f1track_procedural_environment",
+    procedural_environment:raceView.environment,
+    race_view_style:raceView.style,
+    pit_lane_transform:raceView.pit_lane_transform,
   })
 });
 

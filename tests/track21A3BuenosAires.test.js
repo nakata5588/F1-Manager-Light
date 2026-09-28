@@ -15,7 +15,8 @@ test("Track 2.1A.5 resolves Buenos Aires 1980 as verified Circuit No. 15",()=>{
   assert.equal(resolved.layout.historical_status,"verified");
   assert.equal(resolved.layout.geometry_status,"historical_verified");
   assert.equal(resolved.layout.lap_length_km,5.968);
-  assert.equal(resolved.layout.asset,"/tracks/historical/buenos-aires-no15-1980.webp");
+  assert.equal(resolved.layout.asset,null);
+  assert.equal(resolved.track_package?.format,"f1track/1.0");
   assert.equal(resolved.geometry.quality,"historical_verified");
 });
 
@@ -32,34 +33,33 @@ test("Track 2.1A.5 Buenos Aires S/F is on upper straight and race direction is r
 
 test("Track 2.1A.5 keeps environment artwork non-authoritative",()=>{
   const {layout,geometry}=resolveTrackLayout({trackId:"tr_0018",year:1980});
-  assert.ok(layout.asset,"presentation artwork must be independently registered");
+  assert.ok(layout.track_package,"unified track package must be independently registered");
   assert.equal(geometry.derivation,"user_reference_trace_2026_09_26");
   assert.ok(Array.isArray(geometry.points));
   assert.ok(geometry.points.length>=250);
   assert.ok(Array.isArray(geometry.pit_lane_points));
   assert.ok(geometry.pit_lane_points.length>=60);
   assert.deepEqual(geometry.view_box,[0,0,1649,954]);
-  assert.deepEqual(layout.environment_view_box,[0,0,1649,954]);
+  assert.deepEqual(layout.environment_view_box,[0,0,1619,971]);
   assert.deepEqual(layout.sector_boundaries,[0.3246,0.6940]);
   assert.equal(layout.pit_entry_progress,0.9499);
   assert.equal(layout.pit_exit_progress,0.0789);
-  assert.deepEqual(layout.sector_colors,["#ef4444","#22d3ee","#facc15"]);
+  assert.deepEqual(layout.sector_colors,["#ef4444","#facc15","#22d3ee"]);
   assert.equal(layout.pit_lane_color,"#2563eb");
   assert.equal(Object.hasOwn(geometry,"asset"),false,"functional geometry must not consume the presentation asset as physics data");
 });
 
 
-test("Track 1.0C historical environment uses the approved single WebP artwork",()=>{
-  const assetPath=path.join(root,"public/tracks/historical/buenos-aires-no15-1980.webp");
-  const bytes=fs.readFileSync(assetPath);
-  assert.equal(bytes.subarray(0,4).toString("ascii"),"RIFF");
-  assert.equal(bytes.subarray(8,12).toString("ascii"),"WEBP");
-  assert.ok(bytes.length>10000,"approved environment must remain a real WebP");
-  assert.equal(fs.existsSync(path.join(root,"public/tracks/historical/buenos-aires-no15-1980.svg")),false);
-  const {layout,environment}=resolveTrackLayout({trackId:"tr_0018",year:1980});
-  assert.equal(environment.contains_track_surface,true);
-  assert.equal(environment.contains_track_intel,true);
-  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
-  assert.equal(layout.environment.asset,environment.asset);
-  assert.equal(layout.presentation_fallback_geometry.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
+test("Track 2.0 Argentina uses the unified procedural package at runtime",()=>{
+  const {layout,environment,track_package}=resolveTrackLayout({trackId:"tr_0018",year:1980});
+  assert.equal(track_package.format,"f1track/1.0");
+  assert.equal(track_package.package_id,"tr_0018_1974_1981");
+  assert.equal(environment.asset,null);
+  assert.equal(environment.runtime_mode,"f1track_procedural");
+  assert.equal(environment.contains_track_surface,false);
+  assert.equal(environment.contains_track_intel,false);
+  assert.equal(layout.track_package,track_package);
+  assert.equal(track_package.minimap.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
+  assert.ok(track_package.race_view.environment.lake.length>=8);
+  assert.ok(track_package.race_view.environment.trees.length>=30);
 });

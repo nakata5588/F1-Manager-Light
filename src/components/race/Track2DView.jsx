@@ -19,7 +19,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
-import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
+import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
@@ -572,6 +572,71 @@ function DriverInspector({row,drivers,teams,playerTeamId}){
   </div>;
 }
 
+function polygonPoints(points=[]){
+  return (points||[]).map((point)=>point.join(",")).join(" ");
+}
+
+function ProceduralTrackEnvironment({environment,viewBox=[0,0,1000,1000]}){
+  if(!environment)return null;
+  const [vx,vy,vw,vh]=viewBox;
+  return <g pointerEvents="none" aria-hidden="true">
+    <rect x={vx} y={vy} width={vw} height={vh} fill={environment.base||"#405b29"}/>
+    <rect x={vx} y={vy} width={vw} height={vh} fill="url(#track-grass-grid)" opacity=".12"/>
+    {(environment.roads||[]).map((road,index)=><g key={"road-"+index}>
+      <polyline points={polygonPoints(road.points)} fill="none" stroke="#171b1d" strokeWidth={Number(road.width||14)+6} strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
+      <polyline points={polygonPoints(road.points)} fill="none" stroke="#5a5d5f" strokeWidth={Number(road.width||14)} strokeLinecap="round" strokeLinejoin="round" opacity=".9"/>
+      <polyline points={polygonPoints(road.points)} fill="none" stroke="#8f9393" strokeWidth="1.6" strokeDasharray="12 10" opacity=".5"/>
+    </g>)}
+    {Array.isArray(environment.lake)&&environment.lake.length>2?<g>
+      <polygon points={polygonPoints(environment.lake)} fill="#0a7189" stroke="#07566b" strokeWidth="8"/>
+      <polygon points={polygonPoints(environment.lake)} fill="url(#track-water)" opacity=".44"/>
+    </g>:null}
+    {(environment.runoffs||[]).map((points,index)=><polygon key={"runoff-"+index} points={polygonPoints(points)} fill="#2f9e77" stroke="#d1d5db" strokeWidth="2" opacity=".92"/>)}
+    {(environment.sand||[]).map((points,index)=><polygon key={"sand-"+index} points={polygonPoints(points)} fill="#d9b978" stroke="#b8995e" strokeWidth="3" opacity=".96"/>)}
+    {(environment.buildings||[]).map((row,index)=><g key={"building-"+index}>
+      <rect x={row.x+5} y={row.y+6} width={row.w} height={row.h} rx="3" fill="#111827" opacity=".34"/>
+      <rect x={row.x} y={row.y} width={row.w} height={row.h} rx="3" fill="#d6d9dc" stroke="#737980" strokeWidth="2"/>
+      <line x1={row.x+6} y1={row.y+row.h*.36} x2={row.x+row.w-6} y2={row.y+row.h*.36} stroke="#a3a8ad" strokeWidth="2"/>
+      <line x1={row.x+6} y1={row.y+row.h*.68} x2={row.x+row.w-6} y2={row.y+row.h*.68} stroke="#a3a8ad" strokeWidth="2"/>
+    </g>)}
+    {(environment.grandstands||[]).map((row,index)=><g key={"stand-"+index} transform={`rotate(${Number(row.rotation||0)} ${row.x+row.w/2} ${row.y+row.h/2})`}>
+      <rect x={row.x+4} y={row.y+5} width={row.w} height={row.h} rx="2" fill="#020617" opacity=".35"/>
+      <rect x={row.x} y={row.y} width={row.w} height={row.h} rx="2" fill="#334155" stroke="#94a3b8" strokeWidth="2"/>
+      {Array.from({length:5},(_,line)=><line key={line} x1={row.x+4} y1={row.y+5+line*(Math.max(4,row.h-10)/4)} x2={row.x+row.w-4} y2={row.y+5+line*(Math.max(4,row.h-10)/4)} stroke={line%2?"#ef4444":"#60a5fa"} strokeWidth="2" opacity=".75"/>)}
+    </g>)}
+    {(environment.trees||[]).map((tree,index)=>{
+      const [x,y,r]=tree;
+      return <g key={"tree-"+index}>
+        <circle cx={x+3} cy={y+5} r={r} fill="#020617" opacity=".25"/>
+        <circle cx={x} cy={y} r={r} fill="#1f6a2c" stroke="#123d1b" strokeWidth="2"/>
+        <circle cx={x-r*.22} cy={y-r*.25} r={r*.55} fill="#4f9b35" opacity=".88"/>
+      </g>;
+    })}
+  </g>;
+}
+
+function TrackMiniMap({geometry,rows=[],teamBrands=[],year,currentControl="GREEN"}){
+  if(!geometry||!Array.isArray(geometry?.points)||geometry.points.length<2)return null;
+  const viewBox=trackGeometryViewBox(geometry,{paddingRatio:.08,minPadding:24});
+  const closed=[...geometry.points,geometry.points[0]];
+  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[190px] rounded-lg border border-white/15 bg-[#05080d]/90 p-2 shadow-xl backdrop-blur-md 2xl:w-[220px]">
+    <div className="mb-1 flex items-center justify-between text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">
+      <span>Mini Map</span><span className={String(currentControl).includes("YELLOW")?"text-amber-300":"text-emerald-300"}>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
+    </div>
+    <svg className="h-[112px] w-full" viewBox={viewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Circuit mini map">
+      <polyline points={polygonPoints(closed)} fill="none" stroke="#020617" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round"/>
+      <polyline points={polygonPoints(closed)} fill="none" stroke="#cbd5e1" strokeWidth="14" strokeLinejoin="round" strokeLinecap="round"/>
+      <polyline points={polygonPoints(closed)} fill="none" stroke="#334155" strokeWidth="9" strokeLinejoin="round" strokeLinecap="round"/>
+      {(rows||[]).filter((row)=>!row?.retired).map((row,index)=>{
+        const point=pointAtTrackProgress(geometry,Number(row?.visual_track_progress));
+        if(!point)return null;
+        const color=markerColor(teamBrands,row?.team_id,year);
+        return <circle key={String(row?.driver_id||index)} cx={point.x} cy={point.y} r="8" fill={color} stroke="#f8fafc" strokeWidth="2"/>;
+      })}
+    </svg>
+  </div>;
+}
+
 export default function Track2DView({
   trackId,
   year,
@@ -607,16 +672,18 @@ export default function Track2DView({
   const intelligence=useMemo(()=>trackIntelligenceProfile(layout),[layout]);
   const geometry=resolved.geometry;
   const environmentAssetActive=Boolean(environment?.asset&&environment?.runtime_mode!=="legacy_vector_fallback");
+  const proceduralEnvironmentActive=Boolean(environment?.runtime_mode==="f1track_procedural"&&environment?.procedural_environment);
   const calibratedGeometry=useMemo(()=>trackPresentationGeometry(geometry,layout),[geometry,layout]);
   const displayGeometry=useMemo(
-    ()=>environmentAssetActive?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
-    [calibratedGeometry,environmentAssetActive]
+    ()=>(environmentAssetActive||proceduralEnvironmentActive)?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
+    [calibratedGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
+  const miniMapGeometry=useMemo(()=>trackMiniMapGeometry(layout,geometry),[layout,geometry]);
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=Array.isArray(environment?.view_box)&&environment.view_box.length===4
     ?environment.view_box.map(Number)
     :(Array.isArray(geometry?.view_box)&&geometry.view_box.length===4?geometry.view_box.map(Number):[0,0,1000,1000]);
-  const historicalEnvironment=Boolean(environmentAssetActive&&layout?.historical_status==="verified");
+  const historicalEnvironment=Boolean((environmentAssetActive||proceduralEnvironmentActive)&&layout?.historical_status==="verified");
   const environmentContainsTrackSurface=Boolean(environment?.contains_track_surface);
   const environmentContainsTrackIntel=Boolean(environment?.contains_track_intel);
   const fitViewBox=useMemo(()=>{
@@ -776,6 +843,11 @@ export default function Track2DView({
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
         {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
+          <defs>
+            <pattern id="track-grass-grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M 0 28 L 28 0 M -7 7 L 7 -7 M 21 35 L 35 21" stroke="#9cc36d" strokeWidth="2" opacity=".28"/></pattern>
+            <pattern id="track-water" width="36" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 Q9 2 18 8 T36 8" fill="none" stroke="#71d5e7" strokeWidth="2" opacity=".6"/></pattern>
+          </defs>
+          {proceduralEnvironmentActive?<ProceduralTrackEnvironment environment={environment.procedural_environment} viewBox={environmentViewBox}/>:null}
           {environmentAssetActive?<image href={environment.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
@@ -783,11 +855,11 @@ export default function Track2DView({
             return <>
               {historicalEnvironment
                 ?(!environmentContainsTrackSurface?<>
-                  <polyline points={polyline} fill="none" stroke="#03070b" strokeWidth="38" strokeLinejoin="round" strokeLinecap="round" opacity=".42"/>
-                  <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
-                  <polyline points={polyline} fill="none" stroke="#e53e3e" strokeWidth="30" strokeDasharray="17 17" strokeLinejoin="round" strokeLinecap="butt" opacity=".98"/>
-                  <polyline points={polyline} fill="none" stroke="#20252b" strokeWidth="22" strokeLinejoin="round" strokeLinecap="round" opacity=".995"/>
-                  <polyline points={polyline} fill="none" stroke="#343b43" strokeWidth="16" strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
+                  <polyline points={polyline} fill="none" stroke="#020617" strokeWidth={environment?.race_view_style?.outer_shadow_width||45} strokeLinejoin="round" strokeLinecap="round" opacity=".44"/>
+                  <polyline points={polyline} fill="none" stroke={environment?.race_view_style?.kerb_white||"#f8fafc"} strokeWidth={environment?.race_view_style?.kerb_width||39} strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
+                  <polyline points={polyline} fill="none" stroke={environment?.race_view_style?.kerb_red||"#ef4444"} strokeWidth={environment?.race_view_style?.kerb_width||39} strokeDasharray="18 16" strokeLinejoin="round" strokeLinecap="butt" opacity=".98"/>
+                  <polyline points={polyline} fill="none" stroke={environment?.race_view_style?.asphalt||"#26282b"} strokeWidth={environment?.race_view_style?.road_width||31} strokeLinejoin="round" strokeLinecap="round" opacity=".995"/>
+                  <polyline points={polyline} fill="none" stroke={environment?.race_view_style?.asphalt_highlight||"#34383d"} strokeWidth={Math.max(8,Number(environment?.race_view_style?.road_width||31)-9)} strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
                 </>:null)
                 :<>
                   <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="34" strokeLinejoin="round" strokeLinecap="round" opacity=".96"/>
@@ -969,6 +1041,7 @@ export default function Track2DView({
             />;
           })}
         </svg>:null}
+        <TrackMiniMap geometry={miniMapGeometry} rows={activeRows} teamBrands={teamBrands} year={year} currentControl={currentControl}/>
 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05080d]/85 to-transparent"/>
         <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-1.5">

@@ -93,6 +93,7 @@ function resolved(layout,resolution,requestedYear){
   return {
     layout,
     geometry,
+    track_package:trackPackageProfile(layout),
     environment:trackEnvironmentProfile(layout),
     resolution,
     requested_year:requestedYear,
@@ -116,6 +117,11 @@ export function trackLayoutResolutionLabel(resolution){
 function finiteNumber(value,fallback=0){
   const number=Number(value);
   return Number.isFinite(number)?number:fallback;
+}
+
+export function trackPackageProfile(layout){
+  const trackPackage=layout?.track_package&&typeof layout.track_package==="object"?layout.track_package:null;
+  return trackPackage;
 }
 
 export function trackEnvironmentProfile(layout){
@@ -147,6 +153,9 @@ export function trackEnvironmentProfile(layout){
     runtime_mode:String(nested?.runtime_mode||"environment_asset"),
     fallback_reason:String(nested?.fallback_reason||""),
     visual_style:String(nested?.visual_style||""),
+    procedural_environment:nested?.procedural_environment??layout?.track_package?.race_view?.environment??null,
+    race_view_style:nested?.race_view_style??layout?.track_package?.race_view?.style??null,
+    pit_lane_transform:nested?.pit_lane_transform??layout?.track_package?.race_view?.pit_lane_transform??null,
   };
 }
 
@@ -184,6 +193,19 @@ export function calibrateTrackGeometry(geometry,transform={}){
 
 export function trackPresentationGeometry(geometry,layout){
   const environment=trackEnvironmentProfile(layout);
+  const trackPackage=trackPackageProfile(layout);
+  if(trackPackage?.race_view&&Array.isArray(geometry?.points)&&geometry.points.length>1){
+    const presentation=calibrateTrackGeometry(geometry,trackPackage.race_view.geometry_transform||environment.calibration_transform);
+    if(Array.isArray(geometry?.pit_lane_points)&&geometry.pit_lane_points.length>1&&trackPackage.race_view.pit_lane_transform){
+      presentation.pit_lane_points=geometry.pit_lane_points.map((point)=>calibratePoint(point,trackPackage.race_view.pit_lane_transform));
+    }
+    return {
+      ...presentation,
+      view_box:Array.isArray(trackPackage.race_view.view_box)?[...trackPackage.race_view.view_box]:presentation.view_box,
+      presentation_source:"f1track_race_view",
+      package_id:trackPackage.package_id,
+    };
+  }
   const legacyFallback=environment.runtime_mode==="legacy_vector_fallback"
     ?layout?.presentation_fallback_geometry
     :null;
@@ -195,6 +217,23 @@ export function trackPresentationGeometry(geometry,layout){
     };
   }
   return calibrateTrackGeometry(geometry,environment.calibration_transform);
+}
+
+export function trackMiniMapGeometry(layout,geometry=null){
+  const trackPackage=trackPackageProfile(layout);
+  const minimap=trackPackage?.minimap;
+  if(minimap&&Array.isArray(minimap?.points)&&minimap.points.length>1){
+    return {
+      ...minimap,
+      view_box:Array.isArray(minimap?.view_box)?[...minimap.view_box]:[0,0,1000,1000],
+      points:minimap.points.map((point)=>[Number(point?.[0]||0),Number(point?.[1]||0)]),
+      presentation_source:"f1track_minimap",
+      package_id:trackPackage.package_id,
+    };
+  }
+  const fallback=layout?.presentation_fallback_geometry;
+  if(fallback&&Array.isArray(fallback?.points)&&fallback.points.length>1)return fallback;
+  return geometry;
 }
 
 const trackArcCache=new WeakMap();

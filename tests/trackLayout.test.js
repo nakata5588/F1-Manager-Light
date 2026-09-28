@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
-import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -210,20 +210,21 @@ test("RW6.6B arc-length interpolation keeps visual speed stable across uneven po
 });
 
 
-test("Track 1.0A Buenos Aires resolves one direct WebP environment asset",()=>{
+test("Track 2.0 Argentina resolves one canonical F1Track package",()=>{
   const resolved=resolveTrackLayout({trackId:"tr_0018",year:1980});
   assert.equal(resolved.resolution,"exact");
-  assert.equal(resolved.environment.asset,"/tracks/historical/buenos-aires-no15-1980.webp");
-  assert.deepEqual(resolved.environment.view_box,[0,0,1649,954]);
-  assert.equal(resolved.environment.native_width,800);
-  assert.equal(resolved.environment.native_height,463);
-  assert.equal(resolved.environment.runtime_mode,"legacy_vector_fallback");
-  const assetPath=path.join(root,"public",resolved.environment.asset.replace(/^\//,""));
-  const bytes=fs.readFileSync(assetPath);
-  assert.equal(bytes.subarray(0,4).toString("ascii"),"RIFF");
-  assert.equal(bytes.subarray(8,12).toString("ascii"),"WEBP");
-  assert.ok(bytes.length>10000,"historical environment must remain a real raster asset");
-  assert.equal(fs.existsSync(path.join(root,"public/tracks/historical/buenos-aires-no15-1980.svg")),false,"strip-based SVG wrapper must not return");
+  assert.equal(resolved.track_package?.format,"f1track/1.0");
+  assert.equal(resolved.track_package?.package_id,"tr_0018_1974_1981");
+  assert.equal(resolved.environment.asset,null);
+  assert.equal(resolved.environment.runtime_mode,"f1track_procedural");
+  assert.deepEqual(resolved.environment.view_box,[0,0,1619,971]);
+  assert.equal(resolved.environment.native_width,1619);
+  assert.equal(resolved.environment.native_height,971);
+  assert.ok(resolved.track_package.functional.points.length>=250);
+  assert.ok(resolved.track_package.minimap.points.length>=90);
+  assert.ok(resolved.environment.procedural_environment.lake.length>=8);
+  assert.ok(resolved.environment.procedural_environment.buildings.length>=8);
+  assert.ok(resolved.environment.procedural_environment.trees.length>=30);
 });
 
 test("Track 1.0B calibration transforms presentation geometry without mutating functional geometry",()=>{
@@ -235,18 +236,19 @@ test("Track 1.0B calibration transforms presentation geometry without mutating f
   assert.deepEqual(functional.points,[[10,20],[30,40]],"functional geometry must remain untouched");
 });
 
-test("Track fallback keeps verified physics geometry but restores the legacy SVG-derived presentation",()=>{
+test("Track 2.0 keeps functional, race-view and mini-map geometries separate",()=>{
   const resolved=resolveTrackLayout({trackId:"tr_0018",year:1980});
   const environment=trackEnvironmentProfile(resolved.layout);
-  assert.deepEqual(environment.calibration_transform,{
-    x:0,y:0,scale_x:1,scale_y:1,rotation_deg:0,origin_x:824.5,origin_y:477
-  });
-  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
+  assert.equal(environment.runtime_mode,"f1track_procedural");
   assert.equal(resolved.geometry.quality,"historical_verified");
   const presentation=trackPresentationGeometry(resolved.geometry,resolved.layout);
-  assert.equal(presentation.presentation_fallback,true);
-  assert.equal(presentation.quality,"legacy_presentation_fallback");
-  assert.equal(presentation.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
-  assert.deepEqual(presentation.view_box,[0,0,1000,1000]);
-  assert.notDeepEqual(presentation.points[0],resolved.geometry.points[0],"visual fallback must not replace functional geometry");
+  const minimap=trackMiniMapGeometry(resolved.layout,resolved.geometry);
+  assert.equal(presentation.presentation_source,"f1track_race_view");
+  assert.equal(presentation.package_id,"tr_0018_1974_1981");
+  assert.deepEqual(presentation.view_box,[0,0,1619,971]);
+  assert.equal(minimap.presentation_source,"f1track_minimap");
+  assert.deepEqual(minimap.view_box,[0,0,1000,1000]);
+  assert.equal(minimap.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
+  assert.notDeepEqual(presentation.points[0],resolved.geometry.points[0],"race-view transform must not mutate functional geometry");
+  assert.notDeepEqual(minimap.points[0],resolved.geometry.points[0],"mini-map must remain an independent presentation");
 });
