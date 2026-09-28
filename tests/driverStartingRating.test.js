@@ -287,3 +287,45 @@ test("D7.R4 does not let a future championship raise an earlier Current Ability"
   assert.equal(withFuture.current_ability,withoutFuture.current_ability);
   assert.equal(withFuture.historical_prior_wins,0);
 });
+
+
+test("D7.R4 continuity guard prevents an established driver jumping more than 15 OVR in one generated year",()=>{
+  const profile=peakProfile({
+    peak_ability:92,
+    peak_pace:93,
+    peak_qualifying:92,
+    peak_racecraft:91,
+    peak_consistency:90,
+  });
+  const driver={driver_id:"D1",display_name:"Established Driver",dob:"1918-01-01",f1_rookie_season:1950};
+  const history=[
+    {year:1950,driver_id:"D1",starts:7,wins:0,podiums:2,poles:0},
+  ];
+  const championships=[
+    {year:1950,driver_id:"D1",position:4},
+  ];
+  const y1950=materializeMissingStartingRatings({
+    drivers:[driver],
+    existingRatings:[],
+    profiles:[profile],
+    year:1950,
+    historicalSnapshots:[],
+    careerHistory:history,
+    championshipHistory:championships,
+  })[0];
+  const y1951=materializeMissingStartingRatings({
+    drivers:[driver],
+    existingRatings:[],
+    profiles:[profile],
+    year:1951,
+    historicalSnapshots:[],
+    careerHistory:history,
+    championshipHistory:championships,
+  })[0];
+  assert.ok(Number(y1951.current_ability)-Number(y1950.current_ability)<=15.1,[
+    y1950.current_ability,y1951.current_ability
+  ]);
+  if(Number(y1951.historical_current_floor)>Number(y1950.current_ability)+15){
+    assert.equal(y1951.historical_continuity_cap_applied,true);
+  }
+});
