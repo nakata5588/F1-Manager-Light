@@ -198,6 +198,35 @@ export function organizationChampionshipRowBelongsToSegments(row,segments,teamSe
   });
 }
 
+export function organizationDriverChampionshipRowBelongsToSegments(
+  row,
+  segments,
+  teamSeasons=[],
+  driverHistory=[]
+){
+  const y=organizationYearOf(row);
+  const driverId=text(row?.driver_id??row?.person_id);
+  if(!Number.isInteger(y))return false;
+
+  // Drivers' titles belong to the managerial organisation the champion
+  // actually represented in Results. A technical Constructor can be shared
+  // across entrants, so it is not sufficient evidence on its own.
+  if(driverId){
+    const resultRows=rows(driverHistory).filter((historyRow)=>
+      f1HistoryRow(historyRow)&&
+      organizationYearOf(historyRow)===y&&
+      text(historyRow?.driver_id??historyRow?.person_id)===driverId
+    );
+    if(resultRows.length){
+      return resultRows.some((historyRow)=>organizationRowInSegments(historyRow,segments));
+    }
+  }
+
+  // Sparse/legacy caches may lack driver-season Results. In that case keep the
+  // conservative technical bridge as a fallback rather than fabricating data.
+  return organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons);
+}
+
 function participationYears(segments,teamSeasons=[],driverHistory=[]){
   const years=new Set();
   for(const row of rows(teamSeasons)){
@@ -270,7 +299,12 @@ export function teamOrganizationHistory({
   const driverTitleRows=rows(historicalChampionships?.drivers)
     .filter((row)=>
       Number(num(row?.position,999))===1&&
-      organizationChampionshipRowBelongsToSegments(row,lineage.segments,teamSeasons)
+      organizationDriverChampionshipRowBelongsToSegments(
+        row,
+        lineage.segments,
+        teamSeasons,
+        driverHistory
+      )
     )
     .sort((a,b)=>organizationYearOf(a)-organizationYearOf(b));
   const recent=recentCompetitiveness(
