@@ -7,6 +7,8 @@ import {
   f1CareerTalentFloor,
   materializeDriverStartingRating,
   materializeMissingStartingRatings,
+  priorCareerCurrentAbilityFloor,
+  priorCareerStrengthSummary,
   repairTalentProfileFromF1Career,
 } from "../src/domain/driverStartingRating.js";
 
@@ -73,7 +75,7 @@ test("high latent talent materializes as promising youth, not peak-form adult",(
   assert.equal(rating.aggression,55);
   assert.equal(rating.crash_likelihood,18);
   assert.equal(rating.source,"talent_profile_starting_materializer");
-  assert.equal(rating.rating_model,"D7.R2");
+  assert.equal(rating.rating_model,"D7.R4");
   assert.ok(rating.development_headroom>30);
 });
 
@@ -190,4 +192,98 @@ test("Decline stage becomes age-sensitive instead of leaving old veterans at pea
   assert.ok(at41.current_ability<at35.current_ability-5,[at35.current_ability,at41.current_ability]);
   assert.ok(at41.pace<at35.pace-10,[at35.pace,at41.pace]);
   assert.equal(at41.potential_ability,99);
+});
+
+
+test("D7.R4 prior-career floor is generic and ignores selected/future season results",()=>{
+  const priorHistory=[
+    {year:1985,driver_id:"D1",starts:16,wins:5,podiums:10,poles:2},
+    {year:1986,driver_id:"D1",starts:16,wins:4,podiums:11,poles:1},
+    {year:1987,driver_id:"D1",starts:16,wins:3,podiums:8,poles:2},
+    {year:1988,driver_id:"D1",starts:16,wins:16,podiums:16,poles:16},
+  ];
+  const championships=[
+    {year:1985,driver_id:"D1",position:1},
+    {year:1986,driver_id:"D1",position:1},
+    {year:1987,driver_id:"D1",position:4},
+    {year:1988,driver_id:"D1",position:1},
+  ];
+  const summary=priorCareerStrengthSummary(priorHistory,championships,1988);
+  assert.equal(summary.titles,2,"1988 itself must not be counted before New Game");
+  assert.equal(summary.previous_championship_position,4);
+  assert.equal(summary.wins,12,"selected-season wins must not leak into January");
+  const floor=priorCareerCurrentAbilityFloor(priorHistory,championships,1988);
+  assert.ok(floor>=89&&floor<=91,floor);
+});
+
+test("D7.R4 raises an implausibly low reigning champion generically and keeps Potential valid",()=>{
+  const weak=peakProfile({
+    peak_ability:78,
+    peak_pace:78,
+    peak_qualifying:77,
+    peak_racecraft:78,
+    peak_consistency:76,
+  });
+  const rows=materializeMissingStartingRatings({
+    drivers:[{driver_id:"D1",display_name:"Generic Champion",dob:"1960-01-01",f1_rookie_season:1980}],
+    existingRatings:[],
+    profiles:[weak],
+    year:1986,
+    placements:[],
+    historicalSnapshots:[],
+    careerHistory:[
+      {year:1984,driver_id:"D1",starts:16,wins:3,podiums:8,poles:2},
+      {year:1985,driver_id:"D1",starts:16,wins:5,podiums:10,poles:4},
+    ],
+    championshipHistory:[
+      {year:1984,driver_id:"D1",position:3},
+      {year:1985,driver_id:"D1",position:1},
+    ],
+  });
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].rating_model,"D7.R4");
+  assert.ok(Number(rows[0].current_ability)>=90,rows[0].current_ability);
+  assert.ok(Number(rows[0].potential_ability)>=Number(rows[0].current_ability));
+  assert.equal(rows[0].historical_current_floor_applied,true);
+  assert.equal(rows[0].historical_previous_championship_position,1);
+});
+
+test("D7.R4 does not let a future championship raise an earlier Current Ability",()=>{
+  const weak=peakProfile({
+    peak_ability:80,
+    peak_pace:80,
+    peak_qualifying:79,
+    peak_racecraft:80,
+    peak_consistency:78,
+  });
+  const args={
+    drivers:[{driver_id:"D1",display_name:"Future Champion",dob:"1985-01-01",f1_rookie_season:2008}],
+    existingRatings:[],
+    profiles:[weak],
+    year:2010,
+    placements:[],
+    historicalSnapshots:[],
+    careerHistory:[
+      {year:2008,driver_id:"D1",starts:18,wins:0,podiums:0,poles:0},
+      {year:2009,driver_id:"D1",starts:17,wins:0,podiums:1,poles:0},
+      {year:2011,driver_id:"D1",starts:19,wins:8,podiums:12,poles:5},
+    ],
+  };
+  const withFuture=materializeMissingStartingRatings({
+    ...args,
+    championshipHistory:[
+      {year:2008,driver_id:"D1",position:12},
+      {year:2009,driver_id:"D1",position:10},
+      {year:2011,driver_id:"D1",position:1},
+    ],
+  })[0];
+  const withoutFuture=materializeMissingStartingRatings({
+    ...args,
+    championshipHistory:[
+      {year:2008,driver_id:"D1",position:12},
+      {year:2009,driver_id:"D1",position:10},
+    ],
+  })[0];
+  assert.equal(withFuture.current_ability,withoutFuture.current_ability);
+  assert.equal(withFuture.historical_prior_wins,0);
 });
