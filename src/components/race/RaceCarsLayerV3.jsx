@@ -74,7 +74,7 @@ function V3CarsLayer({
         const token=continuousRaceTargetToken(car);
         let state=statesRef.current.get(id);
         if(!state){
-          const initial=Number(car?.targetWorldProgress)||0;
+          const initial=Number.isFinite(Number(car?.initialWorldProgress))?Number(car.initialWorldProgress):(Number(car?.targetWorldProgress)||0);
           state={
             token,
             segment:createContinuousRaceSegment({
