@@ -282,6 +282,74 @@ function applyFirstRaceDriverSeeds({
   return next;
 }
 
+function historicalSeedHierarchyScore(driverIdValue,ratingsById,historyRows,year){
+  const id=String(driverIdValue||"");
+  const rating=ratingsById.get(id)||{};
+  const ability=asNum(pick(rating,["current_ability","overall","pace"],55),55);
+  const prior=(historyRows||[]).filter((row)=>
+    driverId(row)===id&&Number(yearOf(row))<Number(year)
+  );
+  const starts=prior.reduce((sum,row)=>sum+Math.max(0,asNum(pick(row,["starts","races"],0),0)),0);
+  const wins=prior.reduce((sum,row)=>sum+Math.max(0,asNum(pick(row,["wins"],0),0)),0);
+  const podiums=prior.reduce((sum,row)=>sum+Math.max(0,asNum(pick(row,["podiums"],0),0)),0);
+  const poles=prior.reduce((sum,row)=>sum+Math.max(0,asNum(pick(row,["poles"],0),0)),0);
+
+  // Main/Second is only a hierarchy label for relationship-only historical
+  // seeds. Current ability leads; pre-season F1 experience and achievements
+  // break close calls without looking at any result from the selected season.
+  const experienceBonus=Math.min(6,Math.log2(1+starts)*0.9);
+  const achievementBonus=Math.min(8,wins*0.35+podiums*0.08+poles*0.05);
+  return ability+experienceBonus+achievementBonus;
+}
+
+function applyHistoricalSeedRaceHierarchy({contracts,driverRatings,driverHistory,year}){
+  const source=Array.isArray(contracts)?contracts:[];
+  const ratingsById=new Map(
+    (driverRatings||[]).map((row)=>[driverId(row),row]).filter(([id])=>id)
+  );
+  const byTeam=new Map();
+
+  for(const row of source){
+    if(!isRaceDriverContract(row))continue;
+    const tid=teamId(row);
+    if(!tid)continue;
+    if(!byTeam.has(tid))byTeam.set(tid,[]);
+    byTeam.get(tid).push(row);
+  }
+
+  const updates=new Map();
+  for(const rows of byTeam.values()){
+    if(rows.length!==2)continue;
+    const relationshipSeeds=rows.filter((row)=>
+      Boolean(pick(row,["relationship_only"],false))&&
+      ["first_race_seed","first_team_appearance_seed"].includes(String(pick(row,["source"],"")))
+    );
+    // Explicit historical/opening-state roles remain authoritative.
+    if(relationshipSeeds.length!==2)continue;
+
+    const ranked=relationshipSeeds
+      .map((row,index)=>({
+        row,
+        index,
+        score:historicalSeedHierarchyScore(driverId(row),ratingsById,driverHistory,year),
+      }))
+      .sort((a,b)=>b.score-a.score||a.index-b.index);
+
+    updates.set(ranked[0].row,{
+      ...ranked[0].row,
+      role:"Main Driver",
+      role_source:"historical_strength_hierarchy",
+    });
+    updates.set(ranked[1].row,{
+      ...ranked[1].row,
+      role:"Second Driver",
+      role_source:"historical_strength_hierarchy",
+    });
+  }
+
+  return source.map((row)=>updates.get(row)||row);
+}
+
 function teamIdsForSeason(g,year){
   const ids=new Set();
   const authoritative=rowsAtYear(g.teamSeasons,year);
@@ -418,7 +486,14 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     .map((r)=>historicalSnapshotToRating(r,year))
     .filter((r)=>r.driver_id);
   const byId=new Map(exactV2.map((r)=>[driverId(r),r]));
-  const legacy=exactOrLatest(g.driverRatings||[],year,driverId,wanted);
+
+  // Legacy driver_ratings rows are editorial snapshots for their own season,
+  // not permanent ability records. Carrying the latest old row forward creates
+  // severe time-travel bugs (for example a rookie-era rating surviving many
+  // years into a champion's prime). Exact-year legacy rows remain valid; all
+  // other gaps are materialized from the Talent Profile + career stage model.
+  const legacy=rowsAtYear(g.driverRatings||[],year)
+    .filter((row)=>!wanted||wanted.has(driverId(row)));
   for(const row of legacy){
     const id=driverId(row);
     if(!id||byId.has(id))continue;
@@ -427,6 +502,7 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     if(Number.isFinite(aggression))normalized.aggression=aggression;
     byId.set(id,normalized);
   }
+
   return materializeMissingStartingRatings({
     drivers,
     existingRatings:[...byId.values()],
@@ -434,6 +510,17 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     year,
     placements,
     historicalSnapshots:g.historicalRatingSnapshots||[],
+    careerHistory:g.driverHistory||[],
+  }).map((row)=>{
+    const current=asNum(pick(row,["current_ability","overall"],NaN),NaN);
+    const potential=asNum(pick(row,["potential_ability","potential"],NaN),NaN);
+    if(!Number.isFinite(current))return row;
+    const safePotential=Number.isFinite(potential)?Math.max(current,potential):current;
+    return {
+      ...row,
+      potential_ability:Math.round(Math.max(0,Math.min(100,safePotential))*10)/10,
+      development_headroom:Math.round(Math.max(0,safePotential-current)*10)/10,
+    };
   });
 }
 
@@ -664,6 +751,12 @@ export function materializeSeasonPack(globalData,yearInput){
   const driverRatings=driverRatingsForSeason(g,year,driverIds,{
     drivers,
     placements:feederPlacements,
+  });
+  contracts=applyHistoricalSeedRaceHierarchy({
+    contracts,
+    driverRatings,
+    driverHistory:g.driverHistory||[],
+    year,
   });
   const driverCareer=rowsAtYear(g.driverCareer,year).map(clean);
   const driverHistory=(g.driverHistory||[])

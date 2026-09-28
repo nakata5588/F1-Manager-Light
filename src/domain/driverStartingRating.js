@@ -98,6 +98,88 @@ const ATTRIBUTE_BLUEPRINT=Object.freeze([
   ["car_development_impact","peak_car_development_impact","team"],
 ]);
 
+const CAREER_FLOOR_ATTRIBUTE_OFFSETS=Object.freeze({
+  peak_pace:0,
+  peak_qualifying:1,
+  peak_start_launch:3,
+  peak_wet_skill:4,
+  peak_racecraft:0,
+  peak_consistency:4,
+  peak_tire_management:3,
+  peak_race_intelligence:2,
+  peak_technical_feedback:5,
+  peak_resource_management:4,
+  peak_adaptability:3,
+  peak_mentality:2,
+  peak_pressure_handling:2,
+  peak_leadership:6,
+  peak_team_player:5,
+  peak_car_development_impact:5,
+});
+
+export function f1CareerTalentFloor(historyRows=[]){
+  const rows=Array.isArray(historyRows)?historyRows:[];
+  if(!rows.length)return null;
+  const totals=rows.reduce((acc,row)=>({
+    starts:acc.starts+Math.max(0,num(row?.starts??row?.races,0)),
+    wins:acc.wins+Math.max(0,num(row?.wins,0)),
+    podiums:acc.podiums+Math.max(0,num(row?.podiums,0)),
+    poles:acc.poles+Math.max(0,num(row?.poles,0)),
+    bestFinish:Math.min(acc.bestFinish,num(row?.best_finish,999)),
+  }),{starts:0,wins:0,podiums:0,poles:0,bestFinish:999});
+
+  // Full-career evidence is allowed only to repair the permanent latent talent
+  // ceiling. It never selects a January race seat or copies a future season's
+  // current performance into the opening state.
+  let floor=totals.starts>0?58:null;
+  if(totals.starts>=20)floor=Math.max(floor,62);
+  if(totals.starts>=50)floor=Math.max(floor,64);
+  if(totals.starts>=100)floor=Math.max(floor,66);
+  if(totals.bestFinish<=10)floor=Math.max(floor,64);
+  if(totals.bestFinish<=5)floor=Math.max(floor,68);
+  if(totals.podiums>=1)floor=Math.max(floor,74);
+  if(totals.wins>=1)floor=Math.max(floor,80);
+  if(totals.wins>=5||totals.podiums>=20)floor=Math.max(floor,85);
+  if(totals.wins>=10||totals.podiums>=40||totals.poles>=15)floor=Math.max(floor,90);
+  if(totals.wins>=20||totals.podiums>=70||totals.poles>=30)floor=Math.max(floor,94);
+  if(totals.wins>=35||totals.podiums>=90||totals.poles>=50)floor=Math.max(floor,97);
+  return Number.isFinite(floor)?floor:null;
+}
+
+export function repairTalentProfileFromF1Career(profile,historyRows=[]){
+  if(!profile)return profile;
+  const floor=f1CareerTalentFloor(historyRows);
+  const original=num(profile?.peak_ability,null);
+  if(!Number.isFinite(floor)||!Number.isFinite(original)||original>=floor)return profile;
+
+  const patched={...profile,peak_ability:round1(floor)};
+  for(const [peakKey,offset] of Object.entries(CAREER_FLOOR_ATTRIBUTE_OFFSETS)){
+    const raw=num(profile?.[peakKey],null);
+    if(!Number.isFinite(raw))continue;
+    patched[peakKey]=round1(Math.max(raw,clamp(floor-offset,35,99)));
+  }
+  patched._talent_profile_peak_original=round1(original);
+  patched._talent_profile_peak_effective=round1(floor);
+  patched._talent_profile_repair_source="full_f1_career_achievement_floor";
+  return patched;
+}
+
+function ageAdjustedFactors(factors,stage,age,declineStartAge){
+  const base={...factors};
+  if(stage!=="Decline"||!Number.isFinite(Number(age)))return base;
+  const declineStart=Number.isFinite(Number(declineStartAge))?Number(declineStartAge):35;
+  const years=Math.max(0,Number(age)-declineStart);
+  if(years<=0)return base;
+
+  return {
+    ...base,
+    factor_speed:clamp(num(base.factor_speed,0.96)-years*0.045,0.58,1),
+    factor_experience:clamp(num(base.factor_experience,0.997)-years*0.018,0.84,1),
+    factor_mental:clamp(num(base.factor_mental,0.995)-years*0.020,0.78,1),
+    factor_team:clamp(num(base.factor_team,0.988)-years*0.015,0.80,1),
+  };
+}
+
 function median(values){
   const source=(values||[]).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
   return source.length?source[Math.floor(source.length/2)]:null;
@@ -257,7 +339,13 @@ export function materializeDriverStartingRating({
   const age=num(placement?.age,driverOpeningAge(driver,target));
   const stage=driverStartingStage(driver,profile,target,{placement,stageOverride});
   const model=calibration||buildStartingRatingCalibration(historicalSnapshots);
-  const factors=startingRatingFactors(model,stage,age);
+  const baseFactors=startingRatingFactors(model,stage,age);
+  const factors=ageAdjustedFactors(
+    baseFactors,
+    stage,
+    age,
+    num(profile?.decline_start_age,35)
+  );
 
   const rating={
     year:target,
@@ -273,6 +361,9 @@ export function materializeDriverStartingRating({
     rating_model:"D7.R2",
     calibration_version:model?.version||"D7.R1D_CALIBRATION_V1",
     calibration_source_rows:num(model?.source_rows,0),
+    talent_profile_peak_original:num(profile?._talent_profile_peak_original, null),
+    talent_profile_peak_effective:num(profile?._talent_profile_peak_effective, num(profile?.peak_ability,null)),
+    talent_profile_repair_source:text(profile?._talent_profile_repair_source||""),
     factor_speed:round1(factors.factor_speed*100)/100,
     factor_experience:round1(factors.factor_experience*100)/100,
     factor_mental:round1(factors.factor_mental*100)/100,
@@ -306,21 +397,33 @@ export function materializeMissingStartingRatings({
   year,
   placements=[],
   historicalSnapshots=[],
+  careerHistory=[],
 }={}){
   const rows=Array.isArray(existingRatings)?existingRatings:[];
   const byId=new Map(rows.map((row)=>[driverId(row),row]).filter(([id])=>id));
   const profileById=new Map((profiles||[]).map((row)=>[driverId(row),row]).filter(([id])=>id));
   const placementById=new Map((placements||[]).map((row)=>[driverId(row),row]).filter(([id])=>id));
   const calibration=buildStartingRatingCalibration(historicalSnapshots);
+  const historyById=new Map();
+  for(const row of Array.isArray(careerHistory)?careerHistory:[]){
+    const id=driverId(row);
+    if(!id)continue;
+    if(!historyById.has(id))historyById.set(id,[]);
+    historyById.get(id).push(row);
+  }
 
   for(const driver of Array.isArray(drivers)?drivers:[]){
     const id=driverId(driver);
     if(!id||byId.has(id))continue;
     const profile=profileById.get(id);
     if(!profile)continue;
+    const effectiveProfile=repairTalentProfileFromF1Career(
+      profile,
+      historyById.get(id)||[]
+    );
     const rating=materializeDriverStartingRating({
       driver,
-      profile,
+      profile:effectiveProfile,
       year,
       placement:placementById.get(id)||null,
       calibration,
