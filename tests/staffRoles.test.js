@@ -199,3 +199,25 @@ test("Strategist quality improves decision quality modifier without becoming rac
   assert.ok(staffStrategyDecisionDelta(strong,"T1")>staffStrategyDecisionDelta(weak,"T1"));
   assert.ok(Math.abs(staffStrategyDecisionDelta(strong,"T1"))<=0.12);
 });
+
+
+test("Staff capability model is independent of Race Weekend engine selection",()=>{
+  const make=(engineVersion)=>({
+    activeYear:2004,
+    raceWeekendState:{engine_version:engineVersion},
+    staffCore:[{staff_id:"RE1",role_primary:"race_engineer"}],
+    staffContracts:[{
+      year:2004,team_id:"T1",staff_id:"RE1",role:"race_engineer",
+      contract_start:2000,contract_until:2010,status:"active",
+    }],
+    staffRatings:[{
+      year:2004,staff_id:"RE1",
+      communication:88,technical:84,data_analysis:86,strategy:78,
+      motivation:80,reliability_focus:76,conflict_management:72,
+    }],
+  });
+  assert.equal(
+    teamStaffCapability(make("legacy"),"T1","setup"),
+    teamStaffCapability(make("rw2"),"T1","setup")
+  );
+});
