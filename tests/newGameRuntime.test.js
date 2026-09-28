@@ -64,6 +64,8 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
     calendar: [{ gp_id: "ARG" }],
     teams: [{ team_id: "T1" }],
     drivers: [{ driver_id: "D1" }],
+    teamHistoricalStrength: [{ year: 1980, team_id: "T1", overall: 82.5, evidence_through_year: 1979 }],
+    dbTeamLineageHistory: [{ predecessor_team_id: "OLD", successor_team_id: "T1", effective_from_year: 1980, verified: true }],
     contracts: [{ team_id: "T1", driver_id: "D1", role: "Main Driver" }],
     carStats: [{ year: 1980, team_id: "T1", chassis_spec: 80 }],
 
@@ -119,6 +121,8 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
   assert.deepEqual(fresh.dbDrivers, source.dbDrivers);
   assert.deepEqual(fresh.calendar, source.calendar);
   assert.deepEqual(fresh.contracts, source.contracts);
+  assert.deepEqual(fresh.teamHistoricalStrength, source.teamHistoricalStrength);
+  assert.deepEqual(fresh.dbTeamLineageHistory, source.dbTeamLineageHistory);
   assert.equal(fresh.seasonPackMeta.year, 1980);
 
   assert.deepEqual(fresh.results, []);
