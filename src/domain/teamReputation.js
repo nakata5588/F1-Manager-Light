@@ -56,7 +56,8 @@ function saturation(value,scale){
 }
 
 function historicalBaseline(gs,teamId){
-  const sourceSeason=Number(gs?.careerMeta?.sourceSeason);
+  const sourceSeasonRaw=gs?.careerMeta?.sourceSeason;
+  const sourceSeason=sourceSeasonRaw==null?null:Number(sourceSeasonRaw);
   const activeYear=Number(gs?.activeYear??gs?.seasonPackMeta?.year);
   const year=Number.isInteger(sourceSeason)?sourceSeason:activeYear;
   const history=teamOrganizationHistoryFromState(gs,teamId,year);
