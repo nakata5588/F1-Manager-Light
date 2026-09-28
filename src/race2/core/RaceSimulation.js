@@ -34,17 +34,23 @@ function advanceCar(state,car,stepMs){
   const dt=stepMs/1000;
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
   const acceleration=Math.max(-100,Math.min(100,finite(car?.accelerationMs2,0)));
-  const nextSpeedMs=Math.max(0,speedMs+acceleration*dt);
-  const deltaM=((speedMs+nextSpeedMs)/2)*dt;
+  const unconstrainedNextSpeed=speedMs+acceleration*dt;
+  const nextSpeedMs=Math.max(0,unconstrainedNextSpeed);
+  const motionTime=acceleration<0&&unconstrainedNextSpeed<0
+    ?Math.min(dt,speedMs/Math.max(1e-9,-acceleration))
+    :dt;
+  const deltaM=acceleration<0&&unconstrainedNextSpeed<0
+    ?((speedMs+0)/2)*motionTime
+    :((speedMs+nextSpeedMs)/2)*dt;
   const currentAbsolute=Math.max(0,finite(car?.absoluteDistanceM,0));
-  let nextAbsolute=currentAbsolute+Math.max(0,deltaM);
+  let nextAbsolute=Number((currentAbsolute+Math.max(0,deltaM)).toFixed(6));
 
   const lapLimit=lapLimitFor(state);
   const finishDistance=lapLimit==null?null:lapLimit*lengthM;
   const finished=finishDistance!=null&&nextAbsolute>=finishDistance;
-  if(finished)nextAbsolute=finishDistance;
+  if(finished)nextAbsolute=Number(finishDistance.toFixed(6));
 
-  const completedLaps=Math.max(0,Math.floor((nextAbsolute+1e-9)/lengthM));
+  const completedLaps=Math.max(0,Math.floor(nextAbsolute/lengthM));
   const distanceAlongLapM=finished
     ?0
     :wrapTrackDistanceM(state.track,nextAbsolute)??0;
@@ -61,7 +67,7 @@ function advanceCar(state,car,stepMs){
     completedLaps,
     sector,
     distanceAlongLapM:Number(distanceAlongLapM.toFixed(6)),
-    absoluteDistanceM:Number(nextAbsolute.toFixed(6)),
+    absoluteDistanceM:nextAbsolute,
     speedMs:Number(nextSpeedMs.toFixed(6)),
     speedKmh:Number((nextSpeedMs*3.6).toFixed(6)),
     elapsedMs:Math.max(0,finite(car?.elapsedMs,0))+stepMs,
