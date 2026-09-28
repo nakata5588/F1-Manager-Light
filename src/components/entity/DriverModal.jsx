@@ -2507,10 +2507,10 @@ function AttributesTab({
   if (!attrs) return <p className="text-slate-500 text-sm">No attributes.</p>;
 
   const groups=driverAttributeGroups();
-  const derived=driverDerivedRatings(attrs);
+  const derived=driverDerivedRatings(attrs,{performanceEntries:currentSnapshot?.performanceHistory||[]});
   const comparisonAttrs=comparisonSnapshot?.rating||null;
   const comparisonKnowledge=comparisonSnapshot?.knowledge||null;
-  const comparisonDerived=driverDerivedRatings(comparisonAttrs);
+  const comparisonDerived=driverDerivedRatings(comparisonAttrs,{performanceEntries:comparisonSnapshot?.performanceHistory||[]});
   const nameOf=(d)=>displayValue(d?.display_name??d?.name,"Unknown Driver");
   const currentName=nameOf(driver);
   const comparisonName=comparisonDriver?nameOf(comparisonDriver):"";
@@ -2645,6 +2645,15 @@ function AttributesTab({
           ?"Makes a useful contribution to development without being a primary technical reference."
           :"Offers limited value to long-term technical development.";
     }
+    if(key==="mistake_propensity"){
+      return score<=20
+        ?"Very unlikely to make avoidable driving mistakes; recent evidence supports a controlled profile."
+        :score<=40
+          ?"Generally controlled, with only a modest tendency toward avoidable mistakes."
+          :score<=60
+            ?"Mistake risk is noticeable, especially when the driver is stretched or under pressure."
+            :"High propensity for avoidable mistakes; lower is better for this rating.";
+    }
     return "";
   };
 
@@ -2691,6 +2700,7 @@ function AttributesTab({
         ["Leadership","leadership",attrs?.leadership,comparisonAttrs?.leadership,false],
         ["Team Player","team_player",attrs?.team_player,comparisonAttrs?.team_player,false],
         ["Crash Likelihood","crash_likelihood",attrs?.crash_likelihood,comparisonAttrs?.crash_likelihood,true],
+        ["Mistake Propensity","derived_mistake_propensity",derived?.mistake_propensity?.value,comparisonDerived?.mistake_propensity?.value,true],
       ],
     },
   ];
@@ -2857,7 +2867,7 @@ function AttributesTab({
               ))}
               <div className="lg:col-span-3 flex flex-wrap items-center justify-between gap-2 px-1 pt-1 text-[10px] text-slate-500">
                 <span>{currentName} left · {comparisonName} right</span>
-                <span>Green = stronger · Red = weaker · lower Crash Likelihood is better</span>
+                <span>Green = stronger · Red = weaker · lower Crash Likelihood / Mistake Propensity is better</span>
               </div>
             </div>
           ) : (
@@ -2964,7 +2974,7 @@ function AttributesTab({
 
       <div className={`${comparisonDriver&&compareMode==="performance"?"hidden":""} rounded-xl border border-white/10 bg-[#12141c] p-3`}>
         <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Race Behaviour & Derived Ratings</div>
-        <p className="text-xs text-slate-500">These ratings combine existing attributes; they are not separate database attributes.</p>
+        <p className="text-xs text-slate-500">These ratings combine existing attributes; they are not separate database attributes. Lower Mistake Propensity is better.</p>
 
         <details className="mt-2 rounded-lg border border-white/10 bg-[#171a23] p-2.5">
           <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-slate-500">Wheel-to-wheel profile</summary>
@@ -2973,14 +2983,15 @@ function AttributesTab({
           </div>
         </details>
 
-        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-6">
           {[
-            ["overtaking","Overtaking"],
-            ["defending","Defending"],
-            ["strategy_intelligence","Strategy Intelligence"],
-            ["setup_feedback","Setup Feedback"],
-            ["development_impact","Development Impact"],
-          ].map(([key,label])=>{
+            ["overtaking","Overtaking",false],
+            ["defending","Defending",false],
+            ["strategy_intelligence","Strategy Intelligence",false],
+            ["setup_feedback","Setup Feedback",false],
+            ["development_impact","Development Impact",false],
+            ["mistake_propensity","Mistake Propensity",true],
+          ].map(([key,label,inverse])=>{
             const field=`derived_${key}`;
             const left=derived?.[key]?.value;
             const right=comparisonDerived?.[key]?.value;
@@ -2990,15 +3001,16 @@ function AttributesTab({
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
                 <div className="mt-1 flex items-baseline justify-between gap-2">
                   <div>{renderShown(shown,{
+                    inverse,
                     size:"text-lg",
                     toneOverride:comparisonDriver
-                      ?comparisonTone(shown,shownValue(comparisonKnowledge,field,right,{kind:"attribute"}),{side:"left"})
+                      ?comparisonTone(shown,shownValue(comparisonKnowledge,field,right,{kind:"attribute"}),{inverse,side:"left"})
                       :null,
                   })}</div>
                   {comparisonDriver&&(
                     <div className="text-right text-xs">
-                      <div>{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute"})}</div>
-                      <div className="mt-0.5">{differenceFor(field,left,right,{kind:"attribute"})}</div>
+                      <div>{renderComparisonValue("right",comparisonKnowledge,field,right,knowledge,left,{kind:"attribute",inverse})}</div>
+                      <div className="mt-0.5">{differenceFor(field,left,right,{kind:"attribute",inverse})}</div>
                     </div>
                   )}
                 </div>
