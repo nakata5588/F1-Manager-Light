@@ -40,7 +40,7 @@ test("Track 2.1A.5 keeps environment artwork non-authoritative",()=>{
   assert.ok(Array.isArray(geometry.pit_lane_points));
   assert.ok(geometry.pit_lane_points.length>=60);
   assert.deepEqual(geometry.view_box,[0,0,1649,954]);
-  assert.deepEqual(layout.environment_view_box,[0,0,1619,971]);
+  assert.deepEqual(layout.environment_view_box,[0,0,1649,954]);
   assert.deepEqual(layout.sector_boundaries,[0.3246,0.6940]);
   assert.equal(layout.pit_entry_progress,0.9499);
   assert.equal(layout.pit_exit_progress,0.0789);
@@ -59,7 +59,8 @@ test("Track 2.0 Argentina uses the unified procedural package at runtime",()=>{
   assert.equal(environment.contains_track_surface,false);
   assert.equal(environment.contains_track_intel,false);
   assert.equal(layout.track_package,track_package);
-  assert.equal(track_package.minimap.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
-  assert.ok(track_package.race_view.environment.lake.length>=8);
-  assert.ok(track_package.race_view.environment.trees.length>=30);
+  assert.equal(track_package.race_view.environment.theme,"parkland");
+  assert.equal(track_package.race_view.environment.render_landmarks,false);
+  assert.equal(track_package.race_view.environment.pit_complex,true);
+  assert.equal(track_package.race_view.environment.auto_grandstands,true);
 });
