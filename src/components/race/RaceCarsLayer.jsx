@@ -45,6 +45,8 @@ export function CarShape({
   damageState=null,
   driverNumber=null,
   sponsorLabel=null,
+  liveryPattern=null,
+  historicalModel=null,
 }){
   return <>
     {selected?<circle cx="0" cy="0" r="18" fill="none" stroke="#fff" strokeWidth="1.35" opacity=".28">
@@ -62,6 +64,8 @@ export function CarShape({
       damageState={damageState}
       driverNumber={driverNumber}
       sponsorLabel={sponsorLabel}
+      liveryPattern={liveryPattern}
+      historicalModel={historicalModel}
     />
     {(selected||mine||lod==="close")?<g data-car-label="true" transform="translate(0 -15.5)">
       <rect x="-10.5" y="-3.8" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#fff":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity={lod==="close"?.94:.82}/>
