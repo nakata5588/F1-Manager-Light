@@ -3,6 +3,7 @@ import { openPolylineHeadingDegrees, sampleOpenPolylinePoint, trackHeadingDegree
 import { pointAtTrackProgress } from "../../domain/trackLayout.js";
 import { unwrapTrackProgress } from "../../domain/racePlayback.js";
 import RaceCarVisual from "./RaceCarVisual.jsx";
+import { resolveRaceCarPhysicalLayout } from "../../domain/raceCarOccupancy.js";
 
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 function wrap01(value){const n=Number(value)||0;return ((n%1)+1)%1;}
@@ -83,6 +84,7 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
     const tick=(now)=>{
       const dt=Math.max(1,Math.min(50,now-previous)); previous=now;
       const alpha=1-Math.exp(-dt/48);
+      const placements=[];
       for(const car of carsRef.current){
         const node=refs.current.get(car.id);
         if(!node)continue;
@@ -101,6 +103,20 @@ function RaceCarsLayer({geometry,cars=[],markerScale=1,playbackRunning=true,onSe
         }
         const point=visualPoint(geometry,state);
         if(!point)continue;
+        placements.push({
+          id:String(car.id),
+          raceOrder:Number(car.raceOrder)||999,
+          selected:Boolean(car.selected),
+          car,
+          node,
+          state,
+          point,
+        });
+      }
+
+      const resolved=resolveRaceCarPhysicalLayout(placements,{markerScale,lod});
+      for(const placement of resolved){
+        const {car,node,state,point}=placement;
         const transform=`translate(${point.x.toFixed(3)} ${point.y.toFixed(3)}) scale(${markerScale})`;
         if(transform!==state.lastTransform){
           node.setAttribute("transform",transform);
