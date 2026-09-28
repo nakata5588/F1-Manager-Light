@@ -74,6 +74,7 @@ function aggregateRaceAchievements(segments,driverHistory=[]){
 
 function titleEvidence(segments,historicalChampionships,teamSeasons){
   const constructors=rows(historicalChampionships?.constructors).filter((row)=>
+    Number(yearOf(row))>=1958&&
     organizationChampionshipRowBelongsToSegments(row,segments,teamSeasons)&&
     Number(num(row?.position,999))===1
   );
