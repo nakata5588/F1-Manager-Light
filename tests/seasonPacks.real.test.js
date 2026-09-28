@@ -45,6 +45,20 @@ for(const year of targetYears){
     }
     assert.ok(state.drivers.length>=4,`${year} must have at least 4 visible drivers`);
     assert.ok(Array.isArray(state.driverHistory),`${year} must carry driver history in the Season Pack`);
+    assert.ok(Array.isArray(state.teamHistoricalStrength),`${year} must carry Historical Team Strength`);
+    assert.equal(
+      state.teamHistoricalStrength.length,
+      state.teams.length,
+      `${year} must materialize one strength row per Team`
+    );
+    assert.ok(
+      state.teamHistoricalStrength.every((row)=>
+        Number(row.evidence_through_year)===year-1 &&
+        Number(row.overall)>=0 && Number(row.overall)<=100 &&
+        Number(row.structural_strength)>=0 && Number(row.structural_strength)<=100
+      ),
+      `${year} Historical Team Strength must be preseason-safe and bounded`
+    );
     assert.ok(Array.isArray(state.coreTracks)&&state.coreTracks.length>0,`${year} must expose circuit profiles for race-weekend gameplay`);
     assert.ok(Array.isArray(state.trackLayoutByYear),`${year} must expose effective track layouts`);
     assert.ok(state.qualifyingRules&&typeof state.qualifyingRules==="object",`${year} must carry Qualifying rules into the Season Pack`);
@@ -462,4 +476,17 @@ test("1980 Senna receives materialized starting attributes from Talent Profile",
   assert.ok(Number(rating.racecraft)>=53&&Number(rating.racecraft)<=57,String(rating.racecraft));
   assert.ok(Number(rating.consistency)>=53&&Number(rating.consistency)<=57,String(rating.consistency));
   assert.ok(Number(rating.mentality)>=63&&Number(rating.mentality)<=66,String(rating.mentality));
+});
+
+
+test("2009 long-term Team structure separates Ferrari from recent Force India without using car stats",async()=>{
+  const pack=await readPack(2009);
+  const byId=new Map((pack.state?.teamHistoricalStrength||[]).map((row)=>[String(row.team_id),row]));
+  const ferrari=byId.get("t_0010");
+  const forceIndia=byId.get("t_0021");
+  assert.ok(ferrari&&forceIndia,"2009 Ferrari and Force India strength rows must exist");
+  assert.ok(Number(ferrari.structural_strength)>Number(forceIndia.structural_strength),[ferrari,forceIndia]);
+  assert.ok(Number(ferrari.heritage_strength)>Number(forceIndia.heritage_strength),[ferrari,forceIndia]);
+  assert.equal(Number(ferrari.evidence_through_year),2008);
+  assert.equal(Number(forceIndia.evidence_through_year),2008);
 });
