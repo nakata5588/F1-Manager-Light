@@ -312,11 +312,13 @@ function hydrateTeammateComparison(gs,driverId,entry){
   const needsQualifying=entry?.teammate_qualifying_delta==null;
   const needsDriver=entry?.teammate_driver_id==null;
   const needsBestLap=entry?.best_lap_ms==null||entry?.fastest_lap==null;
+  const hasOwn=(key)=>Object.prototype.hasOwnProperty.call(entry,key);
+  const needsRetirementEvidence=!hasOwn("retirement_responsibility");
   const needsIncidentEvidence=
-    entry?.incident_responsibility==null||
-    entry?.incident_kind==null||
-    entry?.incident_reason==null;
-  if(!needsRace&&!needsQualifying&&!needsDriver&&!needsBestLap&&!needsIncidentEvidence)return entry;
+    !hasOwn("incident_responsibility")||
+    !hasOwn("incident_kind")||
+    !hasOwn("incident_reason");
+  if(!needsRace&&!needsQualifying&&!needsDriver&&!needsBestLap&&!needsRetirementEvidence&&!needsIncidentEvidence)return entry;
 
   const event=resultEventForEntry(gs,entry);
   if(!event)return entry;
@@ -340,10 +342,14 @@ function hydrateTeammateComparison(gs,driverId,entry){
     best_lap_ms:entry?.best_lap_ms??num(race?.best_lap_ms??race?.bestLapMs,null),
     best_lap_number:entry?.best_lap_number??num(race?.best_lap_number??race?.bestLapNumber,null),
     fastest_lap:entry?.fastest_lap??Boolean(race?.fastest_lap??race?.fastestLap),
-    retirement_responsibility:entry?.retirement_responsibility??retirement?.key??null,
-    incident_kind:entry?.incident_kind??race?.incident_kind??null,
-    incident_reason:entry?.incident_reason??race?.incident_reason??null,
-    incident_responsibility:entry?.incident_responsibility??incidentResponsibility?.key??null,
+    retirement_responsibility:hasOwn("retirement_responsibility")
+      ?entry.retirement_responsibility
+      :(retirement?.key??null),
+    incident_kind:hasOwn("incident_kind")?entry.incident_kind:(race?.incident_kind??null),
+    incident_reason:hasOwn("incident_reason")?entry.incident_reason:(race?.incident_reason??null),
+    incident_responsibility:hasOwn("incident_responsibility")
+      ?entry.incident_responsibility
+      :(incidentResponsibility?.key??null),
   };
 
   if(!teammateId)return next;
