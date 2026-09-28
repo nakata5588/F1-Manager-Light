@@ -209,19 +209,24 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng, raceControlPl
     const plannedIncident=incidentForDriver(livePlan,driverId);
     if(plannedIncident){
       const raceLaps=Math.max(1,Number(row?.race_laps)||60);
-      const incidentLap=Math.max(1,Math.min(raceLaps-1,Number(plannedIncident.lap)||1));
+      const incidentLap=Math.max(1,Math.min(raceLaps,Number(plannedIncident.lap)||1));
+      const incidentSector=Math.max(1,Math.min(3,Number(plannedIncident?.sector)||1));
+      const completedLaps=Math.max(0,incidentSector>=3?incidentLap:incidentLap-1);
       retirees.push({
         ...row,
         status:"DNF",
         retired:true,
         retirement_reason:plannedIncident.reason||"Incident",
+        incident_kind:plannedIncident.kind??null,
+        incident_reason:plannedIncident.reason??null,
         incident_severity:plannedIncident.severity??null,
         incident_severity_score:plannedIncident.severity_score??null,
         incident_with_driver_id:plannedIncident.other_driver_id??null,
         reliability_pct:plannedIncident.reliability_pct??null,
         reliability_source:plannedIncident.reliability_source??null,
-        laps_completed:incidentLap,
+        laps_completed:completedLaps,
         incident_lap:incidentLap,
+        incident_sector:incidentSector,
         total_time_ms:null,
         gap_to_winner_ms:null,
         gap_to_previous_ms:null,
@@ -386,7 +391,11 @@ function applyRetirements(gs, timedRace, ratings, roundIndex, rng, raceControlPl
       gap_to_previous_ms:gapToPrevious,
     };
   });
-  retirees.sort((a,b)=>Number(b.laps_completed||0)-Number(a.laps_completed||0));
+  retirees.sort((a,b)=>
+    Number(b.laps_completed||0)-Number(a.laps_completed||0)
+    ||Number(b.incident_lap||0)-Number(a.incident_lap||0)
+    ||Number(b.incident_sector||0)-Number(a.incident_sector||0)
+  );
   return [
     ...positionedFinishers,
     ...retirees.map((row,index)=>({...row,pos:positionedFinishers.length+index+1})),
@@ -945,6 +954,7 @@ export async function runRaceWeekend(gs, {
       laps_completed: row.laps_completed ?? (row.retired ? null : row.race_laps ?? null),
       race_laps: row.race_laps ?? null,
       incident_lap: row.incident_lap ?? null,
+      incident_sector: row.incident_sector ?? null,
       incident_severity: row.incident_severity ?? null,
       incident_severity_score: row.incident_severity_score ?? null,
       incident_with_driver_id: row.incident_with_driver_id ?? null,

@@ -648,3 +648,119 @@ test("RW5.3C RaceStrategy applies double-stack delay when both team cars pit tog
   assert.equal(queued.pit_traffic_model,"rw5.3c");
   assert.equal(queued.service.pit_traffic.double_stack,true);
 });
+
+
+test("RW5.3E retirement cuts off lap, tyre, pit and strategy projection at the causal point",()=>{
+  const base=withStrategy(fixture());
+  const strategy=base.raceWeekendState.race_strategy;
+  const raceGs={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...strategy,
+        selections:{
+          ...strategy.selections,
+          d_f1:{
+            ...strategy.selections.d_f1,
+            pit_plan:"one_stop",
+            planned_stop_lap:15,
+          },
+        },
+      },
+    },
+  };
+  const plan={
+    incidents:[{
+      driver_id:"d_f1",
+      lap:8,
+      sector:2,
+      kind:"mechanical",
+      reason:"Engine",
+      retirement:true,
+      damage:null,
+    }],
+    damage_repairs:[],
+    periods:[],
+    weather_timeline:[],
+  };
+
+  const simulated=simulateManagedRace(raceGs,{
+    gp,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+    raceControlPlan:plan,
+  });
+  const retired=simulated.race.find((row)=>row.driver.driver_id==="d_f1");
+  assert.ok(retired);
+  assert.equal(retired.projected_laps_completed,7);
+  assert.equal(retired.projected_retirement.lap,8);
+  assert.equal(retired.projected_retirement.sector,2);
+  assert.equal(retired.lap_times_ms.length,7);
+  assert.equal(retired.tyre_state_by_lap.length,7);
+  assert.ok(retired.pit_stops.every((stop)=>Number(stop.lap)<8));
+  assert.ok(retired.strategy_decisions.every((decision)=>Number(decision.lap)<8));
+  assert.ok(retired.stints.every((stint)=>Number(stint.end_lap)<=7));
+});
+
+test("RW5.3E a sector-three retirement completes the lap but cannot execute a same-lap pit stop",()=>{
+  const base=withStrategy(fixture());
+  const strategy=base.raceWeekendState.race_strategy;
+  const raceGs={
+    ...base,
+    raceWeekendState:{
+      ...base.raceWeekendState,
+      race_strategy:{
+        ...strategy,
+        selections:{
+          ...strategy.selections,
+          d_f1:{
+            ...strategy.selections.d_f1,
+            pit_plan:"one_stop",
+            planned_stop_lap:15,
+          },
+        },
+      },
+    },
+  };
+  const plan={
+    incidents:[{
+      driver_id:"d_f1",
+      lap:15,
+      sector:3,
+      kind:"collision",
+      reason:"Collision",
+      retirement:true,
+      damage:null,
+    }],
+    damage_repairs:[],
+    periods:[],
+    weather_timeline:[],
+  };
+
+  const causal=simulateManagedRace(raceGs,{
+    gp,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+    raceControlPlan:plan,
+  });
+  const retired=causal.race.find((row)=>row.driver.driver_id==="d_f1");
+  assert.equal(retired.lap_times_ms.length,15);
+  assert.equal(retired.projected_laps_completed,15);
+  assert.equal(retired.pit_stops.some((stop)=>Number(stop.lap)>=15),false);
+  assert.equal(retired.strategy_decisions.some((decision)=>decision.action==="pit"&&Number(decision.lap)>=15),false);
+
+  const hazardProjection=simulateManagedRace(raceGs,{
+    gp,
+    grid:grid(raceGs),
+    ratings:raceGs.driverRatings,
+    roundIndex:0,
+    raceControlPlan:plan,
+    honorRetirements:false,
+  });
+  const uncut=hazardProjection.race.find((row)=>row.driver.driver_id==="d_f1");
+  assert.equal(uncut.lap_times_ms.length,30,"hazard refresh must remain a full-race projection");
+  assert.equal(uncut.projected_retirement,null);
+});
