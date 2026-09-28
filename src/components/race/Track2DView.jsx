@@ -21,7 +21,7 @@ import {
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
-import { openPolylineHeadingDegrees, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
+import { openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
 import { panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
@@ -282,6 +282,9 @@ function useVisualRaceTimeline({
     if(!playbackRunning||progressRef.current>=1)return undefined;
     let frame=null;
     let previousTime=performance.now();
+    let previousCommit=previousTime;
+    const speed=Math.max(1,Number(playbackSpeed)||1);
+    const frameIntervalMs=speed>=8?34:speed>=4?30:speed>=2?24:18;
     const tick=(now)=>{
       const delta=Math.max(0,now-previousTime);
       previousTime=now;
@@ -291,12 +294,15 @@ function useVisualRaceTimeline({
         running:true,
       });
       progressRef.current=next;
-      setProgress(next);
+      if(next>=1||now-previousCommit>=frameIntervalMs){
+        previousCommit=now;
+        setProgress(next);
+      }
       if(next<1)frame=requestAnimationFrame(tick);
     };
     frame=requestAnimationFrame(tick);
     return ()=>{if(frame)cancelAnimationFrame(frame);};
-  },[playbackRunning,durationMs,timeline]);
+  },[playbackRunning,durationMs,timeline,playbackSpeed]);
 
   const frame=useMemo(()=>visualRaceTimelineFrame(timeline,progress),[timeline,progress]);
   return useMemo(()=>({
@@ -621,11 +627,11 @@ function TrackMiniMap({geometry,rows=[],teamBrands=[],year,currentControl="GREEN
   if(!geometry||!Array.isArray(geometry?.points)||geometry.points.length<2)return null;
   const viewBox=trackGeometryViewBox(geometry,{paddingRatio:.07,minPadding:22});
   const loop=[...geometry.points,geometry.points[0]];
-  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[176px] rounded-md bg-black/15 p-1.5 2xl:w-[196px]">
+  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[224px] rounded-md bg-black/15 p-1.5 xl:w-[236px] 2xl:w-[260px]">
     <div className="mb-0.5 flex items-center justify-between px-0.5 text-[7px] font-bold uppercase tracking-[0.12em] text-white/55">
       <span>Mini Map</span><span className={String(currentControl).includes("YELLOW")?"text-amber-300/80":"text-emerald-300/80"}>{String(currentControl||"GREEN").replaceAll("_"," ")}</span>
     </div>
-    <svg className="h-[104px] w-full opacity-90" viewBox={viewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Circuit mini map">
+    <svg className="h-[128px] w-full opacity-90 xl:h-[136px] 2xl:h-[150px]" viewBox={viewBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Circuit mini map">
       <polyline points={polygonPoints(loop)} fill="none" stroke="#020617" strokeWidth="12" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>
       <polyline points={polygonPoints(loop)} fill="none" stroke="#e5e7eb" strokeWidth="5.2" strokeLinejoin="round" strokeLinecap="round" opacity=".9"/>
       <polyline points={polygonPoints(loop)} fill="none" stroke="#4b5563" strokeWidth="3.1" strokeLinejoin="round" strokeLinecap="round"/>
@@ -681,9 +687,17 @@ export default function Track2DView({
   const rawWetness=Number(trackState?.wetness??trackState?.track_wetness??trackState?.track?.end_wetness??trackState?.track?.wetness??0);
   const sceneWetness=Number.isFinite(rawWetness)?Math.max(0,Math.min(1,rawWetness>1?rawWetness/100:rawWetness)):0;
   const calibratedGeometry=useMemo(()=>trackPresentationGeometry(geometry,layout),[geometry,layout]);
+  const smoothedPresentationGeometry=useMemo(()=>{
+    if(!proceduralEnvironmentActive)return calibratedGeometry;
+    const style=environment?.race_view_style||{};
+    return simplifyTrackPresentationGeometry(calibratedGeometry,{
+      tolerance:Number(style.presentation_tolerance||1.25),
+      pitTolerance:Number(style.pit_presentation_tolerance||.7),
+    });
+  },[calibratedGeometry,proceduralEnvironmentActive,environment?.race_view_style]);
   const displayGeometry=useMemo(
-    ()=>(environmentAssetActive||proceduralEnvironmentActive)?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
-    [calibratedGeometry,environmentAssetActive,proceduralEnvironmentActive]
+    ()=>(environmentAssetActive||proceduralEnvironmentActive)?smoothedPresentationGeometry:orientTrackGeometry(smoothedPresentationGeometry),
+    [smoothedPresentationGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
   const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);

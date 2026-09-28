@@ -33,6 +33,8 @@ export const ARGENTINA_1974_1981_F1TRACK=Object.freeze({
       kerb_width:25,
       outer_shadow_width:31,
       pit_width:12,
+      presentation_tolerance:1.25,
+      pit_presentation_tolerance:.7,
       grass:"#879317",
       asphalt:"#313236",
       asphalt_highlight:"#45474b",

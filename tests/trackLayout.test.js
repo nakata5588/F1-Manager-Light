@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
-import { deterministicTrackScatter, offsetTrackPolyline, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
+import { deterministicTrackScatter, offsetTrackPolyline, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
 import { clampTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
@@ -315,4 +315,45 @@ test("Track 2.2 car scaling is consistent for wheel and follow cameras",()=>{
   const apparent5=scale5*5;
   assert.ok(apparent2>1&&apparent2<2,"2x camera should grow the car moderately, not double it");
   assert.ok(apparent5>apparent2&&apparent5<2.2,"deep zoom should stay bounded instead of producing giant cars");
+});
+
+
+test("Track 2.3 presentation simplification removes tiny straight-line oscillations",()=>{
+  const wavy=[
+    [0,0],[20,.2],[40,-.35],[60,.28],[80,-.15],[100,0],
+    [100,40],[80,40],[60,40],[40,40],[20,40],[0,40],
+  ];
+  const simplified=simplifyClosedPolyline(wavy,.75);
+  assert.ok(simplified.length<wavy.length);
+  const top=simplified.filter((point)=>point[1]<5);
+  assert.ok(top.length<=3,"near-straight run should collapse to a small number of anchors");
+});
+
+test("Track 2.3 simplification never mutates authoritative geometry",()=>{
+  const functional={
+    points:[[0,0],[25,.2],[50,-.2],[75,.15],[100,0],[100,100],[0,100]],
+    pit_lane_points:[[0,4],[25,4.1],[50,3.9],[100,4]],
+    quality:"historical_verified",
+  };
+  const snapshot=JSON.parse(JSON.stringify(functional));
+  const presentation=simplifyTrackPresentationGeometry(functional,{tolerance:.75,pitTolerance:.4});
+  assert.deepEqual(functional,snapshot);
+  assert.equal(presentation.presentation_simplified,true);
+  assert.ok(presentation.points.length<functional.points.length);
+  assert.ok(presentation.pit_lane_points.length<=functional.pit_lane_points.length);
+});
+
+test("Track 2.3 Argentina presentation reduces noisy anchors without changing the functional package",()=>{
+  const resolved=resolveTrackLayout({trackId:"tr_0018",year:1980});
+  const presentation=trackPresentationGeometry(resolved.geometry,resolved.layout);
+  const style=resolved.environment.race_view_style;
+  const smoothed=simplifyTrackPresentationGeometry(presentation,{
+    tolerance:style.presentation_tolerance,
+    pitTolerance:style.pit_presentation_tolerance,
+  });
+  assert.equal(resolved.geometry.points.length,280);
+  assert.ok(smoothed.points.length>=80&&smoothed.points.length<=130);
+  assert.ok(smoothed.points.length<resolved.geometry.points.length/2);
+  assert.deepEqual(smoothed.points[0],presentation.points[0]);
+  assert.equal(resolved.geometry.points.length,280,"authoritative geometry must stay unchanged");
 });
