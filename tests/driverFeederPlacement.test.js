@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inferDriverFeederPlacement, feederPlacementRuntimePatch } from "../src/domain/driverFeederPlacement.js";
+import { inferDriverFeederPlacement, inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../src/domain/driverFeederPlacement.js";
 
 function driver(overrides={}){
   return {
@@ -98,4 +98,24 @@ test("W3 runtime patch converts generic feeder placement into existing market fl
   assert.equal(ready.lower_series_name,"F1 Ready");
   assert.equal(ready.canHireF1,true);
   assert.equal(ready.feeder_placement,"F1_READY");
+});
+
+
+test("feeder placement unwraps exported Excel value objects for identity matching",()=>{
+  const d=driver({
+    driver_id:{formula:"=\"d_wrapped\"",result:{text:"d_wrapped"}},
+    display_name:{value:"Wrapped Driver"},
+    dob:{value:"1960-03-21"},
+  });
+  const e=entry({
+    driver_id:{formula:"=\"d_wrapped\"",result:{text:"d_wrapped"}},
+    display_name:{value:"Wrapped Driver"},
+    first_world_year:{value:1978},
+    reference_f1_debut_year:{value:1984},
+    reference_f1_last_year:{value:1994},
+  });
+  const rows=inferDriverFeederPlacements([d],[e],1980);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].driver_id,"d_wrapped");
+  assert.notEqual(rows[0].driver_id,"[object Object]");
 });

@@ -27,6 +27,8 @@ const unbox=(v)=>{
     }
     if(v.result!==undefined&&v.result!==null&&v.result!=="")return unbox(v.result);
     if(v.value!==undefined&&v.value!==null&&v.value!=="")return unbox(v.value);
+    if(v.text!==undefined&&v.text!==null&&v.text!=="")return unbox(v.text);
+    if(Object.prototype.hasOwnProperty.call(v,"formula"))return null;
   }
   return v;
 };
@@ -56,6 +58,13 @@ const yearOf=(row)=>{
   return NaN;
 };
 const driverId=(r)=>String(pick(r,["driver_id","person_id","id"],""));
+const driverRefId=(value)=>{
+  const raw=value&&typeof value==="object"&&!Array.isArray(value)
+    ?pick(value,["driver_id","person_id","id","value","result"],"")
+    :unbox(value);
+  const id=String(raw??"").trim();
+  return id&&!/^\[object Object\]$/i.test(id)?id:"";
+};
 const staffId=(r)=>String(pick(r,["staff_id","person_id","id"],""));
 const teamId=(r)=>String(pick(r,["team_id","constructor_id","team","constructor","id"],""));
 const sponsorId=(r)=>String(pick(r,["sponsor_id","id"],""));
@@ -288,7 +297,11 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
   const legacy=exactOrLatest(g.driverRatings||[],year,driverId,wanted);
   for(const row of legacy){
     const id=driverId(row);
-    if(id&&!byId.has(id))byId.set(id,{...clean(row),year,source:pick(row,["source"],"legacy_driver_ratings")});
+    if(!id||byId.has(id))continue;
+    const normalized={...clean(row),year,source:pick(row,["source"],"legacy_driver_ratings")};
+    const aggression=asNum(pick(normalized,["aggression","agression"],NaN),NaN);
+    if(Number.isFinite(aggression))normalized.aggression=aggression;
+    byId.set(id,normalized);
   }
   return materializeMissingStartingRatings({
     drivers,
@@ -435,7 +448,12 @@ export function materializeSeasonPack(globalData,yearInput){
   const contractedDriverIds=new Set(contracts.filter(isDriverContract).map(driverId).filter(Boolean));
   const gridDriverIds=new Set(contractedDriverIds);
   if(!hasOpeningState){
-    for(const row of seasonRows)for(const id of Array.isArray(row.driver_ids)?row.driver_ids:[])if(id)gridDriverIds.add(String(id));
+    for(const row of seasonRows){
+      for(const rawId of Array.isArray(row.driver_ids)?row.driver_ids:[]){
+        const id=driverRefId(rawId);
+        if(id)gridDriverIds.add(id);
+      }
+    }
     for(const row of f1Career){const id=driverId(row);if(id)gridDriverIds.add(id);}
   }
 

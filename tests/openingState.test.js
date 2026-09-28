@@ -202,3 +202,61 @@ test("W3 supplements authoritative Opening State with valid pre-F1 world entrant
     "supplemental feeder placement must never fabricate an F1 contract"
   );
 });
+
+
+test("derived team-season driver refs never create object-string pseudo drivers",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[];
+  data.drivers=data.drivers.map((row)=>
+    row.driver_id==="D2"
+      ?{...row,driver_id:{formula:"=\"D2\"",result:{text:"D2"}}}
+      :row
+  );
+  data.teamSeasons=[{
+    year:1980,
+    team_id:"T1",
+    team_name:"Canonical Team",
+    driver_ids:[{driver_id:"D2"}],
+  }];
+
+  const pack=materializeSeasonPack(data,1980);
+  const ids=(pack.state.drivers||[]).map((row)=>String(row.driver_id));
+
+  assert.equal(ids.includes("[object Object]"),false);
+  assert.ok(ids.includes("D2"));
+  assert.equal(
+    (pack.state.driverRatings||[]).some((row)=>String(row.driver_id)==="[object Object]"),
+    false
+  );
+});
+
+
+test("unresolved contract formulas do not create object-string pseudo drivers",()=>{
+  const data=fixture();
+  data.driverOpeningState=[];
+  data.contracts=[
+    {year:1980,team_id:"T1",team_name:"Canonical Team",driver_id:"D1",role:"main_driver"},
+    {
+      year:1980,
+      team_id:"T1",
+      team_name:"Canonical Team",
+      driver_id:{formula:"IFERROR(INDEX(drivers!A:A,MATCH(E2,drivers!B:B,0)),\"\")"},
+      driver_name:null,
+      role:"second_driver",
+    },
+  ];
+
+  const pack=materializeSeasonPack(data,1980);
+  const ids=(pack.state.drivers||[]).map((row)=>String(row.driver_id));
+  assert.equal(ids.includes("[object Object]"),false);
+  assert.equal(
+    (pack.state.contracts||[]).some((row)=>String(row.driver_id)==="[object Object]"),
+    false
+  );
+  assert.equal(
+    (pack.state.contracts||[]).filter((row)=>/main|second|race/i.test(String(row.role||""))).length,
+    1,
+    "an unresolved historical formula must leave the seat vacant rather than invent a driver"
+  );
+});

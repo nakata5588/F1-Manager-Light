@@ -12,12 +12,22 @@
 
 import { driverWorldStageAtYear } from "./driverWorldEntry.js";
 
+const unwrap=(value)=>{
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unwrap(value.result);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unwrap(value.value);
+    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unwrap(value.text);
+    if(Object.prototype.hasOwnProperty.call(value,"formula"))return null;
+  }
+  return value;
+};
 const num=(value,fallback=null)=>{
-  if(value===undefined||value===null||value==="")return fallback;
-  const parsed=Number(value);
+  const raw=unwrap(value);
+  if(raw===undefined||raw===null||raw==="")return fallback;
+  const parsed=Number(raw);
   return Number.isFinite(parsed)?parsed:fallback;
 };
-const text=(value)=>String(value??"").trim();
+const text=(value)=>String(unwrap(value)??"").trim();
 
 const DEFAULTS=Object.freeze({
   youth_max_age:19,
@@ -140,15 +150,15 @@ export function inferDriverFeederPlacement(driver,entry,year,options={}){
 }
 
 export function inferDriverFeederPlacements(drivers=[],entries=[],year,options={}){
-  const entryById=new Map((entries||[]).map(row=>[String(row?.driver_id||""),row]));
+  const entryById=new Map((entries||[]).map(row=>[text(row?.driver_id),row]));
   return (Array.isArray(drivers)?drivers:[])
     .map(driver=>{
-      const id=String(driver?.driver_id??driver?.id??"");
+      const id=text(driver?.driver_id??driver?.id);
       const entry=entryById.get(id);
       return entry?inferDriverFeederPlacement(driver,entry,year,options):null;
     })
     .filter(Boolean)
-    .sort((a,b)=>String(a.driver_id).localeCompare(String(b.driver_id)));
+    .sort((a,b)=>text(a.driver_id).localeCompare(text(b.driver_id)));
 }
 
 export function buildDriverFeederPlacementAudit(placements=[]){

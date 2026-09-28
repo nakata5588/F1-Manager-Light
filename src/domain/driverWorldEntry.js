@@ -15,11 +15,21 @@
 const DEFAULT_MIN_WORLD_AGE=16;
 const DEFAULT_MAX_INFERRED_LEAD_YEARS=6;
 
-const text=(value)=>String(value??"").trim();
+const unwrap=(value)=>{
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unwrap(value.result);
+    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unwrap(value.value);
+    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unwrap(value.text);
+    if(Object.prototype.hasOwnProperty.call(value,"formula"))return null;
+  }
+  return value;
+};
+const text=(value)=>String(unwrap(value)??"").trim();
 const upper=(value)=>text(value).toUpperCase();
 const num=(value,fallback=null)=>{
-  if(value===undefined||value===null||value==="")return fallback;
-  const parsed=Number(value);
+  const raw=unwrap(value);
+  if(raw===undefined||raw===null||raw==="")return fallback;
+  const parsed=Number(raw);
   return Number.isFinite(parsed)?parsed:fallback;
 };
 const yearOf=(value)=>{
