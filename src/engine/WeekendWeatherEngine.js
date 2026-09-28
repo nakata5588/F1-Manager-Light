@@ -4,7 +4,7 @@
 import { rngFor } from "../core/random.js";
 import { evolveSessionSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 import { evolveSessionEnvironment } from "./TrackEnvironmentEngine.js";
-import { resolveStaffId } from "../domain/staffRoles.js";
+import { teamStaffCapability } from "../domain/staffPerformance.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -40,20 +40,6 @@ function eraBase(year){
   if(year<=2019)return 0.82;
   return 0.88;
 }
-function activeStaff(gs,tid){
-  const year=Number(gs?.activeYear);
-  const rows=gs?.staffContracts?.length?gs.staffContracts:(gs?.dbStaffContracts||[]);
-  return rows.filter(r=>{
-    if(teamId(r)!==String(tid))return false;
-    const start=num(r?.contract_start??r?.contract_start_year??r?.start_year??r?.year,-Infinity);
-    const end=num(r?.contract_until??r?.contract_until_year??r?.end_year??r?.year,Infinity);
-    return year>=start&&year<=end&&!["terminated","expired","inactive"].includes(lower(r?.status??"active"));
-  });
-}
-function staffRating(gs,id){
-  const rows=gs?.staffRatings?.length?gs.staffRatings:(gs?.dbStaffRatings||[]);
-  return rows.find(r=>staffId(r)===String(id))||{};
-}
 function opsLevel(gs,tid){
   const player=String(gs?.team?.team_id??gs?.team?.id??"");
   const override=player===String(tid)?Number(gs?.hq?.facilityLevels?.pitcrew_training_level):NaN;
@@ -64,13 +50,7 @@ function opsLevel(gs,tid){
 }
 export function forecastAccuracyForTeam(gs,tid){
   const year=Number(gs?.activeYear)||1980;
-  const scored=activeStaff(gs,tid).map(c=>{
-    const r=staffRating(gs,resolveStaffId(gs,c));
-    const role=lower(c?.role??c?.position);
-    const w=/strateg|engineer|technical/.test(role)?1:/principal/.test(role)?0.45:0.60;
-    return {w,score:num(r?.data_analysis,50)*0.58+num(r?.communication,50)*0.24+num(r?.technical,50)*0.18};
-  }).sort((a,b)=>b.score*b.w-a.score*a.w).slice(0,3);
-  const staffScore=scored.length?scored.reduce((s,x)=>s+x.score*x.w,0)/scored.reduce((s,x)=>s+x.w,0):50;
+  const staffScore=teamStaffCapability(gs,tid,"weather");
   const capability=(staffScore-50)*0.0022+(opsLevel(gs,tid)-5)*0.008;
   const cap=year<=1989?0.68:year<=1999?0.76:year<=2009?0.86:0.95;
   return Number(Math.min(cap,Math.max(0.42,eraBase(year)+capability)).toFixed(3));
