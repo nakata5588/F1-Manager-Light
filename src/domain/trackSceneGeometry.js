@@ -214,3 +214,79 @@ export function deterministicTrackScatter({
   }
   return output;
 }
+
+
+function pointSegmentDistance(point,a,b){
+  const dx=b[0]-a[0];
+  const dy=b[1]-a[1];
+  const lengthSq=dx*dx+dy*dy;
+  if(lengthSq<=1e-12)return Math.hypot(point[0]-a[0],point[1]-a[1]);
+  const t=Math.max(0,Math.min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/lengthSq));
+  const px=a[0]+dx*t;
+  const py=a[1]+dy*t;
+  return Math.hypot(point[0]-px,point[1]-py);
+}
+
+export function simplifyOpenPolyline(input,tolerance=1.25){
+  const points=validPoints(input);
+  if(points.length<=2)return points;
+  const threshold=Math.max(0,Number(tolerance)||0);
+  if(threshold<=0)return points;
+
+  let maxDistance=0;
+  let splitIndex=0;
+  const first=points[0];
+  const last=points.at(-1);
+  for(let index=1;index<points.length-1;index+=1){
+    const distance=pointSegmentDistance(points[index],first,last);
+    if(distance>maxDistance){
+      maxDistance=distance;
+      splitIndex=index;
+    }
+  }
+  if(maxDistance<=threshold)return [first,last];
+
+  const before=simplifyOpenPolyline(points.slice(0,splitIndex+1),threshold);
+  const after=simplifyOpenPolyline(points.slice(splitIndex),threshold);
+  return [...before.slice(0,-1),...after];
+}
+
+export function simplifyClosedPolyline(input,tolerance=1.25){
+  const points=validPoints(input);
+  if(points.length<=3)return points;
+  const start=points[0];
+
+  let splitIndex=1;
+  let maxDistance=-1;
+  for(let index=1;index<points.length;index+=1){
+    const distance=Math.hypot(points[index][0]-start[0],points[index][1]-start[1]);
+    if(distance>maxDistance){
+      maxDistance=distance;
+      splitIndex=index;
+    }
+  }
+
+  const firstHalf=simplifyOpenPolyline(points.slice(0,splitIndex+1),tolerance);
+  const secondHalf=simplifyOpenPolyline([...points.slice(splitIndex),start],tolerance);
+  const simplified=[...firstHalf.slice(0,-1),...secondHalf.slice(0,-1)];
+  return simplified.length>=3?simplified:points;
+}
+
+export function simplifyTrackPresentationGeometry(geometry,{tolerance=1.25,pitTolerance=.7}={}){
+  if(!geometry||!Array.isArray(geometry?.points))return geometry;
+  const points=simplifyClosedPolyline(geometry.points,tolerance);
+  const pitLanePoints=Array.isArray(geometry?.pit_lane_points)&&geometry.pit_lane_points.length>1
+    ?simplifyOpenPolyline(geometry.pit_lane_points,pitTolerance)
+    :geometry?.pit_lane_points;
+  return {
+    ...geometry,
+    points,
+    pit_lane_points:pitLanePoints,
+    presentation_simplified:true,
+    presentation_simplification_tolerance:Number(tolerance),
+    presentation_source_point_count:geometry.points.length,
+    presentation_point_count:points.length,
+    presentation_source_pit_point_count:Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points.length:0,
+    presentation_pit_point_count:Array.isArray(pitLanePoints)?pitLanePoints.length:0,
+  };
+}
