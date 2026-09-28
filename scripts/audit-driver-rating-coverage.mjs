@@ -239,12 +239,11 @@ for(const year of supportedYears){
     else legacy++;
 
     const exactSnapshot=Boolean(snapshotYearsById.get(id)?.has(year));
-    const eligibleLegacyYears=(legacyYearsById.get(id)||[]).filter((sourceYear)=>sourceYear<=year);
-    const hasEligibleLegacy=eligibleLegacyYears.length>0;
+    const exactLegacy=Boolean((legacyYearsById.get(id)||[]).includes(year));
 
     let expectedKind;
     if(exactSnapshot)expectedKind="historical";
-    else if(hasEligibleLegacy)expectedKind="legacy";
+    else if(exactLegacy)expectedKind="legacy";
     else expectedKind="generated";
 
     if(kind!==expectedKind){
@@ -270,17 +269,28 @@ for(const year of supportedYears){
       }
     }
 
+    const currentAbility=Number(rating?.current_ability);
+    const potentialAbility=Number(rating?.potential_ability);
+    if(
+      Number.isFinite(currentAbility)&&
+      Number.isFinite(potentialAbility)&&
+      potentialAbility+0.001<currentAbility
+    ){
+      provenanceErrors++;
+      failures.push(
+        `${year} ${id}: potential ${potentialAbility} is below current ability ${currentAbility}`
+      );
+    }
+
     if(kind==="historical"&&!exactSnapshot){
       provenanceErrors++;
       failures.push(`${year} ${id}: historical snapshot source used without an exact-year snapshot`);
     }
 
-    if(kind==="legacy"&&!hasEligibleLegacy){
+    if(kind==="legacy"&&!exactLegacy){
       provenanceErrors++;
-      const future=(legacyYearsById.get(id)||[]).filter((sourceYear)=>sourceYear>year);
       failures.push(
-        `${year} ${id}: legacy rating has no source row at or before the New Game year`+
-        (future.length?`; future-only rows: ${future.join(",")}`:"")
+        `${year} ${id}: legacy rating must be exact-year only; source years: ${(legacyYearsById.get(id)||[]).join(",")||"none"}`
       );
     }
   }
