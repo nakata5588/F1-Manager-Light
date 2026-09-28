@@ -14,6 +14,7 @@ import {
 } from "../domain/liveContracts.js";
 import {
   canonicalStaffRole,
+  resolveStaffId,
   staffContractRole,
 } from "../domain/staffRoles.js";
 import {
@@ -104,7 +105,7 @@ function staffWillingToJoin(gs,teamId,candidate){
   // Free agents can move upward or sideways freely. The very highest-profile
   // Staff require at least a credible team; this is market willingness, not a
   // technical-performance modifier.
-  return teamRep+45>=reputation;
+  return teamRep+55>=reputation;
 }
 function affordableStaffSalary(gs,teamId,salary){
   const {max}=salaryBounds(gs);
@@ -116,7 +117,7 @@ function affordableStaffSalary(gs,teamId,salary){
   return num(salary)<=Math.max(50_000,budget*0.12);
 }
 function roleScore(gs,contract){
-  const id=staffIdOf(contract);
+  const id=resolveStaffId(gs,contract)||staffIdOf(contract);
   return staffRoleRating(staffRatingForYear(gs,id),staffContractRole(contract)).score??50;
 }
 function representedRoles(gs){
@@ -128,7 +129,11 @@ function representedRoles(gs){
   return MANAGED_ROLES.filter((role)=>roles.has(role));
 }
 function activeContractByStaff(gs){
-  return new Map(activeStaffContracts(gs).map((contract)=>[staffIdOf(contract),contract]));
+  return new Map(
+    activeStaffContracts(gs)
+      .map((contract)=>[resolveStaffId(gs,contract)||staffIdOf(contract),contract])
+      .filter(([id])=>Boolean(id))
+  );
 }
 function freeCandidates(gs,role){
   const contracted=activeContractByStaff(gs);
@@ -230,7 +235,9 @@ function renewExpiringStaff(gs,team,roles){
     if(Number(contract?.ai_staff_renewal_year)===year)return contract;
 
     const incumbentScore=roleScore(gs,contract);
-    const alternative=freeCandidates(gs,role)[0]||null;
+    const alternative=freeCandidates(gs,role)
+      .filter((candidate)=>affordableStaffSalary(gs,tid,candidate.salary))
+      .filter((candidate)=>staffWillingToJoin(gs,tid,candidate))[0]||null;
     const materialUpgrade=alternative&&alternative.role_score>=incumbentScore+8;
     const retain=incumbentScore>=58&&!materialUpgrade;
     changed=true;
