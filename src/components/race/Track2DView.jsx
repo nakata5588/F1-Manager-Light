@@ -863,6 +863,7 @@ export default function Track2DView({
   useEffect(()=>{
     followViewBoxRef.current=null;
     followCameraTargetRef.current=null;
+    followCameraTimeRef.current=null;
     if(followCameraFrameRef.current){
       cancelAnimationFrame(followCameraFrameRef.current);
       followCameraFrameRef.current=null;
@@ -991,7 +992,7 @@ export default function Track2DView({
         pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
         laneOffset:raceMarkerLaneOffset(index,{
           cameraMode:cameraMode==="fit"?"fit":"follow",
-          zoom:effectiveCameraZoom,
+          zoom:targetCameraZoom,
           closeBattle,
           selected,
         }),
