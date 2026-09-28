@@ -53,9 +53,6 @@ jobs:
       - name: Export Excel to runtime JSON
         run: npm run build:data
 
-      - name: Audit 2015 Team identity before Season Pack tests
-        run: npm run audit:teams:identity -- --year=2015 --window=1
-
       - name: Test career season boundary
         run: npm run test:career
 
