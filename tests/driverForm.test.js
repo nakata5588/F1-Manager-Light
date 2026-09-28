@@ -212,3 +212,36 @@ test("existing save Form rows backfill teammate deltas from stored race results"
   assert.equal(entry.best_lap_ms,81234);
   assert.equal(entry.fastest_lap,true);
 });
+
+
+test("existing saves backfill non-DNF incident responsibility from stored Results",()=>{
+  const event=result({d1IncidentKind:"spin",d1IncidentReason:"Spin"});
+  const state={
+    ...baseState(),
+    results:[event],
+    driverPerformanceLog:{
+      D1:[{
+        driver_id:"D1",
+        team_id:"T1",
+        year:1980,
+        round:5,
+        gp_id:"test",
+        gp_name:"Test Grand Prix",
+        dateISO:"1980-05-18",
+        score:80,
+        qualifying_position:1,
+        finish_position:1,
+        teammate_driver_id:"D2",
+        teammate_qualifying_delta:2,
+        teammate_race_delta:2,
+        best_lap_ms:81234,
+        fastest_lap:true,
+      }],
+    },
+  };
+
+  const [entry]=driverPerformanceEntries(state,"D1");
+  assert.equal(entry.incident_kind,"spin");
+  assert.equal(entry.incident_reason,"Spin");
+  assert.equal(entry.incident_responsibility,"driver_error");
+});
