@@ -89,6 +89,13 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
   const qualifyingPosition=num(qualifying?.position);
   const retired=Boolean(race?.retired)||String(race?.status||"").toUpperCase()==="DNF";
   const retirement=retired?retirementResponsibility(race?.retirement_reason):null;
+  const incidentReason=race?.incident_reason??race?.incident_kind??null;
+  const incident=incidentReason?retirementResponsibility(incidentReason):null;
+  // Keep incident classification in the existing performance log so derived
+  // presentation metrics can consume it without duplicating reason parsing.
+  const incidentResponsibility=retired&&retirement?.key!=="unknown"
+    ?retirement
+    :incident;
   let teammateQualifyingDelta=null;
   let teammateRaceDelta=null;
   let teammateDriverId=raceTeammateDriverId||driverIdOf(teamQual)||null;
@@ -239,6 +246,9 @@ export function evaluateDriverRacePerformance(gs,resultEntry,driverId){
     retired,
     retirement_reason:race?.retirement_reason||null,
     retirement_responsibility:retirement?.key||null,
+    incident_kind:race?.incident_kind||null,
+    incident_reason:race?.incident_reason||null,
+    incident_responsibility:incidentResponsibility?.key||null,
     factors,
   };
 }
