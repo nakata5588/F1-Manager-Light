@@ -656,3 +656,58 @@ test("RW5.3D direct Race damage can trigger an AI repair and final damage reflec
     "final damage must reflect the repair instead of charging unrepaired damage to the finish"
   );
 });
+
+
+test("RW5.3E direct Race DNF preserves the incident sector and contains no post-retirement simulation",async()=>{
+  let gs=finish1980Qualifying({seed:"rw5.3e-causal-dnf"});
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
+  assert.equal(gs.raceWeekendState.phase,"race");
+
+  const plan={
+    model:"rw5.3e-test",
+    rules:{},
+    incidents:[{
+      driver_id:"D3",
+      other_driver_id:null,
+      lap:5,
+      sector:2,
+      kind:"mechanical",
+      reason:"Engine",
+      severity:"low",
+      severity_score:0.2,
+      retirement:true,
+      damage:null,
+    }],
+    damage_repairs:[],
+    periods:[],
+    weather_timeline:[],
+  };
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      race_strategy:{
+        ...gs.raceWeekendState.race_strategy,
+        race_control_plan:plan,
+      },
+    },
+  };
+
+  gs=await completeRaceSession(gs,{gp});
+
+  const classified=gs.results[0].classification.find((row)=>row.driver_id==="D3");
+  assert.ok(classified);
+  assert.equal(classified.retired,true);
+  assert.equal(classified.laps_completed,4);
+  assert.equal(classified.incident_lap,5);
+  assert.equal(classified.incident_sector,2);
+
+  const projected=gs.lastRace.race.find((row)=>row.driver.driver_id==="D3");
+  assert.ok(projected);
+  assert.equal(projected.projected_laps_completed,4);
+  assert.equal(projected.lap_times_ms.length,4);
+  assert.equal(projected.tyre_state_by_lap.length,4);
+  assert.ok(projected.pit_stops.every((stop)=>Number(stop.lap)<5));
+  assert.ok(projected.strategy_decisions.every((decision)=>Number(decision.lap)<5));
+  assert.ok(projected.stints.every((stint)=>Number(stint.end_lap)<=4));
+});
