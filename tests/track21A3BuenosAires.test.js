@@ -59,5 +59,7 @@ test("Track 1.0C historical environment uses the approved single WebP artwork",(
   const {layout,environment}=resolveTrackLayout({trackId:"tr_0018",year:1980});
   assert.equal(environment.contains_track_surface,true);
   assert.equal(environment.contains_track_intel,true);
+  assert.equal(environment.runtime_mode,"legacy_vector_fallback");
   assert.equal(layout.environment.asset,environment.asset);
+  assert.equal(layout.presentation_fallback_geometry.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
 });
