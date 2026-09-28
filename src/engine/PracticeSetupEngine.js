@@ -165,6 +165,10 @@ export function trackSetupProfile(gs,gp={},sessionWeather=null){
 }
 
 export function teamEngineeringSupport(gs,teamId){
+  return teamStaffCapability(gs,teamId,"technical_program");
+}
+
+export function teamSetupSupport(gs,teamId){
   return teamStaffCapability(gs,teamId,"setup");
 }
 
@@ -264,7 +268,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
     if(!driverId||!teamId)continue;
 
     const rating=ratingFor(gs,driverId);
-    const engineering=teamEngineeringSupport(gs,teamId);
+    const engineering=teamSetupSupport(gs,teamId);
     const engineerRelationship=raceEngineerPreparationProfile(gs,driverId,{teamId});
     const programme=String(teamId)===playerTeamId
       ?practiceProgramme(selections?.[driverId]||"balanced")
