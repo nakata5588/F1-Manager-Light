@@ -20,6 +20,7 @@ import {
   resolveQualifyingRules,
   weekendScheduleFromSessions,
 } from "./QualifyingRulesEngine.js";
+import { lockRaceWeekendEngineVersion } from "../race2/gateway/RaceWeekendGateway.js";
 
 const clampISO=(iso)=>String(iso||"").slice(0,10);
 
@@ -112,11 +113,12 @@ export function isRaceWeekendActive(gs){
   return Boolean(phase)&&phase!=="completed";
 }
 
-export function createRaceWeekendState(gs,{roundIndex,gp}={}){
+export function createRaceWeekendState(gs,{roundIndex,gp,engineVersion=null}={}){
   if(!gs||!gp)return gs;
   const id=gpId(gp,roundIndex);
   const existing=gs?.raceWeekendState;
   if(existing&&String(existing.gp_id)===id&&String(existing.phase)!=="completed")return gs;
+  const lockedEngineVersion=lockRaceWeekendEngineVersion(null,{requestedEngineVersion:engineVersion});
 
   let next=ensureTemporaryReplacements(gs,{roundIndex,gp});
   const qualifyingRule=resolveQualifyingRules(next,gp);
@@ -128,6 +130,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
   const schedule=raceWeekendSchedule(gp,qualifyingRule);
   const weekendWeather=createWeekendWeatherState(next,{gp,sessions:schedule.sessions});
   const provisionalWeekend={
+    engine_version:lockedEngineVersion,
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
     gp_id:id,
     track_id:gp?.track_id||null,
@@ -138,6 +141,7 @@ export function createRaceWeekendState(gs,{roundIndex,gp}={}){
   const strategyBuilt=createRaceStrategyState({...next,raceWeekendState:provisionalWeekend},{gp,raceEntryState});
   next=strategyBuilt.gameState;
   const state={
+    engine_version:lockedEngineVersion,
     key:`${Number(next?.activeYear)||Number(gp?.year)||"season"}_${Number(roundIndex)+1}_${id}`,
     year:Number(next?.activeYear)||Number(gp?.year)||null,
     roundIndex:Number(roundIndex)||0,
