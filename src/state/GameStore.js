@@ -94,7 +94,7 @@ const HEAVY_KEYS = [
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
   "dbTyres","dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides","dbPenaltiesRules","dbFinancialRules",
   "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
-  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbCoreTracks",
+  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbTeamLineageHistory","dbCoreTracks",
   "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
 ];
 export function makeLightSnapshot(gs) {

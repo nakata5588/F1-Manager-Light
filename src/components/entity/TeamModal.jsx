@@ -9,6 +9,7 @@ import { teamOperationalMorale, teamWorkRateLabel } from "../../domain/teamMoral
 import { teamReputation, teamReputationLabel } from "../../domain/teamReputation.js";
 import { teamChampionshipSummary } from "../../domain/championshipHistory.js";
 import { canonicalTeamId } from "../../domain/teamIdentity.js";
+import { teamHistoricalStrength, teamHistoricalStrengthLabel } from "../../domain/teamHistoricalStrength.js";
 
 /* ===================== TABS ===================== */
 const TABS = [
@@ -22,6 +23,7 @@ const TABS = [
 /* ===================== HELPERS ===================== */
 const fmtMoney = (n) =>
   n == null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+const fmtStrength = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(1) : "—";
 
 function Info({ label, value }) {
   return (
@@ -212,6 +214,50 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
   const reputation = teamReputation(gs,idStr);
   const reputationState = gs?.teamReputationState?.[idStr]||null;
 
+  const historicalStrength = useMemo(()=>{
+    const direct=(Array.isArray(gs?.teamHistoricalStrength)?gs.teamHistoricalStrength:[])
+      .find((row)=>canonicalTeamId(String(row?.team_id??row?.id??""))===idStr);
+    if(direct)return direct;
+
+    // Old saves may predate T3.2. Rebuild only from the original source season,
+    // never from a later Save World year, so real historical future cannot leak.
+    const sourceYear=Number(gs?.careerMeta?.sourceSeason??gs?.seasonPackMeta?.year??year);
+    if(!Number.isInteger(sourceYear))return null;
+    return teamHistoricalStrength({
+      teamId:idStr,
+      year:sourceYear,
+      teamSeasons:Array.isArray(gs?.dbTeamSeasons)?gs.dbTeamSeasons:[],
+      driverHistory:Array.isArray(gs?.dbDriverHistory)?gs.dbDriverHistory:[],
+      historicalChampionships:gs?.dbHistoricalChampionships||{drivers:[],constructors:[]},
+      lineageRows:Array.isArray(gs?.dbTeamLineageHistory)?gs.dbTeamLineageHistory:[],
+    });
+  },[
+    gs?.teamHistoricalStrength,
+    gs?.careerMeta?.sourceSeason,
+    gs?.seasonPackMeta?.year,
+    gs?.dbTeamSeasons,
+    gs?.dbDriverHistory,
+    gs?.dbHistoricalChampionships,
+    gs?.dbTeamLineageHistory,
+    idStr,
+    year,
+  ]);
+
+  const historicalLineageNames=useMemo(()=>{
+    if(!historicalStrength?.lineage_evidence?.length)return [];
+    const catalog=[...(Array.isArray(gs?.dbTeams)?gs.dbTeams:[]),...(Array.isArray(teams)?teams:[])];
+    const ids=[];
+    for(const segment of historicalStrength?.lineage_segments||[]){
+      const id=canonicalTeamId(String(segment?.team_id||""));
+      if(id&&!ids.includes(id))ids.push(id);
+    }
+    if(!ids.includes(idStr))ids.push(idStr);
+    return ids.map((id)=>{
+      const row=catalog.find((team)=>canonicalTeamId(String(team?.team_id??team?.id??""))===id);
+      return row?.team_name||row?.name||row?.short_name||id;
+    });
+  },[historicalStrength,gs?.dbTeams,teams,idStr]);
+
   /* ---------- UI ---------- */
   const DriverCard = ({ d }) => {
     const roleTone = d.__role === "Reserve Driver"
@@ -310,6 +356,12 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                 <Info label="Academy Level"       value={academyLevel ?? "—"} />
                 <Info label="Team Principal"      value={principal ?? "—"} />
                 <Info label="Team Reputation" value={Math.round(reputation)+"/100 · "+teamReputationLabel(reputation)} />
+                <Info
+                  label="Historical Strength"
+                  value={historicalStrength
+                    ?fmtStrength(historicalStrength.overall)+"/100 · "+teamHistoricalStrengthLabel(historicalStrength.overall)
+                    :"—"}
+                />
                 <Info label="Operational Morale" value={Math.round(operationalMorale)+"/100"} />
                 <Info label="Technical Work Rate" value={operationalWorkRate.label} />
                 <Info
@@ -346,6 +398,50 @@ export default function TeamModal({ entity, onClose, pageMode = false }) {
                   <div className="text-3xl font-extrabold">{champs.constructors}</div>
                 </div>
               </div>
+
+              {historicalStrength ? (
+                <div className="mt-4 rounded-xl border border-white/10 bg-[#12141c] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">Historical Foundation</div>
+                      <div className="mt-0.5 text-xs text-slate-500">Preseason organisational strength, separate from live reputation and current car performance.</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-extrabold">{fmtStrength(historicalStrength.overall)}</div>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500">{teamHistoricalStrengthLabel(historicalStrength.overall)}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {[
+                      ["Structural",historicalStrength.structural_strength],
+                      ["Competitive",historicalStrength.competitive_strength],
+                      ["Heritage",historicalStrength.heritage_strength],
+                      ["Sporting",historicalStrength.sporting_strength],
+                      ["Recent",historicalStrength.recent_competitiveness],
+                      ["Seasons",historicalStrength.seasons_before_start],
+                    ].map(([label,value])=>(
+                      <div key={label} className="rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+                        <div className="mt-0.5 text-sm font-semibold">{label==="Seasons"?(Number(value)||0):fmtStrength(value)}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 text-xs text-slate-500">
+                    Evidence through {historicalStrength.evidence_through_year??"—"}
+                    {" · "}{historicalStrength.historical_wins??0} wins
+                    {" · "}{historicalStrength.constructors_titles??0} Constructors’ titles
+                    {" · "}{historicalStrength.drivers_titles??0} Drivers’ titles
+                  </div>
+                  {historicalLineageNames.length>1 ? (
+                    <div className="mt-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+                      <span className="text-slate-500">Organisational lineage:</span>{" "}
+                      {historicalLineageNames.join(" → ")}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
         )}
