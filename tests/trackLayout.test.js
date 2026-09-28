@@ -7,7 +7,7 @@ import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 import { deterministicTrackScatter, offsetTrackPolyline, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
-import { clampTrackViewBox, panTrackViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
+import { clampTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -219,14 +219,15 @@ test("Track 2.0 Argentina resolves one canonical F1Track package",()=>{
   assert.equal(resolved.track_package?.package_id,"tr_0018_1974_1981");
   assert.equal(resolved.environment.asset,null);
   assert.equal(resolved.environment.runtime_mode,"f1track_procedural");
-  assert.deepEqual(resolved.environment.view_box,[0,0,1619,971]);
-  assert.equal(resolved.environment.native_width,1619);
-  assert.equal(resolved.environment.native_height,971);
+  assert.deepEqual(resolved.environment.view_box,[0,0,1649,954]);
+  assert.equal(resolved.environment.native_width,1649);
+  assert.equal(resolved.environment.native_height,954);
   assert.ok(resolved.track_package.functional.points.length>=250);
   assert.ok(resolved.track_package.minimap.points.length>=90);
-  assert.ok(resolved.environment.procedural_environment.lake.length>=8);
-  assert.ok(resolved.environment.procedural_environment.buildings.length>=8);
-  assert.ok(resolved.environment.procedural_environment.trees.length>=30);
+  assert.equal(resolved.environment.procedural_environment.theme,"parkland");
+  assert.equal(resolved.environment.procedural_environment.render_landmarks,false);
+  assert.equal(resolved.environment.procedural_environment.tree_count,72);
+  assert.equal(resolved.environment.procedural_environment.pit_complex,true);
 });
 
 test("Track 1.0B calibration transforms presentation geometry without mutating functional geometry",()=>{
@@ -247,11 +248,11 @@ test("Track 2.0 keeps functional, race-view and mini-map geometries separate",()
   const minimap=trackMiniMapGeometry(resolved.layout,resolved.geometry);
   assert.equal(presentation.presentation_source,"f1track_race_view");
   assert.equal(presentation.package_id,"tr_0018_1974_1981");
-  assert.deepEqual(presentation.view_box,[0,0,1619,971]);
+  assert.deepEqual(presentation.view_box,[0,0,1649,954]);
   assert.equal(minimap.presentation_source,"f1track_minimap");
   assert.deepEqual(minimap.view_box,[0,0,1000,1000]);
   assert.equal(minimap.source_svg,"Autodromo-Oscar-y-Juan-Galvez-White.svg");
-  assert.notDeepEqual(presentation.points[0],resolved.geometry.points[0],"race-view transform must not mutate functional geometry");
+  assert.deepEqual(presentation.points[0],resolved.geometry.points[0],"world-first race view uses the canonical functional shape without artwork warping");
   assert.notDeepEqual(minimap.points[0],resolved.geometry.points[0],"mini-map must remain an independent presentation");
 });
 
@@ -291,4 +292,27 @@ test("Track 2.1 free camera zoom anchors at cursor and stays inside bounds",()=>
   const panned=panTrackViewBox(zoomed,bounds,500,500);
   assert.deepEqual(panned,[500,300,500,300]);
   assert.deepEqual(clampTrackViewBox([-50,-50,1200,800],bounds),bounds);
+});
+
+
+test("Track 2.2 camera zoom factor is derived from the actual viewBox",()=>{
+  const full=[0,0,1000,600];
+  assert.equal(trackCameraZoomFactor(full,full),1);
+  const zoomed=[250,150,500,300];
+  assert.ok(Math.abs(trackCameraZoomFactor(zoomed,full)-2)<1e-9);
+});
+
+test("Track 2.2 car scaling is consistent for wheel and follow cameras",()=>{
+  const full=[0,0,1000,600];
+  const twoX=[250,150,500,300];
+  const fiveX=[400,240,200,120];
+  assert.equal(trackMarkerScaleForViewBox(full,full),1);
+  const scale2=trackMarkerScaleForViewBox(twoX,full);
+  const scale5=trackMarkerScaleForViewBox(fiveX,full);
+  assert.ok(scale2<1&&scale2>.45);
+  assert.ok(scale5<scale2&&scale5>.16);
+  const apparent2=scale2*2;
+  const apparent5=scale5*5;
+  assert.ok(apparent2>1&&apparent2<2,"2x camera should grow the car moderately, not double it");
+  assert.ok(apparent5>apparent2&&apparent5<2.2,"deep zoom should stay bounded instead of producing giant cars");
 });
