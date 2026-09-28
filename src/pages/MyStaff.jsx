@@ -6,6 +6,7 @@ import { teamEngineeringSupport } from "../engine/PracticeSetupEngine.js";
 import { teamWorkRateLabel } from "../domain/teamMorale.js";
 import { raceEngineerAssignmentStatus } from "../domain/driverStaffAssignments.js";
 import { staffRoleLabel, teamStaffStructure } from "../domain/staffRoles.js";
+import { staffRoleRating } from "../domain/staffPerformance.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -26,10 +27,6 @@ function numericRatings(rating){
     .filter(([key,value])=>!META_KEYS.has(key)&&Number.isFinite(Number(value)))
     .map(([key,value])=>({key,label:nice(key),value:Number(value)}))
     .sort((a,b)=>b.value-a.value);
-}
-function overallOf(rating){
-  const vals=numericRatings(rating).map((row)=>row.value);
-  return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):null;
 }
 function ratingForYear(rows,id,year){
   const candidates=(rows||[]).filter((row)=>staffIdOf(row)===String(id));
@@ -77,7 +74,7 @@ export default function MyStaff(){
       country:pick(core,["country_name","country","nationality"],""),
       code:pick(core,["country_code"],""),
       core,
-      overall:overallOf(rating),
+      overall:staffRoleRating(rating,c?.canonical_role||c?.role||pick(c,["role","position"],pick(core,["role_primary"],"Staff"))).score,
       ratingYear:pick(rating,["year","season_year"],null),
       attributes:attrs,
       salary:Number(pick(c,["salary","salary_yearly"],0))||0,

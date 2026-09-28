@@ -8,6 +8,7 @@ import { driverOverallPresentation } from "./driverMarketEvaluation.js";
 import { teamCarPerformance } from "./carPerformance.js";
 import { teamReputation, teamReputationLabel } from "./teamReputation.js";
 import { teamStaffStructure } from "./staffRoles.js";
+import { staffRatingForYear, staffRoleRating } from "./staffPerformance.js";
 
 const unwrap=(value)=>{
   if(value&&typeof value==="object"&&!Array.isArray(value)){
@@ -128,38 +129,15 @@ function driverPreview(gs,contract,slot){
   };
 }
 
-const STAFF_META_KEYS=new Set([
-  "staff_id","person_id","id","staff_name","display_name","name",
-  "year","season_year","role","position","team_id","team_name",
-]);
-
-function staffRatingForYear(gs,id,year){
-  const rows=collection(gs?.staffRatings,gs?.dbStaffRatings)
-    .filter((row)=>String(pick(row,["staff_id","person_id","id"],""))===String(id));
-  const exact=rows.find((row)=>Number(pick(row,["year","season_year"],NaN))===Number(year));
-  if(exact)return exact;
-  return rows
-    .filter((row)=>Number(pick(row,["year","season_year"],-Infinity))<=Number(year))
-    .sort((a,b)=>Number(pick(b,["year","season_year"],0))-Number(pick(a,["year","season_year"],0)))[0]
-    ||rows[0]||null;
-}
-
-function staffOverall(rating){
-  if(!rating)return null;
-  const values=Object.entries(rating)
-    .filter(([key,value])=>!STAFF_META_KEYS.has(key)&&Number.isFinite(Number(unwrap(value))))
-    .map(([,value])=>Number(unwrap(value)));
-  return values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
-}
-
 function staffSnapshot(gs,teamId,year){
   const structure=teamStaffStructure(gs,teamId);
   const rows=structure.map((contract)=>{
     const id=String(contract?.staff_id||"");
-    const overall=staffOverall(staffRatingForYear(gs,id,year));
+    const role=contract?.canonical_role||pick(contract,["role","position"],"Staff");
+    const overall=staffRoleRating(staffRatingForYear(gs,id,year),role).score;
     return {
       id,
-      role:contract?.role_label||contract?.canonical_role||pick(contract,["role","position"],"Staff"),
+      role:contract?.role_label||role,
       overall:Number.isFinite(overall)?Math.round(overall*10)/10:null,
     };
   });

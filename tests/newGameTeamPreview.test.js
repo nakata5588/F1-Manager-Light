@@ -46,8 +46,16 @@ function state(){
       {staff_id:"S2",staff_name:"Weak Principal"},
     ],
     staffRatings:[
-      {year:1980,staff_id:"S1",leadership:90,technical:88,strategy:86},
-      {year:1980,staff_id:"S2",leadership:55,technical:52,strategy:50},
+      {
+        year:1980,staff_id:"S1",
+        leadership:90,conflict_management:86,negotiation:85,budget_management:88,
+        motivation:84,communication:87,strategy:86,technical:88,
+      },
+      {
+        year:1980,staff_id:"S2",
+        leadership:55,conflict_management:50,negotiation:48,budget_management:52,
+        motivation:51,communication:50,strategy:50,technical:52,
+      },
     ],
     staffContracts:[
       {year:1980,team_id:"T1",staff_id:"S1",staff_name:"Strong Principal",role:"Team Principal",contract_start_year:1980,contract_until_year:1980,status:"active"},

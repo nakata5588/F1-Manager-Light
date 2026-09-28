@@ -217,3 +217,15 @@ test("daily pit crew progression is deterministic for equal state",()=>{
   assert.deepEqual(a,b);
   assert.deepEqual(pitCrewEffectiveProfile(a),pitCrewEffectiveProfile(b));
 });
+
+
+test("Pit Stop Management only modifies pit-crew training efficiency",()=>{
+  const crew={avg_time_s:6.5,consistency:75,error_rate:0.06,training_load:80,fatigue:8};
+  const weakOversight=advancePitCrewTrainingDay(crew,6,"1980-02-02",0.90);
+  const strongOversight=advancePitCrewTrainingDay(crew,6,"1980-02-02",1.10);
+  assert.ok(strongOversight.avg_time_s<weakOversight.avg_time_s);
+  assert.ok(strongOversight.consistency>weakOversight.consistency);
+  assert.ok(strongOversight.error_rate<weakOversight.error_rate);
+  assert.equal(strongOversight.fatigue,weakOversight.fatigue);
+  assert.deepEqual(pitCrewExecutionProfile(crew),pitCrewExecutionProfile({...crew}));
+});

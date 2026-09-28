@@ -12,6 +12,7 @@ import {
   terminationCost,
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
+import { applyStaffMarketTick } from "../src/engine/StaffMarketEngine.js";
 import { processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
 import { isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../src/domain/contractRoles.js";
 import { buildSeasonResultStats } from "../src/domain/seasonStats.js";
@@ -545,4 +546,104 @@ test("Team Morale drops on DNF, drops less for an accident, and rises for points
   assert.ok(teamOperationalMorale(strong,"T1")>51);
   assert.ok(strong.teamOperationalState.T1.reasons.some((row)=>row.key==="points"));
   assert.ok(strong.teamOperationalState.T1.reasons.some((row)=>row.key==="above_expectation"));
+});
+
+
+function staffMarketFixture({
+  aiBudget=5_000_000,
+  incumbentScore=null,
+  candidateScore=85,
+  candidateContracted=false,
+  contractUntil=1982,
+}={}){
+  const rating=(id,score)=>({
+    year:1980,staff_id:id,reputation:score,
+    leadership:score,technical:score,strategy:score,motivation:score,communication:score,
+    pitstop_management:score,reliability_focus:score,data_analysis:score,innovation:score,
+    budget_management:score,driver_development:score,conflict_management:score,negotiation:score,
+  });
+  const staffCore=[
+    {staff_id:"S_PLAYER",staff_name:"Player Principal",role_primary:"team_principal"},
+    {staff_id:"S_FREE",staff_name:"Free Principal",role_primary:"team_principal"},
+  ];
+  const staffRatings=[rating("S_PLAYER",70),rating("S_FREE",candidateScore)];
+  const staffContracts=[
+    {year:1980,team_id:"T1",staff_id:"S_PLAYER",staff_name:"Player Principal",role:"team_principal",salary:150_000,contract_start_year:1979,contract_until_year:1982,status:"active"},
+  ];
+  if(incumbentScore!=null){
+    staffCore.push({staff_id:"S_AI",staff_name:"AI Principal",role_primary:"team_principal"});
+    staffRatings.push(rating("S_AI",incumbentScore));
+    staffContracts.push({
+      year:1980,team_id:"T2",staff_id:"S_AI",staff_name:"AI Principal",role:"team_principal",
+      salary:120_000,contract_start_year:1979,contract_until_year:contractUntil,status:"active",
+    });
+  }
+  if(candidateContracted){
+    staffContracts.push({
+      year:1980,team_id:"T3",staff_id:"S_FREE",staff_name:"Free Principal",role:"team_principal",
+      salary:180_000,contract_start_year:1979,contract_until_year:1982,status:"active",
+    });
+  }
+  return {
+    activeYear:1980,
+    currentDateISO:"1980-08-01",
+    team:{team_id:"T1",team_name:"Player Team"},
+    teams:[
+      {team_id:"T1",team_name:"Player Team",budget:5_000_000},
+      {team_id:"T2",team_name:"AI Team",budget:aiBudget},
+      ...(candidateContracted?[{team_id:"T3",team_name:"Third Team",budget:5_000_000}]:[]),
+    ],
+    staffCore,staffRatings,staffContracts,
+    financialRules:[{year:1980,min_salary_staff:40_000,max_salary_staff:300_000}],
+  };
+}
+
+test("AI Staff market fills an important represented vacancy",()=>{
+  const gs=staffMarketFixture();
+  const next=applyStaffMarketTick(gs);
+  const aiPrincipal=next.staffContracts.find((row)=>
+    String(row.team_id)==="T2"&&String(row.role)==="team_principal"&&row.status==="active"
+  );
+  assert.ok(aiPrincipal);
+  assert.equal(aiPrincipal.staff_id,"S_FREE");
+  assert.equal(aiPrincipal.source,"ai_staff_market");
+});
+
+test("AI Staff market upgrades only for a material affordable improvement",()=>{
+  const upgrade=applyStaffMarketTick(staffMarketFixture({incumbentScore:60,candidateScore:85}));
+  const activeUpgrade=upgrade.staffContracts.find((row)=>
+    String(row.team_id)==="T2"&&row.status==="active"&&String(row.role)==="team_principal"
+  );
+  assert.equal(activeUpgrade.staff_id,"S_FREE");
+  assert.ok(upgrade.staffContracts.some((row)=>row.staff_id==="S_AI"&&row.status==="released"));
+
+  const tiny=applyStaffMarketTick(staffMarketFixture({incumbentScore:75,candidateScore:82}));
+  const activeTiny=tiny.staffContracts.find((row)=>
+    String(row.team_id)==="T2"&&row.status==="active"&&String(row.role)==="team_principal"
+  );
+  assert.equal(activeTiny.staff_id,"S_AI");
+  assert.equal(tiny.staffContracts.some((row)=>row.staff_id==="S_AI"&&row.status==="released"),false);
+});
+
+test("AI Staff hiring respects budget and contractual availability",()=>{
+  const poor=applyStaffMarketTick(staffMarketFixture({aiBudget:100_000}));
+  assert.equal(poor.staffContracts.some((row)=>String(row.team_id)==="T2"&&row.staff_id==="S_FREE"),false);
+
+  const contracted=applyStaffMarketTick(staffMarketFixture({
+    incumbentScore:55,candidateScore:95,candidateContracted:true,
+  }));
+  const active=contracted.staffContracts.find((row)=>
+    String(row.team_id)==="T2"&&row.status==="active"&&String(row.role)==="team_principal"
+  );
+  assert.equal(active.staff_id,"S_AI");
+});
+
+test("AI renews valuable Staff and Staff-market decisions are deterministic",()=>{
+  const gs=staffMarketFixture({incumbentScore:78,candidateScore:70,contractUntil:1980});
+  const a=applyStaffMarketTick(structuredClone(gs));
+  const b=applyStaffMarketTick(structuredClone(gs));
+  assert.deepEqual(a,b);
+  const renewed=a.staffContracts.find((row)=>row.staff_id==="S_AI"&&row.status==="active");
+  assert.ok(Number(renewed.contract_until_year)>1980);
+  assert.equal(renewed.ai_staff_renewal_plan,"renew");
 });

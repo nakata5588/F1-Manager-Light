@@ -17,6 +17,7 @@ import {
 } from "./NegotiationEngine.js";
 import { relationshipRenewalRetentionDelta } from "../domain/driverRelationshipConsequences.js";
 import { aiLineupUpgradeOpportunity, rankAiRecruitmentCandidates } from "../domain/aiDriverLineup.js";
+import { applyStaffMarketTick } from "./StaffMarketEngine.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr,rng){return rng.pick(arr);}
@@ -96,7 +97,7 @@ export function applyMarketTick(gs){
   );
   const f1EligibleDrivers=drivers.filter((d)=>f1HireEligibility(gs,d,gs?.activeYear).eligible);
   const teams=gs.teams||[];
-  if(!drivers.length||!teams.length)return next;
+  if(!drivers.length||!teams.length)return applyStaffMarketTick(next);
 
   const currentDate=String(gs?.currentDateISO||"").slice(0,10);
   const currentMonth=currentDate.slice(0,7);
@@ -323,5 +324,5 @@ export function applyMarketTick(gs){
       ...(next.inbox||gs.inbox||[]),
     ],
   };
-  return next;
+  return applyStaffMarketTick(next);
 }

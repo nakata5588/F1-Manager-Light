@@ -3,6 +3,7 @@ import { useGame } from "../state/GameStore.js";
 import { flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import { contractActiveForYear } from "../domain/liveContracts.js";
 import { resolveStaffId, staffRoleDepartment, staffRoleLabel } from "../domain/staffRoles.js";
+import { staffRoleRating } from "../domain/staffPerformance.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -10,11 +11,6 @@ const staffIdOf=(o)=>String(pick(o,["staff_id","person_id","id"],""));
 const teamIdOf=(o)=>String(pick(o,["team_id","team","constructor_id","constructor"],""));
 const nice=(s)=>String(s||"Staff").replace(/_/g," ").replace(/\b\w/g,m=>m.toUpperCase());
 
-function overallOf(rating){
-  const ignored=new Set(["staff_id","staff_name","year"]);
-  const vals=Object.entries(rating||{}).filter(([k,v])=>!ignored.has(k)&&Number.isFinite(Number(v))).map(([,v])=>Number(v));
-  return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):"—";
-}
 
 function department(role){
   const r=String(role||"").toLowerCase();
@@ -67,7 +63,7 @@ export default function Staff(){
         dept:staffRoleDepartment(role),
         country:pick(s,["country_name","country","nationality"],"—"),
         code:pick(s,["country_code"],""),
-        overall:overallOf(rating),
+        overall:staffRoleRating(rating,assignedRole||primaryRole).score??"—",
         team:contract?(teamNameById.get(tid)||pick(contract,["team_name"],"—")):"Free",
         salary:Number(pick(contract,["salary","salary_yearly"],0))||0,
         until:contract?pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—"):"—",

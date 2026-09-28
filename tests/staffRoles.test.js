@@ -7,9 +7,15 @@ import {
   staffRoleDepartment,
   staffRoleLabel,
 } from "../src/domain/staffRoles.js";
-import { teamEngineeringSupport } from "../src/engine/PracticeSetupEngine.js";
+import { teamEngineeringSupport, teamSetupSupport } from "../src/engine/PracticeSetupEngine.js";
 import { forecastAccuracyForTeam } from "../src/engine/WeekendWeatherEngine.js";
 import { seedTechnicalKnowledge } from "../src/domain/technicalKnowledge.js";
+import {
+  STAFF_ROLE_WEIGHTS,
+  staffRoleRating,
+  staffStrategyDecisionDelta,
+  teamStaffCapability,
+} from "../src/domain/staffPerformance.js";
 
 function fixture(){
   return {
@@ -113,4 +119,105 @@ test("D6.3D resolved staff identity feeds existing engineering, weather and know
   assert.ok(forecastAccuracyForTeam(gs,"T1")>0.75);
   const knowledge=seedTechnicalKnowledge(gs,{teamId:"T1"});
   assert.ok(knowledge.opening_context.staff_quality>80);
+});
+
+
+test("Staff Overall is role-specific and every role weight totals 100",()=>{
+  for(const weights of Object.values(STAFF_ROLE_WEIGHTS)){
+    assert.equal(Object.values(weights).reduce((sum,value)=>sum+value,0),100);
+  }
+  const strategist={
+    strategy:96,data_analysis:94,communication:90,technical:52,
+    leadership:58,conflict_management:62,reliability_focus:55,
+    innovation:45,budget_management:50,motivation:65,negotiation:50,
+    pitstop_management:50,driver_development:65,reputation:99,
+  };
+  const strategyRating=staffRoleRating(strategist,"chief_strategist").score;
+  const technicalRating=staffRoleRating(strategist,"technical_director").score;
+  assert.ok(strategyRating>technicalRating+15);
+});
+
+test("irrelevant Staff attributes and Reputation do not inflate role Overall",()=>{
+  const base={
+    technical:82,innovation:80,data_analysis:78,reliability_focus:76,
+    communication:72,budget_management:68,leadership:65,
+    reputation:20,driver_development:10,strategy:10,
+  };
+  const inflated={...base,reputation:100,driver_development:100,strategy:100};
+  assert.equal(
+    staffRoleRating(base,"technical_director").score,
+    staffRoleRating(inflated,"technical_director").score
+  );
+});
+
+test("Race Engineer quality improves setup support through the canonical Staff model",()=>{
+  const make=(quality)=>({
+    activeYear:2004,
+    staffCore:[{staff_id:"RE1",role_primary:"race_engineer"}],
+    staffContracts:[{year:2004,team_id:"T1",staff_id:"RE1",role:"race_engineer",contract_start:2000,contract_until:2010,status:"active"}],
+    staffRatings:[{
+      year:2004,staff_id:"RE1",
+      communication:quality,technical:quality,data_analysis:quality,strategy:quality,
+      motivation:quality,reliability_focus:quality,conflict_management:quality,
+    }],
+  });
+  assert.ok(teamSetupSupport(make(90),"T1")>teamSetupSupport(make(45),"T1")+35);
+});
+
+test("Technical Staff improves technical knowledge through the intended capability",()=>{
+  const make=(quality)=>({
+    activeYear:2004,currentDateISO:"2004-03-01",team:{team_id:"T1"},
+    staffCore:[{staff_id:"TD1",role_primary:"technical_director"}],
+    staffContracts:[{year:2004,team_id:"T1",staff_id:"TD1",role:"technical_director",contract_start:2000,contract_until:2010,status:"active"}],
+    staffRatings:[{
+      year:2004,staff_id:"TD1",technical:quality,innovation:quality,data_analysis:quality,
+      reliability_focus:quality,communication:quality,budget_management:quality,leadership:quality,
+    }],
+    facilities:[{year:2004,team_id:"T1",pitcrew_training_level:5,aero_dept_level:5,wind_tunnel_level:5,_chassis_shop_level:5,manufacturing_leve:5}],
+    carStats:[{year:2004,team_id:"T1",aero_spec:60,chassis_spec:60,suspension_spec:60,brakes_spec:60,gearbox_spec:60,reliability:0.7}],
+    development:{projects:[]},hq:{facilityLevels:{}},
+  });
+  const weak=seedTechnicalKnowledge(make(40),{teamId:"T1"});
+  const strong=seedTechnicalKnowledge(make(90),{teamId:"T1"});
+  assert.ok(strong.opening_context.staff_quality>weak.opening_context.staff_quality+35);
+  assert.ok(strong.areas.aero.level>weak.areas.aero.level);
+});
+
+test("Strategist quality improves decision quality modifier without becoming race pace",()=>{
+  const make=(quality)=>({
+    activeYear:2004,
+    staffCore:[{staff_id:"ST1",role_primary:"chief_strategist"}],
+    staffContracts:[{year:2004,team_id:"T1",staff_id:"ST1",role:"chief_strategist",contract_start:2000,contract_until:2010,status:"active"}],
+    staffRatings:[{
+      year:2004,staff_id:"ST1",strategy:quality,data_analysis:quality,
+      communication:quality,technical:quality,leadership:quality,
+      conflict_management:quality,reliability_focus:quality,
+    }],
+  });
+  const weak=make(35),strong=make(92);
+  assert.ok(teamStaffCapability(strong,"T1","strategy")>teamStaffCapability(weak,"T1","strategy")+45);
+  assert.ok(staffStrategyDecisionDelta(strong,"T1")>staffStrategyDecisionDelta(weak,"T1"));
+  assert.ok(Math.abs(staffStrategyDecisionDelta(strong,"T1"))<=0.12);
+});
+
+
+test("Staff capability model is independent of Race Weekend engine selection",()=>{
+  const make=(engineVersion)=>({
+    activeYear:2004,
+    raceWeekendState:{engine_version:engineVersion},
+    staffCore:[{staff_id:"RE1",role_primary:"race_engineer"}],
+    staffContracts:[{
+      year:2004,team_id:"T1",staff_id:"RE1",role:"race_engineer",
+      contract_start:2000,contract_until:2010,status:"active",
+    }],
+    staffRatings:[{
+      year:2004,staff_id:"RE1",
+      communication:88,technical:84,data_analysis:86,strategy:78,
+      motivation:80,reliability_focus:76,conflict_management:72,
+    }],
+  });
+  assert.equal(
+    teamStaffCapability(make("legacy"),"T1","setup"),
+    teamStaffCapability(make("rw2"),"T1","setup")
+  );
 });

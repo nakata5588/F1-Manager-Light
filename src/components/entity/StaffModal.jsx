@@ -4,17 +4,13 @@ import { useGame } from "../../state/GameStore.js";
 import { StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import { contractActiveForYear } from "../../domain/liveContracts.js";
 import { resolveStaffId, staffRoleLabel } from "../../domain/staffRoles.js";
+import { staffRoleRating } from "../../domain/staffPerformance.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const staffIdOf=(o)=>String(pick(o,["staff_id","person_id","id"],""));
 const nice=(s)=>String(s||"Staff").replace(/_/g," ").replace(/\b\w/g,m=>m.toUpperCase());
 
-function overallOf(rating){
-  const ignored=new Set(["staff_id","staff_name","year"]);
-  const vals=Object.entries(rating||{}).filter(([k,v])=>!ignored.has(k)&&Number.isFinite(Number(v))).map(([,v])=>Number(v));
-  return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):null;
-}
 
 function tone(value){
   const n=Number(value);
@@ -71,9 +67,11 @@ export default function StaffModal({entity,onClose,pageMode=false}){
 
   const name=pick(staff,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id));
   const country=pick(staff,["country_name","country","nationality"],"");
-  const role=staffRoleLabel(pick(contract,["role","position"],pick(staff,["role_primary"],"Staff")));
-  const primaryRole=staffRoleLabel(pick(staff,["role_primary"],role));
-  const overall=overallOf(rating);
+  const roleRaw=pick(contract,["role","position"],pick(staff,["role_primary"],"Staff"));
+  const role=staffRoleLabel(roleRaw);
+  const primaryRole=staffRoleLabel(pick(staff,["role_primary"],roleRaw));
+  const roleRating=staffRoleRating(rating,roleRaw);
+  const overall=roleRating.score;
   const skills=Object.entries(rating||{})
     .filter(([k,v])=>!["staff_id","staff_name","year"].includes(k)&&Number.isFinite(Number(v)))
     .sort((a,b)=>Number(b[1])-Number(a[1]));

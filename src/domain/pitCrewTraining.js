@@ -73,12 +73,15 @@ export function pitCrewTrainingLoadEffects(loadInput){
   };
 }
 
-export function advancePitCrewTrainingDay(crewInput={},facilityLevel=5,dateISO=null){
+export function advancePitCrewTrainingDay(crewInput={},facilityLevel=5,dateISO=null,staffMultiplier=1){
   const crew={...(crewInput||{})};
   const load=clamp(num(crew.training_load,50),0,100);
   const effects=pitCrewTrainingLoadEffects(load);
   const facility=clamp(num(facilityLevel,5),1,10);
   const facilityFactor=0.82+facility*0.036;
+  // Staff provides bounded oversight to training efficiency. Raw pit-crew
+  // skill, fatigue and race-day execution remain owned by the Pit Crew model.
+  const staffFactor=clamp(num(staffMultiplier,1),0.90,1.10);
   const avg=num(crew.avg_time_s,6.8);
   const consistency=num(crew.consistency,70);
   const error=num(crew.error_rate,0.05);
@@ -86,9 +89,9 @@ export function advancePitCrewTrainingDay(crewInput={},facilityLevel=5,dateISO=n
   // Recovery has zero multipliers: raw skill is frozen while fatigue comes down.
   // The other presets train different execution dimensions at different rates,
   // so Balanced can be race-neutral while Intensive/Maximum create real trade-offs.
-  const paceGain=Math.max(0,avg-2.2)*0.0012*effects.pace_training_multiplier*facilityFactor;
-  const consistencyGain=Math.max(0,100-consistency)*0.0014*effects.consistency_training_multiplier*facilityFactor;
-  const errorGain=Math.max(0,error-0.005)*0.0040*effects.error_training_multiplier*facilityFactor;
+  const paceGain=Math.max(0,avg-2.2)*0.0012*effects.pace_training_multiplier*facilityFactor*staffFactor;
+  const consistencyGain=Math.max(0,100-consistency)*0.0014*effects.consistency_training_multiplier*facilityFactor*staffFactor;
+  const errorGain=Math.max(0,error-0.005)*0.0040*effects.error_training_multiplier*facilityFactor*staffFactor;
   const nextFatigue=clamp(fatigue+effects.fatigue_delta_per_day,0,100);
 
   return {
@@ -130,11 +133,11 @@ export function pitCrewEffectiveProfile(crewInput={}){
   };
 }
 
-export function projectPitCrewTraining(crewInput={},facilityLevel=5,days=7){
+export function projectPitCrewTraining(crewInput={},facilityLevel=5,days=7,staffMultiplier=1){
   let crew={...(crewInput||{})};
   const count=Math.max(0,Math.floor(num(days,7)));
   for(let i=0;i<count;i+=1){
-    crew=advancePitCrewTrainingDay(crew,facilityLevel,null);
+    crew=advancePitCrewTrainingDay(crew,facilityLevel,null,staffMultiplier);
   }
   return {
     raw:crew,

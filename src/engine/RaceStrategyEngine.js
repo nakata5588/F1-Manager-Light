@@ -8,6 +8,7 @@
 import { rngFor } from "../core/random.js";
 import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
+import { staffStrategyDecisionDelta } from "../domain/staffPerformance.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { incidentForDriver, raceControlAtLap } from "./RaceControlEngine.js";
 import { incidentDamageStateThrough } from "./CarDamageEngine.js";
@@ -811,6 +812,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     const wearDriverMult=clamp(1+(60-management)*0.004+(Math.max(0,fatigue-50))*0.003,0.74,1.32);
     const trackWearMult=0.62+(track.tyre_wear/100)*0.72;
     const crew=pitCrew(working,tid);
+    const strategyDecisionDelta=tid!==userTeam?staffStrategyDecisionDelta(working,tid):0;
     const retirement=honorRetirements
       ?retirementCutoff(strategyState?.race_control_plan,did,track.laps)
       :{incident:null,lap:null,sector:null,completedLaps:track.laps};
@@ -819,9 +821,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
     let plannedLap=plannedBase;
     let plannedReason="planned";
     if(rules.undercut_strength>=0.45&&strategy.pit_plan==="one_stop"){
-      if(strategy.pace_mode==="attack"&&rng.chance(0.42*rules.undercut_strength)){
+      if(strategy.pace_mode==="attack"&&rng.chance(clamp(0.42*rules.undercut_strength+strategyDecisionDelta,0.05,0.92))){
         plannedLap=Math.max(2,plannedBase-1); plannedReason="undercut";
-      }else if(strategy.pace_mode==="conserve"&&rng.chance(0.38*rules.undercut_strength)){
+      }else if(strategy.pace_mode==="conserve"&&rng.chance(clamp(0.38*rules.undercut_strength+strategyDecisionDelta,0.05,0.88))){
         plannedLap=Math.min(track.laps-2,plannedBase+1); plannedReason="overcut";
       }
     }
@@ -971,9 +973,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       if(lap>1&&!retiringThisLap){
         if(forcedPit&&remaining>1)stopReason="player_call";
         else if((isAi||!interactivePlayer)&&!playerTyreAuthority&&crossover.should_pit&&remaining>2)stopReason="weather";
-        else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(0.50+intelligence*0.004))stopReason="neutralisation_window";
+        else if(isAi&&cheapStop&&!hasStopped&&remaining>7&&condition<78&&rng.chance(clamp(0.50+intelligence*0.004+strategyDecisionDelta,0.05,0.95)))stopReason="neutralisation_window";
         else if(strategy.pit_plan==="one_stop"&&!hasStopped&&lap===plannedLap&&!crossover.cooldown_active)stopReason=plannedReason;
-        else if(isAi&&strategicStopValue&&rng.chance(0.44+intelligence*0.0045))stopReason="degradation_value";
+        else if(isAi&&strategicStopValue&&rng.chance(clamp(0.44+intelligence*0.0045+strategyDecisionDelta,0.05,0.95)))stopReason="degradation_value";
         else if(strategy.pit_plan==="adaptive"&&condition<34&&remaining>6)stopReason="degradation";
         else if(criticalTyre||severeTyre&&projectedCritical)stopReason="tyre_safety";
         if(!hasStopped&&rules.mandatory_dry_compounds>1&&!hasUsedWet&&category==="dry"&&lap===plannedLap)stopReason=stopReason||"mandatory_compound";

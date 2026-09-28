@@ -8,6 +8,7 @@
 import { currentDriverTeamId } from "./driverContracts.js";
 import { retirementResponsibility } from "./driverForm.js";
 import { managerGameplayEffects } from "./managerProfile.js";
+import { staffTeamEnvironmentModifiers } from "./staffPerformance.js";
 
 const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const round1=(v)=>Math.round(Number(v||0)*10)/10;
@@ -118,8 +119,14 @@ export function applyRaceTeamMorale(gs,{race=[],gp=null}={}){
 
     delta=Math.max(-10,Math.min(7,delta));
     const managerEffects=managerGameplayEffects(gs,{teamId});
-    if(delta>0)delta*=managerEffects.positiveMoraleMultiplier;
-    else if(delta<0)delta*=managerEffects.negativeMoraleMultiplier;
+    const staffEffects=staffTeamEnvironmentModifiers(gs,teamId);
+    if(delta>0){
+      delta*=managerEffects.positiveMoraleMultiplier;
+      delta*=staffEffects.positive_morale_multiplier;
+    }else if(delta<0){
+      delta*=managerEffects.negativeMoraleMultiplier;
+      delta*=staffEffects.negative_morale_multiplier;
+    }
     delta=Math.max(-10,Math.min(7,delta));
     const before=teamOperationalMorale(gs,teamId);
     const after=round1(clamp(before+delta));
