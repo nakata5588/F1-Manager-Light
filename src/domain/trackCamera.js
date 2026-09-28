@@ -63,3 +63,64 @@ export function trackMarkerScaleForViewBox(viewBox,bounds,{power=.72,min=.16,max
   const scale=Math.pow(ratio,Math.max(.35,Math.min(1,Number(power)||.72)));
   return Math.max(Number(min)||.16,Math.min(Number(max)||1,scale));
 }
+
+
+export function trackFollowZoomFromWheel(currentZoom,deltaY,{min=1.35,max=12,step=1.12}={}){
+  const current=Math.max(Number(min)||1.35,Math.min(Number(max)||12,Number(currentZoom)||1));
+  const multiplier=Number(deltaY)<0?Number(step)||1.12:1/(Number(step)||1.12);
+  return Math.max(Number(min)||1.35,Math.min(Number(max)||12,current*multiplier));
+}
+
+export function followTrackViewBox(fullViewBox,point,{
+  zoom=2.35,
+  minWidth=190,
+  minHeight=150,
+  lookAheadRatio=.11,
+}={}){
+  const box=numericBox(fullViewBox);
+  const [x,y,width,height]=box;
+  if(!point||!Number.isFinite(Number(point.x))||!Number.isFinite(Number(point.y))||width<=0||height<=0)return box;
+
+  const z=Math.max(1,Number(zoom)||1);
+  let targetWidth=Math.max(Number(minWidth)||0,width/z);
+  let targetHeight=Math.max(Number(minHeight)||0,height/z);
+  targetWidth=Math.min(width,targetWidth);
+  targetHeight=Math.min(height,targetHeight);
+
+  const heading=Number(point.heading);
+  const ahead=Math.max(0,Math.min(.3,Number(lookAheadRatio)||0));
+  const headingRad=Number.isFinite(heading)?heading*(Math.PI/180):0;
+  const centerX=Number(point.x)+(Number.isFinite(heading)?Math.cos(headingRad)*targetWidth*ahead:0);
+  const centerY=Number(point.y)+(Number.isFinite(heading)?Math.sin(headingRad)*targetHeight*ahead:0);
+
+  const maxX=x+width-targetWidth;
+  const maxY=y+height-targetHeight;
+  return [
+    Math.min(Math.max(x,centerX-targetWidth/2),maxX),
+    Math.min(Math.max(y,centerY-targetHeight/2),maxY),
+    targetWidth,
+    targetHeight,
+  ].map((value)=>Number(value.toFixed(3)));
+}
+
+export function dampTrackViewBox(current,target,deltaMs,{timeConstantMs=78,snap=.025}={}){
+  const from=numericBox(current);
+  const to=numericBox(target);
+  const dt=Math.max(0,Math.min(80,Number(deltaMs)||0));
+  const tau=Math.max(16,Number(timeConstantMs)||78);
+  const alpha=1-Math.exp(-dt/tau);
+  const next=from.map((value,index)=>value+(to[index]-value)*alpha);
+  const settled=next.every((value,index)=>Math.abs(value-to[index])<=Math.max(.001,Number(snap)||.025));
+  return settled?to:next;
+}
+
+export function trackLodForZoom(zoom){
+  const value=Math.max(1,Number(zoom)||1);
+  if(value<1.85)return "overview";
+  if(value<4.5)return "medium";
+  return "close";
+}
+
+export function trackLodRank(lod){
+  return lod==="close"?2:lod==="medium"?1:0;
+}
