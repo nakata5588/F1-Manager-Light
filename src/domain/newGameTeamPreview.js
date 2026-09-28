@@ -188,6 +188,7 @@ function rawTeamSnapshot(gs,team){
   const facilities=facilitySnapshot(gs,teamId,year);
   const staff=staffSnapshot(gs,teamId,year);
   const engine=rowForTeam(collection(gs?.teamEngines,gs?.dbTeamEngines),teamId,year)||{};
+  const historicalStrength=rowForTeam(gs?.teamHistoricalStrength,teamId,year);
   const drivers=[
     driverPreview(gs,lineup?.main,"main"),
     driverPreview(gs,lineup?.second,"second"),
@@ -212,6 +213,15 @@ function rawTeamSnapshot(gs,team){
     facilities,
     staff,
     engineName:String(pick(engine,["engine_name","name","engine"],""))||null,
+    historicalStrength:historicalStrength?{
+      overall:Number(historicalStrength.overall),
+      structural:Number(historicalStrength.structural_strength),
+      competitive:Number(historicalStrength.competitive_strength),
+      heritage:Number(historicalStrength.heritage_strength),
+      sporting:Number(historicalStrength.sporting_strength),
+      recent:Number(historicalStrength.recent_competitiveness),
+      evidenceThroughYear:Number(historicalStrength.evidence_through_year),
+    }:null,
     drivers,
     driversOverall:knownDriverOveralls.length
       ?Math.round((knownDriverOveralls.reduce((sum,value)=>sum+value,0)/knownDriverOveralls.length)*10)/10
