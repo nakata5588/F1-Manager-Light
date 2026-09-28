@@ -1,5 +1,5 @@
 // src/domain/driverStartingRating.js
-// D7.R1D / D7.R2 — development-curve calibration + Starting Rating Materializer.
+// D7.R4 — all-eras development-curve + prior-career calibration materializer.
 //
 // Historical Starting Conditions -> Dynamic Alternative Future:
 // - Talent Profile peak values are latent ceilings calibrated from the full archive.
@@ -161,6 +161,155 @@ export function repairTalentProfileFromF1Career(profile,historyRows=[]){
   patched._talent_profile_peak_original=round1(original);
   patched._talent_profile_peak_effective=round1(floor);
   patched._talent_profile_repair_source="full_f1_career_achievement_floor";
+  return patched;
+}
+
+
+export function priorCareerStrengthSummary(historyRows=[],championshipRows=[],year){
+  const target=Number(year);
+  const priorHistory=(Array.isArray(historyRows)?historyRows:[])
+    .filter((row)=>num(row?.year??row?.season_year,Infinity)<target);
+  const priorChampionships=(Array.isArray(championshipRows)?championshipRows:[])
+    .filter((row)=>num(row?.year??row?.season_year,Infinity)<target);
+
+  const starts=priorHistory.reduce((sum,row)=>sum+Math.max(0,num(row?.starts??row?.races,0)),0);
+  const wins=priorHistory.reduce((sum,row)=>sum+Math.max(0,num(row?.wins,0)),0);
+  const podiums=priorHistory.reduce((sum,row)=>sum+Math.max(0,num(row?.podiums,0)),0);
+  const poles=priorHistory.reduce((sum,row)=>sum+Math.max(0,num(row?.poles,0)),0);
+  const positions=priorChampionships
+    .map((row)=>num(row?.position??row?.champ_pos,null))
+    .filter(Number.isFinite);
+  const titleRows=priorChampionships.filter((row)=>num(row?.position??row?.champ_pos,999)===1);
+  const previousSeason=priorChampionships.find((row)=>
+    num(row?.year??row?.season_year,NaN)===target-1
+  )||null;
+  const recent=priorChampionships.filter((row)=>{
+    const y=num(row?.year??row?.season_year,NaN);
+    return Number.isFinite(y)&&y>=target-3;
+  });
+  const recentPositions=recent
+    .map((row)=>num(row?.position??row?.champ_pos,null))
+    .filter(Number.isFinite);
+
+  return {
+    starts,
+    wins,
+    podiums,
+    poles,
+    titles:titleRows.length,
+    best_championship_position:positions.length?Math.min(...positions):null,
+    previous_championship_position:previousSeason
+      ?num(previousSeason?.position??previousSeason?.champ_pos,null)
+      :null,
+    recent_best_championship_position:recentPositions.length?Math.min(...recentPositions):null,
+    last_title_year:titleRows.length
+      ?Math.max(...titleRows.map((row)=>num(row?.year??row?.season_year,-Infinity)))
+      :null,
+  };
+}
+
+export function priorCareerCurrentAbilityFloor(historyRows=[],championshipRows=[],year){
+  const target=Number(year);
+  if(!Number.isInteger(target))return null;
+  const summary=priorCareerStrengthSummary(historyRows,championshipRows,target);
+  if(
+    summary.starts<=0 &&
+    !Number.isFinite(summary.best_championship_position)
+  )return null;
+
+  let floor=55;
+  if(summary.starts>=10)floor=Math.max(floor,58);
+  if(summary.starts>=25)floor=Math.max(floor,60);
+  if(summary.starts>=50)floor=Math.max(floor,62);
+  if(summary.starts>=100)floor=Math.max(floor,65);
+  if(summary.starts>=150)floor=Math.max(floor,67);
+
+  if(summary.podiums>=1)floor=Math.max(floor,70);
+  if(summary.podiums>=10)floor=Math.max(floor,74);
+  if(summary.podiums>=25)floor=Math.max(floor,78);
+  if(summary.podiums>=50)floor=Math.max(floor,82);
+  if(summary.podiums>=80)floor=Math.max(floor,85);
+
+  if(summary.wins>=1)floor=Math.max(floor,73);
+  if(summary.wins>=3)floor=Math.max(floor,77);
+  if(summary.wins>=5)floor=Math.max(floor,80);
+  if(summary.wins>=10)floor=Math.max(floor,84);
+  if(summary.wins>=20)floor=Math.max(floor,88);
+  if(summary.wins>=35)floor=Math.max(floor,91);
+
+  const previous=summary.previous_championship_position;
+  if(Number.isFinite(previous)){
+    if(previous===1)floor=Math.max(floor,90);
+    else if(previous<=3)floor=Math.max(floor,86);
+    else if(previous<=5)floor=Math.max(floor,82);
+    else if(previous<=10)floor=Math.max(floor,77);
+  }
+
+  const recentBest=summary.recent_best_championship_position;
+  if(Number.isFinite(recentBest)){
+    if(recentBest===1)floor=Math.max(floor,88);
+    else if(recentBest<=3)floor=Math.max(floor,84);
+    else if(recentBest<=5)floor=Math.max(floor,80);
+    else if(recentBest<=10)floor=Math.max(floor,75);
+  }
+
+  if(summary.titles>0&&Number.isFinite(summary.last_title_year)){
+    const yearsSinceTitle=Math.max(0,(target-1)-summary.last_title_year);
+    const multipleTitleBonus=Math.min(3,Math.max(0,summary.titles-1)*1.5);
+    const titleFloor=Math.max(76,90-yearsSinceTitle*1.1+multipleTitleBonus);
+    floor=Math.max(floor,titleFloor);
+  }
+
+  return round1(clamp(floor,0,99));
+}
+
+function applyPriorCareerCurrentAbilityFloor(rating,{
+  historyRows=[],
+  championshipRows=[],
+  year,
+}={}){
+  if(!rating)return rating;
+  const floor=priorCareerCurrentAbilityFloor(historyRows,championshipRows,year);
+  const current=num(rating?.current_ability,null);
+  if(!Number.isFinite(floor)||!Number.isFinite(current))return rating;
+
+  const summary=priorCareerStrengthSummary(historyRows,championshipRows,year);
+  const metadata={
+    historical_current_floor:floor,
+    historical_prior_starts:summary.starts,
+    historical_prior_wins:summary.wins,
+    historical_prior_podiums:summary.podiums,
+    historical_prior_titles:summary.titles,
+    historical_previous_championship_position:summary.previous_championship_position,
+    historical_recent_best_championship_position:summary.recent_best_championship_position,
+  };
+  if(current>=floor)return {...rating,...metadata};
+
+  const patched={...rating,...metadata};
+  const raiseAttributes=(amount)=>{
+    for(const [currentKey] of ATTRIBUTE_BLUEPRINT){
+      const raw=num(patched?.[currentKey],null);
+      if(Number.isFinite(raw))patched[currentKey]=round1(clamp(raw+amount,0,99));
+    }
+  };
+
+  raiseAttributes(floor-current);
+  let score=abilityAttributeScore(patched);
+  if(Number.isFinite(score)&&score<floor)raiseAttributes(floor-score);
+  score=abilityAttributeScore(patched);
+  patched.current_ability=round1(clamp(
+    Number.isFinite(score)?Math.max(score,floor):floor
+  ));
+  patched.potential_ability=round1(clamp(Math.max(
+    num(patched?.potential_ability,patched.current_ability),
+    patched.current_ability
+  )));
+  patched.development_headroom=round1(Math.max(
+    0,
+    patched.potential_ability-patched.current_ability
+  ));
+  patched.historical_current_floor_applied=true;
+  patched.historical_current_floor_source="preseason_f1_record";
   return patched;
 }
 
@@ -358,7 +507,7 @@ export function materializeDriverStartingRating({
     rating_tier:text(profile?.tier||profile?.rating_tier||""),
     rating_confidence:text(profile?.rating_confidence||"MEDIUM"),
     source:"talent_profile_starting_materializer",
-    rating_model:"D7.R2",
+    rating_model:"D7.R4",
     calibration_version:model?.version||"D7.R1D_CALIBRATION_V1",
     calibration_source_rows:num(model?.source_rows,0),
     talent_profile_peak_original:num(profile?._talent_profile_peak_original, null),
@@ -398,6 +547,7 @@ export function materializeMissingStartingRatings({
   placements=[],
   historicalSnapshots=[],
   careerHistory=[],
+  championshipHistory=[],
 }={}){
   const rows=Array.isArray(existingRatings)?existingRatings:[];
   const byId=new Map(rows.map((row)=>[driverId(row),row]).filter(([id])=>id));
@@ -410,6 +560,13 @@ export function materializeMissingStartingRatings({
     if(!id)continue;
     if(!historyById.has(id))historyById.set(id,[]);
     historyById.get(id).push(row);
+  }
+  const championshipsById=new Map();
+  for(const row of Array.isArray(championshipHistory)?championshipHistory:[]){
+    const id=driverId(row);
+    if(!id)continue;
+    if(!championshipsById.has(id))championshipsById.set(id,[]);
+    championshipsById.get(id).push(row);
   }
 
   for(const driver of Array.isArray(drivers)?drivers:[]){
@@ -428,7 +585,11 @@ export function materializeMissingStartingRatings({
       placement:placementById.get(id)||null,
       calibration,
     });
-    if(rating)byId.set(id,rating);
+    if(rating)byId.set(id,applyPriorCareerCurrentAbilityFloor(rating,{
+      historyRows:historyById.get(id)||[],
+      championshipRows:championshipsById.get(id)||[],
+      year,
+    }));
   }
   return [...byId.values()];
 }
