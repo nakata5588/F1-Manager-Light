@@ -418,7 +418,14 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     .map((r)=>historicalSnapshotToRating(r,year))
     .filter((r)=>r.driver_id);
   const byId=new Map(exactV2.map((r)=>[driverId(r),r]));
-  const legacy=exactOrLatest(g.driverRatings||[],year,driverId,wanted);
+
+  // Legacy driver_ratings rows are editorial snapshots for their own season,
+  // not permanent ability records. Carrying the latest old row forward creates
+  // severe time-travel bugs (for example a rookie-era rating surviving many
+  // years into a champion's prime). Exact-year legacy rows remain valid; all
+  // other gaps are materialized from the Talent Profile + career stage model.
+  const legacy=rowsAtYear(g.driverRatings||[],year)
+    .filter((row)=>!wanted||wanted.has(driverId(row)));
   for(const row of legacy){
     const id=driverId(row);
     if(!id||byId.has(id))continue;
@@ -427,6 +434,7 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     if(Number.isFinite(aggression))normalized.aggression=aggression;
     byId.set(id,normalized);
   }
+
   return materializeMissingStartingRatings({
     drivers,
     existingRatings:[...byId.values()],
@@ -434,6 +442,16 @@ function driverRatingsForSeason(g,year,wantedIds,{drivers=[],placements=[]}={}){
     year,
     placements,
     historicalSnapshots:g.historicalRatingSnapshots||[],
+  }).map((row)=>{
+    const current=asNum(pick(row,["current_ability","overall"],NaN),NaN);
+    const potential=asNum(pick(row,["potential_ability","potential"],NaN),NaN);
+    if(!Number.isFinite(current))return row;
+    const safePotential=Number.isFinite(potential)?Math.max(current,potential):current;
+    return {
+      ...row,
+      potential_ability:Math.round(Math.max(0,Math.min(100,safePotential))*10)/10,
+      development_headroom:Math.round(Math.max(0,safePotential-current)*10)/10,
+    };
   });
 }
 
