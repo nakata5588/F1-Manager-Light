@@ -25,7 +25,9 @@ import { openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHea
 import { dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import RaceCarsLayer from "./RaceCarsLayer.jsx";
-import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
+import RaceCarsLayerV3 from "./RaceCarsLayerV3.jsx";
+import { buildClosedRacingLine } from "../../domain/raceSplineV3.js";
+import { advanceVisualTimelineProgress, applyVisualPitLaneState, authoritativeRaceWorldProgress, createVisualRaceTimeline, driverVisualMotionDurationMs, raceVisualSnapshotKey, visualPitLaneState, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -702,6 +704,10 @@ export default function Track2DView({
     ()=>(environmentAssetActive||proceduralEnvironmentActive)?smoothedPresentationGeometry:orientTrackGeometry(smoothedPresentationGeometry),
     [smoothedPresentationGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
+  const racingLineV3=useMemo(
+    ()=>buildClosedRacingLine(displayGeometry?.points,{samplesPerSegment:8}),
+    [displayGeometry]
+  );
   const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=useMemo(()=>(
@@ -736,12 +742,15 @@ export default function Track2DView({
     &&Number.isFinite(Number(intelligence?.pit_entry_progress))
     &&Number.isFinite(Number(intelligence?.pit_exit_progress))
   );
+  const [motionEngine,setMotionEngine]=useState("v3");
+  const v3MotionAvailable=Number(racingLineV3?.total_length)>0;
+  const v3MotionActive=motionEngine==="v3"&&v3MotionAvailable;
   const visualFrame=useVisualRaceTimeline({
     rows:authoritativeRows,
     currentLap,
     currentSector,
     referenceLapMs,
-    playbackRunning,
+    playbackRunning:!v3MotionActive&&playbackRunning,
     playbackSpeed,
     playbackBaseSectorMs,
     currentControl,
@@ -821,54 +830,52 @@ export default function Track2DView({
     onSelectDriver?.(String(driverId||""));
   };
   const followSelectedVisualPoint=(point)=>{
-    if(cameraMode!=="follow"||!svgRef.current||!point)return;
+    if(cameraMode!=="follow"||!point)return;
     followCameraTargetRef.current=followTrackViewBox(fitViewBox,point,{
       zoom:followZoom,
       minWidth:88,
       minHeight:64,
       lookAheadRatio:.10,
     });
-    if(followCameraFrameRef.current)return;
-    const tick=(now)=>{
-      if(cameraMode!=="follow"||!svgRef.current){
-        followCameraFrameRef.current=null;
-        followCameraTimeRef.current=null;
-        return;
-      }
-      const target=followCameraTargetRef.current;
-      if(!target){
-        followCameraFrameRef.current=null;
-        followCameraTimeRef.current=null;
-        return;
-      }
-      const previous=followCameraTimeRef.current??now;
-      const delta=Math.max(1,Math.min(50,now-previous));
-      followCameraTimeRef.current=now;
-      const current=followViewBoxRef.current||target;
-      const box=dampTrackViewBox(current,target,delta,{timeConstantMs:82,snap:.02});
-      const settled=box.every((value,index)=>Math.abs(value-target[index])<0.001);
-      followViewBoxRef.current=box;
-      const viewBoxText=box.join(" ");
-      svgRef.current.setAttribute("viewBox",viewBoxText);
-      worldSvgRef.current?.setAttribute("viewBox",viewBoxText);
-      if(settled){
-        followCameraFrameRef.current=null;
-        followCameraTimeRef.current=null;
-      }else{
-        followCameraFrameRef.current=requestAnimationFrame(tick);
-      }
-    };
-    followCameraFrameRef.current=requestAnimationFrame(tick);
+    if(!followViewBoxRef.current)followViewBoxRef.current=followCameraTargetRef.current;
   };
+
+  useEffect(()=>{
+    if(cameraMode!=="follow")return undefined;
+    let frame=null;
+    followCameraTimeRef.current=null;
+    const tick=(now)=>{
+      const target=followCameraTargetRef.current;
+      if(svgRef.current&&target){
+        const previous=followCameraTimeRef.current??now;
+        const delta=Math.max(1,Math.min(50,now-previous));
+        followCameraTimeRef.current=now;
+        const current=followViewBoxRef.current||target;
+        const box=dampTrackViewBox(current,target,delta,{timeConstantMs:96,snap:.008});
+        followViewBoxRef.current=box;
+        const text=box.join(" ");
+        svgRef.current.setAttribute("viewBox",text);
+        worldSvgRef.current?.setAttribute("viewBox",text);
+      }
+      frame=requestAnimationFrame(tick);
+      followCameraFrameRef.current=frame;
+    };
+    frame=requestAnimationFrame(tick);
+    followCameraFrameRef.current=frame;
+    return ()=>{
+      if(frame)cancelAnimationFrame(frame);
+      if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);
+      followCameraFrameRef.current=null;
+      followCameraTimeRef.current=null;
+    };
+  },[cameraMode]);
+
   useEffect(()=>{
     followViewBoxRef.current=null;
     followCameraTargetRef.current=null;
     followCameraTimeRef.current=null;
-    if(followCameraFrameRef.current){
-      cancelAnimationFrame(followCameraFrameRef.current);
-      followCameraFrameRef.current=null;
-    }
-  },[resolvedSelectedId,cameraMode]);
+  },[resolvedSelectedId]);
+
   useEffect(()=>()=>{if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);},[]);
   const svgPointFromEvent=(event)=>{
     const svg=svgRef.current;
@@ -966,7 +973,8 @@ export default function Track2DView({
     const message=String(event?.display_text||event?.message||"").toLowerCase();
     return type==="incident"||type==="race_control"||control.includes("YELLOW")||control==="RED_FLAG"||/dnf|retir|collision|crash/.test(message);
   }).slice(0,8);
-  const raceCars=activeRows
+  const activeRowByDriver=new Map(activeRows.map((row)=>[String(row?.driver_id||""),row]));
+  const raceCarsLegacy=activeRows
     .map((row,index)=>({row,index}))
     .sort((a,b)=>{
       const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
@@ -990,6 +998,70 @@ export default function Track2DView({
         progress:Number(row?.visual_track_progress)||0,
         pitLaneProgress:Number.isFinite(Number(row?.visual_pit_lane_progress))?Number(row.visual_pit_lane_progress):0,
         pitLaneMix:Math.max(0,Math.min(1,Number(row?.visual_pit_lane_mix)||0)),
+        laneOffset:raceMarkerLaneOffset(index,{
+          cameraMode:cameraMode==="fit"?"fit":"follow",
+          zoom:targetCameraZoom,
+          closeBattle,
+          selected,
+        }),
+        color:palette.primary,
+        secondary:palette.secondary,
+        label:shortDriverName(drivers,did),
+        mine:tid===String(playerTeamId||""),
+        selected,
+        retired:Boolean(row?.retired),
+        title:`P${row?.position??index+1} · ${driverName(drivers,did)} · ${teamName(teams,tid)}`,
+        onSelect:()=>selectDriver(did),
+      }];
+    });
+
+  const raceCarsV3=authoritativeRows
+    .map((row,index)=>({row,index}))
+    .sort((a,b)=>{
+      const aSelected=String(a.row?.driver_id||"")===resolvedSelectedId?1:0;
+      const bSelected=String(b.row?.driver_id||"")===resolvedSelectedId?1:0;
+      return aSelected-bSelected;
+    })
+    .flatMap(({row,index})=>{
+      const did=String(row?.driver_id||"");
+      const tid=String(row?.team_id||"");
+      const selected=did===resolvedSelectedId;
+      if(!retiredCarVisibleOnTrack(row,{currentLap,currentSector,currentControl}))return [];
+      const pit=visualPitLaneState(row,{
+        hasPitLane:hasValidatedPitLane,
+        pitEntryProgress:intelligence?.pit_entry_progress,
+        pitExitProgress:intelligence?.pit_exit_progress,
+      });
+      const baseWorld=authoritativeRaceWorldProgress(row,{
+        currentLap,
+        currentSector,
+        referenceLapMs,
+        index,
+      });
+      const targetWorldProgress=pit.track_anchor_progress==null
+        ?baseWorld
+        :Number(pit.track_anchor_progress);
+      const previousGap=Number(row?.interval_ms);
+      const nextGap=Number(authoritativeRows[index+1]?.interval_ms);
+      const closeBattle=(
+        (Number.isFinite(previousGap)&&previousGap>=0&&previousGap<1600)
+        ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
+      );
+      const palette=markerPalette(teamBrands,tid,year);
+      const visualSeed=Number(activeRowByDriver.get(did)?.visual_world_progress);
+      return [{
+        id:did||String(index),
+        initialWorldProgress:Number.isFinite(visualSeed)?visualSeed:targetWorldProgress,
+        targetWorldProgress,
+        motionDurationMs:driverVisualMotionDurationMs(row,{
+          currentSector:Math.max(1,Number(currentSector)||1),
+          playbackSpeed,
+          globalSectorMs:playbackBaseSectorMs,
+          currentControl,
+        }),
+        targetPitLaneProgress:Number.isFinite(Number(pit.pit_lane_progress))?Number(pit.pit_lane_progress):0,
+        targetPitLaneMix:Math.max(0,Math.min(1,Number(pit.pit_lane_mix)||0)),
+        stopped:Boolean(pit.stopped||row?.retired||String(currentControl||"").toUpperCase()==="RED_FLAG"),
         laneOffset:raceMarkerLaneOffset(index,{
           cameraMode:cameraMode==="fit"?"fit":"follow",
           zoom:targetCameraZoom,
@@ -1188,20 +1260,34 @@ export default function Track2DView({
               }):null}
             </>;
           })()}
-          <RaceCarsLayer
+          {v3MotionActive?<RaceCarsLayerV3
             geometry={displayGeometry}
-            cars={raceCars}
+            racingLine={racingLineV3}
+            cars={raceCarsV3}
             markerScale={markerScale}
             playbackRunning={playbackRunning}
             onSelectedPoint={followSelectedVisualPoint}
             lod={trackLod}
-          />
+          />:<RaceCarsLayer
+            geometry={displayGeometry}
+            cars={raceCarsLegacy}
+            markerScale={markerScale}
+            playbackRunning={playbackRunning}
+            onSelectedPoint={followSelectedVisualPoint}
+            lod={trackLod}
+          />}
 
         </svg>:null}
         <TrackMiniMap geometry={miniMapGeometry} rows={activeRows} teamBrands={teamBrands} year={year} currentControl={currentControl}/>
 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05080d]/85 to-transparent"/>
         <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-1.5">
+          {v3MotionAvailable?<button
+            type="button"
+            title="Toggle continuous V3 motion / legacy Track 2.5 motion"
+            onClick={()=>{setMotionEngine((value)=>value==="v3"?"legacy":"v3");resetTrackCamera();}}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[9px] font-semibold shadow-lg backdrop-blur ${v3MotionActive?"border-emerald-400/30 bg-emerald-500/15 text-emerald-200":"border-white/15 bg-[#0a0f16]/90 text-slate-400"}`}
+          >{v3MotionActive?"V3 Motion":"Legacy Motion"}</button>:null}
           {proceduralEnvironmentActive?<button
             type="button"
             title="T · Switch full 2D / schematic view"
