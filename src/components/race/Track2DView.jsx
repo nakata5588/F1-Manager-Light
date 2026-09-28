@@ -21,6 +21,9 @@ import {
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, raceMarkerScaleForCamera, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
+import { openPolylineHeadingDegrees, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
+import { panTrackViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
+import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, createVisualRaceTimeline, raceVisualSnapshotKey, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 
 function scalar(value){
@@ -464,6 +467,11 @@ function AnimatedMarker({
 
   if(!point)return null;
 
+  const trackHeading=trackHeadingDegrees(geometry,display);
+  const pitHeading=openPolylineHeadingDegrees(geometry?.pit_lane_points,pitDisplay.progress);
+  const headingDelta=((pitHeading-trackHeading+540)%360)-180;
+  const heading=trackHeading+(headingDelta*Math.max(0,Math.min(1,pitDisplay.mix)));
+
   const scale=Math.max(0.08,Math.min(1.25,Number(markerScale)||1));
   const radius=(selected?11.5:mine?9.5:8.5)*scale;
   const textSize=(selected?6.9:mine?6.2:5.8)*scale;
@@ -473,6 +481,7 @@ function AnimatedMarker({
   return <g
     role="button"
     tabIndex="0"
+    data-track-interactive="true"
     aria-label={title}
     className="cursor-pointer outline-none"
     onClick={onSelect}
@@ -488,37 +497,30 @@ function AnimatedMarker({
       />
       <animate attributeName="opacity" values=".62;.18;.62" dur="1.15s" repeatCount="indefinite"/>
     </circle>:null}
-    <circle
-      cx={point.x}
-      cy={point.y}
-      r={radius+outerGap}
-      fill="#020617"
-      stroke={selected?"#f8fafc":secondaryColor}
-      strokeWidth={(selected?2.1:mine?1.8:1.4)*scale}
-      opacity={retired?0.78:1}
-    />
-    <circle
-      cx={point.x}
-      cy={point.y}
-      r={radius}
-      fill={retired?"#7f1d1d":color}
-      stroke="rgba(2,6,23,.72)"
-      strokeWidth={0.85*scale}
-      opacity={retired?0.78:1}
-    />
-    <text
-      x={point.x}
-      y={point.y+textSize*.34}
-      textAnchor="middle"
-      fontSize={textSize}
-      fontWeight="900"
-      fill="#fff"
-      stroke="#020617"
-      strokeWidth={0.5*scale}
-      paintOrder="stroke"
-    >{label}</text>
+    <g transform={`translate(${point.x} ${point.y}) rotate(${heading}) scale(${scale})`} opacity={retired?0.62:1}>
+      <ellipse cx="-1.5" cy="2.2" rx="13.8" ry="5.2" fill="#020617" opacity=".35"/>
+      <rect x="-8.5" y="-7.2" width="5.4" height="4.2" rx="1" fill="#05070a"/>
+      <rect x="-8.5" y="3" width="5.4" height="4.2" rx="1" fill="#05070a"/>
+      <rect x="5.1" y="-6.6" width="5.2" height="3.8" rx="1" fill="#05070a"/>
+      <rect x="5.1" y="2.8" width="5.2" height="3.8" rx="1" fill="#05070a"/>
+      <rect x="-12" y="-5.6" width="3.4" height="11.2" rx=".7" fill={secondaryColor} stroke="#020617" strokeWidth=".8"/>
+      <path
+        d="M -9 -3.9 L -5.3 -5.1 L 2.8 -4.3 L 7.4 -2.5 L 13.8 -1.4 L 16 0 L 13.8 1.4 L 7.4 2.5 L 2.8 4.3 L -5.3 5.1 L -9 3.9 Z"
+        fill={retired?"#7f1d1d":color}
+        stroke={selected?"#f8fafc":"#0b0f16"}
+        strokeWidth={selected?1.6:1.05}
+      />
+      <path d="M -6.8 -2.8 L -1.5 -3.3 L 2.6 -2.4 L 2.6 2.4 L -1.5 3.3 L -6.8 2.8 Z" fill={secondaryColor} opacity=".88"/>
+      <ellipse cx="1.1" cy="0" rx="2.8" ry="2.25" fill="#111827" stroke="#cbd5e1" strokeWidth=".65"/>
+      <path d="M 7.6 -1.1 L 14.1 -.55 L 14.1 .55 L 7.6 1.1 Z" fill={secondaryColor} opacity=".9"/>
+      <line x1="-10.4" y1="-4.8" x2="-10.4" y2="4.8" stroke="#020617" strokeWidth=".8"/>
+    </g>
+    <g transform={`translate(${point.x} ${point.y}) scale(${scale})`} pointerEvents="none">
+      <rect x="-10.5" y="-15.5" width="21" height="7.5" rx="3.7" fill="#020617" stroke={selected?"#f8fafc":mine?"#fbbf24":"#475569"} strokeWidth="1" opacity=".94"/>
+      <text x="0" y="-10.2" textAnchor="middle" fontSize="5.7" fontWeight="900" fill="#fff">{label}</text>
+    </g>
     {retired?(()=>{
-      const arm=4.2*scale;
+      const arm=4.8*scale;
       return <path d={`M ${point.x-arm} ${point.y-arm} L ${point.x+arm} ${point.y+arm} M ${point.x+arm} ${point.y-arm} L ${point.x-arm} ${point.y+arm}`} stroke="#fff" strokeWidth={1.6*scale}/>;
     })():null}
   </g>;
@@ -673,6 +675,10 @@ export default function Track2DView({
   const geometry=resolved.geometry;
   const environmentAssetActive=Boolean(environment?.asset&&environment?.runtime_mode!=="legacy_vector_fallback");
   const proceduralEnvironmentActive=Boolean(environment?.runtime_mode==="f1track_procedural"&&environment?.procedural_environment);
+  const [trackRenderMode,setTrackRenderMode]=useState("full");
+  const fullTrackSceneActive=proceduralEnvironmentActive&&trackRenderMode==="full";
+  const rawWetness=Number(trackState?.wetness??trackState?.track_wetness??trackState?.track?.end_wetness??trackState?.track?.wetness??0);
+  const sceneWetness=Number.isFinite(rawWetness)?Math.max(0,Math.min(1,rawWetness>1?rawWetness/100:rawWetness)):0;
   const calibratedGeometry=useMemo(()=>trackPresentationGeometry(geometry,layout),[geometry,layout]);
   const displayGeometry=useMemo(
     ()=>(environmentAssetActive||proceduralEnvironmentActive)?calibratedGeometry:orientTrackGeometry(calibratedGeometry),
@@ -726,16 +732,21 @@ export default function Track2DView({
   const activeRows=visualFrame.rows;
   const [cameraMode,setCameraMode]=useState("fit");
   const [followZoom,setFollowZoom]=useState(5.25);
+  const [freeViewBox,setFreeViewBox]=useState(null);
   const [showTrackIntel,setShowTrackIntel]=useState(true);
   const svgRef=useRef(null);
   const followViewBoxRef=useRef(null);
   const followCameraTargetRef=useRef(null);
   const followCameraFrameRef=useRef(null);
+  const panGestureRef=useRef(null);
   const markerScale=raceMarkerScaleForCamera(cameraMode,followZoom);
 
   useEffect(()=>{
     followViewBoxRef.current=null;
+    panGestureRef.current=null;
+    setFreeViewBox(null);
     setCameraMode("fit");
+    setTrackRenderMode("full");
   },[trackId,year]);
 
   const resolvedSelectedId=String(selectedDriverId||"");
@@ -764,7 +775,9 @@ export default function Track2DView({
     :fittedViewBox;
   const renderedViewBox=cameraMode==="follow"
     ?(followViewBoxRef.current||snapshotFocusViewBox)
-    :fitViewBox;
+    :cameraMode==="free"&&freeViewBox
+      ?freeViewBox
+      :fitViewBox;
   const selectDriver=(driverId)=>{
     followViewBoxRef.current=null;
     setCameraMode("follow");
@@ -807,6 +820,93 @@ export default function Track2DView({
     }
   },[resolvedSelectedId,cameraMode,followZoom]);
   useEffect(()=>()=>{if(followCameraFrameRef.current)cancelAnimationFrame(followCameraFrameRef.current);},[]);
+  const svgPointFromEvent=(event)=>{
+    const svg=svgRef.current;
+    if(!svg)return null;
+    const matrix=svg.getScreenCTM?.();
+    if(!matrix)return null;
+    const point=svg.createSVGPoint();
+    point.x=Number(event.clientX);
+    point.y=Number(event.clientY);
+    const transformed=point.matrixTransform(matrix.inverse());
+    return {x:transformed.x,y:transformed.y};
+  };
+  const stopFollowCamera=()=>{
+    followViewBoxRef.current=null;
+    followCameraTargetRef.current=null;
+    if(followCameraFrameRef.current){
+      cancelAnimationFrame(followCameraFrameRef.current);
+      followCameraFrameRef.current=null;
+    }
+  };
+  const handleTrackWheel=(event)=>{
+    if(!svgRef.current)return;
+    event.preventDefault();
+    const anchor=svgPointFromEvent(event);
+    if(!anchor)return;
+    const current=cameraMode==="follow"
+      ?(followViewBoxRef.current||snapshotFocusViewBox)
+      :cameraMode==="free"&&freeViewBox
+        ?freeViewBox
+        :fitViewBox;
+    const factor=event.deltaY<0?0.82:1.22;
+    stopFollowCamera();
+    setCameraMode("free");
+    setFreeViewBox(zoomTrackViewBox(current,fitViewBox,{
+      x:anchor.x,
+      y:anchor.y,
+      factor,
+      minWidth:Math.max(72,fitViewBox[2]/13),
+      minHeight:Math.max(48,fitViewBox[3]/13),
+    }));
+  };
+  const handleTrackPointerDown=(event)=>{
+    if(event.button!==0||!svgRef.current)return;
+    if(event.target?.closest?.('[data-track-interactive="true"]'))return;
+    const current=cameraMode==="follow"
+      ?(followViewBoxRef.current||snapshotFocusViewBox)
+      :cameraMode==="free"&&freeViewBox
+        ?freeViewBox
+        :fitViewBox;
+    panGestureRef.current={clientX:event.clientX,clientY:event.clientY,viewBox:[...current]};
+    svgRef.current.setPointerCapture?.(event.pointerId);
+  };
+  const handleTrackPointerMove=(event)=>{
+    const gesture=panGestureRef.current;
+    if(!gesture||!svgRef.current)return;
+    const rect=svgRef.current.getBoundingClientRect();
+    if(rect.width<=0||rect.height<=0)return;
+    const dx=-(event.clientX-gesture.clientX)*(gesture.viewBox[2]/rect.width);
+    const dy=-(event.clientY-gesture.clientY)*(gesture.viewBox[3]/rect.height);
+    stopFollowCamera();
+    setCameraMode("free");
+    setFreeViewBox(panTrackViewBox(gesture.viewBox,fitViewBox,dx,dy));
+  };
+  const handleTrackPointerUp=(event)=>{
+    panGestureRef.current=null;
+    svgRef.current?.releasePointerCapture?.(event.pointerId);
+  };
+  const resetTrackCamera=()=>{
+    stopFollowCamera();
+    panGestureRef.current=null;
+    setFreeViewBox(null);
+    setCameraMode("fit");
+  };
+
+  useEffect(()=>{
+    const handleKeyDown=(event)=>{
+      if(event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey)return;
+      const tag=String(event.target?.tagName||"").toLowerCase();
+      if(["input","textarea","select"].includes(tag)||event.target?.isContentEditable)return;
+      if(String(event.key||"").toLowerCase()==="t"){
+        setTrackRenderMode((mode)=>mode==="full"?"schematic":"full");
+        resetTrackCamera();
+      }
+    };
+    window.addEventListener("keydown",handleKeyDown);
+    return ()=>window.removeEventListener("keydown",handleKeyDown);
+  },[]);
+
   const trackIntelEvents=(events||[]).filter((event)=>{
     const progress=raceEventTrackProgress(event,intelligence);
     if(progress==null)return false;
@@ -842,19 +942,19 @@ export default function Track2DView({
 
     <div className={`grid ${orderPanelClass}`}>
       <div className="relative order-1 min-h-[520px] overflow-hidden bg-[radial-gradient(circle_at_center,rgba(51,65,85,.16),transparent_64%)] md:min-h-[570px] xl:order-2 xl:min-h-[620px] 2xl:min-h-[680px]">
-        {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full p-1 md:p-2" viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
+        {displayGeometry?<svg ref={svgRef} className="absolute inset-0 h-full w-full touch-none p-1 md:p-2" onWheel={handleTrackWheel} onPointerDown={handleTrackPointerDown} onPointerMove={handleTrackPointerMove} onPointerUp={handleTrackPointerUp} onPointerCancel={handleTrackPointerUp} viewBox={renderedViewBox.join(" ")} preserveAspectRatio={cameraMode==="follow"?"xMidYMid slice":"xMidYMid meet"} aria-label={`${layout.label} circuit and live car positions`}>
           <defs>
             <pattern id="track-grass-grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M 0 28 L 28 0 M -7 7 L 7 -7 M 21 35 L 35 21" stroke="#9cc36d" strokeWidth="2" opacity=".28"/></pattern>
             <pattern id="track-water" width="36" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 Q9 2 18 8 T36 8" fill="none" stroke="#71d5e7" strokeWidth="2" opacity=".6"/></pattern>
           </defs>
-          {proceduralEnvironmentActive?<ProceduralTrackEnvironment environment={environment.procedural_environment} viewBox={environmentViewBox}/>:null}
+          {fullTrackSceneActive?<TrackSceneRenderer geometry={displayGeometry} environment={environment.procedural_environment} style={environment.race_view_style} viewBox={environmentViewBox} wetness={sceneWetness}/>:null}
           {environmentAssetActive?<image href={environment.asset} x={environmentViewBox[0]} y={environmentViewBox[1]} width={environmentViewBox[2]} height={environmentViewBox[3]} preserveAspectRatio="none" opacity="1" pointerEvents="none"/>:null}
           {(()=>{
             const closed=[...displayGeometry.points,displayGeometry.points[0]];
             const polyline=closed.map((point)=>point.join(",")).join(" ");
             return <>
               {historicalEnvironment
-                ?(!environmentContainsTrackSurface?<>
+                ?(!environmentContainsTrackSurface&&!fullTrackSceneActive?<>
                   <polyline points={polyline} fill="none" stroke="#020617" strokeWidth={environment?.race_view_style?.outer_shadow_width||45} strokeLinejoin="round" strokeLinecap="round" opacity=".44"/>
                   <polyline points={polyline} fill="none" stroke={environment?.race_view_style?.kerb_white||"#f8fafc"} strokeWidth={environment?.race_view_style?.kerb_width||39} strokeLinejoin="round" strokeLinecap="round" opacity=".98"/>
                   <polyline points={polyline} fill="none" stroke={environment?.race_view_style?.kerb_red||"#ef4444"} strokeWidth={environment?.race_view_style?.kerb_width||39} strokeDasharray="18 16" strokeLinejoin="round" strokeLinecap="butt" opacity=".98"/>
@@ -893,7 +993,7 @@ export default function Track2DView({
                 />;
               })():null}
               {!historicalEnvironment?<polyline points={polyline} fill="none" stroke="#475569" strokeWidth="2.2" strokeDasharray="8 8" strokeLinejoin="round" strokeLinecap="round" opacity=".72"/>:null}
-              {historicalEnvironment&&!environmentContainsTrackSurface&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<g>
+              {historicalEnvironment&&!environmentContainsTrackSurface&&!fullTrackSceneActive&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<g>
                 <polyline
                   points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                   fill="none"
@@ -1045,6 +1145,12 @@ export default function Track2DView({
 
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05080d]/85 to-transparent"/>
         <div className="absolute right-3 top-3 z-30 flex flex-col items-end gap-1.5">
+          {proceduralEnvironmentActive?<button
+            type="button"
+            title="T · Switch full 2D / schematic view"
+            onClick={()=>{setTrackRenderMode((mode)=>mode==="full"?"schematic":"full");resetTrackCamera();}}
+            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
+          ><MapIcon className="h-3.5 w-3.5"/>{trackRenderMode==="full"?"2D Scene":"Schematic"} · T</button>:null}
           <button
             type="button"
             onClick={()=>setShowTrackIntel((value)=>!value)}
@@ -1074,7 +1180,14 @@ export default function Track2DView({
             </div>
             <button
               type="button"
-              onClick={()=>{followViewBoxRef.current=null;setCameraMode("fit");}}
+              onClick={resetTrackCamera}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
+            ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>
+          </>:cameraMode==="free"?<>
+            <div className="rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur">Wheel zoom · drag pan</div>
+            <button
+              type="button"
+              onClick={resetTrackCamera}
               className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#0a0f16]/90 px-2.5 py-1.5 text-[9px] font-semibold text-slate-300 shadow-lg backdrop-blur hover:bg-white/[0.10]"
             ><Minimize2 className="h-3.5 w-3.5"/>Full track</button>
           </>:null}
