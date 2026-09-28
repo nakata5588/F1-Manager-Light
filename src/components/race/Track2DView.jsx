@@ -971,6 +971,7 @@ export default function Track2DView({
     const message=String(event?.display_text||event?.message||"").toLowerCase();
     return type==="incident"||type==="race_control"||control.includes("YELLOW")||control==="RED_FLAG"||/dnf|retir|collision|crash/.test(message);
   }).slice(0,8);
+  const activeRowByDriver=new Map(activeRows.map((row)=>[String(row?.driver_id||""),row]));
   const raceCarsLegacy=activeRows
     .map((row,index)=>({row,index}))
     .sort((a,b)=>{
@@ -1045,8 +1046,10 @@ export default function Track2DView({
         ||(Number.isFinite(nextGap)&&nextGap>=0&&nextGap<1600)
       );
       const palette=markerPalette(teamBrands,tid,year);
+      const visualSeed=Number(activeRowByDriver.get(did)?.visual_world_progress);
       return [{
         id:did||String(index),
+        initialWorldProgress:Number.isFinite(visualSeed)?visualSeed:targetWorldProgress,
         targetWorldProgress,
         motionDurationMs:driverVisualMotionDurationMs(row,{
           currentSector:Math.max(1,Number(currentSector)||1),
