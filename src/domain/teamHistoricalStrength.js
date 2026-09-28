@@ -430,3 +430,15 @@ export function materializeHistoricalTeamStrengths({
     .filter(Boolean)
     .sort((a,b)=>b.overall-a.overall||a.team_id.localeCompare(b.team_id));
 }
+
+
+export function teamHistoricalStrengthLabel(value){
+  if(value===null||value===undefined||value==="")return "Unknown";
+  const score=Number(value);
+  if(!Number.isFinite(score))return "Unknown";
+  if(score>=90)return "Elite";
+  if(score>=75)return "Strong";
+  if(score>=60)return "Established";
+  if(score>=45)return "Developing";
+  return "Emerging";
+}

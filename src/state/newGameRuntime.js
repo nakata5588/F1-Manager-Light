@@ -17,7 +17,7 @@ export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
   "dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides",
   "dbPenaltiesRules","dbFinancialRules","dbBoardGoals","dbAgendaBlocks",
   "dbLogosIndex","dbAIDifficulty","dbContractRules","dbYouthIntakeRules",
-  "dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbCoreTracks",
+  "dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbTeamLineageHistory","dbCoreTracks",
   "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
 
   // Dataset discovery / selected Season Pack metadata.
@@ -25,7 +25,7 @@ export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
 
   // Historical starting conditions materialized for the selected season.
   "calendar","teams","drivers","driverRatings","driverCareer","driverHistory",
-  "driverWorldEntry","driverFeederPlacement","driverOpeningState","staffRatings","staffCore","staffContracts","teamBrands",
+  "driverWorldEntry","driverFeederPlacement","driverOpeningState","staffRatings","staffCore","staffContracts","teamBrands","teamHistoricalStrength",
   "teamEngines","contracts","sponsorsContracts","rules","qualifyingRules",
   "eraSafety","accidentModel","facilities","carStats","tyres","pointsSystem",
   "penaltiesRules","financialRules","agendaBlocks","coreTracks",

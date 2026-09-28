@@ -5,6 +5,7 @@ import { teamReputation, teamReputationLabel } from "../domain/teamReputation.js
 import { contractActiveForYear } from "../domain/liveContracts.js";
 import { canonicalStaffRole, resolveStaffId, staffRoleLabel } from "../domain/staffRoles.js";
 import { canonicalTeamId, canonicalTeamName } from "../domain/teamIdentity.js";
+import { materializeHistoricalTeamStrengths, teamHistoricalStrengthLabel } from "../domain/teamHistoricalStrength.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -40,6 +41,47 @@ export default function Teams(){
   const career=gs?.dbDriverCareer||[];
   const achievements=Array.isArray(gs?.dbAchievements)?gs.dbAchievements:(gs?.dbAchievements?.list||[]);
   const teamEngines=Array.isArray(gs?.dbTeamEngines)?gs.dbTeamEngines:[];
+  const driverHistory=Array.isArray(gs?.dbDriverHistory)?gs.dbDriverHistory:[];
+  const historicalChampionships=gs?.dbHistoricalChampionships||{drivers:[],constructors:[]};
+  const lineageRows=Array.isArray(gs?.dbTeamLineageHistory)?gs.dbTeamLineageHistory:[];
+  const historicalBoundary=gs?.careerMeta?.started
+    ?Number(gs?.careerMeta?.sourceSeason)
+    :currentYear;
+
+  const historicalStrengthById=useMemo(()=>{
+    const y=Number(year);
+    if(!Number.isInteger(y)||!Number.isInteger(historicalBoundary)||y>historicalBoundary)return new Map();
+
+    const direct=(Array.isArray(gs?.teamHistoricalStrength)?gs.teamHistoricalStrength:[])
+      .filter((row)=>Number(row?.year)===y);
+    if(direct.length)return new Map(direct.map((row)=>[teamIdOf(row),row]));
+
+    const ids=[...new Set(
+      teamSeasons
+        .filter((row)=>Number(pick(row,["year","season_year"],NaN))===y)
+        .map(teamIdOf)
+        .filter(Boolean)
+    )];
+    if(!ids.length)return new Map();
+
+    const materialized=materializeHistoricalTeamStrengths({
+      teamIds:ids,
+      year:y,
+      teamSeasons,
+      driverHistory,
+      historicalChampionships,
+      lineageRows,
+    });
+    return new Map(materialized.map((row)=>[teamIdOf(row),row]));
+  },[
+    year,
+    historicalBoundary,
+    gs?.teamHistoricalStrength,
+    teamSeasons,
+    driverHistory,
+    historicalChampionships,
+    lineageRows,
+  ]);
 
   const rows=useMemo(()=>{
     const y=Number(year);
@@ -162,6 +204,7 @@ export default function Teams(){
         staffRoles,
         staffAssignments,
         reputation:y===currentYear?teamReputation(gs,id):null,
+        historicalStrength:historicalStrengthById.get(id)||null,
         // Estimated constructor-family reconciliation is useful for
         // participation, but is not safe enough to display as the Team's car.
         // A single exact technical identity is safe to show. Multiple values
@@ -177,7 +220,7 @@ export default function Teams(){
         estimatedIdentity:hasSeasonAuthority&&estimatedRows>0&&exactEntrantRows===0,
       };
     }).sort((a,b)=>a.name.localeCompare(b.name));
-  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,teamEngines,year,currentYear,gs]);
+  },[teams,contracts,staffContracts,brands,career,achievements,teamSeasons,teamEngines,year,currentYear,gs,historicalStrengthById]);
 
   const filtered=rows.filter(r=>!q||[`${r.name}`,`${r.country}`,`${r.principal}`].some(v=>v.toLowerCase().includes(q.toLowerCase())));
 
@@ -197,7 +240,7 @@ export default function Teams(){
       <table className="min-w-full text-sm">
         <thead className="bg-white/[0.04] text-slate-400"><tr>
           <th className="px-4 py-3 text-left">Team / Entrant</th><th className="px-4 py-3 text-left">Constructor / Car</th><th className="px-4 py-3 text-left">Country / Base</th>
-          <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-left">Staff assignments</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
+          <th className="px-4 py-3 text-left">Principal / Owner</th><th className="px-4 py-3 text-left">Staff assignments</th><th className="px-4 py-3 text-right">Drivers</th><th className="px-4 py-3 text-right">Historical Strength</th><th className="px-4 py-3 text-right">Reputation</th><th className="px-4 py-3 text-right">Founded</th>
         </tr></thead>
         <tbody>{filtered.map(t=><tr key={t.id} className="border-t border-white/10 hover:bg-white/[0.04]">
           <td className="px-4 py-2">
@@ -226,6 +269,18 @@ export default function Teams(){
           </td>
           <td className="px-4 py-2 text-right" title={t.drivers==null&&t.estimatedIdentity?"Exact entrant roster not yet covered for this season":undefined}>{t.drivers??"—"}</td>
           <td className="px-4 py-2 text-right">
+            {t.historicalStrength?(
+              <div>
+                <div className={Number(t.historicalStrength.overall)>=75?"font-semibold text-emerald-300":Number(t.historicalStrength.overall)<45?"font-semibold text-rose-300":"font-medium text-slate-300"}>
+                  {Number(t.historicalStrength.overall).toFixed(1)} · {teamHistoricalStrengthLabel(t.historicalStrength.overall)}
+                </div>
+                <div className="mt-0.5 text-[10px] text-slate-500">
+                  S {Number(t.historicalStrength.structural_strength).toFixed(0)} · C {Number(t.historicalStrength.competitive_strength).toFixed(0)}
+                </div>
+              </div>
+            ):"—"}
+          </td>
+          <td className="px-4 py-2 text-right">
             {t.reputation!=null?(
               <span className={Number(t.reputation)>=72?"font-semibold text-emerald-300":Number(t.reputation)<48?"font-semibold text-rose-300":"font-medium text-slate-300"}>
                 {Math.round(Number(t.reputation))} · {teamReputationLabel(t.reputation)}
@@ -234,7 +289,7 @@ export default function Teams(){
           </td>
           <td className="px-4 py-2 text-right">{t.founded}</td>
         </tr>)}
-        {!filtered.length&&<tr><td colSpan={8} className="px-4 py-6 text-center text-slate-500">No teams found for {year}.</td></tr>}</tbody>
+        {!filtered.length&&<tr><td colSpan={9} className="px-4 py-6 text-center text-slate-500">No teams found for {year}.</td></tr>}</tbody>
       </table>
     </div>
   </div>;

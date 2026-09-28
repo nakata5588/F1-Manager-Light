@@ -27,6 +27,18 @@ test("Team Profile initializes display name before historical logo candidates", 
 });
 
 
+
+
+test("Team Profile renders the frozen historical foundation separately from live reputation", async()=>{
+  const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
+  assert.match(source,/Historical Foundation/);
+  assert.match(source,/Historical Strength/);
+  assert.match(source,/evidence_through_year/);
+  assert.match(source,/Organisational lineage/);
+  assert.match(source,/careerMeta\?\.sourceSeason/);
+  assert.match(source,/teamHistoricalStrength/);
+});
+
 test("Team Lotus historical duplicate resolves to canonical Lotus identity",()=>{
   assert.equal(canonicalTeamId("t_0040"),"t_0005");
   assert.equal(canonicalTeamId("legacy_constructor_lotus"),"t_0005");
