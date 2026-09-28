@@ -100,16 +100,35 @@ function aggregateRaceAchievements(teamIds,driverHistory=[],year){
   return {wins,podiums,starts};
 }
 
-function titleEvidence(teamIds,historicalChampionships,year){
+function championshipRowBelongsToTeamIds(row,teamIds,teamSeasons=[]){
+  const direct=teamIdOf(row);
+  if(teamIds.has(direct))return true;
+  const y=yearOf(row);
+  if(!Number.isFinite(y)||!direct)return false;
+
+  // historical_championships stores technical Constructor identity. Resolve
+  // it back through the Results-derived Team/Entrant season bridge before
+  // assigning sporting history to a managerial Team.
+  return rows(teamSeasons).some((season)=>{
+    if(Number(yearOf(season))!==Number(y)||!teamIds.has(teamIdOf(season)))return false;
+    const technicalIds=[
+      ...(Array.isArray(season?.exact_constructor_ids)?season.exact_constructor_ids:[]),
+      ...(Array.isArray(season?.constructor_ids)?season.constructor_ids:[]),
+    ].map(String);
+    return technicalIds.includes(String(direct));
+  });
+}
+
+function titleEvidence(teamIds,historicalChampionships,teamSeasons,year){
   const target=Number(year);
   const constructors=rows(historicalChampionships?.constructors).filter((row)=>
     Number(yearOf(row))<target&&
-    teamIds.has(teamIdOf(row))&&
+    championshipRowBelongsToTeamIds(row,teamIds,teamSeasons)&&
     Number(num(row?.position,999))===1
   );
   const drivers=rows(historicalChampionships?.drivers).filter((row)=>
     Number(yearOf(row))<target&&
-    teamIds.has(teamIdOf(row))&&
+    championshipRowBelongsToTeamIds(row,teamIds,teamSeasons)&&
     Number(num(row?.position,999))===1
   );
   return {
@@ -128,7 +147,7 @@ function constructorRankScore(position,fieldSize){
   return clamp(100*(field-pos)/(field-1));
 }
 
-function recentConstructorEvidence(teamIds,historicalChampionships,driverHistory,year,{window=5}={}){
+function recentConstructorEvidence(teamIds,historicalChampionships,driverHistory,teamSeasons,year,{window=5}={}){
   const target=Number(year);
   const start=Math.max(1950,target-Math.max(1,Number(window)||5));
   const constructorRows=rows(historicalChampionships?.constructors);
@@ -138,7 +157,7 @@ function recentConstructorEvidence(teamIds,historicalChampionships,driverHistory
   for(let y=target-1;y>=start;y-=1){
     const seasonConstructors=constructorRows.filter((row)=>Number(yearOf(row))===y);
     const own=seasonConstructors
-      .filter((row)=>teamIds.has(teamIdOf(row)))
+      .filter((row)=>championshipRowBelongsToTeamIds(row,teamIds,teamSeasons))
       .sort((a,b)=>num(a?.position,999)-num(b?.position,999))[0]||null;
 
     let score=null;
@@ -218,11 +237,12 @@ export function teamHistoricalStrength({
   const lineage=explicitLineageIds(id,lineageRows,target);
   const seasons=participationYears(lineage.ids,teamSeasons,driverHistory,target);
   const achievements=aggregateRaceAchievements(lineage.ids,driverHistory,target);
-  const titles=titleEvidence(lineage.ids,historicalChampionships,target);
+  const titles=titleEvidence(lineage.ids,historicalChampionships,teamSeasons,target);
   const recent=recentConstructorEvidence(
     lineage.ids,
     historicalChampionships,
     driverHistory,
+    teamSeasons,
     target
   );
 
