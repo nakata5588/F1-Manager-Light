@@ -26,6 +26,11 @@ import {
   historicalRaceCarModelOverridesForYear,
   historicalRaceCarModelTimelineForYear,
 } from "../src/domain/raceCarModels.js";
+import {
+  historicalRaceCarGeometry,
+  historicalRaceCarGeometryFamiliesForYear,
+  historicalRaceCarGeometryModelsForYear,
+} from "../src/domain/raceCarGeometry.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
   const fast={driver_id:"fast",sector_2_ms:29000};
@@ -580,4 +585,93 @@ test("Cars 4.1A feeds the round-specific model into the existing 1980 livery pro
   assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0006",round:2}).model,"009");
   assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0006",round:3}).model,"010");
   assert.equal(historicalRaceCarLivery({year:1980,teamId:"t_0009",round:11,driverName:"Alain Prost"}).model,"M30");
+});
+
+
+test("Cars 4.1B defines seven reusable 1980 geometry families",()=>{
+  const families=historicalRaceCarGeometryFamiliesForYear(1980);
+  assert.equal(families.length,7);
+  assert.equal(new Set(families.map((row)=>row.geometry_family)).size,7);
+  assert.deepEqual(
+    new Set(families.map((row)=>row.geometry_family)),
+    new Set([
+      "classic_wedge",
+      "narrow_wedge",
+      "long_venturi",
+      "turbo_long",
+      "wide_flat12",
+      "compact_transition",
+      "late_ground_effect",
+    ])
+  );
+});
+
+test("Cars 4.1B maps every historical 1980 model used by the game to geometry",()=>{
+  const rows=historicalRaceCarGeometryModelsForYear(1980);
+  assert.equal(rows.length,22);
+  assert.equal(new Set(rows.map((row)=>row.model)).size,22);
+  for(const row of rows){
+    assert.ok(row.geometry_family);
+    assert.ok(Number.isFinite(row.noseTipX));
+    assert.ok(Number.isFinite(row.frontAxleX));
+    assert.ok(Number.isFinite(row.rearAxleX));
+    assert.ok(row.frontAxleX>row.rearAxleX);
+  }
+});
+
+test("Cars 4.1B gives representative 1980 chassis recognisably different silhouettes",()=>{
+  const fw=historicalRaceCarGeometry({year:1980,model:"FW07B"});
+  const bt=historicalRaceCarGeometry({year:1980,model:"BT49"});
+  const lotus=historicalRaceCarGeometry({year:1980,model:"81"});
+  const renault=historicalRaceCarGeometry({year:1980,model:"RE20"});
+  const ferrari=historicalRaceCarGeometry({year:1980,model:"312T5"});
+  const tyrrell=historicalRaceCarGeometry({year:1980,model:"010"});
+  const mclaren=historicalRaceCarGeometry({year:1980,model:"M30"});
+
+  assert.equal(fw.geometry_family,"classic_wedge");
+  assert.equal(bt.geometry_family,"narrow_wedge");
+  assert.equal(lotus.geometry_family,"long_venturi");
+  assert.equal(renault.geometry_family,"turbo_long");
+  assert.equal(ferrari.geometry_family,"wide_flat12");
+  assert.equal(tyrrell.geometry_family,"compact_transition");
+  assert.equal(mclaren.geometry_family,"late_ground_effect");
+
+  assert.ok((renault.frontAxleX-renault.rearAxleX)>(fw.frontAxleX-fw.rearAxleX));
+  assert.ok(ferrari.sidepodRearHalfWidth>tyrrell.sidepodRearHalfWidth);
+  assert.ok(ferrari.frontWingHalfWidth>bt.frontWingHalfWidth);
+  assert.notEqual(fw.sidepodRearHalfWidth,bt.sidepodRearHalfWidth);
+});
+
+test("Cars 4.1B distinguishes chassis revisions without duplicating renderers",()=>{
+  const fw07=historicalRaceCarGeometry({year:1980,model:"FW07"});
+  const fw07b=historicalRaceCarGeometry({year:1980,model:"FW07B"});
+  const lotus81=historicalRaceCarGeometry({year:1980,model:"81"});
+  const lotus81b=historicalRaceCarGeometry({year:1980,model:"81B"});
+  const m29=historicalRaceCarGeometry({year:1980,model:"M29"});
+  const m30=historicalRaceCarGeometry({year:1980,model:"M30"});
+
+  assert.equal(fw07.geometry_family,fw07b.geometry_family);
+  assert.notEqual(fw07.sidepodRearHalfWidth,fw07b.sidepodRearHalfWidth);
+  assert.equal(lotus81.geometry_family,lotus81b.geometry_family);
+  assert.notEqual(lotus81.frontWingHalfWidth,lotus81b.frontWingHalfWidth);
+  assert.notEqual(m29.geometry_family,m30.geometry_family);
+});
+
+test("Cars 4.1B keeps geometry inside the current Race View visual envelope",()=>{
+  for(const row of historicalRaceCarGeometryModelsForYear(1980)){
+    assert.ok(row.noseTipX<=20.6);
+    assert.ok(row.rearWingX>=-19.6);
+    assert.ok(row.frontWingHalfWidth<=10.05);
+    assert.ok(row.rearWingHalfWidth<=10.1);
+    assert.ok(row.sidepodRearHalfWidth<=6.5);
+    assert.ok(row.frontTrackY<=8.65);
+    assert.ok(row.rearTrackY<=8.2);
+  }
+});
+
+test("Cars 4.1B resolves combined season labels safely and leaves other years untouched",()=>{
+  assert.equal(historicalRaceCarGeometry({year:1980,model:"FW07/FW07B"}).model,"FW07B");
+  assert.equal(historicalRaceCarGeometry({year:1980,model:"81/81B"}).model,"81");
+  assert.equal(historicalRaceCarGeometry({year:1980,model:"M29/M30"}).model,"M29");
+  assert.equal(historicalRaceCarGeometry({year:1981,model:"FW07B"}),null);
 });
