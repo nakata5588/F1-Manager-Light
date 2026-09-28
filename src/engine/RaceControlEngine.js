@@ -249,7 +249,8 @@ function mistakePropensityFor(gs,did){
   const result=driverMistakePropensity(rating,{
     performanceEntries:driverPerformanceEntries(gs,did),
   });
-  const value=Number(result?.value);
+  if(result?.value==null)return null;
+  const value=Number(result.value);
   return Number.isFinite(value)?clamp(value,0,100):null;
 }
 function repairableIncidentMultiplier(gs,row){
