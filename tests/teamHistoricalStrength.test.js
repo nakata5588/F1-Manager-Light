@@ -260,3 +260,26 @@ test("Historical Team Strength never counts a Constructors title before 1958",()
   assert.equal(strength.drivers_titles,1);
 });
 
+test("driver titles follow the champion's Results team, not a shared technical constructor",()=>{
+  const strength=teamHistoricalStrength({
+    teamId:"TEAM",
+    year:1980,
+    teamSeasons:[{
+      year:1979,
+      team_id:"TEAM",
+      exact_entrant_rows:2,
+      exact_constructor_ids:["SHARED"],
+      constructor_ids:["SHARED"],
+    }],
+    driverHistory:[
+      {year:1979,series_division:"F1",driver_id:"TEAM_DRIVER",team_id:"TEAM",starts:16,points:10},
+      {year:1979,series_division:"F1",driver_id:"CHAMP",team_id:"OTHER",starts:16,points:60,wins:5,podiums:8},
+    ],
+    historicalChampionships:{
+      constructors:[],
+      drivers:[{year:1979,driver_id:"CHAMP",constructor_id:"SHARED",position:1}],
+    },
+  });
+  assert.equal(strength.drivers_titles,0);
+});
+
