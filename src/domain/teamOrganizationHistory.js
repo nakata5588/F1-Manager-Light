@@ -212,14 +212,17 @@ export function organizationDriverChampionshipRowBelongsToSegments(
   // actually represented in Results. A technical Constructor can be shared
   // across entrants, so it is not sufficient evidence on its own.
   if(driverId){
-    const resultRows=rows(driverHistory).filter((historyRow)=>
-      f1HistoryRow(historyRow)&&
-      organizationYearOf(historyRow)===y&&
-      text(historyRow?.driver_id??historyRow?.person_id)===driverId
-    );
-    if(resultRows.length){
-      return resultRows.some((historyRow)=>organizationRowInSegments(historyRow,segments));
+    let foundResultRow=false;
+    for(const historyRow of rows(driverHistory)){
+      if(
+        !f1HistoryRow(historyRow)||
+        organizationYearOf(historyRow)!==y||
+        text(historyRow?.driver_id??historyRow?.person_id)!==driverId
+      )continue;
+      foundResultRow=true;
+      if(organizationRowInSegments(historyRow,segments))return true;
     }
+    if(foundResultRow)return false;
   }
 
   // Sparse/legacy caches may lack driver-season Results. In that case keep the
