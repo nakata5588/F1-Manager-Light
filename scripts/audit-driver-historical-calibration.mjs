@@ -8,6 +8,7 @@ const targets=[
   {year:2011,names:["Pastor Maldonado"]},
   {year:2020,names:["Kimi Raikkonen","Kimi Räikkönen","Antonio Giovinazzi"]},
 ];
+const profiles=JSON.parse(await fs.readFile(path.join(root,"public","data","driver_rating_profiles.json"),"utf8"));
 
 const norm=(value)=>String(value||"")
   .normalize("NFD")
@@ -31,6 +32,7 @@ for(const group of targets){
     const did=idOf(driver);
     const rating=ratings.find((row)=>idOf(row)===did)||null;
     const contract=contracts.find((row)=>idOf(row)===did)||null;
+    const profile=profiles.find((row)=>idOf(row)===did)||null;
     console.log(JSON.stringify({
       year:group.year,
       driver_id:did,
@@ -51,6 +53,12 @@ for(const group of targets){
       racecraft:rating?.racecraft??null,
       consistency:rating?.consistency??null,
       reputation:rating?.reputation??null,
+      profile_peak_ability:profile?.peak_ability??null,
+      profile_peak_pace:profile?.peak_pace??null,
+      profile_peak_qualifying:profile?.peak_qualifying??null,
+      profile_peak_racecraft:profile?.peak_racecraft??null,
+      profile_confidence:profile?.rating_confidence??profile?.profile_confidence??null,
+      profile_tier:profile?.tier??profile?.rating_tier??null,
     }));
   }
 }
