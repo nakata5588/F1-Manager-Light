@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   materializeHistoricalTeamStrengths,
   teamHistoricalStrength,
+  teamHistoricalStrengthLabel,
 } from "../src/domain/teamHistoricalStrength.js";
 
 const teamSeasons=[
@@ -205,4 +206,14 @@ test("recursive temporal lineage carries only the connected organisational chain
   assert.equal(strength.seasons_before_start,3);
   assert.equal(strength.historical_wins,6);
   assert.equal(strength.lineage_segments.some((segment)=>segment.team_id==="ANCIENT"),false);
+});
+
+
+test("historical strength labels use one shared UI scale",()=>{
+  assert.equal(teamHistoricalStrengthLabel(95),"Elite");
+  assert.equal(teamHistoricalStrengthLabel(80),"Strong");
+  assert.equal(teamHistoricalStrengthLabel(65),"Established");
+  assert.equal(teamHistoricalStrengthLabel(50),"Developing");
+  assert.equal(teamHistoricalStrengthLabel(25),"Emerging");
+  assert.equal(teamHistoricalStrengthLabel(null),"Unknown");
 });
