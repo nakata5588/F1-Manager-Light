@@ -1,7 +1,7 @@
 // src/race2/contracts/raceContracts.js
 // RW8.0A: stable, engine-agnostic contracts for the Race Weekend 2.0 boundary.
 
-export const RACE_WEEKEND_CONTRACT_VERSION=10;
+export const RACE_WEEKEND_CONTRACT_VERSION=11;
 
 export const RACE_WEEKEND_ENGINES=Object.freeze({
   LEGACY:"legacy",
@@ -37,8 +37,8 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
     "carId","driverId","teamId","gridPosition","gridStartOffsetM","lap","completedLaps","sector",
     "distanceAlongLapM","absoluteDistanceM","speedMs","speedKmh","accelerationMs2",
     "targetSpeedKmh","cornerSeverity","effectiveCornerSeverity","dynamicsLookaheadM",
-    "performance","lateralOffsetM","zoneId","zoneType","elapsedMs","finishTimeMs","status","tyre","fuelKg",
-    "engineTemperature","resources","components","damage","commands","pitState","traffic","battle","dnf",
+    "performance","reliability","lateralOffsetM","zoneId","zoneType","elapsedMs","finishTimeMs","status","tyre","fuelKg",
+    "engineTemperature","resources","components","damage","retirement","commands","pitState","traffic","battle","dnf",
   ]),
   RaceTyreState:Object.freeze([
     "tyre_id","supplier","compound","category","grip_index","wear_rate","warmup_time_s",

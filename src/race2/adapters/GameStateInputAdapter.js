@@ -5,6 +5,8 @@ import { conditionModifierBreakdown, raceDriverScore } from "../../domain/driver
 import { driverDerivedRating, driverMistakePropensity } from "../../domain/driverDerivedRatings.js";
 import { driverPerformanceEntries } from "../../domain/driverForm.js";
 import { tyresForTeam } from "../../domain/raceTyreModel.js";
+import { carReliabilityProfile } from "../../domain/carReliability.js";
+import { accidentConditionalRetirementChance, accidentIncidentChance, mechanicalRetirementChance } from "../../engine/RaceControlEngine.js";
 import { buildTrackModel } from "../track/TrackModel.js";
 import {
   RACE_WEEKEND_CONTRACT_VERSION,
@@ -110,6 +112,27 @@ function normalizedCars(gs,entries){
         wet_efficiency:finite(row?.wet_efficiency,null),
       }))
       .filter((row)=>row.tyre_id);
+    const incidentRow=entry.driverId?{driver:{driver_id:entry.driverId}}:null;
+    const reliabilityProfile=entry.driverId
+      ?carReliabilityProfile(gs,entry.teamId,entry.driverId,{carOverride:car})
+      :null;
+    const reliability=entry.driverId
+      ?{
+        profile:cloneRaceContractValue(reliabilityProfile),
+        mechanicalFailureChance:finite(
+          mechanicalRetirementChance(gs,incidentRow,{
+            teamIdOverride:entry.teamId,
+            reliabilityProfileOverride:reliabilityProfile,
+          }),
+          0
+        ),
+        accidentIncidentChance:finite(accidentIncidentChance(gs,incidentRow),0),
+        accidentConditionalRetirementChance:finite(
+          accidentConditionalRetirementChance(gs,incidentRow),
+          0
+        ),
+      }
+      :null;
     seen.add(entry.carId);
     cars.push({
       carId:entry.carId,
@@ -117,6 +140,7 @@ function normalizedCars(gs,entries){
       teamId:entry.teamId,
       kind:car?.kind??null,
       state:cloneRaceContractValue(car),
+      reliability:cloneRaceContractValue(reliability),
       resourceSetup:{
         strategy:cloneRaceContractValue(selection?{
           startTyreId:selection?.start_tyre_id??null,

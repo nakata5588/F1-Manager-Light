@@ -61,6 +61,16 @@ function driverRaceScore(car){
   return clamp(finite(driverPerformance(car)?.raceScore,70),0,100);
 }
 
+function damagePaceMultiplier(state,car,rawTargetSpeedKmh){
+  const paceLossS=Math.max(0,finite(car?.damage?.pace_loss_s_per_lap,0));
+  if(paceLossS<=0)return 1;
+  const lengthM=Math.max(1,finite(state?.track?.lengthM,5000));
+  const localTargetMs=Math.max(25,finite(rawTargetSpeedKmh,200)/3.6);
+  const estimatedAverageMs=Math.max(20,localTargetMs*0.62);
+  const estimatedLapS=Math.max(20,lengthM/estimatedAverageMs);
+  return clamp(estimatedLapS/(estimatedLapS+paceLossS),0.88,1);
+}
+
 export function raceTargetSpeedProfile(state,car){
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
   const distance=finite(car?.distanceAlongLapM,0);
@@ -90,9 +100,12 @@ export function raceTargetSpeedProfile(state,car){
     55,
     straightTarget*(1-effectiveSeverity*(1-cornerRetention))
   );
+  const damageMultiplier=damagePaceMultiplier(state,car,rawTargetSpeedKmh);
   const targetSpeedKmh=Math.max(
     45,
-    rawTargetSpeedKmh*finite(resourcePerformance?.paceMultiplier,1)
+    rawTargetSpeedKmh*
+      finite(resourcePerformance?.paceMultiplier,1)*
+      damageMultiplier
   );
 
   return {
@@ -100,6 +113,7 @@ export function raceTargetSpeedProfile(state,car){
     rawTargetSpeedKmh:round(rawTargetSpeedKmh,3),
     straightTargetKmh:round(straightTarget,3),
     resourcePaceMultiplier:round(resourcePerformance?.paceMultiplier,6),
+    damagePaceMultiplier:round(damageMultiplier,6),
     cornerSeverity:round(currentSeverity,4),
     effectiveCornerSeverity:round(effectiveSeverity,4),
     lookaheadM:round(lookaheadM,3),

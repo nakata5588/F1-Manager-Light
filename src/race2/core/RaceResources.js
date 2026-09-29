@@ -280,7 +280,12 @@ function updateEngineTemperature(state,previous,next,stepMs){
   const paceDelta=pace==="attack"?7:pace==="conserve"?-4:0;
   const cooling=clamp(speedKmh/350*9,0,9);
   const ambient=raceTrackTempC(state);
-  const target=88+power*0.09+paceDelta+(ambient-28)*0.10-cooling;
+  const coolingDamage=clamp(
+    finite(next?.damage?.cooling_damage_pct,previous?.damage?.cooling_damage_pct??0),
+    0,
+    100
+  );
+  const target=88+power*0.09+paceDelta+(ambient-28)*0.10-cooling+coolingDamage*0.12;
   const alpha=1-Math.exp(-dt/18);
   return clamp(current+(target-current)*alpha,55,135);
 }

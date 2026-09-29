@@ -6,6 +6,7 @@
 // RW8.7 adds canonical tyres, fuel and temperatures.
 // RW8.8 adds canonical pit-lane / pit-stop execution.
 // RW8.9 applies canonical race commands before the same physics step.
+// RW8.10 resolves canonical incidents, reliability failures, damage and DNF.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
@@ -16,6 +17,7 @@ import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { applyDueRaceCommands } from "./RaceCommands.js";
+import { resolveRaceIncidents } from "./RaceIncidents.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -209,11 +211,13 @@ export function stepRaceState(state){
     stepMs,
     bypassPairs:overtaking.bypassPairs,
   });
-  const cars=advanceRaceResources(workingState,spacedCars,{stepMs});
+  const incidents=resolveRaceIncidents(workingState,spacedCars,overtaking.events,{stepMs});
+  const cars=advanceRaceResources(workingState,incidents.cars,{stepMs});
   const rawEvents=[
     ...(commands.events||[]),
     ...(pits.events||[]),
     ...(overtaking.events||[]),
+    ...(incidents.events||[]),
   ];
   const generatedEvents=rawEvents.map((event,index)=>{
     const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;

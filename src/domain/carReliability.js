@@ -125,11 +125,13 @@ function componentRow(gs,car,slot){
   };
 }
 
-function physicalComponentProfile(gs,teamId,driverId){
+function physicalComponentProfile(gs,teamId,driverId,{carOverride=null}={}){
   const player=str(gs?.team?.team_id??gs?.team?.id);
   const isPlayer=str(teamId)===player;
   const sourceState=isPlayer?gs:aiTechnicalScopedState(gs,teamId);
   if(!sourceState)return null;
+
+  if(carOverride)return componentProfileForCar(sourceState,teamId,carOverride);
 
   if(driverId==null||driverId===""){
     const raceCars=(sourceState?.garage?.cars||[]).filter((car)=>car?.kind==="race");
@@ -170,9 +172,9 @@ function componentProfileForCar(gs,teamId,car){
   };
 }
 
-export function carReliabilityProfile(gs,teamId,driverId=null){
+export function carReliabilityProfile(gs,teamId,driverId=null,{carOverride=null}={}){
   const historical=historicalReliabilityBaseline(gs,teamId);
-  const physical=physicalComponentProfile(gs,teamId,driverId);
+  const physical=physicalComponentProfile(gs,teamId,driverId,{carOverride});
   const componentDelta=physical?.component_delta_pct||0;
   const reliabilityPct=clamp(historical.combined_pct+componentDelta,35,98.5);
   return {

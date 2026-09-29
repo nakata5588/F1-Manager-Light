@@ -9,6 +9,8 @@ import {
   normalizeRaceWeekendEngineVersion,
 } from "../src/race2/contracts/raceContracts.js";
 import { buildRaceWeekendInput } from "../src/race2/adapters/GameStateInputAdapter.js";
+import { mechanicalRetirementChance } from "../src/engine/RaceControlEngine.js";
+import { carReliabilityProfile } from "../src/domain/carReliability.js";
 
 function fixture(){
   return {
@@ -17,6 +19,14 @@ function fixture(){
     currentRound:0,
     team:{team_id:"T1"},
     pointsSystem:{table:[9,6,4,3,2,1]},
+    carStats:[
+      {year:1980,team_id:"T1",reliability:98},
+      {year:1980,team_id:"T2",reliability:40},
+    ],
+    teamEngines:[
+      {year:1980,team_id:"T1",reliability:98},
+      {year:1980,team_id:"T2",reliability:40},
+    ],
     drivers:[
       {driver_id:"D2",display_name:"Driver Two"},
       {driver_id:"D1",display_name:"Driver One"},
@@ -31,7 +41,8 @@ function fixture(){
     },
     garage:{
       cars:[
-        {id:"car_1",kind:"race",driver_id:"CONTRACTED_D1",componentCondition:{engine:94}},
+        {id:"car_1",kind:"race",driver_id:"CONTRACTED_D1",componentCondition:{engine:94,suspension:94}},
+        {id:"car_2",kind:"race",driver_id:null,componentCondition:{engine:8,suspension:8}},
       ],
     },
     aiTechnicalWorld:{
@@ -83,7 +94,7 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,10);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,11);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
     ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
@@ -97,6 +108,8 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("absoluteDistanceM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("targetSpeedKmh"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("performance"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("reliability"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("retirement"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("finishTimeMs"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("gridStartOffsetM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("traffic"));
@@ -159,6 +172,10 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.equal(aiCar.state.componentCondition.engine,91);
   assert.ok(Number.isFinite(playerCar.performance.race));
   assert.ok(Number.isFinite(playerCar.performance.power));
+  assert.ok(playerCar.reliability?.profile);
+  assert.ok(Number.isFinite(playerCar.reliability?.mechanicalFailureChance));
+  assert.ok(Number.isFinite(playerCar.reliability?.accidentIncidentChance));
+  assert.ok(Number.isFinite(playerCar.reliability?.accidentConditionalRetirementChance));
   assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.raceScore));
   assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.tyreManagement));
   assert.ok(Array.isArray(playerCar.resourceSetup.tyres));
@@ -175,4 +192,39 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.equal(gs.garage.cars.find((row)=>row.id==="car_1").componentCondition.engine,94);
   assert.equal(gs.aiTechnicalWorld.teams.T2.garage.cars[0].componentCondition.engine,91);
   assert.equal(gs.raceWeekendState.startingGrid.rows[0].grid,1);
+});
+
+
+test("RW8.10 adapter derives mechanical risk from the authoritative entered team and car",()=>{
+  const gs=fixture();
+  gs.raceEntryState={
+    ...gs.raceEntryState,
+    entries:gs.raceEntryState.entries.map((row)=>
+      row.driver_id==="D1"
+        ?{...row,team_id:"T1",car_id:"car_2",car_slot:2}
+        :row
+    ),
+  };
+
+  const input=buildRaceWeekendInput(gs,{
+    gp:{gp_id:"test_gp",gp_name:"Test Grand Prix",track_id:"test_track",race_date:"1980-05-18"},
+  });
+  const entered=input.cars.find((row)=>row.driverId==="D1");
+  const row={driver:{driver_id:"D1"}};
+  const authoritativeProfile=carReliabilityProfile(gs,"T1","D1",{
+    carOverride:gs.garage.cars.find((car)=>car.id==="car_1"),
+  });
+  const staleProfile=carReliabilityProfile(gs,"T1","D1");
+  const authoritative=mechanicalRetirementChance(gs,row,{
+    teamIdOverride:"T1",
+    reliabilityProfileOverride:authoritativeProfile,
+  });
+  const stale=mechanicalRetirementChance(gs,row,{teamIdOverride:"T1"});
+
+  assert.equal(entered.teamId,"T1");
+  assert.equal(entered.carId,"car_1");
+  assert.deepEqual(entered.reliability.profile,authoritativeProfile);
+  assert.notDeepEqual(authoritativeProfile,staleProfile);
+  assert.equal(entered.reliability.mechanicalFailureChance,authoritative);
+  assert.notEqual(authoritative,stale);
 });
