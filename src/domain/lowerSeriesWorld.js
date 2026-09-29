@@ -129,7 +129,7 @@ function openingTeamFromCareer(row,seriesId,year,catalogTeams=[]){
     sourceTeamId:sourceId,
     teamName:name,
   });
-  if(catalogMatch)return catalogMatch;
+  if(catalogMatch)return lowerSeriesWorldTeamFromFact(catalogMatch,year);
 
   const lowerTeamId=`ls_team:${seriesId}:${teamSlug(sourceId||name)}`;
   return {
