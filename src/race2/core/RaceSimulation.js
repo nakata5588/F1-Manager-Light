@@ -181,13 +181,23 @@ export function stepRaceState(state){
   const stepMs=raceStepMs(state);
   const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
   const pits=advanceRacePitStops(state,proposedCars,{stepMs});
-  const postPitState={
+  const postPitById=new Map((pits.cars||[]).map((car)=>[car?.carId,car]));
+  const interactionCars=(state.cars||[]).map((previous)=>{
+    const postPit=postPitById.get(previous?.carId)??previous;
+    const wasTrack=String(previous?.pitState?.status??"track")==="track";
+    const isTrack=String(postPit?.pitState?.status??"track")==="track";
+    // Cars that remain on track keep their pre-step position as the traffic
+    // reference. Pit entries/rejoins use the post-pit state so availability
+    // changes are immediate without weakening RW8.5 hard spacing.
+    return wasTrack&&isTrack?previous:postPit;
+  });
+  const interactionState={
     ...state,
-    cars:pits.cars,
+    cars:interactionCars,
     pitLaneState:pits.pitLaneState,
   };
-  const overtaking=resolveRaceOvertaking(postPitState,pits.cars,{stepMs});
-  const spacedCars=enforceRaceTrafficSpacing(postPitState,overtaking.cars,{
+  const overtaking=resolveRaceOvertaking(interactionState,pits.cars,{stepMs});
+  const spacedCars=enforceRaceTrafficSpacing(interactionState,overtaking.cars,{
     stepMs,
     bypassPairs:overtaking.bypassPairs,
   });
