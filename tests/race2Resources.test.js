@@ -164,6 +164,16 @@ test("RW8.7 shared Legacy and RW2 tyre condition effects remain one source of tr
   }
 });
 
+test("RW8.7 temporary full-race fuel load covers maximum normal burn before pit phase exists",()=>{
+  const state=createRaceState(input({paceMode:"attack"}));
+  const row=car(state);
+  const raceKm=(state.track.lengthM*state.session.lapLimit)/1000;
+  const worstNormalBurn=raceKm*row.resources.fuelBurnKgPerKm*1.04*1.05;
+
+  assert.ok(row.resources.initialFuelKg>worstNormalBurn);
+  assert.ok(row.resources.initialFuelKg-worstNormalBurn>=row.resources.fuelReserveKg-1e-6);
+});
+
 test("RW8.7 tyre wear and fuel burn integrate from actual physical distance",()=>{
   const state=runningState();
   const previous=car(state);
