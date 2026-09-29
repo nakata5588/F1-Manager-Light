@@ -1,4 +1,4 @@
-import { normalisePitPhaseDurations } from "../domain/racePitModel.js";
+import { normalisePitPhaseDurations, RACE_PIT_PHASES } from "../domain/racePitModel.js";
 
 // src/engine/LivePitStopEngine.js
 // RW5.3B.2A — live pit-stop lifecycle.
@@ -13,15 +13,7 @@ const num=(value,fallback=0)=>{
 };
 const clamp=(value,min=0,max=Infinity)=>Math.max(min,Math.min(max,num(value,min)));
 
-export const LIVE_PIT_PHASES=Object.freeze([
-  "pit_entry",
-  "pit_lane",
-  "pit_queue",
-  "pit_box",
-  "pit_release",
-  "pit_exit",
-  "rejoin",
-]);
+export const LIVE_PIT_PHASES=RACE_PIT_PHASES;
 
 export function livePitStopKey(driverId,stop,sequence=1){
   return [
