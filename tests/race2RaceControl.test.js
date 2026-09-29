@@ -213,6 +213,28 @@ test("RW8.11B neutralisation lasts its full lap duration before returning GREEN"
   assert.equal(released.events.at(-1).payload.to,"GREEN");
 });
 
+test("RW8.11B control downgrade never opens an intermediate GREEN window",()=>{
+  const base=startRaceState(createRaceState(input({year:2015})));
+  const safetyCar=enforceRaceControlAssessment(
+    base,
+    assessment(base,{mode:"SAFETY_CAR",source:"incident",referenceLap:2}),
+    base.cars
+  );
+  const releaseLap=safetyCar.raceControlState.minimumReleaseLap;
+  const active={...base,raceControlState:safetyCar.raceControlState};
+  const downgraded=enforceRaceControlAssessment(
+    active,
+    assessment(active,{mode:"VSC",source:"incident",referenceLap:releaseLap}),
+    base.cars
+  );
+
+  assert.equal(downgraded.raceControlState.mode,"VSC");
+  assert.ok(downgraded.raceControlState.minimumReleaseLap>releaseLap);
+  assert.equal(downgraded.events.at(-1).payload.from,"SAFETY_CAR");
+  assert.equal(downgraded.events.at(-1).payload.to,"VSC");
+  assert.equal(raceControlOvertakingAllowed({...base,raceControlState:downgraded.raceControlState}),false);
+});
+
 test("RW8.11B a same-level incident extends an active neutralisation",()=>{
   const base=startRaceState(createRaceState(input({year:2015})));
   const first=enforceRaceControlAssessment(
