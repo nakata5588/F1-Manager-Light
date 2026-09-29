@@ -216,6 +216,11 @@ export function createManagerProfile(input={},context={}){
       wins:Math.max(0,Number(input?.development?.wins||0)),
       constructor_titles:Math.max(0,Number(input?.development?.constructor_titles||0)),
       driver_titles:Math.max(0,Number(input?.development?.driver_titles||0)),
+      last_regression_key:text(input?.development?.last_regression_key)||null,
+      last_regression_at:input?.development?.last_regression_at||null,
+      last_regression_reason:text(input?.development?.last_regression_reason)||null,
+      attribute_regressions:Math.max(0,Number(input?.development?.attribute_regressions||0)),
+      reputation_lost:Math.max(0,Number(input?.development?.reputation_lost||0)),
     },
   };
 }
