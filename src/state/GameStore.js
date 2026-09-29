@@ -768,28 +768,26 @@ export const useGame = create((set, get) => ({
     try {
       // Never applyYearFilter here: that would replace the simulated career
       // with historical future assignments/outcomes from the Global Database.
-      set((s) => ({ gameState: processPlayerTechnicalLifecycle(rolloverSeasonPure(s.gameState, nextYear)) }));
-    } catch (e) {
-      console.warn("rolloverSeason fallback:", e);
-      set((s) => ({
-        gameState: {
-          ...s.gameState,
-          activeYear: nextYear,
-          currentDateISO: `${nextYear}-01-01`,
-          currentRound: 0,
-          standings: { drivers: [], teams: [] },
-          _seasonFinishedAt: null,
-          showSeasonSummary: false,
-        },
-      }));
+      // Build the full next state before committing it so rollover is atomic.
+      const nextState=processPlayerTechnicalLifecycle(rolloverSeasonPure(st,nextYear));
+      set({gameState:nextState});
+      get().pushToast?.({
+        title: `Season ${nextYear} started`,
+        description: "Career world rolled forward; structural calendar loaded.",
+        type: "success",
+        ttl: 3000,
+      });
+      return {ok:true,gameState:nextState};
+    } catch (error) {
+      console.error("[SeasonRollover] failed; current career state preserved:",error);
+      get().pushToast?.({
+        title: "Season rollover failed",
+        description: String(error?.message||error||"The next season could not be created."),
+        type: "error",
+        ttl: 7000,
+      });
+      return {ok:false,error};
     }
-
-    get().pushToast?.({
-      title: `Season ${nextYear} started`,
-      description: "Career world rolled forward; structural calendar loaded.",
-      type: "success",
-      ttl: 3000,
-    });
   },
 
   /** ===================== AVANÇAR UM DIA ===================== */
