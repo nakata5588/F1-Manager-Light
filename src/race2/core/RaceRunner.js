@@ -1,29 +1,18 @@
 // src/race2/core/RaceRunner.js
 // RW8.3: Live and Fast execution are scheduling policies over one canonical core.
 // Neither runner owns race physics; both advance RaceState exclusively through
-// RaceSimulation.stepRaceState().
+// RaceSimulation.advanceRaceState(), the canonical batch wrapper over stepRaceState().
 
-import { stepRaceState } from "./RaceSimulation.js";
+import { advanceRaceState, raceStepMs } from "./RaceSimulation.js";
 
 const finite=(value,fallback=0)=>{
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
 
-export function raceStepMs(state){
-  return Math.max(10,Math.min(1000,Math.round(
-    finite(state?.session?.simulation?.stepMs,100)
-  )));
-}
-
 export function runCanonicalSteps(state,steps=1){
-  let next=state;
   const count=Math.max(0,Math.floor(finite(steps,0)));
-  for(let index=0;index<count;index+=1){
-    if(!next||next.status==="finished")break;
-    next=stepRaceState(next);
-  }
-  return next;
+  return advanceRaceState(state,{steps:count});
 }
 
 /**
@@ -79,7 +68,7 @@ export function runFastRaceToEnd(state,{maxSteps=1_000_000}={}){
   const limit=Math.max(0,Math.floor(finite(maxSteps,0)));
   for(let index=0;index<limit;index+=1){
     if(!next||next.status==="finished")return next;
-    next=stepRaceState(next);
+    next=advanceRaceState(next,{steps:1});
   }
   if(next&&next.status!=="finished"){
     throw new Error(`RW2 race did not finish within ${limit} canonical steps`);
