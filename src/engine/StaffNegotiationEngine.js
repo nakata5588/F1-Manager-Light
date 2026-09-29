@@ -4,7 +4,7 @@
 // eligibility, salary and willingness rules from domain/staffMarket.js.
 
 import { rngFor } from "../core/random.js";
-import { activeStaffContracts } from "../domain/liveContracts.js";
+import { activeStaffContracts, teamIdOfContract } from "../domain/liveContracts.js";
 import { managerGameplayEffects } from "../domain/managerProfile.js";
 import {
   staffCoreFor,
@@ -25,6 +25,7 @@ import {
   staffReputation,
   staffRoleRating,
 } from "../domain/staffPerformance.js";
+import { applyStaffTransferSettlement, canAffordStaffTransfer } from "../domain/staffTransfers.js";
 
 const ACTIVE_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -123,7 +124,7 @@ export function startStaffNegotiation(gs,{
   const sequence=staffNegotiations(gs).length+1;
   const negotiation={
     id:["staffneg",today||"date",tid,id,sequence].join("_"),
-    kind:"new_staff_contract",
+    kind:eligibility.kind||"new_staff_contract",
     staff_id:id,
     staff_name:staffNameFor(gs,id),
     team_id:tid,
@@ -132,6 +133,10 @@ export function startStaffNegotiation(gs,{
     role_label:staffRoleLabel(role),
     offer:{salary,years,role},
     expected_salary:expected,
+    seller_team_id:eligibility.kind==="transfer"?text(eligibility.sellerTeamId||eligibility?.buyout?.sellerTeamId):null,
+    seller_team_name:eligibility.kind==="transfer"?teamNameFor(gs,eligibility.sellerTeamId||eligibility?.buyout?.sellerTeamId):null,
+    buyout_fee:eligibility.kind==="transfer"?Number(eligibility?.buyout?.fee||0):0,
+    buyout_type:eligibility.kind==="transfer"?text(eligibility?.buyout?.type||"compensation"):null,
     replacement_staff_id:eligibility.incumbent?resolveStaffId(gs,eligibility.incumbent):null,
     replacement_cost:Number(eligibility.replacementCost||0),
     status:"submitted",
@@ -247,8 +252,25 @@ function applyIncumbentRelease(gs,incumbent,negotiation){
   return {state:next,cost};
 }
 function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
+  const transfer=negotiation.kind==="transfer";
   const active=staffActiveContractSafe(gs,negotiation.staff_id);
-  if(active){
+  if(transfer){
+    const seller=text(negotiation.seller_team_id);
+    if(!active||teamIdOfContract(active)!==seller){
+      return {
+        ...gs,
+        staffNegotiations:staffNegotiations(gs).map((row)=>row.id===negotiation.id?{
+          ...row,
+          status:"signed_elsewhere",
+          resolved_at:dateOnly(gs?.currentDateISO),
+          resolution_note:"The Staff member is no longer under the contract covered by this transfer.",
+        }:row),
+      };
+    }
+    if(!canAffordStaffTransfer(gs,negotiation.team_id,negotiation.buyout_fee)){
+      return rejectNegotiation(gs,negotiation,"The team can no longer afford the Staff transfer compensation.");
+    }
+  }else if(active){
     return {
       ...gs,
       staffNegotiations:staffNegotiations(gs).map((row)=>row.id===negotiation.id?{
@@ -263,13 +285,38 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     return rejectNegotiation(gs,negotiation,"The team cannot support the offered annual salary.");
   }
 
-  const incumbent=staffRoleIncumbent(gs,negotiation.team_id,negotiation.role);
-  const released=applyIncumbentRelease(gs,incumbent,negotiation);
+  const today=dateOnly(gs?.currentDateISO);
+  let transferFee=0;
+  let prepared=gs;
+  if(transfer){
+    transferFee=Math.max(0,Number(negotiation.buyout_fee||0));
+    const settled=applyStaffTransferSettlement(prepared,{
+      staffId:negotiation.staff_id,
+      buyerTeamId:negotiation.team_id,
+      sellerTeamId:negotiation.seller_team_id,
+      fee:transferFee,
+    });
+    if(!settled){
+      return rejectNegotiation(gs,negotiation,"The team can no longer afford the Staff transfer compensation.");
+    }
+    prepared={
+      ...settled,
+      staffContracts:(settled?.staffContracts||[]).map((row)=>row===active?{
+        ...row,
+        status:"bought_out",
+        bought_out_at:today,
+        bought_out_by_team_id:text(negotiation.team_id),
+        transfer_fee:transferFee,
+      }:row),
+    };
+  }
+
+  const incumbent=staffRoleIncumbent(prepared,negotiation.team_id,negotiation.role);
+  const released=applyIncumbentRelease(prepared,incumbent,negotiation);
   if(!released.state)return rejectNegotiation(gs,negotiation,released.reason);
 
   const base=released.state;
   const year=Number(base?.activeYear);
-  const today=dateOnly(base?.currentDateISO);
   const years=Math.max(1,Math.min(5,Number(negotiation.offer?.years||1)));
   const contract={
     year,
@@ -284,9 +331,13 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     contract_until:year+years-1,
     salary:Math.round(Number(negotiation.offer?.salary||0)),
     status:"active",
-    source:negotiation.origin==="player"?"player_staff_negotiation":"staff_negotiation",
+    source:transfer
+      ?(negotiation.origin==="player"?"player_staff_transfer":"ai_staff_transfer")
+      :(negotiation.origin==="player"?"player_staff_negotiation":"staff_negotiation"),
     negotiation_id:negotiation.id,
     signed_at:today,
+    transfer_from_team_id:transfer?text(negotiation.seller_team_id):null,
+    transfer_fee:transfer?transferFee:0,
   };
   const accepted={
     ...negotiation,
@@ -294,12 +345,18 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     resolved_at:today,
     accepted_counter:Boolean(fromCounter),
     replacement_cost:Number(released.cost||0),
+    transfer_fee_paid:transferFee,
   };
   const negotiations=staffNegotiations(base).map((row)=>{
     if(row.id===accepted.id)return accepted;
     if(!isStaffNegotiationActive(row)||text(row.staff_id)!==text(accepted.staff_id))return row;
     return {...row,status:"signed_elsewhere",resolved_at:today,resolution_note:accepted.staff_name+" signed with "+accepted.team_name+"."};
   });
+  const details=[
+    negotiation.staff_name+" has agreed a "+years+"-year contract as "+staffRoleLabel(negotiation.role)+" on $"+Number(negotiation.offer?.salary||0).toLocaleString("en-US")+" per season.",
+    transferFee>0?"Transfer compensation of $"+transferFee.toLocaleString("en-US")+" was paid to "+text(negotiation.seller_team_name||negotiation.seller_team_id)+".":"",
+    released.cost>0?"Replacing the incumbent cost $"+Number(released.cost).toLocaleString("en-US")+".":"",
+  ].filter(Boolean).join(" ");
   return {
     ...base,
     staffContracts:[...(base?.staffContracts||[]),contract],
@@ -312,7 +369,7 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
       from:"Staff Management",
       tag:"Contracts",
       subject:negotiation.staff_name+" joins "+negotiation.team_name,
-      body:negotiation.staff_name+" has agreed a "+years+"-year contract as "+staffRoleLabel(negotiation.role)+" on $"+Number(negotiation.offer?.salary||0).toLocaleString("en-US")+" per season."+(released.cost>0?" Replacing the incumbent cost $"+Number(released.cost).toLocaleString("en-US")+".":""),
+      body:details,
       staff_id:negotiation.staff_id,
       team_id:negotiation.team_id,
     },...(base?.inbox||[])],
@@ -361,11 +418,20 @@ export function processStaffNegotiations(gs,{forceOutcomeById={}}={}){
   for(const original of due){
     const negotiation=staffNegotiations(next).find((row)=>row.id===original.id);
     if(!negotiation||negotiation.status!=="submitted")continue;
-    if(staffActiveContractSafe(next,negotiation.staff_id)){
+    const currentContract=staffActiveContractSafe(next,negotiation.staff_id);
+    const transferValid=negotiation.kind==="transfer"
+      &&currentContract
+      &&teamIdOfContract(currentContract)===text(negotiation.seller_team_id);
+    if((negotiation.kind==="transfer"&&!transferValid)||(negotiation.kind!=="transfer"&&currentContract)){
       next={
         ...next,
         staffNegotiations:staffNegotiations(next).map((row)=>row.id===negotiation.id?{
-          ...row,status:"signed_elsewhere",resolved_at:today,resolution_note:"Staff member is no longer available.",
+          ...row,
+          status:"signed_elsewhere",
+          resolved_at:today,
+          resolution_note:negotiation.kind==="transfer"
+            ?"The Staff member's current contract changed before the transfer completed."
+            :"Staff member is no longer available.",
         }:row),
       };
       continue;
