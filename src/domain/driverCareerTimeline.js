@@ -93,7 +93,7 @@ export function driverFullCareerTimeline(gameState,driverId,{
       title:`${series} — ${team}`,
       detail:seasonDetail(row),
       championship_position:num(row?.champ_pos,null),
-      champion:num(row?.champ_pos,null)===1&&row?.__showChampionshipPosition!==false,
+      champion:!row?.__live&&num(row?.champ_pos,null)===1&&row?.__showChampionshipPosition!==false,
       source:row?.__simulated?"f1_save_world":"historical_career",
     });
 
