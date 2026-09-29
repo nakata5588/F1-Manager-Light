@@ -54,8 +54,6 @@ export function visualPitLaneState(row,{
   hasPitLane=false,
   pitEntryProgress=null,
   pitExitProgress=null,
-  pitEntryLaneProgress=null,
-  pitExitLaneProgress=null,
   boxProgress=0.5,
   queueSpacing=0.04,
 }={}){
@@ -87,41 +85,13 @@ export function visualPitLaneState(row,{
   )));
   const spacing=clamp(finite(queueSpacing,0.04),0.015,0.10);
   const queueProgress=clamp(box-(spacing*queuePosition),0,Math.max(0,box-0.01));
-  const requestedEntryLane=finite(pitEntryLaneProgress);
-  const requestedExitLane=finite(pitExitLaneProgress);
-  const shapedLane=(
-    requestedEntryLane!=null
-    &&requestedExitLane!=null
-    &&requestedEntryLane>0
-    &&requestedExitLane<1
-    &&requestedEntryLane<box
-    &&requestedExitLane>box
-  );
-  const entryLaneEnd=shapedLane?clamp(requestedEntryLane,0.03,Math.max(0.04,box-0.03)):0;
-  const exitLaneStart=shapedLane?clamp(requestedExitLane,Math.min(0.96,box+0.03),0.97):1;
 
   if(phase==="pit_entry"){
-    if(shapedLane){
-      return {
-        ...base,
-        path:"pit_lane",
-        track_anchor_progress:entry,
-        pit_lane_progress:entryLaneEnd*phaseT,
-        pit_lane_mix:1,
-      };
-    }
     return {...base,path:"pit_transition",track_anchor_progress:entry,pit_lane_progress:0,pit_lane_mix:phaseT};
   }
   if(phase==="pit_lane"){
     const laneTarget=finite(state?.queue_total_ms,0)>0?queueProgress:box;
-    const start=shapedLane?Math.min(entryLaneEnd,laneTarget):0;
-    return {
-      ...base,
-      path:"pit_lane",
-      track_anchor_progress:entry,
-      pit_lane_progress:start+((laneTarget-start)*phaseT),
-      pit_lane_mix:1,
-    };
+    return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:laneTarget*phaseT,pit_lane_mix:1};
   }
   if(phase==="pit_queue"){
     return {...base,path:"pit_lane",track_anchor_progress:entry,pit_lane_progress:queueProgress,pit_lane_mix:1,stopped:true};
@@ -133,25 +103,9 @@ export function visualPitLaneState(row,{
     return {...base,path:"pit_lane",track_anchor_progress:exit,pit_lane_progress:box,pit_lane_mix:1,stopped:true};
   }
   if(phase==="pit_exit"){
-    const target=shapedLane?exitLaneStart:1;
-    return {
-      ...base,
-      path:"pit_lane",
-      track_anchor_progress:exit,
-      pit_lane_progress:box+((target-box)*phaseT),
-      pit_lane_mix:1,
-    };
+    return {...base,path:"pit_lane",track_anchor_progress:exit,pit_lane_progress:box+((1-box)*phaseT),pit_lane_mix:1};
   }
   if(phase==="rejoin"){
-    if(shapedLane){
-      return {
-        ...base,
-        path:"pit_lane",
-        track_anchor_progress:exit,
-        pit_lane_progress:exitLaneStart+((1-exitLaneStart)*phaseT),
-        pit_lane_mix:1,
-      };
-    }
     return {...base,path:"pit_transition",track_anchor_progress:exit,pit_lane_progress:1,pit_lane_mix:1-phaseT};
   }
   return {...base,fallback:true};
