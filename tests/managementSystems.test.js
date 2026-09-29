@@ -843,6 +843,7 @@ test("Staff career history keeps old club and new club after a transfer",()=>{
 
   const history=staffCareerHistory(next,"S_FREE");
   assert.ok(history.some((row)=>row.team_id==="T3"&&row.status==="bought_out"));
+  assert.equal(history.find((row)=>row.team_id==="T3"&&row.status==="bought_out").end_year,1980);
   assert.ok(history.some((row)=>row.team_id==="T1"&&row.status==="active"));
   assert.ok(history.every((row)=>Number(row.start_year)<=1980));
 });
