@@ -26,7 +26,7 @@ import { dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomF
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import RaceCarsLayer from "./RaceCarsLayer.jsx";
 import RaceCarsLayerV3 from "./RaceCarsLayerV3.jsx";
-import { buildClosedRacingLine } from "../../domain/raceSplineV3.js";
+import { buildClosedRacingLine, racingLineGeometry } from "../../domain/raceSplineV3.js";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, authoritativeRaceWorldProgress, createVisualRaceTimeline, driverVisualMotionDurationMs, raceVisualSnapshotKey, visualPitLaneState, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 import { raceCarDamageSummary } from "../../domain/raceCarVisual.js";
 import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
@@ -716,13 +716,17 @@ export default function Track2DView({
       pitTolerance:Number(style.pit_presentation_tolerance||.7),
     });
   },[calibratedGeometry,proceduralEnvironmentActive,environment?.race_view_style]);
-  const displayGeometry=useMemo(
+  const baseDisplayGeometry=useMemo(
     ()=>(environmentAssetActive||proceduralEnvironmentActive)?smoothedPresentationGeometry:orientTrackGeometry(smoothedPresentationGeometry),
     [smoothedPresentationGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
   const racingLineV3=useMemo(
-    ()=>buildClosedRacingLine(displayGeometry?.points,{samplesPerSegment:8}),
-    [displayGeometry]
+    ()=>buildClosedRacingLine(baseDisplayGeometry?.points,{samplesPerSegment:8}),
+    [baseDisplayGeometry]
+  );
+  const displayGeometry=useMemo(
+    ()=>proceduralEnvironmentActive?racingLineGeometry(baseDisplayGeometry,racingLineV3):baseDisplayGeometry,
+    [baseDisplayGeometry,proceduralEnvironmentActive,racingLineV3]
   );
   const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
