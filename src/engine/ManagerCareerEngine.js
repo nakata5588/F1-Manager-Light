@@ -123,9 +123,27 @@ export function dismissPlayerManager(gs,{
     },
     career_history:careerHistory,
   };
+  const closeTeamTalks=(rows=[])=>rows.map((row)=>{
+    const status=text(row?.status).toLowerCase();
+    const active=["submitted","countered"].includes(status);
+    const belongsToFormerTeam=
+      text(row?.team_id??row?.buyer_team_id)===teamId&&
+      text(row?.origin||"player")==="player";
+    if(!active||!belongsToFormerTeam)return row;
+    return {
+      ...row,
+      status:"withdrawn",
+      resolved_at:date,
+      resolution_note:"Team Principal departure ended the pending negotiation.",
+      resolution_reason:"manager_departure",
+    };
+  });
   next={
     ...next,
     manager:updatedManager,
+    driverNegotiations:closeTeamTalks(next?.driverNegotiations||[]),
+    driverTransferApproaches:closeTeamTalks(next?.driverTransferApproaches||[]),
+    staffNegotiations:closeTeamTalks(next?.staffNegotiations||[]),
     managerEmploymentState:{
       ...(next?.managerEmploymentState||{}),
       status:"unemployed",
