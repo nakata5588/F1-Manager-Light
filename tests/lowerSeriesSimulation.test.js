@@ -208,3 +208,159 @@ test("LS3 runs through the canonical daily EventEngine pipeline even with no que
   assert.equal(daily.results.length,1);
   assert.equal(daily.results[0].key,"f1:1980:1");
 });
+
+
+test("LS3.5B assigns tracked prospects to real Save-World teams deterministically",()=>{
+  const makeState=()=>{
+    const state=baseState();
+    state.lowerSeriesWorld={
+      ...state.lowerSeriesWorld,
+      series:[{series_id:"F2",series_name:"Formula Two",series_level:2}],
+      teams:{
+        T1:{
+          lower_team_id:"T1",series_id:"F2",team_name:"Team One",
+          team_strength:50,reliability:90,development_environment:50,
+          calibration_status:"neutral_catalog_seed",
+        },
+        T2:{
+          lower_team_id:"T2",series_id:"F2",team_name:"Team Two",
+          team_strength:50,reliability:90,development_environment:50,
+          calibration_status:"neutral_catalog_seed",
+        },
+      },
+      entries:Object.fromEntries(
+        state.drivers.map((driver,index)=>[
+          driver.driver_id,
+          {
+            driver_id:driver.driver_id,
+            series_id:"F2",
+            series_name:"Formula Two",
+            series_level:2,
+            lower_team_id:index===0?"T1":null,
+            team_name:index===0?"Team One":null,
+            series_candidates:[],
+            placement_status:index===0?"placed_with_team":"series_only",
+            placement_source:index===0?"historical_opening_career_evidence":"single_active_eligible_series",
+          },
+        ])
+      ),
+      events:[],
+      results:[],
+      standings:{},
+    };
+    return state;
+  };
+
+  const a=initializeLowerSeriesSeason(makeState());
+  const b=initializeLowerSeriesSeason(makeState());
+
+  assert.deepEqual(a.lowerSeriesWorld.teams,b.lowerSeriesWorld.teams);
+  assert.deepEqual(a.lowerSeriesWorld.entries,b.lowerSeriesWorld.entries);
+  assert.equal(a.lowerSeriesWorld.entries.D1.lower_team_id,"T1","historical opening assignment must survive");
+
+  const assigned=Object.values(a.lowerSeriesWorld.entries);
+  assert.ok(assigned.every((entry)=>entry.lower_team_id),"all four tracked prospects fit in two two-seat teams");
+  const counts=new Map();
+  for(const entry of assigned){
+    counts.set(entry.lower_team_id,(counts.get(entry.lower_team_id)||0)+1);
+  }
+  assert.ok([...counts.values()].every((count)=>count<=2));
+
+  for(const team of Object.values(a.lowerSeriesWorld.teams)){
+    assert.equal(team.performance_profile_year,1980);
+    assert.equal(team.performance_profile_model,"lower_series_team_light_v1");
+    assert.ok(team.team_strength>=43&&team.team_strength<=57);
+    assert.ok(team.reliability>=86&&team.reliability<=94);
+    assert.ok(team.development_environment>=41&&team.development_environment<=59);
+  }
+
+  assert.ok(
+    assigned.slice(1).every((entry)=>entry.lineup_source==="save_world_team_assignment"),
+    "only runtime-assigned seats should carry the alternative-world line-up source"
+  );
+});
+
+test("LS3.5B never invents a team when a series has no factual Save-World teams",()=>{
+  const state=baseState();
+  state.lowerSeriesWorld={
+    ...state.lowerSeriesWorld,
+    teams:{},
+    entries:{
+      D1:{
+        driver_id:"D1",series_id:"F2",series_name:"Formula Two",series_level:2,
+        lower_team_id:null,team_name:null,series_candidates:[],placement_status:"series_only",
+      },
+    },
+    events:[],
+    results:[],
+    standings:{},
+  };
+  const initialized=initializeLowerSeriesSeason(state);
+  assert.equal(initialized.lowerSeriesWorld.entries.D1.lower_team_id,null);
+  assert.equal(initialized.lowerSeriesWorld.entries.D1.team_name,null);
+  assert.deepEqual(initialized.lowerSeriesWorld.teams,{});
+});
+
+test("LS3.5B evolves carried team performance only slightly between seasons",()=>{
+  const lowerSeriesTeams=[
+    {lower_team_id:"T1",team_name:"Team One",series_id:"F2",valid_from:1980,valid_to:1990},
+    {lower_team_id:"T2",team_name:"Team Two",series_id:"F2",valid_from:1980,valid_to:1990},
+  ];
+  const openingState=baseState();
+  openingState.lowerSeriesWorld={
+    ...openingState.lowerSeriesWorld,
+    series:[{series_id:"F2",series_name:"Formula Two",series_level:2}],
+    teams:{
+      T1:{
+        lower_team_id:"T1",series_id:"F2",team_name:"Team One",
+        team_strength:50,reliability:90,development_environment:50,
+        calibration_status:"neutral_catalog_seed",
+      },
+      T2:{
+        lower_team_id:"T2",series_id:"F2",team_name:"Team Two",
+        team_strength:50,reliability:90,development_environment:50,
+        calibration_status:"neutral_catalog_seed",
+      },
+    },
+    entries:{
+      D1:{
+        driver_id:"D1",series_id:"F2",series_name:"Formula Two",series_level:2,
+        lower_team_id:"T1",team_name:"Team One",series_candidates:[],placement_status:"placed_with_team",
+      },
+      D2:{
+        driver_id:"D2",series_id:"F2",series_name:"Formula Two",series_level:2,
+        lower_team_id:"T2",team_name:"Team Two",series_candidates:[],placement_status:"placed_with_team",
+      },
+    },
+    events:[],
+    results:[],
+    standings:{},
+  };
+
+  const first=initializeLowerSeriesSeason(openingState);
+  const firstT1={...first.lowerSeriesWorld.teams.T1};
+  const rolled=rollLowerSeriesWorld(first.lowerSeriesWorld,{
+    targetYear:1981,
+    series:[{series_id:"F2",series_name:"Formula Two",series_level:2,start_year:1970,end_year:1990}],
+    seriesRules:[],
+    lowerSeriesTeams,
+    drivers:[
+      {driver_id:"D1",age:23,active_lower_series:true,status:"lower_series",lower_series_level:2},
+      {driver_id:"D2",age:22,active_lower_series:true,status:"lower_series",lower_series_level:2},
+    ],
+  });
+  const second=initializeLowerSeriesSeason({
+    ...first,
+    activeYear:1981,
+    currentDateISO:"1981-01-01",
+    lowerSeriesWorld:rolled,
+  });
+  const nextT1=second.lowerSeriesWorld.teams.T1;
+
+  assert.equal(nextT1.performance_profile_year,1981);
+  assert.equal(nextT1.performance_profile_model,"lower_series_team_light_v1");
+  assert.ok(Math.abs(nextT1.team_strength-firstT1.team_strength)<=2.1);
+  assert.ok(Math.abs(nextT1.reliability-firstT1.reliability)<=1.0);
+  assert.ok(Math.abs(nextT1.development_environment-firstT1.development_environment)<=0.8);
+  assert.equal(second.lowerSeriesWorld.entries.D1.lower_team_id,"T1");
+});

@@ -283,7 +283,10 @@ test("fresh career creates a new lowerSeriesWorld from the selected opening seas
   assert.equal(fresh.lowerSeriesWorld.entries.D1.series_id,"s_f2");
   assert.equal(fresh.lowerSeriesWorld.entries.D1.team_name,"Opening Team");
   assert.equal(fresh.lowerSeriesWorld.entries.D1.lower_team_id,"LT_OPEN");
-  assert.equal(fresh.lowerSeriesWorld.teams.LT_OPEN.team_strength,50);
+  const openingTeam=fresh.lowerSeriesWorld.teams.LT_OPEN;
+  assert.ok(openingTeam.team_strength>=43&&openingTeam.team_strength<=57);
+  assert.equal(openingTeam.performance_profile_year,1980);
+  assert.equal(openingTeam.performance_profile_model,"lower_series_team_light_v1");
   assert.equal(Boolean(fresh.lowerSeriesWorld.teams.LT_FUTURE),false);
   assert.equal(fresh.drivers[0].lower_series_id,"s_f2");
   assert.equal(fresh.drivers[0].lower_series_team_name,"Opening Team");
