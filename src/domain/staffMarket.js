@@ -190,6 +190,16 @@ export function staffNegotiationEligibility(gs,{staffId,teamId,role=null}={}){
       };
     }
     const requested=role?canonicalStaffRole(role):(roles.includes(activeRole)?activeRole:roles[0]);
+    const playerTeamId=text(gs?.manager?.current_team_id??gs?.team?.team_id??gs?.team?.id);
+    if(tid===playerTeamId&&requested==="team_principal"){
+      return {
+        canNegotiate:false,
+        reason:"player_team_principal",
+        roles,
+        contract:active,
+        role:requested,
+      };
+    }
     if(!roles.includes(requested)){
       return {canNegotiate:false,reason:"role_unavailable",roles,contract:active};
     }
@@ -252,6 +262,15 @@ export function staffNegotiationEligibility(gs,{staffId,teamId,role=null}={}){
     };
   }
   const requested=role?canonicalStaffRole(role):roles[0];
+  const playerTeamId=text(gs?.manager?.current_team_id??gs?.team?.team_id??gs?.team?.id);
+  if(tid===playerTeamId&&requested==="team_principal"){
+    return {
+      canNegotiate:false,
+      reason:"player_team_principal",
+      roles,
+      role:requested,
+    };
+  }
   if(!roles.includes(requested)){
     return {canNegotiate:false,reason:"role_unavailable",roles};
   }
