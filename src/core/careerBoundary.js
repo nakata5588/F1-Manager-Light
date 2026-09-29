@@ -466,6 +466,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     staffCore:uniqueBy([...updateAges(state.staffCore||[],targetYear),...unlockedStaff],idOfStaff),
     staffRatings:[...activeStaffRatings.values()],
     staffContracts:carryStaffContracts(state.staffContracts||[],targetYear),
+    teamStakeholders:(state.teamStakeholders||[]).map((row)=>({...row})),
     teamBrands:(state.teamBrands||[]).map((r)=>({...r,year:targetYear})),
     teamEngines:(state.teamEngines||[]).map((r)=>({...r,year:targetYear})),
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),
