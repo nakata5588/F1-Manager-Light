@@ -162,6 +162,12 @@ test("LS3 processes due events deterministically and never writes into F1 result
 
   const standings=first.lowerSeriesWorld.standings.F2;
   assert.ok(standings);
+  assert.ok(first.lowerSeriesWorld.prospects.D1);
+  assert.ok(Number.isFinite(first.lowerSeriesWorld.prospects.D1.prospect_reputation));
+  assert.equal(
+    first.drivers.find((row)=>row.driver_id==="D1").lower_series_prospect_reputation,
+    first.lowerSeriesWorld.prospects.D1.prospect_reputation
+  );
   assert.equal(standings.updated_through_round,1);
   assert.equal(standings.points_system_id,"canonical_1980");
   assert.deepEqual(standings.points_table,[9,6,4,3,2,1]);
@@ -249,6 +255,8 @@ test("LS3 completed season is archived inside lowerSeriesWorld and not the F1 Re
   assert.equal(rolled.history[0].events.length,25);
   assert.equal(rolled.history[0].results.length,25);
   assert.ok(rolled.history[0].standings.F2);
+  assert.ok(rolled.history[0].prospects.D1);
+  assert.ok(Number.isFinite(rolled.history[0].prospects.D1.prospect_reputation));
   assert.equal(rolled.history[0].standings.F2.points_system_id,"canonical_1980");
   assert.deepEqual(rolled.history[0].standings.F2.points_table,[9,6,4,3,2,1]);
   assert.ok(rolled.history[0].standings.F2.champion_team_id);
