@@ -234,7 +234,7 @@ test("RW8.11B non-green control cancels active side-by-side battle state",()=>{
   }];
   const cleared=neutralizeBattles(cars);
   assert.equal(cleared[0].lateralOffsetM,0);
-  assert.equal(cleared[0].battle.phase,"idle");
+  assert.equal(cleared[0].battle.phase,"none");
   assert.equal(cleared[0].battle.opponentCarId,null);
 });
 
