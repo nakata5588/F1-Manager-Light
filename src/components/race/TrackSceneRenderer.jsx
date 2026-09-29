@@ -16,6 +16,19 @@ function closed(points=[]){
   return points?.length?[...points,points[0]]:[];
 }
 
+function sampleOpenRange(points,start,end,samples=16){
+  const from=Math.max(0,Math.min(1,Number(start)||0));
+  const to=Math.max(from,Math.min(1,Number(end)||0));
+  const count=Math.max(3,Math.min(48,Math.round(Number(samples)||16)));
+  const out=[];
+  for(let index=0;index<=count;index+=1){
+    const progress=from+(to-from)*(index/count);
+    const point=sampleOpenPolylinePoint(points,progress);
+    if(point)out.push([Number(point.x),Number(point.y)]);
+  }
+  return out;
+}
+
 function offsetFromHeading(point,headingDeg,distance){
   if(!point)return null;
   const angle=(Number(headingDeg)+90)*(Math.PI/180);
@@ -151,9 +164,18 @@ function TrackSceneRenderer({
   const kerbWidth=Math.max(roadWidth+4,Number(style?.kerb_width||roadWidth+5));
   const outerWidth=Math.max(kerbWidth+4,Number(style?.outer_shadow_width||roadWidth+11));
   const pitWidth=Math.max(10,Number(style?.pit_width||12));
+  const pitMergeFraction=Math.max(.04,Math.min(.34,Number(style?.pit_merge_fraction||.14)));
   const trackPolyline=pointsAttr(closed(points));
   const pitPoints=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
   const pitPolyline=pointsAttr(pitPoints);
+  const pitEntryApron=useMemo(
+    ()=>sampleOpenRange(pitPoints,0,Math.min(.4,pitMergeFraction*1.06),18),
+    [pitPoints,pitMergeFraction]
+  );
+  const pitExitApron=useMemo(
+    ()=>sampleOpenRange(pitPoints,Math.max(.6,1-pitMergeFraction*1.06),1,18),
+    [pitPoints,pitMergeFraction]
+  );
   const [vx,vy,vw,vh]=Array.isArray(viewBox)&&viewBox.length===4?viewBox.map(Number):[0,0,1000,1000];
 
   const treeCount=Math.max(0,Math.min(140,Number(environment?.tree_count??64)));
@@ -244,6 +266,21 @@ function TrackSceneRenderer({
       {lod!=="overview"?<polyline points={trackPolyline} fill="none" stroke="url(#f1track-asphalt-grain)" strokeWidth={Math.max(4,roadWidth-1)} strokeLinecap="round" strokeLinejoin="round" opacity={lod==="close"?.68:.42}/>:null}
       {wet>0?<polyline points={trackPolyline} fill="none" stroke="#8fd5e3" strokeWidth={roadWidth} strokeLinecap="round" strokeLinejoin="round" opacity={wet*.08}/>:null}
       <polyline points={trackPolyline} fill="none" stroke="#e5e7eb" strokeWidth=".55" strokeDasharray="2 14" opacity=".12"/>
+    </g>:null}
+
+    {/* Repaint only the merge aprons over the circuit. The body of the pit lane
+        remains below the main track, while these short top layers cut a clean,
+        gradual opening through the kerb at PIT IN/PIT OUT. */}
+    {pitPoints.length>1?<g pointerEvents="none">
+      {[pitEntryApron,pitExitApron].map((apron,index)=>{
+        if(apron.length<2)return null;
+        const attr=pointsAttr(apron);
+        return <g key={"pit-apron-"+index}>
+          <polyline points={attr} fill="none" stroke="#9ca3a8" strokeWidth={pitWidth+4} strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points={attr} fill="none" stroke="#35373a" strokeWidth={pitWidth} strokeLinecap="round" strokeLinejoin="round"/>
+          {lod!=="overview"?<polyline points={attr} fill="none" stroke="#4b4f54" strokeWidth={Math.max(2,pitWidth-4)} strokeLinecap="round" strokeLinejoin="round" opacity=".35"/>:null}
+        </g>;
+      })}
     </g>:null}
 
     {lod!=="overview"?<GridMarkings geometry={geometry}/>:null}
