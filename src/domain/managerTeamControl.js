@@ -87,6 +87,14 @@ export function archiveControlledTeamForAI(gs){
     academy:clone(gs?.academy)||defaultAcademy(),
     scouting:clone(gs?.scouting)||defaultScouting(),
     board:clone(gs?.board)||{},
+    legacy_runtime:{
+      commercialScore:clone(gs?.commercialScore)??null,
+      ops:clone(gs?.ops)||{},
+      rdProjectsActive:Array.isArray(gs?.rdProjectsActive)?clone(gs.rdProjectsActive):[],
+      meta:clone(gs?.meta)||{},
+      selectedDrivers:Array.isArray(gs?.selectedDrivers)?clone(gs.selectedDrivers):[],
+      financeFlags:clone(gs?.financeFlags)||{},
+    },
     finance_summary:{
       ...(clone(existing?.finance_summary)||{}),
       ...(clone(gs?.finances)||{}),
@@ -110,6 +118,7 @@ export function archiveControlledTeamForAI(gs){
       academy:clone(state.academy),
       scouting:clone(state.scouting),
       board:clone(state.board),
+      legacy_runtime:clone(state.legacy_runtime)||{},
     },
   };
 
@@ -140,6 +149,23 @@ export function clearPlayerTeamControl(gs){
     academy:defaultAcademy(),
     scouting:defaultScouting(),
     board:{},
+    commercialScore:null,
+    ops:{},
+    rdProjectsActive:[],
+    meta:{},
+    selectedDrivers:[],
+    financeFlags:{},
+    eventsQueue:(Array.isArray(gs?.eventsQueue)?gs.eventsQueue:[]).map((event)=>
+      event?.done
+        ?event
+        :{
+          ...event,
+          done:true,
+          cancelled:true,
+          cancelled_at:text(gs?.currentDateISO).slice(0,10)||null,
+          cancel_reason:"manager_departure",
+        }
+    ),
     componentServiceLog:[],
     componentWearLog:[],
     raceEntryState:null,
@@ -175,6 +201,8 @@ export function materializeTeamForPlayer(gs,teamId){
   const hq=clone(state?.hq??archive?.hq)||defaultHQ();
   const academy=clone(state?.academy??archive?.academy)||defaultAcademy();
   const scouting=clone(state?.scouting??archive?.scouting)||defaultScouting();
+  const board=clone(state?.board??archive?.board)||{};
+  const legacyRuntime=clone(state?.legacy_runtime??archive?.legacy_runtime)||{};
   const teams={...(normalized?.aiTechnicalWorld?.teams||{})};
   delete teams[targetId];
 
@@ -194,7 +222,14 @@ export function materializeTeamForPlayer(gs,teamId){
     hq,
     academy,
     scouting,
-    board:{},
+    board,
+    commercialScore:legacyRuntime?.commercialScore??null,
+    ops:legacyRuntime?.ops&&typeof legacyRuntime.ops==="object"?legacyRuntime.ops:{},
+    rdProjectsActive:Array.isArray(legacyRuntime?.rdProjectsActive)?legacyRuntime.rdProjectsActive:[],
+    meta:legacyRuntime?.meta&&typeof legacyRuntime.meta==="object"?legacyRuntime.meta:{},
+    selectedDrivers:Array.isArray(legacyRuntime?.selectedDrivers)?legacyRuntime.selectedDrivers:[],
+    financeFlags:legacyRuntime?.financeFlags&&typeof legacyRuntime.financeFlags==="object"?legacyRuntime.financeFlags:{},
+    eventsQueue:[],
     componentServiceLog:clone(state?.componentServiceLog)||[],
     componentWearLog:clone(state?.componentWearLog)||[],
     technicalUnlocks:unlocks,
