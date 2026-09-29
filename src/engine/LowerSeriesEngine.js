@@ -179,9 +179,23 @@ function materializeTeamPerformance(gameState,world){
         35,75
       );
     }else{
-      teamStrength=clamp(50+(rng.next()-0.5)*14,43,57);
-      reliability=clamp(90+(rng.next()-0.5)*8,86,94);
-      developmentEnvironment=clamp(50+(rng.next()-0.5)*18,41,59);
+      const seededStrength=clamp(50+(rng.next()-0.5)*14,43,57);
+      const seededReliability=clamp(90+(rng.next()-0.5)*8,86,94);
+      const seededDevelopment=clamp(50+(rng.next()-0.5)*18,41,59);
+      const neutralSeed=String(team?.calibration_status||"")==="neutral_catalog_seed";
+      const hasExplicitProfile=
+        num(team?.team_strength,null)!==null||
+        num(team?.reliability,null)!==null||
+        num(team?.development_environment,null)!==null;
+      teamStrength=neutralSeed||!hasExplicitProfile
+        ?seededStrength
+        :num(team?.team_strength,seededStrength);
+      reliability=neutralSeed||!hasExplicitProfile
+        ?seededReliability
+        :teamReliabilityPercent(team?.reliability??seededReliability);
+      developmentEnvironment=neutralSeed||!hasExplicitProfile
+        ?seededDevelopment
+        :num(team?.development_environment,seededDevelopment);
     }
 
     next.teams[teamId]={
