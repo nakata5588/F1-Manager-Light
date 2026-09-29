@@ -429,7 +429,8 @@ export function raceControlDurationLaps(response,roll=0){
 }
 function durationFor(response,rng,laps){
   void laps;
-  return raceControlDurationLaps(response,rng.next());
+  const needsRoll=response==="SAFETY_CAR"||response==="VSC";
+  return raceControlDurationLaps(response,needsRoll?rng.next():0);
 }
 function mergePeriods(periods,totalLaps){
   const sorted=periods.slice().sort((a,b)=>periodStartOrdinal(a)-periodStartOrdinal(b)||a.priority-b.priority);
