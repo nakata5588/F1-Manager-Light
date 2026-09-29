@@ -242,3 +242,26 @@ test("timeline never reads hidden PA",()=>{
 
   assert.deepEqual(after,before);
 });
+
+
+test("live F1 championship leader is not shown as World Champion before the season is final",()=>{
+  const gs=state();
+  const careerRows=[{
+    year:2009,
+    series_division:"F1",
+    team_name:"Formula Team B",
+    starts:8,
+    wins:4,
+    podiums:6,
+    points:80,
+    champ_pos:1,
+    __showChampionshipPosition:true,
+    __live:true,
+  }];
+
+  const timeline=driverFullCareerTimeline(gs,"D1",{careerRows});
+  assert.equal(
+    timeline.some((row)=>row.type==="champion"&&row.title==="Formula 1 World Champion"),
+    false
+  );
+});
