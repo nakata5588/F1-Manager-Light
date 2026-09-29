@@ -2,10 +2,11 @@
 // RW8.2: canonical continuous RaceState for Race Weekend 2.0.
 
 import { cloneRaceContractValue } from "../contracts/raceContracts.js";
-import { trackSectorAtDistance } from "../track/TrackModel.js";
+import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
+import { initialGridAbsoluteDistanceM, initialTrafficState } from "./RaceTraffic.js";
 
-export const RACE_STATE_SCHEMA_VERSION=3;
+export const RACE_STATE_SCHEMA_VERSION=4;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -70,17 +71,21 @@ function initialCarState(input,row,index){
   const carId=text(car?.carId??car?.car_id??entry?.carId??entry?.car_id)||null;
   if(!driverId||!teamId||!carId)return null;
 
-  const sector=trackSectorAtDistance(input.track,0)??1;
+  const gridPosition=gridPositionOf(row,index);
+  const absoluteDistanceM=initialGridAbsoluteDistanceM(gridPosition);
+  const distanceAlongLapM=wrapTrackDistanceM(input.track,absoluteDistanceM)??0;
+  const sector=trackSectorAtDistance(input.track,distanceAlongLapM)??1;
   return {
     carId,
     driverId,
     teamId,
-    gridPosition:gridPositionOf(row,index),
+    gridPosition,
+    gridStartOffsetM:absoluteDistanceM,
     lap:1,
     completedLaps:0,
     sector,
-    distanceAlongLapM:0,
-    absoluteDistanceM:0,
+    distanceAlongLapM:Number(distanceAlongLapM.toFixed(6)),
+    absoluteDistanceM:Number(absoluteDistanceM.toFixed(6)),
     speedMs:0,
     speedKmh:0,
     accelerationMs2:0,
@@ -105,6 +110,7 @@ function initialCarState(input,row,index){
     damage:null,
     commands:{},
     pitState:{status:"track"},
+    traffic:initialTrafficState(),
     dnf:false,
   };
 }

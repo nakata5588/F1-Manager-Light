@@ -60,8 +60,8 @@ export function canonicalTimingReferenceSpeedMs(state){
 }
 
 function compareCars(a,b){
-  const distanceA=Math.max(0,finite(a?.absoluteDistanceM,0));
-  const distanceB=Math.max(0,finite(b?.absoluteDistanceM,0));
+  const distanceA=finite(a?.absoluteDistanceM,0);
+  const distanceB=finite(b?.absoluteDistanceM,0);
   if(distanceA!==distanceB)return distanceB-distanceA;
 
   if(a?.status==="finished"&&b?.status==="finished"){
@@ -103,13 +103,13 @@ export function buildRaceClassification(state){
   const lengthM=positive(state?.track?.lengthM,null);
   const referenceSpeedMs=canonicalTimingReferenceSpeedMs(state);
   const leader=ordered[0];
-  const leaderDistance=Math.max(0,finite(leader?.absoluteDistanceM,0));
+  const leaderDistance=finite(leader?.absoluteDistanceM,0);
   const leaderFinish=finite(leader?.finishTimeMs,null);
 
   return ordered.map((car,index)=>{
     const previous=index>0?ordered[index-1]:null;
-    const distance=Math.max(0,finite(car?.absoluteDistanceM,0));
-    const previousDistance=previous==null?distance:Math.max(0,finite(previous?.absoluteDistanceM,0));
+    const distance=finite(car?.absoluteDistanceM,0);
+    const previousDistance=previous==null?distance:finite(previous?.absoluteDistanceM,0);
     const gapToLeaderM=Math.max(0,leaderDistance-distance);
     const intervalM=index===0?0:Math.max(0,previousDistance-distance);
     const lapsBehind=lengthM==null?0:Math.max(0,Math.floor((gapToLeaderM+1e-9)/lengthM));

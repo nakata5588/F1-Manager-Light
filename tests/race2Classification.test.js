@@ -142,22 +142,22 @@ test("RW8.4 a retired car freezes at its real distance and drops only when passe
 });
 
 test("RW8.4 finish order uses interpolated crossing time inside the canonical tick",()=>{
-  let state=runningState({laps:1,cars:2});
+  let state=startRaceState(createRaceState(input({laps:1,cars:2}),{stepMs:1000}));
   state=patchCars(state,{
-    C1:{absoluteDistanceM:99,distanceAlongLapM:99,sector:3,speedMs:10,speedKmh:36},
-    C2:{absoluteDistanceM:99.5,distanceAlongLapM:99.5,sector:3,speedMs:10,speedKmh:36},
+    C1:{absoluteDistanceM:99.5,distanceAlongLapM:99.5,sector:3,speedMs:1,speedKmh:3.6},
+    C2:{absoluteDistanceM:93.5,distanceAlongLapM:93.5,sector:3,speedMs:7,speedKmh:25.2},
   });
 
   const next=stepRaceState(state);
   const [winner,second]=next.classification;
 
   assert.equal(next.status,"finished");
-  assert.equal(winner.carId,"C2");
-  assert.equal(second.carId,"C1");
-  assert.equal(winner.finishTimeMs,50);
-  assert.equal(second.finishTimeMs,100);
-  assert.equal(second.gapToLeaderMs,50);
-  assert.equal(second.intervalMs,50);
+  assert.equal(winner.carId,"C1");
+  assert.equal(second.carId,"C2");
+  assert.equal(winner.finishTimeMs,500);
+  assert.ok(Math.abs(second.finishTimeMs-928.571)<0.001);
+  assert.equal(second.gapToLeaderMs,429);
+  assert.equal(second.intervalMs,429);
   assert.equal(second.timingBasis,"finish_time");
 });
 
@@ -165,6 +165,8 @@ test("RW8.4 RaceState initializes and starts with canonical grid classification"
   const ready=createRaceState(input({cars:2}));
   assert.deepEqual(ready.classification.map((row)=>row.carId),["C1","C2"]);
   assert.ok(ready.classification.every((row)=>row.status==="ready"));
+  assert.deepEqual(ready.classification.map((row)=>row.absoluteDistanceM),[0,-8]);
+  assert.equal(ready.classification[1].gapToLeaderM,8);
 
   const started=startRaceState(ready);
   assert.deepEqual(started.classification.map((row)=>row.carId),["C1","C2"]);
