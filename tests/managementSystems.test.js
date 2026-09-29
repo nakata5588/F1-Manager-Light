@@ -930,27 +930,18 @@ test("accepted AI contracted-Staff pursuit pays the seller and completes a mater
 
 test("Staff transfer does not move money when combined fee and incumbent termination are unaffordable",()=>{
   const gs=staffMarketFixture({candidateScore:85,candidateContracted:true});
-  gs.finances={balance:300_000,budget:300_000,season_spend:0,season_income:0};
-  gs.team={...gs.team,budget:300_000};
-  gs.teams=gs.teams.map((team)=>team.team_id==="T1"?{...team,budget:300_000}:team);
+  const incumbent=gs.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
+  incumbent.salary=1_500_000;
+  gs.finances={balance:2_000_000,budget:2_000_000,season_spend:0,season_income:0};
+  gs.team={...gs.team,budget:2_000_000};
+  gs.teams=gs.teams.map((team)=>team.team_id==="T1"?{...team,budget:2_000_000}:team);
   gs.inbox=[];
   gs.financeLog=[];
 
-  // Eligibility may reject immediately if even the fee alone is unaffordable.
-  // Raise just enough for an offer when needed, but keep the package below
-  // fee + incumbent termination.
-  let eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
-  if(!eligibility.canNegotiate){
-    const fee=Number(eligibility?.buyout?.fee||0);
-    const incumbent=gs.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
-    const termination=staffTerminationCost(gs,incumbent);
-    const balance=Math.max(fee+1,Math.min(fee+termination-1,fee+25_000));
-    gs.finances={...gs.finances,balance,budget:balance};
-    gs.team={...gs.team,budget:balance};
-    gs.teams=gs.teams.map((team)=>team.team_id==="T1"?{...team,budget:balance}:team);
-    eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
-  }
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
   assert.equal(eligibility.canNegotiate,true);
+  const totalPackage=Number(eligibility.buyout.fee)+staffTerminationCost(gs,incumbent);
+  assert.ok(totalPackage>gs.finances.balance);
 
   const opening=Number(gs.finances.balance);
   let next=startStaffNegotiation(gs,{
