@@ -522,11 +522,37 @@ const SHEET_CONFIG = {
       series_id: ["series_id"],
       valid_from: ["valid_from","year_from","start_year","from"],
       valid_to: ["valid_to","year_to","end_year","to"],
-      source_team_id: ["source_team_id","entrant_id"]
+      source_team_id: ["source_team_id","entrant_id"],
+      source_url: ["source_url","url","source"]
     },
     post(row) {
       row.valid_from = normalizeYear(row.valid_from);
       row.valid_to = normalizeYear(row.valid_to);
+      return row;
+    }
+  },
+
+  lower_series_entries: {
+    out: "lower_series_entries.json",
+    columns: {
+      lower_entry_id: ["lower_entry_id","entry_id","id"],
+      year: ["year","season_year","season"],
+      series_id: ["series_id"],
+      lower_team_id: ["lower_team_id","team_id","entrant_id"],
+      team_name: ["team_name","entrant_name","entrant"],
+      driver_id: ["driver_id","person_id"],
+      driver_name: ["driver_name","display_name","name"],
+      car_no: ["car_no","car_number","number"],
+      round_from: ["round_from","first_round","start_round","round_start"],
+      round_to: ["round_to","last_round","end_round","round_end"],
+      source: ["source","source_name"],
+      source_url: ["source_url","url"],
+      notes: ["notes"]
+    },
+    post(row) {
+      row.year = normalizeYear(row.year);
+      row.round_from = numOrNull(row.round_from);
+      row.round_to = numOrNull(row.round_to);
       return row;
     }
   },

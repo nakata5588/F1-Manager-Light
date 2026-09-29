@@ -24,6 +24,7 @@ import {
   matchLowerSeriesTeamFact,
 } from "./lowerSeriesTeams.js";
 import { carryLowerSeriesProspect } from "./lowerSeriesProspects.js";
+import { openingLowerSeriesEntryForDriver } from "./lowerSeriesEntries.js";
 import { lowerSeriesCareerMovement } from "./lowerSeriesCareerMovement.js";
 
 export const LOWER_SERIES_WORLD_VERSION=5;
@@ -148,6 +149,20 @@ function openingTeamFromCareer(row,seriesId,year,catalogTeams=[]){
   };
 }
 
+function openingTeamFromEntry(row,seriesId,year,catalogTeams=[]){
+  if(!row||!seriesId)return null;
+  const lowerTeamId=text(row?.lower_team_id??row?.team_id??row?.entrant_id);
+  const teamName=text(row?.team_name??row?.entrant_name??row?.entrant);
+  if(!lowerTeamId&&!teamName)return null;
+
+  const catalogMatch=matchLowerSeriesTeamFact(catalogTeams,{
+    seriesId,
+    lowerTeamId,
+    teamName,
+  });
+  return catalogMatch?lowerSeriesWorldTeamFromFact(catalogMatch,year):null;
+}
+
 function candidateRows(value){
   return rows(value).map((row)=>({
     series_id:text(row?.series_id)||null,
@@ -156,20 +171,30 @@ function candidateRows(value){
   })).filter((row)=>row.series_id);
 }
 
-function openingEntry(placement,driver,year,driverCareer,teams,catalogTeams){
+function openingEntry(placement,driver,year,driverCareer,lowerSeriesEntries,teams,catalogTeams){
   const driverId=text(placement?.driver_id??driverIdOf(driver));
   if(!driverId||!placement?.active_pre_f1_world)return null;
 
   const seriesId=text(placement?.series_id)||null;
   const level=num(placement?.series_level,null);
   const candidates=candidateRows(placement?.series_candidates);
-  const career=openingCareerEvidence(driverCareer,driverId,year,seriesId,level);
-  const team=openingTeamFromCareer(career,seriesId,year,catalogTeams);
+  const factualEntry=openingLowerSeriesEntryForDriver(lowerSeriesEntries,{
+    year,
+    driverId,
+    seriesId,
+  });
+  const career=factualEntry
+    ?null
+    :openingCareerEvidence(driverCareer,driverId,year,seriesId,level);
+  const team=factualEntry
+    ?openingTeamFromEntry(factualEntry,seriesId,year,catalogTeams)
+    :openingTeamFromCareer(career,seriesId,year,catalogTeams);
   if(team)teams.set(team.lower_team_id,team);
 
   const resolution=text(placement?.series_resolution)||(
     seriesId?"opening_series":"unresolved"
   );
+  const factualSource=Boolean(factualEntry);
   return {
     driver_id:driverId,
     series_id:seriesId,
@@ -178,11 +203,17 @@ function openingEntry(placement,driver,year,driverCareer,teams,catalogTeams){
     rule_id:text(placement?.series_rule_id)||null,
     series_candidates:candidates,
     lower_team_id:team?.lower_team_id??null,
-    team_name:team?.team_name??null,
+    team_name:(team?.team_name??text(factualEntry?.team_name))||null,
+    car_no:text(factualEntry?.car_no)||null,
+    factual_lower_entry_id:text(factualEntry?.lower_entry_id)||null,
+    opening_source_url:text(factualEntry?.source_url)||null,
+    opening_source:text(factualEntry?.source)||null,
     placement_status:seriesId
       ?(team?"placed_with_team":"series_only")
       :(candidates.length?"candidate_pool":"unresolved"),
-    placement_source:team?"historical_opening_career_evidence":resolution,
+    placement_source:factualSource
+      ?"historical_lower_series_entry"
+      :(team?"historical_opening_career_evidence":resolution),
     opening_seed:true,
     joined_world_year:Number(year),
   };
@@ -214,6 +245,7 @@ export function materializeLowerSeriesWorld({
   driverCareer=[],
   drivers=[],
   lowerSeriesTeams=[],
+  lowerSeriesEntries=[],
 }={}){
   const y=Number(year);
   if(!Number.isInteger(y))return emptyWorld(year,sourceSeason);
@@ -240,7 +272,15 @@ export function materializeLowerSeriesWorld({
   for(const placement of rows(placements)){
     if(!placement?.active_pre_f1_world)continue;
     const id=text(placement?.driver_id);
-    const entry=openingEntry(placement,driverById.get(id)||null,y,driverCareer,teams,activeTeamFacts);
+    const entry=openingEntry(
+      placement,
+      driverById.get(id)||null,
+      y,
+      driverCareer,
+      lowerSeriesEntries,
+      teams,
+      activeTeamFacts
+    );
     if(entry)entries[id]=entry;
   }
 

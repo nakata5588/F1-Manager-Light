@@ -20,6 +20,10 @@ import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../dom
 import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
 import { materializeHistoricalTeamStrengths } from "../domain/teamHistoricalStrength.js";
 import { activeLowerSeriesTeamsForYear } from "../domain/lowerSeriesTeams.js";
+import {
+  applyLowerSeriesEntriesToPlacements,
+  openingLowerSeriesEntriesForYear,
+} from "../domain/lowerSeriesEntries.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -705,7 +709,7 @@ export function materializeSeasonPack(globalData,yearInput){
     driverDevelopmentHistory:g.driverDevelopmentHistory||[],
     driverHistory:g.driverHistory||[],
   });
-  const feederPlacements=inferDriverFeederPlacements(
+  const inferredFeederPlacements=inferDriverFeederPlacements(
     [...driverMaster.values()],
     worldEntries,
     year,
@@ -713,6 +717,19 @@ export function materializeSeasonPack(globalData,yearInput){
       series:g.series||[],
       seriesRules:g.seriesRules||[],
       driverCareer:g.driverCareer||[],
+    }
+  );
+  const lowerSeriesEntries=openingLowerSeriesEntriesForYear(
+    g.lowerSeriesEntries||[],
+    year
+  );
+  const feederPlacements=applyLowerSeriesEntriesToPlacements(
+    inferredFeederPlacements,
+    lowerSeriesEntries,
+    {
+      year,
+      series:g.series||[],
+      seriesRules:g.seriesRules||[],
     }
   );
   const feederByDriver=new Map(
@@ -723,7 +740,8 @@ export function materializeSeasonPack(globalData,yearInput){
     ?new Set(openingStateRows.filter((row)=>!openingStateExcluded(row)).map(openingDriverId).filter(Boolean))
     :new Set(driverMaster.keys());
   for(const placement of feederPlacements){
-    if(placement?.active_pre_f1_world)candidateIds.add(String(placement.driver_id));
+    const id=String(placement?.driver_id||"");
+    if(placement?.active_pre_f1_world&&driverMaster.has(id))candidateIds.add(id);
   }
   for(const id of gridDriverIds)candidateIds.add(id);
 
@@ -834,6 +852,7 @@ export function materializeSeasonPack(globalData,yearInput){
       driverFeederPlacement:feederPlacements,
       driverOpeningState:openingStateRows,
       lowerSeriesTeams:activeLowerSeriesTeamsForYear(g.lowerSeriesTeams||[],year),
+      lowerSeriesEntries,
       contracts,
       staffCore,
       staffRatings,
@@ -922,6 +941,33 @@ export function validateSeasonPack(pack){
   }
   if((s.staffCore||[]).length<teamIds.size)warnings.push(`sparse_staff:${(s.staffCore||[]).length}`);
 
+  const lowerEntryRows=Array.isArray(s.lowerSeriesEntries)?s.lowerSeriesEntries:[];
+  if(lowerEntryRows.length){
+    const lowerTeamIds=new Set(
+      (s.lowerSeriesTeams||[])
+        .map((row)=>String(row?.lower_team_id??row?.team_id??row?.id??"").trim())
+        .filter(Boolean)
+    );
+    const unresolvedDrivers=lowerEntryRows.filter((row)=>!String(row?.driver_id??"").trim()).length;
+    const missingDrivers=lowerEntryRows.filter((row)=>{
+      const id=String(row?.driver_id??"").trim();
+      return id&&!driverIds.has(id);
+    }).length;
+    const unresolvedSeries=lowerEntryRows.filter((row)=>!String(row?.series_id??"").trim()).length;
+    const unresolvedTeams=lowerEntryRows.filter((row)=>
+      !String(row?.lower_team_id??"").trim()&&!String(row?.team_name??row?.entrant_name??"").trim()
+    ).length;
+    const orphanTeamRefs=lowerEntryRows.filter((row)=>{
+      const id=String(row?.lower_team_id??"").trim();
+      return id&&!lowerTeamIds.has(id);
+    }).length;
+    if(unresolvedDrivers)warnings.push(`lower_series_entries_without_driver_id:${unresolvedDrivers}`);
+    if(missingDrivers)warnings.push(`lower_series_entries_driver_not_in_pack:${missingDrivers}`);
+    if(unresolvedSeries)warnings.push(`lower_series_entries_without_series_id:${unresolvedSeries}`);
+    if(unresolvedTeams)warnings.push(`lower_series_entries_without_team:${unresolvedTeams}`);
+    if(orphanTeamRefs)warnings.push(`lower_series_entries_unknown_team_id:${orphanTeamRefs}`);
+  }
+
   return {
     ok:issues.length===0,
     issues,
@@ -935,6 +981,8 @@ export function validateSeasonPack(pack){
       openingState:(s.driverOpeningState||[]).length,
       worldEntry:(s.driverWorldEntry||[]).length,
       feederPlacement:(s.driverFeederPlacement||[]).length,
+      lowerSeriesEntries:(s.lowerSeriesEntries||[]).length,
+      lowerSeriesTeams:(s.lowerSeriesTeams||[]).length,
       contractedDrivers:gridContracts.length,
       staff:(s.staffCore||[]).length,
       staffContracts:(s.staffContracts||[]).length,

@@ -27,7 +27,7 @@ export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
 
   // Historical starting conditions materialized for the selected season.
   "calendar","teams","drivers","driverRatings","driverCareer","driverHistory",
-  "driverWorldEntry","driverFeederPlacement","driverOpeningState","lowerSeriesTeams","staffRatings","staffCore","staffContracts","teamBrands","teamHistoricalStrength",
+  "driverWorldEntry","driverFeederPlacement","driverOpeningState","lowerSeriesTeams","lowerSeriesEntries","staffRatings","staffCore","staffContracts","teamBrands","teamHistoricalStrength",
   "teamEngines","contracts","sponsorsContracts","rules","qualifyingRules",
   "eraSafety","accidentModel","facilities","carStats","tyres","pointsSystem",
   "penaltiesRules","financialRules","agendaBlocks","coreTracks",
@@ -150,6 +150,7 @@ export function buildFreshCareerState(source,runtimePatch={}){
         lowerSeriesTeams:(fresh?.lowerSeriesTeams||[]).length
           ?fresh.lowerSeriesTeams
           :(fresh?.dbLowerSeriesTeams||[]),
+        lowerSeriesEntries:fresh?.lowerSeriesEntries||[],
       });
       return {
         ...withPortraits,
