@@ -83,10 +83,10 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,4);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,5);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
@@ -97,6 +97,11 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("absoluteDistanceM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("targetSpeedKmh"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("performance"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("finishTimeMs"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("classification"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("timingState"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceClassificationRow.includes("gapToLeaderM"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceClassificationRow.includes("gapToLeaderMs"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.TrackModel.includes("speedProfile"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.Command.includes("effectiveAtTick"));
 });
