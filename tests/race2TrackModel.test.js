@@ -69,6 +69,17 @@ test("RW8.3B corner severity comes only from verified functional geometry",()=>{
   assert.ok(Math.max(...severities)>Math.min(...severities));
 });
 
+test("RW8.3B historical fallback geometry never drives race physics",()=>{
+  const model=buildTrackModel(argentinaState(),{
+    gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1955},
+  });
+
+  assert.equal(model.resolution.exact,false);
+  assert.equal(model.speedProfile.detailed,false);
+  assert.equal(model.speedProfile.source,"neutral");
+  assert.deepEqual(model.speedProfile.samples,[{distanceM:0,severity:0}]);
+});
+
 test("RW8.1 distance is continuous, wraps at the finish line and maps back to the same pose",()=>{
   const model=buildTrackModel(argentinaState(),{
     gp:{track_id:"tr_0018",year:1980},
