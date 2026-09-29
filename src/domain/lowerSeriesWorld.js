@@ -17,8 +17,14 @@ import {
   seriesNameOf,
   seriesRuleForYear,
 } from "./seriesCatalog.js";
+import {
+  activeLowerSeriesTeamsForYear,
+  lowerSeriesTeamIdOf,
+  lowerSeriesWorldTeamFromFact,
+  matchLowerSeriesTeamFact,
+} from "./lowerSeriesTeams.js";
 
-export const LOWER_SERIES_WORLD_VERSION=2;
+export const LOWER_SERIES_WORLD_VERSION=3;
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -112,11 +118,18 @@ function teamSlug(value){
   return slug||"unknown";
 }
 
-function openingTeamFromCareer(row,seriesId,year){
+function openingTeamFromCareer(row,seriesId,year,catalogTeams=[]){
   if(!row||!seriesId)return null;
   const name=text(row?.team_name??row?.team??row?.entrant_name??row?.constructor);
   const sourceId=text(row?.team_id??row?.entrant_id);
   if(!name&&!sourceId)return null;
+
+  const catalogMatch=matchLowerSeriesTeamFact(catalogTeams,{
+    seriesId,
+    sourceTeamId:sourceId,
+    teamName:name,
+  });
+  if(catalogMatch)return catalogMatch;
 
   const lowerTeamId=`ls_team:${seriesId}:${teamSlug(sourceId||name)}`;
   return {
@@ -141,7 +154,7 @@ function candidateRows(value){
   })).filter((row)=>row.series_id);
 }
 
-function openingEntry(placement,driver,year,driverCareer,teams){
+function openingEntry(placement,driver,year,driverCareer,teams,catalogTeams){
   const driverId=text(placement?.driver_id??driverIdOf(driver));
   if(!driverId||!placement?.active_pre_f1_world)return null;
 
@@ -149,7 +162,7 @@ function openingEntry(placement,driver,year,driverCareer,teams){
   const level=num(placement?.series_level,null);
   const candidates=candidateRows(placement?.series_candidates);
   const career=openingCareerEvidence(driverCareer,driverId,year,seriesId,level);
-  const team=openingTeamFromCareer(career,seriesId,year);
+  const team=openingTeamFromCareer(career,seriesId,year,catalogTeams);
   if(team)teams.set(team.lower_team_id,team);
 
   const resolution=text(placement?.series_resolution)||(
@@ -197,6 +210,7 @@ export function materializeLowerSeriesWorld({
   placements=[],
   driverCareer=[],
   drivers=[],
+  lowerSeriesTeams=[],
 }={}){
   const y=Number(year);
   if(!Number.isInteger(y))return emptyWorld(year,sourceSeason);
@@ -206,13 +220,24 @@ export function materializeLowerSeriesWorld({
   world.series=seriesRows.map((row)=>seriesRecord(row,seriesRules,y));
 
   const driverById=new Map(rows(drivers).map((driver)=>[driverIdOf(driver),driver]).filter(([id])=>id));
-  const teams=new Map();
+  const activeSeriesIds=new Set(world.series.map((row)=>text(row?.series_id)).filter(Boolean));
+  const activeTeamFacts=activeLowerSeriesTeamsForYear(
+    lowerSeriesTeams,
+    y,
+    {seriesIds:[...activeSeriesIds]}
+  );
+  const teams=new Map(
+    activeTeamFacts
+      .map((fact)=>lowerSeriesWorldTeamFromFact(fact,y))
+      .filter(Boolean)
+      .map((team)=>[team.lower_team_id,team])
+  );
   const entries={};
 
   for(const placement of rows(placements)){
     if(!placement?.active_pre_f1_world)continue;
     const id=text(placement?.driver_id);
-    const entry=openingEntry(placement,driverById.get(id)||null,y,driverCareer,teams);
+    const entry=openingEntry(placement,driverById.get(id)||null,y,driverCareer,teams,activeTeamFacts);
     if(entry)entries[id]=entry;
   }
 
@@ -341,6 +366,7 @@ export function rollLowerSeriesWorld(world,{
   drivers=[],
   series=[],
   seriesRules=[],
+  lowerSeriesTeams=[],
   excludedDriverIds=[],
 }={}){
   const year=Number(targetYear);
@@ -363,7 +389,23 @@ export function rollLowerSeriesWorld(world,{
   next.history=hadWorld?archiveWorldSeason(previous):[];
 
   const entries={};
-  const teams={};
+  const activeSeriesIds=new Set(next.series.map((row)=>text(row?.series_id)).filter(Boolean));
+  const catalogKnownTeamIds=new Set(
+    rows(lowerSeriesTeams).map(lowerSeriesTeamIdOf).filter(Boolean)
+  );
+  const activeTeamFacts=activeLowerSeriesTeamsForYear(
+    lowerSeriesTeams,
+    year,
+    {seriesIds:[...activeSeriesIds]}
+  );
+  const teams=Object.fromEntries(
+    activeTeamFacts
+      .map((fact)=>lowerSeriesWorldTeamFromFact(fact,year,{
+        previous:previousTeams[lowerSeriesTeamIdOf(fact)]||null,
+      }))
+      .filter(Boolean)
+      .map((team)=>[team.lower_team_id,team])
+  );
 
   for(const driver of rows(drivers)){
     const id=driverIdOf(driver);
@@ -384,11 +426,14 @@ export function rollLowerSeriesWorld(world,{
       :targetLevelForDriver(driver,previousEntry);
     const candidates=candidateRows(resolved.candidates);
     const sameSeries=Boolean(seriesId&&previousEntry?.series_id===seriesId);
-    const carriedTeam=sameSeries&&previousEntry?.lower_team_id
-      ?previousTeams[previousEntry.lower_team_id]||null
+    const previousTeamId=text(previousEntry?.lower_team_id);
+    const catalogCarried=previousTeamId?teams[previousTeamId]||null:null;
+    const legacyCarried=previousTeamId&&!catalogKnownTeamIds.has(previousTeamId)
+      ?previousTeams[previousTeamId]||null
       :null;
+    const carriedTeam=sameSeries?(catalogCarried||legacyCarried):null;
 
-    if(carriedTeam){
+    if(carriedTeam&&!teams[carriedTeam.lower_team_id]){
       teams[carriedTeam.lower_team_id]={
         ...carriedTeam,
         season_year:year,
