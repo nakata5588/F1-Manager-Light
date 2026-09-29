@@ -762,3 +762,22 @@ test("Staff counter-offer can be accepted without creating duplicate active nego
   assert.equal(next.staffNegotiations[0].status,"accepted");
   assert.equal(next.staffContracts.filter((row)=>row.staff_id==="S_FREE"&&row.status==="active").length,1);
 });
+
+
+test("AI Staff market never recruits governance-only Staff into operational roles",()=>{
+  const gs=staffMarketFixture();
+  gs.staffCore=gs.staffCore.filter((row)=>row.staff_id!=="S_FREE");
+  gs.staffRatings=gs.staffRatings.filter((row)=>row.staff_id!=="S_FREE");
+  gs.staffCore.push({staff_id:"S_OWNER",staff_name:"Owner Candidate",role_primary:"owner"});
+  gs.staffRatings.push({
+    year:1980,staff_id:"S_OWNER",reputation:99,
+    leadership:99,technical:99,strategy:99,motivation:99,communication:99,
+    pitstop_management:99,reliability_focus:99,data_analysis:99,innovation:99,
+    budget_management:99,driver_development:99,conflict_management:99,negotiation:99,
+  });
+  const next=applyStaffMarketTick(gs);
+  assert.equal(
+    next.staffContracts.some((row)=>String(row.team_id)==="T2"&&row.staff_id==="S_OWNER"),
+    false
+  );
+});
