@@ -111,7 +111,10 @@ export function lowerSeriesCareerMovement(world,driver,entry,{
 
 export function lowerSeriesMovementLabel(movement){
   if(!movement)return "No movement";
-  if(movement.effective_outcome==="promoted"||movement.decision==="promote")return "Promoted";
-  if(movement.f1_ready)return "F1 Ready";
+  if(movement.effective_outcome==="promoted")return "Promoted";
+  if(movement.effective_outcome==="promotion_pending")return "Promotion pending";
+  if(movement.effective_outcome==="promotion_blocked")return "Promotion blocked";
+  if(movement.f1_ready||movement.effective_outcome==="f1_ready")return "F1 Ready";
+  if(movement.decision==="promote")return "Promotion candidate";
   return "Stays in category";
 }
