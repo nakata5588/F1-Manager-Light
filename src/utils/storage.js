@@ -5,7 +5,7 @@ const SAVE_PREFIX = "f1ml_save_";
 const HEAVY_KEYS = [
   "dbCalendar", "dbDrivers", "dbTeams", "dbDriverRatings", "dbStaffRatings",
   "dbTeamBrands", "dbTeamEngines", "dbContracts", "dbSponsorsContracts",
-  "dbRules", "dbEraSafety", "dbAccidentModel", "dbDriverCareer", "dbAchievements",
+  "dbRules", "dbEraSafety", "dbAccidentModel", "dbDriverCareer", "dbSeries", "dbSeriesRules", "dbAchievements",
   "dbFacilities", "dbStaffContracts",
   "dbTyres", "dbPointsSystems", "dbQualifyingRules", "dbQualifyingRuleOverrides", "dbPenaltiesRules", "dbFinancialRules",
   "dbBoardGoals", "dbAgendaBlocks", "dbLogosIndex", "dbAIDifficulty",

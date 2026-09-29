@@ -56,6 +56,9 @@ jobs:
       - name: Test career season boundary
         run: npm run test:career
 
+      - name: Test lower-series catalogue foundation
+        run: node --test tests/seriesCatalog.test.js
+
       - name: Test driver progression and fatigue
         run: npm run test:drivers
 
