@@ -103,6 +103,7 @@ export default function ManagerProfile(){
   const effects=managerEffectSummary(gameState);
   const history=Array.isArray(manager.career_history)?manager.career_history:[];
   const achievements=Array.isArray(manager.achievements)?manager.achievements:[];
+  const development=manager.development||{};
   const employment=managerEmploymentAssessment(gameState);
   const unemployed=employment.status==="unemployed";
   const opportunities=unemployed?managerJobOpportunities(gameState):[];
@@ -245,8 +246,13 @@ export default function ManagerProfile(){
         </div>
         <div className="grid grid-cols-2 gap-2 p-4">
           <Metric label="Reputation" value={Math.round(Number(manager.reputation||0))+"/100"}/>
-          <Metric label="Level" value={managerReputationLabel(manager.reputation)}/>
+          <Metric label="Standing" value={managerReputationLabel(manager.reputation)}/>
+          <Metric label="Career Level" value={Math.max(1,Number(development.level||1))}/>
+          <Metric label="XP" value={Math.max(0,Number(development.xp||0))}/>
           <Metric label="Potential" value={Math.round(Number(manager.potential||0))+"/100"}/>
+          <Metric label="Races Managed" value={Math.max(0,Number(development.races_managed||0))}/>
+          <Metric label="Wins" value={Math.max(0,Number(development.wins||0))}/>
+          <Metric label="Podiums" value={Math.max(0,Number(development.podiums||0))}/>
           <Metric label="Career Start" value={manager.career_start_year||"—"}/>
           <Metric label="Contract Until" value={manager.current_job?.contract_until_year||"—"}/>
           <Metric label="Job Security" value={employment.jobSecurity==null?"—":employment.jobSecurity+"%"}/>
