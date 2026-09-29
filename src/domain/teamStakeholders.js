@@ -93,6 +93,8 @@ export function teamStakeholderHistory(gs,{staffId=null,teamId=null,role=null}={
     if(!TEAM_STAKEHOLDER_ROLES.includes(r))continue;
     const start=num(row?.start_year??row?.year,NaN);
     const end=num(row?.end_year,NaN);
+    const activeYear=Number(gs?.activeYear);
+    if(Number.isFinite(activeYear)&&Number.isFinite(start)&&start>activeYear)continue;
     const key=[sid,tid,r,start,end,row?.source??""].join("|");
     if(seen.has(key))continue;
     seen.add(key);
