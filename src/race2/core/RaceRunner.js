@@ -4,6 +4,7 @@
 // RaceSimulation.advanceRaceState(), the canonical batch wrapper over stepRaceState().
 
 import { advanceRaceState, raceStepMs } from "./RaceSimulation.js";
+import { cancelRaceCommand, queueRaceCommand } from "./RaceCommands.js";
 export { raceStepMs };
 
 const finite=(value,fallback=0)=>{
@@ -46,6 +47,14 @@ export function createLiveRaceRunner(initialState,{accumulatorMs=0}={}){
     },
     step(){
       if(state&&state.status!=="finished")state=runCanonicalSteps(state,1);
+      return state;
+    },
+    queueCommand(command){
+      state=queueRaceCommand(state,command);
+      return state;
+    },
+    cancelCommand(criteria){
+      state=cancelRaceCommand(state,criteria);
       return state;
     },
     snapshot(){
