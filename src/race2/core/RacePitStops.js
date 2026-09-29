@@ -174,11 +174,12 @@ function physicalPitPhases(lossPhases,trackTransitS){
 }
 
 function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
-  const nextTyreId=car?.resources?.strategy?.nextTyreId??null;
+  const strategy=car?.resources?.strategy||{};
+  const nextTyreId=strategy?.nextTyreId??null;
   const tyreChoice=tyreOption(car,nextTyreId);
-  const tyreChange=Boolean(
-    tyreChoice&&String(tyreChoice.tyre_id)!==String(car?.tyre?.tyre_id??"")
-  );
+  // A fresh set of the same compound is still a tyre change. The tyre id is
+  // the compound/spec identifier, not a unique physical set identifier.
+  const tyreChange=Boolean(tyreChoice&&strategy?.tyreChangeRequested!==false);
   const crew=car?.resources?.pitCrew||{};
   const expectedTyreS=tyreChange?Math.max(2,finite(crew?.avg_time_s,6.8)):0;
   const variation=Math.max(0,finite(crew?.execution_variance_s,0.5));
@@ -187,7 +188,10 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   const serviceVariation=(unit(state,`service-a:${key}`)+unit(state,`service-b:${key}`)-1)*variation;
   const tyreServiceS=tyreChange?Math.max(2,expectedTyreS+serviceVariation):0;
 
-  const refuellingAllowed=Boolean(car?.resources?.refuellingDeferred);
+  const refuelRequested=strategy?.refuelRequested===undefined
+    ?Boolean(car?.resources?.fuelStintPlanned)
+    :Boolean(strategy.refuelRequested);
+  const refuellingAllowed=Boolean(car?.resources?.refuellingDeferred&&refuelRequested);
   const targetFuel=refuellingAllowed
     ?fuelRequiredToFinishKg(state,car,entryAbsoluteM)
     :finite(car?.fuelKg,0);
@@ -483,6 +487,8 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
           ...(next?.resources?.strategy||{}),
           plannedStopLap:null,
           pitPlan:"completed",
+          tyreChangeRequested:true,
+          refuelRequested:false,
         },
       },
     };
