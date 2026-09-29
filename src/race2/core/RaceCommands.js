@@ -101,12 +101,13 @@ export function queueRaceCommand(state,raw={}){
   const command=normalizeRaceCommand(state,raw);
   if(!command)return state;
 
-  // A newer pending order of the same type replaces the older one for the same
-  // driver. Already-applied orders live in events, not in the pending queue.
+  // A newer order only replaces a competing order for the same driver, type
+  // and execution tick. Distinct future ticks remain schedulable.
   const queue=(state?.commandQueue||[])
     .filter((row)=>!(
       text(row?.driverId)===command.driverId&&
-      text(row?.type)===command.type
+      text(row?.type)===command.type&&
+      Math.floor(finite(row?.effectiveAtTick,-1))===command.effectiveAtTick
     ))
     .map((row)=>({...row}));
 
