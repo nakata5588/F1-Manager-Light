@@ -83,7 +83,7 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,10);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,11);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
     ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
@@ -97,6 +97,8 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("absoluteDistanceM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("targetSpeedKmh"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("performance"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("reliability"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("retirement"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("finishTimeMs"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("gridStartOffsetM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("traffic"));
@@ -159,6 +161,10 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.equal(aiCar.state.componentCondition.engine,91);
   assert.ok(Number.isFinite(playerCar.performance.race));
   assert.ok(Number.isFinite(playerCar.performance.power));
+  assert.ok(playerCar.reliability?.profile);
+  assert.ok(Number.isFinite(playerCar.reliability?.mechanicalFailureChance));
+  assert.ok(Number.isFinite(playerCar.reliability?.accidentIncidentChance));
+  assert.ok(Number.isFinite(playerCar.reliability?.accidentConditionalRetirementChance));
   assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.raceScore));
   assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.tyreManagement));
   assert.ok(Array.isArray(playerCar.resourceSetup.tyres));
