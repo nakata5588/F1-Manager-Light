@@ -227,3 +227,21 @@ test("career boundary respects Staff transfer contract duration",()=>{
   assert.equal(contract.expiry_reason,"contract_end");
   assert.equal(contract.continuity_renewal,undefined);
 });
+
+
+test("career boundary preserves active Save-World team stakeholders",()=>{
+  const state=fixture();
+  state.teamStakeholders=[
+    {
+      id:"stakeholder_owner_1",staff_id:"S1",staff_name:"Current Staff",
+      team_id:"T1",team_name:"Alpha",stakeholder_role:"owner",
+      start_year:1980,end_year:null,status:"active",source:"simulation_owner_acquisition",
+    },
+  ];
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  assert.equal(next.teamStakeholders.length,1);
+  assert.equal(next.teamStakeholders[0].staff_id,"S1");
+  assert.equal(next.teamStakeholders[0].status,"active");
+  assert.equal(next.teamStakeholders[0].end_year,null);
+});
