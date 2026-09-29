@@ -724,13 +724,14 @@ export const useGame = create((set, get) => ({
     try {
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
-      updated = processScoutingTick(updated);
+      const playerControlsTeam=!updated?.manager||playerManagerIsActiveTeamPrincipal(updated);
+      if(playerControlsTeam) updated = processScoutingTick(updated);
       updated = refreshDriverAvailability(updated, updated.currentDateISO);
-      updated = processWorkshopJobs(updated);
-      updated = processPlayerTechnicalLifecycle(updated);
-      updated = processTechnologyAdoption(updated);
+      if(playerControlsTeam) updated = processWorkshopJobs(updated);
+      if(playerControlsTeam) updated = processPlayerTechnicalLifecycle(updated);
+      if(playerControlsTeam) updated = processTechnologyAdoption(updated);
       updated = tickAITechnicalWorld(updated);
-      updated = processTechnologyDiscoveryNews(updated);
+      if(playerControlsTeam) updated = processTechnologyDiscoveryNews(updated);
       const changes = res?.changes || res?.attrChanges || [];
       if (Array.isArray(changes) && changes.length) {
         // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
@@ -745,8 +746,10 @@ export const useGame = create((set, get) => ({
     // Keep single-day advance behavior aligned with "advance until break".
     try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
-    updated = advanceNextSeasonCarDay(updated);
-    try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
+    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)) updated = advanceNextSeasonCarDay(updated);
+    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)){
+      try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
+    }
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
     try { const mod = await import("@/engine/StaffNegotiationEngine"); if (typeof mod.processStaffNegotiations === "function") updated = mod.processStaffNegotiations(updated) || updated; } catch {}
@@ -2061,6 +2064,7 @@ export const useGame = create((set, get) => ({
 
     const baseISO=clampISO(s.currentDateISO||firstDayISO(s.activeYear||1980));
     const newISO=addDaysISO(baseISO,1);
+    const startingRound=Number(s.currentRound??0);
     if(s?.manager&&!playerManagerIsActiveTeamPrincipal(s)){
       try {
         const mod=await import("@/engine/ManagerCareerEngine");
@@ -2075,7 +2079,7 @@ export const useGame = create((set, get) => ({
     const nextGP=s.calendar?.[round]??null;
     const nextISO=gpDateISO(nextGP);
 
-    let roundChanged=false;
+    let roundChanged=Number(round)!==startingRound;
     let newRound=round;
 
     if(nextISO){
@@ -2100,13 +2104,14 @@ export const useGame = create((set, get) => ({
       const res=triggerDailyTick(updated);
       const {state:next1,patched,changes,attrChanges}=res||{};
       updated=next1||patched||res||updated;
-      updated=processScoutingTick(updated);
+      const playerControlsTeam=!updated?.manager||playerManagerIsActiveTeamPrincipal(updated);
+      if(playerControlsTeam) updated=processScoutingTick(updated);
       updated=refreshDriverAvailability(updated,updated.currentDateISO);
-      updated=processWorkshopJobs(updated);
-      updated=processPlayerTechnicalLifecycle(updated);
-      updated=processTechnologyAdoption(updated);
+      if(playerControlsTeam) updated=processWorkshopJobs(updated);
+      if(playerControlsTeam) updated=processPlayerTechnicalLifecycle(updated);
+      if(playerControlsTeam) updated=processTechnologyAdoption(updated);
       updated=tickAITechnicalWorld(updated);
-      updated=processTechnologyDiscoveryNews(updated);
+      if(playerControlsTeam) updated=processTechnologyDiscoveryNews(updated);
       const ch=changes||attrChanges||[];
       if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
         updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};
@@ -2117,8 +2122,10 @@ export const useGame = create((set, get) => ({
 
     try { const mod=await import("@/engine/RuleEngine"); if(typeof mod.applyRulesTick==="function") updated=mod.applyRulesTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/ProgressionEngine"); if(typeof mod.applyProgressionTick==="function") updated=mod.applyProgressionTick(updated)||updated; } catch {}
-    updated=advanceNextSeasonCarDay(updated);
-    try { const mod=await import("@/engine/EconomyEngine"); if(typeof mod.applyEconomyTick==="function") updated=mod.applyEconomyTick(updated)||updated; } catch {}
+    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)) updated=advanceNextSeasonCarDay(updated);
+    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)){
+      try { const mod=await import("@/engine/EconomyEngine"); if(typeof mod.applyEconomyTick==="function") updated=mod.applyEconomyTick(updated)||updated; } catch {}
+    }
     try { const mod=await import("@/engine/MarketEngine"); if(typeof mod.applyMarketTick==="function") updated=mod.applyMarketTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/NegotiationEngine"); if(typeof mod.processDriverNegotiations==="function") updated=mod.processDriverNegotiations(updated)||updated; } catch {}
     try { const mod=await import("@/engine/StaffNegotiationEngine"); if(typeof mod.processStaffNegotiations==="function") updated=mod.processStaffNegotiations(updated)||updated; } catch {}
