@@ -239,6 +239,19 @@ test("Track 1.0B calibration transforms presentation geometry without mutating f
   assert.deepEqual(functional.points,[[10,20],[30,40]],"functional geometry must remain untouched");
 });
 
+test("Track 2.0 Argentina pit lane joins the verified main-track entry and exit",()=>{
+  const resolved=resolveTrackLayout({trackId:"tr_0018",year:1980});
+  const profile=trackIntelligenceProfile(resolved.layout);
+  const pit=resolved.geometry.pit_lane_points;
+  const entry=pointAtTrackProgress(resolved.geometry,profile.pit_entry_progress);
+  const exit=pointAtTrackProgress(resolved.geometry,profile.pit_exit_progress);
+  const distance=(point,target)=>Math.hypot(Number(point?.[0])-Number(target?.x),Number(point?.[1])-Number(target?.y));
+
+  assert.ok(distance(pit[0],entry)<0.01,"pit entry must start on the main-track merge point");
+  assert.ok(distance(pit.at(-1),exit)<0.01,"pit exit must finish on the main-track merge point");
+});
+
+
 test("Track 2.0 keeps functional, race-view and mini-map geometries separate",()=>{
   const resolved=resolveTrackLayout({trackId:"tr_0018",year:1980});
   const environment=trackEnvironmentProfile(resolved.layout);
