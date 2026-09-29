@@ -11,8 +11,7 @@ const finite=(value,fallback=0)=>{
 };
 
 export function runCanonicalSteps(state,steps=1){
-  const count=Math.max(0,Math.floor(finite(steps,0)));
-  return advanceRaceState(state,{steps:count});
+  return advanceRaceState(state,{steps});
 }
 
 /**
