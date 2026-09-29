@@ -203,7 +203,7 @@ function openingEntry(placement,driver,year,driverCareer,lowerSeriesEntries,team
     rule_id:text(placement?.series_rule_id)||null,
     series_candidates:candidates,
     lower_team_id:team?.lower_team_id??null,
-    team_name:team?.team_name??text(factualEntry?.team_name)||null,
+    team_name:(team?.team_name??text(factualEntry?.team_name))||null,
     car_no:text(factualEntry?.car_no)||null,
     factual_lower_entry_id:text(factualEntry?.lower_entry_id)||null,
     opening_source_url:text(factualEntry?.source_url)||null,
