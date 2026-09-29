@@ -1,96 +1,26 @@
 // src/engine/PracticeSetupEngine.js
-import { rngFor } from "../core/random.js";
+import { getSaveSeed } from "../core/random.js";
 import { teamCarPerformance } from "../domain/carPerformance.js";
-import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailureReason } from "../domain/carReliability.js";
+import { carReliabilityProfile } from "../domain/carReliability.js";
 import { applyPracticeComponentWear, practiceWearSummary } from "../domain/componentWear.js";
 import { driverCondition, fatiguePenalty } from "../domain/driverRating.js";
 import { raceEngineerPreparationProfile } from "../domain/driverRelationshipConsequences.js";
-import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition } from "../domain/driverMentalState.js";
+import { appendDriverMentalStateLog } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
 import { teamStaffCapability } from "../domain/staffPerformance.js";
+import {
+  PRACTICE_PROGRAMMES,
+  practiceProgramme,
+  simulateCanonicalPractice,
+} from "../race2/core/PracticeSimulation.js";
+
+export { PRACTICE_PROGRAMMES, practiceProgramme };
 
 const clamp=(n,min=0,max=100)=>Math.max(min,Math.min(max,Number(n)||0));
 const round1=(n)=>Math.round(Number(n||0)*10)/10;
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=o?.[k];if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
 const driverIdOf=(o)=>String(pick(o,["driver_id","person_id","id"],""));
-
-export const PRACTICE_PROGRAMMES=Object.freeze({
-  balanced:Object.freeze({
-    id:"balanced",
-    label:"Balanced",
-    description:"Evenly develops setup knowledge and race preparation.",
-    mileageFactor:1.00,
-    learningMultiplier:1.00,
-    preparationGain:7,
-    fatigue:7,
-    wearFactor:1.00,
-    incidentRisk:1.00,
-    qualifyingBonus:0.25,
-    raceBonus:0.25,
-    reliabilityBonus:0.15,
-  }),
-  setup:Object.freeze({
-    id:"setup",
-    label:"Setup Focus",
-    description:"Prioritises understanding the car and finding the circuit setup window.",
-    mileageFactor:0.95,
-    learningMultiplier:1.28,
-    preparationGain:8,
-    fatigue:6,
-    wearFactor:0.90,
-    incidentRisk:0.85,
-    qualifyingBonus:0.20,
-    raceBonus:0.20,
-    reliabilityBonus:0.20,
-  }),
-  qualifying:Object.freeze({
-    id:"qualifying",
-    label:"Qualifying Focus",
-    description:"Shorter, harder runs aimed at one-lap performance.",
-    mileageFactor:0.82,
-    learningMultiplier:0.92,
-    preparationGain:6,
-    fatigue:10,
-    wearFactor:1.10,
-    incidentRisk:1.22,
-    qualifyingBonus:1.10,
-    raceBonus:0.05,
-    reliabilityBonus:0.00,
-  }),
-  race:Object.freeze({
-    id:"race",
-    label:"Race Focus",
-    description:"Longer runs aimed at consistency and race trim.",
-    mileageFactor:1.25,
-    learningMultiplier:0.92,
-    preparationGain:8,
-    fatigue:12,
-    wearFactor:1.22,
-    incidentRisk:1.12,
-    qualifyingBonus:0.00,
-    raceBonus:1.05,
-    reliabilityBonus:0.10,
-  }),
-  reliability:Object.freeze({
-    id:"reliability",
-    label:"Reliability Focus",
-    description:"Controlled running aimed at understanding mechanical limits.",
-    mileageFactor:0.88,
-    learningMultiplier:0.82,
-    preparationGain:5,
-    fatigue:5,
-    wearFactor:0.72,
-    incidentRisk:0.68,
-    qualifyingBonus:0.00,
-    raceBonus:0.10,
-    reliabilityBonus:1.35,
-  }),
-});
-
-export function practiceProgramme(id){
-  return PRACTICE_PROGRAMMES[String(id||"").toLowerCase()]||PRACTICE_PROGRAMMES.balanced;
-}
 
 function currentTrack(gs,gp){
   const id=String(gp?.track_id??gs?.raceWeekendState?.track_id??"");
@@ -177,74 +107,6 @@ function ratingFor(gs,driverId){
   return rows.find((row)=>driverIdOf(row)===String(driverId))||{};
 }
 
-function entryTeam(gs,driverId){
-  const entry=(gs?.raceEntryState?.entries||[]).find((row)=>String(row?.driver_id??"")===String(driverId));
-  return String(entry?.team_id??"");
-}
-
-function setupQuality(actual,target){
-  const fields=["aeroBalance","mechanicalGrip","gearing","cooling"];
-  const meanError=fields.reduce((sum,key)=>sum+Math.abs(num(actual?.[key],50)-num(target?.[key],50)),0)/fields.length;
-  return round1(clamp(100-meanError*2.25,25,100));
-}
-
-function feedbackFor(actual,target){
-  const labels={
-    aeroBalance:"Aero balance",
-    mechanicalGrip:"Mechanical grip",
-    gearing:"Gearing",
-    cooling:"Cooling",
-  };
-  const rows=Object.keys(labels).map((key)=>({
-    key,
-    error:Math.abs(num(actual?.[key],50)-num(target?.[key],50)),
-  })).sort((a,b)=>b.error-a.error);
-  const main=rows[0];
-  if(!main||main.error<3)return "The car is inside a strong setup window.";
-  if(main.error<7)return `${labels[main.key]} still needs a small adjustment.`;
-  return `${labels[main.key]} remains the main setup concern.`;
-}
-
-function aiProgrammeFor(gs,teamId,driverId,engineering){
-  const car=teamCarPerformance(gs,teamId,driverId);
-  if(num(car?.reliability,75)<66)return PRACTICE_PROGRAMMES.reliability;
-  if(engineering<55)return PRACTICE_PROGRAMMES.setup;
-  const rating=ratingFor(gs,driverId);
-  if(num(rating?.qualifying,60)-num(rating?.racecraft,60)>8)return PRACTICE_PROGRAMMES.qualifying;
-  if(num(rating?.racecraft,60)-num(rating?.qualifying,60)>8)return PRACTICE_PROGRAMMES.race;
-  return PRACTICE_PROGRAMMES.balanced;
-}
-
-function issueFor(gs,{driverId,teamId,programme,weekendKey,trackRisk=50,weatherRisk=1}){
-  const rating=ratingFor(gs,driverId);
-  const crash=num(rating?.crash_likelihood,25)/100;
-  const fatigue=num(driverCondition(gs,driverId)?.fatigue,0);
-  const reliability=carReliabilityProfile(gs,teamId,driverId);
-  const rng=rngFor(gs,`${weekendKey}-practice-issue-${driverId}`);
-
-  const trackRiskFactor=0.80+clamp(trackRisk,0,100)/250;
-  const fatigueRisk=Math.max(0,fatigue-35)*0.00032;
-  const contactChance=clamp(((0.002+crash*0.018)*programme.incidentRisk*trackRiskFactor*weatherRisk)+fatigueRisk,0,0.11);
-  const mechanicalChance=mechanicalFailureChance(reliability,{
-    session:"practice",
-    programmeRisk:programme.incidentRisk,
-    weatherRisk:0.95+weatherRisk*0.05,
-    fatigue,
-  });
-  const roll=rng.next();
-  if(roll<contactChance)return {issue_type:"contact",issue_slot:"aero_front",issue_note:"Minor contact interrupted part of the programme."};
-  if(roll<contactChance+mechanicalChance){
-    const cause=selectMechanicalFailureReason(reliability,rng.next());
-    return {
-      issue_type:"mechanical",
-      issue_slot:cause?.slot==="engine"?null:cause?.slot||null,
-      issue_reason:cause?.reason||"Mechanical",
-      issue_note:`${cause?.reason||"A mechanical issue"} shortened the running.`,
-    };
-  }
-  return {issue_type:null,issue_slot:null,issue_note:null};
-}
-
 export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="practice")return {gameState:gs,practice:null};
@@ -252,138 +114,77 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const sessionWeather=weekendWeatherSession(gs,"practice")||weekendWeatherSession(gs);
   const profile=trackSetupProfile(gs,gp,sessionWeather);
   const raceWeather=raceWeekendWeatherSession(gs);
-  const qualifyingWeather=Object.values(gs?.raceWeekendState?.weekend_weather?.sessions||{}).find((row)=>row?.kind==="qualifying")||null;
+  const qualifyingWeather=Object.values(gs?.raceWeekendState?.weekend_weather?.sessions||{})
+    .find((row)=>row?.kind==="qualifying")||null;
   const raceRelevance=weatherSimilarity(sessionWeather,raceWeather);
   const qualifyingRelevance=weatherSimilarity(sessionWeather,qualifyingWeather);
-  const weatherRisk=1+num(sessionWeather?.rain_intensity,0)*0.85+Math.max(0,62-num(sessionWeather?.track?.grip_index,62))*0.022;
+  const weatherRisk=1+
+    num(sessionWeather?.rain_intensity,0)*0.85+
+    Math.max(0,62-num(sessionWeather?.track?.grip_index,62))*0.022;
   const weatherLearning=clamp(1-num(sessionWeather?.rain_intensity,0)*0.16,0.78,1);
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
-  const results=[];
-  const conditionDict={...(gs?.driverAttributes||{})};
-  let mentalStateLog={...(gs?.driverMentalStateLog||{})};
 
-  for(const entry of gs?.raceEntryState?.entries||[]){
+  const entrants=(gs?.raceEntryState?.entries||[]).map((entry)=>{
     const driverId=String(entry?.driver_id??"");
     const teamId=String(entry?.team_id??"");
-    if(!driverId||!teamId)continue;
-
-    const rating=ratingFor(gs,driverId);
+    if(!driverId||!teamId)return null;
     const engineering=teamSetupSupport(gs,teamId);
-    const engineerRelationship=raceEngineerPreparationProfile(gs,driverId,{teamId});
-    const programme=String(teamId)===playerTeamId
-      ?practiceProgramme(selections?.[driverId]||"balanced")
-      :aiProgrammeFor(gs,teamId,driverId,engineering);
-
-    const feedback=clamp(num(rating?.technical_feedback,50));
-    const adaptability=clamp(num(rating?.adaptability,50));
-    const consistency=clamp(num(rating?.consistency,50));
-    const previous=driverCondition(gs,driverId);
-    const fatigueBefore=clamp(num(previous?.fatigue,0));
-    const fatigueEfficiency=clamp(1-Math.max(0,fatigueBefore-15)*0.006,0.55,1);
-    const learning=clamp((
-      feedback*0.38+
-      adaptability*0.20+
-      consistency*0.12+
-      engineering*0.30
-    )*fatigueEfficiency*weatherLearning*engineerRelationship.multiplier);
-
-    const rng=rngFor(gs,`${weekend.key}-practice-setup-${driverId}`);
-    const initial={};
-    const final={};
-    const progress=clamp((0.28+(learning/100)*0.50)*programme.learningMultiplier,0.20,0.92);
-    for(const [key,target] of Object.entries(profile.target)){
-      const initialError=(rng.next()-0.5)*38;
-      initial[key]=round1(clamp(target+initialError));
-      final[key]=round1(clamp(target+initialError*(1-progress)));
-    }
-
-    const quality=setupQuality(final,profile.target);
-    const knowledge=round1(clamp(
-      22+
-      learning*0.52+
-      programme.mileageFactor*12+
-      (programme.id==="setup"?8:0)
-    ));
-    const issue=issueFor(gs,{
+    return {
       driverId,
       teamId,
-      programme,
-      weekendKey:weekend.key,
-      trackRisk:profile.inputs.crash_risk,
-      weatherRisk,
-    });
-    const issuePenalty=issue.issue_type?2:0;
-    const prepGain=clamp((
-      programme.preparationGain+
-      Math.max(0,quality-60)*0.05+
-      Math.max(0,knowledge-60)*0.025-
-      issuePenalty
-    )*(0.70+fatigueEfficiency*0.30),2,14);
+      isPlayerTeam:teamId===playerTeamId,
+      requestedProgrammeId:selections?.[driverId]||"balanced",
+      carReliabilityScore:num(teamCarPerformance(gs,teamId,driverId)?.reliability,75),
+      rating:{...ratingFor(gs,driverId)},
+      engineeringSupport:engineering,
+      engineerRelationship:{...raceEngineerPreparationProfile(gs,driverId,{teamId})},
+      conditionBefore:{...driverCondition(gs,driverId)},
+      fatiguePerformancePenaltyBefore:fatiguePenalty(gs,driverId),
+      reliabilityProfile:{...carReliabilityProfile(gs,teamId,driverId)},
+    };
+  }).filter(Boolean);
 
-    const nextCondition=applyMentalStateDeltaToCondition(previous,{
-      preparation:prepGain,
-      fatigue:programme.fatigue,
-      confidence:quality>=82?1:quality<55?-0.5:0,
-    });
-    const fatigueAfter=round1(nextCondition.fatigue);
-    conditionDict[driverId]=nextCondition;
+  const simulated=simulateCanonicalPractice({
+    seed:getSaveSeed(gs),
+    weekendKey:weekend.key,
+    trackProfile:profile,
+    sessionWeather:sessionWeather?{...sessionWeather}:null,
+    trackRisk:profile.inputs.crash_risk,
+    tyreWear:profile.inputs.tyre_wear,
+    weatherRisk,
+    weatherLearning,
+    qualifyingRelevance,
+    raceRelevance,
+    entrants,
+  });
+
+  const conditionDict={...(gs?.driverAttributes||{})};
+  let mentalStateLog={...(gs?.driverMentalStateLog||{})};
+  const entrantByDriver=new Map(entrants.map((entry)=>[entry.driverId,entry]));
+
+  for(const row of simulated.results){
+    const driverId=String(row?.driver_id??"");
+    const before=entrantByDriver.get(driverId)?.conditionBefore||driverCondition(gs,driverId);
+    const after=simulated.effects?.conditionByDriver?.[driverId]||before;
+    conditionDict[driverId]=after;
     mentalStateLog=appendDriverMentalStateLog(mentalStateLog,driverId,{
-      before:previous,
-      after:nextCondition,
+      before,
+      after,
       source:"practice",
-      reason:`${programme.label} practice`,
+      reason:`${row.programme_label} practice`,
       dateISO:gs?.currentDateISO,
       meta:{
-        programme:programme.id,
-        setup_quality:quality,
-        setup_knowledge:knowledge,
-        preparation_gain:round1(prepGain),
+        programme:row.programme_id,
+        setup_quality:row.setup_quality,
+        setup_knowledge:row.setup_knowledge,
+        preparation_gain:row.preparation_gain,
       },
-    });
-
-    results.push({
-      driver_id:driverId,
-      team_id:teamId,
-      programme_id:programme.id,
-      programme_label:programme.label,
-      engineering_support:engineering,
-      engineer_relationship_score:engineerRelationship.score,
-      engineer_relationship_multiplier:engineerRelationship.multiplier,
-      engineer_relationship_label:engineerRelationship.label,
-      learning_rate:round1(learning),
-      setup_knowledge:knowledge,
-      setup_quality:quality,
-      preparation_gain:round1(prepGain),
-      fatigue_before:round1(fatigueBefore),
-      fatigue_after:fatigueAfter,
-      fatigue_efficiency:round1(fatigueEfficiency*100),
-      fatigue_performance_penalty_before:round1(fatiguePenalty(gs,driverId)),
-      initial_setup:initial,
-      setup:final,
-      target_setup:profile.target,
-      feedback:feedbackFor(final,profile.target),
-      qualifying_bonus:round1(programme.qualifyingBonus*(0.62+0.38*qualifyingRelevance)),
-      race_bonus:round1(programme.raceBonus*(0.62+0.38*raceRelevance)),
-      // Reliability practice improves diagnosis/knowledge; it no longer grants a
-      // hidden permanent mechanical-reliability bonus.
-      reliability_bonus:0,
-      reliability_diagnostic_bonus:programme.reliabilityBonus,
-      mileage_factor:programme.mileageFactor,
-      wear_factor:round1(programme.wearFactor*(0.85+profile.inputs.tyre_wear/100*0.30)),
-      fatigue_cost:programme.fatigue,
-      weather_state:sessionWeather?.state||null,
-      track_wetness:round1(num(sessionWeather?.track?.start_wetness,0)*100),
-      track_grip:round1(num(sessionWeather?.track?.grip_index,88)),
-      track_temp_c:round1(num(sessionWeather?.track_temp_c,0)),
-      qualifying_weather_relevance:round1(qualifyingRelevance*100),
-      race_weather_relevance:round1(raceRelevance*100),
-      ...issue,
     });
   }
 
   let next={...gs,driverAttributes:conditionDict,driverMentalStateLog:mentalStateLog};
-  next=applyPracticeComponentWear(next,{practiceResults:results,gp});
-  const enrichedResults=results.map((row)=>({
+  next=applyPracticeComponentWear(next,{practiceResults:simulated.results,gp});
+  const enrichedResults=simulated.results.map((row)=>({
     ...row,
     component_wear:practiceWearSummary(next,{driverId:row.driver_id,gp}),
   }));
@@ -391,7 +192,8 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   const practice={
     completed_at:String(gs?.currentDateISO||"").slice(0,10),
     status:"completed",
-    source:"rw2_practice_setup",
+    source:simulated.source,
+    model:simulated.model,
     track_profile:profile,
     weather:sessionWeather?{...sessionWeather}:null,
     results:enrichedResults,
