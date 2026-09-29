@@ -313,6 +313,17 @@ test("dismissing the player archives old-team assets and makes the Manager unatt
   gs.hq={facilityLevels:{design_centre:3},upgrades:[{id:"old_hq_upgrade"}]};
   gs.academy={drivers:[{driver_id:"J1"}]};
   gs.scouting={assignments:[{id:"scout_old",status:"active"}],shortlist:["J2"]};
+  gs.board={reputation:73,actions:[{id:"board_old"}]};
+  gs.commercialScore=81;
+  gs.ops={pitcrew:{error_prob:0.04,avg_time_s:4.3}};
+  gs.rdProjectsActive=[{id:"legacy_rd",costMonthly:25000}];
+  gs.meta={team:{synergy:12}};
+  gs.selectedDrivers=["D1","D2"];
+  gs.financeFlags={old_flag:true};
+  gs.eventsQueue=[{
+    id:"future_training",type:"driver_action",dateISO:"1980-03-05",done:false,
+    effects:[{key:"money",delta:-50000}],
+  }];
   gs.aiTechnicalWorld={
     version:1,
     teams:{
@@ -367,6 +378,19 @@ test("dismissing the player archives old-team assets and makes the Manager unatt
   assert.equal(archived.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,61);
   assert.equal(archived.hq.facilityLevels.design_centre,3);
   assert.equal(archived.academy.drivers[0].driver_id,"J1");
+  assert.equal(archived.board.reputation,73);
+  assert.equal(archived.legacy_runtime.commercialScore,81);
+  assert.equal(archived.legacy_runtime.ops.pitcrew.avg_time_s,4.3);
+  assert.equal(archived.legacy_runtime.rdProjectsActive[0].id,"legacy_rd");
+  assert.equal(next.eventsQueue[0].done,true);
+  assert.equal(next.eventsQueue[0].cancelled,true);
+  assert.equal(next.eventsQueue[0].cancel_reason,"manager_departure");
+  assert.equal(next.commercialScore,null);
+  assert.deepEqual(next.ops,{});
+  assert.deepEqual(next.rdProjectsActive,[]);
+  assert.deepEqual(next.meta,{});
+  assert.deepEqual(next.selectedDrivers,[]);
+  assert.deepEqual(next.financeFlags,{});
   assert.equal(next.managerEmploymentState.former_team_id,"T1");
 });
 
@@ -401,6 +425,15 @@ test("Manager job market can move control to a different team's own assets",()=>
         hq:{facilityLevels:{design_centre:5},upgrades:[]},
         academy:{drivers:[{driver_id:"T2_JUNIOR"}]},
         scouting:{assignments:[],shortlist:["T2_TARGET"]},
+        board:{reputation:64,actions:[{id:"target_board_action"}]},
+        legacy_runtime:{
+          commercialScore:69,
+          ops:{pitcrew:{error_prob:0.02,avg_time_s:3.8}},
+          rdProjectsActive:[{id:"target_legacy_rd"}],
+          meta:{team:{synergy:8}},
+          selectedDrivers:["T2D1","T2D2"],
+          financeFlags:{target_flag:true},
+        },
         finance_summary:{balance:6_500_000,budget:6_500_000,season_spend:25_000,season_income:400_000},
         finance_log:[],
         planning:{},strategy_planning:{},
@@ -432,6 +465,13 @@ test("Manager job market can move control to a different team's own assets",()=>
   assert.equal(gs.development.projects[0].id,"target_project");
   assert.equal(gs.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,94);
   assert.equal(gs.academy.drivers[0].driver_id,"T2_JUNIOR");
+  assert.equal(gs.board.reputation,64);
+  assert.equal(gs.commercialScore,69);
+  assert.equal(gs.ops.pitcrew.avg_time_s,3.8);
+  assert.equal(gs.rdProjectsActive[0].id,"target_legacy_rd");
+  assert.equal(gs.meta.team.synergy,8);
+  assert.deepEqual(gs.selectedDrivers,["T2D1","T2D2"]);
+  assert.equal(gs.financeFlags.target_flag,true);
   assert.ok(gs.aiTechnicalWorld.teams.T1);
   assert.equal(gs.aiTechnicalWorld.teams.T2,undefined);
   assert.equal(gs.aiTechnicalWorld.teams.T1.hq.facilityLevels.design_centre,2);
@@ -453,13 +493,16 @@ test("job market exposes vacancy/replacement logic without changing Save World",
   assert.equal(dismissed.team,null);
 });
 
-test("unemployed race autosim does not duplicate an already archived GP",async()=>{
+test("unemployed race autosim recognizes the scheduled race date without duplicating archived results",async()=>{
   const gs=baseState(playerManager());
   const unemployed={
     ...gs,
-    currentDateISO:"1980-03-12",
+    currentDateISO:"1980-03-10",
     currentRound:0,
-    calendar:[{gp_id:"gp_test",name:"Test GP",race_date:"1980-03-10"}],
+    calendar:[
+      {gp_id:"gp_test",name:"Test GP",race_date:"1980-03-10"},
+      {gp_id:"gp_next",name:"Next GP",race_date:"1980-03-24"},
+    ],
     results:[{key:"1980_1_gp_test",year:1980,round:1,gp_id:"gp_test",classification:[]}],
     manager:{
       ...gs.manager,
@@ -471,6 +514,6 @@ test("unemployed race autosim does not duplicate an already archived GP",async()
   };
   const next=await autosimUnemployedRaceIfDue(unemployed);
   assert.equal(next.results.length,1);
-  assert.equal(next.currentRound,0);
+  assert.equal(next.currentRound,1);
   assert.equal(next.raceWeekendState??null,null);
 });
