@@ -213,6 +213,26 @@ test("RW8.11B neutralisation lasts its full lap duration before returning GREEN"
   assert.equal(released.events.at(-1).payload.to,"GREEN");
 });
 
+test("RW8.11B a same-level incident extends an active neutralisation",()=>{
+  const base=startRaceState(createRaceState(input({year:2015})));
+  const first=enforceRaceControlAssessment(
+    base,
+    assessment(base,{mode:"VSC",source:"incident",referenceLap:2}),
+    base.cars
+  );
+  const firstRelease=first.raceControlState.minimumReleaseLap;
+  const active={...base,raceControlState:first.raceControlState};
+  const extended=enforceRaceControlAssessment(
+    active,
+    assessment(active,{mode:"VSC",source:"incident",referenceLap:firstRelease}),
+    base.cars
+  );
+
+  assert.equal(extended.raceControlState.mode,"VSC");
+  assert.ok(extended.raceControlState.minimumReleaseLap>firstRelease);
+  assert.equal(extended.events.at(-1).type,"race_control_extended");
+});
+
 test("RW8.11B non-green control cancels active side-by-side battle state",()=>{
   const state=startRaceState(createRaceState(input()));
   const cars=[{
