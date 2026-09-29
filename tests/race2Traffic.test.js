@@ -207,5 +207,9 @@ test("RW8.5 Live and Fast share identical traffic-limited canonical state",()=>{
 
   assert.deepEqual(live.getState(),fast);
   assert.deepEqual(live.getState().classification,fast.classification);
-  assert.ok(live.getState().cars.some((row)=>row.traffic?.limited));
+  const ordered=live.getState().classification.map((row)=>row.carId);
+  assert.deepEqual(ordered,fast.classification.map((row)=>row.carId));
+  const first=car(live.getState(),"C1");
+  const second=car(live.getState(),"C2");
+  assert.ok(first.absoluteDistanceM-second.absoluteDistanceM>=RACE_TRAFFIC_HARD_GAP_M-1e-6);
 });
