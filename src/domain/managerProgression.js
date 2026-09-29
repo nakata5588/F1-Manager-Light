@@ -148,6 +148,11 @@ function normalizedDevelopment(manager){
     wins:Math.max(0,Math.floor(num(source.wins,0))),
     constructor_titles:Math.max(0,Math.floor(num(source.constructor_titles,0))),
     driver_titles:Math.max(0,Math.floor(num(source.driver_titles,0))),
+    last_regression_key:text(source.last_regression_key)||null,
+    last_regression_at:source.last_regression_at??null,
+    last_regression_reason:text(source.last_regression_reason)||null,
+    attribute_regressions:Math.max(0,num(source.attribute_regressions,0)),
+    reputation_lost:Math.max(0,num(source.reputation_lost,0)),
   };
 }
 
@@ -193,6 +198,88 @@ function applyLevelGrowth(manager,development,nextXp){
   }
 
   return {attributes,level:nextLevel,gains};
+}
+
+function managerRegressionFloors(manager){
+  const baseline=deriveManagerAttributes({
+    background:manager?.background,
+    experience:manager?.experience_level,
+  });
+  return Object.fromEntries(
+    ATTRIBUTE_KEYS.map((key)=>[
+      key,
+      Math.max(25,Math.round(num(baseline?.[key],50)-15)),
+    ])
+  );
+}
+
+function regressionReason(status){
+  return status==="critical"
+    ?"Sustained critical performance against Board expectations"
+    :"Sustained performance below Board expectations";
+}
+
+export function applyManagerPerformanceRegression(gs,{
+  assessment=null,
+  criticalStreak=0,
+  pressureStreak=0,
+}={}){
+  if(!gs?.manager||!assessment)return gs;
+  const status=text(assessment?.status).toLowerCase();
+  if(!["under_pressure","critical"].includes(status))return gs;
+
+  const races=Math.max(0,Math.floor(num(assessment?.races,0)));
+  if(races<=0)return gs;
+  const year=Number(gs?.activeYear)||yearOf((Array.isArray(gs?.results)?gs.results:[]).at(-1))||0;
+  const regressionKey=`${year}:${races}`;
+  const development=normalizedDevelopment(gs.manager);
+  if(development.last_regression_key===regressionKey)return gs;
+
+  const attributes={...(gs.manager?.attributes||{})};
+  const floors=managerRegressionFloors(gs.manager);
+  const losses={};
+  const lose=(key,amount=1)=>{
+    const current=Math.round(clamp(attributes?.[key],1,99));
+    const floor=Math.round(clamp(floors?.[key],1,99));
+    const after=Math.max(floor,current-Math.max(0,Math.round(amount)));
+    if(after>=current)return;
+    attributes[key]=after;
+    losses[key]=current-after;
+  };
+
+  // Employment assessment already contains the canonical Board/objective
+  // interpretation. Attribute regression therefore reacts to sustained
+  // underperformance, never to a raw finishing position in isolation.
+  if(status==="critical"){
+    if(Number(criticalStreak)===1)lose("race_management",1);
+    else if(Number(criticalStreak)===2)lose("leadership",1);
+  }else{
+    const streak=Math.max(0,Math.floor(num(pressureStreak,0)));
+    if(streak>0&&streak%6===3)lose("race_management",1);
+    else if(streak>0&&streak%6===0)lose("leadership",1);
+  }
+
+  const reputationBefore=clamp(gs.manager?.reputation??35);
+  const reputationLoss=status==="critical"?0.35:0.15;
+  const reputationAfter=Number(clamp(reputationBefore-reputationLoss).toFixed(2));
+  const attributeRegression=Object.values(losses).reduce((sum,value)=>sum+Number(value||0),0);
+
+  return {
+    ...gs,
+    manager:{
+      ...gs.manager,
+      attributes,
+      reputation:reputationAfter,
+      development:{
+        ...development,
+        last_regression_key:regressionKey,
+        last_regression_at:dateOnly(gs?.currentDateISO)||null,
+        last_regression_reason:regressionReason(status),
+        attribute_regressions:Number((development.attribute_regressions+attributeRegression).toFixed(2)),
+        reputation_lost:Number((development.reputation_lost+(reputationBefore-reputationAfter)).toFixed(2)),
+      },
+    },
+  };
 }
 
 function achievement(manager,id,payload){
