@@ -635,7 +635,7 @@ test("AI Staff market upgrades only for a material affordable improvement",()=>{
   assert.equal(tiny.staffContracts.some((row)=>row.staff_id==="S_AI"&&row.status==="released"),false);
 });
 
-test("AI Staff hiring respects budget and contractual availability",()=>{
+test("AI Staff hiring respects budget and approaches contracted upgrades instead of moving them instantly",()=>{
   const poor=applyStaffMarketTick(staffMarketFixture({aiBudget:100_000}));
   assert.equal(poor.staffContracts.some((row)=>String(row.team_id)==="T2"&&row.staff_id==="S_FREE"),false);
 
@@ -646,6 +646,11 @@ test("AI Staff hiring respects budget and contractual availability",()=>{
     String(row.team_id)==="T2"&&row.status==="active"&&String(row.role)==="team_principal"
   );
   assert.equal(active.staff_id,"S_AI");
+  const approach=(contracted.staffNegotiations||[]).find((row)=>
+    row.origin==="ai"&&row.kind==="transfer"&&row.staff_id==="S_FREE"&&row.team_id==="T2"
+  );
+  assert.ok(approach);
+  assert.ok(Number(approach.buyout_fee)>0);
 });
 
 test("AI renews valuable Staff and Staff-market decisions are deterministic",()=>{
@@ -893,4 +898,31 @@ test("Stakeholder history records ownership and backing separately from employme
   const history=staffCareerHistory(gs,"S_FREE");
   assert.ok(history.some((row)=>row.kind==="ownership"&&row.team_id==="T2"));
   assert.equal(history.filter((row)=>row.kind==="ownership").length,1);
+});
+
+
+test("accepted AI contracted-Staff pursuit pays the seller and completes a material upgrade",()=>{
+  let gs=staffMarketFixture({
+    incumbentScore:55,candidateScore:95,candidateContracted:true,
+  });
+  gs.inbox=[];
+  gs.financeLog=[];
+  let next=applyStaffMarketTick(gs);
+  const approach=(next.staffNegotiations||[]).find((row)=>
+    row.origin==="ai"&&row.kind==="transfer"&&row.staff_id==="S_FREE"&&row.team_id==="T2"
+  );
+  assert.ok(approach);
+  const fee=Number(approach.buyout_fee);
+  next={...next,currentDateISO:approach.response_date};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[approach.id]:"accepted"}});
+
+  const oldAI=next.staffContracts.find((row)=>row.staff_id==="S_AI"&&row.team_id==="T2");
+  const seller=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T3");
+  const hired=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T2"&&row.status==="active");
+  assert.equal(oldAI.status,"released");
+  assert.equal(seller.status,"bought_out");
+  assert.equal(seller.transfer_fee,fee);
+  assert.equal(hired.source,"ai_staff_transfer");
+  assert.equal(next.teams.find((row)=>row.team_id==="T2").budget,5_000_000-fee);
+  assert.equal(next.teams.find((row)=>row.team_id==="T3").budget,5_000_000+fee);
 });
