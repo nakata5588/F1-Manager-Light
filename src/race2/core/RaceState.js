@@ -4,7 +4,7 @@
 import { cloneRaceContractValue } from "../contracts/raceContracts.js";
 import { trackSectorAtDistance } from "../track/TrackModel.js";
 
-export const RACE_STATE_SCHEMA_VERSION=1;
+export const RACE_STATE_SCHEMA_VERSION=2;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
