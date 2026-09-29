@@ -994,3 +994,30 @@ test("AI Staff market still fills Team Principal vacancies when player occupies 
   assert.ok(aiPrincipal);
   assert.equal(aiPrincipal.staff_id,"S_FREE");
 });
+
+
+test("persisted Team Principal counter-offer cannot be accepted after player occupies the role",()=>{
+  const gs=staffMarketFixture();
+  gs.manager={
+    manager_id:"player_manager",
+    display_name:"Player Principal",
+    current_team_id:"T1",
+    current_team_name:"Player Team",
+    current_job:{team_id:"T1",team_name:"Player Team",role:"Team Principal",status:"active",contract_until_year:1982},
+  };
+  gs.staffNegotiations=[{
+    id:"legacy_counter",kind:"new_staff_contract",
+    staff_id:"S_FREE",staff_name:"Free Principal",
+    team_id:"T1",team_name:"Player Team",
+    role:"team_principal",
+    offer:{role:"team_principal",salary:200000,years:2},
+    counter_offer:{role:"team_principal",salary:220000,years:2},
+    expected_salary:200000,status:"countered",origin:"player",round:1,
+  }];
+  const next=acceptStaffCounterOffer(gs,"legacy_counter");
+  assert.equal(next.staffNegotiations[0].status,"withdrawn");
+  assert.equal(
+    next.staffContracts.some((row)=>row.staff_id==="S_FREE"&&row.team_id==="T1"&&row.status==="active"),
+    false
+  );
+});
