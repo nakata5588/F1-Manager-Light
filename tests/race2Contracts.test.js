@@ -9,6 +9,7 @@ import {
   normalizeRaceWeekendEngineVersion,
 } from "../src/race2/contracts/raceContracts.js";
 import { buildRaceWeekendInput } from "../src/race2/adapters/GameStateInputAdapter.js";
+import { mechanicalRetirementChance } from "../src/engine/RaceControlEngine.js";
 
 function fixture(){
   return {
@@ -17,6 +18,14 @@ function fixture(){
     currentRound:0,
     team:{team_id:"T1"},
     pointsSystem:{table:[9,6,4,3,2,1]},
+    carStats:[
+      {year:1980,team_id:"T1",reliability:98},
+      {year:1980,team_id:"T2",reliability:40},
+    ],
+    teamEngines:[
+      {year:1980,team_id:"T1",reliability:98},
+      {year:1980,team_id:"T2",reliability:40},
+    ],
     drivers:[
       {driver_id:"D2",display_name:"Driver Two"},
       {driver_id:"D1",display_name:"Driver One"},
@@ -181,4 +190,28 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.equal(gs.garage.cars.find((row)=>row.id==="car_1").componentCondition.engine,94);
   assert.equal(gs.aiTechnicalWorld.teams.T2.garage.cars[0].componentCondition.engine,91);
   assert.equal(gs.raceWeekendState.startingGrid.rows[0].grid,1);
+});
+
+
+test("RW8.10 adapter derives mechanical risk from the authoritative entered team",()=>{
+  const gs=fixture();
+  gs.raceEntryState={
+    ...gs.raceEntryState,
+    entries:gs.raceEntryState.entries.map((row)=>
+      row.driver_id==="D1"?{...row,team_id:"T2"}:row
+    ),
+  };
+
+  const input=buildRaceWeekendInput(gs,{
+    gp:{gp_id:"test_gp",gp_name:"Test Grand Prix",track_id:"test_track",race_date:"1980-05-18"},
+  });
+  const entered=input.cars.find((row)=>row.driverId==="D1");
+  const row={driver:{driver_id:"D1"}};
+  const authoritative=mechanicalRetirementChance(gs,row,{teamIdOverride:"T1"});
+  const stale=mechanicalRetirementChance(gs,row);
+
+  assert.equal(entered.teamId,"T1");
+  assert.equal(entered.reliability.profile.team_id,"T1");
+  assert.equal(entered.reliability.mechanicalFailureChance,authoritative);
+  assert.notEqual(authoritative,stale);
 });
