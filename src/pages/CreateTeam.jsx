@@ -216,7 +216,7 @@ export default function CreateTeam() {
         <h1 className="text-3xl font-bold">Create Your Team</h1>
         {startContext?.manager ? (
           <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
-            <span className="text-white/60">Team Manager</span>
+            <span className="text-white/60">Team Principal</span>
             <span className="ml-2 font-semibold">
               {String(startContext.manager.first_name || "") + " " + String(startContext.manager.last_name || "")}
             </span>
