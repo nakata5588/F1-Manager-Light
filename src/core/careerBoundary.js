@@ -272,7 +272,7 @@ function carryStaffContracts(rows,targetYear){
       };
     }
 
-    const legacyRole=String(row?.role??row?.position??"").toLowerCase().replace(/[\\s-]+/g,"_");
+    const legacyRole=String(row?.role??row?.position??"").toLowerCase().replace(/[\s-]+/g,"_");
     if(["owner","team_owner","sponsor_backer"].includes(legacyRole)){
       return {
         ...row,
