@@ -416,7 +416,7 @@ test("RW8.6 failed battle yields laterally until the hard gap is physically rest
   );
 });
 
-test("RW8.6 contact risk rises with mistake/aggression/corner severity but has no direct DNF consequence",()=>{
+test("RW8.6 contact generation stays pure and leaves consequences to RW8.10",()=>{
   let state=runningState({stepMs:1000});
   const calmAttacker={
     ...car(state,"C2"),
@@ -459,8 +459,10 @@ test("RW8.6 contact risk rises with mistake/aggression/corner severity but has n
       },
     });
     candidate=manualBattle(candidate);
-    const next=stepRaceState(candidate);
-    if(next.events.some((event)=>event.type==="contact"))contactState=next;
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:1000});
+    if(resolved.events.some((event)=>event.type==="contact")){
+      contactState={...candidate,cars:resolved.cars,events:resolved.events};
+    }
   }
 
   assert.ok(contactState,"expected deterministic contact seed in bounded search");
