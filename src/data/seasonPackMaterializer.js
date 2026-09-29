@@ -740,7 +740,8 @@ export function materializeSeasonPack(globalData,yearInput){
     ?new Set(openingStateRows.filter((row)=>!openingStateExcluded(row)).map(openingDriverId).filter(Boolean))
     :new Set(driverMaster.keys());
   for(const placement of feederPlacements){
-    if(placement?.active_pre_f1_world)candidateIds.add(String(placement.driver_id));
+    const id=String(placement?.driver_id||"");
+    if(placement?.active_pre_f1_world&&driverMaster.has(id))candidateIds.add(id);
   }
   for(const id of gridDriverIds)candidateIds.add(id);
 
