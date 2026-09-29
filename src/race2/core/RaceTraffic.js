@@ -54,7 +54,22 @@ function lapDistance(state,car){
   return wrapTrackDistanceM(state?.track,finite(car?.absoluteDistanceM,0));
 }
 
-export function nearestTrafficAhead(state,car){
+export function raceTrafficPairKey(a,b){
+  const ids=[String(a?.carId??a??""),String(b?.carId??b??"")].sort();
+  return ids.join("|");
+}
+
+export function carsShareActiveBattle(a,b){
+  if(!a||!b)return false;
+  return (
+    a?.battle?.phase==="side_by_side"&&
+    b?.battle?.phase==="side_by_side"&&
+    String(a?.battle?.opponentCarId??"")===String(b?.carId??"")&&
+    String(b?.battle?.opponentCarId??"")===String(a?.carId??"")
+  );
+}
+
+export function nearestTrafficAhead(state,car,{ignoreBattleOpponent=true}={}){
   if(!isTrackTrafficCar(car))return null;
   const from=lapDistance(state,car);
   if(from==null)return null;
@@ -62,6 +77,7 @@ export function nearestTrafficAhead(state,car){
   let best=null;
   for(const candidate of state?.cars||[]){
     if(candidate?.carId===car?.carId||!isTrackTrafficCar(candidate))continue;
+    if(ignoreBattleOpponent&&carsShareActiveBattle(car,candidate))continue;
     const to=lapDistance(state,candidate);
     if(to==null)continue;
     const gap=trackForwardGapM(state?.track,from,to);
@@ -86,8 +102,8 @@ export function desiredTrafficGapM(car){
   );
 }
 
-export function raceTrafficContext(state,car){
-  const nearest=nearestTrafficAhead(state,car);
+export function raceTrafficContext(state,car,{ignoreBattleOpponent=true}={}){
+  const nearest=nearestTrafficAhead(state,car,{ignoreBattleOpponent});
   const desiredGapM=desiredTrafficGapM(car);
 
   if(!nearest){
@@ -183,9 +199,17 @@ function currentCarById(state,id){
   return (state?.cars||[]).find((car)=>String(car?.carId??"")===String(id??""))??null;
 }
 
-export function enforceRaceTrafficSpacing(state,proposedCars,{stepMs=100,iterations=4}={}){
+export function enforceRaceTrafficSpacing(
+  state,
+  proposedCars,
+  {stepMs=100,iterations=4,bypassPairs=null}={}
+){
+  const bypass=bypassPairs instanceof Set?bypassPairs:new Set(bypassPairs||[]);
   const contexts=new Map(
-    (state?.cars||[]).map((car)=>[car?.carId,raceTrafficContext(state,car)])
+    (state?.cars||[]).map((car)=>[
+      car?.carId,
+      raceTrafficContext(state,car,{ignoreBattleOpponent:false}),
+    ])
   );
   let out=(proposedCars||[]).map((car)=>({...car}));
   const rounds=Math.max(1,Math.min(8,Math.round(finite(iterations,4))));
@@ -203,6 +227,7 @@ export function enforceRaceTrafficSpacing(state,proposedCars,{stepMs=100,iterati
       const previousAhead=currentCarById(state,context.aheadCarId);
       const ahead=byId.get(context.aheadCarId);
       if(!previousAhead||!ahead||ahead?.dnf||ahead?.status==="dnf")continue;
+      if(bypass.has(raceTrafficPairKey(follower,ahead)))continue;
 
       // Overtaking is not active yet. If both cars cross the finish during the
       // same fixed step, preserve the pre-step road order even though both
