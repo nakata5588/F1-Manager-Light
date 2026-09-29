@@ -196,8 +196,20 @@ export function buildRaceWeekendInput(gs,{gp=null,engineVersion=null}={}){
     ??weekend?.weekend_weather
     ??{}
   );
+  const weatherSourceState={
+    ...gs,
+    raceEntryState:{
+      ...(gs?.raceEntryState||{}),
+      entries:entries.map((entry)=>({
+        driver_id:entry.driverId,
+        team_id:entry.teamId,
+        car_id:entry.carId,
+        status:entry.status,
+      })),
+    },
+  };
   const weatherTimeline=track
-    ?buildTrackWeatherTimeline(gs,weatherSnapshot||{},{
+    ?buildTrackWeatherTimeline(weatherSourceState,weatherSnapshot||{},{
       track_id:track.trackId,
       laps:track.laps,
       drainage_rating:finite(track?.traits?.drainage,0.5),
