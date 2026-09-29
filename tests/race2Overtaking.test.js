@@ -259,6 +259,50 @@ test("RW8.6 active side-by-side battle may close below longitudinal hard gap wit
   assert.equal(attacker.lateralOffsetM,-defender.lateralOffsetM);
 });
 
+test("RW8.6 active battle still respects the next non-bypassed car in a pack",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+    C2:{
+      absoluteDistanceM:94,distanceAlongLapM:94,speedMs:100,speedKmh:360,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+  });
+  state={
+    ...state,
+    cars:[
+      ...state.cars,
+      {
+        ...car(state,"C1"),
+        carId:"C3",
+        driverId:"D3",
+        teamId:"T3",
+        gridPosition:3,
+        absoluteDistanceM:106,
+        distanceAlongLapM:106,
+        speedMs:10,
+        speedKmh:36,
+        performance:{car:null,driver:null},
+        battle:initialBattleState(),
+        lateralOffsetM:0,
+      },
+    ],
+  };
+  state=manualBattle(state);
+
+  const next=stepRaceState(state);
+  const attacker=car(next,"C2");
+  const nextBlocker=car(next,"C3");
+
+  assert.ok(
+    nextBlocker.absoluteDistanceM-attacker.absoluteDistanceM>=RACE_TRAFFIC_HARD_GAP_M-1e-6,
+    "bypassing the battle opponent must not bypass the next physical blocker"
+  );
+});
+
 test("RW8.6 lapping battle resolves from physical track clearance, not classification distance",()=>{
   let state=runningState();
   state=patchCars(state,{
@@ -312,6 +356,31 @@ test("RW8.6 a physically cleared attacker completes the overtake and becomes cla
   assert.equal(attacker.lateralOffsetM,0);
   assert.equal(next.classification[0].carId,"C2");
   assert.ok(next.events.some((event)=>event.type==="overtake_completed"));
+});
+
+test("RW8.6 expired battle extends while attacker is ahead but not yet fully clear",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+    C2:{
+      absoluteDistanceM:101,distanceAlongLapM:101,speedMs:41,speedKmh:147.6,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+  });
+  state=manualBattle(state,{expiresAtMs:50});
+
+  const next=stepRaceState(state);
+  const attacker=car(next,"C2");
+  const defender=car(next,"C1");
+
+  assert.equal(attacker.battle.phase,"side_by_side");
+  assert.equal(defender.battle.phase,"side_by_side");
+  assert.ok(attacker.battle.expiresAtMs>100);
+  assert.ok(!next.events.some((event)=>event.type==="overtake_failed"));
+  assert.notEqual(attacker.lateralOffsetM,0);
 });
 
 test("RW8.6 failed battle yields laterally until the hard gap is physically restored",()=>{
