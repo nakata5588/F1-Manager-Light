@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createRaceState } from "../src/race2/core/RaceState.js";
-import { startRaceState } from "../src/race2/core/RaceSimulation.js";
+import { raceStepMs, startRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   createLiveRaceRunner,
   runFastRace,
@@ -23,15 +23,15 @@ function input({laps=3}={}){
   };
 }
 
-function runningState(options={}){
-  const started=startRaceState(createRaceState(input(options),{stepMs:100}));
+function runningState({laps=3,stepMs=100}={}){
+  const started=startRaceState(createRaceState(input({laps}),{stepMs}));
   return {
     ...started,
     cars:started.cars.map((car)=>({...car,speedMs:50,speedKmh:180})),
   };
 }
 
-test("Live elapsed chunks and Fast steps share one canonical outcome",()=>{
+test("RW8.3 Live elapsed chunks and Fast steps share one canonical outcome",()=>{
   const initial=runningState();
   const fast=runFastRace(initial,{steps:100});
   const live=createLiveRaceRunner(initial);
@@ -43,7 +43,7 @@ test("Live elapsed chunks and Fast steps share one canonical outcome",()=>{
   assert.equal(fast.cars[0].absoluteDistanceM,500);
 });
 
-test("Live runner retains sub-step time and can resume without changing outcome",()=>{
+test("RW8.3 Live runner retains sub-step time and resumes without changing outcome",()=>{
   const initial=runningState();
   const first=createLiveRaceRunner(initial);
   first.advanceElapsed(255);
@@ -59,7 +59,41 @@ test("Live runner retains sub-step time and can resume without changing outcome"
   assert.equal(resumed.getAccumulatorMs(),0);
 });
 
-test("Fast-to-end is only a scheduler over canonical steps",()=>{
+test("RW8.3 Live elapsed threshold is stable for fractional millisecond chunks",()=>{
+  const initial=runningState({laps:10});
+  const chunked=createLiveRaceRunner(initial);
+  for(let index=0;index<1000;index+=1)chunked.advanceElapsed(0.1);
+
+  const whole=createLiveRaceRunner(initial);
+  whole.advanceElapsed(100);
+
+  assert.deepEqual(chunked.getState(),whole.getState());
+  assert.equal(chunked.getState().tick,1);
+  assert.equal(chunked.getAccumulatorMs(),0);
+});
+
+test("RW8.3 runner and core share the same canonical step duration normalization",()=>{
+  const initial=runningState();
+  const state={
+    ...initial,
+    session:{
+      ...initial.session,
+      simulation:{...initial.session.simulation,stepMs:null},
+    },
+  };
+
+  assert.equal(raceStepMs(state),100);
+
+  const fast=runFastRace(state,{steps:1});
+  const live=createLiveRaceRunner(state);
+  live.advanceElapsed(100);
+
+  assert.deepEqual(live.getState(),fast);
+  assert.equal(fast.tick,1);
+  assert.equal(fast.simulationTimeMs,100);
+});
+
+test("RW8.3 Fast-to-end is only a scheduler over canonical steps",()=>{
   const initial=runningState({laps:1});
   const finished=runFastRaceToEnd(initial,{maxSteps:250});
 
@@ -69,7 +103,7 @@ test("Fast-to-end is only a scheduler over canonical steps",()=>{
   assert.equal(finished.tick,200);
 });
 
-test("Fast-to-end fails explicitly instead of returning a partial race",()=>{
+test("RW8.3 Fast-to-end fails explicitly instead of returning a partial race",()=>{
   const initial=runningState({laps:2});
   assert.throws(
     ()=>runFastRaceToEnd(initial,{maxSteps:10}),
