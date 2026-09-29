@@ -181,8 +181,13 @@ export function stepRaceState(state){
   const stepMs=raceStepMs(state);
   const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
   const pits=advanceRacePitStops(state,proposedCars,{stepMs});
-  const overtaking=resolveRaceOvertaking(state,pits.cars,{stepMs});
-  const spacedCars=enforceRaceTrafficSpacing(state,overtaking.cars,{
+  const postPitState={
+    ...state,
+    cars:pits.cars,
+    pitLaneState:pits.pitLaneState,
+  };
+  const overtaking=resolveRaceOvertaking(postPitState,pits.cars,{stepMs});
+  const spacedCars=enforceRaceTrafficSpacing(postPitState,overtaking.cars,{
     stepMs,
     bypassPairs:overtaking.bypassPairs,
   });
