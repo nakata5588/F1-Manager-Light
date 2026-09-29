@@ -40,10 +40,25 @@ function raceViewTyre(car){
 
 function raceViewPitState(car){
   const pit=car?.pitState&&typeof car.pitState==="object"?car.pitState:{};
-  const phase=text(pit?.phase||pit?.status||"idle").toLowerCase();
   return {
     ...pit,
-    active:!["","idle","racing","complete","completed"].includes(phase),
+    active:Boolean(pit?.active),
+  };
+}
+
+function raceViewTrackState(state){
+  const track=state?.trackState||{};
+  const weather=state?.weatherState||{};
+  return {
+    ...track,
+    weather_state:weather?.state??track?.weatherState??null,
+    rain_intensity:finite(weather?.rain_intensity,finite(track?.rainIntensity,0)),
+    track_wetness:finite(weather?.track_wetness,finite(track?.wetness,0)),
+    grip_index:finite(weather?.grip_index,finite(track?.grip,100)),
+    visibility_index:finite(weather?.visibility_index,finite(track?.visibility,100)),
+    standing_water_index:finite(weather?.standing_water_index,finite(track?.standingWater,0)),
+    air_temp_c:finite(weather?.air_temp_c,finite(track?.airTemp,null)),
+    track_temp_c:finite(weather?.track_temp_c,finite(track?.trackTemp,null)),
   };
 }
 
@@ -126,8 +141,8 @@ export function projectRaceStateToRaceView(state){
     current_sector:finite(leader?.sector,1),
     total_laps:finite(state?.session?.lapLimit,null),
     current_control:text(state?.raceControlState?.mode||"GREEN").toUpperCase(),
-    last_weather:state?.weatherState?.current??state?.weatherState??null,
-    track_state:state?.trackState??null,
+    last_weather:state?.weatherState?.state??state?.weatherState?.current?.state??"SUNNY",
+    track_state:raceViewTrackState(state),
     timing_summary:state?.timingState??null,
     classification,
     pit_states:pitStates,
