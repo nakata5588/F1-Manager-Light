@@ -10,7 +10,7 @@ import {
 } from "./liveContracts.js";
 import { staffContractRole, resolveStaffId } from "./staffRoles.js";
 import { staffMarketScore } from "./staffPerformance.js";
-import { teamBudgetAvailable } from "./teamFinance.js";
+import { applyTeamBudgetDelta, teamBudgetAvailable } from "./teamFinance.js";
 
 const text=(value)=>String(value??"");
 const num=(value,fallback=NaN)=>{
@@ -82,75 +82,7 @@ export function canAffordStaffTransfer(gs,teamId,fee){
   return budget>=Math.max(0,Number(fee)||0);
 }
 
-function adjustPlayerBudget(gs,amount,{staffId,teamId,kind}={}){
-  const old=Number(gs?.finances?.balance??gs?.team?.budget??0);
-  const nextBalance=old+amount;
-  const date=text(gs?.currentDateISO).slice(0,10);
-  const sig=["staff-transfer",kind,date,staffId,teamId].join(":");
-  const log=Array.isArray(gs?.financeLog)?gs.financeLog:[];
-  const tx=log.some((row)=>row?.sig===sig)?[]:[{
-    id:"tx_"+sig,
-    dateISO:date,
-    type:amount>=0?"income":"expense",
-    category:"Staff Transfer",
-    desc:(amount>=0?"Staff compensation received":"Staff compensation paid"),
-    amount,
-    sig,
-  }];
-  return {
-    ...gs,
-    team:{...(gs?.team||{}),budget:nextBalance},
-    finances:{
-      ...(gs?.finances||{}),
-      balance:nextBalance,
-      budget:nextBalance,
-      season_spend:Number(gs?.finances?.season_spend||0)+(amount<0?Math.abs(amount):0),
-      season_income:Number(gs?.finances?.season_income||0)+(amount>0?amount:0),
-    },
-    financeLog:[...tx,...log],
-  };
-}
-function adjustNonPlayerBudget(gs,teamId,amount){
-  const tid=text(teamId);
-  let next=gs;
-  const aiTeams=gs?.aiTechnicalWorld?.teams;
-  if(aiTeams&&typeof aiTeams==="object"&&aiTeams[tid]){
-    const current=Number(aiTeams[tid]?.budget);
-    if(Number.isFinite(current)){
-      next={
-        ...next,
-        aiTechnicalWorld:{
-          ...(next?.aiTechnicalWorld||{}),
-          teams:{
-            ...aiTeams,
-            [tid]:{...aiTeams[tid],budget:current+amount},
-          },
-        },
-      };
-    }
-  }
-  if(Array.isArray(next?.teams)){
-    next={
-      ...next,
-      teams:next.teams.map((team)=>{
-        const id=text(team?.team_id??team?.id??team?.constructor_id);
-        if(id!==tid)return team;
-        const current=Number(team?.budget??team?.cash??team?.balance);
-        if(!Number.isFinite(current))return team;
-        if("budget" in team)return {...team,budget:current+amount};
-        if("cash" in team)return {...team,cash:current+amount};
-        return {...team,balance:current+amount};
-      }),
-    };
-  }
-  return next;
-}
-function adjustTeamBudget(gs,teamId,amount,meta){
-  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
-  return text(teamId)===playerTeamId
-    ?adjustPlayerBudget(gs,amount,meta)
-    :adjustNonPlayerBudget(gs,teamId,amount);
-}
+
 export function applyStaffTransferSettlement(gs,{
   staffId,
   buyerTeamId,
@@ -162,7 +94,15 @@ export function applyStaffTransferSettlement(gs,{
   const seller=text(sellerTeamId);
   if(!gs||!buyer||!seller||buyer===seller||amount<=0)return gs;
   if(!canAffordStaffTransfer(gs,buyer,amount))return null;
-  let next=adjustTeamBudget(gs,buyer,-amount,{staffId,teamId:buyer,kind:"paid"});
-  next=adjustTeamBudget(next,seller,amount,{staffId,teamId:seller,kind:"received"});
+  let next=applyTeamBudgetDelta(gs,buyer,-amount,{
+    category:"Staff Transfer",
+    desc:"Staff compensation paid",
+    sig:["staff-transfer","paid",text(gs?.currentDateISO).slice(0,10),staffId,buyer].join(":"),
+  });
+  next=applyTeamBudgetDelta(next,seller,amount,{
+    category:"Staff Transfer",
+    desc:"Staff compensation received",
+    sig:["staff-transfer","received",text(gs?.currentDateISO).slice(0,10),staffId,seller].join(":"),
+  });
   return next;
 }
