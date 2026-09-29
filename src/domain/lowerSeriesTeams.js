@@ -85,6 +85,8 @@ export function lowerSeriesWorldTeamFromFact(fact,year,{previous=null}={}){
     team_strength:num(previous?.team_strength,50),
     reliability:num(previous?.reliability,90),
     development_environment:num(previous?.development_environment,50),
+    performance_profile_year:num(previous?.performance_profile_year,null),
+    performance_profile_model:text(previous?.performance_profile_model)||null,
     calibration_status:previous?.calibration_status||"neutral_catalog_seed",
     source:previous?"save_world_continuity":"lower_series_team_catalog",
   };
