@@ -213,3 +213,49 @@ test("regulation retention caps transferable knowledge without deleting current 
   assert.equal(gs.development.technicalKnowledge.areas.aero.level,80);
   assert.ok(carry.retention_percent<100);
 });
+
+
+test("Reliability Focus has a dedicated development-learning effect without changing race reliability directly",()=>{
+  const strong=fixture();
+  const weak=structuredClone(strong);
+  const normalizeLedger=(gs)=>{
+    const ledger=technicalKnowledgeSnapshot(gs,{teamId:"T1"});
+    gs.development.technicalKnowledge={
+      ...ledger,
+      areas:Object.fromEntries(Object.entries(ledger.areas).map(([id,row])=>[
+        id,{...row,level:50,opening_level:50},
+      ])),
+    };
+  };
+  normalizeLedger(strong);
+  normalizeLedger(weak);
+
+  strong.staffRatings[0]={
+    ...strong.staffRatings[0],
+    reliability_focus:95,
+  };
+  weak.staffRatings[0]={
+    ...weak.staffRatings[0],
+    reliability_focus:25,
+  };
+
+  const strongContext=technicalLearningContext(strong,{teamId:"T1",area:"reliability"});
+  const weakContext=technicalLearningContext(weak,{teamId:"T1",area:"reliability"});
+  assert.equal(strongContext.staff_capability,"reliability_development");
+  assert.ok(strongContext.multiplier>weakContext.multiplier);
+
+  const strongLearned=applyTechnicalKnowledgeGains(
+    strong,[{area:"reliability",gain:5}],
+    {teamId:"T1",eventId:"reliability-strong",source:"project"}
+  );
+  const weakLearned=applyTechnicalKnowledgeGains(
+    weak,[{area:"reliability",gain:5}],
+    {teamId:"T1",eventId:"reliability-weak",source:"project"}
+  );
+  assert.ok(
+    strongLearned.development.technicalKnowledge.areas.reliability.level>
+    weakLearned.development.technicalKnowledge.areas.reliability.level
+  );
+  const log=strongLearned.development.technicalKnowledge.history.at(-1);
+  assert.equal(log.gains[0].staff_capability,"reliability_development");
+});

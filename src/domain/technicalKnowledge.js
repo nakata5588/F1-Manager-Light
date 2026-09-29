@@ -212,9 +212,10 @@ export function technicalKnowledgeSnapshot(gs,{teamId=null,development=null}={})
   return normalizeTechnicalKnowledge(dev?.technicalKnowledge,{gs,teamId});
 }
 
-export function technicalLearningContext(gs,{teamId=null}={}){
+export function technicalLearningContext(gs,{teamId=null,area=null}={}){
   const id=teamIdOf(gs,teamId);
-  const staff=technicalStaffQuality(gs,id);
+  const capability=area==="reliability"?"reliability_development":"technical_program";
+  const staff=teamStaffCapability(gs,id,capability);
   const facilities=facilitySnapshot(gs,id);
   const multiplier=clamp(
     0.72+staff/250+facilities.average/50,
@@ -222,6 +223,8 @@ export function technicalLearningContext(gs,{teamId=null}={}){
   );
   return {
     team_id:id,
+    area:area||null,
+    staff_capability:capability,
     staff_quality:staff,
     facility_average:facilities.average,
     multiplier:round(multiplier,3),
@@ -249,12 +252,17 @@ export function applyTechnicalKnowledgeGains(gs,gains=[],{
   const applied=[];
   const areas={...ledger.areas};
   const learning=technicalLearningContext(gs,{teamId});
+  const reliabilityLearning=technicalLearningContext(gs,{teamId,area:"reliability"});
   for(const gain of gains||[]){
     const area=str(gain?.area);
     if(!AREA_IDS.has(area))continue;
     const baseRaw=Math.max(0,num(gain?.gain,0));
     if(baseRaw<=0)continue;
-    const raw=baseRaw*learning.multiplier;
+    // Reliability knowledge uses the dedicated Staff reliability capability.
+    // This affects how efficiently the team learns to design durable parts;
+    // it does not directly reduce race-day failure probability.
+    const areaLearning=area==="reliability"?reliabilityLearning:learning;
+    const raw=baseRaw*areaLearning.multiplier;
     const current=areas[area];
     const delta=diminishingKnowledgeGain(current.level,raw);
     if(delta<=0)continue;
@@ -265,7 +273,13 @@ export function applyTechnicalKnowledgeGains(gs,gains=[],{
       project_xp:round(current.project_xp+(source==="project"?raw:0),3),
       last_updated:dateOnly(dateISO||gs?.currentDateISO)||current.last_updated,
     };
-    applied.push({area,raw_gain:round(raw,4),applied_gain:delta});
+    applied.push({
+      area,
+      raw_gain:round(raw,4),
+      applied_gain:delta,
+      learning_multiplier:areaLearning.multiplier,
+      staff_capability:areaLearning.staff_capability,
+    });
   }
   if(!applied.length)return gs;
 
@@ -276,6 +290,7 @@ export function applyTechnicalKnowledgeGains(gs,gains=[],{
       date:dateOnly(dateISO||gs?.currentDateISO)||null,
       source,
       learning_multiplier:learning.multiplier,
+      reliability_learning_multiplier:reliabilityLearning.multiplier,
       gains:applied,
     },
   ].slice(-160);

@@ -72,6 +72,7 @@ export default function StaffModal({entity,onClose,pageMode=false}){
   const primaryRole=staffRoleLabel(pick(staff,["role_primary"],roleRaw));
   const roleRating=staffRoleRating(rating,roleRaw);
   const overall=roleRating.score;
+  const roleWeights=new Map((roleRating.relevantAttributes||[]).map((row)=>[row.key,Number(row.weight)||0]));
   const skills=Object.entries(rating||{})
     .filter(([k,v])=>!["staff_id","staff_name","year"].includes(k)&&Number.isFinite(Number(v)))
     .sort((a,b)=>Number(b[1])-Number(a[1]));
@@ -180,15 +181,26 @@ export default function StaffModal({entity,onClose,pageMode=false}){
           <div className="mb-2 flex items-end justify-between gap-3">
             <div>
               <h3 className="font-semibold">Attributes</h3>
-              <p className="text-xs text-slate-500">Current staff ratings for season {year||"—"}.</p>
+              <p className="text-xs text-slate-500">Current ratings for season {year||"—"}. Overall is role-specific; Reputation affects the market, not role OVR.</p>
             </div>
             {overall!=null?<div className={"text-sm font-semibold "+tone(overall)}>Overall {overall}</div>:null}
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-            {skills.map(([k,v])=><div key={k} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
-              <div className="text-xs text-slate-500">{nice(k)}</div>
-              <div className={"mt-1 text-lg font-semibold "+tone(v)}>{v}</div>
-            </div>)}
+            {skills.map(([k,v])=>{
+              const weight=roleWeights.get(k)||0;
+              const note=k==="reputation"
+                ?"Market only"
+                :weight>0
+                  ?weight+"% of role OVR"
+                  :"Not in role OVR";
+              return <div key={k} className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-xs text-slate-500">{nice(k)}</div>
+                  <div className="text-[10px] text-slate-600">{note}</div>
+                </div>
+                <div className={"mt-1 text-lg font-semibold "+tone(v)}>{v}</div>
+              </div>;
+            })}
             {!skills.length&&<div className="col-span-full rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-500">No ratings available for this season.</div>}
           </div>
         </section>
