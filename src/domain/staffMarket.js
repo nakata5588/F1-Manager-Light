@@ -21,6 +21,7 @@ import {
   staffRoleRating,
 } from "./staffPerformance.js";
 import { teamReputation } from "./teamReputation.js";
+import { teamBudgetAvailable } from "./teamFinance.js";
 
 export const STAFF_HIREABLE_ROLES=Object.freeze([
   "team_principal",
@@ -97,17 +98,7 @@ export function staffExpectedSalary(gs,staffId,role){
   return Math.round((min+(max-min)*ratio*ratio)/5_000)*5_000;
 }
 export function staffTeamBudget(gs,teamId){
-  const id=text(teamId);
-  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
-  if(id&&id===playerTeamId){
-    const playerBudget=num(gs?.finances?.balance??gs?.team?.budget,NaN);
-    if(Number.isFinite(playerBudget))return playerBudget;
-  }
-  const aiBudget=num(gs?.aiTechnicalWorld?.teams?.[id]?.budget,NaN);
-  if(Number.isFinite(aiBudget))return aiBudget;
-  const team=teamRows(gs).find((row)=>teamIdOf(row)===id);
-  const direct=num(team?.budget??team?.cash??team?.balance,NaN);
-  return Number.isFinite(direct)?direct:NaN;
+  return teamBudgetAvailable(gs,teamId);
 }
 export function staffTeamReputation(gs,teamId){
   let value=50;
