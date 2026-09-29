@@ -40,6 +40,8 @@ function Podium({ title, items, getName }) {
 
 export default function SeasonSummaryModal() {
   const { gameState, setGameState, rolloverSeason } = useGame();
+  const [rolloverBusy,setRolloverBusy]=React.useState(false);
+  const [rolloverError,setRolloverError]=React.useState("");
 
   const visible = Boolean(gameState?.showSeasonSummary);
   if (!visible) return null;
@@ -57,8 +59,19 @@ export default function SeasonSummaryModal() {
   const close = () => setGameState({ showSeasonSummary: false });
 
   const onStartNextSeason = async () => {
-    setGameState({ showSeasonSummary: false });
-    await rolloverSeason(nextYear);
+    if(rolloverBusy)return;
+    setRolloverBusy(true);
+    setRolloverError("");
+    try{
+      const result=await rolloverSeason(nextYear);
+      if(result?.ok===false){
+        setRolloverError(String(result?.error?.message||result?.error||"The next season could not be created."));
+        return;
+      }
+      setGameState({ showSeasonSummary: false });
+    }finally{
+      setRolloverBusy(false);
+    }
   };
 
   return (
@@ -134,15 +147,17 @@ export default function SeasonSummaryModal() {
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-          <button className="rounded-lg px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300" onClick={close}>
+        <footer className="flex flex-wrap items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+          {rolloverError?<div className="mr-auto text-sm text-red-600">{rolloverError}</div>:null}
+          <button className="rounded-lg px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300" onClick={close} disabled={rolloverBusy}>
             Close
           </button>
           <button
             className="rounded-lg px-4 py-2 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700"
             onClick={onStartNextSeason}
+            disabled={rolloverBusy}
           >
-            Start {nextYear}
+            {rolloverBusy?`Starting ${nextYear}…`:`Start ${nextYear}`}
           </button>
         </footer>
       </div>

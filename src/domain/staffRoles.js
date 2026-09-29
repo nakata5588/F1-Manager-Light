@@ -2,6 +2,9 @@
 import { activeDriverContracts, teamIdOf as driverTeamIdOf } from "./driverContracts.js";
 import {
   activeStaffContracts,
+  contractEndYear,
+  contractStartYear,
+  staffContractsOf,
   staffIdOf,
   teamIdOfContract,
 } from "./liveContracts.js";
@@ -99,6 +102,25 @@ export function staffRolePriority(value){
 
 export function staffContractRole(contract){
   return canonicalStaffRole(contract?.role??contract?.position??contract?.job??contract?.role_primary);
+}
+
+// Role coverage is historical/structural, not the same thing as a currently
+// active incumbent. A released or terminated contract can still prove that a
+// role exists in this era, so coverage deliberately ignores contract status
+// while respecting the contract's season interval.
+export function staffRoleIsRepresented(gs,role){
+  const target=canonicalStaffRole(role);
+  const year=Number(gs?.activeYear);
+  return staffContractsOf(gs).some((contract)=>{
+    if(staffContractRole(contract)!==target)return false;
+    if(!Number.isFinite(year))return true;
+    const direct=Number(contract?.year??contract?.season_year);
+    const start=contractStartYear(contract,direct);
+    const end=contractEndYear(contract,direct);
+    const lo=Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity);
+    const hi=Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity);
+    return year>=lo&&year<=hi;
+  });
 }
 
 export function activeChampionshipTeamIds(gs){

@@ -419,6 +419,94 @@ function computeStartingBudget(gs, teamId, year) {
   return Math.max(0, val);
 }
 
+function dailyPipelineFailure(system,error){
+  const detail=String(error?.message||error||"Unknown error");
+  const wrapped=new Error(`[DailyPipeline] ${system} failed: ${detail}`);
+  if(error&&typeof error==="object")wrapped.cause=error;
+  return wrapped;
+}
+
+async function runDailyStage(system,fn){
+  try{
+    return await fn();
+  }catch(error){
+    console.error(`[DailyPipeline] ${system} failed:`,error);
+    throw dailyPipelineFailure(system,error);
+  }
+}
+
+async function autosimUnemployedRaceForDay(state){
+  if(!state?.manager||playerManagerIsActiveTeamPrincipal(state))return state;
+  return runDailyStage("ManagerCareer unemployed-race autosim",async()=>{
+    const mod=await import("@/engine/ManagerCareerEngine");
+    if(typeof mod.autosimUnemployedRaceIfDue!=="function")return state;
+    return await mod.autosimUnemployedRaceIfDue(state)||state;
+  });
+}
+
+async function applyDailyWorldSystems(initialState){
+  let updated=initialState;
+
+  updated=await runDailyStage("EventEngine daily tick",async()=>{
+    const res=triggerDailyTick(updated);
+    let next=res?.state||res?.patched||res||updated;
+    const playerControlsTeam=!next?.manager||playerManagerIsActiveTeamPrincipal(next);
+    if(playerControlsTeam)next=processScoutingTick(next);
+    next=refreshDriverAvailability(next,next.currentDateISO);
+    if(playerControlsTeam)next=processWorkshopJobs(next);
+    if(playerControlsTeam)next=processPlayerTechnicalLifecycle(next);
+    if(playerControlsTeam)next=processTechnologyAdoption(next);
+    next=tickAITechnicalWorld(next);
+    if(playerControlsTeam)next=processTechnologyDiscoveryNews(next);
+    const changes=res?.changes||res?.attrChanges||[];
+    if(Array.isArray(changes)&&changes.length&&typeof applyAttrChangesDict==="function"){
+      next={...next,driverAttrLog:applyAttrChangesDict(next.driverAttrLog,changes)};
+    }
+    return next;
+  });
+
+  updated=await runDailyStage("RuleEngine",async()=>{
+    const mod=await import("@/engine/RuleEngine");
+    return typeof mod.applyRulesTick==="function"?(mod.applyRulesTick(updated)||updated):updated;
+  });
+
+  updated=await runDailyStage("ProgressionEngine",async()=>{
+    const mod=await import("@/engine/ProgressionEngine");
+    return typeof mod.applyProgressionTick==="function"?(mod.applyProgressionTick(updated)||updated):updated;
+  });
+
+  if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)){
+    updated=advanceNextSeasonCarDay(updated);
+    updated=await runDailyStage("EconomyEngine",async()=>{
+      const mod=await import("@/engine/EconomyEngine");
+      return typeof mod.applyEconomyTick==="function"?(mod.applyEconomyTick(updated)||updated):updated;
+    });
+  }
+
+  updated=await runDailyStage("MarketEngine",async()=>{
+    const mod=await import("@/engine/MarketEngine");
+    return typeof mod.applyMarketTick==="function"?(mod.applyMarketTick(updated)||updated):updated;
+  });
+  updated=await runDailyStage("NegotiationEngine",async()=>{
+    const mod=await import("@/engine/NegotiationEngine");
+    return typeof mod.processDriverNegotiations==="function"?(mod.processDriverNegotiations(updated)||updated):updated;
+  });
+  updated=await runDailyStage("StaffNegotiationEngine",async()=>{
+    const mod=await import("@/engine/StaffNegotiationEngine");
+    return typeof mod.processStaffNegotiations==="function"?(mod.processStaffNegotiations(updated)||updated):updated;
+  });
+  updated=await runDailyStage("ManagerCareerEngine",async()=>{
+    const mod=await import("@/engine/ManagerCareerEngine");
+    return typeof mod.processManagerCareerTick==="function"?(mod.processManagerCareerTick(updated)||updated):updated;
+  });
+  updated=await runDailyStage("InboxEngine",async()=>{
+    const mod=await import("@/engine/InboxEngine");
+    return typeof mod.syncInbox==="function"?(mod.syncInbox(updated)||updated):updated;
+  });
+
+  return updated;
+}
+
 /* ======================= STORE ======================= */
 export const useGame = create((set, get) => ({
   gameState: {
@@ -680,28 +768,26 @@ export const useGame = create((set, get) => ({
     try {
       // Never applyYearFilter here: that would replace the simulated career
       // with historical future assignments/outcomes from the Global Database.
-      set((s) => ({ gameState: processPlayerTechnicalLifecycle(rolloverSeasonPure(s.gameState, nextYear)) }));
-    } catch (e) {
-      console.warn("rolloverSeason fallback:", e);
-      set((s) => ({
-        gameState: {
-          ...s.gameState,
-          activeYear: nextYear,
-          currentDateISO: `${nextYear}-01-01`,
-          currentRound: 0,
-          standings: { drivers: [], teams: [] },
-          _seasonFinishedAt: null,
-          showSeasonSummary: false,
-        },
-      }));
+      // Build the full next state before committing it so rollover is atomic.
+      const nextState=processPlayerTechnicalLifecycle(rolloverSeasonPure(st,nextYear));
+      set({gameState:nextState});
+      get().pushToast?.({
+        title: `Season ${nextYear} started`,
+        description: "Career world rolled forward; structural calendar loaded.",
+        type: "success",
+        ttl: 3000,
+      });
+      return {ok:true,gameState:nextState};
+    } catch (error) {
+      console.error("[SeasonRollover] failed; current career state preserved:",error);
+      get().pushToast?.({
+        title: "Season rollover failed",
+        description: String(error?.message||error||"The next season could not be created."),
+        type: "error",
+        ttl: 7000,
+      });
+      return {ok:false,error};
     }
-
-    get().pushToast?.({
-      title: `Season ${nextYear} started`,
-      description: "Career world rolled forward; structural calendar loaded.",
-      type: "success",
-      ttl: 3000,
-    });
   },
 
   /** ===================== AVANÇAR UM DIA ===================== */
@@ -714,48 +800,10 @@ export const useGame = create((set, get) => ({
     if (Number.isInteger(nextCalendarYear) && nextCalendarYear > Number(s.activeYear || 0)) {
       updated = rolloverSeasonPure(s, nextCalendarYear);
     }
-    try {
-      const mod = await import("@/engine/ManagerCareerEngine");
-      if (typeof mod.autosimUnemployedRaceIfDue === "function") {
-        updated = await mod.autosimUnemployedRaceIfDue(updated) || updated;
-      }
-    } catch (e) {
-      console.warn("[ManagerCareer] unemployed race autosim failed:", e);
-    }
-    try {
-      const res = triggerDailyTick(updated);
-      updated = res?.state || res?.patched || res || updated;
-      const playerControlsTeam=!updated?.manager||playerManagerIsActiveTeamPrincipal(updated);
-      if(playerControlsTeam) updated = processScoutingTick(updated);
-      updated = refreshDriverAvailability(updated, updated.currentDateISO);
-      if(playerControlsTeam) updated = processWorkshopJobs(updated);
-      if(playerControlsTeam) updated = processPlayerTechnicalLifecycle(updated);
-      if(playerControlsTeam) updated = processTechnologyAdoption(updated);
-      updated = tickAITechnicalWorld(updated);
-      if(playerControlsTeam) updated = processTechnologyDiscoveryNews(updated);
-      const changes = res?.changes || res?.attrChanges || [];
-      if (Array.isArray(changes) && changes.length) {
-        // se tiveres esta função noutro sítio, mantém; caso não, remove esta linha
-        if (typeof applyAttrChangesDict === "function") {
-          updated = { ...updated, driverAttrLog: applyAttrChangesDict(updated.driverAttrLog, changes) };
-        }
-      }
-    } catch (e) {
-      console.warn("[EventEngine] daily tick failed:", e);
-    }
+    updated=await autosimUnemployedRaceForDay(updated);
 
-    // Keep single-day advance behavior aligned with "advance until break".
-    try { const mod = await import("@/engine/RuleEngine"); if (typeof mod.applyRulesTick === "function") updated = mod.applyRulesTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/ProgressionEngine"); if (typeof mod.applyProgressionTick === "function") updated = mod.applyProgressionTick(updated) || updated; } catch {}
-    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)) updated = advanceNextSeasonCarDay(updated);
-    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)){
-      try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
-    }
-    try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/StaffNegotiationEngine"); if (typeof mod.processStaffNegotiations === "function") updated = mod.processStaffNegotiations(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/ManagerCareerEngine"); if (typeof mod.processManagerCareerTick === "function") updated = mod.processManagerCareerTick(updated) || updated; } catch {}
-    try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
+    // One canonical daily subsystem pipeline for both advance paths.
+    updated=await applyDailyWorldSystems(updated);
 
     set({ gameState: updated });
 
@@ -2069,16 +2117,7 @@ export const useGame = create((set, get) => ({
     const baseISO=clampISO(s.currentDateISO||firstDayISO(s.activeYear||1980));
     const newISO=addDaysISO(baseISO,1);
     const startingRound=Number(s.currentRound??0);
-    if(s?.manager&&!playerManagerIsActiveTeamPrincipal(s)){
-      try {
-        const mod=await import("@/engine/ManagerCareerEngine");
-        if(typeof mod.autosimUnemployedRaceIfDue==="function"){
-          s=await mod.autosimUnemployedRaceIfDue({...s,currentDateISO:newISO})||s;
-        }
-      } catch(e){
-        console.warn("[ManagerCareer] unemployed race autosim failed:",e);
-      }
-    }
+    s=await autosimUnemployedRaceForDay({...s,currentDateISO:newISO});
     const round=s.currentRound??0;
     const nextGP=s.calendar?.[round]??null;
     const nextISO=gpDateISO(nextGP);
@@ -2104,37 +2143,7 @@ export const useGame = create((set, get) => ({
       roundChanged=true;
     }
 
-    try {
-      const res=triggerDailyTick(updated);
-      const {state:next1,patched,changes,attrChanges}=res||{};
-      updated=next1||patched||res||updated;
-      const playerControlsTeam=!updated?.manager||playerManagerIsActiveTeamPrincipal(updated);
-      if(playerControlsTeam) updated=processScoutingTick(updated);
-      updated=refreshDriverAvailability(updated,updated.currentDateISO);
-      if(playerControlsTeam) updated=processWorkshopJobs(updated);
-      if(playerControlsTeam) updated=processPlayerTechnicalLifecycle(updated);
-      if(playerControlsTeam) updated=processTechnologyAdoption(updated);
-      updated=tickAITechnicalWorld(updated);
-      if(playerControlsTeam) updated=processTechnologyDiscoveryNews(updated);
-      const ch=changes||attrChanges||[];
-      if(Array.isArray(ch)&&ch.length&&typeof applyAttrChangesDict==="function"){
-        updated={...updated,driverAttrLog:applyAttrChangesDict(updated.driverAttrLog,ch)};
-      }
-    } catch(e){
-      console.warn("[EventEngine] daily tick failed:",e);
-    }
-
-    try { const mod=await import("@/engine/RuleEngine"); if(typeof mod.applyRulesTick==="function") updated=mod.applyRulesTick(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/ProgressionEngine"); if(typeof mod.applyProgressionTick==="function") updated=mod.applyProgressionTick(updated)||updated; } catch {}
-    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)) updated=advanceNextSeasonCarDay(updated);
-    if(!updated?.manager||playerManagerIsActiveTeamPrincipal(updated)){
-      try { const mod=await import("@/engine/EconomyEngine"); if(typeof mod.applyEconomyTick==="function") updated=mod.applyEconomyTick(updated)||updated; } catch {}
-    }
-    try { const mod=await import("@/engine/MarketEngine"); if(typeof mod.applyMarketTick==="function") updated=mod.applyMarketTick(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/NegotiationEngine"); if(typeof mod.processDriverNegotiations==="function") updated=mod.processDriverNegotiations(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/StaffNegotiationEngine"); if(typeof mod.processStaffNegotiations==="function") updated=mod.processStaffNegotiations(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/ManagerCareerEngine"); if(typeof mod.processManagerCareerTick==="function") updated=mod.processManagerCareerTick(updated)||updated; } catch {}
-    try { const mod=await import("@/engine/InboxEngine"); if(typeof mod.syncInbox==="function") updated=mod.syncInbox(updated)||updated; } catch {}
+    updated=await applyDailyWorldSystems(updated);
 
     let weekendBreak=null;
     try {
@@ -2156,7 +2165,8 @@ export const useGame = create((set, get) => ({
         updated={...updated,raceWeekendState:null,raceEntryState:null};
       }
     } catch(e){
-      console.warn("[RaceWeekend] state sync failed:",e);
+      console.error("[RaceWeekend] state sync failed:",e);
+      throw dailyPipelineFailure("RaceWeekend state sync",e);
     }
 
     set({gameState:updated});
@@ -2182,7 +2192,9 @@ export const useGame = create((set, get) => ({
         localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
         setRollingSnapshot(JSON.stringify(light));
       }
-    } catch {}
+    } catch(error) {
+      console.warn("[Autosave] daily checkpoint failed:",error);
+    }
 
     return {
       oldDate:baseISO,

@@ -772,3 +772,238 @@ test("Manager M4 does not award a championship after leaving before the finale",
   assert.equal(next.manager.achievements.some((row)=>row.type==="constructor_champion"),false);
   assert.equal(next.manager.achievements.some((row)=>row.type==="driver_champion"),false);
 });
+
+
+function poorManagerRace(round){
+  return {
+    key:`1980_${round}_manager_balance_poor`,
+    year:1980,
+    round,
+    dateISO:`1980-${String(Math.min(12,round+2)).padStart(2,"0")}-01`,
+    classification:[
+      {team_id:"T2",driver_id:`T2_${round}`,position:1,points:9,constructor_points:9,status:"Finished",retired:false},
+      {team_id:"T1",driver_id:`T1_${round}`,position:10,points:0,constructor_points:0,status:"Finished",retired:false},
+    ],
+  };
+}
+
+function unemployedManager(overrides={}){
+  const employed=playerManager(overrides);
+  return {
+    ...employed,
+    current_team_id:null,
+    current_team_name:null,
+    current_job:{
+      ...employed.current_job,
+      team_id:null,
+      team_name:null,
+      status:"fired",
+    },
+  };
+}
+
+test("Manager balance protects the opening races even under catastrophic results",()=>{
+  const gs={
+    ...baseState(playerManager()),
+    currentDateISO:"1980-06-01",
+    results:Array.from({length:4},(_,index)=>poorManagerRace(index+1)),
+  };
+  const assessment=managerEmploymentAssessment(gs);
+  assert.equal(assessment.status,"under_pressure");
+  assert.equal(assessment.canBeDismissed,false);
+
+  const next=processManagerCareerTick(gs);
+  assert.equal(next.manager.current_job.status,"active");
+  assert.equal(next.managerEmploymentState.pressure_streak,1);
+});
+
+test("Manager balance requires sustained critical performance before dismissal",()=>{
+  let gs={
+    ...baseState(playerManager()),
+    currentDateISO:"1980-08-01",
+    results:Array.from({length:6},(_,index)=>poorManagerRace(index+1)),
+  };
+
+  gs=processManagerCareerTick(gs);
+  assert.equal(gs.manager.current_job.status,"active");
+  assert.equal(gs.managerEmploymentState.last_status,"critical");
+  assert.equal(gs.managerEmploymentState.critical_streak,1);
+
+  gs={
+    ...gs,
+    currentDateISO:"1980-09-01",
+    results:[...gs.results,poorManagerRace(7)],
+  };
+  gs=processManagerCareerTick(gs);
+
+  assert.equal(gs.manager.current_job.status,"fired");
+  assert.equal(gs.manager.current_team_id,null);
+  assert.equal(gs.managerEmploymentState.dismissal_reason,"board_dismissal");
+});
+
+test("Manager balance resets dismissal pressure after a genuine performance recovery",()=>{
+  let gs={
+    ...baseState(playerManager()),
+    currentDateISO:"1980-08-01",
+    results:Array.from({length:6},(_,index)=>poorManagerRace(index+1)),
+  };
+  gs=processManagerCareerTick(gs);
+  assert.equal(gs.managerEmploymentState.critical_streak,1);
+
+  const recovery={
+    key:"1980_7_manager_balance_recovery",
+    year:1980,
+    round:7,
+    dateISO:"1980-09-01",
+    classification:[
+      {team_id:"T1",driver_id:"T1_RECOVERY",position:1,points:9,constructor_points:9,status:"Finished",retired:false},
+      {team_id:"T2",driver_id:"T2_RECOVERY",position:2,points:6,constructor_points:6,status:"Finished",retired:false},
+    ],
+  };
+  gs={
+    ...gs,
+    currentDateISO:"1980-09-02",
+    results:[...gs.results,recovery],
+    standings:{
+      ...gs.standings,
+      teams:[
+        {team_id:"T1",position:1,points:9},
+        {team_id:"T2",position:2,points:60},
+      ],
+    },
+  };
+  gs=processManagerCareerTick(gs);
+
+  assert.equal(gs.manager.current_job.status,"active");
+  assert.equal(gs.managerEmploymentState.last_status,"secure");
+  assert.equal(gs.managerEmploymentState.critical_streak,0);
+  assert.equal(gs.managerEmploymentState.pressure_streak,0);
+});
+
+test("Manager contract expiry does not renew a manager below the Board security threshold",()=>{
+  const manager=playerManager();
+  const gs={
+    ...baseState({
+      ...manager,
+      current_job:{...manager.current_job,contract_until_year:1981,status:"active"},
+      career_history:(manager.career_history||[]).map((row)=>({...row,contract_until_year:1981})),
+    }),
+    activeYear:1982,
+    currentDateISO:"1982-01-02",
+    managerEmploymentState:{
+      status:"active",
+      last_security:44,
+      last_evaluated_races:14,
+      critical_streak:0,
+      pressure_streak:0,
+    },
+  };
+
+  const next=processManagerCareerTick(gs);
+  assert.equal(next.manager.current_job.status,"contract_ended");
+  assert.equal(next.manager.current_team_id,null);
+  assert.equal(next.managerEmploymentState.dismissal_reason,"contract_not_renewed");
+});
+
+test("Manager Job Market opens plausible vacancies but blocks prestige jumps and former-team cooling off",()=>{
+  const manager=unemployedManager({reputation:35});
+  const base={
+    ...baseState(manager),
+    team:null,
+    managerEmploymentState:{status:"unemployed"},
+    teamReputationState:{
+      T1:{reputation:30},
+      T2:{reputation:50},
+    },
+    // Represent the Team Principal role elsewhere in the same era so T2's
+    // missing incumbent is a real Save World vacancy, not missing source data.
+    staffRatings:[{
+      year:1980,staff_id:"TP1",reputation:40,
+      leadership:40,conflict_management:40,negotiation:40,budget_management:40,
+      motivation:40,communication:40,strategy:40,technical:40,
+    }],
+    staffContracts:[{
+      year:1980,team_id:"T1",staff_id:"TP1",staff_name:"Recorded Principal",
+      role:"team_principal",status:"active",
+      contract_start_year:1979,contract_until_year:1982,
+    }],
+  };
+
+  const plausible=managerJobOpportunity(base,"T2");
+  assert.equal(plausible.vacancy,true);
+  assert.equal(plausible.available,true);
+
+  const prestige=managerJobOpportunity({
+    ...base,
+    teamReputationState:{...base.teamReputationState,T2:{reputation:68}},
+  },"T2");
+  assert.equal(prestige.available,false);
+  assert.equal(prestige.reason,"Team prestige currently beyond Manager standing");
+
+  const coolingBase={
+    ...base,
+    manager:unemployedManager({reputation:60}),
+    currentDateISO:"1980-03-30",
+    managerEmploymentState:{
+      status:"unemployed",
+      former_team_id:"T1",
+      unemployed_since:"1980-01-01",
+    },
+  };
+  const cooling=managerJobOpportunity(coolingBase,"T1");
+  assert.equal(cooling.available,false);
+  assert.equal(cooling.reason,"Cooling-off period after leaving team");
+
+  const eligibleAgain=managerJobOpportunity({
+    ...coolingBase,
+    currentDateISO:"1980-03-31",
+  },"T1");
+  assert.equal(eligibleAgain.available,true);
+});
+
+test("Manager Job Market only challenges a comparable incumbent when contract timing supports it",()=>{
+  const manager=unemployedManager({reputation:45});
+  const incumbentRating={
+    year:1980,
+    staff_id:"TP2",
+    reputation:51,
+    leadership:51,
+    conflict_management:51,
+    negotiation:51,
+    budget_management:51,
+    motivation:51,
+    communication:51,
+    strategy:51,
+    technical:51,
+  };
+  const base={
+    ...baseState(manager),
+    team:null,
+    managerEmploymentState:{status:"unemployed"},
+    teamReputationState:{T2:{reputation:45}},
+    staffRatings:[incumbentRating],
+    staffContracts:[{
+      year:1979,
+      team_id:"T2",
+      staff_id:"TP2",
+      staff_name:"Comparable Principal",
+      role:"team_principal",
+      status:"active",
+      contract_start_year:1979,
+      contract_until_year:1982,
+    }],
+  };
+
+  const protectedIncumbent=managerJobOpportunity(base,"T2");
+  assert.equal(protectedIncumbent.vacancy,false);
+  assert.equal(protectedIncumbent.incumbent_expiring,false);
+  assert.equal(protectedIncumbent.available,false);
+
+  const expiring=managerJobOpportunity({
+    ...base,
+    staffContracts:base.staffContracts.map((row)=>({...row,contract_until_year:1980})),
+  },"T2");
+  assert.equal(expiring.incumbent_expiring,true);
+  assert.equal(expiring.replace_incumbent,true);
+  assert.equal(expiring.available,true);
+});
