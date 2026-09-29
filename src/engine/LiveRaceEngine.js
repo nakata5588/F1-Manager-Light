@@ -12,6 +12,7 @@ import { damagePenaltyMsBetweenOrdinals, damagePenaltyMsThroughOrdinal, incident
 import { rngFor } from "../core/random.js";
 import { teamOrderComplianceProfile } from "../domain/driverRelationshipConsequences.js";
 import { liveSectorTimesForLap } from "../domain/liveSectorPace.js";
+import { raceControlPitLaneLossMultiplier } from "../domain/raceControlPaceModel.js";
 import { materializeOfficialRaceRows } from "./RaceFinalizationEngine.js";
 
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -281,7 +282,7 @@ function pitLossEstimate(gs,strategyState,driverId,lap,plan,{observedLap=null}={
   // pit loss; a stop on the current observed lap may use the visible control.
   const canUseObservedControl=observedLap==null||Number(lap)<=Number(observedLap);
   const control=canUseObservedControl?raceControlAtLap(plan,lap):{type:"GREEN"};
-  const controlMult=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
+  const controlMult=raceControlPitLaneLossMultiplier(control.type);
   const lane=Math.max(0,num(track?.pit_lane_loss_s,24))*controlMult;
   const stationary=Math.max(2,num(crew?.avg_time_s,6.8));
   return Number((lane+stationary).toFixed(2));
