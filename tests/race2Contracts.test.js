@@ -83,10 +83,10 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,8);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,9);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
@@ -107,6 +107,10 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("fuelBurnKgPerKm"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("paceMultiplier"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("fuelStarvationPenalty"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("pitCrew"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RacePitState.includes("phase"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RacePitState.includes("serviceApplied"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RacePitLaneState.includes("boxes"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceBattleState.includes("opponentCarId"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceBattleState.includes("contactRiskPct"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceEvent.includes("sequence"));

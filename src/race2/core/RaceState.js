@@ -7,8 +7,9 @@ import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { initialGridAbsoluteDistanceM, initialTrafficState } from "./RaceTraffic.js";
 import { initialBattleState } from "./RaceOvertaking.js";
 import { initialRaceResources } from "./RaceResources.js";
+import { initialRacePitState } from "./RacePitStops.js";
 
-export const RACE_STATE_SCHEMA_VERSION=6;
+export const RACE_STATE_SCHEMA_VERSION=7;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -113,7 +114,7 @@ function initialCarState(input,row,index){
     components:cloneRaceContractValue(car?.state?.componentCondition??{}),
     damage:null,
     commands:{},
-    pitState:{status:"track"},
+    pitState:initialRacePitState(),
     traffic:initialTrafficState(),
     battle:initialBattleState(),
     dnf:false,
@@ -178,7 +179,7 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
     weatherState:cloneRaceContractValue(input?.weather??null),
     raceControlState:null,
     commandQueue:[],
-    pitLaneState:{cars:[]},
+    pitLaneState:{cars:[],boxes:[]},
     events:[],
     nextEventSequence:1,
     rngState:{seed:text(input?.seed)||null,counter:0},
