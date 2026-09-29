@@ -284,8 +284,8 @@ test("LS6 can convert strong Lower Series evidence into a real vacant race-seat 
     secondSeatFilled:false,
     reserveFilled:true,
   });
-  gs.driverRatings=gs.driverRatings.filter((row)=>row.driver_id!=="FREE");
-  gs.drivers=gs.drivers.filter((row)=>row.driver_id!=="FREE");
+  gs.driverRatings=gs.driverRatings.filter((row)=>!["FREE","A2"].includes(row.driver_id));
+  gs.drivers=gs.drivers.filter((row)=>!["FREE","A2"].includes(row.driver_id));
 
   const opportunity=lowerSeriesF1Opportunity(gs,"J1","T2","Second Driver");
   assert.equal(opportunity.recommended,true);
