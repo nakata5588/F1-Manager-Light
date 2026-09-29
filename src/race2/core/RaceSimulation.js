@@ -15,7 +15,7 @@ const positive=(value,fallback=0)=>{
   return parsed>0?parsed:fallback;
 };
 
-function stepMsFor(state){
+export function raceStepMs(state){
   return Math.max(10,Math.min(1000,Math.round(
     positive(state?.session?.simulation?.stepMs,100)
   )));
@@ -96,7 +96,7 @@ export function startRaceState(state){
 
 export function stepRaceState(state){
   if(!state||state.status!=="running")return state;
-  const stepMs=stepMsFor(state);
+  const stepMs=raceStepMs(state);
   const cars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
   const allResolved=cars.length>0&&cars.every((car)=>car?.dnf||car?.status==="dnf"||car?.status==="finished");
   const status=allResolved?"finished":"running";
