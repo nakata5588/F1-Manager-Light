@@ -496,6 +496,7 @@ export function processManagerCareerTick(gs,{forceDismiss=false}={}){
       last_evaluated_at:dateOnly(gs?.currentDateISO),
       critical_streak:criticalStreak,
       pressure_streak:pressureStreak,
+      last_warning:["critical","under_pressure"].includes(assessment.status)?state?.last_warning??null:null,
     },
   };
 
