@@ -210,7 +210,7 @@ export function advanceRedFlagSuspension(state){
   const control=state?.raceControlState||{};
   const lifecycle=control?.redFlagLifecycle;
   if(text(control?.mode).toUpperCase()!=="RED_FLAG"||!lifecycle){
-    return {raceControlState:control,events:[]};
+    return {raceControlState:control,events:[],weatherRow:null};
   }
   if(text(lifecycle?.phase)==="resumed"){
     return {raceControlState:{...control,mode:text(lifecycle?.restart_control||"GREEN").toUpperCase()},events:[]};
@@ -234,6 +234,7 @@ export function advanceRedFlagSuspension(state){
         redFlagLifecycle:{...lifecycle,restart_monitor:progressed.monitor},
       },
       events:[],
+      weatherRow:null,
     };
   }
 
@@ -260,5 +261,6 @@ export function advanceRedFlagSuspension(state){
       lifecycle:"resumed",
       checksAdvanced:progressed?.checks_advanced??0,
     })],
+    weatherRow:progressed?.observation?.track_state??null,
   };
 }
