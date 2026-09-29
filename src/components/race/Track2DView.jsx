@@ -26,7 +26,7 @@ import { dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomF
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import RaceCarsLayer from "./RaceCarsLayer.jsx";
 import RaceCarsLayerV3 from "./RaceCarsLayerV3.jsx";
-import { buildClosedRacingLine } from "../../domain/raceSplineV3.js";
+import { buildClosedRacingLine, racingLineGeometry } from "../../domain/raceSplineV3.js";
 import { advanceVisualTimelineProgress, applyVisualPitLaneState, authoritativeRaceWorldProgress, createVisualRaceTimeline, driverVisualMotionDurationMs, raceVisualSnapshotKey, visualPitLaneState, visualRaceTimelineFrame } from "../../domain/raceVisualModel.js";
 import { raceCarDamageSummary } from "../../domain/raceCarVisual.js";
 import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
@@ -716,13 +716,17 @@ export default function Track2DView({
       pitTolerance:Number(style.pit_presentation_tolerance||.7),
     });
   },[calibratedGeometry,proceduralEnvironmentActive,environment?.race_view_style]);
-  const displayGeometry=useMemo(
+  const baseDisplayGeometry=useMemo(
     ()=>(environmentAssetActive||proceduralEnvironmentActive)?smoothedPresentationGeometry:orientTrackGeometry(smoothedPresentationGeometry),
     [smoothedPresentationGeometry,environmentAssetActive,proceduralEnvironmentActive]
   );
   const racingLineV3=useMemo(
-    ()=>buildClosedRacingLine(displayGeometry?.points,{samplesPerSegment:8}),
-    [displayGeometry]
+    ()=>buildClosedRacingLine(baseDisplayGeometry?.points,{samplesPerSegment:8}),
+    [baseDisplayGeometry]
+  );
+  const displayGeometry=useMemo(
+    ()=>proceduralEnvironmentActive?racingLineGeometry(baseDisplayGeometry,racingLineV3):baseDisplayGeometry,
+    [baseDisplayGeometry,proceduralEnvironmentActive,racingLineV3]
   );
   const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
@@ -1238,12 +1242,14 @@ export default function Track2DView({
                 opacity=".95"
               />:null}
               {showTrackIntel&&intelligence.pit_entry_progress!=null?(()=>{
-                const line=trackMarkerSegment(displayGeometry,intelligence.pit_entry_progress,{length:28});
-                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"} strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text></g>:null;
+                const point=Array.isArray(displayGeometry?.pit_lane_points)?displayGeometry.pit_lane_points[0]:null;
+                const color=historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e";
+                return point?<g><circle cx={point[0]} cy={point[1]} r="2.4" fill={color} stroke="#0f172a" strokeWidth=".8"/><text x={point[0]} y={point[1]-9} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text></g>:null;
               })():null}
               {showTrackIntel&&intelligence.pit_exit_progress!=null?(()=>{
-                const line=trackMarkerSegment(displayGeometry,intelligence.pit_exit_progress,{length:28});
-                return line?<g><line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"} strokeWidth="3"/><text x={line.center.x} y={line.center.y-10} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text></g>:null;
+                const point=Array.isArray(displayGeometry?.pit_lane_points)?displayGeometry.pit_lane_points.at(-1):null;
+                const color=historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e";
+                return point?<g><circle cx={point[0]} cy={point[1]} r="2.4" fill={color} stroke="#0f172a" strokeWidth=".8"/><text x={point[0]} y={point[1]-9} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text></g>:null;
               })():null}
               {showTrackIntel?(()=>{
                 const markers=[
