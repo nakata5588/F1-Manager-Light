@@ -20,9 +20,12 @@ const round=(value,digits=3)=>{
 
 function statusRank(car){
   if(car?.status==="finished")return 0;
-  if(car?.status==="running")return 1;
-  if(car?.status==="ready")return 2;
-  if(car?.dnf||car?.status==="dnf")return 3;
+  // A retired car is frozen at its authoritative distance. On an exact
+  // distance tie it has not yet been passed, so it keeps the place until the
+  // following car's absolute distance becomes strictly greater.
+  if(car?.dnf||car?.status==="dnf")return 1;
+  if(car?.status==="running")return 2;
+  if(car?.status==="ready")return 3;
   return 4;
 }
 
