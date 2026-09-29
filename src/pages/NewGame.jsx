@@ -154,7 +154,6 @@ export default function NewGame() {
   const navigate = useNavigate();
   const {
     gameState,
-    applyYearFilter,
     loadSeasonPack,
     startNewGame,
     saveLocal,
@@ -217,13 +216,12 @@ export default function NewGame() {
     Promise.resolve(loadSeasonPack?.(+target))
       .then((res)=>{
         if(cancelled)return;
-        setYearSource(res?.source==="season-pack"?"Season Pack":res?.source==="runtime-materializer"?"Season Pack (runtime)":"Legacy fallback");
+        setYearSource(res?.source==="season-pack"?"Season Pack":res?.source==="runtime-materializer"?"Season Pack (runtime)":"Unavailable");
         if(!res?.ok)setYearError(String(res?.error?.message||"Unable to load season."));
       })
       .catch((err)=>{
         if(cancelled)return;
-        applyYearFilter(+target);
-        setYearSource("Legacy fallback");
+        setYearSource("Unavailable");
         setYearError(String(err?.message||err));
       })
       .finally(()=>{if(!cancelled)setYearLoading(false);});
@@ -243,11 +241,10 @@ export default function NewGame() {
     setYearError("");
     try{
       const res=await loadSeasonPack?.(+y);
-      setYearSource(res?.source==="season-pack"?"Season Pack":res?.source==="runtime-materializer"?"Season Pack (runtime)":"Legacy fallback");
+      setYearSource(res?.source==="season-pack"?"Season Pack":res?.source==="runtime-materializer"?"Season Pack (runtime)":"Unavailable");
       if(!res?.ok)setYearError(String(res?.error?.message||"Unable to load season."));
     }catch(err){
-      applyYearFilter(+y);
-      setYearSource("Legacy fallback");
+      setYearSource("Unavailable");
       setYearError(String(err?.message||err));
     }finally{
       setYearLoading(false);
@@ -284,7 +281,7 @@ export default function NewGame() {
 
   const canNext = !yearLoading && (
     step === 0 ? !!era :
-    step === 1 ? !!year && eraYears.includes(year) :
+    step === 1 ? !!year && eraYears.includes(year) && !yearError :
     step === 2 ? managerValid :
     step === 3 ? !!teamId :
     step === 4 ? !!difficulty :
@@ -397,7 +394,7 @@ export default function NewGame() {
                     ))}
                   </div>
                   <p className="text-xs opacity-70">
-                    Dataset for {safeText(year)}: {yearLoading ? "loading…" : gpCount+" GPs · "+teamsForYear.length+" teams · "+driverCount+" drivers"}
+                    Dataset for {safeText(year)}: {yearLoading ? "loading…" : yearError ? "unavailable" : gpCount+" GPs · "+teamsForYear.length+" teams · "+driverCount+" drivers"}
                     {yearSource ? " · "+yearSource : ""}
                   </p>
                   {yearError && <p className="text-xs text-amber-300">{yearError}</p>}

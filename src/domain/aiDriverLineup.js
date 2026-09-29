@@ -19,6 +19,7 @@ import { driverRoleSlot } from "./contractRoles.js";
 import { driverContractDecision, driverDecisionTraits } from "./driverDecisionModel.js";
 import { driverFormSnapshot } from "./driverForm.js";
 import { driverMarketEvaluation } from "./driverMarketEvaluation.js";
+import { lowerSeriesF1Opportunity } from "./lowerSeriesOpportunities.js";
 import { teamReputation } from "./teamReputation.js";
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
@@ -481,6 +482,12 @@ export function aiDriverRecruitmentFit(gs,driverOrId,teamId,role){
   const bench=teamRaceBenchmarks(gs,teamId);
   const desiredRank=Number(traits?.desired_role_rank||2);
   const targetRank=roleRank(targetSlot);
+  const lowerSeriesOpportunity=lowerSeriesF1Opportunity(
+    gs,
+    driverId,
+    teamId,
+    roleLabel(targetSlot)
+  );
 
   let fit=50;
   let overqualified=false;
@@ -520,6 +527,9 @@ export function aiDriverRecruitmentFit(gs,driverOrId,teamId,role){
     if(desiredRank>targetRank)fit-=(desiredRank-targetRank)*8;
   }
 
+  const baseFit=fit;
+  fit+=Number(lowerSeriesOpportunity?.recruitment_bonus||0);
+
   return {
     driver_id:driverId,
     team_id:text(teamId),
@@ -532,6 +542,8 @@ export function aiDriverRecruitmentFit(gs,driverOrId,teamId,role){
     desired_role_rank:desiredRank,
     career_stage:traits?.career_stage||"unknown",
     overqualified_for_role:overqualified,
+    base_fit_score:round2(clamp(baseFit,0,100)),
+    lower_series_opportunity:lowerSeriesOpportunity,
     fit_score:round2(clamp(fit,0,100)),
     race_benchmark:{
       strongest:bench.strongest?.score??null,
@@ -562,6 +574,9 @@ export function rankAiRecruitmentCandidates(gs,drivers,teamId,role,{activeOfferC
   return filtered.sort((a,b)=>{
     if(a.offer_count!==b.offer_count)return a.offer_count-b.offer_count;
     if(Math.abs(b.fit.fit_score-a.fit.fit_score)>0.001)return b.fit.fit_score-a.fit.fit_score;
+    const aOpportunity=Number(a.fit?.lower_series_opportunity?.opportunity_score||0);
+    const bOpportunity=Number(b.fit?.lower_series_opportunity?.opportunity_score||0);
+    if(Math.abs(bOpportunity-aOpportunity)>0.001)return bOpportunity-aOpportunity;
     if(Math.abs(b.fit.lineup_score-a.fit.lineup_score)>0.001)return b.fit.lineup_score-a.fit.lineup_score;
     return driverIdOf(a.driver).localeCompare(driverIdOf(b.driver));
   });

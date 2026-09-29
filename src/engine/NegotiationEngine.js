@@ -337,6 +337,7 @@ export function startDriverNegotiation(gs,{
   renewal=false,
   approvedTransferApproach=null,
   lineupUpgrade=null,
+  lowerSeriesOpportunity=null,
 }={}){
   if(!gs)return gs;
   const did=String(driverId||"");
@@ -436,6 +437,9 @@ export function startDriverNegotiation(gs,{
     buyout_fee:kind==="transfer"?Number(eligibility?.buyout?.fee||0):0,
     buyout_type:kind==="transfer"?(eligibility?.buyout?.type||"compensation"):null,
     market_evaluation:driverMarketEvaluation(gs,driver),
+    lower_series_opportunity:lowerSeriesOpportunity&&typeof lowerSeriesOpportunity==="object"
+      ?{...lowerSeriesOpportunity}
+      :null,
     lineup_upgrade:lineupUpgradeValid?{
       target_driver_id:upgradeTargetId,
       offered_role:role,
@@ -894,6 +898,13 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
     });
     contract.negotiation_id=negotiation.id;
     contract.market_evaluation=negotiation.market_evaluation||driverMarketEvaluation(gs,driver);
+    if(negotiation?.lower_series_opportunity){
+      contract.lower_series_call_up={
+        ...negotiation.lower_series_opportunity,
+        accepted_at:resolvedAt,
+        accepted_role:negotiation.offer?.role||null,
+      };
+    }
     if(transfer){
       contract.transfer_from_team_id=String(negotiation.seller_team_id||"");
       contract.buyout_fee=Number(negotiation.buyout_fee||0);
@@ -936,6 +947,11 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
       team_id:negotiation.team_id,
       team_name:negotiation.team_name,
       role:negotiation.offer?.role||null,
+      lower_series_call_up:negotiation?.lower_series_opportunity?{
+        stage:negotiation.lower_series_opportunity.stage,
+        score:negotiation.lower_series_opportunity.opportunity_score,
+        series_id:negotiation.lower_series_opportunity.series_id,
+      }:null,
     },
   }];
 
