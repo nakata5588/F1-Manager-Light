@@ -1,7 +1,7 @@
 // src/race2/contracts/raceContracts.js
 // RW8.0A: stable, engine-agnostic contracts for the Race Weekend 2.0 boundary.
 
-export const RACE_WEEKEND_CONTRACT_VERSION=11;
+export const RACE_WEEKEND_CONTRACT_VERSION=12;
 
 export const RACE_WEEKEND_ENGINES=Object.freeze({
   LEGACY:"legacy",
@@ -25,7 +25,7 @@ export const RACE_COMMAND_TYPES=Object.freeze({
 export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
   RaceWeekendInput:Object.freeze([
     "schemaVersion","engineVersion","weekendKey","seed","year","round",
-    "gp","entries","drivers","cars","rules","track","weather","startingGrid",
+    "gp","entries","drivers","cars","rules","track","weather","raceControl","startingGrid",
   ]),
   RaceState:Object.freeze([
     "schemaVersion","contractVersion","engineVersion","weekendKey","seed","tick",
@@ -86,8 +86,17 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
     "speedProfile","pitLane","traits",
   ]),
   TrackState:Object.freeze([
-    "wetness","standingWater","grip","rubber","trackTemp","rainIntensity",
-    "visibility","raceability",
+    "weatherState","referenceLap","wetness","standingWater","grip","rubber",
+    "airTemp","trackTemp","rainIntensity","spray","visibility","raceability","raceabilityBand",
+  ]),
+  WeatherState:Object.freeze([
+    "timeline","current","currentLap","state","air_temp_c","track_temp_c",
+    "rain_intensity","track_wetness","grip_index","visibility_index","spray_index",
+    "standing_water_index","raceability_index",
+  ]),
+  RaceControlState:Object.freeze([
+    "model","phase","mode","recommendedMode","source","referenceLap","rules",
+    "assessment","updatedTick",
   ]),
   Command:Object.freeze([
     "id","sequence","issuedAtTick","effectiveAtTick","source","driverId","teamId",
