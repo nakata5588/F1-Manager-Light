@@ -10,6 +10,7 @@
 
 import { gameplayRngFor } from "../core/random.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
+import { seriesHasTeamCompetition } from "../domain/seriesCatalog.js";
 import { isRaceDriverContract } from "../domain/contractRoles.js";
 import { rebuildLowerSeriesProspects } from "../domain/lowerSeriesProspects.js";
 import { applyLowerSeriesWorldToDrivers } from "../domain/lowerSeriesWorld.js";
@@ -262,6 +263,9 @@ function assignTeamLineups(gameState,world){
   );
 
   for(const seriesId of [...seriesIds].sort()){
+    const seriesRecord=rows(next.series).find((row)=>text(row?.series_id)===seriesId)||null;
+    if(seriesRecord&&!seriesHasTeamCompetition(seriesRecord))continue;
+
     const teams=Object.values(next.teams||{})
       .filter((team)=>text(team?.series_id)===seriesId)
       .sort((a,b)=>String(teamIdOf(a)).localeCompare(String(teamIdOf(b))));
@@ -742,7 +746,9 @@ function rebuildStandings(world){
     const id=text(series?.series_id);
     if(!id||!LOWER_SERIES_SIMULATED_LEVELS.includes(num(series?.series_level,null)))continue;
     const driverRows=driverStandingRows(id,results);
-    const teamRows=teamStandingRows(id,results);
+    const teamRows=seriesHasTeamCompetition(series)
+      ?teamStandingRows(id,results)
+      :[];
     const completed=results.filter((row)=>row.series_id===id&&row.status==="completed");
     const scheduled=rows(world?.events).filter((row)=>row.series_id===id);
     const complete=scheduled.length>0&&scheduled.every((row)=>["completed","skipped"].includes(String(row.status)));
@@ -751,6 +757,7 @@ function rebuildStandings(world){
       series_id:id,
       series_name:series?.series_name??id,
       series_level:num(series?.series_level,null),
+      competition_model:text(series?.competition_model)||"TEAM_BASED",
       ...scoring,
       points_table:scoring.points_table.slice(),
       drivers:driverRows,

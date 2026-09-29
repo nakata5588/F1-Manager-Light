@@ -10,7 +10,7 @@ import {
   lowerSeriesEntry,
   materializeLowerSeriesWorld,
 } from "../src/domain/lowerSeriesWorld.js";
-import { materializeSeasonPack } from "../src/data/seasonPackMaterializer.js";
+import { materializeSeasonPack, validateSeasonPack } from "../src/data/seasonPackMaterializer.js";
 import { buildFreshCareerState } from "../src/state/newGameRuntime.js";
 import {
   seasonPackGlobalDataFromDatabaseState,
@@ -304,5 +304,47 @@ test("LS9A fresh career keeps only selected opening entries and drops the global
     Object.prototype.hasOwnProperty.call(fresh,"dbLowerSeriesEntries"),
     false,
     "future historical line-ups must not cross the New Game isolation boundary"
+  );
+});
+
+
+test("LS9A.1 central-operation entry without team is valid historical data",()=>{
+  const validation=validateSeasonPack({
+    format:"f1ml-season-pack",
+    schemaVersion:2,
+    ratingModel:"R2B",
+    year:2010,
+    state:{
+      calendar:[{year:2010,round:1,gp_id:"GP1"}],
+      teams:[{team_id:"F1",team_name:"Formula One Team"}],
+      teamHistoricalStrength:[{team_id:"F1",year:2010,strength:50}],
+      drivers:[{driver_id:"D1",display_name:"Driver One"}],
+      contracts:[],
+      driverOpeningState:[],
+      staffCore:[],
+      driverRatings:[],
+      qualifyingRules:{year:2010},
+      series:[{
+        series_id:"fia_f2_2009",
+        series_name:"FIA Formula Two Championship",
+        series_level:2,
+        competition_model:"CENTRAL_OPERATION",
+      }],
+      lowerSeriesTeams:[],
+      lowerSeriesEntries:[{
+        lower_entry_id:"e1",
+        year:2010,
+        series_id:"fia_f2_2009",
+        driver_id:"D1",
+        driver_name:"Driver One",
+        lower_team_id:null,
+        team_name:null,
+      }],
+    },
+  });
+
+  assert.equal(
+    validation.warnings.some((row)=>String(row).startsWith("lower_series_entries_without_team:")),
+    false
   );
 });

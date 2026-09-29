@@ -476,6 +476,7 @@ const SHEET_CONFIG = {
       successor_series_id: ["successor_series_id","successor"],
       category: ["category"],
       governing_body: ["governing_body","governing"],
+      competition_model: ["competition_model","team_model","entry_model"],
       source_url: ["source_url","source"],
       notes: ["notes"]
     },

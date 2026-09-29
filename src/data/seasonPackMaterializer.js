@@ -20,6 +20,7 @@ import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../dom
 import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
 import { materializeHistoricalTeamStrengths } from "../domain/teamHistoricalStrength.js";
 import { activeLowerSeriesTeamsForYear } from "../domain/lowerSeriesTeams.js";
+import { seriesHasTeamCompetition, seriesIdOf } from "../domain/seriesCatalog.js";
 import {
   applyLowerSeriesEntriesToPlacements,
   openingLowerSeriesEntriesForYear,
@@ -954,9 +955,14 @@ export function validateSeasonPack(pack){
       return id&&!driverIds.has(id);
     }).length;
     const unresolvedSeries=lowerEntryRows.filter((row)=>!String(row?.series_id??"").trim()).length;
-    const unresolvedTeams=lowerEntryRows.filter((row)=>
-      !String(row?.lower_team_id??"").trim()&&!String(row?.team_name??row?.entrant_name??"").trim()
-    ).length;
+    const seriesById=new Map(
+      (s.series||[]).map((row)=>[seriesIdOf(row),row]).filter(([id])=>id)
+    );
+    const unresolvedTeams=lowerEntryRows.filter((row)=>{
+      const series=seriesById.get(String(row?.series_id??"").trim())||null;
+      if(series&&!seriesHasTeamCompetition(series))return false;
+      return !String(row?.lower_team_id??"").trim()&&!String(row?.team_name??row?.entrant_name??"").trim();
+    }).length;
     const orphanTeamRefs=lowerEntryRows.filter((row)=>{
       const id=String(row?.lower_team_id??"").trim();
       return id&&!lowerTeamIds.has(id);

@@ -435,3 +435,61 @@ test("LS3.5B evolves carried team performance only slightly between seasons",()=
   assert.ok(Math.abs(nextT1.development_environment-firstT1.development_environment)<=0.8);
   assert.equal(second.lowerSeriesWorld.entries.D1.lower_team_id,"T1");
 });
+
+
+test("LS9A.1 centrally operated series runs without fake teams or team championship",()=>{
+  const state=baseState();
+  state.activeYear=2010;
+  state.currentDateISO="2010-01-01";
+  state.lowerSeriesWorld={
+    ...state.lowerSeriesWorld,
+    season_year:2010,
+    source_season:2010,
+    series:[{
+      series_id:"F2_CENTRAL",
+      series_name:"FIA Formula Two Championship",
+      series_level:2,
+      competition_model:"CENTRAL_OPERATION",
+    }],
+    teams:{
+      SHOULD_NOT_BE_USED:{
+        lower_team_id:"SHOULD_NOT_BE_USED",
+        series_id:"F2_CENTRAL",
+        team_name:"Fake Team",
+        team_strength:99,
+        reliability:99,
+      },
+    },
+    entries:{
+      D1:{
+        driver_id:"D1",series_id:"F2_CENTRAL",series_name:"FIA Formula Two Championship",series_level:2,
+        lower_team_id:null,team_name:null,series_candidates:[],placement_status:"series_only",
+      },
+      D2:{
+        driver_id:"D2",series_id:"F2_CENTRAL",series_name:"FIA Formula Two Championship",series_level:2,
+        lower_team_id:null,team_name:null,series_candidates:[],placement_status:"series_only",
+      },
+    },
+    events:[],
+    results:[],
+    standings:{},
+  };
+
+  const initialized=initializeLowerSeriesSeason(state);
+  assert.equal(initialized.lowerSeriesWorld.entries.D1.lower_team_id,null);
+  assert.equal(initialized.lowerSeriesWorld.entries.D2.lower_team_id,null);
+
+  const completed=completeLowerSeriesSeason(initialized);
+  const standing=completed.lowerSeriesWorld.standings.F2_CENTRAL;
+  assert.ok(standing);
+  assert.equal(standing.competition_model,"CENTRAL_OPERATION");
+  assert.equal(standing.drivers.length,2);
+  assert.deepEqual(standing.teams,[]);
+  assert.equal(standing.champion_team_id,null);
+  assert.ok(
+    completed.lowerSeriesWorld.results
+      .filter((row)=>row.series_id==="F2_CENTRAL"&&row.status==="completed")
+      .flatMap((row)=>row.classification)
+      .every((row)=>row.lower_team_id==null&&row.team_name==null)
+  );
+});
