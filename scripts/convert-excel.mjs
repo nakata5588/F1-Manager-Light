@@ -514,6 +514,23 @@ const SHEET_CONFIG = {
     }
   },
 
+  lower_series_teams: {
+    out: "lower_series_teams.json",
+    columns: {
+      lower_team_id: ["lower_team_id","team_id","id"],
+      team_name: ["team_name","name","entrant_name"],
+      series_id: ["series_id"],
+      valid_from: ["valid_from","year_from","start_year","from"],
+      valid_to: ["valid_to","year_to","end_year","to"],
+      source_team_id: ["source_team_id","entrant_id"]
+    },
+    post(row) {
+      row.valid_from = normalizeYear(row.valid_from);
+      row.valid_to = normalizeYear(row.valid_to);
+      return row;
+    }
+  },
+
   driver_attribute_weights: {
     out: "driver_attribute_weights.json",
     columns: {
