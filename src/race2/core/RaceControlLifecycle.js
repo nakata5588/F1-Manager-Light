@@ -261,6 +261,8 @@ export function advanceRedFlagSuspension(state){
       lifecycle:"resumed",
       checksAdvanced:progressed?.checks_advanced??0,
     })],
-    weatherRow:progressed?.observation?.track_state??null,
+    weatherRow:progressed?.observation?.track_state
+      ?{...progressed.observation.track_state,lap:currentLap}
+      :null,
   };
 }
