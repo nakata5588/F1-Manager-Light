@@ -314,6 +314,9 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
         status:"bought_out",
         bought_out_at:today,
         bought_out_by_team_id:text(negotiation.team_id),
+        contract_until_year:Number(gs?.activeYear),
+        contract_until:Number(gs?.activeYear),
+        end_year:Number(gs?.activeYear),
         transfer_fee:transferFee,
       }:row),
     };
