@@ -303,11 +303,17 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
     pitLanePointCount:clonePoints(geometry?.pit_lane_points).length,
   };
   const startFinish={progress:startFinishProgress,distanceM:0};
+  const packageYearFrom=finite(trackPackage?.year_from,null);
+  const packageYearTo=finite(trackPackage?.year_to,null);
+  const packageYearExact=y==null||(
+    packageYearFrom!=null&&packageYearTo!=null&&
+    y>=packageYearFrom&&y<=packageYearTo
+  );
   const speedProfile=buildTrackSpeedProfile({
     lengthM,
     racingLine:racingLineContract,
     geometry:geometryContract,
-    resolution:{exact:Boolean(resolved?.exact)},
+    resolution:{exact:Boolean(resolved?.exact)&&packageYearExact},
     startFinish,
   });
   const pitPoints=clonePoints(geometry?.pit_lane_points);
