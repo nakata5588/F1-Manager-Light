@@ -18,6 +18,14 @@ import { applyPitTrafficModel } from "./PitTrafficEngine.js";
 import { raceForecastForTeam, raceWeekendWeatherSession } from "./WeekendWeatherEngine.js";
 import { aiTyreCrossoverDecision, tyreWeatherPenaltyForWetness } from "./TyreCrossoverEngine.js";
 import {
+  RACE_PACE_MODES,
+  activeTyresForYear,
+  optimalTyreTemperatureC,
+  projectedTyreWearPerLap,
+  tyreConditionEffects,
+  tyresForTeam,
+} from "../domain/raceTyreModel.js";
+import {
   pitCrewEffectiveProfile as sharedPitCrewEffectiveProfile,
   pitCrewExecutionProfile,
 } from "../domain/pitCrewTraining.js";
@@ -45,11 +53,7 @@ function retirementCutoff(plan,driverId,totalLaps){
 }
 const canon=(v)=>String(v??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
 
-export const RACE_PACE_MODES=Object.freeze({
-  conserve:{id:"conserve",label:"Conserve",lap_delta_s:0.42,wear_mult:0.78,risk_mult:0.88,fatigue_mult:0.72},
-  balanced:{id:"balanced",label:"Balanced",lap_delta_s:0,wear_mult:1,risk_mult:1,fatigue_mult:1},
-  attack:{id:"attack",label:"Attack",lap_delta_s:-0.38,wear_mult:1.28,risk_mult:1.14,fatigue_mult:1.34},
-});
+export { RACE_PACE_MODES, tyreConditionEffects, tyresForTeam };
 
 export const PIT_PLANS=Object.freeze({
   no_stop:{id:"no_stop",label:"No planned stop"},
@@ -154,39 +158,8 @@ export function fuelStopTargetsForRace(rules={},fuelPlan="balanced",totalLaps=1)
 
 function teamId(team){return String(team?.team_id??team?.id??"");}
 function teamName(team){return String(team?.team_name??team?.name??team?.short_name??teamId(team));}
-function genericTyres(year){
-  const prefix=`generic_${Number(year)||"era"}`;
-  return [
-    {tyre_id:`${prefix}_hard`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Hard",category:"dry",grip_index:74,wear_rate:0.015,warmup_time_s:2.8},
-    {tyre_id:`${prefix}_soft`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Soft",category:"dry",grip_index:80,wear_rate:0.022,warmup_time_s:2.2},
-    {tyre_id:`${prefix}_inter`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Intermediate",category:"intermediate",grip_index:65,wear_rate:0.018,warmup_time_s:3.1},
-    {tyre_id:`${prefix}_wet`,year_from:year,year_to:year,supplier:"Generic",compound_name:"Wet",category:"wet",grip_index:55,wear_rate:0.020,warmup_time_s:3.5},
-  ];
-}
-function activeTyres(gs){
-  const year=Number(gs?.activeYear);
-  if(Array.isArray(gs?.tyres)&&gs.tyres.length)return gs.tyres;
-  const source=Array.isArray(gs?.dbTyres)?gs.dbTyres:[];
-  if(!source.length)return genericTyres(year);
-  const exact=source.filter((row)=>{
-    const from=num(row?.year_from,row?.year??-Infinity);
-    const to=num(row?.year_to,row?.year??Infinity);
-    return !Number.isFinite(year)||(year>=from&&year<=to);
-  });
-  if(exact.length)return exact;
-
-  // Sparse catalog years are calibration snapshots, not a reason to remove tyres
-  // from a career. Carry the nearest prior specification family until a newer
-  // catalog snapshot becomes available.
-  const priorYears=source
-    .map((row)=>num(row?.year_to,row?.year??row?.year_from??NaN))
-    .filter((value)=>Number.isFinite(value)&&value<=year);
-  if(!priorYears.length)return genericTyres(year);
-  const nearest=Math.max(...priorYears);
-  return source.filter((row)=>num(row?.year_to,row?.year??row?.year_from??NaN)===nearest);
-}
 function supplierNames(gs){
-  return [...new Set(activeTyres(gs).map((row)=>String(row?.supplier||"").trim()).filter(Boolean))];
+  return [...new Set(activeTyresForYear(gs).map((row)=>String(row?.supplier||"").trim()).filter(Boolean))];
 }
 function stableIndex(value,length){
   if(length<=1)return 0;
@@ -478,13 +451,6 @@ function ratingFor(gs,driver){
   const did=idOf(driver);
   return (gs?.driverRatings||[]).find((r)=>String(r?.driver_id??r?.id??"")===did)||{};
 }
-export function tyresForTeam(gs,tid){
-  const world=gs?.raceStrategyWorld||{};
-  const supplier=world?.teamSuppliers?.[String(tid)]||null;
-  const all=activeTyres(gs);
-  const matching=supplier?all.filter((row)=>String(row?.supplier||"")===String(supplier)):[];
-  return matching.length?matching:all;
-}
 function tyreById(options,id){return options.find((row)=>String(row?.tyre_id??row?.id??"")===String(id))||null;}
 function tyreId(tyre){return String(tyre?.tyre_id??tyre?.id??"");}
 function bestTyreForCategory(options,category,{durable=false,excludeId=null}={}){
@@ -646,38 +612,6 @@ export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
   };
 }
 
-export function tyreConditionEffects(conditionInput){
-  const condition=clamp(conditionInput,0,100);
-  if(condition>=70)return {pace_penalty_s:0,grip_multiplier:1,risk_multiplier:1,band:"healthy"};
-  if(condition>=45){
-    const severity=(70-condition)/25;
-    return {
-      pace_penalty_s:Number((severity*0.42).toFixed(3)),
-      grip_multiplier:Number((1-severity*0.035).toFixed(4)),
-      risk_multiplier:Number((1+severity*0.06).toFixed(4)),
-      band:"used",
-    };
-  }
-  if(condition>=25){
-    const severity=(45-condition)/20;
-    return {
-      pace_penalty_s:Number((0.42+severity*1.05).toFixed(3)),
-      grip_multiplier:Number((0.965-severity*0.075).toFixed(4)),
-      risk_multiplier:Number((1.06+severity*0.22).toFixed(4)),
-      band:"worn",
-    };
-  }
-  const severity=(25-condition)/25;
-  return {
-    pace_penalty_s:Number((1.47+severity*3.3).toFixed(3)),
-    grip_multiplier:Number((0.89-severity*0.16).toFixed(4)),
-    risk_multiplier:Number((1.28+severity*0.72).toFixed(4)),
-    band:condition<12?"critical":"severe",
-  };
-}
-function projectedWearPerLap(tyre,{trackWearMult=1,pace=RACE_PACE_MODES.balanced,wearDriverMult=1,hotWearMult=1}={}){
-  return num(tyre?.wear_rate,0.018)*100*0.72*trackWearMult*num(pace?.wear_mult,1)*wearDriverMult*hotWearMult;
-}
 function estimateStayOutCost({condition,wearPerLap,remaining,window=6}={}){
   const laps=Math.max(1,Math.min(Number(remaining)||1,Number(window)||6));
   let total=0;
@@ -703,10 +637,6 @@ function tyreWeatherPenalty(tyre,state){
   if(want==="wet"&&have==="intermediate")return 2.1;
   if(want==="wet"&&have==="dry")return 8.2;
   return 1.8;
-}
-function optimalTyreTemp(tyre){
-  const category=String(tyre?.category||"dry");
-  return category==="wet"?68:category==="intermediate"?78:96;
 }
 export function pitCrewEffectiveProfile(crew={}){
   return sharedPitCrewEffectiveProfile(crew);
@@ -734,7 +664,7 @@ function choosePitTyre(options,current,strategy,state,reason,targetCategory=null
   return bestTyreForCategory(options,category,{durable:strategy.pace_mode!=="attack",excludeId:tyreId(current)})||current;
 }
 function temperatureForLap(tyre,weatherState,avgTemp,pace,stintLap,trackTempOverride=null){
-  const optimum=optimalTyreTemp(tyre);
+  const optimum=optimalTyreTemperatureC(tyre);
   const dynamicTrackTemp=Number(trackTempOverride);
   const trackTemp=Number.isFinite(dynamicTrackTemp)
     ?dynamicTrackTemp
@@ -763,7 +693,7 @@ function stintRecord(tyre,start,end,condition,tempSum,tempCount){
     end_lap:end,
     laps:Math.max(0,end-start+1),
     condition_end:Number(clamp(condition).toFixed(1)),
-    avg_temperature_c:Number((tempCount?tempSum/tempCount:optimalTyreTemp(tyre)).toFixed(1)),
+    avg_temperature_c:Number((tempCount?tempSum/tempCount:optimalTyreTemperatureC(tyre)).toFixed(1)),
   };
 }
 
@@ -940,9 +870,9 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         lastPitLap,
       });
       const projectedTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,Math.max(1,stintLap+1),trackWeather?.track_temp_c);
-      const projectedOptimum=optimalTyreTemp(tyre);
+      const projectedOptimum=optimalTyreTemperatureC(tyre);
       const projectedHotWear=projectedTemp>projectedOptimum+8?1+Math.min(0.25,(projectedTemp-projectedOptimum-8)*0.018):1;
-      const currentWearPerLap=projectedWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult:projectedHotWear});
+      const currentWearPerLap=projectedTyreWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult:projectedHotWear});
       const stayOut=estimateStayOutCost({condition,wearPerLap:currentWearPerLap,remaining,window:Math.min(8,remaining)});
       const pitLossEstimate=effectivePitLoss(track,control,crew);
       const currentEffects=tyreConditionEffects(condition);
@@ -1164,11 +1094,11 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
       stintLap+=1;
       const tyreTemp=temperatureForLap(tyre,state,weather.avg_temp_c,activePaceMode,stintLap,trackWeather?.track_temp_c);
       tempSum+=tyreTemp; tempCount+=1;
-      const optimum=optimalTyreTemp(tyre);
+      const optimum=optimalTyreTemperatureC(tyre);
       const tempDelta=Math.abs(tyreTemp-optimum);
       const tempLapPenalty=Math.max(0,tempDelta-6)*0.035;
       const hotWearMult=tyreTemp>optimum+8?1+Math.min(0.25,(tyreTemp-optimum-8)*0.018):1;
-      const wearPerLap=projectedWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult});
+      const wearPerLap=projectedTyreWearPerLap(tyre,{trackWearMult,pace,wearDriverMult,hotWearMult});
       const tyreEffects=tyreConditionEffects(condition);
       maxTyreRiskMultiplier=Math.max(maxTyreRiskMultiplier,tyreEffects.risk_multiplier);
       accumulatedFatigueLoad+=num(pace.fatigue_mult,1);
