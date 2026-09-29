@@ -24,6 +24,7 @@ import {
   acceptManagerJobOffer,
   autosimUnemployedRaceIfDue,
   dismissPlayerManager,
+  processManagerCareerTick,
   processManagerJobApplications,
   submitManagerJobApplication,
 } from "../src/engine/ManagerCareerEngine.js";
@@ -233,6 +234,35 @@ test("job security reuses Board performance with early-season dismissal protecti
   assert.ok(mature.seasonProgress>=0.5);
 });
 
+
+test("Manager contract renewal adds exactly two seasons from the renewal year",()=>{
+  const manager=playerManager();
+  const currentHistory=(manager.career_history||[]).map((row)=>({
+    ...row,
+    contract_until_year:1981,
+  }));
+  const gs={
+    ...baseState({
+      ...manager,
+      current_job:{...manager.current_job,contract_until_year:1981,status:"active"},
+      career_history:currentHistory,
+    }),
+    activeYear:1982,
+    currentDateISO:"1982-01-02",
+    managerEmploymentState:{
+      status:"active",
+      last_security:60,
+      last_evaluated_races:14,
+      critical_streak:0,
+      pressure_streak:0,
+    },
+  };
+
+  const next=processManagerCareerTick(gs);
+  assert.equal(next.manager.current_job.contract_until_year,1983);
+  assert.equal(next.manager.career_history.find((row)=>row.end_year==null)?.contract_until_year,1983);
+  assert.match(next.inbox[0].body,/1983 season/);
+});
 
 test("unemployed manager stays unattached after normalization and gameplay effects switch off",()=>{
   const employed=playerManager();

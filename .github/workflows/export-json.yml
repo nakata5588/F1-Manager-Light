@@ -120,7 +120,7 @@ jobs:
       - name: Test management systems
         run: npm run test:management
 
-      - name: Test Team Manager profile and gameplay effects
+      - name: Test Team Principal profile and gameplay effects
         run: npm run test:manager
 
       - name: Test management timeline
