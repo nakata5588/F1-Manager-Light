@@ -1,6 +1,8 @@
 // src/layouts/HubLayout.jsx
 import React from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useGame } from "../state/GameStore.js";
+import { playerManagerIsActiveTeamPrincipal } from "../domain/managerEmployment.js";
 import Sidebar from "../components/Sidebar.jsx";
 import Header from "../components/ui/header";
 
@@ -32,6 +34,25 @@ const PAGE_TITLES = {
 
 export default function HubLayout() {
   const { pathname } = useLocation();
+  const gameState=useGame((state)=>state.gameState);
+  const unemployed=Boolean(gameState?.manager)&&!playerManagerIsActiveTeamPrincipal(gameState);
+  const unemployedAllowed=
+    pathname==="/ManagerProfile"||
+    pathname==="/Inbox"||
+    pathname==="/CalendarPage"||
+    pathname==="/Standings"||
+    pathname==="/Results"||
+    pathname==="/Champions"||
+    pathname==="/Teams"||
+    pathname==="/Drivers"||
+    pathname==="/Staff"||
+    pathname==="/GameSettings"||
+    pathname.startsWith("/drivers/")||
+    pathname.startsWith("/teams/")||
+    pathname.startsWith("/staff/");
+  if(unemployed&&!unemployedAllowed){
+    return <Navigate to="/ManagerProfile" replace/>;
+  }
   const pageTitle =
     PAGE_TITLES[pathname] ||
     (pathname.startsWith("/drivers/") ? "Driver Profile" :
