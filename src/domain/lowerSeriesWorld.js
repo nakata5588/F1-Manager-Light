@@ -24,8 +24,9 @@ import {
   matchLowerSeriesTeamFact,
 } from "./lowerSeriesTeams.js";
 import { carryLowerSeriesProspect } from "./lowerSeriesProspects.js";
+import { lowerSeriesCareerMovement } from "./lowerSeriesCareerMovement.js";
 
-export const LOWER_SERIES_WORLD_VERSION=4;
+export const LOWER_SERIES_WORLD_VERSION=5;
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -272,11 +273,49 @@ function successorSeries(seriesRows,previousSeriesId,targetYear){
   return successor&&isSeriesActiveInYear(successor,targetYear)?successor:null;
 }
 
-function resolveRuntimeSeries({driver,previousEntry,targetYear,series,seriesRules}){
+function resolveRuntimeSeries({
+  driver,
+  previousEntry,
+  targetYear,
+  series,
+  seriesRules,
+  targetLevelOverride=null,
+}){
   const previousId=text(previousEntry?.series_id);
+  const previousLevel=num(previousEntry?.series_level,null);
   const previousSeries=previousId
     ?rows(series).find((row)=>seriesIdOf(row)===previousId)
     :null;
+  const targetLevel=Number.isFinite(Number(targetLevelOverride))
+    ?Number(targetLevelOverride)
+    :targetLevelForDriver(driver,previousEntry);
+  const movementRequested=Number.isFinite(previousLevel)&&Number.isFinite(targetLevel)&&targetLevel!==previousLevel;
+
+  if(movementRequested){
+    const promoted=eligibleSeriesForDriver(
+      series,seriesRules,driver,targetYear,{levels:[targetLevel]}
+    );
+    if(promoted.length===1){
+      return {
+        series:promoted[0].series,
+        rule:promoted[0].rule,
+        candidates:[],
+        resolution:"career_movement_single_series",
+      };
+    }
+    if(promoted.length>1){
+      return {
+        series:null,
+        rule:null,
+        candidates:promoted.map(({series:row})=>({
+          series_id:seriesIdOf(row),
+          series_name:seriesNameOf(row),
+          series_level:seriesLevelOf(row),
+        })),
+        resolution:"career_movement_candidate_pool",
+      };
+    }
+  }
 
   if(previousSeries&&isSeriesActiveInYear(previousSeries,targetYear)){
     const rule=seriesRuleForYear(seriesRules,previousId,targetYear);
@@ -286,7 +325,9 @@ function resolveRuntimeSeries({driver,previousEntry,targetYear,series,seriesRule
         series:previousSeries,
         rule,
         candidates:[],
-        resolution:"save_world_continuity",
+        resolution:movementRequested
+          ?"career_movement_blocked_no_active_series"
+          :"save_world_continuity",
       };
     }
   }
@@ -301,12 +342,13 @@ function resolveRuntimeSeries({driver,previousEntry,targetYear,series,seriesRule
         series:successor,
         rule,
         candidates:[],
-        resolution:"structural_series_successor",
+        resolution:movementRequested
+          ?"career_movement_blocked_structural_successor"
+          :"structural_series_successor",
       };
     }
   }
 
-  const targetLevel=targetLevelForDriver(driver,previousEntry);
   if(!Number.isFinite(targetLevel)){
     return {series:null,rule:null,candidates:[],resolution:"unresolved_level"};
   }
@@ -346,6 +388,7 @@ function archiveWorldSeason(world){
     entries:Object.values(world.entries||{}).map((row)=>({
       ...row,
       series_candidates:candidateRows(row?.series_candidates),
+      career_movement:row?.career_movement?{...row.career_movement}:null,
     })),
     standings:Object.fromEntries(
       Object.entries(world.standings||{}).map(([id,value])=>[id,{
@@ -432,19 +475,44 @@ export function rollLowerSeriesWorld(world,{
     if(!id||excluded.has(id)||driver?.active_lower_series!==true)continue;
 
     const previousEntry=previousEntries[id]||null;
+    const movement=previousEntry
+      ?lowerSeriesCareerMovement(previous,driver,previousEntry,{targetYear:year})
+      :null;
+    const requestedLevel=Number.isFinite(Number(movement?.target_level))
+      ?Number(movement.target_level)
+      :targetLevelForDriver(driver,previousEntry);
     const resolved=resolveRuntimeSeries({
       driver,
       previousEntry,
       targetYear:year,
       series,
       seriesRules,
+      targetLevelOverride:requestedLevel,
     });
     const resolvedSeries=resolved.series;
     const seriesId=resolvedSeries?seriesIdOf(resolvedSeries):null;
     const level=resolvedSeries
       ?seriesLevelOf(resolvedSeries)
-      :targetLevelForDriver(driver,previousEntry);
+      :requestedLevel;
     const candidates=candidateRows(resolved.candidates);
+    const effectiveMovement=movement
+      ?{
+        ...movement,
+        effective_level:Number.isFinite(level)?level:null,
+        resolved_series_id:seriesId,
+        placement_resolution:resolved.resolution,
+        effective_outcome:
+          movement.decision==="promote"
+            ?(
+              Number(level)===Number(movement.target_level)&&Boolean(seriesId)
+                ?"promoted"
+                :(candidates.length&&Number(level)===Number(movement.target_level)
+                  ?"promotion_pending"
+                  :"promotion_blocked")
+            )
+            :(movement.f1_ready?"f1_ready":"stayed"),
+      }
+      :null;
     const sameSeries=Boolean(seriesId&&previousEntry?.series_id===seriesId);
     const previousTeamId=text(previousEntry?.lower_team_id);
     const catalogCarried=previousTeamId?teams[previousTeamId]||null:null;
@@ -474,6 +542,7 @@ export function rollLowerSeriesWorld(world,{
         ?(carriedTeam?"placed_with_team":"series_only")
         :(candidates.length?"candidate_pool":"unresolved"),
       placement_source:resolved.resolution,
+      career_movement:effectiveMovement,
       opening_seed:false,
       joined_world_year:num(previousEntry?.joined_world_year,year),
     };
@@ -513,6 +582,8 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
         lower_series_resolution:"left_for_f1_race_seat",
         lower_series_prospect_reputation:null,
         lower_series_f1_interest:[],
+        lower_series_f1_ready:false,
+        lower_series_career_movement:null,
       };
     }
 
@@ -535,6 +606,8 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
       lower_series_f1_interest:rows(prospect?.f1_interest).map((row)=>({...row})),
       lower_series_best_f1_interest:prospect?.best_f1_interest?{...prospect.best_f1_interest}:null,
       lower_series_academy_team_id:prospect?.academy_team_id??null,
+      lower_series_f1_ready:Boolean(entry?.career_movement?.f1_ready),
+      lower_series_career_movement:entry?.career_movement?{...entry.career_movement}:null,
       world_runtime_source:"lower_series_world",
     };
   });

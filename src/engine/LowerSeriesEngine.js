@@ -71,6 +71,7 @@ function cloneWorld(world){
       Object.entries(world.entries||{}).map(([id,row])=>[id,{
         ...row,
         series_candidates:candidateRows(row?.series_candidates),
+        career_movement:row?.career_movement?{...row.career_movement}:null,
       }])
     ),
     standings:Object.fromEntries(
@@ -124,6 +125,17 @@ function resolveCandidatePlacements(gameState,world){
       `${next.season_year}:${driverId}:${ordered.map((row)=>row.series_id).join(",")}`
     );
     const chosen=ordered[Math.floor(rng.next()*ordered.length)]||ordered[0];
+    const movement=entry?.career_movement
+      ?{
+        ...entry.career_movement,
+        effective_level:chosen.series_level,
+        resolved_series_id:chosen.series_id,
+        placement_resolution:"save_world_candidate_resolution",
+        effective_outcome:entry.career_movement?.decision==="promote"
+          ?"promoted"
+          :(entry.career_movement?.f1_ready?"f1_ready":"stayed"),
+      }
+      :null;
     next.entries[driverId]={
       ...entry,
       series_id:chosen.series_id,
@@ -131,7 +143,10 @@ function resolveCandidatePlacements(gameState,world){
       series_level:chosen.series_level,
       series_candidates:[],
       placement_status:entry?.lower_team_id?"placed_with_team":"series_only",
-      placement_source:"save_world_candidate_resolution",
+      placement_source:entry?.career_movement?.decision==="promote"
+        ?"career_movement_candidate_resolution"
+        :"save_world_candidate_resolution",
+      career_movement:movement,
     };
   }
   return next;
