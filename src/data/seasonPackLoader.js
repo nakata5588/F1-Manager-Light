@@ -9,9 +9,17 @@ export class SeasonPackError extends Error {
   }
 }
 
+export const SEASON_PACK_SCHEMA_VERSION=2;
+
 export function validateLoadedSeasonPack(pack, expectedYear) {
   if (!pack || pack.format !== "f1ml-season-pack") {
     throw new SeasonPackError("Invalid Season Pack format.");
+  }
+  const schemaVersion=Number(pack.schemaVersion||0);
+  if(schemaVersion<SEASON_PACK_SCHEMA_VERSION){
+    throw new SeasonPackError(
+      `Season Pack schema ${schemaVersion||"legacy"} is stale; current runtime requires ${SEASON_PACK_SCHEMA_VERSION}.`
+    );
   }
   const year = Number(pack.year);
   if (!Number.isInteger(year)) {
