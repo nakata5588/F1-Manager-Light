@@ -1,3 +1,5 @@
+import { normalisePitPhaseDurations } from "../domain/racePitModel.js";
+
 // src/engine/LivePitStopEngine.js
 // RW5.3B.2A — live pit-stop lifecycle.
 //
@@ -21,32 +23,6 @@ export const LIVE_PIT_PHASES=Object.freeze([
   "rejoin",
 ]);
 
-function phaseDurationsMs(stop){
-  const baseLaneMs=Math.max(0,Math.round(num(stop?.pit_lane_loss_s,0)*1000));
-  const trafficMs=Math.max(0,Math.round(num(stop?.pit_lane_traffic_loss_s,0)*1000));
-  const queueMs=Math.max(0,Math.round(num(stop?.queue_delay_s,0)*1000));
-  const stationaryMs=Math.max(0,Math.round(num(stop?.stationary_s,0)*1000));
-  const releaseMs=Math.max(0,Math.round(num(stop?.release_delay_s,0)*1000));
-
-  // These are shares of already-authoritative timing, never SVG distances.
-  // RW5.3C keeps queue and release holds explicit while lane traffic is
-  // experienced during the pit-lane phase.
-  const entry=Math.round(baseLaneMs*0.15);
-  const lane=Math.round(baseLaneMs*0.38)+trafficMs;
-  const exit=Math.round(baseLaneMs*0.32);
-  const rejoin=Math.max(0,baseLaneMs-entry-(lane-trafficMs)-exit);
-
-  return [
-    {phase:"pit_entry",duration_ms:entry,loss_ms:entry},
-    {phase:"pit_lane",duration_ms:lane,loss_ms:lane},
-    {phase:"pit_queue",duration_ms:queueMs,loss_ms:queueMs},
-    {phase:"pit_box",duration_ms:stationaryMs,loss_ms:stationaryMs},
-    {phase:"pit_release",duration_ms:releaseMs,loss_ms:releaseMs},
-    {phase:"pit_exit",duration_ms:exit,loss_ms:exit},
-    {phase:"rejoin",duration_ms:rejoin,loss_ms:rejoin},
-  ];
-}
-
 export function livePitStopKey(driverId,stop,sequence=1){
   return [
     String(driverId||"driver"),
@@ -66,7 +42,7 @@ export function createLivePitState({
   positionBefore=null,
 }={}){
   if(!driverId||!stop)return null;
-  const phases=phaseDurationsMs(stop);
+  const phases=normalisePitPhaseDurations(stop);
   const totalFromPhases=phases.reduce((sum,row)=>sum+Number(row.loss_ms||0),0);
   const authoritativeTotal=Math.max(0,Math.round(num(
     stop?.total_loss_s,
