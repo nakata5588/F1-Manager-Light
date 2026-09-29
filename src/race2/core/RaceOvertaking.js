@@ -7,6 +7,7 @@
 // from contact remain the responsibility of later Race Control integration.
 
 import { hashSeed } from "../../core/random.js";
+import { trackForwardGapM } from "../track/TrackModel.js";
 import {
   RACE_TRAFFIC_HARD_GAP_M,
   desiredTrafficGapM,
@@ -56,6 +57,21 @@ function deterministicUnit(state,key){
 
 function carById(cars,id){
   return (cars||[]).find((car)=>String(car?.carId??"")===String(id??""))??null;
+}
+
+function physicalClearanceM(state,attacker,defender){
+  const length=Math.max(0,finite(state?.track?.lengthM,0));
+  if(length<=0)return 0;
+  const forward=trackForwardGapM(
+    state?.track,
+    finite(attacker?.distanceAlongLapM,0),
+    finite(defender?.distanceAlongLapM,0)
+  );
+  if(forward==null)return 0;
+  if(Math.abs(forward)<=1e-9)return 0;
+  return forward>length/2
+    ?length-forward
+    :-forward;
 }
 
 function setCar(cars,next){
@@ -285,11 +301,10 @@ function resolveYieldingBattles(state,proposedCars){
       continue;
     }
 
-    const clearance=
-      finite(defender?.absoluteDistanceM,0)-
-      finite(attacker?.absoluteDistanceM,0);
+    const attackerClearance=physicalClearanceM(state,attacker,defender);
+    const defenderClearance=-attackerClearance;
 
-    if(clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
+    if(defenderClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
       attacker=clearBattle(attacker,{
         result:previousAttacker?.battle?.result,
         cooldownUntilMs:previousAttacker?.battle?.cooldownUntilMs,
@@ -381,9 +396,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
       continue;
     }
 
-    const attackerDistance=finite(attacker?.absoluteDistanceM,0);
-    const defenderDistance=finite(defender?.absoluteDistanceM,0);
-    const clearance=attackerDistance-defenderDistance;
+    const clearance=physicalClearanceM(state,attacker,defender);
 
     if(clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
       attacker=clearBattle(attacker,{result:"completed",cooldownUntilMs:nextTime+500});
@@ -398,7 +411,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
     }
 
     const expired=nextTime>=finite(previousBattle?.expiresAtMs,nextTime);
-    const defenderClearance=defenderDistance-attackerDistance;
+    const defenderClearance=-clearance;
     if(expired||defenderClearance>=RACE_OVERTAKE_ATTEMPT_RANGE_M){
       attacker=withYieldingBattle(attacker,{
         opponentCarId:defender?.carId,
@@ -451,7 +464,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
   return {cars,events,bypassPairs};
 }
 
-function startNewBattles(state,proposedCars,existingBypass){
+function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
   let cars=[...(proposedCars||[])];
   const events=[];
   const bypassPairs=new Set(existingBypass||[]);
@@ -488,7 +501,7 @@ function startNewBattles(state,proposedCars,existingBypass){
     const side=deterministicUnit(state,`side:${attemptId}`)<0.5?-1:1;
     const expiresAtMs=now+RACE_BATTLE_DURATION_MS;
     const contactRiskPct=round(
-      battleContactProbability(state,previousAttacker,opportunity.defender,{stepMs:100})*100,
+      battleContactProbability(state,previousAttacker,opportunity.defender,{stepMs})*100,
       5
     );
 
@@ -534,7 +547,7 @@ function startNewBattles(state,proposedCars,existingBypass){
 export function resolveRaceOvertaking(state,proposedCars,{stepMs=100}={}){
   const yieldingCars=resolveYieldingBattles(state,proposedCars);
   const existing=resolveExistingBattles(state,yieldingCars,{stepMs});
-  const started=startNewBattles(state,existing.cars,existing.bypassPairs);
+  const started=startNewBattles(state,existing.cars,existing.bypassPairs,{stepMs});
   return {
     cars:started.cars,
     events:[...existing.events,...started.events],
