@@ -83,7 +83,7 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,3);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,4);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
     ["RaceWeekendInput","RaceState","CarState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
@@ -95,6 +95,9 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("sector"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("distanceAlongLapM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("absoluteDistanceM"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("targetSpeedKmh"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("performance"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.TrackModel.includes("speedProfile"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.Command.includes("effectiveAtTick"));
 });
 
@@ -116,7 +119,7 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.deepEqual(a,b);
   assert.equal(a.engineVersion,"rw2");
   assert.equal(a.seed,"rw8-contracts");
-  assert.equal(a.track.schemaVersion,1);
+  assert.equal(a.track.schemaVersion,2);
   assert.equal(a.track.trackId,"test_track");
   assert.equal(a.track.lengthM,5000);
   assert.equal(a.track.laps,60);
@@ -129,6 +132,10 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.equal(aiCar.driverId,"D2","AI cars without persisted driver IDs use the authoritative race entry");
   assert.equal(aiCar.teamId,"T2");
   assert.equal(aiCar.state.componentCondition.engine,91);
+  assert.ok(Number.isFinite(playerCar.performance.race));
+  assert.ok(Number.isFinite(playerCar.performance.power));
+  assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.raceScore));
+  assert.equal(a.track.speedProfile.detailed,false);
   assert.deepEqual(a.startingGrid.map((row)=>row.driver_id),["D1","D2"]);
 
   a.drivers[0].ratings.pace=1;

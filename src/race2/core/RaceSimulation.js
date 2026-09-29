@@ -1,10 +1,11 @@
 // src/race2/core/RaceSimulation.js
 // RW8.2: deterministic fixed-step advancement for the canonical RW2 RaceState.
-// Pace, braking, traffic and tyre dynamics are layered on later; this stage
-// owns only time progression and continuous kinematics from the current car state.
+// RW8.3B layers pace/braking/corner dynamics onto the same fixed-step core.
+// Traffic, tyres and strategy remain separate later phases.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
+import { raceDynamicsForCar } from "./RaceDynamics.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -31,8 +32,12 @@ function advanceCar(state,car,stepMs){
   if(lengthM<=0)return car;
 
   const dt=stepMs/1000;
+  const dynamics=raceDynamicsForCar(state,car);
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
-  const acceleration=Math.max(-100,Math.min(100,finite(car?.accelerationMs2,0)));
+  const acceleration=Math.max(-100,Math.min(100,finite(
+    dynamics?.accelerationMs2,
+    finite(car?.accelerationMs2,0)
+  )));
   const unconstrainedNextSpeed=speedMs+acceleration*dt;
   const nextSpeedMs=Math.max(0,unconstrainedNextSpeed);
   const motionTime=acceleration<0&&unconstrainedNextSpeed<0
@@ -69,6 +74,11 @@ function advanceCar(state,car,stepMs){
     absoluteDistanceM:nextAbsolute,
     speedMs:Number(nextSpeedMs.toFixed(6)),
     speedKmh:Number((nextSpeedMs*3.6).toFixed(6)),
+    accelerationMs2:Number(acceleration.toFixed(6)),
+    targetSpeedKmh:Number(finite(dynamics?.targetSpeedKmh,car?.targetSpeedKmh||0).toFixed(6)),
+    cornerSeverity:Number(finite(dynamics?.cornerSeverity,car?.cornerSeverity||0).toFixed(6)),
+    effectiveCornerSeverity:Number(finite(dynamics?.effectiveCornerSeverity,car?.effectiveCornerSeverity||0).toFixed(6)),
+    dynamicsLookaheadM:Number(finite(dynamics?.lookaheadM,car?.dynamicsLookaheadM||0).toFixed(6)),
     elapsedMs:Math.max(0,finite(car?.elapsedMs,0))+stepMs,
     zoneId:finished?"finish":`sector_${sector}`,
     zoneType:finished?"finish":"sector",

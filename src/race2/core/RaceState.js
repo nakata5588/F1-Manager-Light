@@ -4,7 +4,7 @@
 import { cloneRaceContractValue } from "../contracts/raceContracts.js";
 import { trackSectorAtDistance } from "../track/TrackModel.js";
 
-export const RACE_STATE_SCHEMA_VERSION=1;
+export const RACE_STATE_SCHEMA_VERSION=2;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -46,6 +46,11 @@ function carForGridRow(input,row){
   )??null;
 }
 
+function driverForGridRow(input,row){
+  const driverId=driverIdOf(row);
+  return (input?.drivers||[]).find((driver)=>driverIdOf(driver)===driverId)??null;
+}
+
 function entryForGridRow(input,row){
   const driverId=driverIdOf(row);
   const teamId=teamIdOf(row);
@@ -57,6 +62,7 @@ function entryForGridRow(input,row){
 
 function initialCarState(input,row,index){
   const car=carForGridRow(input,row);
+  const driver=driverForGridRow(input,row);
   const entry=entryForGridRow(input,row);
   const driverId=driverIdOf(row)??driverIdOf(entry)??driverIdOf(car);
   const teamId=teamIdOf(row)??teamIdOf(entry)??teamIdOf(car);
@@ -77,6 +83,14 @@ function initialCarState(input,row,index){
     speedMs:0,
     speedKmh:0,
     accelerationMs2:0,
+    targetSpeedKmh:0,
+    cornerSeverity:0,
+    effectiveCornerSeverity:0,
+    dynamicsLookaheadM:0,
+    performance:{
+      car:cloneRaceContractValue(car?.performance??null),
+      driver:cloneRaceContractValue(driver?.performance??null),
+    },
     lateralOffsetM:0,
     zoneId:`sector_${sector}`,
     zoneType:"sector",

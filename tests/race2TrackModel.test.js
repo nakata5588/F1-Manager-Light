@@ -55,6 +55,29 @@ test("RW8.1 builds a metre-based model from the verified F1Track functional geom
   assert.ok(model.pitLane.entryM>model.sectors[1].endM);
   assert.ok(model.pitLane.exitM<model.sectors[0].endM);
   assert.equal(model.traits.drsZones,0);
+  assert.equal(model.speedProfile.detailed,true);
+  assert.equal(model.speedProfile.source,"verified_functional_geometry");
+  assert.ok(model.speedProfile.samples.length>=72);
+  assert.ok(Math.max(...model.speedProfile.samples.map((row)=>row.severity))>0.25);
+});
+
+test("RW8.3B corner severity comes only from verified functional geometry",()=>{
+  const model=buildTrackModel(argentinaState(),{
+    gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1980},
+  });
+  const severities=model.speedProfile.samples.map((row)=>row.severity);
+  assert.ok(Math.max(...severities)>Math.min(...severities));
+});
+
+test("RW8.3B historical fallback geometry never drives race physics",()=>{
+  const model=buildTrackModel(argentinaState(),{
+    gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1955},
+  });
+
+  assert.equal(model.year,1955);
+  assert.equal(model.speedProfile.detailed,false);
+  assert.equal(model.speedProfile.source,"neutral");
+  assert.deepEqual(model.speedProfile.samples,[{distanceM:0,severity:0}]);
 });
 
 test("RW8.1 distance is continuous, wraps at the finish line and maps back to the same pose",()=>{
@@ -112,6 +135,9 @@ test("RW8.1 can build a physical model without display geometry",()=>{
   assert.equal(model.laps,60);
   assert.equal(model.racingLine,null);
   assert.equal(model.geometry.source,"none");
+  assert.equal(model.speedProfile.detailed,false);
+  assert.equal(model.speedProfile.source,"neutral");
+  assert.deepEqual(model.speedProfile.samples,[{distanceM:0,severity:0}]);
   assert.equal(trackPoseAtDistance(model,100),null);
   assert.equal(trackSectorAtDistance(model,100),1);
 });

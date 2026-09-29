@@ -6,7 +6,7 @@
 import { resolveTrackLayout, trackIntelligenceProfile } from "../../domain/trackLayout.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
 
-export const TRACK_MODEL_SCHEMA_VERSION=1;
+export const TRACK_MODEL_SCHEMA_VERSION=2;
 
 const text=(value)=>String(value??"");
 const finite=(value,fallback=null)=>{
@@ -22,13 +22,21 @@ const wrap01=(value)=>{
   const n=Number(value)||0;
   return ((n%1)+1)%1;
 };
+const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
+
+function headingDeltaDeg(a,b){
+  let delta=((Number(b)||0)-(Number(a)||0))%360;
+  if(delta>180)delta-=360;
+  if(delta<-180)delta+=360;
+  return Math.abs(delta);
+}
 
 function trackIdOf(gp,trackId){
   return text(trackId??gp?.track_id??gp?.circuit_id??gp?.track?.track_id)||null;
 }
 
 function yearOf(gs,gp,year){
-  return finite(year,finite(gs?.activeYear,finite(gp?.year??gp?.season_year,null)));
+  return finite(year,finite(gp?.year??gp?.season_year,finite(gs?.activeYear,null)));
 }
 
 function trackRows(gs){
@@ -155,6 +163,89 @@ export function trackPoseAtDistance(model,distanceAlongLapM){
   };
 }
 
+export function trackCornerSeverityAtDistance(model,distanceAlongLapM){
+  const profile=model?.speedProfile;
+  const samples=Array.isArray(profile?.samples)?profile.samples:[];
+  if(!samples.length)return 0;
+  if(samples.length===1)return clamp(samples[0]?.severity,0,1);
+  const length=positive(model?.lengthM,0);
+  if(length<=0)return 0;
+  const wrapped=wrapTrackDistanceM(model,distanceAlongLapM)??0;
+  const spacing=positive(profile?.sampleSpacingM,length/samples.length);
+  const rawIndex=Math.floor(wrapped/spacing);
+  const index=((rawIndex%samples.length)+samples.length)%samples.length;
+  const nextIndex=(index+1)%samples.length;
+  const startDistance=index*spacing;
+  const t=clamp((wrapped-startDistance)/Math.max(1e-9,spacing),0,1);
+  const a=clamp(samples[index]?.severity,0,1);
+  const b=clamp(samples[nextIndex]?.severity,0,1);
+  return a+(b-a)*t;
+}
+
+export function trackCornerSeverityAhead(model,distanceAlongLapM,lookaheadM,{samples=5}={}){
+  const distance=Math.max(0,Number(lookaheadM)||0);
+  const count=Math.max(1,Math.min(12,Math.round(Number(samples)||5)));
+  let maximum=trackCornerSeverityAtDistance(model,distanceAlongLapM);
+  if(distance<=0)return maximum;
+  for(let index=1;index<=count;index+=1){
+    const probe=Number(distanceAlongLapM||0)+(distance*index/count);
+    maximum=Math.max(maximum,trackCornerSeverityAtDistance(model,probe));
+  }
+  return maximum;
+}
+
+export function buildTrackSpeedProfile(model,{detailed=null}={}){
+  const length=positive(model?.lengthM,0);
+  const hasLine=positive(model?.racingLine?.total_length,0)>0;
+  const trusted=detailed==null
+    ?Boolean(
+      model?.resolution?.exact===true&&
+      model?.geometry?.source==="f1track_functional"&&
+      /verified/i.test(String(model?.geometry?.quality??""))
+    )
+    :Boolean(detailed);
+
+  if(length<=0||!hasLine||!trusted){
+    return {
+      source:"neutral",
+      detailed:false,
+      sampleSpacingM:length>0?Number(length.toFixed(3)):null,
+      windowM:null,
+      samples:[{distanceM:0,severity:0}],
+    };
+  }
+
+  const sampleCount=Math.max(72,Math.min(180,Math.round(length/45)));
+  const spacing=length/sampleCount;
+  const windowM=Math.max(30,Math.min(70,length/120));
+  const raw=[];
+
+  for(let index=0;index<sampleCount;index+=1){
+    const distance=index*spacing;
+    const before=trackPoseAtDistance(model,distance-windowM);
+    const after=trackPoseAtDistance(model,distance+windowM);
+    const turn=before&&after?headingDeltaDeg(before.heading,after.heading):0;
+    raw.push(clamp(turn/55,0,1));
+  }
+
+  const smoothed=raw.map((value,index)=>{
+    const previous=raw[(index-1+raw.length)%raw.length];
+    const next=raw[(index+1)%raw.length];
+    return clamp(previous*0.25+value*0.5+next*0.25,0,1);
+  });
+
+  return {
+    source:"verified_functional_geometry",
+    detailed:true,
+    sampleSpacingM:Number(spacing.toFixed(3)),
+    windowM:Number(windowM.toFixed(3)),
+    samples:smoothed.map((severity,index)=>({
+      distanceM:Number((index*spacing).toFixed(3)),
+      severity:Number(severity.toFixed(4)),
+    })),
+  };
+}
+
 export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot=null,samplesPerSegment=6}={}){
   const id=trackIdOf(gp,trackId??trackSnapshot?.track_id);
   const y=yearOf(gs,gp,year);
@@ -197,6 +288,34 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
   const racingLine=sourcePoints.length>=3
     ?buildClosedRacingLine(sourcePoints,{samplesPerSegment})
     :null;
+  const racingLineContract=racingLine?{
+    points:racingLine.points.map((point)=>[Number(point[0]),Number(point[1])]),
+    cumulative:racingLine.cumulative.map(Number),
+    total_length:Number(racingLine.total_length),
+    source_count:Number(racingLine.source_count),
+    samples_per_segment:Number(racingLine.samples_per_segment),
+  }:null;
+  const geometryContract={
+    source:geometrySource,
+    quality:geometry?.quality??layout?.geometry_status??null,
+    viewBox:visualViewBox(geometry),
+    sourcePointCount:sourcePoints.length,
+    pitLanePointCount:clonePoints(geometry?.pit_lane_points).length,
+  };
+  const startFinish={progress:startFinishProgress,distanceM:0};
+  const packageYearFrom=finite(trackPackage?.year_from,null);
+  const packageYearTo=finite(trackPackage?.year_to,null);
+  const packageYearExact=y==null||(
+    packageYearFrom!=null&&packageYearTo!=null&&
+    y>=packageYearFrom&&y<=packageYearTo
+  );
+  const speedProfile=buildTrackSpeedProfile({
+    lengthM,
+    racingLine:racingLineContract,
+    geometry:geometryContract,
+    resolution:{exact:Boolean(resolved?.exact)&&packageYearExact},
+    startFinish,
+  });
   const pitPoints=clonePoints(geometry?.pit_lane_points);
   const pitEntryProgress=finite(intelligence?.pit_entry_progress,null);
   const pitExitProgress=finite(intelligence?.pit_exit_progress,null);
@@ -224,25 +343,11 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
       historicalStatus:layout?.historical_status??null,
       intelligenceStatus:intelligence?.status??null,
     },
-    geometry:{
-      source:geometrySource,
-      quality:geometry?.quality??layout?.geometry_status??null,
-      viewBox:visualViewBox(geometry),
-      sourcePointCount:sourcePoints.length,
-      pitLanePointCount:pitPoints.length,
-    },
-    racingLine:racingLine?{
-      points:racingLine.points.map((point)=>[Number(point[0]),Number(point[1])]),
-      cumulative:racingLine.cumulative.map(Number),
-      total_length:Number(racingLine.total_length),
-      source_count:Number(racingLine.source_count),
-      samples_per_segment:Number(racingLine.samples_per_segment),
-    }:null,
-    startFinish:{
-      progress:startFinishProgress,
-      distanceM:0,
-    },
+    geometry:{...geometryContract,pitLanePointCount:pitPoints.length},
+    racingLine:racingLineContract,
+    startFinish,
     sectors,
+    speedProfile,
     pitLane:{
       available:Boolean(pitPoints.length>=2&&pitEntryM!=null&&pitExitM!=null),
       entryProgress:pitEntryProgress==null?null:wrap01(pitEntryProgress),
