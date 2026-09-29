@@ -38,8 +38,8 @@ function roleLabel(slot){
 const ROLE_THRESHOLD=Object.freeze({
   main:76,
   second:68,
-  reserve:50,
-  test:44,
+  reserve:60,
+  test:56,
 });
 
 const ROLE_SCORE_DELTA=Object.freeze({
