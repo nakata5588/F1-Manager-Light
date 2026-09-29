@@ -207,7 +207,11 @@ export function enforceRaceTrafficSpacing(state,proposedCars,{stepMs=100,iterati
       // Overtaking is not active yet. If both cars cross the finish during the
       // same fixed step, preserve the pre-step road order even though both
       // positions clamp to the same finish distance.
-      if(ahead?.status==="finished"&&follower?.status==="finished"){
+      if(
+        ahead?.status==="finished"&&
+        follower?.status==="finished"&&
+        finite(previousAhead?.absoluteDistanceM,0)>finite(previousFollower?.absoluteDistanceM,0)
+      ){
         const aheadFinish=finite(ahead?.finishTimeMs,null);
         const followerFinish=finite(follower?.finishTimeMs,null);
         if(aheadFinish!=null&&followerFinish!=null&&followerFinish<=aheadFinish){
