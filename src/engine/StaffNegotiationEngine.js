@@ -18,7 +18,6 @@ import {
 } from "../domain/staffMarket.js";
 import {
   resolveStaffId,
-  staffContractRole,
   staffRoleLabel,
 } from "../domain/staffRoles.js";
 import {
@@ -33,7 +32,6 @@ const CLOSED_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhe
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 const text=(value)=>String(value??"");
 const dateOnly=(value)=>text(value).slice(0,10);
-const staffIdOf=(row)=>text(row?.staff_id??row?.person_id??row?.id);
 
 function addDaysISO(value,days){
   const base=Date.parse(dateOnly(value)+"T00:00:00Z");
