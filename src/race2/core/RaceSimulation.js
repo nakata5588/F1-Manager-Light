@@ -5,6 +5,7 @@
 // RW8.6 adds overtaking/side-by-side battles.
 // RW8.7 adds canonical tyres, fuel and temperatures.
 // RW8.8 adds canonical pit-lane / pit-stop execution.
+// RW8.9 applies canonical race commands before the same physics step.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
@@ -14,6 +15,7 @@ import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js"
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
+import { applyDueRaceCommands } from "./RaceCommands.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -179,10 +181,16 @@ export function startRaceState(state){
 export function stepRaceState(state){
   if(!state||state.status!=="running")return state;
   const stepMs=raceStepMs(state);
-  const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
-  const pits=advanceRacePitStops(state,proposedCars,{stepMs});
+  const commands=applyDueRaceCommands(state);
+  const workingState={
+    ...state,
+    cars:commands.cars,
+    commandQueue:commands.commandQueue,
+  };
+  const proposedCars=(workingState.cars||[]).map((car)=>advanceCar(workingState,car,stepMs));
+  const pits=advanceRacePitStops(workingState,proposedCars,{stepMs});
   const postPitById=new Map((pits.cars||[]).map((car)=>[car?.carId,car]));
-  const interactionCars=(state.cars||[]).map((previous)=>{
+  const interactionCars=(workingState.cars||[]).map((previous)=>{
     const postPit=postPitById.get(previous?.carId)??previous;
     const wasTrack=String(previous?.pitState?.status??"track")==="track";
     const isTrack=String(postPit?.pitState?.status??"track")==="track";
@@ -192,7 +200,7 @@ export function stepRaceState(state){
     return wasTrack&&isTrack?previous:postPit;
   });
   const interactionState={
-    ...state,
+    ...workingState,
     cars:interactionCars,
     pitLaneState:pits.pitLaneState,
   };
@@ -201,8 +209,12 @@ export function stepRaceState(state){
     stepMs,
     bypassPairs:overtaking.bypassPairs,
   });
-  const cars=advanceRaceResources(state,spacedCars,{stepMs});
-  const rawEvents=[...(pits.events||[]),...(overtaking.events||[])];
+  const cars=advanceRaceResources(workingState,spacedCars,{stepMs});
+  const rawEvents=[
+    ...(commands.events||[]),
+    ...(pits.events||[]),
+    ...(overtaking.events||[]),
+  ];
   const generatedEvents=rawEvents.map((event,index)=>{
     const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
     return {
@@ -215,7 +227,7 @@ export function stepRaceState(state){
   const status=allResolved?"finished":"running";
 
   const next={
-    ...state,
+    ...workingState,
     tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
     simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
     status,
