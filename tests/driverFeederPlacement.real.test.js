@@ -20,22 +20,24 @@ const norm=(value)=>String(value||"")
   .toLowerCase().replace(/[^a-z0-9]+/g,"").trim();
 
 async function load(){
-  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory]=await Promise.all([
+  const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory,series,seriesRules]=await Promise.all([
     readJson("drivers.json",[]),
     readJson("driver_year_status.json",[]),
     readJson("driver_career.json",[]),
     readJson("driver_development_history.json",[]),
     readJson("driver_f1_history.json",[]),
+    readJson("series.json",[]),
+    readJson("series_rules.json",[]),
   ]);
   const entries=inferDriverWorldEntries(drivers,{
     driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory,
   });
-  return {drivers,entries};
+  return {drivers,entries,driverCareer,series,seriesRules};
 }
 
 test("1980 generic feeder placement covers canonical world-entry population",async()=>{
-  const {drivers,entries}=await load();
-  const placements=inferDriverFeederPlacements(drivers,entries,1980);
+  const {drivers,entries,driverCareer,series,seriesRules}=await load();
+  const placements=inferDriverFeederPlacements(drivers,entries,1980,{series,seriesRules,driverCareer});
   const audit=buildDriverFeederPlacementAudit(placements);
 
   assert.equal(placements.length,drivers.length);
@@ -47,8 +49,8 @@ test("1980 generic feeder placement covers canonical world-entry population",asy
 });
 
 test("1980 sentinels map to generic feeder buckets without replaying future F1 history",async()=>{
-  const {drivers,entries}=await load();
-  const placements=inferDriverFeederPlacements(drivers,entries,1980);
+  const {drivers,entries,driverCareer,series,seriesRules}=await load();
+  const placements=inferDriverFeederPlacements(drivers,entries,1980,{series,seriesRules,driverCareer});
   const find=(name)=>placements.find(row=>norm(row.display_name)===norm(name));
 
   const senna=find("Ayrton Senna");
@@ -74,5 +76,21 @@ test("1980 sentinels map to generic feeder buckets without replaying future F1 h
     assert.ok(row,name+" should resolve");
     assert.equal(row.placement,"NOT_IN_WORLD");
     assert.equal(row.scoutable,false);
+  }
+});
+
+
+test("1980 F1-ready sentinels resolve a concrete level-2 series when the catalog is unambiguous",async()=>{
+  const {drivers,entries,driverCareer,series,seriesRules}=await load();
+  const placements=inferDriverFeederPlacements(drivers,entries,1980,{series,seriesRules,driverCareer});
+  const find=(name)=>placements.find(row=>norm(row.display_name)===norm(name));
+  for(const name of ["Michele Alboreto","Derek Warwick"]){
+    const row=find(name);
+    assert.ok(row,name+" should resolve");
+    assert.equal(row.placement,"F1_READY");
+    assert.equal(Number(row.series_level),2);
+    assert.ok(row.series_id,name+" should have a concrete level-2 series");
+    assert.ok(row.series_name,name+" should expose the series name");
+    assert.equal(row.forced_future_series,false);
   }
 });

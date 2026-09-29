@@ -707,7 +707,12 @@ export function materializeSeasonPack(globalData,yearInput){
   const feederPlacements=inferDriverFeederPlacements(
     [...driverMaster.values()],
     worldEntries,
-    year
+    year,
+    {
+      series:g.series||[],
+      seriesRules:g.seriesRules||[],
+      driverCareer:g.driverCareer||[],
+    }
   );
   const feederByDriver=new Map(
     feederPlacements.map((row)=>[String(row.driver_id||""),row]).filter(([id])=>id)

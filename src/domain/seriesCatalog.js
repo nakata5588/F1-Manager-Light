@@ -30,6 +30,10 @@ export function seriesIdOf(series){
   return text(series?.series_id??series?.id);
 }
 
+export function seriesNameOf(series){
+  return text(series?.series_name??series?.name??series?.short_name??series?.series_short_name??seriesIdOf(series));
+}
+
 function normalized(value){
   return text(value).toLowerCase().normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
@@ -135,4 +139,16 @@ export function seriesAgeEligibility(driver,rule,year){
     max_age:maxAge,
     reasons,
   };
+}
+
+
+export function eligibleSeriesForDriver(seriesRows,ruleRows,driver,year,{levels=null}={}){
+  return activeSeriesForYear(seriesRows,year,{levels})
+    .map((series)=>{
+      const series_id=seriesIdOf(series);
+      const rule=seriesRuleForYear(ruleRows,series_id,year);
+      const ageEligibility=seriesAgeEligibility(driver,rule,year);
+      return {series,rule,ageEligibility};
+    })
+    .filter((row)=>row.ageEligibility.eligible);
 }

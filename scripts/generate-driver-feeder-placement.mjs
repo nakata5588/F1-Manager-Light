@@ -19,12 +19,14 @@ async function readJson(name,fallback=[]){
   catch{return fallback;}
 }
 
-const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory]=await Promise.all([
+const [drivers,driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory,series,seriesRules]=await Promise.all([
   readJson("drivers.json",[]),
   readJson("driver_year_status.json",[]),
   readJson("driver_career.json",[]),
   readJson("driver_development_history.json",[]),
   readJson("driver_f1_history.json",[]),
+  readJson("series.json",[]),
+  readJson("series_rules.json",[]),
 ]);
 
 if(!drivers.length)throw new Error("D7.W2 requires public/data/drivers.json.");
@@ -32,7 +34,7 @@ if(!drivers.length)throw new Error("D7.W2 requires public/data/drivers.json.");
 const entries=inferDriverWorldEntries(drivers,{
   driverYearStatus,driverCareer,driverDevelopmentHistory,driverHistory,
 });
-const placements=inferDriverFeederPlacements(drivers,entries,year);
+const placements=inferDriverFeederPlacements(drivers,entries,year,{series,seriesRules,driverCareer});
 const audit=buildDriverFeederPlacementAudit(placements);
 
 await fs.mkdir(outputDir,{recursive:true});
@@ -57,7 +59,7 @@ await Promise.all([
   ),
 ]);
 
-console.log("D7.W2 generic feeder placement:",year,"·",placements.length,"profiles");
+console.log("D7.W2 feeder pyramid placement:",year,"·",placements.length,"profiles");
 console.log(
   "Placement counts:",
   Object.entries(audit.placement_counts).map(([key,count])=>key+":"+count).join(" · ")

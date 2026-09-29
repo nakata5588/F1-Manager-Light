@@ -119,3 +119,82 @@ test("feeder placement unwraps exported Excel value objects for identity matchin
   assert.equal(rows[0].driver_id,"d_wrapped");
   assert.notEqual(rows[0].driver_id,"[object Object]");
 });
+
+
+test("F1-ready opening placement resolves the unique active level-2 series",()=>{
+  const d=driver({dob:"1956-12-23"});
+  const e=entry({first_world_year:1975,reference_f1_debut_year:1981,reference_f1_last_year:1994});
+  const row=inferDriverFeederPlacement(d,e,1980,{
+    series:[
+      {series_id:"s_f2_old",series_name:"European Formula Two Championship",short_name:"F2",series_level:2,start_year:1967,end_year:1984},
+      {series_id:"s_bf3",series_name:"British Formula Three",short_name:"BF3",series_level:3,start_year:1951,end_year:2014},
+    ],
+    seriesRules:[],
+    driverCareer:[],
+  });
+  assert.equal(row.placement,"F1_READY");
+  assert.equal(row.series_id,"s_f2_old");
+  assert.equal(row.series_level,2);
+  assert.equal(row.series_resolution,"single_active_eligible_series");
+
+  const runtime=feederPlacementRuntimePatch(row);
+  assert.equal(runtime.lower_series_id,"s_f2_old");
+  assert.equal(runtime.lower_series_name,"European Formula Two Championship");
+  assert.equal(runtime.lower_series_level,2);
+});
+
+test("same-level ambiguity remains a candidate pool instead of inventing a championship",()=>{
+  const d=driver({dob:"1958-01-01"});
+  const e=entry({first_world_year:1976,reference_f1_debut_year:1982,reference_f1_last_year:1992});
+  const row=inferDriverFeederPlacement(d,e,1980,{
+    series:[
+      {series_id:"s_a",series_name:"Series A",series_level:2,start_year:1970,end_year:1990},
+      {series_id:"s_b",series_name:"Series B",series_level:2,start_year:1970,end_year:1990},
+    ],
+    seriesRules:[],
+    driverCareer:[],
+  });
+  assert.equal(row.placement,"LOWER_SERIES");
+  assert.equal(row.series_id,null);
+  assert.equal(row.series_level,2);
+  assert.equal(row.series_resolution,"candidate_pool");
+  assert.deepEqual(row.series_candidates.map((candidate)=>candidate.series_id),["s_a","s_b"]);
+});
+
+test("documented age limits remove an inferred series candidate",()=>{
+  const d=driver({dob:"1955-01-01"});
+  const e=entry({first_world_year:1974,reference_f1_debut_year:1982,reference_f1_last_year:1992});
+  const row=inferDriverFeederPlacement(d,e,1980,{
+    series:[
+      {series_id:"s_level2",series_name:"Level Two",series_level:2,start_year:1970,end_year:1990},
+    ],
+    seriesRules:[
+      {series_rule_id:"rule",series_id:"s_level2",valid_from:1970,valid_to:1990,max_age:23},
+    ],
+    driverCareer:[
+      {driver_id:"d_test",year:1980,series_division:"F2"},
+    ],
+  });
+  assert.equal(row.series_id,null);
+  assert.equal(row.series_level,2);
+  assert.equal(row.series_resolution,"no_catalog_match");
+});
+
+test("exact opening career series_id is preserved even when several series share a level",()=>{
+  const d=driver({dob:"1958-01-01"});
+  const e=entry({first_world_year:1976,reference_f1_debut_year:1983,reference_f1_last_year:1992});
+  const row=inferDriverFeederPlacement(d,e,1980,{
+    series:[
+      {series_id:"s_a",series_name:"Series A",series_level:3,start_year:1970,end_year:1990},
+      {series_id:"s_b",series_name:"Series B",series_level:3,start_year:1970,end_year:1990},
+    ],
+    seriesRules:[],
+    driverCareer:[
+      {driver_id:"d_test",year:1980,series_id:"s_b",series_division:"F3"},
+    ],
+  });
+  assert.equal(row.series_id,"s_b");
+  assert.equal(row.series_name,"Series B");
+  assert.equal(row.series_resolution,"historical_series_id");
+  assert.equal(row.forced_future_series,false);
+});
