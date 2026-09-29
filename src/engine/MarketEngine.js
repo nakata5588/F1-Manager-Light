@@ -18,6 +18,7 @@ import {
 import { relationshipRenewalRetentionDelta } from "../domain/driverRelationshipConsequences.js";
 import { aiLineupUpgradeOpportunity, rankAiRecruitmentCandidates } from "../domain/aiDriverLineup.js";
 import { applyStaffMarketTick } from "./StaffMarketEngine.js";
+import { applyStakeholderMarketTick } from "./StakeholderMarketEngine.js";
 
 // src/engine/MarketEngine.js
 function pickRandom(arr,rng){return rng.pick(arr);}
@@ -97,7 +98,7 @@ export function applyMarketTick(gs){
   );
   const f1EligibleDrivers=drivers.filter((d)=>f1HireEligibility(gs,d,gs?.activeYear).eligible);
   const teams=gs.teams||[];
-  if(!drivers.length||!teams.length)return applyStaffMarketTick(next);
+  if(!drivers.length||!teams.length)return applyStakeholderMarketTick(applyStaffMarketTick(next));
 
   const currentDate=String(gs?.currentDateISO||"").slice(0,10);
   const currentMonth=currentDate.slice(0,7);
@@ -265,6 +266,11 @@ export function applyMarketTick(gs){
     };
   }
 
+  // Staff employment and stakeholder markets have their own cadence and must
+  // not depend on whether a random paddock-news item happens to be generated.
+  next=applyStaffMarketTick(next);
+  next=applyStakeholderMarketTick(next);
+
   // Keep news meaningful instead of flooding the inbox with the same rumour.
   if(marketRng.next()>=0.045)return next;
 
@@ -324,5 +330,5 @@ export function applyMarketTick(gs){
       ...(next.inbox||gs.inbox||[]),
     ],
   };
-  return applyStaffMarketTick(next);
+  return next;
 }
