@@ -226,7 +226,7 @@ function completedSeasonStandings(gs,year){
   return complete?(gs?.standings||null):null;
 }
 
-function lastManagedTeamForSeason(manager,results,year){
+function managedTeamAtSeasonFinish(manager,results,year){
   const races=(Array.isArray(results)?results:[])
     .filter((row)=>yearOf(row)===Number(year))
     .slice()
@@ -234,11 +234,10 @@ function lastManagedTeamForSeason(manager,results,year){
       num(a?.round??a?.round_number,0)-num(b?.round??b?.round_number,0)
       ||dateOnly(a?.dateISO??a?.date).localeCompare(dateOnly(b?.dateISO??b?.date))
     );
-  for(let index=races.length-1;index>=0;index-=1){
-    const teamId=managerTeamForResult(manager,races[index]);
-    if(teamId)return {teamId,result:races[index]};
-  }
-  return null;
+  const finalRace=races.at(-1)||null;
+  if(!finalRace)return null;
+  const teamId=managerTeamForResult(manager,finalRace);
+  return teamId?{teamId,result:finalRace}:null;
 }
 
 function progressionInbox(gs,{levelsGained,achievements,attributeGains}){
@@ -358,7 +357,7 @@ export function applyManagerCareerProgression(gs){
     const standings=completedSeasonStandings(gs,year);
     if(!standings)continue;
     processedSeasons.add(year);
-    const managed=lastManagedTeamForSeason(manager,gs?.results,year);
+    const managed=managedTeamAtSeasonFinish(manager,gs?.results,year);
     if(!managed?.teamId)continue;
 
     const teamId=managed.teamId;
