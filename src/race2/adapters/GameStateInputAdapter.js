@@ -119,7 +119,10 @@ function normalizedCars(gs,entries){
     const reliability=entry.driverId
       ?{
         profile:cloneRaceContractValue(reliabilityProfile),
-        mechanicalFailureChance:finite(mechanicalRetirementChance(gs,incidentRow),0),
+        mechanicalFailureChance:finite(
+          mechanicalRetirementChance(gs,incidentRow,{teamIdOverride:entry.teamId}),
+          0
+        ),
         accidentIncidentChance:finite(accidentIncidentChance(gs,incidentRow),0),
         accidentConditionalRetirementChance:finite(
           accidentConditionalRetirementChance(gs,incidentRow),
