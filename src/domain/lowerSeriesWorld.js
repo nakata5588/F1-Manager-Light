@@ -24,8 +24,9 @@ import {
   matchLowerSeriesTeamFact,
 } from "./lowerSeriesTeams.js";
 import { carryLowerSeriesProspect } from "./lowerSeriesProspects.js";
+import { lowerSeriesCareerMovement } from "./lowerSeriesCareerMovement.js";
 
-export const LOWER_SERIES_WORLD_VERSION=4;
+export const LOWER_SERIES_WORLD_VERSION=5;
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -272,11 +273,49 @@ function successorSeries(seriesRows,previousSeriesId,targetYear){
   return successor&&isSeriesActiveInYear(successor,targetYear)?successor:null;
 }
 
-function resolveRuntimeSeries({driver,previousEntry,targetYear,series,seriesRules}){
+function resolveRuntimeSeries({
+  driver,
+  previousEntry,
+  targetYear,
+  series,
+  seriesRules,
+  targetLevelOverride=null,
+}){
   const previousId=text(previousEntry?.series_id);
+  const previousLevel=num(previousEntry?.series_level,null);
   const previousSeries=previousId
     ?rows(series).find((row)=>seriesIdOf(row)===previousId)
     :null;
+  const targetLevel=Number.isFinite(Number(targetLevelOverride))
+    ?Number(targetLevelOverride)
+    :targetLevelForDriver(driver,previousEntry);
+  const movementRequested=Number.isFinite(previousLevel)&&Number.isFinite(targetLevel)&&targetLevel!==previousLevel;
+
+  if(movementRequested){
+    const promoted=eligibleSeriesForDriver(
+      series,seriesRules,driver,targetYear,{levels:[targetLevel]}
+    );
+    if(promoted.length===1){
+      return {
+        series:promoted[0].series,
+        rule:promoted[0].rule,
+        candidates:[],
+        resolution:"career_movement_single_series",
+      };
+    }
+    if(promoted.length>1){
+      return {
+        series:null,
+        rule:null,
+        candidates:promoted.map(({series:row})=>({
+          series_id:seriesIdOf(row),
+          series_name:seriesNameOf(row),
+          series_level:seriesLevelOf(row),
+        })),
+        resolution:"career_movement_candidate_pool",
+      };
+    }
+  }
 
   if(previousSeries&&isSeriesActiveInYear(previousSeries,targetYear)){
     const rule=seriesRuleForYear(seriesRules,previousId,targetYear);
@@ -286,7 +325,9 @@ function resolveRuntimeSeries({driver,previousEntry,targetYear,series,seriesRule
         series:previousSeries,
         rule,
         candidates:[],
-        resolution:"save_world_continuity",
+        resolution:movementRequested
+          ?"career_movement_blocked_no_active_series"
+          :"save_world_continuity",
       };
     }
   }
@@ -301,12 +342,13 @@ function resolveRuntimeSeries({driver,previousEntry,targetYear,series,seriesRule
         series:successor,
         rule,
         candidates:[],
-        resolution:"structural_series_successor",
+        resolution:movementRequested
+          ?"career_movement_blocked_structural_successor"
+          :"structural_series_successor",
       };
     }
   }
 
-  const targetLevel=targetLevelForDriver(driver,previousEntry);
   if(!Number.isFinite(targetLevel)){
     return {series:null,rule:null,candidates:[],resolution:"unresolved_level"};
   }
