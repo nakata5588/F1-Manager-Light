@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readJsonOptional, readJsonRequired } from "./lib/json-source.mjs";
 import {
   discoverSupportedYears,
   materializeSeasonPack,
@@ -9,10 +10,8 @@ const root=process.cwd();
 const dataDir=path.join(root,"public","data");
 const outRoot=path.join(dataDir,"seasons");
 
-async function readJson(name,fallback=[]){
-  try{return JSON.parse(await fs.readFile(path.join(dataDir,name),"utf8"));}
-  catch{return fallback;}
-}
+const requiredJson=(name)=>readJsonRequired(path.join(dataDir,name),{label:name});
+const optionalJson=(name,fallback=[])=>readJsonOptional(path.join(dataDir,name),fallback);
 
 await fs.mkdir(outRoot,{recursive:true});
 
@@ -25,51 +24,51 @@ const [
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
   trackLayoutByYear,teamSeasons,coreTracks,
 ]=await Promise.all([
-  readJson("drivers.json"),
-  readJson("calendar.json"),
-  readJson("teams.json"),
-  readJson("driver_ratings.json"),
-  readJson("historical_rating_snapshots.json"),
-  readJson("driver_rating_profiles.json"),
-  readJson("driver_year_status.json"),
-  readJson("driver_opening_state.json"),
-  readJson("driver_development_history.json"),
-  readJson("driver_availability_history.json"),
-  readJson("driver_team_history.json"),
-  readJson("team_engine_history.json"),
-  readJson("car_competitiveness_by_year.json"),
-  readJson("driver_career.json"),
-  readJson("series.json",[]),
-  readJson("series_rules.json",[]),
-  readJson("lower_series_teams.json",[]),
-  readJson("driver_f1_history.json"),
-  readJson("historical_championships.json",{drivers:[],constructors:[]}),
-  readJson("team_lineage_history.json",[]),
-  readJson("staff_ratings.json"),
-  readJson("staff_core.json"),
-  readJson("team_brands.json"),
-  readJson("team_engines.json"),
-  readJson("contracts.json"),
-  readJson("sponsors_contracts.json"),
-  readJson("rules.json"),
-  readJson("qualifying_rules.json"),
-  readJson("qualifying_rule_overrides.json",[]),
-  readJson("era_safety.json"),
-  readJson("accident_model.json",[]),
-  readJson("facilities.json"),
-  readJson("car_stats_by_year.json"),
-  readJson("staff_contracts.json"),
-  readJson("tyres_catalog.json"),
-  readJson("points_systems.json"),
-  readJson("penalties_rules.json"),
-  readJson("financial_rules.json"),
-  readJson("agenda_blocks.json"),
-  readJson("contract_rules.json"),
-  readJson("youth_intake_rules.json"),
-  readJson("scouting_zones.json"),
-  readJson("track_layout_by_year.json"),
-  readJson("team_seasons.json"),
-  readJson("core_tracks.json"),
+  requiredJson("drivers.json"),
+  requiredJson("calendar.json"),
+  requiredJson("teams.json"),
+  requiredJson("driver_ratings.json"),
+  optionalJson("historical_rating_snapshots.json"),
+  requiredJson("driver_rating_profiles.json"),
+  optionalJson("driver_year_status.json"),
+  optionalJson("driver_opening_state.json"),
+  optionalJson("driver_development_history.json"),
+  optionalJson("driver_availability_history.json"),
+  optionalJson("driver_team_history.json"),
+  optionalJson("team_engine_history.json"),
+  optionalJson("car_competitiveness_by_year.json"),
+  requiredJson("driver_career.json"),
+  requiredJson("series.json"),
+  requiredJson("series_rules.json"),
+  requiredJson("lower_series_teams.json"),
+  requiredJson("driver_f1_history.json"),
+  requiredJson("historical_championships.json"),
+  optionalJson("team_lineage_history.json",[]),
+  requiredJson("staff_ratings.json"),
+  requiredJson("staff_core.json"),
+  requiredJson("team_brands.json"),
+  requiredJson("team_engines.json"),
+  requiredJson("contracts.json"),
+  requiredJson("sponsors_contracts.json"),
+  requiredJson("rules.json"),
+  requiredJson("qualifying_rules.json"),
+  optionalJson("qualifying_rule_overrides.json",[]),
+  requiredJson("era_safety.json"),
+  optionalJson("accident_model.json",[]),
+  requiredJson("facilities.json"),
+  optionalJson("car_stats_by_year.json"),
+  requiredJson("staff_contracts.json"),
+  requiredJson("tyres_catalog.json"),
+  requiredJson("points_systems.json"),
+  requiredJson("penalties_rules.json"),
+  requiredJson("financial_rules.json"),
+  requiredJson("agenda_blocks.json"),
+  requiredJson("contract_rules.json"),
+  requiredJson("youth_intake_rules.json"),
+  requiredJson("scouting_zones.json"),
+  requiredJson("track_layout_by_year.json"),
+  requiredJson("team_seasons.json"),
+  requiredJson("core_tracks.json"),
 ]);
 
 const globalData={
