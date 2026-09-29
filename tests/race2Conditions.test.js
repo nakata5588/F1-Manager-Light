@@ -116,6 +116,31 @@ test("RW8.11A conditions follow the leader reference lap from the snapshotted we
   assert.equal(next.weatherState.track_temp_c,23);
 });
 
+test("RW8.11A weather never rewinds when an advanced leader retires",()=>{
+  const state=startRaceState(createRaceState(input()));
+  const advancedCars=[
+    {...state.cars[0],lap:2,completedLaps:1,absoluteDistanceM:1100,distanceAlongLapM:100},
+    {...state.cars[0],carId:"C2",driverId:"D2",teamId:"T2",lap:1,completedLaps:0,absoluteDistanceM:700,distanceAlongLapM:700},
+  ];
+  const advanced=advanceRaceConditions(state,advancedCars,[]);
+  assert.equal(advanced.trackState.referenceLap,2);
+
+  const retiredLeader={
+    ...state,
+    trackState:advanced.trackState,
+    weatherState:advanced.weatherState,
+    raceControlState:advanced.raceControlState,
+  };
+  const remainingCars=[
+    {...advancedCars[0],dnf:true,status:"dnf"},
+    advancedCars[1],
+  ];
+  const after=advanceRaceConditions(retiredLeader,remainingCars,[]);
+  assert.equal(after.trackState.referenceLap,2);
+  assert.equal(after.weatherState.currentLap,2);
+  assert.equal(after.trackState.weatherState,"LIGHT_RAIN");
+});
+
 test("RW8.11A reuses era-aware incident policy instead of inventing RW2 thresholds",()=>{
   const event={
     type:"damage",
