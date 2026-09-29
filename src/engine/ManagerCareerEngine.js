@@ -21,7 +21,10 @@ import {
   managerTeamSwitchBlocked,
   materializeTeamForPlayer,
 } from "../domain/managerTeamControl.js";
-import { applyManagerCareerProgression } from "../domain/managerProgression.js";
+import {
+  applyManagerCareerProgression,
+  applyManagerPerformanceRegression,
+} from "../domain/managerProgression.js";
 
 const text=(value)=>String(value??"");
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
@@ -491,6 +494,17 @@ export function processManagerCareerTick(gs,{forceDismiss=false}={}){
   const pressureStreak=["critical","under_pressure"].includes(assessment.status)
     ?Number(state?.pressure_streak||0)+1
     :0;
+
+  // Permanent regression is evaluated only when a new race has changed the
+  // canonical Board assessment. Forced administrative dismissal without a new
+  // result must not create an extra attribute/reputation penalty.
+  if(assessment.races>previousRaces){
+    gs=applyManagerPerformanceRegression(gs,{
+      assessment,
+      criticalStreak,
+      pressureStreak,
+    });
+  }
 
   let next={
     ...gs,
