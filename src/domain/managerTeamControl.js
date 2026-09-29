@@ -53,6 +53,35 @@ function defaultAcademy(){
 function defaultScouting(){
   return {assignments:[],shortlist:[]};
 }
+function teamMetaSnapshot(meta){
+  const source=meta&&typeof meta==="object"?meta:{};
+  const out={};
+  if(source.team&&typeof source.team==="object")out.team=clone(source.team);
+  if(source?.popularity?.team!=null){
+    out.popularity={team:source.popularity.team};
+  }
+  return out;
+}
+function clearTeamMeta(meta){
+  const next=clone(meta&&typeof meta==="object"?meta:{})||{};
+  delete next.team;
+  if(next.popularity&&typeof next.popularity==="object"){
+    const popularity={...next.popularity};
+    delete popularity.team;
+    if(Object.keys(popularity).length)next.popularity=popularity;
+    else delete next.popularity;
+  }
+  return next;
+}
+function mergeTeamMeta(globalMeta,teamMeta){
+  const base=clone(globalMeta&&typeof globalMeta==="object"?globalMeta:{})||{};
+  const team=teamMeta&&typeof teamMeta==="object"?teamMeta:{};
+  if(team.team&&typeof team.team==="object")base.team=clone(team.team);
+  if(team?.popularity?.team!=null){
+    base.popularity={...(base.popularity||{}),team:team.popularity.team};
+  }
+  return base;
+}
 
 export function managerControlTeamId(gs){
   return text(gs?.team?.team_id??gs?.team?.id);
@@ -91,7 +120,7 @@ export function archiveControlledTeamForAI(gs){
       commercialScore:clone(gs?.commercialScore)??null,
       ops:clone(gs?.ops)||{},
       rdProjectsActive:Array.isArray(gs?.rdProjectsActive)?clone(gs.rdProjectsActive):[],
-      meta:clone(gs?.meta)||{},
+      meta:teamMetaSnapshot(gs?.meta),
       selectedDrivers:Array.isArray(gs?.selectedDrivers)?clone(gs.selectedDrivers):[],
       financeFlags:clone(gs?.financeFlags)||{},
     },
@@ -152,7 +181,7 @@ export function clearPlayerTeamControl(gs){
     commercialScore:null,
     ops:{},
     rdProjectsActive:[],
-    meta:{},
+    meta:clearTeamMeta(gs?.meta),
     selectedDrivers:[],
     financeFlags:{},
     eventsQueue:(Array.isArray(gs?.eventsQueue)?gs.eventsQueue:[]).map((event)=>
@@ -226,7 +255,7 @@ export function materializeTeamForPlayer(gs,teamId){
     commercialScore:legacyRuntime?.commercialScore??null,
     ops:legacyRuntime?.ops&&typeof legacyRuntime.ops==="object"?legacyRuntime.ops:{},
     rdProjectsActive:Array.isArray(legacyRuntime?.rdProjectsActive)?legacyRuntime.rdProjectsActive:[],
-    meta:legacyRuntime?.meta&&typeof legacyRuntime.meta==="object"?legacyRuntime.meta:{},
+    meta:mergeTeamMeta(normalized?.meta,legacyRuntime?.meta),
     selectedDrivers:Array.isArray(legacyRuntime?.selectedDrivers)?legacyRuntime.selectedDrivers:[],
     financeFlags:legacyRuntime?.financeFlags&&typeof legacyRuntime.financeFlags==="object"?legacyRuntime.financeFlags:{},
     eventsQueue:[],
