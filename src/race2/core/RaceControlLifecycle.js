@@ -124,7 +124,7 @@ function activateRedFlag(state,control,cars,source){
     sequence:finite(control?.sequence,0)+1,
   });
   return {
-    control:{
+    raceControlState:{
       ...control,
       model:"rw8.11b",
       phase:"enforced",
