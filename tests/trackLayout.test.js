@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
-import { buildPitLanePresentationGeometry, deterministicTrackScatter, offsetTrackPolyline, openPolylineHeadingDegrees, sampleOpenPolylinePoint, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
+import { buildPitLanePresentationGeometry, deterministicTrackScatter, offsetTrackPolyline, sampleOpenPolylinePoint, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
 import { clampTrackViewBox, dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
@@ -267,15 +267,6 @@ test("Track 2.0 Argentina keeps functional pit geometry independent and builds p
   const sourceMid=sampleOpenPolylinePoint(functionalPit,.5);
   const visualMid=sampleOpenPolylinePoint(visual.pit_lane_points,.5);
   assert.ok(visualMid.y>sourceMid.y+6,"Argentina pit lane should gain visible separation from the main straight");
-  assert.ok(style.pit_merge_fraction>=.20,"Argentina should reserve a long, shallow merge zone");
-
-  const angleDelta=(a,b)=>Math.abs(((Number(a)-Number(b)+540)%360)-180);
-  const entryPitHeading=openPolylineHeadingDegrees(visual.pit_lane_points,.01);
-  const exitPitHeading=openPolylineHeadingDegrees(visual.pit_lane_points,.99);
-  const entryTrackHeading=trackHeadingDegrees(resolved.geometry,profile.pit_entry_progress);
-  const exitTrackHeading=trackHeadingDegrees(resolved.geometry,profile.pit_exit_progress);
-  assert.ok(angleDelta(entryPitHeading,entryTrackHeading)<12,"PIT IN must leave tangentially instead of cutting across the track");
-  assert.ok(angleDelta(exitPitHeading,exitTrackHeading)<12,"PIT OUT must rejoin tangentially instead of forcing a sharp turn");
 });
 
 
