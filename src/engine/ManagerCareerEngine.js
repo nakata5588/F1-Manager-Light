@@ -3,6 +3,7 @@
 // unemployment, job applications/offers and safe team-control transfer.
 
 import { rngFor } from "../core/random.js";
+import { runRaceWeekend } from "./GPEngine.js";
 import {
   applyPlayerManagerTeamPrincipalAppointment,
   managerEmploymentAssessment,
@@ -388,6 +389,44 @@ export function acceptManagerJobOffer(gs,applicationId){
       }),
       ...(next?.inbox||[]),
     ],
+  };
+}
+
+function gpDateISO(gp){
+  return dateOnly(gp?.dateISO??gp?.date??gp?.race_date??gp?.start_date??gp?.end_date??gp?.raceDate);
+}
+
+export async function autosimUnemployedRaceIfDue(gs){
+  if(!gs?.manager||playerManagerIsActiveTeamPrincipal(gs))return gs;
+  const roundIndex=Math.max(0,Number(gs?.currentRound||0));
+  const gp=gs?.calendar?.[roundIndex]||null;
+  if(!gp)return gs;
+  const raceDate=gpDateISO(gp);
+  const today=dateOnly(gs?.currentDateISO);
+  if(!raceDate||!today||today<=raceDate)return gs;
+
+  const year=Number(gs?.activeYear);
+  const round=roundIndex+1;
+  const gpId=text(gp?.gp_id??gp?.id??gp?.track_id??"round_"+round);
+  const already=(Array.isArray(gs?.results)?gs.results:[]).some((row)=>
+    Number(row?.year??row?.season_year)===year&&
+    Number(row?.round??row?.round_number)===round&&
+    text(row?.gp_id??row?.track_id??"")===gpId
+  );
+  if(already){
+    return {...gs,currentRound:Math.min(roundIndex+1,Math.max(0,(gs?.calendar?.length||1)-1))};
+  }
+
+  const simulated=await runRaceWeekend({
+    ...gs,
+    raceWeekendState:null,
+    raceEntryState:null,
+  },{roundIndex,gp});
+  return {
+    ...simulated,
+    raceWeekendState:null,
+    raceEntryState:null,
+    currentRound:Math.min(roundIndex+1,Math.max(0,(gs?.calendar?.length||1)-1)),
   };
 }
 
