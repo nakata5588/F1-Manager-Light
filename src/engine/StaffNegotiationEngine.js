@@ -219,7 +219,8 @@ function applyIncumbentRelease(gs,incumbent,negotiation){
     }:row),
   };
   if(buyerTeamId===playerTeamId&&cost>0){
-    const oldBalance=Number(next?.finances?.balance??next?.team?.budget??0);
+    const resolvedBudget=staffTeamBudget(next,buyerTeamId);
+    const oldBalance=Number.isFinite(resolvedBudget)?resolvedBudget:0;
     const sig="staff-release:"+incumbentId+":"+today;
     const log=Array.isArray(next?.financeLog)?next.financeLog:[];
     const tx=log.some((row)=>row?.sig===sig)?[]:[{
@@ -233,11 +234,11 @@ function applyIncumbentRelease(gs,incumbent,negotiation){
     }];
     next={
       ...next,
-      team:{...(next?.team||{}),budget:Number(next?.team?.budget??oldBalance)-cost},
+      team:{...(next?.team||{}),budget:oldBalance-cost},
       finances:{
         ...(next?.finances||{}),
         balance:oldBalance-cost,
-        budget:Number(next?.finances?.budget??oldBalance)-cost,
+        budget:oldBalance-cost,
         season_spend:Number(next?.finances?.season_spend||0)+cost,
       },
       financeLog:[...tx,...log],
