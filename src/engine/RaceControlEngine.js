@@ -301,9 +301,11 @@ export function accidentConditionalRetirementChance(gs,row){
   return incident>0?clamp(target/incident,0,1):0;
 }
 
-export function mechanicalRetirementChance(gs,row){
+export function mechanicalRetirementChance(gs,row,{teamIdOverride=null}={}){
   const did=idOf(row?.driver||row);
-  const tid=teamIdForDriver(gs,did);
+  const tid=teamIdOverride==null||teamIdOverride===""
+    ?teamIdForDriver(gs,did)
+    :String(teamIdOverride);
   const profile=carReliabilityProfile(gs,tid,did);
   return mechanicalFailureChance(profile,{
     session:"race",
