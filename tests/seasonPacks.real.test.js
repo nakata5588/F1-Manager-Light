@@ -710,3 +710,121 @@ test("Teams 4.0A/B real-data regressions keep organisation history canonical and
   );
 });
 
+
+
+test("LS3.5 audit: 2007 feeder population and starting-rating calibration",async()=>{
+  const pack=await readPack(2007);
+  const [series,seriesRules]=await Promise.all([
+    fs.readFile(path.join(root,"public","data","series.json"),"utf8").then(JSON.parse),
+    fs.readFile(path.join(root,"public","data","series_rules.json"),"utf8").then(JSON.parse).catch(()=>[]),
+  ]);
+  const opening=materializeLowerSeriesWorld({
+    year:2007,
+    sourceSeason:2007,
+    series,
+    seriesRules,
+    placements:pack.state?.driverFeederPlacement||[],
+    driverCareer:pack.state?.driverCareer||[],
+    drivers:pack.state?.drivers||[],
+  });
+  const initialized=initializeLowerSeriesSeason({
+    activeYear:2007,
+    currentDateISO:"2007-01-01",
+    saveMeta:{seed:"ls35-audit-2007"},
+    contracts:pack.state?.contracts||[],
+    drivers:pack.state?.drivers||[],
+    dbDrivers:pack.state?.drivers||[],
+    driverRatings:pack.state?.driverRatings||[],
+    lowerSeriesWorld:opening,
+    results:[],
+  });
+  const world=initialized.lowerSeriesWorld;
+  const driverById=new Map((pack.state?.drivers||[]).map((row)=>[String(row.driver_id),row]));
+  const activePlacements=(pack.state?.driverFeederPlacement||[])
+    .filter((row)=>row?.active_pre_f1_world)
+    .map((row)=>({
+      driver_id:String(row.driver_id||""),
+      name:String(driverById.get(String(row.driver_id))?.display_name||row.display_name||row.driver_id||""),
+      placement:row.placement||null,
+      age:row.age??null,
+      series_id:row.series_id??null,
+      series_name:row.series_name??null,
+      series_level:row.series_level??null,
+      series_resolution:row.series_resolution??null,
+      candidates:Array.isArray(row.series_candidates)?row.series_candidates.map((candidate)=>candidate.series_id):[],
+    }))
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+
+  const gp2Entries=Object.values(world?.entries||{})
+    .filter((row)=>String(row?.series_id)==="S_0005")
+    .map((row)=>({
+      driver_id:String(row.driver_id),
+      name:String(driverById.get(String(row.driver_id))?.display_name||row.driver_id),
+      placement_status:row.placement_status,
+      placement_source:row.placement_source,
+      lower_team_id:row.lower_team_id,
+      team_name:row.team_name,
+    }))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+
+  const gp2Career=(pack.state?.driverCareer||[])
+    .filter((row)=>/gp2|formula\s*2|\bf2\b/i.test(String(row.series_name??row.series??row.series_division??row.division??"")))
+    .map((row)=>({
+      driver_id:String(row.driver_id||""),
+      name:String(driverById.get(String(row.driver_id))?.display_name||row.driver_name||row.driver_id||""),
+      series_id:row.series_id??null,
+      series_name:row.series_name??row.series??row.series_division??null,
+      team_id:row.team_id??row.entrant_id??null,
+      team_name:row.team_name??row.team??row.entrant_name??null,
+    }))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+
+  const wantedNames=["Fernando Alonso","Kimi Räikkönen","Lewis Hamilton","Felipe Massa","Robert Kubica","Nico Rosberg","Nick Heidfeld"];
+  const ratingById=new Map((pack.state?.driverRatings||[]).map((row)=>[String(row.driver_id),row]));
+  const ratingAudit=(pack.state?.drivers||[])
+    .filter((driver)=>wantedNames.includes(String(driver.display_name||driver.driver_name||driver.name||"")))
+    .map((driver)=>{
+      const rating=ratingById.get(String(driver.driver_id))||{};
+      return {
+        driver_id:String(driver.driver_id),
+        name:String(driver.display_name||driver.driver_name||driver.name||driver.driver_id),
+        source:rating.source??null,
+        career_stage:rating.career_stage??null,
+        current_ability:rating.current_ability??null,
+        potential_ability:rating.potential_ability??null,
+        talent_profile_peak_original:rating.talent_profile_peak_original??null,
+        talent_profile_peak_effective:rating.talent_profile_peak_effective??null,
+        talent_profile_repair_source:rating.talent_profile_repair_source??null,
+        historical_current_floor:rating.historical_current_floor??null,
+        historical_current_floor_applied:rating.historical_current_floor_applied??null,
+        historical_prior_starts:rating.historical_prior_starts??null,
+        historical_prior_wins:rating.historical_prior_wins??null,
+        historical_prior_podiums:rating.historical_prior_podiums??null,
+        historical_previous_championship_position:rating.historical_previous_championship_position??null,
+        historical_recent_best_championship_position:rating.historical_recent_best_championship_position??null,
+        historical_continuity_cap_applied:rating.historical_continuity_cap_applied??null,
+        historical_continuity_previous_ovr:rating.historical_continuity_previous_ovr??null,
+        factor_speed:rating.factor_speed??null,
+        factor_experience:rating.factor_experience??null,
+        factor_mental:rating.factor_mental??null,
+        factor_team:rating.factor_team??null,
+        pace:rating.pace??null,
+        qualifying:rating.qualifying??null,
+        racecraft:rating.racecraft??null,
+        consistency:rating.consistency??null,
+        mentality:rating.mentality??null,
+      };
+    })
+    .sort((a,b)=>a.name.localeCompare(b.name));
+
+  console.log("LS35_AUDIT_2007="+JSON.stringify({
+    active_pre_f1_count:activePlacements.length,
+    active_placements:activePlacements,
+    gp2_world_entries:gp2Entries,
+    gp2_career_rows:gp2Career,
+    rating_audit:ratingAudit,
+  }));
+
+  assert.ok(gp2Entries.length>0,"2007 audit requires GP2 entries");
+  assert.ok(ratingAudit.some((row)=>row.name==="Nick Heidfeld"),"2007 audit requires Nick Heidfeld");
+});
