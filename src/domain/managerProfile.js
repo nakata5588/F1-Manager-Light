@@ -201,9 +201,21 @@ export function createManagerProfile(input={},context={}){
       }],
     achievements:Array.isArray(input?.achievements)?input.achievements:[],
     development:{
-      xp:Number(input?.development?.xp||0),
-      level:Number(input?.development?.level||1),
+      xp:Math.max(0,Number(input?.development?.xp||0)),
+      level:Math.max(1,Number(input?.development?.level||1)),
       last_progression_at:input?.development?.last_progression_at||null,
+      processed_result_keys:Array.isArray(input?.development?.processed_result_keys)
+        ?[...new Set(input.development.processed_result_keys.map(String).filter(Boolean))]
+        :[],
+      processed_seasons:Array.isArray(input?.development?.processed_seasons)
+        ?[...new Set(input.development.processed_seasons.map(Number).filter(Number.isFinite))].sort((a,b)=>a-b)
+        :[],
+      races_managed:Math.max(0,Number(input?.development?.races_managed||0)),
+      points_races:Math.max(0,Number(input?.development?.points_races||0)),
+      podiums:Math.max(0,Number(input?.development?.podiums||0)),
+      wins:Math.max(0,Number(input?.development?.wins||0)),
+      constructor_titles:Math.max(0,Number(input?.development?.constructor_titles||0)),
+      driver_titles:Math.max(0,Number(input?.development?.driver_titles||0)),
     },
   };
 }
