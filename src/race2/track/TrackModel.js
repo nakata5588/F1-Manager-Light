@@ -36,7 +36,7 @@ function trackIdOf(gp,trackId){
 }
 
 function yearOf(gs,gp,year){
-  return finite(year,finite(gs?.activeYear,finite(gp?.year??gp?.season_year,null)));
+  return finite(year,finite(gp?.year??gp?.season_year,finite(gs?.activeYear,null)));
 }
 
 function trackRows(gs){
