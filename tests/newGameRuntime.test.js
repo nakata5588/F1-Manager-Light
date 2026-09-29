@@ -163,7 +163,7 @@ test("fresh career copies historical seed only and drops Cars plus unknown runti
 test("Season Pack driver rows receive current portrait paths before New Game starts", () => {
   const patch=seasonPackStatePatch({
     format:"f1ml-season-pack",
-    schemaVersion:1,
+    schemaVersion:2,
     year:1980,
     validation:{ok:true},
     state:{
@@ -219,7 +219,7 @@ test("fresh career never inherits uploaded visual overrides from a previous care
 test("Season Pack world-entry metadata survives loader and fresh-career boundary",()=>{
   const patch=seasonPackStatePatch({
     format:"f1ml-season-pack",
-    schemaVersion:1,
+    schemaVersion:2,
     year:1980,
     validation:{ok:true},
     state:{
