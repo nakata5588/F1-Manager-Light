@@ -240,10 +240,40 @@ function rollDriverContracts(rows,targetYear){
 
 function carryStaffContracts(rows,targetYear){
   return (rows||[]).map((row)=>{
-    if(currentContractForNextSeason(row,targetYear)){
-      return {...row,year:targetYear,season_year:targetYear};
+    const status=String(row?.status||"active").toLowerCase();
+    if(["terminated","released","bought_out","expired","inactive","void"].includes(status)){
+      return {...row};
     }
-    // Staff employment still uses continuity until the dedicated staff market lands.
+
+    if(currentContractForNextSeason(row,targetYear)){
+      return {...row,year:targetYear,season_year:targetYear,status:"active"};
+    }
+
+    // Contracts created/managed by the Staff market have an explicit duration.
+    // They must expire when that duration ends; otherwise negotiated lengths
+    // and AI release-at-end decisions would be silently overwritten here.
+    const source=String(row?.source||"").toLowerCase();
+    const renewalSource=String(row?.renewal_source||"").toLowerCase();
+    const renewalPlan=String(row?.ai_staff_renewal_plan||"").toLowerCase();
+    const marketOwned=
+      Boolean(row?.negotiation_id)
+      ||["player_staff_negotiation","staff_negotiation","ai_staff_market"].includes(source)
+      ||renewalSource==="ai_staff_market"
+      ||["release_end","release_end_budget"].includes(renewalPlan);
+
+    if(marketOwned){
+      return {
+        ...row,
+        status:"expired",
+        expired_at:`${targetYear}-01-01`,
+        expiry_reason:["release_end","release_end_budget"].includes(renewalPlan)
+          ?renewalPlan
+          :"contract_end",
+      };
+    }
+
+    // Legacy saves pre-date a player Staff renewal flow. Preserve their old
+    // continuity behavior so this migration does not unexpectedly empty teams.
     return {
       ...row,
       year:targetYear,
