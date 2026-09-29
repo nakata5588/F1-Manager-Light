@@ -50,6 +50,8 @@ function marketStatus(driver, contract, pending, activeYear){
     driver?.status==="junior_only" ||
     driver?.active_lower_series===true;
   if(lowerSeries){
+    const resolvedSeries=String(driver?.lower_series_name||"").trim();
+    if(resolvedSeries&&!["Youth","F1 Ready","Lower Series"].includes(resolvedSeries)) return resolvedSeries;
     if(String(driver?.feeder_placement||"")==="F1_READY") return "F1 Ready";
     if(Number.isFinite(age)&&age<=19) return "Youth";
     return "Lower Series";

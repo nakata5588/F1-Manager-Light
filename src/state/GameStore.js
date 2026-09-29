@@ -1100,7 +1100,12 @@ export const useGame = create((set, get) => ({
       prev.dbDrivers || [],
       worldEntries,
       y,
-      { youthMaxAge }
+      {
+        youthMaxAge,
+        series: prev.dbSeries || [],
+        seriesRules: prev.dbSeriesRules || [],
+        driverCareer: prev.dbDriverCareer || [],
+      }
     );
     const feederPlacementByDriver = new Map(
       feederPlacements.map((row) => [String(row?.driver_id || ""), row]).filter(([id]) => id)
