@@ -138,6 +138,7 @@ function activateRedFlag(state,control,cars,source){
     },
     events:[lifecycleEvent(state,text(control?.mode||"GREEN").toUpperCase(),"RED_FLAG",source,{
       lifecycle:"suspended",
+      referenceLap,
     })],
   };
 }
@@ -176,12 +177,39 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
           sequence:finite(previous?.sequence,0)+1,
           redFlagLifecycle:null,
         },
-        events:[lifecycleEvent(state,current,recommended,assessedControl?.source,{durationLaps:duration})],
+        events:[lifecycleEvent(state,current,recommended,assessedControl?.source,{
+          durationLaps:duration,
+          referenceLap,
+        })],
       };
     }
   }
 
   if(recommended!=="GREEN"&&(rank[recommended]??0)>=(rank[current]??0)){
+    if(recommended===current&&assessedControl?.source==="incident"){
+      const duration=raceControlDurationLaps(
+        recommended,
+        deterministicUnit(state,`extend:${recommended}:${state?.tick}:${referenceLap}`)
+      );
+      const extendedRelease=Math.max(
+        Math.floor(finite(previous?.minimumReleaseLap,referenceLap)),
+        referenceLap+Math.max(1,duration)
+      );
+      const changed=extendedRelease!==previous?.minimumReleaseLap;
+      return {
+        raceControlState:{
+          ...control,
+          mode:recommended,
+          minimumReleaseLap:extendedRelease,
+        },
+        events:changed?[eventDescriptor("race_control_extended",state,{
+          mode:recommended,
+          source:"incident",
+          referenceLap,
+          minimumReleaseLap:extendedRelease,
+        })]:[],
+      };
+    }
     return {raceControlState:{...control,mode:recommended},events:[]};
   }
 
@@ -199,7 +227,7 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
         minimumReleaseLap:null,
         redFlagLifecycle:null,
       },
-      events:[lifecycleEvent(state,current,"GREEN","clear")],
+      events:[lifecycleEvent(state,current,"GREEN","clear",{referenceLap})],
     };
   }
 
