@@ -163,6 +163,38 @@ test("RW8.5 hard spacing prevents a faster follower from passing or overlapping"
   assert.equal(follower.traffic.hardLimited,true);
 });
 
+test("RW8.5 same-step finish cannot reverse pre-step road order before overtaking exists",()=>{
+  let state=runningState({laps:1,cars:2,stepMs:1000});
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:999,
+      distanceAlongLapM:999,
+      sector:3,
+      speedMs:2,
+      speedKmh:7.2,
+      performance:{car:null,driver:null},
+    },
+    C2:{
+      absoluteDistanceM:993,
+      distanceAlongLapM:993,
+      sector:3,
+      speedMs:100,
+      speedKmh:360,
+      performance:{car:null,driver:null},
+    },
+  });
+
+  const next=stepRaceState(state);
+  const leader=car(next,"C1");
+  const follower=car(next,"C2");
+
+  assert.equal(next.status,"finished");
+  assert.equal(leader.status,"finished");
+  assert.equal(follower.status,"finished");
+  assert.ok(follower.finishTimeMs>leader.finishTimeMs);
+  assert.deepEqual(next.classification.map((row)=>row.carId),["C1","C2"]);
+});
+
 test("RW8.5 a train preserves road order and physical minimum gaps over time",()=>{
   let state=runningState({cars:3});
   state=patchCars(state,{
