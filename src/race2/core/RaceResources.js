@@ -164,6 +164,8 @@ export function initialRaceResources(input,inputCar,driver){
         pitPlan:inputCar?.resourceSetup?.strategy?.pitPlan??null,
         plannedStopLap:finite(inputCar?.resourceSetup?.strategy?.plannedStopLap,null),
         fuelPlan:inputCar?.resourceSetup?.strategy?.fuelPlan??null,
+        tyreChangeRequested:true,
+        refuelRequested:fuel.fuelStintPlanned,
       },
       availableTyres:tyreOptionsFor(inputCar,finite(input?.year,input?.track?.year??1980))
         .map((row)=>({
