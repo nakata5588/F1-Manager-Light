@@ -810,7 +810,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/sponsors_contracts.json"),
         fetchJsonSafe("/data/rules.json"),
         fetchJsonSafe("/data/era_safety.json"),
-        fetchJsonSafe("/data/accident_model.json").catch(() => ({})),
+        fetchOptional("/data/accident_model.json", {}),
         fetchJsonSafe("/data/facilities.json"),
         fetchOptional("/data/car_stats_by_year.json", []),
         fetchOptional("/data/car_parts.json", []),

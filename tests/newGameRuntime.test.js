@@ -306,6 +306,7 @@ test("New Game refuses unsafe legacy year-filter fallback when Season Pack mater
   assert.equal(storeSource.includes('format: "legacy-year-filter"'),false);
   assert.equal(storeSource.includes('source: "legacy"'),false);
   assert.match(storeSource,/source:\s*"unavailable"/);
+  assert.equal(storeSource.includes('fetchJsonSafe("/data/accident_model.json").catch(() => ({}))'),false);
   assert.equal(newGameSource.includes('setYearSource("Legacy fallback")'),false);
   assert.match(newGameSource,/eraYears\.includes\(year\) && !yearError/);
 });
