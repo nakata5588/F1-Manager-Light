@@ -241,3 +241,100 @@ test("LS2 driver projection follows the Save World and clears lower-series state
   assert.equal(d2.lower_series_id,null);
   assert.equal(d2.lower_series_resolution,"left_for_f1_race_seat");
 });
+
+
+test("LS3.5A team catalogue materializes factual teams without inventing line-ups",()=>{
+  const lowerSeriesTeams=[
+    {lower_team_id:"LT1",team_name:"Project Four Racing",series_id:"s_f2_old",valid_from:1979,valid_to:1980},
+    {lower_team_id:"LT2",team_name:"Independent Racing",series_id:"s_f2_old",valid_from:1978,valid_to:1980},
+    {lower_team_id:"FUTURE",team_name:"Future Team",series_id:"s_f2_new",valid_from:1981,valid_to:1984},
+  ];
+  const world=materializeLowerSeriesWorld({
+    year:1980,
+    series,
+    seriesRules:[],
+    lowerSeriesTeams,
+    drivers:[
+      {driver_id:"D1",display_name:"Known Driver",dob:"1958-01-01"},
+      {driver_id:"D2",display_name:"Unassigned Driver",dob:"1959-01-01"},
+    ],
+    placements:[
+      {
+        driver_id:"D1",active_pre_f1_world:true,
+        series_id:"s_f2_old",series_name:"European Formula Two Championship",
+        series_level:2,series_resolution:"historical_series_id",series_candidates:[],
+      },
+      {
+        driver_id:"D2",active_pre_f1_world:true,
+        series_id:"s_f2_old",series_name:"European Formula Two Championship",
+        series_level:2,series_resolution:"single_active_eligible_series",series_candidates:[],
+      },
+    ],
+    driverCareer:[{
+      driver_id:"D1",year:1980,series_id:"s_f2_old",series_division:"F2",
+      team_name:"Project Four Racing",
+    }],
+  });
+
+  assert.deepEqual(Object.keys(world.teams),["LT1","LT2"]);
+  assert.equal(world.teams.LT1.team_strength,50);
+  assert.equal(world.teams.LT1.reliability,90);
+  assert.equal(world.teams.LT1.development_environment,50);
+  assert.equal(world.teams.LT1.source,"lower_series_team_catalog");
+  assert.equal(lowerSeriesEntry(world,"D1").lower_team_id,"LT1");
+  assert.equal(lowerSeriesEntry(world,"D1").placement_status,"placed_with_team");
+  assert.equal(lowerSeriesEntry(world,"D2").lower_team_id,null);
+  assert.equal(lowerSeriesEntry(world,"D2").placement_status,"series_only");
+  assert.equal(Boolean(world.teams.FUTURE),false,"future team facts must not enter the opening Save World");
+});
+
+test("LS3.5A rollover keeps mutable team state only while the factual team remains active",()=>{
+  const lowerSeriesTeams=[
+    {lower_team_id:"F3A",team_name:"F3 Team A",series_id:"s_f3",valid_from:1980,valid_to:1982},
+    {lower_team_id:"F3B",team_name:"F3 Team B",series_id:"s_f3",valid_from:1981,valid_to:1984},
+  ];
+  const opening=materializeLowerSeriesWorld({
+    year:1980,
+    series,
+    seriesRules:[],
+    lowerSeriesTeams,
+    drivers:[{driver_id:"D1",dob:"1960-01-01"}],
+    placements:[{
+      driver_id:"D1",active_pre_f1_world:true,
+      series_id:"s_f3",series_name:"British Formula Three",
+      series_level:3,series_resolution:"historical_series_id",series_candidates:[],
+    }],
+    driverCareer:[{
+      driver_id:"D1",year:1980,series_id:"s_f3",series_division:"F3",team_name:"F3 Team A",
+    }],
+  });
+  opening.teams.F3A.team_strength=67;
+  opening.teams.F3A.reliability=84;
+  opening.teams.F3A.development_environment=73;
+
+  const next=rollLowerSeriesWorld(opening,{
+    targetYear:1981,
+    series,
+    seriesRules:[],
+    lowerSeriesTeams,
+    drivers:[{driver_id:"D1",age:21,active_lower_series:true,status:"lower_series",lower_series_level:3}],
+  });
+
+  assert.equal(next.teams.F3A.team_strength,67);
+  assert.equal(next.teams.F3A.reliability,84);
+  assert.equal(next.teams.F3A.development_environment,73);
+  assert.equal(next.teams.F3A.source,"save_world_continuity");
+  assert.ok(next.teams.F3B,"newly active factual teams enter with a neutral Save World seed");
+  assert.equal(lowerSeriesEntry(next,"D1").lower_team_id,"F3A");
+
+  const afterExpiry=rollLowerSeriesWorld(next,{
+    targetYear:1983,
+    series,
+    seriesRules:[],
+    lowerSeriesTeams,
+    drivers:[{driver_id:"D1",age:23,active_lower_series:true,status:"lower_series",lower_series_level:3}],
+  });
+  assert.equal(Boolean(afterExpiry.teams.F3A),false,"expired factual team must not be carried forever");
+  assert.ok(afterExpiry.teams.F3B);
+  assert.equal(lowerSeriesEntry(afterExpiry,"D1").lower_team_id,null);
+});
