@@ -5,8 +5,9 @@ import { cloneRaceContractValue } from "../contracts/raceContracts.js";
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { initialGridAbsoluteDistanceM, initialTrafficState } from "./RaceTraffic.js";
+import { initialBattleState } from "./RaceOvertaking.js";
 
-export const RACE_STATE_SCHEMA_VERSION=4;
+export const RACE_STATE_SCHEMA_VERSION=5;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -111,6 +112,7 @@ function initialCarState(input,row,index){
     commands:{},
     pitState:{status:"track"},
     traffic:initialTrafficState(),
+    battle:initialBattleState(),
     dnf:false,
   };
 }
