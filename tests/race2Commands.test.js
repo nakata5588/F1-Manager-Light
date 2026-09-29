@@ -165,12 +165,21 @@ test("RW8.9 pending commands have deterministic ids and newer same-type order re
     driverId:"D1",
     type:"pace",
     payload:{paceMode:"conserve"},
-    effectiveAtTick:3,
+    effectiveAtTick:5,
   });
   assert.equal(state.commandQueue.length,1);
   assert.equal(state.commandQueue[0].id,"rw8.9-commands:cmd:2");
   assert.equal(state.commandQueue[0].payload.paceMode,"conserve");
   assert.equal(state.nextCommandSequence,3);
+
+  state=queueRaceCommand(state,{
+    driverId:"D1",
+    type:"pace",
+    payload:{paceMode:"balanced"},
+    effectiveAtTick:8,
+  });
+  assert.equal(state.commandQueue.length,2);
+  assert.deepEqual(state.commandQueue.map((row)=>row.effectiveAtTick),[5,8]);
 
   state=cancelRaceCommand(state,{driverId:"D1",type:"pace"});
   assert.deepEqual(state.commandQueue,[]);
