@@ -217,3 +217,30 @@ test("job security reuses Board performance with early-season dismissal protecti
   assert.ok(["stable","under_pressure","critical","secure"].includes(mature.status));
   assert.ok(mature.seasonProgress>=0.5);
 });
+
+
+test("unemployed manager stays unattached after normalization and gameplay effects switch off",()=>{
+  const employed=playerManager();
+  const unemployed={
+    ...employed,
+    current_team_id:null,
+    current_team_name:null,
+    current_job:{
+      ...employed.current_job,
+      team_id:null,
+      team_name:null,
+      status:"fired",
+    },
+  };
+  const normalized=createManagerProfile(unemployed,{
+    year:1980,
+    team:{team_id:"T1",team_name:"Former Team"},
+  });
+  assert.equal(normalized.current_team_id,null);
+  assert.equal(normalized.current_job.team_id,null);
+  assert.equal(normalized.current_job.status,"fired");
+
+  const effects=managerGameplayEffects(baseState(normalized),{teamId:"T1"});
+  assert.equal(effects.active,false);
+  assert.equal(effects.boardConfidenceDelta,0);
+});
