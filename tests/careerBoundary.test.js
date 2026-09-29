@@ -245,3 +245,36 @@ test("career boundary preserves active Save-World team stakeholders",()=>{
   assert.equal(next.teamStakeholders[0].status,"active");
   assert.equal(next.teamStakeholders[0].end_year,null);
 });
+
+
+test("career boundary creates and owns future lower-series placement without importing future historical team assignments",()=>{
+  const state=fixture();
+  state.careerMeta=createCareerMeta(state,1980);
+  state.dbSeries=[
+    {series_id:"s_f3",series_name:"Formula Three",series_level:3,start_year:1975,end_year:1990},
+  ];
+  state.dbSeriesRules=[];
+  state.dbDriverCareer=[
+    {
+      driver_id:"D3",year:1981,series_id:"s_f3",series_division:"F3",
+      team_name:"Historical Future Team That Must Not Leak",
+    },
+  ];
+  state.lowerSeriesWorld=null;
+
+  const next=materializeNextCareerSeason(state,1981);
+  const entry=next.lowerSeriesWorld.entries.D3;
+
+  assert.ok(entry,"newly visible prospect must enter the Lower Series Save World");
+  assert.equal(entry.series_id,"s_f3");
+  assert.equal(entry.team_name,null);
+  assert.equal(entry.lower_team_id,null);
+  assert.equal(entry.placement_source,"single_active_eligible_series");
+  assert.equal(next.drivers.find((row)=>row.driver_id==="D3").lower_series_id,"s_f3");
+  assert.equal(next.drivers.find((row)=>row.driver_id==="D3").world_runtime_source,"lower_series_world");
+  assert.equal(
+    Object.values(next.lowerSeriesWorld.teams).some((row)=>row.team_name==="Historical Future Team That Must Not Leak"),
+    false
+  );
+  assert.equal(next.careerMeta.lastRollover.lowerSeriesDrivers,1);
+});

@@ -9,6 +9,8 @@ import { seasonStartMentalState } from "../domain/driverMentalState.js";
 import { applySeasonTeamReputation } from "../domain/teamReputation.js";
 import { materializeNextSeasonTechnicalWorld } from "../domain/nextSeasonMaterialization.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
+import { isRaceDriverContract } from "../domain/contractRoles.js";
+import { applyLowerSeriesWorldToDrivers, rollLowerSeriesWorld } from "../domain/lowerSeriesWorld.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -370,6 +372,31 @@ export function materializeNextCareerSeason(state,targetYearInput){
     if(baseline&&!activeRatings.has(idOfDriver(d)))activeRatings.set(idOfDriver(d),baseline);
   }
 
+  const nextContracts=rollDriverContracts(state.contracts||[],targetYear);
+  const f1RaceDriverIds=new Set(
+    nextContracts
+      .filter((row)=>String(row?.status||"active").toLowerCase()==="active")
+      .filter(isRaceDriverContract)
+      .map(idOfDriver)
+      .filter(Boolean)
+  );
+  const nextDriversBase=uniqueBy(
+    [...updateAges(state.drivers||[],targetYear),...unlockedDrivers],
+    idOfDriver
+  );
+  const lowerSeriesWorld=rollLowerSeriesWorld(state.lowerSeriesWorld,{
+    targetYear,
+    drivers:nextDriversBase,
+    series:state.dbSeries||[],
+    seriesRules:state.dbSeriesRules||[],
+    excludedDriverIds:[...f1RaceDriverIds],
+  });
+  const nextDrivers=applyLowerSeriesWorldToDrivers(
+    nextDriversBase,
+    lowerSeriesWorld,
+    {inactiveDriverIds:[...f1RaceDriverIds]}
+  );
+
   const activeStaffIds=new Set((state.staffCore||[]).map(idOfStaff).filter(Boolean));
   const unlockedStaff=(state.dbStaffCore||[])
     .filter((s)=>{
@@ -401,6 +428,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
       unlockedDrivers:unlockedDrivers.map(idOfDriver),
       unlockedStaff:unlockedStaff.map(idOfStaff),
       eligibleTeamCandidates:[...new Set(eligibleTeamCandidateIds)],
+      lowerSeriesDrivers:Object.keys(lowerSeriesWorld?.entries||{}).length,
     },
   };
 
@@ -460,9 +488,10 @@ export function materializeNextCareerSeason(state,targetYearInput){
 
     // Mutable active people/teams survive the boundary.
     teams:(state.teams||[]).map((row)=>({...row})),
-    drivers:uniqueBy([...updateAges(state.drivers||[],targetYear),...unlockedDrivers],idOfDriver),
+    drivers:nextDrivers,
     driverRatings:[...activeRatings.values()],
-    contracts:rollDriverContracts(state.contracts||[],targetYear),
+    contracts:nextContracts,
+    lowerSeriesWorld,
     staffCore:uniqueBy([...updateAges(state.staffCore||[],targetYear),...unlockedStaff],idOfStaff),
     staffRatings:[...activeStaffRatings.values()],
     staffContracts:carryStaffContracts(state.staffContracts||[],targetYear),
