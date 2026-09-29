@@ -395,6 +395,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     drivers:nextDriversBase,
     series:state.dbSeries||[],
     seriesRules:state.dbSeriesRules||[],
+    lowerSeriesTeams:state.dbLowerSeriesTeams||[],
     excludedDriverIds:[...f1RaceDriverIds],
   });
   const nextDrivers=applyLowerSeriesWorldToDrivers(
