@@ -10,7 +10,7 @@ import {
 } from "./liveContracts.js";
 import { staffContractRole, resolveStaffId } from "./staffRoles.js";
 import { staffMarketScore } from "./staffPerformance.js";
-import { staffTeamBudget } from "./staffMarket.js";
+import { teamBudgetAvailable } from "./teamFinance.js";
 
 const text=(value)=>String(value??"");
 const num=(value,fallback=NaN)=>{
@@ -77,7 +77,7 @@ export function staffBuyoutQuote(gs,contract,{staffId=null,role=null}={}){
   };
 }
 export function canAffordStaffTransfer(gs,teamId,fee){
-  const budget=staffTeamBudget(gs,teamId);
+  const budget=teamBudgetAvailable(gs,teamId);
   if(!Number.isFinite(budget))return true;
   return budget>=Math.max(0,Number(fee)||0);
 }
