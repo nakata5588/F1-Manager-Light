@@ -187,6 +187,7 @@ function hydrateLoadedGameState(saved) {
     medicalHistory: Array.isArray(saved?.medicalHistory) ? saved.medicalHistory : [],
     temporaryDriverAssignments: Array.isArray(saved?.temporaryDriverAssignments) ? saved.temporaryDriverAssignments : [],
     driverNegotiations: Array.isArray(saved?.driverNegotiations) ? saved.driverNegotiations : [],
+    staffNegotiations: Array.isArray(saved?.staffNegotiations) ? saved.staffNegotiations : [],
     raceEntryState: saved?.raceEntryState || null,
     raceWeekendState: normalizeRaceWeekendResumeState(saved?.raceWeekendState),
     financeLog: Array.isArray(saved?.financeLog) ? saved.financeLog : [],
