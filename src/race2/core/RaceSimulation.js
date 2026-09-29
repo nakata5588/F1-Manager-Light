@@ -4,6 +4,7 @@
 // owns only time progression and continuous kinematics from the current car state.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
+import { normalizeRaceStepMs } from "./RaceState.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -16,9 +17,7 @@ const positive=(value,fallback=0)=>{
 };
 
 export function raceStepMs(state){
-  return Math.max(10,Math.min(1000,Math.round(
-    positive(state?.session?.simulation?.stepMs,100)
-  )));
+  return normalizeRaceStepMs(state?.session?.simulation?.stepMs);
 }
 
 function lapLimitFor(state){
