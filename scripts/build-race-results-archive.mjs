@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readJsonRequired } from "./lib/json-source.mjs";
 import { historicalResultCode, historicalResultInfo } from "../src/domain/historicalRaceStatus.js";
 import { createHistoricalResultTeamResolver } from "../src/domain/historicalResultTeamResolver.js";
 import { canonicalTeamName } from "../src/domain/teamIdentity.js";
@@ -29,21 +30,12 @@ const num=(v,fb=null)=>{
 const canon=(v)=>String(v??"").toLowerCase().normalize("NFD")
   .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"").trim();
 
-async function readJson(name,fallback=[]){
-  try{return JSON.parse(await fs.readFile(path.join(dataDir,name),"utf8"));}
-  catch{return fallback;}
-}
-async function readRootJson(rel,fallback={}){
-  try{return JSON.parse(await fs.readFile(path.join(root,rel),"utf8"));}
-  catch{return fallback;}
-}
-
 const [rows,drivers,teams,calendar,constructorRef]=await Promise.all([
-  readJson("race_results.json",[]),
-  readJson("drivers.json",[]),
-  readJson("teams.json",[]),
-  readJson("calendar.json",[]),
-  readRootJson("data/reference/constructor_id_map.json",{constructors:[]}),
+  readJsonRequired(path.join(dataDir,"race_results.json"),{label:"race_results.json"}),
+  readJsonRequired(path.join(dataDir,"drivers.json"),{label:"drivers.json"}),
+  readJsonRequired(path.join(dataDir,"teams.json"),{label:"teams.json"}),
+  readJsonRequired(path.join(dataDir,"calendar.json"),{label:"calendar.json"}),
+  readJsonRequired(path.join(root,"data/reference/constructor_id_map.json"),{label:"data/reference/constructor_id_map.json"}),
 ]);
 
 const driverArchiveToId=new Map();

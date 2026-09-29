@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readJsonRequired } from "./lib/json-source.mjs";
 import {
   championshipRuleForYear,
   countChampionshipPoints,
@@ -42,21 +43,12 @@ const canon=(value)=>String(unwrap(value)??"")
   .replace(/[^a-z0-9]+/g,"")
   .trim();
 
-async function readJson(name,fallback=[]){
-  try{return JSON.parse(await fs.readFile(path.join(dataDir,name),"utf8"));}
-  catch{return fallback;}
-}
-async function readRootJson(rel,fallback={}){
-  try{return JSON.parse(await fs.readFile(path.join(root,rel),"utf8"));}
-  catch{return fallback;}
-}
-
 const [raceRows,drivers,teams,driverCareer,constructorRef]=await Promise.all([
-  readJson("race_results.json",[]),
-  readJson("drivers.json",[]),
-  readJson("teams.json",[]),
-  readJson("driver_career.json",[]),
-  readRootJson("data/reference/constructor_id_map.json",{constructors:[]}),
+  readJsonRequired(path.join(dataDir,"race_results.json"),{label:"race_results.json"}),
+  readJsonRequired(path.join(dataDir,"drivers.json"),{label:"drivers.json"}),
+  readJsonRequired(path.join(dataDir,"teams.json"),{label:"teams.json"}),
+  readJsonRequired(path.join(dataDir,"driver_career.json"),{label:"driver_career.json"}),
+  readJsonRequired(path.join(root,"data/reference/constructor_id_map.json"),{label:"data/reference/constructor_id_map.json"}),
 ]);
 
 const driverByArchive=new Map();
