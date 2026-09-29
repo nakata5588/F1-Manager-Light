@@ -7,6 +7,7 @@
 // RW8.8 adds canonical pit-lane / pit-stop execution.
 // RW8.9 applies canonical race commands before the same physics step.
 // RW8.10 resolves canonical incidents, reliability failures, damage and DNF.
+// RW8.11A projects canonical weather/track conditions and Race Control assessments.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
@@ -18,6 +19,7 @@ import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { applyDueRaceCommands } from "./RaceCommands.js";
 import { resolveRaceIncidents } from "./RaceIncidents.js";
+import { advanceRaceConditions } from "./RaceConditions.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -212,12 +214,25 @@ export function stepRaceState(state){
     bypassPairs:overtaking.bypassPairs,
   });
   const incidents=resolveRaceIncidents(workingState,spacedCars,overtaking.events,{stepMs});
-  const cars=advanceRaceResources(workingState,incidents.cars,{stepMs});
+  const conditions=advanceRaceConditions(
+    workingState,
+    incidents.cars,
+    [...(overtaking.events||[]),...(incidents.events||[])]
+  );
+  const conditionsState={
+    ...workingState,
+    cars:incidents.cars,
+    trackState:conditions.trackState,
+    weatherState:conditions.weatherState,
+    raceControlState:conditions.raceControlState,
+  };
+  const cars=advanceRaceResources(conditionsState,incidents.cars,{stepMs});
   const rawEvents=[
     ...(commands.events||[]),
     ...(pits.events||[]),
     ...(overtaking.events||[]),
     ...(incidents.events||[]),
+    ...(conditions.events||[]),
   ];
   const generatedEvents=rawEvents.map((event,index)=>{
     const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
@@ -238,12 +253,17 @@ export function stepRaceState(state){
     session:{
       ...state.session,
       phase:status==="finished"?"finished":"race",
+      weather:conditions.weatherState?.current??state?.session?.weather??null,
+      raceControl:conditions.raceControlState,
       clock:{
         ...(state?.session?.clock||{}),
         elapsedMs:Math.max(0,finite(state?.session?.clock?.elapsedMs,0))+stepMs,
       },
     },
     cars,
+    trackState:conditions.trackState,
+    weatherState:conditions.weatherState,
+    raceControlState:conditions.raceControlState,
     pitLaneState:pits.pitLaneState,
     events:[...(state?.events||[]),...generatedEvents],
     nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
