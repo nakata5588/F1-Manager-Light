@@ -51,7 +51,7 @@ function runnerState({laps=3}={}){
 }
 
 test("RW8.3 Live elapsed chunks and Fast steps have one canonical outcome",()=>{
-  const initial=runnerState(); const fast=runFastRace(initial,{steps:100}); const live=createLiveRaceRunner(initial); for(const ms of [17,83,250,650,1000,3000,5000])live.advanceElapsed(ms); assert.deepEqual(live.getState(),fast); assert.equal(live.getAccumulatorMs(),0); assert.equal(fast.tick,100); assert.equal(fast.cars[0].absoluteDistanceM,500);
+  const initial=runnerState(); const fast=runFastRace(initial,{steps:100}); const live=createLiveRaceRunner(initial); for(const ms of [17,83,250,650,1000,3000,5000])live.advanceElapsed(ms); assert.deepEqual(live.getState(),fast); assert.equal(live.getAccumulatorMs(),0); assert.equal(fast.tick,60); assert.equal(fast.cars[0].absoluteDistanceM,300); assert.equal(fast.status,"finished");
 });
 
 test("RW8.3 Live runner preserves sub-step time across save/resume",()=>{
