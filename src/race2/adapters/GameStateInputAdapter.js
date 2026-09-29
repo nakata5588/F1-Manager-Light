@@ -114,13 +114,16 @@ function normalizedCars(gs,entries){
       .filter((row)=>row.tyre_id);
     const incidentRow=entry.driverId?{driver:{driver_id:entry.driverId}}:null;
     const reliabilityProfile=entry.driverId
-      ?carReliabilityProfile(gs,entry.teamId,entry.driverId)
+      ?carReliabilityProfile(gs,entry.teamId,entry.driverId,{carOverride:car})
       :null;
     const reliability=entry.driverId
       ?{
         profile:cloneRaceContractValue(reliabilityProfile),
         mechanicalFailureChance:finite(
-          mechanicalRetirementChance(gs,incidentRow,{teamIdOverride:entry.teamId}),
+          mechanicalRetirementChance(gs,incidentRow,{
+            teamIdOverride:entry.teamId,
+            reliabilityProfileOverride:reliabilityProfile,
+          }),
           0
         ),
         accidentIncidentChance:finite(accidentIncidentChance(gs,incidentRow),0),
