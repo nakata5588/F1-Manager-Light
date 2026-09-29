@@ -465,9 +465,52 @@ const SHEET_CONFIG = {
     out: "series.json",
     columns: {
       series_id: ["series_id","id"],
-      series_division: ["series_division","division"],
+      series_name: ["series_name","name","title"],
+      short_name: ["short_name","series_short_name","short"],
       series_short_name: ["series_short_name","short_name","short"],
-      series_name: ["series_name","name","title"]
+      series_level: ["series_level","level"],
+      series_division: ["series_division","division"],
+      start_year: ["start_year","year_from","from"],
+      end_year: ["end_year","year_to","to"],
+      predecessor_series_id: ["predecessor_series_id","predecessor"],
+      successor_series_id: ["successor_series_id","successor"],
+      category: ["category"],
+      governing_body: ["governing_body","governing"],
+      source_url: ["source_url","source"],
+      notes: ["notes"]
+    },
+    post(row) {
+      row.series_level = numOrNull(row.series_level);
+      row.series_division = numOrNull(row.series_division);
+      row.start_year = normalizeYear(row.start_year);
+      row.end_year = normalizeYear(row.end_year);
+      return row;
+    }
+  },
+
+  series_rules: {
+    out: "series_rules.json",
+    columns: {
+      series_rule_id: ["series_rule_id","rule_id","id"],
+      series_id: ["series_id"],
+      valid_from: ["valid_from","year_from","from"],
+      valid_to: ["valid_to","year_to","to"],
+      min_age: ["min_age"],
+      max_age: ["max_age"],
+      max_full_seasons: ["max_full_seasons","max_seasons"],
+      champion_return_rule: ["champion_return_rule"],
+      min_license: ["min_license"],
+      min_prior_level: ["min_prior_level"],
+      notes: ["notes"]
+    },
+    post(row) {
+      row.valid_from = normalizeYear(row.valid_from);
+      row.valid_to = normalizeYear(row.valid_to);
+      row.min_age = numOrNull(row.min_age);
+      row.max_age = numOrNull(row.max_age);
+      row.max_full_seasons = numOrNull(row.max_full_seasons);
+      row.min_prior_level = numOrNull(row.min_prior_level);
+      return row;
     }
   },
 
