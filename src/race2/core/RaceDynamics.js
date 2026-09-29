@@ -8,6 +8,7 @@ import {
   trackCornerSeverityAhead,
   trackCornerSeverityAtDistance,
 } from "../track/TrackModel.js";
+import { raceResourcePerformance } from "./RaceResources.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -84,14 +85,21 @@ export function raceTargetSpeedProfile(state,car){
 
   const handlingScore=chassis*0.55+race*0.20+driver*0.25;
   const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44);
-  const targetSpeedKmh=Math.max(
+  const resourcePerformance=raceResourcePerformance(car);
+  const rawTargetSpeedKmh=Math.max(
     55,
     straightTarget*(1-effectiveSeverity*(1-cornerRetention))
+  );
+  const targetSpeedKmh=Math.max(
+    45,
+    rawTargetSpeedKmh*finite(resourcePerformance?.paceMultiplier,1)
   );
 
   return {
     targetSpeedKmh:round(targetSpeedKmh,3),
+    rawTargetSpeedKmh:round(rawTargetSpeedKmh,3),
     straightTargetKmh:round(straightTarget,3),
+    resourcePaceMultiplier:round(resourcePerformance?.paceMultiplier,6),
     cornerSeverity:round(currentSeverity,4),
     effectiveCornerSeverity:round(effectiveSeverity,4),
     lookaheadM:round(lookaheadM,3),
@@ -116,7 +124,9 @@ export function raceAccelerationForTarget(state,car,targetSpeedKmh){
   }
 
   if(delta>0.05){
-    const baseAcceleration=3.2+power*0.035;
+    const resourcePerformance=raceResourcePerformance(car);
+    const baseAcceleration=(3.2+power*0.035)*
+      finite(resourcePerformance?.accelerationMultiplier,1);
     const remainingRatio=targetMs>0?clamp(delta/targetMs,0,1):0;
     const taper=clamp(remainingRatio*2.4,0.16,1);
     const capability=baseAcceleration*taper;
