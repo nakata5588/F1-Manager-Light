@@ -12,6 +12,21 @@ import {
   managerEmploymentAssessment,
   playerManagerIsActiveTeamPrincipal,
 } from "../src/domain/managerEmployment.js";
+import {
+  archiveControlledTeamForAI,
+  materializeTeamForPlayer,
+} from "../src/domain/managerTeamControl.js";
+import {
+  managerJobOpportunity,
+  managerJobOpportunities,
+} from "../src/domain/managerJobMarket.js";
+import {
+  acceptManagerJobOffer,
+  autosimUnemployedRaceIfDue,
+  dismissPlayerManager,
+  processManagerJobApplications,
+  submitManagerJobApplication,
+} from "../src/engine/ManagerCareerEngine.js";
 import { contractAcceptanceChance, expectedDriverSalary } from "../src/domain/driverContracts.js";
 import { applyRaceTeamMorale } from "../src/domain/teamMorale.js";
 
@@ -278,4 +293,230 @@ test("player appointment cancels persisted Team Principal negotiations",()=>{
   const next=applyPlayerManagerTeamPrincipalAppointment(gs);
   assert.equal(next.staffNegotiations[0].status,"withdrawn");
   assert.equal(next.staffNegotiations[0].resolution_reason,"player_manager_appointment");
+});
+
+
+test("dismissing the player archives old-team assets and makes the Manager unattached",()=>{
+  const gs=baseState(playerManager());
+  gs.team={team_id:"T1",team_name:"Player Team",budget:2_400_000};
+  gs.finances={balance:2_400_000,budget:2_400_000,season_spend:125_000,season_income:300_000};
+  gs.financeLog=[{id:"old_tx",amount:-1000}];
+  gs.garage={
+    cars:[
+      {id:"car_1",label:"Car 1",kind:"race",driver_id:null,componentCondition:{gearbox:61},installedParts:{}},
+      {id:"car_2",label:"Car 2",kind:"race",driver_id:null,componentCondition:{gearbox:72},installedParts:{}},
+    ],
+    serviceJobs:[],
+    baseComponentStock:{},
+  };
+  gs.development={projects:[{id:"old_project"}],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technologyProjects:[]};
+  gs.hq={facilityLevels:{design_centre:3},upgrades:[{id:"old_hq_upgrade"}]};
+  gs.academy={drivers:[{driver_id:"J1"}]};
+  gs.scouting={assignments:[{id:"scout_old",status:"active"}],shortlist:["J2"]};
+  gs.board={reputation:73,actions:[{id:"board_old"}]};
+  gs.commercialScore=81;
+  gs.ops={pitcrew:{error_prob:0.04,avg_time_s:4.3}};
+  gs.rdProjectsActive=[{id:"legacy_rd",costMonthly:25000}];
+  gs.meta={team:{synergy:12},popularity:{team:15,drivers:{D1:7}}};
+  gs.selectedDrivers=["D1","D2"];
+  gs.financeFlags={old_flag:true};
+  gs.eventsQueue=[{
+    id:"future_training",type:"driver_action",dateISO:"1980-03-05",done:false,
+    effects:[{key:"money",delta:-50000}],
+  }];
+  gs.aiTechnicalWorld={
+    version:1,
+    teams:{
+      T2:{
+        team_id:"T2",
+        budget:6_500_000,
+        initial_budget:6_500_000,
+        garage:{
+          cars:[
+            {id:"car_1",label:"Car 1",kind:"race",driver_id:null,componentCondition:{gearbox:91},installedParts:{}},
+            {id:"car_2",label:"Car 2",kind:"race",driver_id:null,componentCondition:{gearbox:88},installedParts:{}},
+          ],
+          serviceJobs:[],
+          baseComponentStock:{},
+        },
+        development:{projects:[{id:"target_project"}],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technicalKnowledge:null,technicalStrategy:null,nextSeasonCar:null},
+        hq:{facilityLevels:{design_centre:5},upgrades:[{id:"target_hq_upgrade"}]},
+        academy:{drivers:[{driver_id:"J9"}]},
+        scouting:{assignments:[],shortlist:["J8"]},
+        finance_summary:{balance:6_500_000,budget:6_500_000,season_spend:50_000,season_income:500_000},
+        finance_log:[{id:"target_tx",amount:500000}],
+        planning:{},
+        strategy_planning:{},
+        economy:{season_year:1980,last_allocation:0,opening_budget:6_500_000},
+        season_history:[],
+        next_season_history:[],
+        technology_projects:[],
+        technology_unlocks:{},
+        componentServiceLog:[],
+        componentWearLog:[],
+      },
+    },
+  };
+  gs.driverNegotiations=[{
+    id:"old_driver_talk",origin:"player",team_id:"T1",status:"submitted",
+  }];
+  gs.staffNegotiations=[{
+    id:"old_staff_talk",origin:"player",team_id:"T1",status:"countered",
+  }];
+
+  const next=dismissPlayerManager(gs,{force:true});
+  assert.equal(next.manager.current_job.status,"fired");
+  assert.equal(next.manager.current_team_id,null);
+  assert.equal(next.team,null);
+  assert.equal(next.finances,null);
+  assert.equal(next.driverNegotiations[0].status,"withdrawn");
+  assert.equal(next.staffNegotiations[0].status,"withdrawn");
+
+  const archived=next.aiTechnicalWorld.teams.T1;
+  assert.ok(archived);
+  assert.equal(archived.budget,2_400_000);
+  assert.equal(archived.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,61);
+  assert.equal(archived.hq.facilityLevels.design_centre,3);
+  assert.equal(archived.academy.drivers[0].driver_id,"J1");
+  assert.equal(archived.board.reputation,73);
+  assert.equal(archived.legacy_runtime.commercialScore,81);
+  assert.equal(archived.legacy_runtime.ops.pitcrew.avg_time_s,4.3);
+  assert.equal(archived.legacy_runtime.rdProjectsActive[0].id,"legacy_rd");
+  assert.equal(next.eventsQueue[0].done,true);
+  assert.equal(next.eventsQueue[0].cancelled,true);
+  assert.equal(next.eventsQueue[0].cancel_reason,"manager_departure");
+  assert.equal(next.commercialScore,null);
+  assert.deepEqual(next.ops,{});
+  assert.deepEqual(next.rdProjectsActive,[]);
+  assert.deepEqual(next.meta,{popularity:{drivers:{D1:7}}});
+  assert.deepEqual(next.selectedDrivers,[]);
+  assert.deepEqual(next.financeFlags,{});
+  assert.equal(next.managerEmploymentState.former_team_id,"T1");
+});
+
+test("Manager job market can move control to a different team's own assets",()=>{
+  let gs=baseState(playerManager({reputation:55}));
+  gs.team={team_id:"T1",team_name:"Player Team",budget:2_400_000};
+  gs.finances={balance:2_400_000,budget:2_400_000,season_spend:0,season_income:0};
+  gs.garage={
+    cars:[
+      {id:"car_1",label:"Car 1",kind:"race",componentCondition:{gearbox:61},installedParts:{}},
+      {id:"car_2",label:"Car 2",kind:"race",componentCondition:{gearbox:72},installedParts:{}},
+    ],
+    serviceJobs:[],baseComponentStock:{},
+  };
+  gs.development={projects:[{id:"old_project"}],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technologyProjects:[]};
+  gs.hq={facilityLevels:{design_centre:2},upgrades:[]};
+  gs.meta={popularity:{drivers:{D1:7}}};
+  gs.aiTechnicalWorld={
+    version:1,
+    teams:{
+      T2:{
+        team_id:"T2",
+        budget:6_500_000,
+        initial_budget:6_500_000,
+        garage:{
+          cars:[
+            {id:"car_1",label:"Car 1",kind:"race",componentCondition:{gearbox:94},installedParts:{}},
+            {id:"car_2",label:"Car 2",kind:"race",componentCondition:{gearbox:89},installedParts:{}},
+          ],
+          serviceJobs:[],baseComponentStock:{},
+        },
+        development:{projects:[{id:"target_project"}],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technicalKnowledge:null,technicalStrategy:null,nextSeasonCar:null},
+        hq:{facilityLevels:{design_centre:5},upgrades:[]},
+        academy:{drivers:[{driver_id:"T2_JUNIOR"}]},
+        scouting:{assignments:[],shortlist:["T2_TARGET"]},
+        board:{reputation:64,actions:[{id:"target_board_action"}]},
+        legacy_runtime:{
+          commercialScore:69,
+          ops:{pitcrew:{error_prob:0.02,avg_time_s:3.8}},
+          rdProjectsActive:[{id:"target_legacy_rd"}],
+          meta:{team:{synergy:8},popularity:{team:22}},
+          selectedDrivers:["T2D1","T2D2"],
+          financeFlags:{target_flag:true},
+        },
+        finance_summary:{balance:6_500_000,budget:6_500_000,season_spend:25_000,season_income:400_000},
+        finance_log:[],
+        planning:{},strategy_planning:{},
+        economy:{season_year:1980,last_allocation:0,opening_budget:6_500_000},
+        season_history:[],next_season_history:[],
+        technology_projects:[],technology_unlocks:{},
+        componentServiceLog:[],componentWearLog:[],
+      },
+    },
+  };
+
+  gs=dismissPlayerManager(gs,{force:true});
+  const opportunity=managerJobOpportunity(gs,"T2");
+  assert.equal(opportunity.available,true);
+
+  gs=submitManagerJobApplication(gs,"T2");
+  assert.equal(gs.managerJobApplications.length,1);
+  const application=gs.managerJobApplications[0];
+  gs={...gs,currentDateISO:application.response_date};
+  gs=processManagerJobApplications(gs,{forceOutcomeById:{[application.id]:"offer"}});
+  assert.equal(gs.managerJobApplications[0].status,"offer");
+
+  gs=acceptManagerJobOffer(gs,application.id);
+  assert.equal(gs.manager.current_job.status,"active");
+  assert.equal(gs.manager.current_team_id,"T2");
+  assert.equal(gs.team.team_id,"T2");
+  assert.equal(gs.finances.balance,6_500_000);
+  assert.equal(gs.hq.facilityLevels.design_centre,5);
+  assert.equal(gs.development.projects[0].id,"target_project");
+  assert.equal(gs.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,94);
+  assert.equal(gs.academy.drivers[0].driver_id,"T2_JUNIOR");
+  assert.equal(gs.board.reputation,64);
+  assert.equal(gs.commercialScore,69);
+  assert.equal(gs.ops.pitcrew.avg_time_s,3.8);
+  assert.equal(gs.rdProjectsActive[0].id,"target_legacy_rd");
+  assert.equal(gs.meta.team.synergy,8);
+  assert.equal(gs.meta.popularity.team,22);
+  assert.equal(gs.meta.popularity.drivers.D1,7);
+  assert.deepEqual(gs.selectedDrivers,["T2D1","T2D2"]);
+  assert.equal(gs.financeFlags.target_flag,true);
+  assert.ok(gs.aiTechnicalWorld.teams.T1);
+  assert.equal(gs.aiTechnicalWorld.teams.T2,undefined);
+  assert.equal(gs.aiTechnicalWorld.teams.T1.hq.facilityLevels.design_centre,2);
+  assert.equal(gs.manager.career_history.at(-1).team_id,"T2");
+  assert.equal(gs.manager.career_history.at(-1).status,"active");
+});
+
+test("job market exposes vacancy/replacement logic without changing Save World",()=>{
+  const gs=baseState(playerManager({reputation:60}));
+  const dismissed=dismissPlayerManager({
+    ...gs,
+    garage:{cars:[],serviceJobs:[],baseComponentStock:{}},
+    development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technologyProjects:[]},
+    hq:{facilityLevels:{},upgrades:[]},
+  },{force:true});
+  const rows=managerJobOpportunities(dismissed);
+  assert.ok(rows.some((row)=>row.team_id==="T2"));
+  assert.equal(dismissed.manager.current_team_id,null);
+  assert.equal(dismissed.team,null);
+});
+
+test("unemployed race autosim recognizes the scheduled race date without duplicating archived results",async()=>{
+  const gs=baseState(playerManager());
+  const unemployed={
+    ...gs,
+    currentDateISO:"1980-03-10",
+    currentRound:0,
+    calendar:[
+      {gp_id:"gp_test",name:"Test GP",race_date:"1980-03-10"},
+      {gp_id:"gp_next",name:"Next GP",race_date:"1980-03-24"},
+    ],
+    results:[{key:"1980_1_gp_test",year:1980,round:1,gp_id:"gp_test",classification:[]}],
+    manager:{
+      ...gs.manager,
+      current_team_id:null,
+      current_team_name:null,
+      current_job:{...gs.manager.current_job,team_id:null,team_name:null,status:"fired"},
+    },
+    team:null,
+  };
+  const next=await autosimUnemployedRaceIfDue(unemployed);
+  assert.equal(next.results.length,1);
+  assert.equal(next.currentRound,1);
+  assert.equal(next.raceWeekendState??null,null);
 });

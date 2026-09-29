@@ -223,9 +223,9 @@ function scopedState(gs,teamId,state){
     ...gs,
     team:{team_id:str(teamId),budget:num(state?.budget,0)},
     finances:{balance:num(state?.budget,0),budget:num(state?.budget,0)},
-    // Never inherit the player's HQ overrides. Shared component-service helpers
-    // will then resolve facilities using this AI TEAM's own historical rows.
-    hq:{facilityLevels:{},upgrades:[]},
+    // Use only this AI team's own archived HQ overrides. Never inherit the
+    // currently controlled player's HQ slice.
+    hq:state?.hq||{facilityLevels:{},upgrades:[]},
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development:state?.development||{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technicalKnowledge:null,technicalStrategy:null,nextSeasonCar:null},
     financeLog:Array.isArray(state?.finance_log)?state.finance_log:[],
@@ -894,6 +894,12 @@ function normalizeAITeamState(gs,teamId,state){
     initial_budget:initial,
     garage:state?.garage||{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
     development,
+    hq:state?.hq&&typeof state.hq==="object"?state.hq:{facilityLevels:{},upgrades:[]},
+    academy:state?.academy&&typeof state.academy==="object"?state.academy:{drivers:[]},
+    scouting:state?.scouting&&typeof state.scouting==="object"?state.scouting:{assignments:[],shortlist:[]},
+    finance_summary:state?.finance_summary&&typeof state.finance_summary==="object"
+      ?state.finance_summary
+      :{balance:num(state?.budget,0),budget:num(state?.budget,0)},
     finance_log:Array.isArray(state?.finance_log)?state.finance_log:[],
     componentServiceLog:Array.isArray(state?.componentServiceLog)?state.componentServiceLog:[],
     componentWearLog:Array.isArray(state?.componentWearLog)?state.componentWearLog:[],
@@ -929,6 +935,10 @@ export function normalizeAITechnicalWorld(gs){
         initial_budget:budget,
         garage:{cars:initialCars(teamId),serviceJobs:[],baseComponentStock:{}},
         development:{projects:[],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technicalKnowledge:null,technicalStrategy:null,nextSeasonCar:null},
+        hq:{facilityLevels:{},upgrades:[]},
+        academy:{drivers:[]},
+        scouting:{assignments:[],shortlist:[]},
+        finance_summary:{balance:budget,budget},
         planning:{},
         strategy_planning:{},
         economy:{season_year:yearOf(gs),last_allocation:0,opening_budget:budget},

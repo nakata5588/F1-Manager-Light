@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useGame } from "../state/GameStore";
 import { useEventStore } from "../state/EventStore";
+import { playerManagerIsActiveTeamPrincipal } from "../domain/managerEmployment.js";
 import {
   Home,
   Calendar,
@@ -95,7 +96,8 @@ const Item = ({ to, label, icon: IconComp, brand, badge = 0 }) => {
 export default function Sidebar() {
   const { gameState } = useGame();
   const eventNews = useEventStore((s) => s.news);
-  const team = useMemo(() => resolvePlayerTeam(gameState), [gameState]);
+  const unemployed=Boolean(gameState?.manager)&&!playerManagerIsActiveTeamPrincipal(gameState);
+  const team = useMemo(() => unemployed?null:resolvePlayerTeam(gameState), [gameState,unemployed]);
   const [brands, setBrands] = useState([]);
 
   useEffect(() => {
@@ -107,7 +109,7 @@ export default function Sidebar() {
     return () => { alive = false; };
   }, []);
 
-  const brand = useMemo(() => resolveTeamBrand(brands, team), [brands, team]);
+  const brand = useMemo(() => unemployed?null:resolveTeamBrand(brands, team), [brands, team, unemployed]);
   const primary = brand?.primary_color || "#334155";
   const secondary = brand?.secondary_color || "#ffffff";
 
@@ -144,21 +146,23 @@ export default function Sidebar() {
       <Item to="/CalendarPage" label="Calendar" icon={Calendar} brand={brand} />
       <Item to="/Inbox" label="Inbox" icon={Inbox} brand={brand} badge={attention.inbox} />
 
-      <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Team</div>
-      <Item to="/Team" label="My Team" icon={Car} brand={brand} />
-      <Item to="/Car" label="Cars" icon={Car} brand={brand} badge={attention.car} />
-      <Item to="/MyDrivers" label="My Drivers" icon={HelmetIcon} brand={brand} badge={attention.drivers} />
-      <Item to="/MyStaff" label="My Staff" icon={Users} brand={brand} />
-      <Item to="/HQ" label="HQ" icon={Building2} brand={brand} />
-      <Item to="/Academy" label="Academy" icon={GraduationCap} brand={brand} />
-      <Item to="/Scouting" label="Scouting" icon={Search} brand={brand} />
+      {!unemployed?<>
+        <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Team</div>
+        <Item to="/Team" label="My Team" icon={Car} brand={brand} />
+        <Item to="/Car" label="Cars" icon={Car} brand={brand} badge={attention.car} />
+        <Item to="/MyDrivers" label="My Drivers" icon={HelmetIcon} brand={brand} badge={attention.drivers} />
+        <Item to="/MyStaff" label="My Staff" icon={Users} brand={brand} />
+        <Item to="/HQ" label="HQ" icon={Building2} brand={brand} />
+        <Item to="/Academy" label="Academy" icon={GraduationCap} brand={brand} />
+        <Item to="/Scouting" label="Scouting" icon={Search} brand={brand} />
+      </>:null}
 
       <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Season</div>
       <Item to="/Standings" label="Standings" icon={Trophy} brand={brand} />
       <Item to="/Results" label="Results" icon={Flag} brand={brand} />
       <Item to="/Champions" label="Champions" icon={Medal} brand={brand} />
-      <Item to="/Finances" label="Finances" icon={PiggyBank} brand={brand} />
-      <Item to="/Board" label="Board" icon={ClipboardList} brand={brand} badge={attention.board} />
+      {!unemployed?<Item to="/Finances" label="Finances" icon={PiggyBank} brand={brand} />:null}
+      {!unemployed?<Item to="/Board" label="Board" icon={ClipboardList} brand={brand} badge={attention.board} />:null}
 
       <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">League</div>
       <Item to="/Teams" label="All Teams" icon={Car} brand={brand} />

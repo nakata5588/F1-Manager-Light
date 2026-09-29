@@ -147,7 +147,7 @@ export function createManagerProfile(input={},context={}){
   const xp=managerExperience(experience);
   const firstName=text(input?.first_name);
   const lastName=text(input?.last_name);
-  const displayName=(firstName+" "+lastName).trim()||text(input?.display_name)||"Team Manager";
+  const displayName=(firstName+" "+lastName).trim()||text(input?.display_name)||"Team Principal";
   const joinedAt=text(input?.joined_at)||String(year).padStart(4,"0")+"-01-01";
 
   return {
