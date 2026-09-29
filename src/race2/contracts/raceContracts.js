@@ -1,7 +1,7 @@
 // src/race2/contracts/raceContracts.js
 // RW8.0A: stable, engine-agnostic contracts for the Race Weekend 2.0 boundary.
 
-export const RACE_WEEKEND_CONTRACT_VERSION=8;
+export const RACE_WEEKEND_CONTRACT_VERSION=9;
 
 export const RACE_WEEKEND_ENGINES=Object.freeze({
   LEGACY:"legacy",
@@ -48,8 +48,18 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
   ]),
   RaceResourceState:Object.freeze([
     "paceMode","strategy","availableTyres","initialFuelKg","fuelBurnKgPerKm","fuelReserveKg",
-    "fuelPlan","refuellingDeferred","tyreGripMultiplier","tyreTemperaturePenalty",
-    "fuelMassPenalty","fuelStarvationPenalty","engineTemperaturePenalty","paceMultiplier","accelerationMultiplier",
+    "fuelPlan","refuellingDeferred","fuelStintPlanned","plannedFuelStopLap","pitCrew",
+    "tyreGripMultiplier","tyreTemperaturePenalty","fuelMassPenalty","fuelStarvationPenalty",
+    "engineTemperaturePenalty","paceMultiplier","accelerationMultiplier",
+  ]),
+  RacePitState:Object.freeze([
+    "status","active","completed","stopSequence","plannedStopLap","entryAbsoluteM",
+    "boxAbsoluteM","exitAbsoluteM","phase","phaseIndex","phaseElapsedMs","phaseTotalMs",
+    "lossElapsedMs","lossTotalMs","queueElapsedMs","serviceApplied","serviceAppliedThisStep",
+    "service","history",
+  ]),
+  RacePitLaneState:Object.freeze([
+    "cars","boxes",
   ]),
   RaceBattleState:Object.freeze([
     "phase","opponentCarId","role","side","attemptId","startedTick","startedAtMs",
