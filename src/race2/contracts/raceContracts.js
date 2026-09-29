@@ -1,7 +1,7 @@
 // src/race2/contracts/raceContracts.js
 // RW8.0A: stable, engine-agnostic contracts for the Race Weekend 2.0 boundary.
 
-export const RACE_WEEKEND_CONTRACT_VERSION=14;
+export const RACE_WEEKEND_CONTRACT_VERSION=15;
 
 export const RACE_WEEKEND_ENGINES=Object.freeze({
   LEGACY:"legacy",
@@ -110,6 +110,15 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
   ]),
   PracticeResult:Object.freeze([
     "model","modelVersion","source","results","effects",
+  ]),
+  QualifyingInput:Object.freeze([
+    "modelVersion","seed","sessionKey","entropyKey","referenceLapMs","weather","entrants",
+  ]),
+  QualifyingEntrant:Object.freeze([
+    "driverId","teamId","basePerformance",
+  ]),
+  QualifyingResult:Object.freeze([
+    "model","modelVersion","source","results",
   ]),
   Command:Object.freeze([
     "id","sequence","issuedAtTick","effectiveAtTick","source","driverId","teamId",

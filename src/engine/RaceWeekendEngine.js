@@ -449,6 +449,9 @@ export function completeQualifyingSession(gs,{gp}={}){
     const phase="qualifying_wait";
     const qualifying={
       ...(weekend.qualifying||{}),
+      source:simulated.source,
+      model:simulated.model,
+      model_version:simulated.modelVersion,
       status:"in_progress",
       completed_sessions:competitiveSessions(interim).filter((row)=>row.status==="completed").length,
       classification:weekend.qualifying?.classification||[],
@@ -526,6 +529,9 @@ export function completeQualifyingSession(gs,{gp}={}){
       active_session_id:current.id,
       qualifying:{
         ...(weekend.qualifying||{}),
+        source:simulated.source,
+        model:simulated.model,
+        model_version:simulated.modelVersion,
         status:"completed",
         completed_at:clampISO(gs?.currentDateISO),
         strategy:rule.strategy,

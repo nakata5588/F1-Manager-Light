@@ -2,7 +2,7 @@
 import { driverCondition } from "../domain/driverRating.js";
 import { applyDriverMentalState, raceMentalStateChange } from "../domain/driverMentalState.js";
 import { combinedQualifyingPerformance, combinedRacePerformance } from "../domain/driverPerformance.js";
-import { rngFor } from "../core/random.js";
+import { getSaveSeed, rngFor } from "../core/random.js";
 import { buildRaceEntryState, raceEntryDriverIds, raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { applyRaceHealthOutcomes } from "./InjuryEngine.js";
 import { ensureTemporaryReplacements } from "./ReplacementEngine.js";
@@ -25,8 +25,11 @@ import { damageFromIncident, damagePenaltyMsThroughOrdinal, incidentDamageStateT
 import { normalPitRepairRecord } from "./PitServiceEngine.js";
 import { championshipRuleForYear, countChampionshipPoints, racePointsForResult } from "../domain/championshipRules.js";
 import { materializeOfficialRaceRows } from "./RaceFinalizationEngine.js";
+import {
+  QUALIFYING_MODEL_VERSION,
+  simulateCanonicalQualifying,
+} from "../race2/core/QualifyingSimulation.js";
 
-function rnorm(rng) { return (rng.next() - 0.5) * 0.6; }
 
 function championshipPointsWithStandingCarry({
   previousPoints=0,
@@ -760,39 +763,66 @@ export function simulateQualifyingSession(gs,{
   const ratings=next.driverRatings||[];
   const activeYear=Number(next?.activeYear);
   const gpEntropyId=gp?.gp_id||gp?.id||gp?.track_id||`round_${Number(roundIndex)+1}`;
-  const qualifyingRng=rngFor(next,`${activeYear||"season"}-${gpEntropyId}-${sessionKey}`);
   const sessionWeather=weekendWeatherSession(next,next?.raceWeekendState?.active_session_id||sessionKey);
   const wet=sessionWeather?sessionWeatherIsWet(sessionWeather):isWetGP(gp);
   const weatherPerformance=sessionWeatherPerformanceMultiplier(sessionWeather);
-  const wetness=Number(sessionWeather?.track?.start_wetness||0);
-  const weatherTimeFactor=1+(1-weatherPerformance)*1.15+wetness*0.05;
   const referenceLapMs=qualifyingReferenceLapMs(next,gp);
 
-  const qualifying=drivers
-    .map((driver)=>{
-      const rating=ratingFor(ratings,driver);
-      const teamId=resolveDriverTeamId(next,driver);
-      const score=combinedQualifyingPerformance({gs:next,driver,rating,teamId,wet,gp})+rnorm(qualifyingRng)*4;
-      const paceDelta=Math.max(-12,Math.min(65,100-score));
-      const lapTimeMs=Math.max(25000,Math.round(referenceLapMs*(1+paceDelta*0.0034)*weatherTimeFactor));
-      return {d:driver,score,lapTimeMs};
-    })
-    .sort((a,b)=>a.lapTimeMs-b.lapTimeMs||String(a.d?.driver_id??"").localeCompare(String(b.d?.driver_id??"")))
-    .map((row,index)=>({
-      pos:index+1,
-      driver:row.d,
-      performance:row.score,
-      lap_time_ms:row.lapTimeMs,
-      session_key:String(sessionKey),
-      wet_session:wet,
-      weather_state:sessionWeather?.state||null,
-      track_wetness:Number(sessionWeather?.track?.start_wetness||0),
-      track_grip:Number(sessionWeather?.track?.grip_index||0),
-      air_temp_c:Number(sessionWeather?.air_temp_c||0),
-      track_temp_c:Number(sessionWeather?.track_temp_c||0),
-    }));
+  const driverById=new Map(drivers.map((driver)=>[
+    String(driver?.driver_id??driver?.id??""),
+    driver,
+  ]));
+  const entrants=drivers.map((driver)=>{
+    const driverId=String(driver?.driver_id??driver?.id??"");
+    const rating=ratingFor(ratings,driver);
+    const teamId=resolveDriverTeamId(next,driver);
+    return {
+      driverId,
+      teamId,
+      basePerformance:combinedQualifyingPerformance({gs:next,driver,rating,teamId,wet,gp}),
+    };
+  });
 
-  return {gameState:next,raceEntryState,qualifying};
+  const simulated=simulateCanonicalQualifying({
+    modelVersion:QUALIFYING_MODEL_VERSION,
+    seed:getSaveSeed(next),
+    sessionKey:String(sessionKey),
+    entropyKey:`${activeYear||"season"}-${gpEntropyId}-${sessionKey}`,
+    referenceLapMs,
+    weather:{
+      wet,
+      performanceMultiplier:weatherPerformance,
+      state:sessionWeather?.state||null,
+      trackWetness:Number(sessionWeather?.track?.start_wetness||0),
+      trackGrip:Number(sessionWeather?.track?.grip_index||0),
+      airTempC:Number(sessionWeather?.air_temp_c||0),
+      trackTempC:Number(sessionWeather?.track_temp_c||0),
+    },
+    entrants,
+  });
+
+  const qualifying=simulated.results.map((row)=>({
+    pos:Number(row.position),
+    driver:driverById.get(String(row.driver_id)),
+    performance:Number(row.performance),
+    lap_time_ms:Number(row.lap_time_ms),
+    session_key:row.session_key,
+    wet_session:Boolean(row.wet_session),
+    weather_state:row.weather_state??null,
+    track_wetness:Number(row.track_wetness||0),
+    track_grip:Number(row.track_grip||0),
+    air_temp_c:Number(row.air_temp_c||0),
+    track_temp_c:Number(row.track_temp_c||0),
+  }));
+
+  return {
+    gameState:next,
+    raceEntryState,
+    qualifying,
+    model:simulated.model,
+    modelVersion:simulated.modelVersion,
+    source:simulated.source,
+  };
 }
 
 function qualifyingFromOverride(gs,rows=[]){
