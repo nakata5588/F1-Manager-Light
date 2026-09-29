@@ -83,7 +83,15 @@ export default function Staff(){
     // Only people with a current-season rating or contract are considered active.
     // staff_core is identity metadata and must not make every living person "active".
     const activeContracts=contracts.filter((contract)=>contractActiveForYear(contract,year));
-    const ids=new Set([...ratings.map(staffIdOf),...activeContracts.map((contract)=>resolveStaffId(gs,contract))]);
+    const stakeholderIds=(Array.isArray(gs?.teamStakeholders)?gs.teamStakeholders:[])
+      .filter((row)=>!["ended","expired","released","inactive","void","sold"].includes(String(row?.status||"active").toLowerCase()))
+      .map((row)=>String(row?.staff_id??row?.person_id??""))
+      .filter(Boolean);
+    const ids=new Set([
+      ...ratings.map(staffIdOf),
+      ...activeContracts.map((contract)=>resolveStaffId(gs,contract)),
+      ...stakeholderIds,
+    ]);
     return [...ids].filter(Boolean).map(id=>{
       const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
       const contract=activeContracts.find((row)=>resolveStaffId(gs,row)===id)||null;
