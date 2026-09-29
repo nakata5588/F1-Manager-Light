@@ -26,6 +26,7 @@ const PAGE_TITLES = {
   "/Teams": "Teams",
   "/Drivers": "Driver Market",
   "/Staff": "Staff Market",
+  "/World": "World",
   "/RaceWeekend": "Race Weekend",
   "/Settings": "Settings",
   "/GameSettings": "Settings",
@@ -42,6 +43,7 @@ export default function HubLayout() {
     pathname==="/CalendarPage"||
     pathname==="/Standings"||
     pathname==="/Results"||
+    pathname==="/World"||
     pathname==="/Champions"||
     pathname==="/Teams"||
     pathname==="/Drivers"||
