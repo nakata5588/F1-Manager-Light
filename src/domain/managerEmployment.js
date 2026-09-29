@@ -49,17 +49,38 @@ function closeHistoricalPrincipal(contract,gs){
 export function applyPlayerManagerTeamPrincipalAppointment(gs){
   if(!gs||!playerManagerIsActiveTeamPrincipal(gs))return gs;
   const teamId=playerManagerTeamId(gs);
+  const activePrincipals=new Set(
+    activeStaffContracts(gs,{teamId})
+      .filter((contract)=>staffContractRole(contract)===PLAYER_MANAGER_ROLE)
+  );
   let changed=false;
   const contracts=(Array.isArray(gs?.staffContracts)?gs.staffContracts:[]).map((contract)=>{
-    if(teamIdOfContract(contract)!==teamId)return contract;
-    if(staffContractRole(contract)!==PLAYER_MANAGER_ROLE)return contract;
-    const status=text(contract?.status||"active").toLowerCase();
-    if(["released","terminated","expired","inactive","void","bought_out"].includes(status))return contract;
+    if(!activePrincipals.has(contract))return contract;
     changed=true;
     return closeHistoricalPrincipal(contract,gs);
   });
-  if(!changed)return synchronizeDriverRelationships(gs,{source:"player_manager_team_principal"});
-  return synchronizeDriverRelationships({...gs,staffContracts:contracts},{source:"player_manager_team_principal"});
+
+  const today=text(gs?.currentDateISO).slice(0,10)||null;
+  let negotiationChanged=false;
+  const staffNegotiations=(Array.isArray(gs?.staffNegotiations)?gs.staffNegotiations:[]).map((row)=>{
+    const status=text(row?.status).toLowerCase();
+    if(!["submitted","countered"].includes(status))return row;
+    if(text(row?.team_id)!==teamId)return row;
+    if(staffContractRole(row)!==PLAYER_MANAGER_ROLE)return row;
+    negotiationChanged=true;
+    return {
+      ...row,
+      status:"withdrawn",
+      resolved_at:today,
+      resolution_note:"The Team Principal role is occupied by the player manager.",
+      resolution_reason:"player_manager_appointment",
+    };
+  });
+
+  const next=(changed||negotiationChanged)
+    ?{...gs,staffContracts:contracts,staffNegotiations}
+    :gs;
+  return synchronizeDriverRelationships(next,{source:"player_manager_team_principal"});
 }
 
 export function managerEmploymentAssessment(gs){
