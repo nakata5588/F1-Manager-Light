@@ -9,6 +9,7 @@ import { appendDriverMentalStateLog } from "../domain/driverMentalState.js";
 import { raceWeekendWeatherSession, weekendWeatherSession, weatherSimilarity } from "./WeekendWeatherEngine.js";
 import { teamStaffCapability } from "../domain/staffPerformance.js";
 import {
+  PRACTICE_MODEL_VERSION,
   PRACTICE_PROGRAMMES,
   practiceProgramme,
   simulateCanonicalPractice,
@@ -145,7 +146,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   }).filter(Boolean);
 
   const simulated=simulateCanonicalPractice({
-    modelVersion:1,
+    modelVersion:PRACTICE_MODEL_VERSION,
     seed:getSaveSeed(gs),
     weekendKey:weekend.key,
     trackProfile:profile,
@@ -195,6 +196,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
     status:"completed",
     source:simulated.source,
     model:simulated.model,
+    model_version:simulated.modelVersion,
     track_profile:profile,
     weather:sessionWeather?{...sessionWeather}:null,
     results:enrichedResults,
