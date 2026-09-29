@@ -4,6 +4,7 @@
 // RW8.5 adds canonical physical traffic/following.
 // RW8.6 adds overtaking/side-by-side battles.
 // RW8.7 adds canonical tyres, fuel and temperatures.
+// RW8.8 adds canonical pit-lane / pit-stop execution.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
@@ -12,6 +13,7 @@ import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { advanceRaceResources } from "./RaceResources.js";
+import { advanceRacePitStops } from "./RacePitStops.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -57,6 +59,7 @@ function timeToDistanceS(speedMs,accelerationMs2,distanceM,maxTimeS){
 
 function advanceCar(state,car,stepMs){
   if(car?.dnf||car?.status==="dnf"||car?.status==="finished")return car;
+  if(String(car?.pitState?.status??"track")!=="track")return car;
   const lengthM=positive(state?.track?.lengthM,0);
   if(lengthM<=0)return car;
 
@@ -177,13 +180,15 @@ export function stepRaceState(state){
   if(!state||state.status!=="running")return state;
   const stepMs=raceStepMs(state);
   const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
-  const overtaking=resolveRaceOvertaking(state,proposedCars,{stepMs});
+  const pits=advanceRacePitStops(state,proposedCars,{stepMs});
+  const overtaking=resolveRaceOvertaking(state,pits.cars,{stepMs});
   const spacedCars=enforceRaceTrafficSpacing(state,overtaking.cars,{
     stepMs,
     bypassPairs:overtaking.bypassPairs,
   });
   const cars=advanceRaceResources(state,spacedCars,{stepMs});
-  const generatedEvents=(overtaking.events||[]).map((event,index)=>{
+  const rawEvents=[...(pits.events||[]),...(overtaking.events||[])];
+  const generatedEvents=rawEvents.map((event,index)=>{
     const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
     return {
       id:`${state?.weekendKey??"race"}:${sequence}`,
@@ -208,6 +213,7 @@ export function stepRaceState(state){
       },
     },
     cars,
+    pitLaneState:pits.pitLaneState,
     events:[...(state?.events||[]),...generatedEvents],
     nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
   };
