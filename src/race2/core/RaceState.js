@@ -8,8 +8,9 @@ import { initialGridAbsoluteDistanceM, initialTrafficState } from "./RaceTraffic
 import { initialBattleState } from "./RaceOvertaking.js";
 import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
+import { initialRaceConditions } from "./RaceConditions.js";
 
-export const RACE_STATE_SCHEMA_VERSION=9;
+export const RACE_STATE_SCHEMA_VERSION=10;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -123,19 +124,6 @@ function initialCarState(input,row,index){
   };
 }
 
-function initialTrackState(){
-  return {
-    wetness:null,
-    standingWater:null,
-    grip:null,
-    rubber:null,
-    trackTemp:null,
-    rainIntensity:null,
-    visibility:null,
-    raceability:null,
-  };
-}
-
 export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
   if(!input||typeof input!=="object")throw new TypeError("RaceWeekendInput is required");
   const lengthM=positive(input?.track?.lengthM,null);
@@ -152,6 +140,7 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
 
   if(!cars.length)throw new TypeError("RaceWeekendInput must contain at least one entered car");
 
+  const conditions=initialRaceConditions(input);
   const state={
     schemaVersion:RACE_STATE_SCHEMA_VERSION,
     contractVersion:finite(input?.schemaVersion,null),
@@ -169,7 +158,7 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
       timeLimit:null,
       activeCars:cars.map((car)=>car.carId),
       weather:cloneRaceContractValue(input?.weather??null),
-      raceControl:null,
+      raceControl:cloneRaceContractValue(conditions.raceControlState),
       simulation:{stepMs:normalizedStepMs},
     },
     status:"ready",
@@ -177,9 +166,9 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
     cars,
     classification:[],
     timingState:null,
-    trackState:initialTrackState(),
-    weatherState:cloneRaceContractValue(input?.weather??null),
-    raceControlState:null,
+    trackState:cloneRaceContractValue(conditions.trackState),
+    weatherState:cloneRaceContractValue(conditions.weatherState),
+    raceControlState:cloneRaceContractValue(conditions.raceControlState),
     commandQueue:[],
     nextCommandSequence:1,
     pitLaneState:{cars:[],boxes:[]},
