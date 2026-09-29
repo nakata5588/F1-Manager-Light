@@ -509,6 +509,7 @@ export const useGame = create((set, get) => ({
     medicalHistory: [],
     temporaryDriverAssignments: [],
     driverNegotiations: [],
+    staffNegotiations: [],
     raceEntryState: null,
     raceWeekendState: null,
     dbAchievements: [],
@@ -727,6 +728,7 @@ export const useGame = create((set, get) => ({
     try { const mod = await import("@/engine/EconomyEngine"); if (typeof mod.applyEconomyTick === "function") updated = mod.applyEconomyTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/StaffNegotiationEngine"); if (typeof mod.processStaffNegotiations === "function") updated = mod.processStaffNegotiations(updated) || updated; } catch {}
     try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
 
     set({ gameState: updated });
