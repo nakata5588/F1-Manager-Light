@@ -7,6 +7,7 @@ import { carReliabilityProfile, mechanicalFailureChance, selectMechanicalFailure
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
 import { driverMistakePropensity } from "../domain/driverDerivedRatings.js";
 import { driverPerformanceEntries } from "../domain/driverForm.js";
+import { raceControlDurationLaps } from "../domain/raceControlPaceModel.js";
 import { evolveTrackSurface, initialiseTrackSurface, rainIntensityForState } from "./TrackSurfaceEngine.js";
 import { evolveTrackEnvironment, initialiseTrackEnvironment } from "./TrackEnvironmentEngine.js";
 import { evaluateRaceability } from "./RaceabilityEngine.js";
@@ -421,10 +422,8 @@ function responseForIncident(rules,incident,weatherLap){
   }).action;
 }
 function durationFor(response,rng,laps){
-  if(response==="RED_FLAG")return 1;
-  if(response==="SAFETY_CAR")return 2+Math.floor(rng.next()*3);
-  if(response==="VSC")return 1+Math.floor(rng.next()*2);
-  return 1;
+  void laps;
+  return raceControlDurationLaps(response,rng.next());
 }
 function mergePeriods(periods,totalLaps){
   const sorted=periods.slice().sort((a,b)=>periodStartOrdinal(a)-periodStartOrdinal(b)||a.priority-b.priority);
