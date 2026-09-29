@@ -109,7 +109,7 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
     "reliabilityProfile",
   ]),
   PracticeResult:Object.freeze([
-    "model","source","results","effects",
+    "model","modelVersion","source","results","effects",
   ]),
   Command:Object.freeze([
     "id","sequence","issuedAtTick","effectiveAtTick","source","driverId","teamId",
