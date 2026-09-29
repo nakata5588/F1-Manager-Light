@@ -4,7 +4,12 @@
 // the incumbent AI Team Principal. It does not change Save World state.
 
 import { activeStaffContracts, contractEndYear } from "./liveContracts.js";
-import { activeChampionshipTeamIds, resolveStaffId, staffContractRole } from "./staffRoles.js";
+import {
+  activeChampionshipTeamIds,
+  resolveStaffId,
+  staffContractRole,
+  staffRoleIsRepresented,
+} from "./staffRoles.js";
 import { staffRatingForYear, staffReputation, staffRoleRating } from "./staffPerformance.js";
 import { teamReputation } from "./teamReputation.js";
 
@@ -90,8 +95,11 @@ export function managerJobOpportunity(gs,teamId){
   const managerScore=managerMarketScore(gs);
   const managerRep=clamp(manager?.reputation??35);
   const teamRep=clamp(teamReputation(gs,id));
+  const principalRoleRecorded=staffRoleIsRepresented(gs,"team_principal");
   const incumbent=teamPrincipalIncumbent(gs,id);
-  const vacancy=!incumbent;
+  const vacancy=principalRoleRecorded&&!incumbent;
+  const unrecordedRole=!principalRoleRecorded;
+  const openOpportunity=vacancy||unrecordedRole;
   const incumbentScore=incumbent?.market_score??45;
   const qualityDelta=managerScore-incumbentScore;
   const prestigeGap=teamRep-managerRep;
@@ -103,28 +111,37 @@ export function managerJobOpportunity(gs,teamId){
   let interest=48;
   interest+=(managerScore-50)*0.55;
   interest+=(managerRep-teamRep)*0.28;
-  interest+=vacancy?18:Math.max(-14,Math.min(14,qualityDelta*0.75));
+  // Missing historical role coverage is not a factual vacancy, but it must not
+  // dead-end the player's fictional career either. Keep the same open-seat
+  // opportunity strength while exposing the source-data distinction.
+  interest+=openOpportunity?18:Math.max(-14,Math.min(14,qualityDelta*0.75));
   if(incumbentExpiring)interest+=10;
   if(prestigeGap>25)interest-=8;
   if(coolingOff)interest-=35;
   interest=clamp(interest);
 
-  const materialUpgrade=!vacancy&&qualityDelta>=4&&interest>=52;
-  const expiringOpportunity=!vacancy&&incumbentExpiring&&qualityDelta>=-4&&interest>=52;
-  const compatibleBoardReview=!vacancy
+  const materialUpgrade=Boolean(incumbent)&&qualityDelta>=4&&interest>=52;
+  const expiringOpportunity=Boolean(incumbent)&&incumbentExpiring&&qualityDelta>=-4&&interest>=52;
+  const compatibleBoardReview=Boolean(incumbent)
     &&qualityDelta>=-3
     &&interest>=62
     &&teamRep<=managerRep+12;
   const replaceIncumbent=materialUpgrade||expiringOpportunity||compatibleBoardReview;
   const available=!coolingOff
     &&interest>=45
-    &&(vacancy||replaceIncumbent)
+    &&(openOpportunity||replaceIncumbent)
     &&prestigeGap<=32;
 
-  let reason=vacancy?"Team Principal vacancy":"Board reviewing incumbent";
+  let reason=vacancy
+    ?"Team Principal vacancy"
+    :unrecordedRole
+      ?"Team Principal role not recorded — Board opportunity"
+      :"Board reviewing incumbent";
   if(coolingOff)reason="Cooling-off period after leaving team";
   else if(prestigeGap>32)reason="Team prestige currently beyond Manager standing";
-  else if(!vacancy&&!replaceIncumbent)reason="Incumbent Team Principal remains preferred";
+  else if(!openOpportunity&&!replaceIncumbent)reason=incumbent
+    ?"Incumbent Team Principal remains preferred"
+    :"Board not considering a Team Principal change";
   else if(interest<45)reason="Board interest too low";
 
   return {
@@ -134,6 +151,9 @@ export function managerJobOpportunity(gs,teamId){
     manager_score:managerScore,
     manager_reputation:Number(managerRep.toFixed(1)),
     incumbent,
+    principal_role_recorded:principalRoleRecorded,
+    incumbent_recorded:Boolean(incumbent),
+    unrecorded_role:unrecordedRole,
     vacancy,
     replace_incumbent:replaceIncumbent,
     incumbent_expiring:incumbentExpiring,

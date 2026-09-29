@@ -17,6 +17,7 @@ import {
   canonicalStaffRole,
   resolveStaffId,
   staffContractRole,
+  staffRoleIsRepresented,
 } from "../domain/staffRoles.js";
 import {
   staffMarketScore,
@@ -39,7 +40,6 @@ import {
 } from "./StaffNegotiationEngine.js";
 
 const MANAGED_ROLES=STAFF_HIREABLE_ROLES;
-const MANAGED_ROLE_SET=new Set(MANAGED_ROLES);
 
 const num=(value,fallback=0)=>{
   const parsed=Number(value);
@@ -74,12 +74,7 @@ function roleScore(gs,contract){
   return staffRoleRating(staffRatingForYear(gs,id),staffContractRole(contract)).score??50;
 }
 function representedRoles(gs){
-  const roles=new Set(
-    activeStaffContracts(gs)
-      .map(staffContractRole)
-      .filter((role)=>MANAGED_ROLE_SET.has(role))
-  );
-  return MANAGED_ROLES.filter((role)=>roles.has(role));
+  return MANAGED_ROLES.filter((role)=>staffRoleIsRepresented(gs,role));
 }
 function activeContractByStaff(gs){
   return new Map(
