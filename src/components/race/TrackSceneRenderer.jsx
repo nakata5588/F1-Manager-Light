@@ -1,12 +1,10 @@
 import React, { memo, useMemo } from "react";
 import {
   deterministicTrackScatter,
-  offsetTrackPolyline,
   openPolylineHeadingDegrees,
   sampleOpenPolylinePoint,
   sampleTrackPoint,
   trackHeadingDegrees,
-  trackRibbonPolygon,
 } from "../../domain/trackSceneGeometry.js";
 import { trackLodRank } from "../../domain/trackCamera.js";
 
@@ -150,13 +148,12 @@ function TrackSceneRenderer({
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const lodRank=trackLodRank(lod);
   const roadWidth=Math.max(14,Number(style?.road_width||20));
-  const halfWidth=roadWidth/2;
-  const shoulder=useMemo(()=>trackRibbonPolygon(points,halfWidth+2.7),[points,halfWidth]);
-  const ribbon=useMemo(()=>trackRibbonPolygon(points,halfWidth),[points,halfWidth]);
-  const leftKerb=useMemo(()=>offsetTrackPolyline(points,halfWidth+1.25),[points,halfWidth]);
-  const rightKerb=useMemo(()=>offsetTrackPolyline(points,-halfWidth-1.25),[points,halfWidth]);
-  const leftBarrier=useMemo(()=>offsetTrackPolyline(points,halfWidth+10),[points,halfWidth]);
-  const rightBarrier=useMemo(()=>offsetTrackPolyline(points,-halfWidth-10),[points,halfWidth]);
+  const kerbWidth=Math.max(roadWidth+4,Number(style?.kerb_width||roadWidth+5));
+  const outerWidth=Math.max(kerbWidth+4,Number(style?.outer_shadow_width||roadWidth+11));
+  const pitWidth=Math.max(10,Number(style?.pit_width||12));
+  const trackPolyline=pointsAttr(closed(points));
+  const pitPoints=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
+  const pitPolyline=pointsAttr(pitPoints);
   const [vx,vy,vw,vh]=Array.isArray(viewBox)&&viewBox.length===4?viewBox.map(Number):[0,0,1000,1000];
 
   const treeCount=Math.max(0,Math.min(140,Number(environment?.tree_count??64)));
@@ -225,37 +222,29 @@ function TrackSceneRenderer({
     {grandstands.map((row)=><Grandstand key={row.index} {...row} lod={lod}/>)}
     <PitComplex geometry={geometry} environment={environment} lod={lod}/>
 
-    {/* Pit lane is painted first so the main circuit masks the overlap at
-        entry/exit and the two surfaces read as a physical merge, not one road
-        drawn on top of the other. */}
-    {Array.isArray(geometry?.pit_lane_points)&&geometry.pit_lane_points.length>1?<g pointerEvents="none">
-      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#9ca3a8" strokeWidth={Number(style?.pit_width||12)+3.5} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#35373a" strokeWidth={Number(style?.pit_width||12)} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#e5e7eb" strokeWidth=".8" strokeDasharray="7 6" opacity=".7"/>
+    {/* Presentation is stroke-based rather than an offset polygon mesh.
+        Tight bends can make offset ribbons self-intersect; layered round
+        strokes keep the road readable while preserving one centreline. */}
+    {pitPoints.length>1?<g pointerEvents="none">
+      <polyline points={pitPolyline} fill="none" stroke="#394821" strokeWidth={pitWidth+10} strokeLinecap="round" strokeLinejoin="round" opacity=".58"/>
+      <polyline points={pitPolyline} fill="none" stroke="#9ca3a8" strokeWidth={pitWidth+4} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={pitPolyline} fill="none" stroke="#35373a" strokeWidth={pitWidth} strokeLinecap="round" strokeLinejoin="round"/>
+      {lod!=="overview"?<polyline points={pitPolyline} fill="none" stroke="#4b4f54" strokeWidth={Math.max(2,pitWidth-4)} strokeLinecap="round" strokeLinejoin="round" opacity=".42"/>:null}
+      <polyline points={pitPolyline} fill="none" stroke="#e5e7eb" strokeWidth=".75" strokeDasharray="7 7" opacity={lod==="overview"?.42:.62}/>
     </g>:null}
 
-    {ribbon.length>2?<g pointerEvents="none">
-      <polygon points={pointsAttr(trackRibbonPolygon(points,halfWidth+6.5))} fill="#394821" opacity=".55"/>
-      <polygon points={pointsAttr(shoulder)} fill="#9ca3a8"/>
-      <polygon points={pointsAttr(ribbon)} fill="url(#f1track-asphalt)"/>
-      {lod!=="overview"?<polygon points={pointsAttr(ribbon)} fill="url(#f1track-asphalt-grain)" opacity={lod==="close"?.92:.62}/>:null}
-      {wet>0?<polygon points={pointsAttr(ribbon)} fill="#8fd5e3" opacity={wet*.08}/>:null}
-      <polyline points={pointsAttr(closed(points))} fill="none" stroke="#e5e7eb" strokeWidth=".55" strokeDasharray="2 14" opacity=".12"/>
+    {points.length>2?<g pointerEvents="none">
+      <polyline points={trackPolyline} fill="none" stroke="#263118" strokeWidth={outerWidth+9} strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
+      <polyline points={trackPolyline} fill="none" stroke="#374151" strokeWidth={outerWidth+4} strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
+      {lod!=="overview"?<polyline points={trackPolyline} fill="none" stroke="#d1d5db" strokeWidth={outerWidth+1.2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 7" opacity=".34"/>:null}
+      <polyline points={trackPolyline} fill="none" stroke="#9ca3a8" strokeWidth={kerbWidth+2} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={trackPolyline} fill="none" stroke={style?.kerb_white||"#f3f4f6"} strokeWidth={kerbWidth} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={trackPolyline} fill="none" stroke={style?.kerb_red||"#c72b30"} strokeWidth={kerbWidth} strokeLinecap="butt" strokeLinejoin="round" strokeDasharray="9 9"/>
+      <polyline points={trackPolyline} fill="none" stroke="url(#f1track-asphalt)" strokeWidth={roadWidth} strokeLinecap="round" strokeLinejoin="round"/>
+      {lod!=="overview"?<polyline points={trackPolyline} fill="none" stroke="url(#f1track-asphalt-grain)" strokeWidth={Math.max(4,roadWidth-1)} strokeLinecap="round" strokeLinejoin="round" opacity={lod==="close"?.68:.42}/>:null}
+      {wet>0?<polyline points={trackPolyline} fill="none" stroke="#8fd5e3" strokeWidth={roadWidth} strokeLinecap="round" strokeLinejoin="round" opacity={wet*.08}/>:null}
+      <polyline points={trackPolyline} fill="none" stroke="#e5e7eb" strokeWidth=".55" strokeDasharray="2 14" opacity=".12"/>
     </g>:null}
-
-    <g pointerEvents="none">
-      {[leftKerb,rightKerb].map((edge,index)=><g key={index}>
-        <polyline points={pointsAttr(closed(edge))} fill="none" stroke="#f3f4f6" strokeWidth="4.2" strokeLinejoin="round"/>
-        <polyline points={pointsAttr(closed(edge))} fill="none" stroke={style?.kerb_red||"#c72b30"} strokeWidth="3.7" strokeDasharray="9 9" strokeLinejoin="round"/>
-      </g>)}
-    </g>
-
-    <g pointerEvents="none" opacity=".72">
-      {[leftBarrier,rightBarrier].map((barrier,index)=><g key={index}>
-        <polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#374151" strokeWidth={lod==="overview"?2:2.6} strokeLinejoin="round"/>
-        {lod!=="overview"?<polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#d1d5db" strokeWidth=".8" strokeDasharray="5 5" strokeLinejoin="round"/>:null}
-      </g>)}
-    </g>
 
     {lod!=="overview"?<GridMarkings geometry={geometry}/>:null}
     <TracksideDetails geometry={geometry} lod={lod}/>

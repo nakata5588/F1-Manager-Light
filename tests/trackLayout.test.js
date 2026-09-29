@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
-import { deterministicTrackScatter, offsetTrackPolyline, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
+import { buildPitLanePresentationGeometry, deterministicTrackScatter, offsetTrackPolyline, sampleOpenPolylinePoint, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
 import { clampTrackViewBox, dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
@@ -239,16 +239,34 @@ test("Track 1.0B calibration transforms presentation geometry without mutating f
   assert.deepEqual(functional.points,[[10,20],[30,40]],"functional geometry must remain untouched");
 });
 
-test("Track 2.0 Argentina pit lane joins the verified main-track entry and exit",()=>{
+test("Track 2.0 Argentina keeps functional pit geometry independent and builds presentation merges",()=>{
   const resolved=resolveTrackLayout({trackId:"tr_0018",year:1980});
   const profile=trackIntelligenceProfile(resolved.layout);
-  const pit=resolved.geometry.pit_lane_points;
+  const style=resolved.environment.race_view_style;
+  const functionalPit=resolved.geometry.pit_lane_points;
+  const snapshot=JSON.parse(JSON.stringify(functionalPit));
+  const visual=buildPitLanePresentationGeometry(resolved.geometry,{
+    entryProgress:profile.pit_entry_progress,
+    exitProgress:profile.pit_exit_progress,
+    separation:style.pit_visual_separation,
+    mergeFraction:style.pit_merge_fraction,
+    samples:style.pit_visual_samples,
+    mergeSamples:style.pit_merge_samples,
+  });
   const entry=pointAtTrackProgress(resolved.geometry,profile.pit_entry_progress);
   const exit=pointAtTrackProgress(resolved.geometry,profile.pit_exit_progress);
   const distance=(point,target)=>Math.hypot(Number(point?.[0])-Number(target?.x),Number(point?.[1])-Number(target?.y));
 
-  assert.ok(distance(pit[0],entry)<0.01,"pit entry must start on the main-track merge point");
-  assert.ok(distance(pit.at(-1),exit)<0.01,"pit exit must finish on the main-track merge point");
+  assert.deepEqual(functionalPit,snapshot,"presentation must never mutate functional pit geometry");
+  assert.deepEqual(functionalPit[0],[134,208]);
+  assert.deepEqual(functionalPit.at(-1),[701,242]);
+  assert.ok(distance(visual.pit_lane_points[0],entry)<0.01,"visual pit entry must merge onto the main track");
+  assert.ok(distance(visual.pit_lane_points.at(-1),exit)<0.01,"visual pit exit must merge onto the main track");
+  assert.ok(visual.pit_lane_points.length>functionalPit.length,"presentation path should add enough samples for smooth merges");
+
+  const sourceMid=sampleOpenPolylinePoint(functionalPit,.5);
+  const visualMid=sampleOpenPolylinePoint(visual.pit_lane_points,.5);
+  assert.ok(visualMid.y>sourceMid.y+6,"Argentina pit lane should gain visible separation from the main straight");
 });
 
 

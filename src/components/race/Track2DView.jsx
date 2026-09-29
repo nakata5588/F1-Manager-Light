@@ -21,7 +21,7 @@ import {
 import { DriverPortrait, TeamLogo } from "../entity/EntityVisuals.jsx";
 import { orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackGeometryViewBox, trackIntelligenceProfile, trackLayoutResolutionLabel, trackMarkerSegment, trackPresentationGeometry, trackSectorPolylinePoints } from "../../domain/trackLayout.js";
 import { raceMarkerLaneOffset, racePlaybackDelayMs, retiredCarVisibleOnTrack } from "../../domain/racePlayback.js";
-import { openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
+import { buildPitLanePresentationGeometry, openPolylineHeadingDegrees, simplifyTrackPresentationGeometry, trackHeadingDegrees } from "../../domain/trackSceneGeometry.js";
 import { dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../../domain/trackCamera.js";
 import TrackSceneRenderer from "./TrackSceneRenderer.jsx";
 import RaceCarsLayer from "./RaceCarsLayer.jsx";
@@ -724,10 +724,22 @@ export default function Track2DView({
     ()=>buildClosedRacingLine(baseDisplayGeometry?.points,{samplesPerSegment:8}),
     [baseDisplayGeometry]
   );
-  const displayGeometry=useMemo(
+  const mainDisplayGeometry=useMemo(
     ()=>proceduralEnvironmentActive?racingLineGeometry(baseDisplayGeometry,racingLineV3):baseDisplayGeometry,
     [baseDisplayGeometry,proceduralEnvironmentActive,racingLineV3]
   );
+  const displayGeometry=useMemo(()=>{
+    if(!proceduralEnvironmentActive)return mainDisplayGeometry;
+    const style=environment?.race_view_style||{};
+    return buildPitLanePresentationGeometry(mainDisplayGeometry,{
+      entryProgress:intelligence?.pit_entry_progress,
+      exitProgress:intelligence?.pit_exit_progress,
+      separation:Number(style.pit_visual_separation||0),
+      mergeFraction:Number(style.pit_merge_fraction||.14),
+      samples:Number(style.pit_visual_samples||72),
+      mergeSamples:Number(style.pit_merge_samples||12),
+    });
+  },[mainDisplayGeometry,proceduralEnvironmentActive,environment?.race_view_style,intelligence?.pit_entry_progress,intelligence?.pit_exit_progress]);
   const miniMapGeometry=displayGeometry;
   const fittedViewBox=useMemo(()=>trackGeometryViewBox(displayGeometry),[displayGeometry]);
   const environmentViewBox=useMemo(()=>(
@@ -1231,11 +1243,11 @@ export default function Track2DView({
                   opacity=".99"
                 />
               </g>:null}
-              {showTrackIntel&&(!historicalEnvironment||!environmentContainsTrackIntel)&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
+              {showTrackIntel&&(!historicalEnvironment||!environmentContainsTrackIntel)&&(!historicalEnvironment||!fullTrackSceneActive)&&Array.isArray(displayGeometry?.pit_lane_points)&&displayGeometry.pit_lane_points.length>1?<polyline
                 points={displayGeometry.pit_lane_points.map((point)=>point.join(",")).join(" ")}
                 fill="none"
                 stroke={historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e"}
-                strokeWidth={historicalEnvironment?(fullTrackSceneActive?"1.8":"4.5"):"8"}
+                strokeWidth={historicalEnvironment?"4.5":"8"}
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 strokeDasharray={historicalEnvironment?"12 8":"10 5"}
@@ -1244,12 +1256,12 @@ export default function Track2DView({
               {showTrackIntel&&intelligence.pit_entry_progress!=null?(()=>{
                 const point=Array.isArray(displayGeometry?.pit_lane_points)?displayGeometry.pit_lane_points[0]:null;
                 const color=historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e";
-                return point?<g><circle cx={point[0]} cy={point[1]} r="2.4" fill={color} stroke="#0f172a" strokeWidth=".8"/><text x={point[0]} y={point[1]-9} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text></g>:null;
+                return point?<g><circle cx={point[0]} cy={point[1]} r="1.8" fill={color} stroke="#0f172a" strokeWidth=".65"/>{trackLod==="overview"?<text x={point[0]} y={point[1]-7} textAnchor="middle" fontSize="5.2" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text>:null}</g>:null;
               })():null}
               {showTrackIntel&&intelligence.pit_exit_progress!=null?(()=>{
                 const point=Array.isArray(displayGeometry?.pit_lane_points)?displayGeometry.pit_lane_points.at(-1):null;
                 const color=historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e";
-                return point?<g><circle cx={point[0]} cy={point[1]} r="2.4" fill={color} stroke="#0f172a" strokeWidth=".8"/><text x={point[0]} y={point[1]-9} textAnchor="middle" fontSize="7" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text></g>:null;
+                return point?<g><circle cx={point[0]} cy={point[1]} r="1.8" fill={color} stroke="#0f172a" strokeWidth=".65"/>{trackLod==="overview"?<text x={point[0]} y={point[1]-7} textAnchor="middle" fontSize="5.2" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text>:null}</g>:null;
               })():null}
               {showTrackIntel?(()=>{
                 const markers=[
