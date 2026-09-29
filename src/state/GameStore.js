@@ -11,6 +11,7 @@ import { historicalAssetCandidatesWithOverrides } from "@/domain/historicalAsset
 import { withVisualAssetOverride, withoutVisualAssetOverride } from "@/domain/visualAssetOverrides";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
+import { applyPlayerManagerTeamPrincipalAppointment } from "@/domain/managerEmployment";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
@@ -174,7 +175,7 @@ function sessionRecoverySnapshot() {
 
 function hydrateLoadedGameState(saved) {
   const activeYear = Number(saved?.activeYear ?? saved?.seasonYear);
-  return {
+  const hydrated = {
     ...saved,
     drivers: hydrateDriverPortraitRows(saved?.drivers, activeYear),
     dbDrivers: hydrateDriverPortraitRows(saved?.dbDrivers, activeYear),
@@ -195,6 +196,7 @@ function hydrateLoadedGameState(saved) {
     finances: saved?.finances || null,
     showSeasonSummary: false,
   };
+  return applyPlayerManagerTeamPrincipalAppointment(hydrated);
 }
 
 function latestManualSaveKey() {
@@ -1487,6 +1489,8 @@ export const useGame = create((set, get) => ({
       },
     });
 
+    fresh = applyPlayerManagerTeamPrincipalAppointment(fresh);
+
     // A fresh career starts with newly-created physical cars and pristine
     // standard components. No garage/wear state may come from the old career.
     fresh = { ...fresh, garage: syncGarageState(fresh, fresh.garage) };
@@ -1560,6 +1564,8 @@ export const useGame = create((set, get) => ({
           season_income: 0,
         },
       });
+
+      fresh = applyPlayerManagerTeamPrincipalAppointment(fresh);
 
       // Create Team may not yet have canonical driver contracts, so keep the
       // garage fresh and let the normal roster sync assign seats once available.

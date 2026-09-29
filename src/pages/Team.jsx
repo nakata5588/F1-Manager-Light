@@ -13,6 +13,8 @@ import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerforman
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { deriveBoardState } from "@/domain/boardState.js";
 import { teamReputation, teamReputationLabel } from "@/domain/teamReputation.js";
+import { managerDisplayName } from "@/domain/managerProfile.js";
+import { managerEmploymentAssessment, playerManagerIsActiveTeamPrincipal } from "@/domain/managerEmployment.js";
 
 const firstArray=(...rows)=>rows.find(Array.isArray)||[];
 const unwrap=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
@@ -72,7 +74,9 @@ export default function Team(){
   const engineerStatus=useMemo(()=>raceEngineerAssignmentStatus(gs,teamId),[gs,teamId]);
   const owner=useMemo(()=>currentTeamOwner(gs,teamId),[gs,teamId]);
   const backer=useMemo(()=>currentTeamBacker(gs,teamId),[gs,teamId]);
-  const leadership=staff.find((row)=>row?.canonical_role==="team_principal")||null;
+  const playerPrincipal=playerManagerIsActiveTeamPrincipal(gs,teamId);
+  const leadership=playerPrincipal?{staff_name:managerDisplayName(gs?.manager),role_label:"Team Principal"}:(staff.find((row)=>row?.canonical_role==="team_principal")||null);
+  const employment=playerPrincipal?managerEmploymentAssessment(gs):null;
   const technicalLead=staff.find((row)=>["technical_director","chief_engineer","chief_designer"].includes(row?.canonical_role))||null;
   const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,teamId),[gs,teamId]);
   const ranking=useMemo(()=>carPerformanceRanking(gs),[gs]);
@@ -159,7 +163,8 @@ export default function Team(){
       <Panel title="Staff & operations" className="xl:col-span-4" action={<Link to="/MyStaff" className="text-xs text-slate-300 hover:text-white">My Staff ›</Link>}>
         <div className="p-4 space-y-2">
           <Metric label="Owner" value={owner?.staff_name||owner?.name||"Ownerless"}/>
-          <Metric label="Leadership" value={leadership?.staff_name||leadership?.name||leadership?.role_label||"Not recorded"}/>
+          <Metric label="Team Principal" value={leadership?.staff_name||leadership?.name||leadership?.role_label||"Not recorded"}/>
+          {employment?<Metric label="Job Security" value={employment.jobSecurity+"% · "+employment.label}/>:null}
           <Metric label="Technical lead" value={technicalLead?.staff_name||technicalLead?.name||technicalLead?.role_label||"Not recorded"}/>
           <Metric label="Race Engineer coverage" value={engineerStatus.status==="not_recorded"?"Not recorded for era":engineerStatus.status==="covered"?"Complete":engineerStatus.label}/>
           <div className="grid grid-cols-2 gap-2">

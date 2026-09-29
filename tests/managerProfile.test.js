@@ -7,6 +7,11 @@ import {
   managerGameplayEffects,
 } from "../src/domain/managerProfile.js";
 import { deriveBoardState } from "../src/domain/boardState.js";
+import {
+  applyPlayerManagerTeamPrincipalAppointment,
+  managerEmploymentAssessment,
+  playerManagerIsActiveTeamPrincipal,
+} from "../src/domain/managerEmployment.js";
 import { contractAcceptanceChance, expectedDriverSalary } from "../src/domain/driverContracts.js";
 import { applyRaceTeamMorale } from "../src/domain/teamMorale.js";
 
@@ -157,4 +162,120 @@ test("technical and race-management modifiers stay deliberately bounded",()=>{
   assert.ok(effects.technicalRiskMultiplier>=0.90);
   assert.ok(effects.raceExecutionErrorMultiplier>=0.92);
   assert.ok(Math.abs(effects.raceStrategyQualityDelta)<=0.05);
+});
+
+
+test("player manager is canonically a Team Principal and legacy role labels migrate",()=>{
+  const fresh=playerManager();
+  assert.equal(fresh.current_job.role,"Team Principal");
+  assert.equal(fresh.career_history[0].role,"Team Principal");
+
+  const migrated=createManagerProfile({
+    ...fresh,
+    current_job:{...fresh.current_job,role:"Team Manager"},
+    career_history:[{team_id:"T1",team_name:"Player Team",role:"Team Manager",start_year:1978,end_year:null,status:"active"}],
+  },{year:1980,team:{team_id:"T1",team_name:"Player Team"}});
+  assert.equal(migrated.current_job.role,"Team Principal");
+  assert.equal(migrated.career_history[0].role,"Team Principal");
+});
+
+test("player Team Principal appointment releases historical incumbent without removing AI principals",()=>{
+  const gs=baseState(playerManager());
+  gs.staffCore=[
+    {staff_id:"P1",staff_name:"Historical Player Principal",role_primary:"team_principal"},
+    {staff_id:"P2",staff_name:"AI Principal",role_primary:"team_principal"},
+  ];
+  gs.staffRatings=[];
+  gs.staffContracts=[
+    {year:1980,team_id:"T1",staff_id:"P1",staff_name:"Historical Player Principal",role:"team_principal",status:"active",contract_start_year:1979,contract_until_year:1981},
+    {year:1980,team_id:"T2",staff_id:"P2",staff_name:"AI Principal",role:"team_principal",status:"active",contract_start_year:1979,contract_until_year:1981},
+  ];
+  const next=applyPlayerManagerTeamPrincipalAppointment(gs);
+  assert.equal(playerManagerIsActiveTeamPrincipal(next,"T1"),true);
+  assert.equal(next.staffContracts.find((row)=>row.staff_id==="P1").status,"released");
+  assert.equal(next.staffContracts.find((row)=>row.staff_id==="P1").release_reason,"player_manager_appointment");
+  assert.equal(next.staffContracts.find((row)=>row.staff_id==="P2").status,"active");
+});
+
+test("job security reuses Board performance with early-season dismissal protection",()=>{
+  const gs=baseState(playerManager());
+  const early=managerEmploymentAssessment(gs);
+  assert.equal(early.status,"evaluating");
+  assert.equal(early.canBeDismissed,false);
+  assert.ok(early.jobSecurity>=0&&early.jobSecurity<=100);
+
+  gs.results=Array.from({length:8},(_,index)=>({
+    year:1980,
+    round:index+1,
+    classification:[
+      {team_id:"T2",position:1,points:9,retired:false},
+      {team_id:"T1",position:10,points:0,retired:false},
+    ],
+  }));
+  const mature=managerEmploymentAssessment(gs);
+  assert.equal(mature.canBeDismissed,true);
+  assert.ok(["stable","under_pressure","critical","secure"].includes(mature.status));
+  assert.ok(mature.seasonProgress>=0.5);
+});
+
+
+test("unemployed manager stays unattached after normalization and gameplay effects switch off",()=>{
+  const employed=playerManager();
+  const unemployed={
+    ...employed,
+    current_team_id:null,
+    current_team_name:null,
+    current_job:{
+      ...employed.current_job,
+      team_id:null,
+      team_name:null,
+      status:"fired",
+    },
+  };
+  const normalized=createManagerProfile(unemployed,{
+    year:1980,
+    team:{team_id:"T1",team_name:"Former Team"},
+  });
+  assert.equal(normalized.current_team_id,null);
+  assert.equal(normalized.current_job.team_id,null);
+  assert.equal(normalized.current_job.status,"fired");
+
+  const effects=managerGameplayEffects(baseState(normalized),{teamId:"T1"});
+  assert.equal(effects.active,false);
+  assert.equal(effects.boardConfidenceDelta,0);
+});
+
+
+test("player appointment leaves expired historical Team Principal contracts untouched",()=>{
+  const gs=baseState(playerManager());
+  gs.activeYear=1982;
+  gs.currentDateISO="1982-03-01";
+  gs.staffContracts=[
+    {
+      year:1979,team_id:"T1",staff_id:"OLD",staff_name:"Old Principal",
+      role:"team_principal",status:"active",
+      contract_start_year:1978,contract_until_year:1980,end_year:1980,
+    },
+  ];
+  const next=applyPlayerManagerTeamPrincipalAppointment(gs);
+  const old=next.staffContracts[0];
+  assert.equal(old.status,"active");
+  assert.equal(old.contract_until_year,1980);
+  assert.equal(old.end_year,1980);
+  assert.equal(old.release_reason,undefined);
+});
+
+test("player appointment cancels persisted Team Principal negotiations",()=>{
+  const gs=baseState(playerManager());
+  gs.staffContracts=[];
+  gs.staffNegotiations=[
+    {
+      id:"legacy_tp_offer",staff_id:"P3",team_id:"T1",
+      role:"team_principal",offer:{role:"team_principal",salary:200000,years:2},
+      status:"countered",origin:"player",
+    },
+  ];
+  const next=applyPlayerManagerTeamPrincipalAppointment(gs);
+  assert.equal(next.staffNegotiations[0].status,"withdrawn");
+  assert.equal(next.staffNegotiations[0].resolution_reason,"player_manager_appointment");
 });

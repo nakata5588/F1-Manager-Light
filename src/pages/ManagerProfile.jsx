@@ -13,6 +13,7 @@ import {
   managerExperience,
   managerReputationLabel,
 } from "../domain/managerProfile.js";
+import { managerEmploymentAssessment } from "../domain/managerEmployment.js";
 
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 
@@ -78,7 +79,7 @@ export default function ManagerProfile(){
         <div className="flex items-center gap-3">
           <UserRound className="h-8 w-8 text-slate-400"/>
           <div>
-            <h1 className="text-2xl font-semibold">Team Manager Profile</h1>
+            <h1 className="text-2xl font-semibold">Team Principal Profile</h1>
             <p className="text-sm text-slate-400">This career was created before player-manager profiles were introduced.</p>
           </div>
         </div>
@@ -99,13 +100,14 @@ export default function ManagerProfile(){
   const effects=managerEffectSummary(gameState);
   const history=Array.isArray(manager.career_history)?manager.career_history:[];
   const achievements=Array.isArray(manager.achievements)?manager.achievements:[];
+  const employment=managerEmploymentAssessment(gameState);
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] p-4 md:p-6 text-slate-100 space-y-4">
     <section className="rounded-xl border border-white/10 bg-[#12141c] p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         <ManagerPortrait manager={manager} name={name}/>
         <div className="min-w-0">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Team Manager</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Team Principal</div>
           <h1 className="mt-1 text-3xl font-semibold">{name}</h1>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-400">
             <span>{manager.nationality_name||"Nationality not set"}</span>
@@ -120,7 +122,7 @@ export default function ManagerProfile(){
           <div>
             <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Current Team</div>
             <div className="font-semibold">{teamName}</div>
-            <div className="text-xs text-slate-500">Team Manager</div>
+            <div className="text-xs text-slate-500">Team Principal</div>
           </div>
         </div>
       </div>
@@ -150,6 +152,8 @@ export default function ManagerProfile(){
           <Metric label="Potential" value={Math.round(Number(manager.potential||0))+"/100"}/>
           <Metric label="Career Start" value={manager.career_start_year||"—"}/>
           <Metric label="Contract Until" value={manager.current_job?.contract_until_year||"—"}/>
+          <Metric label="Job Security" value={employment.jobSecurity==null?"—":employment.jobSecurity+"%"}/>
+          <Metric label="Board Status" value={employment.label}/>
           <Metric label="Background" value={background.label} subtle/>
         </div>
       </section>
@@ -180,7 +184,7 @@ export default function ManagerProfile(){
         {history.length?<div className="divide-y divide-white/10">{history.map((job,index)=><div key={(job.team_id||job.team_name||"job")+"_"+index} className="flex items-center gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
             <div className="font-medium">{job.team_name||job.team_id||"Team"}</div>
-            <div className="text-xs text-slate-500">{job.role||"Team Manager"}</div>
+            <div className="text-xs text-slate-500">{job.role||"Team Principal"}</div>
           </div>
           <div className="text-xs text-slate-400">{job.start_year||"—"}–{job.end_year||"Present"}</div>
         </div>)}</div>:<div className="p-4 text-sm text-slate-500">No career history yet.</div>}

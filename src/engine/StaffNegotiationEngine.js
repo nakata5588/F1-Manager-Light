@@ -26,6 +26,7 @@ import {
   staffRoleRating,
 } from "../domain/staffPerformance.js";
 import { applyStaffTransferSettlement, canAffordStaffTransfer } from "../domain/staffTransfers.js";
+import { playerManagerIsActiveTeamPrincipal } from "../domain/managerEmployment.js";
 
 const ACTIVE_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -43,6 +44,24 @@ function staffNameFor(gs,staffId){
   const row=staffCoreFor(gs,staffId);
   return text(row?.staff_name??row?.display_name??row?.name??staffId);
 }
+function playerOccupiesNegotiatedRole(gs,negotiation){
+  return text(negotiation?.role??negotiation?.offer?.role).toLowerCase().replace(/[\s-]+/g,"_")==="team_principal"
+    &&playerManagerIsActiveTeamPrincipal(gs,negotiation?.team_id);
+}
+function closeReservedRoleNegotiation(gs,negotiation){
+  const today=dateOnly(gs?.currentDateISO);
+  return {
+    ...gs,
+    staffNegotiations:staffNegotiations(gs).map((row)=>row.id===negotiation.id?{
+      ...row,
+      status:"withdrawn",
+      resolved_at:today,
+      resolution_note:"The Team Principal role is occupied by the player manager.",
+      resolution_reason:"player_manager_appointment",
+    }:row),
+  };
+}
+
 function teamNameFor(gs,teamId){
   const id=text(teamId);
   if(id===text(gs?.team?.team_id??gs?.team?.id)){
@@ -252,6 +271,9 @@ function applyIncumbentRelease(gs,incumbent,negotiation){
   return {state:next,cost};
 }
 function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
+  if(playerOccupiesNegotiatedRole(gs,negotiation)){
+    return closeReservedRoleNegotiation(gs,negotiation);
+  }
   const transfer=negotiation.kind==="transfer";
   const active=staffActiveContractSafe(gs,negotiation.staff_id);
   if(transfer){
@@ -394,6 +416,9 @@ function staffActiveContractSafe(gs,staffId){
 export function acceptStaffCounterOffer(gs,negotiationId){
   const negotiation=staffNegotiations(gs).find((row)=>row.id===negotiationId);
   if(!negotiation||negotiation.status!=="countered"||!negotiation.counter_offer)return gs;
+  if(playerOccupiesNegotiatedRole(gs,negotiation)){
+    return closeReservedRoleNegotiation(gs,negotiation);
+  }
   const next={
     ...negotiation,
     offer:{...negotiation.counter_offer},
@@ -429,6 +454,10 @@ export function processStaffNegotiations(gs,{forceOutcomeById={}}={}){
   for(const original of due){
     const negotiation=staffNegotiations(next).find((row)=>row.id===original.id);
     if(!negotiation||negotiation.status!=="submitted")continue;
+    if(playerOccupiesNegotiatedRole(next,negotiation)){
+      next=closeReservedRoleNegotiation(next,negotiation);
+      continue;
+    }
     const currentContract=staffActiveContractSafe(next,negotiation.staff_id);
     const transferValid=negotiation.kind==="transfer"
       &&currentContract

@@ -1,5 +1,5 @@
 // src/domain/managerProfileStorage.js
-// Reusable Team Manager drafts for New Game.
+// Reusable Team Principal drafts for New Game.
 // Stored outside save files so the same personal profile can be reused across careers.
 
 export const MANAGER_PROFILE_STORAGE_KEY="f1ml_manager_profiles_v1";
@@ -42,7 +42,7 @@ export function sanitizeManagerDraft(input){
 export function managerDraftLabel(profile){
   const first=String(profile?.first_name||"").trim();
   const last=String(profile?.last_name||"").trim();
-  return [first,last].filter(Boolean).join(" ")||"Team Manager";
+  return [first,last].filter(Boolean).join(" ")||"Team Principal";
 }
 
 export function managerDraftId(profile){

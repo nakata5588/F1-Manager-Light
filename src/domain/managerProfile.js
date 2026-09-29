@@ -1,5 +1,5 @@
 // src/domain/managerProfile.js
-// Player Team Manager profile and bounded gameplay modifiers.
+// Player Team Principal profile and bounded gameplay modifiers.
 //
 // Design principles:
 // - The manager is Save World state, never historical database seed data.
@@ -106,9 +106,9 @@ export function deriveManagerAttributes({background="newcomer",experience="rooki
 }
 
 export function managerDisplayName(manager){
-  if(!manager)return "Team Manager";
+  if(!manager)return "Team Principal";
   const combined=(text(manager.first_name)+" "+text(manager.last_name)).trim();
-  return text(manager.display_name)||combined||"Team Manager";
+  return text(manager.display_name)||combined||"Team Principal";
 }
 
 export function managerAge(manager,dateISO=null){
@@ -135,8 +135,13 @@ export function managerReputationLabel(value){
 export function createManagerProfile(input={},context={}){
   const year=Number(context?.year??input?.career_start_year)||1980;
   const team=context?.team||{};
-  const teamId=text(team?.team_id??team?.id??input?.current_team_id);
-  const teamName=text(team?.team_name??team?.name??team?.short_name??input?.current_team_name)||"Unattached";
+  const hasExistingJob=Boolean(input?.current_job&&typeof input.current_job==="object");
+  const teamId=hasExistingJob
+    ?text(input?.current_team_id??input?.current_job?.team_id)
+    :text(team?.team_id??team?.id??input?.current_team_id);
+  const teamName=(hasExistingJob
+    ?text(input?.current_team_name??input?.current_job?.team_name)
+    :text(team?.team_name??team?.name??team?.short_name??input?.current_team_name))||"Unattached";
   const background=managerBackground(input?.background).id;
   const experience=managerExperience(input?.experience_level).id;
   const xp=managerExperience(experience);
@@ -146,7 +151,7 @@ export function createManagerProfile(input={},context={}){
   const joinedAt=text(input?.joined_at)||String(year).padStart(4,"0")+"-01-01";
 
   return {
-    profile_version:1,
+    profile_version:2,
     manager_id:text(input?.manager_id)||"player_manager",
     first_name:firstName,
     last_name:lastName,
@@ -171,21 +176,24 @@ export function createManagerProfile(input={},context={}){
     current_team_id:teamId||null,
     current_team_name:teamName||null,
     current_job:{
+      ...(input?.current_job&&typeof input.current_job==="object"?input.current_job:{}),
       team_id:teamId||null,
       team_name:teamName||null,
-      role:"Team Manager",
-      joined_at:joinedAt,
-      start_year:year,
+      role:"Team Principal",
+      joined_at:text(input?.current_job?.joined_at)||joinedAt,
+      start_year:Number(input?.current_job?.start_year)||year,
       contract_until_year:Number(input?.current_job?.contract_until_year)||year+2,
-      status:"active",
-      ...(input?.current_job&&typeof input.current_job==="object"?input.current_job:{}),
+      status:text(input?.current_job?.status)||"active",
     },
     career_history:Array.isArray(input?.career_history)&&input.career_history.length
-      ?input.career_history
+      ?input.career_history.map((job)=>({
+        ...job,
+        role:"Team Principal",
+      }))
       :[{
         team_id:teamId||null,
         team_name:teamName||null,
-        role:"Team Manager",
+        role:"Team Principal",
         joined_at:joinedAt,
         start_year:year,
         end_year:null,
@@ -220,9 +228,16 @@ export function managerAttribute(manager,key,fallback=50){
 export function managerAppliesToTeam(gs,teamId=null){
   const manager=gs?.manager;
   if(!manager)return false;
-  const playerTeam=String(gs?.team?.team_id??gs?.team?.id??manager?.current_team_id??"");
-  const target=String(teamId??playerTeam);
-  return Boolean(playerTeam)&&target===playerTeam;
+  const job=manager?.current_job&&typeof manager.current_job==="object"?manager.current_job:null;
+  if(job&&String(job?.status||"active").toLowerCase()!=="active")return false;
+  const assigned=String(
+    manager?.current_team_id??
+    job?.team_id??
+    (!job?(gs?.team?.team_id??gs?.team?.id):"")??
+    ""
+  );
+  const target=String(teamId??assigned);
+  return Boolean(assigned)&&target===assigned;
 }
 
 export function managerGameplayEffects(gs,{teamId=null}={}){

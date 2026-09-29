@@ -34,6 +34,7 @@ const actionLabel=(reason)=>{
   if(reason==="insufficient_buyout_funds")return "Transfer budget";
   if(reason==="under_contract")return "Not transferable";
   if(reason==="already_contracted")return "Your Staff";
+  if(reason==="player_team_principal")return "Your role";
   if(reason==="unavailable")return "Unavailable";
   return "—";
 };
@@ -183,7 +184,7 @@ export default function Staff(){
   return <div className="grid gap-4 text-slate-100">
     <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
       <h2 className="text-lg font-semibold">Staff Market</h2>
-      <p className="text-sm text-slate-400">Season {year||"—"} · free or contracted operational Staff can be approached. Contracted Staff require compensation to their current team. Owners and Sponsor Backers move through the stakeholder market.</p>
+      <p className="text-sm text-slate-400">Season {year||"—"} · free or contracted operational Staff can be approached. Contracted Staff require compensation to their current team. Owners and Sponsor Backers move through the stakeholder market. Your team’s Team Principal role is occupied by you.</p>
       <div className="mt-3 flex flex-col gap-2 lg:flex-row">
         <input className="flex-1 rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600" placeholder="Search name/role/team/nationality…" value={q} onChange={e=>setQ(e.target.value)}/>
         <button
