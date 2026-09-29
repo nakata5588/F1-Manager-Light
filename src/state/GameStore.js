@@ -11,7 +11,7 @@ import { historicalAssetCandidatesWithOverrides } from "@/domain/historicalAsset
 import { withVisualAssetOverride, withoutVisualAssetOverride } from "@/domain/visualAssetOverrides";
 import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
-import { applyPlayerManagerTeamPrincipalAppointment } from "@/domain/managerEmployment";
+import { applyPlayerManagerTeamPrincipalAppointment, playerManagerIsActiveTeamPrincipal } from "@/domain/managerEmployment";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
@@ -190,6 +190,9 @@ function hydrateLoadedGameState(saved) {
     driverNegotiations: Array.isArray(saved?.driverNegotiations) ? saved.driverNegotiations : [],
     staffNegotiations: Array.isArray(saved?.staffNegotiations) ? saved.staffNegotiations : [],
     teamStakeholders: Array.isArray(saved?.teamStakeholders) ? saved.teamStakeholders : [],
+    managerJobApplications: Array.isArray(saved?.managerJobApplications) ? saved.managerJobApplications : [],
+    managerEmploymentState: saved?.managerEmploymentState && typeof saved.managerEmploymentState==="object" ? saved.managerEmploymentState : {},
+    managerControlArchive: saved?.managerControlArchive && typeof saved.managerControlArchive==="object" ? saved.managerControlArchive : {},
     raceEntryState: saved?.raceEntryState || null,
     raceWeekendState: normalizeRaceWeekendResumeState(saved?.raceWeekendState),
     financeLog: Array.isArray(saved?.financeLog) ? saved.financeLog : [],
@@ -515,6 +518,9 @@ export const useGame = create((set, get) => ({
     driverNegotiations: [],
     staffNegotiations: [],
     teamStakeholders: [],
+    managerJobApplications: [],
+    managerEmploymentState: {},
+    managerControlArchive: {},
     raceEntryState: null,
     raceWeekendState: null,
     dbAchievements: [],
@@ -708,6 +714,14 @@ export const useGame = create((set, get) => ({
       updated = rolloverSeasonPure(s, nextCalendarYear);
     }
     try {
+      const mod = await import("@/engine/ManagerCareerEngine");
+      if (typeof mod.autosimUnemployedRaceIfDue === "function") {
+        updated = await mod.autosimUnemployedRaceIfDue(updated) || updated;
+      }
+    } catch (e) {
+      console.warn("[ManagerCareer] unemployed race autosim failed:", e);
+    }
+    try {
       const res = triggerDailyTick(updated);
       updated = res?.state || res?.patched || res || updated;
       updated = processScoutingTick(updated);
@@ -736,6 +750,7 @@ export const useGame = create((set, get) => ({
     try { const mod = await import("@/engine/MarketEngine"); if (typeof mod.applyMarketTick === "function") updated = mod.applyMarketTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/NegotiationEngine"); if (typeof mod.processDriverNegotiations === "function") updated = mod.processDriverNegotiations(updated) || updated; } catch {}
     try { const mod = await import("@/engine/StaffNegotiationEngine"); if (typeof mod.processStaffNegotiations === "function") updated = mod.processStaffNegotiations(updated) || updated; } catch {}
+    try { const mod = await import("@/engine/ManagerCareerEngine"); if (typeof mod.processManagerCareerTick === "function") updated = mod.processManagerCareerTick(updated) || updated; } catch {}
     try { const mod = await import("@/engine/InboxEngine"); if (typeof mod.syncInbox === "function") updated = mod.syncInbox(updated) || updated; } catch {}
 
     set({ gameState: updated });
@@ -2046,6 +2061,16 @@ export const useGame = create((set, get) => ({
 
     const baseISO=clampISO(s.currentDateISO||firstDayISO(s.activeYear||1980));
     const newISO=addDaysISO(baseISO,1);
+    if(s?.manager&&!playerManagerIsActiveTeamPrincipal(s)){
+      try {
+        const mod=await import("@/engine/ManagerCareerEngine");
+        if(typeof mod.autosimUnemployedRaceIfDue==="function"){
+          s=await mod.autosimUnemployedRaceIfDue({...s,currentDateISO:newISO})||s;
+        }
+      } catch(e){
+        console.warn("[ManagerCareer] unemployed race autosim failed:",e);
+      }
+    }
     const round=s.currentRound??0;
     const nextGP=s.calendar?.[round]??null;
     const nextISO=gpDateISO(nextGP);
@@ -2097,21 +2122,27 @@ export const useGame = create((set, get) => ({
     try { const mod=await import("@/engine/MarketEngine"); if(typeof mod.applyMarketTick==="function") updated=mod.applyMarketTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/NegotiationEngine"); if(typeof mod.processDriverNegotiations==="function") updated=mod.processDriverNegotiations(updated)||updated; } catch {}
     try { const mod=await import("@/engine/StaffNegotiationEngine"); if(typeof mod.processStaffNegotiations==="function") updated=mod.processStaffNegotiations(updated)||updated; } catch {}
+    try { const mod=await import("@/engine/ManagerCareerEngine"); if(typeof mod.processManagerCareerTick==="function") updated=mod.processManagerCareerTick(updated)||updated; } catch {}
     try { const mod=await import("@/engine/InboxEngine"); if(typeof mod.syncInbox==="function") updated=mod.syncInbox(updated)||updated; } catch {}
 
     let weekendBreak=null;
     try {
-      const mod=await import("@/engine/RaceWeekendEngine");
-      updated=mod.syncRaceWeekendPhaseForDate(updated,updated.currentDateISO);
+      const canControlWeekend=!updated?.manager||playerManagerIsActiveTeamPrincipal(updated);
+      if(canControlWeekend){
+        const mod=await import("@/engine/RaceWeekendEngine");
+        updated=mod.syncRaceWeekendPhaseForDate(updated,updated.currentDateISO);
 
-      const roundNow=updated.currentRound??0;
-      const gp=updated.calendar?.[roundNow]??null;
-      if(mod.shouldCreateWeekendForDate(updated,{roundIndex:roundNow,gp,dateISO:updated.currentDateISO})){
-        updated=mod.createRaceWeekendState(updated,{roundIndex:roundNow,gp});
-      }
-      const phase=String(updated?.raceWeekendState?.phase||"");
-      if(["practice","qualifying","race"].includes(phase)){
-        weekendBreak={breakReason:"race_weekend",raceWeekendPhase:phase};
+        const roundNow=updated.currentRound??0;
+        const gp=updated.calendar?.[roundNow]??null;
+        if(mod.shouldCreateWeekendForDate(updated,{roundIndex:roundNow,gp,dateISO:updated.currentDateISO})){
+          updated=mod.createRaceWeekendState(updated,{roundIndex:roundNow,gp});
+        }
+        const phase=String(updated?.raceWeekendState?.phase||"");
+        if(["practice","qualifying","race"].includes(phase)){
+          weekendBreak={breakReason:"race_weekend",raceWeekendPhase:phase};
+        }
+      }else{
+        updated={...updated,raceWeekendState:null,raceEntryState:null};
       }
     } catch(e){
       console.warn("[RaceWeekend] state sync failed:",e);
