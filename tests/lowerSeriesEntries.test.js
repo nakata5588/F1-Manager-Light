@@ -11,6 +11,7 @@ import {
   materializeLowerSeriesWorld,
 } from "../src/domain/lowerSeriesWorld.js";
 import { materializeSeasonPack } from "../src/data/seasonPackMaterializer.js";
+import { buildFreshCareerState } from "../src/state/newGameRuntime.js";
 import {
   seasonPackGlobalDataFromDatabaseState,
   seasonPackStatePatch,
@@ -272,5 +273,31 @@ test("LS9A Season Pack materializer retains Round-1 facts, drops later replaceme
     pack.state.drivers.some((row)=>row.driver_id==="D2"),
     false,
     "mid-season-only historical replacement must not become a Jan-1 active driver"
+  );
+});
+
+
+test("LS9A fresh career keeps only selected opening entries and drops the global future entry catalogue",()=>{
+  const selected=[{
+    lower_entry_id:"open",
+    year:1983,
+    series_id:"s_bf3",
+    lower_team_id:"LT_WSR",
+    driver_id:"D1",
+    round_from:1,
+  }];
+  const fresh=buildFreshCareerState({
+    lowerSeriesEntries:selected,
+    dbLowerSeriesEntries:[
+      ...selected,
+      {lower_entry_id:"future",year:1984,series_id:"s_bf3",lower_team_id:"LT_WSR",driver_id:"D1",round_from:1},
+    ],
+  },{});
+
+  assert.deepEqual(fresh.lowerSeriesEntries,selected);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(fresh,"dbLowerSeriesEntries"),
+    false,
+    "future historical line-ups must not cross the New Game isolation boundary"
   );
 });
