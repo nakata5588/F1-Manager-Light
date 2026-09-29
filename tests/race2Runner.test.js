@@ -5,6 +5,7 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { raceStepMs, startRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   createLiveRaceRunner,
+  raceStepMs as runnerRaceStepMs,
   runFastRace,
   runFastRaceToEnd,
 } from "../src/race2/core/RaceRunner.js";
@@ -83,6 +84,7 @@ test("RW8.3 runner and core share the same canonical step duration normalization
   };
 
   assert.equal(raceStepMs(state),100);
+  assert.equal(runnerRaceStepMs(state),raceStepMs(state));
 
   const fast=runFastRace(state,{steps:1});
   const live=createLiveRaceRunner(state);
