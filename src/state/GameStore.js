@@ -36,6 +36,10 @@ import {
 } from "@/domain/driverOpeningState";
 import { inferDriverWorldEntries } from "@/domain/driverWorldEntry";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "@/domain/driverFeederPlacement";
+import {
+  applyLowerSeriesEntriesToPlacements,
+  openingLowerSeriesEntriesForYear,
+} from "@/domain/lowerSeriesEntries";
 import { materializeMissingStartingRatings } from "@/domain/driverStartingRating";
 
 /** ===== CONSTs de save ===== */
@@ -93,7 +97,7 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings","dbSeries","dbSeriesRules","dbLowerSeriesTeams",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings","dbSeries","dbSeriesRules","dbLowerSeriesTeams","dbLowerSeriesEntries",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
@@ -559,6 +563,7 @@ export const useGame = create((set, get) => ({
     dbWeatherStates: [],
     dbPitcrewRoster: [],
     dbLowerSeriesTeams: [],
+    dbLowerSeriesEntries: [],
 
     yearsAvailable: [],
     seasonPackIndex: [],
@@ -574,6 +579,7 @@ export const useGame = create((set, get) => ({
     driverFeederPlacement: [],
     driverOpeningState: [],
     lowerSeriesTeams: [],
+    lowerSeriesEntries: [],
     staffRatings: [],
     staffCore: [],
     teamBrands: [],
@@ -838,7 +844,7 @@ export const useGame = create((set, get) => ({
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
         scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, teamConstructorBridgeRaw, teamLineageHistoryRaw, coreTracksRaw,
-        weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seriesRaw, seriesRulesRaw, lowerSeriesTeamsRaw, seasonIndexRaw,
+        weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seriesRaw, seriesRulesRaw, lowerSeriesTeamsRaw, lowerSeriesEntriesRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
@@ -888,6 +894,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/series.json", []),
         fetchOptional("/data/series_rules.json", []),
         fetchOptional("/data/lower_series_teams.json", []),
+        fetchOptional("/data/lower_series_entries.json", []),
         fetchJsonSafe("/data/seasons/index.json"),
       ]);
 
@@ -941,6 +948,7 @@ export const useGame = create((set, get) => ({
       const series               = unexcelDeep(seriesRaw);
       const seriesRules          = unexcelDeep(seriesRulesRaw);
       const lowerSeriesTeams     = unexcelDeep(lowerSeriesTeamsRaw);
+      const lowerSeriesEntries   = unexcelDeep(lowerSeriesEntriesRaw);
       const seasonPackIndex      = Array.isArray(seasonIndexRaw?.years) ? unexcelDeep(seasonIndexRaw.years) : [];
 
       const packYears = seasonPackIndex
@@ -1007,6 +1015,7 @@ export const useGame = create((set, get) => ({
           dbSeries: series,
           dbSeriesRules: seriesRules,
           dbLowerSeriesTeams: lowerSeriesTeams,
+          dbLowerSeriesEntries: lowerSeriesEntries,
           coreTracks,
           trackLayoutByYear,
 
@@ -1168,7 +1177,7 @@ export const useGame = create((set, get) => ({
       driverCareer: prev.dbDriverCareer || [],
       driverHistory: prev.dbDriverHistory || [],
     });
-    const feederPlacements = inferDriverFeederPlacements(
+    const inferredFeederPlacements = inferDriverFeederPlacements(
       prev.dbDrivers || [],
       worldEntries,
       y,
@@ -1177,6 +1186,19 @@ export const useGame = create((set, get) => ({
         series: prev.dbSeries || [],
         seriesRules: prev.dbSeriesRules || [],
         driverCareer: prev.dbDriverCareer || [],
+      }
+    );
+    const lowerSeriesEntries=openingLowerSeriesEntriesForYear(
+      prev.dbLowerSeriesEntries||[],
+      y
+    );
+    const feederPlacements=applyLowerSeriesEntriesToPlacements(
+      inferredFeederPlacements,
+      lowerSeriesEntries,
+      {
+        year:y,
+        series:prev.dbSeries||[],
+        seriesRules:prev.dbSeriesRules||[],
       }
     );
     const feederPlacementByDriver = new Map(
@@ -1420,6 +1442,8 @@ export const useGame = create((set, get) => ({
       driverWorldEntry: worldEntries,
       driverFeederPlacement: feederPlacements,
       driverOpeningState,
+      lowerSeriesTeams: filterByYearRange(prev.dbLowerSeriesTeams || [], y),
+      lowerSeriesEntries,
       staffRatings,
       staffCore,
       teamBrands,
