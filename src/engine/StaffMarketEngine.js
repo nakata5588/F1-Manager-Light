@@ -26,6 +26,7 @@ import {
 import {
   STAFF_HIREABLE_ROLES,
   staffExpectedSalary,
+  staffMarketRoles,
   staffSalaryAffordable,
   staffWillConsiderTeam,
 } from "../domain/staffMarket.js";
@@ -86,7 +87,10 @@ function freeCandidates(gs,role){
   return staffCoreRows(gs)
     .filter((row)=>{
       const id=staffIdOf(row);
-      return id&&!contracted.has(id)&&staffAliveForDate(row,today);
+      return id
+        &&!contracted.has(id)
+        &&staffAliveForDate(row,today)
+        &&staffMarketRoles(gs,id).includes(canonicalStaffRole(role));
     })
     .map((row)=>{
       const id=staffIdOf(row);
