@@ -710,3 +710,65 @@ test("Manager M4 progression ledger survives manager profile normalization",()=>
   assert.equal(normalized.development.races_managed,20);
   assert.equal(normalized.development.constructor_titles,1);
 });
+
+
+test("Manager M4 does not award a championship after leaving before the finale",()=>{
+  const baseManager=playerManager();
+  const manager={
+    ...baseManager,
+    current_team_id:null,
+    current_team_name:null,
+    current_job:{
+      ...baseManager.current_job,
+      team_id:null,
+      team_name:null,
+      status:"fired",
+      ended_at:"1980-05-31",
+      end_year:1980,
+    },
+    career_history:[{
+      team_id:"T1",team_name:"Player Team",role:"Team Principal",
+      joined_at:"1980-01-01",start_year:1980,end_year:1980,
+      ended_at:"1980-05-31",status:"fired",
+    }],
+  };
+  const gs={
+    ...baseState(manager),
+    team:null,
+    currentDateISO:"1980-10-01",
+    calendar:[{round:1},{round:2}],
+    results:[
+      {
+        key:"1980_1_managed",year:1980,round:1,dateISO:"1980-04-01",
+        classification:[
+          {position:1,driver_id:"D1",team_id:"T1",points:9,constructor_points:9,status:"Finished"},
+          {position:2,driver_id:"D2",team_id:"T2",points:6,constructor_points:6,status:"Finished"},
+        ],
+      },
+      {
+        key:"1980_2_after_departure",year:1980,round:2,dateISO:"1980-09-20",
+        classification:[
+          {position:1,driver_id:"D1",team_id:"T1",points:9,constructor_points:9,status:"Finished"},
+          {position:2,driver_id:"D2",team_id:"T2",points:6,constructor_points:6,status:"Finished"},
+        ],
+      },
+    ],
+    standings:{
+      teams:[
+        {team_id:"T1",team_name:"Player Team",position:1,points:18},
+        {team_id:"T2",team_name:"AI Team",position:2,points:12},
+      ],
+      drivers:[
+        {driver_id:"D1",team_id:"T1",position:1,points:18},
+        {driver_id:"D2",team_id:"T2",position:2,points:12},
+      ],
+    },
+  };
+  const next=applyManagerCareerProgression(gs);
+  assert.equal(next.manager.development.races_managed,1);
+  assert.equal(next.manager.development.constructor_titles,0);
+  assert.equal(next.manager.development.driver_titles,0);
+  assert.ok(next.manager.development.processed_seasons.includes(1980));
+  assert.equal(next.manager.achievements.some((row)=>row.type==="constructor_champion"),false);
+  assert.equal(next.manager.achievements.some((row)=>row.type==="driver_champion"),false);
+});
