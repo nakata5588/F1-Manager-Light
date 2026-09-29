@@ -1,23 +1,25 @@
 // src/engine/LowerSeriesEngine.js
 //
-// LS3 — lightweight deterministic Lower Series simulation.
+// LS4 — lightweight deterministic Lower Series championship core.
 //
 // lowerSeriesWorld remains the canonical state. This module only transforms
 // that world: it resolves Save-World candidate placements, derives a light
-// season calendar for levels 2/3, simulates due events deterministically and
-// rebuilds standings. It never writes to the canonical F1 results archive.
+// season calendar for levels 2-5, simulates due events deterministically,
+// applies an era-aware scoring snapshot and rebuilds driver/team standings.
+// It never writes to the canonical F1 results archive.
 
 import { gameplayRngFor } from "../core/random.js";
+import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { isRaceDriverContract } from "../domain/contractRoles.js";
 import { applyLowerSeriesWorldToDrivers } from "../domain/lowerSeriesWorld.js";
 
 export const LOWER_SERIES_SIMULATION_MODEL="lower_series_light_v1";
+export const LOWER_SERIES_CHAMPIONSHIP_MODEL="lower_series_championship_v2";
 export const LOWER_SERIES_TEAM_MODEL="lower_series_team_light_v1";
-export const LOWER_SERIES_SIMULATED_LEVELS=Object.freeze([2,3]);
+export const LOWER_SERIES_SIMULATED_LEVELS=Object.freeze([2,3,4,5]);
 
 const TRACKED_TEAM_CAPACITY=2;
-const POINTS=Object.freeze([25,18,15,12,10,8,6,4,2,1]);
-const ROUNDS_BY_LEVEL=Object.freeze({2:10,3:8});
+const ROUNDS_BY_LEVEL=Object.freeze({2:10,3:8,4:7,5:6});
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -73,13 +75,18 @@ function cloneWorld(world){
     standings:Object.fromEntries(
       Object.entries(world.standings||{}).map(([id,value])=>[id,{
         ...(value||{}),
+        points_table:rows(value?.points_table).slice(),
         drivers:rows(value?.drivers).map((row)=>({...row})),
         teams:rows(value?.teams).map((row)=>({...row})),
       }])
     ),
-    events:rows(world.events).map((row)=>({...row})),
+    events:rows(world.events).map((row)=>({
+      ...row,
+      points_table:rows(row?.points_table).slice(),
+    })),
     results:rows(world.results).map((row)=>({
       ...row,
+      points_table:rows(row?.points_table).slice(),
       classification:rows(row?.classification).map((item)=>({...item})),
     })),
     history:rows(world.history).map((row)=>({...row})),
@@ -304,11 +311,29 @@ function assignTeamLineups(gameState,world){
   return next;
 }
 
+function lowerSeriesScoringSnapshot(year){
+  const system=championshipPointsSystem(year);
+  return {
+    points_system_id:system.points_system_id,
+    points_table:rows(system.table).map((value)=>Number(value)||0),
+    points_system_source:"f1_year_default",
+    championship_model:LOWER_SERIES_CHAMPIONSHIP_MODEL,
+  };
+}
+
+function pointsForPosition(table,position){
+  const p=Number(position);
+  return Number.isInteger(p)&&p>=1&&p<=rows(table).length
+    ?Number(rows(table)[p-1])||0
+    :0;
+}
+
 function scheduleForSeries(series,year,seriesIndex){
   const level=num(series?.series_level,null);
   const total=ROUNDS_BY_LEVEL[level]||0;
   if(!total)return [];
 
+  const scoring=lowerSeriesScoringSnapshot(year);
   const spanDays=210;
   const stagger=(seriesIndex*3)%10;
   return Array.from({length:total},(_,index)=>{
@@ -325,6 +350,8 @@ function scheduleForSeries(series,year,seriesIndex){
       event_date:eventDate,
       status:"scheduled",
       simulation_model:LOWER_SERIES_SIMULATION_MODEL,
+      ...scoring,
+      points_table:scoring.points_table.slice(),
       schedule_source:"derived_lower_series_calendar",
     };
   });
@@ -448,12 +475,22 @@ function performanceProfile(gameState,entry){
   };
 }
 
-function pointsForPosition(position){
-  const p=Number(position);
-  return p>=1&&p<=POINTS.length?POINTS[p-1]:0;
-}
-
 function simulateEvent(gameState,world,event){
+  const scoring={
+    ...lowerSeriesScoringSnapshot(event?.season_year??world?.season_year??gameState?.activeYear),
+    points_system_id:text(event?.points_system_id)||undefined,
+    points_table:rows(event?.points_table).length
+      ?rows(event.points_table).map((value)=>Number(value)||0)
+      :undefined,
+    points_system_source:text(event?.points_system_source)||undefined,
+    championship_model:text(event?.championship_model)||undefined,
+  };
+  const fallback=lowerSeriesScoringSnapshot(event?.season_year??world?.season_year??gameState?.activeYear);
+  scoring.points_system_id=scoring.points_system_id||fallback.points_system_id;
+  scoring.points_table=scoring.points_table||fallback.points_table;
+  scoring.points_system_source=scoring.points_system_source||fallback.points_system_source;
+  scoring.championship_model=scoring.championship_model||fallback.championship_model;
+
   const entries=Object.values(world.entries||{})
     .filter((entry)=>String(entry?.series_id)===String(event.series_id))
     .filter((entry)=>!activeF1RaceDriverIds(gameState).has(String(entry?.driver_id)))
@@ -475,6 +512,8 @@ function simulateEvent(gameState,world,event){
         pole_driver_id:null,
         classification:[],
         simulation_model:LOWER_SERIES_SIMULATION_MODEL,
+        ...scoring,
+        points_table:scoring.points_table.slice(),
       },
     };
   }
@@ -549,7 +588,7 @@ function simulateEvent(gameState,world,event){
       team_name:item.entry.team_name??null,
       grid_position:gridPosition.get(did)??null,
       status:finished?"finished":"dnf",
-      points:finished?pointsForPosition(position):0,
+      points:finished?pointsForPosition(scoring.points_table,position):0,
       pole:did===poleDriverId,
       performance_score:Number(item.raceScore.toFixed(3)),
     };
@@ -569,6 +608,8 @@ function simulateEvent(gameState,world,event){
       pole_driver_id:poleDriverId,
       classification,
       simulation_model:LOWER_SERIES_SIMULATION_MODEL,
+      ...scoring,
+      points_table:scoring.points_table.slice(),
     },
   };
 }
@@ -641,6 +682,21 @@ function teamStandingRows(seriesId,results){
   return ordered.map((row,index)=>({...row,position:index+1,series_id:seriesId}));
 }
 
+function scoringForSeries(world,seriesId){
+  const scheduled=rows(world?.events).find((row)=>text(row?.series_id)===seriesId);
+  const result=rows(world?.results).find((row)=>text(row?.series_id)===seriesId);
+  const source=scheduled||result||{};
+  const fallback=lowerSeriesScoringSnapshot(world?.season_year);
+  return {
+    points_system_id:text(source?.points_system_id)||fallback.points_system_id,
+    points_table:rows(source?.points_table).length
+      ?rows(source.points_table).map((value)=>Number(value)||0)
+      :fallback.points_table.slice(),
+    points_system_source:text(source?.points_system_source)||fallback.points_system_source,
+    championship_model:text(source?.championship_model)||fallback.championship_model,
+  };
+}
+
 function rebuildStandings(world){
   const results=rows(world?.results);
   const standings={};
@@ -648,19 +704,23 @@ function rebuildStandings(world){
     const id=text(series?.series_id);
     if(!id||!LOWER_SERIES_SIMULATED_LEVELS.includes(num(series?.series_level,null)))continue;
     const driverRows=driverStandingRows(id,results);
+    const teamRows=teamStandingRows(id,results);
     const completed=results.filter((row)=>row.series_id===id&&row.status==="completed");
     const scheduled=rows(world?.events).filter((row)=>row.series_id===id);
+    const complete=scheduled.length>0&&scheduled.every((row)=>["completed","skipped"].includes(String(row.status)));
+    const scoring=scoringForSeries(world,id);
     standings[id]={
       series_id:id,
       series_name:series?.series_name??id,
       series_level:num(series?.series_level,null),
+      ...scoring,
+      points_table:scoring.points_table.slice(),
       drivers:driverRows,
-      teams:teamStandingRows(id,results),
+      teams:teamRows,
       updated_through_round:completed.reduce((max,row)=>Math.max(max,Number(row.round)||0),0),
-      complete:scheduled.length>0&&scheduled.every((row)=>["completed","skipped"].includes(String(row.status))),
-      champion_driver_id:scheduled.length>0&&scheduled.every((row)=>["completed","skipped"].includes(String(row.status)))
-        ?driverRows[0]?.driver_id??null
-        :null,
+      complete,
+      champion_driver_id:complete?driverRows[0]?.driver_id??null:null,
+      champion_team_id:complete?teamRows[0]?.lower_team_id??null:null,
     };
   }
   return standings;

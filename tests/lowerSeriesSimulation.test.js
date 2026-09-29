@@ -73,7 +73,7 @@ function baseState(){
   };
 }
 
-test("LS3 initializes deterministic Save-World placements and schedules only levels 2/3",()=>{
+test("LS4 initializes deterministic Save-World placements and schedules levels 2-5",()=>{
   const a=initializeLowerSeriesSeason(baseState());
   const b=initializeLowerSeriesSeason(baseState());
 
@@ -84,12 +84,58 @@ test("LS3 initializes deterministic Save-World placements and schedules only lev
   const f2Events=a.lowerSeriesWorld.events.filter((event)=>event.series_id==="F2");
   assert.equal(f2Events.length,10);
   assert.equal(f2Events[0].event_date,"1980-03-15");
+  assert.equal(f2Events[0].points_system_id,"canonical_1980");
+  assert.equal(f2Events[0].points_system_source,"f1_year_default");
+  assert.deepEqual(f2Events[0].points_table,[9,6,4,3,2,1]);
 
   const chosenF3=a.lowerSeriesWorld.entries.D3.series_id;
   assert.equal(a.lowerSeriesWorld.events.filter((event)=>event.series_id===chosenF3).length,8);
-  assert.equal(a.lowerSeriesWorld.events.some((event)=>event.series_id==="FR"),false);
+  assert.equal(a.lowerSeriesWorld.events.filter((event)=>event.series_id==="FR").length,7);
   assert.deepEqual(a.lowerSeriesWorld.results,[]);
 });
+
+test("LS4 also schedules entry-level series and snapshots the save-year F1 points table",()=>{
+  const state=baseState();
+  state.activeYear=2007;
+  state.currentDateISO="2007-01-01";
+  state.lowerSeriesWorld={
+    ...state.lowerSeriesWorld,
+    season_year:2007,
+    source_season:2007,
+    series:[
+      {series_id:"GP2",series_name:"GP2 Series",series_level:2},
+      {series_id:"F4",series_name:"Formula Four",series_level:5},
+    ],
+    entries:{
+      D1:{
+        driver_id:"D1",series_id:"GP2",series_name:"GP2 Series",series_level:2,
+        lower_team_id:"T1",team_name:"Team One",series_candidates:[],placement_status:"placed_with_team",
+      },
+      D2:{
+        driver_id:"D2",series_id:"GP2",series_name:"GP2 Series",series_level:2,
+        lower_team_id:"T2",team_name:"Team Two",series_candidates:[],placement_status:"placed_with_team",
+      },
+      D5:{
+        driver_id:"D5",series_id:"F4",series_name:"Formula Four",series_level:5,
+        lower_team_id:null,team_name:null,series_candidates:[],placement_status:"series_only",
+      },
+    },
+    events:[],
+    results:[],
+    standings:{},
+  };
+
+  const initialized=initializeLowerSeriesSeason(state);
+  const gp2=initialized.lowerSeriesWorld.events.filter((event)=>event.series_id==="GP2");
+  const f4=initialized.lowerSeriesWorld.events.filter((event)=>event.series_id==="F4");
+
+  assert.equal(gp2.length,10);
+  assert.equal(f4.length,6);
+  assert.equal(gp2[0].points_system_id,"canonical_2007");
+  assert.deepEqual(gp2[0].points_table,[10,8,6,5,4,3,2,1]);
+  assert.deepEqual(f4[0].points_table,[10,8,6,5,4,3,2,1]);
+});
+
 
 test("LS3 processes due events deterministically and never writes into F1 results",()=>{
   const scheduled=initializeLowerSeriesSeason(baseState());
@@ -105,20 +151,30 @@ test("LS3 processes due events deterministically and never writes into F1 result
   assert.ok(result);
   assert.equal(result.status,"completed");
   assert.deepEqual(result.classification,same.classification);
+  assert.equal(result.points_system_id,"canonical_1980");
+  assert.deepEqual(result.points_table,[9,6,4,3,2,1]);
+  for(const row of result.classification){
+    const expected=row.status==="finished"?(result.points_table[row.position-1]||0):0;
+    assert.equal(row.points,expected);
+  }
   assert.equal(first.results.length,1,"canonical F1 Results must remain untouched");
   assert.equal(first.results[0].key,"f1:1980:1");
 
   const standings=first.lowerSeriesWorld.standings.F2;
   assert.ok(standings);
   assert.equal(standings.updated_through_round,1);
+  assert.equal(standings.points_system_id,"canonical_1980");
+  assert.deepEqual(standings.points_table,[9,6,4,3,2,1]);
   assert.equal(standings.drivers.reduce((sum,row)=>sum+row.starts,0),2);
   assert.equal(
     standings.drivers.reduce((sum,row)=>sum+row.wins,0),
     result.classification.some((row)=>row.status==="finished")?1:0
   );
+  const classifiedTeamPoints=result.classification.reduce((sum,row)=>sum+(Number(row.points)||0),0);
+  assert.equal(standings.teams.reduce((sum,row)=>sum+row.points,0),classifiedTeamPoints);
 });
 
-test("LS3 full-season completion creates standings, champion and preserves event statistics",()=>{
+test("LS4 full-season completion creates driver/team champions and preserves event statistics",()=>{
   const completed=completeLowerSeriesSeason(baseState());
   const world=completed.lowerSeriesWorld;
   const f2Results=world.results.filter((row)=>row.series_id==="F2");
@@ -127,7 +183,11 @@ test("LS3 full-season completion creates standings, champion and preserves event
   assert.ok(f2Results.every((row)=>["completed","skipped"].includes(row.status)));
   assert.equal(world.standings.F2.complete,true);
   assert.ok(world.standings.F2.champion_driver_id);
+  assert.ok(world.standings.F2.champion_team_id);
   assert.equal(world.standings.F2.drivers.length,2);
+  assert.equal(world.standings.F2.teams.length,2);
+  assert.equal(world.standings.F2.points_system_id,"canonical_1980");
+  assert.deepEqual(world.standings.F2.points_table,[9,6,4,3,2,1]);
 
   for(const row of world.standings.F2.drivers){
     assert.equal(row.starts,10);
@@ -186,9 +246,12 @@ test("LS3 completed season is archived inside lowerSeriesWorld and not the F1 Re
 
   assert.equal(rolled.history.length,1);
   assert.equal(rolled.history[0].season_year,1980);
-  assert.equal(rolled.history[0].events.length,18);
-  assert.equal(rolled.history[0].results.length,18);
+  assert.equal(rolled.history[0].events.length,25);
+  assert.equal(rolled.history[0].results.length,25);
   assert.ok(rolled.history[0].standings.F2);
+  assert.equal(rolled.history[0].standings.F2.points_system_id,"canonical_1980");
+  assert.deepEqual(rolled.history[0].standings.F2.points_table,[9,6,4,3,2,1]);
+  assert.ok(rolled.history[0].standings.F2.champion_team_id);
   assert.equal(completed.results.length,1);
   assert.equal(completed.results[0].key,"f1:1980:1");
 });
