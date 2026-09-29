@@ -2,6 +2,8 @@
 import { getSaveSeed } from "../../core/random.js";
 import { teamCarPerformance } from "../../domain/carPerformance.js";
 import { conditionModifierBreakdown, raceDriverScore } from "../../domain/driverPerformance.js";
+import { driverDerivedRating, driverMistakePropensity } from "../../domain/driverDerivedRatings.js";
+import { driverPerformanceEntries } from "../../domain/driverForm.js";
 import { buildTrackModel } from "../track/TrackModel.js";
 import {
   RACE_WEEKEND_CONTRACT_VERSION,
@@ -61,6 +63,15 @@ function normalizedDrivers(gs,entries){
         performance:{
           raceScore:Number(raceDriverScore(rating,gs,driverId).toFixed(3)),
           conditionModifier:Number(Number(condition?.total||0).toFixed(3)),
+          overtaking:finite(driverDerivedRating(rating,"overtaking"),null),
+          defending:finite(driverDerivedRating(rating,"defending"),null),
+          mistakePropensity:finite(
+            driverMistakePropensity(rating,{
+              performanceEntries:driverPerformanceEntries(gs,driverId),
+            })?.value,
+            null
+          ),
+          aggression:finite(rating?.aggression??rating?.agression,null),
         },
       };
     });
