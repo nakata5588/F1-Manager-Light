@@ -174,6 +174,34 @@ test("RW8.7 temporary full-race fuel load covers maximum normal burn before pit 
   assert.ok(row.resources.initialFuelKg-worstNormalBurn>=row.resources.fuelReserveKg-1e-6);
 });
 
+test("RW8.8 planned refuelling stint sizes initial fuel to the stop rather than full race",()=>{
+  const base=input({refuellingAllowed:true});
+  base.cars[0].resourceSetup.strategy.pitPlan="one_stop";
+  base.cars[0].resourceSetup.strategy.plannedStopLap=10;
+  const state=createRaceState(base);
+  const row=car(state);
+  const fullRaceKm=(state.track.lengthM*state.session.lapLimit)/1000;
+  const fullRaceWorst=fullRaceKm*row.resources.fuelBurnKgPerKm*1.04*1.05;
+
+  assert.equal(row.resources.fuelStintPlanned,true);
+  assert.equal(row.resources.plannedFuelStopLap,10);
+  assert.ok(row.resources.initialFuelKg<fullRaceWorst);
+  assert.ok(row.resources.initialFuelKg>0);
+});
+
+test("RW8.8 no-refuelling era keeps safe full-race fuel even with a tyre stop planned",()=>{
+  const base=input({refuellingAllowed:false});
+  base.cars[0].resourceSetup.strategy.pitPlan="one_stop";
+  base.cars[0].resourceSetup.strategy.plannedStopLap=10;
+  const state=createRaceState(base);
+  const row=car(state);
+  const fullRaceKm=(state.track.lengthM*state.session.lapLimit)/1000;
+  const worst=fullRaceKm*row.resources.fuelBurnKgPerKm*1.04*1.05;
+
+  assert.equal(row.resources.fuelStintPlanned,false);
+  assert.ok(row.resources.initialFuelKg>worst);
+});
+
 test("RW8.7 tyre wear and fuel burn integrate from actual physical distance",()=>{
   const state=runningState();
   const previous=car(state);
