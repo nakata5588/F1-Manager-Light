@@ -19,6 +19,7 @@ import { inferDriverWorldEntries } from "../domain/driverWorldEntry.js";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../domain/driverFeederPlacement.js";
 import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
 import { materializeHistoricalTeamStrengths } from "../domain/teamHistoricalStrength.js";
+import { activeLowerSeriesTeamsForYear } from "../domain/lowerSeriesTeams.js";
 
 const unbox=(v)=>{
   if(v&&typeof v==="object"&&!Array.isArray(v)){
@@ -832,6 +833,7 @@ export function materializeSeasonPack(globalData,yearInput){
       driverWorldEntry:worldEntries,
       driverFeederPlacement:feederPlacements,
       driverOpeningState:openingStateRows,
+      lowerSeriesTeams:activeLowerSeriesTeamsForYear(g.lowerSeriesTeams||[],year),
       contracts,
       staffCore,
       staffRatings,
