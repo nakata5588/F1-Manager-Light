@@ -269,10 +269,15 @@ test("LS9A Season Pack materializer retains Round-1 facts, drops later replaceme
   assert.equal(placement.series_id,"s_bf3");
   assert.equal(placement.series_resolution,"historical_lower_series_entry");
   assert.ok(pack.state.drivers.some((row)=>row.driver_id==="D1"));
+  const d2Placement=pack.state.driverFeederPlacement.find((row)=>row.driver_id==="D2");
+  assert.notEqual(
+    d2Placement?.factual_lower_series_entry_id,
+    "late",
+    "mid-season-only historical replacement must not become a Jan-1 factual placement"
+  );
   assert.equal(
-    pack.state.drivers.some((row)=>row.driver_id==="D2"),
-    false,
-    "mid-season-only historical replacement must not become a Jan-1 active driver"
+    pack.state.lowerSeriesEntries.some((row)=>row.lower_entry_id==="late"),
+    false
   );
 });
 
