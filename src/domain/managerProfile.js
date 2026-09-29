@@ -221,6 +221,14 @@ export function createManagerProfile(input={},context={}){
       last_regression_reason:text(input?.development?.last_regression_reason)||null,
       attribute_regressions:Math.max(0,Number(input?.development?.attribute_regressions||0)),
       reputation_lost:Math.max(0,Number(input?.development?.reputation_lost||0)),
+      history:Array.isArray(input?.development?.history)
+        ?input.development.history.filter((row)=>row&&typeof row==="object").slice(0,60).map((row)=>({
+          ...row,
+          attribute_changes:Array.isArray(row?.attribute_changes)
+            ?row.attribute_changes.filter((change)=>change&&typeof change==="object")
+            :[],
+        }))
+        :[],
     },
   };
 }
