@@ -421,7 +421,7 @@ export async function autosimUnemployedRaceIfDue(gs){
   if(!gp)return gs;
   const raceDate=gpDateISO(gp);
   const today=dateOnly(gs?.currentDateISO);
-  if(!raceDate||!today||today<=raceDate)return gs;
+  if(!raceDate||!today||today<raceDate)return gs;
 
   const year=Number(gs?.activeYear);
   const round=roundIndex+1;
