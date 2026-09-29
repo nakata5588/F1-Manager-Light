@@ -7,6 +7,7 @@ function money(value){
 export default function StaffContractNegotiationModal({
   staff,
   role,
+  roleLabel=null,
   expectedSalary=0,
   incumbent=null,
   replacementCost=0,
@@ -35,7 +36,7 @@ export default function StaffContractNegotiationModal({
       <div className="grid gap-4 p-5">
         <div className="rounded-xl border border-white/10 bg-[#171a23] p-3 text-sm">
           <div className="text-slate-400">Role</div>
-          <div className="font-semibold">{role}</div>
+          <div className="font-semibold">{roleLabel||role}</div>
           <div className="mt-2 text-slate-400">Market salary guide</div>
           <div className="font-semibold">{money(expectedSalary)}</div>
         </div>
