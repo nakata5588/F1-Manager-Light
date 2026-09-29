@@ -8,6 +8,7 @@
 // RW8.9 applies canonical race commands before the same physics step.
 // RW8.10 resolves canonical incidents, reliability failures, damage and DNF.
 // RW8.11A projects canonical weather/track conditions and Race Control assessments.
+// RW8.11B persists and enforces the canonical Race Control lifecycle.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
@@ -19,7 +20,14 @@ import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { applyDueRaceCommands } from "./RaceCommands.js";
 import { resolveRaceIncidents } from "./RaceIncidents.js";
-import { advanceRaceConditions } from "./RaceConditions.js";
+import { advanceRaceConditions, trackStateFromWeatherRow } from "./RaceConditions.js";
+import {
+  advanceRedFlagSuspension,
+  enforceRaceControlAssessment,
+  neutralizeBattles,
+  raceControlFreezesProgress,
+  raceControlOvertakingAllowed,
+} from "./RaceControlLifecycle.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -182,9 +190,83 @@ export function startRaceState(state){
   return {...started,...projectCanonicalRaceTiming(started)};
 }
 
+function sequencedEvents(state,rawEvents=[]){
+  return (rawEvents||[]).map((event,index)=>{
+    const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
+    return {
+      id:`${state?.weekendKey??"race"}:${sequence}`,
+      sequence,
+      ...event,
+    };
+  });
+}
+
+function weatherAfterRedFlagRecovery(previous,row){
+  if(!row)return previous;
+  const lap=Math.max(1,Math.floor(finite(row?.lap,previous?.currentLap??1)));
+  const timeline=(previous?.timeline||[]).map((item)=>
+    Number(item?.lap)===lap?{...row}:item
+  );
+  return {
+    ...(previous||{}),
+    timeline,
+    current:{...row},
+    currentLap:lap,
+    state:String(row?.state||previous?.state||"SUNNY"),
+    air_temp_c:finite(row?.air_temp_c,previous?.air_temp_c??22),
+    track_temp_c:finite(row?.track_temp_c,previous?.track_temp_c??30),
+    rain_intensity:finite(row?.rain_intensity,previous?.rain_intensity??0),
+    track_wetness:finite(row?.track_wetness,previous?.track_wetness??0),
+    grip_index:finite(row?.grip_index,previous?.grip_index??60),
+    visibility_index:finite(row?.visibility_index,previous?.visibility_index??100),
+    spray_index:finite(row?.spray_index,previous?.spray_index??0),
+    standing_water_index:finite(row?.standing_water_index,previous?.standing_water_index??0),
+    raceability_index:finite(row?.raceability_index,previous?.raceability_index??100),
+  };
+}
+
 export function stepRaceState(state){
   if(!state||state.status!=="running")return state;
   const stepMs=raceStepMs(state);
+
+  // A Red Flag freezes official race distance. The shared restart hysteresis
+  // fast-forwards wall-clock conditions while cars remain stationary; movement
+  // resumes only on the following canonical step.
+  if(raceControlFreezesProgress(state)){
+    const suspension=advanceRedFlagSuspension(state);
+    const recoveredWeather=weatherAfterRedFlagRecovery(state?.weatherState,suspension.weatherRow);
+    const recoveredTrack=suspension.weatherRow
+      ?trackStateFromWeatherRow(suspension.weatherRow)
+      :state?.trackState;
+    const frozenCars=neutralizeBattles(state.cars).map((car)=>
+      car?.dnf||car?.status==="finished"
+        ?car
+        :{...car,speedMs:0,speedKmh:0,accelerationMs2:0,targetSpeedKmh:0}
+    );
+    const generatedEvents=sequencedEvents(state,suspension.events||[]);
+    const next={
+      ...state,
+      tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
+      simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
+      session:{
+        ...state.session,
+        weather:recoveredWeather?.current??state?.session?.weather??null,
+        raceControl:suspension.raceControlState,
+        clock:{
+          ...(state?.session?.clock||{}),
+          elapsedMs:Math.max(0,finite(state?.session?.clock?.elapsedMs,0))+stepMs,
+        },
+      },
+      cars:frozenCars,
+      trackState:recoveredTrack,
+      weatherState:recoveredWeather,
+      raceControlState:suspension.raceControlState,
+      events:[...(state?.events||[]),...generatedEvents],
+      nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
+    };
+    return {...next,...projectCanonicalRaceTiming(next)};
+  }
+
   const commands=applyDueRaceCommands(state);
   const workingState={
     ...state,
@@ -208,7 +290,9 @@ export function stepRaceState(state){
     cars:interactionCars,
     pitLaneState:pits.pitLaneState,
   };
-  const overtaking=resolveRaceOvertaking(interactionState,pits.cars,{stepMs});
+  const overtaking=raceControlOvertakingAllowed(interactionState)
+    ?resolveRaceOvertaking(interactionState,pits.cars,{stepMs})
+    :{cars:neutralizeBattles(pits.cars),events:[],bypassPairs:new Set()};
   const spacedCars=enforceRaceTrafficSpacing(interactionState,overtaking.cars,{
     stepMs,
     bypassPairs:overtaking.bypassPairs,
@@ -219,12 +303,17 @@ export function stepRaceState(state){
     incidents.cars,
     [...(overtaking.events||[]),...(incidents.events||[])]
   );
+  const lifecycle=enforceRaceControlAssessment(
+    workingState,
+    conditions.raceControlState,
+    incidents.cars
+  );
   const conditionsState={
     ...workingState,
     cars:incidents.cars,
     trackState:conditions.trackState,
     weatherState:conditions.weatherState,
-    raceControlState:conditions.raceControlState,
+    raceControlState:lifecycle.raceControlState,
   };
   const cars=advanceRaceResources(conditionsState,incidents.cars,{stepMs});
   const rawEvents=[
@@ -233,15 +322,9 @@ export function stepRaceState(state){
     ...(overtaking.events||[]),
     ...(incidents.events||[]),
     ...(conditions.events||[]),
+    ...(lifecycle.events||[]),
   ];
-  const generatedEvents=rawEvents.map((event,index)=>{
-    const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
-    return {
-      id:`${state?.weekendKey??"race"}:${sequence}`,
-      sequence,
-      ...event,
-    };
-  });
+  const generatedEvents=sequencedEvents(state,rawEvents);
   const allResolved=cars.length>0&&cars.every((car)=>car?.dnf||car?.status==="dnf"||car?.status==="finished");
   const status=allResolved?"finished":"running";
 
@@ -254,7 +337,7 @@ export function stepRaceState(state){
       ...state.session,
       phase:status==="finished"?"finished":"race",
       weather:conditions.weatherState?.current??state?.session?.weather??null,
-      raceControl:conditions.raceControlState,
+      raceControl:lifecycle.raceControlState,
       clock:{
         ...(state?.session?.clock||{}),
         elapsedMs:Math.max(0,finite(state?.session?.clock?.elapsedMs,0))+stepMs,
@@ -263,7 +346,7 @@ export function stepRaceState(state){
     cars,
     trackState:conditions.trackState,
     weatherState:conditions.weatherState,
-    raceControlState:conditions.raceControlState,
+    raceControlState:lifecycle.raceControlState,
     pitLaneState:pits.pitLaneState,
     events:[...(state?.events||[]),...generatedEvents],
     nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
