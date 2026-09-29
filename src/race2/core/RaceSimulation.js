@@ -6,6 +6,7 @@
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
 import { raceDynamicsForCar } from "./RaceDynamics.js";
+import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -24,6 +25,29 @@ export function raceStepMs(state){
 function lapLimitFor(state){
   const value=Number(state?.session?.lapLimit);
   return Number.isFinite(value)&&value>0?Math.round(value):null;
+}
+
+function timeToDistanceS(speedMs,accelerationMs2,distanceM,maxTimeS){
+  const speed=Math.max(0,finite(speedMs,0));
+  const acceleration=finite(accelerationMs2,0);
+  const distance=Math.max(0,finite(distanceM,0));
+  const maxTime=Math.max(0,finite(maxTimeS,0));
+  if(distance<=0||maxTime<=0)return 0;
+
+  if(Math.abs(acceleration)<1e-9){
+    if(speed<=1e-9)return maxTime;
+    return Math.min(maxTime,distance/speed);
+  }
+
+  const discriminant=speed*speed+2*acceleration*distance;
+  if(discriminant<0)return maxTime;
+  const root=Math.sqrt(discriminant);
+  const candidates=[
+    (-speed+root)/acceleration,
+    (-speed-root)/acceleration,
+  ].filter((value)=>Number.isFinite(value)&&value>=0&&value<=maxTime+1e-9);
+
+  return candidates.length?Math.min(...candidates):maxTime;
 }
 
 function advanceCar(state,car,stepMs){
@@ -52,7 +76,13 @@ function advanceCar(state,car,stepMs){
   const lapLimit=lapLimitFor(state);
   const finishDistance=lapLimit==null?null:lapLimit*lengthM;
   const finished=finishDistance!=null&&nextAbsolute>=finishDistance;
-  if(finished)nextAbsolute=Number(finishDistance.toFixed(6));
+  let finishTimeMs=finite(car?.finishTimeMs,null);
+  if(finished){
+    const remainingDistance=Math.max(0,finishDistance-currentAbsolute);
+    const crossingTimeS=timeToDistanceS(speedMs,acceleration,remainingDistance,motionTime);
+    finishTimeMs=Number((Math.max(0,finite(state?.simulationTimeMs,0))+crossingTimeS*1000).toFixed(3));
+    nextAbsolute=Number(finishDistance.toFixed(6));
+  }
 
   const completedLaps=Math.max(0,Math.floor(nextAbsolute/lengthM));
   const distanceAlongLapM=finished
@@ -79,7 +109,10 @@ function advanceCar(state,car,stepMs){
     cornerSeverity:Number(finite(dynamics?.cornerSeverity,car?.cornerSeverity||0).toFixed(6)),
     effectiveCornerSeverity:Number(finite(dynamics?.effectiveCornerSeverity,car?.effectiveCornerSeverity||0).toFixed(6)),
     dynamicsLookaheadM:Number(finite(dynamics?.lookaheadM,car?.dynamicsLookaheadM||0).toFixed(6)),
-    elapsedMs:Math.max(0,finite(car?.elapsedMs,0))+stepMs,
+    elapsedMs:finished
+      ?finishTimeMs
+      :Math.max(0,finite(car?.elapsedMs,0))+stepMs,
+    finishTimeMs,
     zoneId:finished?"finish":`sector_${sector}`,
     zoneType:finished?"finish":"sector",
     status:finished?"finished":"running",
@@ -88,7 +121,7 @@ function advanceCar(state,car,stepMs){
 
 export function startRaceState(state){
   if(!state||state.status!=="ready")return state;
-  return {
+  const started={
     ...state,
     status:"running",
     session:{
@@ -101,6 +134,7 @@ export function startRaceState(state){
         :{...car,status:"running"}
     ),
   };
+  return {...started,...projectCanonicalRaceTiming(started)};
 }
 
 export function stepRaceState(state){
@@ -110,7 +144,7 @@ export function stepRaceState(state){
   const allResolved=cars.length>0&&cars.every((car)=>car?.dnf||car?.status==="dnf"||car?.status==="finished");
   const status=allResolved?"finished":"running";
 
-  return {
+  const next={
     ...state,
     tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
     simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
@@ -125,6 +159,7 @@ export function stepRaceState(state){
     },
     cars,
   };
+  return {...next,...projectCanonicalRaceTiming(next)};
 }
 
 export function advanceRaceState(state,{steps=1}={}){
