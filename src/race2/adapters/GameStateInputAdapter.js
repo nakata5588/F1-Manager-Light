@@ -6,7 +6,13 @@ import { driverDerivedRating, driverMistakePropensity } from "../../domain/drive
 import { driverPerformanceEntries } from "../../domain/driverForm.js";
 import { tyresForTeam } from "../../domain/raceTyreModel.js";
 import { carReliabilityProfile } from "../../domain/carReliability.js";
-import { accidentConditionalRetirementChance, accidentIncidentChance, mechanicalRetirementChance } from "../../engine/RaceControlEngine.js";
+import {
+  accidentConditionalRetirementChance,
+  accidentIncidentChance,
+  buildTrackWeatherTimeline,
+  mechanicalRetirementChance,
+  raceControlRulesForYear,
+} from "../../engine/RaceControlEngine.js";
 import { buildTrackModel } from "../track/TrackModel.js";
 import {
   RACE_WEEKEND_CONTRACT_VERSION,
@@ -178,13 +184,36 @@ export function buildRaceWeekendInput(gs,{gp=null,engineVersion=null}={}){
     ?normalizeRaceWeekendEngineVersion(weekend.engine_version,{fallback:RACE_WEEKEND_ENGINES.LEGACY})
     :normalizeRaceWeekendEngineVersion(engineVersion,{fallback:RACE_WEEKEND_ENGINES.LEGACY});
   const roundIndex=finite(weekend?.roundIndex,finite(gs?.currentRound,0));
+  const year=finite(weekend?.year,finite(gs?.activeYear,null));
+  const track=buildTrackModel(gs,{
+    gp,
+    trackId:weekend?.track_id??gp?.track_id??null,
+    year:weekend?.year??gs?.activeYear??gp?.year??null,
+    trackSnapshot:weekend?.race_strategy?.track_snapshot??null,
+  });
+  const weatherSnapshot=cloneRaceContractValue(
+    weekend?.race_strategy?.weather_snapshot
+    ??weekend?.weekend_weather
+    ??{}
+  );
+  const weatherTimeline=track
+    ?buildTrackWeatherTimeline(gs,weatherSnapshot||{},{
+      track_id:track.trackId,
+      laps:track.laps,
+      drainage_rating:finite(track?.traits?.drainage,0.5),
+    })
+    :[];
+  const weather={
+    ...(weatherSnapshot||{}),
+    timeline:cloneRaceContractValue(weatherTimeline),
+  };
 
   return {
     schemaVersion:RACE_WEEKEND_CONTRACT_VERSION,
     engineVersion:lockedEngine,
     weekendKey:weekend?.key??null,
     seed:getSaveSeed(gs),
-    year:finite(weekend?.year,finite(gs?.activeYear,null)),
+    year,
     round:finite(weekend?.round,roundIndex==null?null:roundIndex+1),
     gp:normalizedGp(gp,weekend),
     entries:cloneRaceContractValue(entries),
@@ -195,17 +224,11 @@ export function buildRaceWeekendInput(gs,{gp=null,engineVersion=null}={}){
       race:weekend?.race_strategy?.rules_snapshot??null,
       points:gs?.pointsSystem??null,
     }),
-    track:cloneRaceContractValue(buildTrackModel(gs,{
-      gp,
-      trackId:weekend?.track_id??gp?.track_id??null,
-      year:weekend?.year??gs?.activeYear??gp?.year??null,
-      trackSnapshot:weekend?.race_strategy?.track_snapshot??null,
-    })),
-    weather:cloneRaceContractValue(
-      weekend?.race_strategy?.weather_snapshot
-      ??weekend?.weekend_weather
-      ??null
-    ),
+    track:cloneRaceContractValue(track),
+    weather:cloneRaceContractValue(weather),
+    raceControl:cloneRaceContractValue({
+      rules:raceControlRulesForYear(year),
+    }),
     startingGrid:cloneRaceContractValue(
       weekend?.startingGrid?.rows
       ??weekend?.grid
