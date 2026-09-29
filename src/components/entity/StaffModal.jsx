@@ -64,7 +64,7 @@ export default function StaffModal({entity,onClose,pageMode=false}){
   const backerStakeholder=useMemo(()=>currentStakeholderTeamForStaff(gs,id,"sponsor_backer"),[gs,id]);
   const stakeholder=ownerStakeholder||backerStakeholder||null;
 
-  if(!staff&&!contract){
+  if(!staff&&!contract&&!stakeholder){
     return <div className="rounded-2xl border border-white/10 bg-[#090b10] p-6 text-slate-100">
       <div className="flex justify-between"><h3 className="font-semibold">Staff member not found</h3>{!pageMode&&<button onClick={onClose}><X size={18}/></button>}</div>
       <p className="text-sm text-slate-500">{id}</p>
