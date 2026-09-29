@@ -435,7 +435,7 @@ export default function NewGame() {
                         <label className="text-sm">Date of birth<input type="date" value={manager.date_of_birth} onChange={(e)=>{setDobTouched(true);patchManager({date_of_birth:e.target.value});}} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5"/></label>
                         <label className="text-sm">Place of birth <span className="text-[10px] text-slate-500">(optional)</span><input value={manager.place_of_birth} onChange={(e)=>patchManager({place_of_birth:e.target.value})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#0d0f15] px-3 py-1.5" placeholder="City, Country"/></label>
                       </div>
-                      {managerPreviewAge!=null&&managerPreviewAge<21?<div className="text-xs text-amber-300">The Team Manager must be at least 21 at the start of the selected season.</div>:null}
+                      {managerPreviewAge!=null&&managerPreviewAge<21?<div className="text-xs text-amber-300">The Team Principal must be at least 21 at the start of the selected season.</div>:null}
 
                       <div>
                         <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-slate-500">Background</div>
