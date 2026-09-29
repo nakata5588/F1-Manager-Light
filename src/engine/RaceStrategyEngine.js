@@ -10,6 +10,10 @@ import { combinedRacePerformance } from "../domain/driverPerformance.js";
 import { driverCondition } from "../domain/driverRating.js";
 import { staffStrategyDecisionDelta } from "../domain/staffPerformance.js";
 import { raceEntryTeamForDriver } from "../domain/raceEntry.js";
+import {
+  raceControlLapDeltaS,
+  raceControlPitLaneLossMultiplier,
+} from "../domain/raceControlPaceModel.js";
 import { incidentForDriver, raceControlAtLap } from "./RaceControlEngine.js";
 import { incidentDamageStateThrough } from "./CarDamageEngine.js";
 import { buildPitServiceSchedule } from "./PitServiceEngine.js";
@@ -1042,7 +1046,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
         });
         const expectedStationary=Math.max(0,Number(expectedSchedule.total_stationary_s)||0);
         const stationary=Math.max(0,Number(actualSchedule.total_stationary_s)||0)+errorDelay;
-        const pitLaneMultiplier=control.type==="SAFETY_CAR"?0.58:control.type==="VSC"?0.76:control.type==="RED_FLAG"?0.35:1;
+        const pitLaneMultiplier=raceControlPitLaneLossMultiplier(control.type);
         const pitLaneLoss=track.pit_lane_loss_s*pitLaneMultiplier;
         const loss=pitLaneLoss+stationary;
         totalMs+=Math.round(loss*1000);
@@ -1115,7 +1119,7 @@ export function simulateManagedRace(gs,{gp={},grid=[],ratings=gs?.driverRatings|
             :0
         :0;
       const gridTraffic=lap===1?(gridIndex)*0.055*(0.75+track.overtaking_difficulty/100):0;
-      const controlDelta=control.type==="SAFETY_CAR"?Math.max(12,18-gridIndex*0.30):control.type==="VSC"?7.5:control.type==="RED_FLAG"?26:control.type==="LOCAL_YELLOW"?1.2:0;
+      const controlDelta=raceControlLapDeltaS(control.type,{positionIndex:gridIndex});
       const noise=(rng.next()-0.5)*(control.type==="GREEN"?0.62:0.20);
       const lapSeconds=(track.reference_lap_ms/1000)+perfPenalty+gripDelta+wearPenalty+warmupPenalty+
         (Number.isFinite(wetness)
