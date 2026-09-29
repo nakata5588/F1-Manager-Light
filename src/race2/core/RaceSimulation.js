@@ -9,6 +9,7 @@ import { normalizeRaceStepMs } from "./RaceState.js";
 import { raceAccelerationForTarget, raceDynamicsForCar } from "./RaceDynamics.js";
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
+import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -174,7 +175,19 @@ export function stepRaceState(state){
   if(!state||state.status!=="running")return state;
   const stepMs=raceStepMs(state);
   const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
-  const cars=enforceRaceTrafficSpacing(state,proposedCars,{stepMs});
+  const overtaking=resolveRaceOvertaking(state,proposedCars,{stepMs});
+  const cars=enforceRaceTrafficSpacing(state,overtaking.cars,{
+    stepMs,
+    bypassPairs:overtaking.bypassPairs,
+  });
+  const generatedEvents=(overtaking.events||[]).map((event,index)=>{
+    const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
+    return {
+      id:`${state?.weekendKey??"race"}:${sequence}`,
+      sequence,
+      ...event,
+    };
+  });
   const allResolved=cars.length>0&&cars.every((car)=>car?.dnf||car?.status==="dnf"||car?.status==="finished");
   const status=allResolved?"finished":"running";
 
@@ -192,6 +205,8 @@ export function stepRaceState(state){
       },
     },
     cars,
+    events:[...(state?.events||[]),...generatedEvents],
+    nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
   };
   return {...next,...projectCanonicalRaceTiming(next)};
 }
