@@ -33,7 +33,7 @@ import Scouting from "./pages/Scouting.jsx";
 import Settings from "./pages/Settings.jsx";
 import Staff from "./pages/Staff.jsx";
 import Standings from "./pages/Standings.jsx";
-import Champions from "./pages/Champions.jsx";
+import World from "./pages/World.jsx";
 import Team from "./pages/Team.jsx";
 import Results from "./pages/Results.jsx";
 import RaceWeekend from "./pages/RaceWeekend.jsx";
@@ -198,7 +198,8 @@ export default function App() {
           <Route path="/MyStaff" element={<MyStaff />} />
           <Route path="/Standings" element={<Standings />} />
           <Route path="/Results" element={<Results />} />
-          <Route path="/Champions" element={<Champions />} />
+          <Route path="/World" element={<World />} />
+          <Route path="/Champions" element={<Navigate to="/World?view=champions" replace />} />
           <Route path="/GameSettings" element={<Settings embedded />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
           <Route path="/Development" element={<Navigate to="/Car?view=development" replace />} />

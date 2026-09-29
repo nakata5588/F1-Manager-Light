@@ -14,7 +14,7 @@ import {
   GraduationCap,
   Search,
   Trophy,
-  Medal,
+  Globe2,
   Flag,
   PiggyBank,
   ClipboardList,
@@ -160,7 +160,6 @@ export default function Sidebar() {
       <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">Season</div>
       <Item to="/Standings" label="Standings" icon={Trophy} brand={brand} />
       <Item to="/Results" label="Results" icon={Flag} brand={brand} />
-      <Item to="/Champions" label="Champions" icon={Medal} brand={brand} />
       {!unemployed?<Item to="/Finances" label="Finances" icon={PiggyBank} brand={brand} />:null}
       {!unemployed?<Item to="/Board" label="Board" icon={ClipboardList} brand={brand} badge={attention.board} />:null}
 
@@ -168,6 +167,7 @@ export default function Sidebar() {
       <Item to="/Teams" label="All Teams" icon={Car} brand={brand} />
       <Item to="/Drivers" label="Driver Market" icon={UsersRound} brand={brand} />
       <Item to="/Staff" label="All Staff" icon={Users} brand={brand} />
+      <Item to="/World" label="World" icon={Globe2} brand={brand} />
 
       <div className="mt-auto border-t border-white/10 pt-2">
         <Item to="/GameSettings" label="Settings" icon={SettingsIcon} brand={brand} />
