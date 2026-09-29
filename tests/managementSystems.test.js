@@ -640,7 +640,7 @@ test("AI Staff hiring respects budget and approaches contracted upgrades instead
   assert.equal(poor.staffContracts.some((row)=>String(row.team_id)==="T2"&&row.staff_id==="S_FREE"),false);
 
   const contracted=applyStaffMarketTick(staffMarketFixture({
-    incumbentScore:55,candidateScore:95,candidateContracted:true,
+    incumbentScore:55,candidateScore:85,candidateContracted:true,
   }));
   const active=contracted.staffContracts.find((row)=>
     String(row.team_id)==="T2"&&row.status==="active"&&String(row.role)==="team_principal"
@@ -903,7 +903,7 @@ test("Stakeholder history records ownership and backing separately from employme
 
 test("accepted AI contracted-Staff pursuit pays the seller and completes a material upgrade",()=>{
   let gs=staffMarketFixture({
-    incumbentScore:55,candidateScore:95,candidateContracted:true,
+    incumbentScore:55,candidateScore:85,candidateContracted:true,
   });
   gs.inbox=[];
   gs.financeLog=[];
@@ -925,4 +925,44 @@ test("accepted AI contracted-Staff pursuit pays the seller and completes a mater
   assert.equal(hired.source,"ai_staff_transfer");
   assert.equal(next.teams.find((row)=>row.team_id==="T2").budget,5_000_000-fee);
   assert.equal(next.teams.find((row)=>row.team_id==="T3").budget,5_000_000+fee);
+});
+
+
+test("Staff transfer does not move money when combined fee and incumbent termination are unaffordable",()=>{
+  const gs=staffMarketFixture({candidateScore:85,candidateContracted:true});
+  gs.finances={balance:300_000,budget:300_000,season_spend:0,season_income:0};
+  gs.team={...gs.team,budget:300_000};
+  gs.teams=gs.teams.map((team)=>team.team_id==="T1"?{...team,budget:300_000}:team);
+  gs.inbox=[];
+  gs.financeLog=[];
+
+  // Eligibility may reject immediately if even the fee alone is unaffordable.
+  // Raise just enough for an offer when needed, but keep the package below
+  // fee + incumbent termination.
+  let eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  if(!eligibility.canNegotiate){
+    const fee=Number(eligibility?.buyout?.fee||0);
+    const incumbent=gs.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
+    const termination=staffTerminationCost(gs,incumbent);
+    const balance=Math.max(fee+1,Math.min(fee+termination-1,fee+25_000));
+    gs.finances={...gs.finances,balance,budget:balance};
+    gs.team={...gs.team,budget:balance};
+    gs.teams=gs.teams.map((team)=>team.team_id==="T1"?{...team,budget:balance}:team);
+    eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  }
+  assert.equal(eligibility.canNegotiate,true);
+
+  const opening=Number(gs.finances.balance);
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:1},
+  });
+  const id=next.staffNegotiations[0].id;
+  next={...next,currentDateISO:"1980-08-02"};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[id]:"accepted"}});
+
+  assert.equal(next.staffNegotiations[0].status,"rejected");
+  assert.equal(next.finances.balance,opening);
+  assert.equal(next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T3").status,"active");
+  assert.equal(next.financeLog.length,0);
 });
