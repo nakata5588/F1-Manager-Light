@@ -11,6 +11,7 @@
 import { gameplayRngFor } from "../core/random.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { isRaceDriverContract } from "../domain/contractRoles.js";
+import { rebuildLowerSeriesProspects } from "../domain/lowerSeriesProspects.js";
 import { applyLowerSeriesWorldToDrivers } from "../domain/lowerSeriesWorld.js";
 
 export const LOWER_SERIES_SIMULATION_MODEL="lower_series_light_v1";
@@ -78,6 +79,20 @@ function cloneWorld(world){
         points_table:rows(value?.points_table).slice(),
         drivers:rows(value?.drivers).map((row)=>({...row})),
         teams:rows(value?.teams).map((row)=>({...row})),
+      }])
+    ),
+    prospects:Object.fromEntries(
+      Object.entries(world.prospects||{}).map(([id,value])=>[id,{
+        ...(value||{}),
+        performance:value?.performance?{...value.performance}:null,
+        f1_interest:rows(value?.f1_interest).map((row)=>({
+          ...row,
+          connection_sources:rows(row?.connection_sources).slice(),
+        })),
+        best_f1_interest:value?.best_f1_interest?{
+          ...value.best_f1_interest,
+          connection_sources:rows(value.best_f1_interest?.connection_sources).slice(),
+        }:null,
       }])
     ),
     events:rows(world.events).map((row)=>({
@@ -398,6 +413,14 @@ export function initializeLowerSeriesSeason(gameState){
       ),
     };
   }
+
+  world={
+    ...world,
+    prospects:rebuildLowerSeriesProspects(
+      {...gameState,lowerSeriesWorld:world},
+      world
+    ),
+  };
 
   const excluded=[...activeF1RaceDriverIds(gameState)];
   const drivers=applyLowerSeriesWorldToDrivers(
@@ -777,6 +800,13 @@ export function processLowerSeriesTick(gameState,{throughDate=null}={}){
     ),
   };
   world={...world,standings:rebuildStandings(world)};
+  world={
+    ...world,
+    prospects:rebuildLowerSeriesProspects(
+      {...state,lowerSeriesWorld:world},
+      world
+    ),
+  };
 
   const excluded=[...activeF1RaceDriverIds(state)];
   return {

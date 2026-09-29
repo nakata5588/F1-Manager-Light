@@ -21,6 +21,7 @@ import {
   managerTeamSwitchBlocked,
   materializeTeamForPlayer,
 } from "../domain/managerTeamControl.js";
+import { applyManagerCareerProgression } from "../domain/managerProgression.js";
 
 const text=(value)=>String(value??"");
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
@@ -450,6 +451,12 @@ export async function autosimUnemployedRaceIfDue(gs){
 
 export function processManagerCareerTick(gs,{forceDismiss=false}={}){
   if(!gs?.manager)return gs;
+
+  // Career progression consumes only already-archived official race results.
+  // Run it before employment decisions so the final GP of a tenure is credited
+  // even if the Board dismisses the manager on the same daily tick.
+  gs=applyManagerCareerProgression(gs);
+
   if(!playerManagerIsActiveTeamPrincipal(gs)){
     return processManagerJobApplications(gs);
   }

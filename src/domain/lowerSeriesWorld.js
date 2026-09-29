@@ -23,8 +23,9 @@ import {
   lowerSeriesWorldTeamFromFact,
   matchLowerSeriesTeamFact,
 } from "./lowerSeriesTeams.js";
+import { carryLowerSeriesProspect } from "./lowerSeriesProspects.js";
 
-export const LOWER_SERIES_WORLD_VERSION=3;
+export const LOWER_SERIES_WORLD_VERSION=4;
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -196,6 +197,7 @@ function emptyWorld(year,sourceSeason=year){
     teams:{},
     entries:{},
     standings:{},
+    prospects:{},
     events:[],
     results:[],
     history:[],
@@ -348,8 +350,23 @@ function archiveWorldSeason(world){
     standings:Object.fromEntries(
       Object.entries(world.standings||{}).map(([id,value])=>[id,{
         ...(value||{}),
+        points_table:rows(value?.points_table).slice(),
         drivers:rows(value?.drivers).map((row)=>({...row})),
         teams:rows(value?.teams).map((row)=>({...row})),
+      }])
+    ),
+    prospects:Object.fromEntries(
+      Object.entries(world.prospects||{}).map(([id,value])=>[id,{
+        ...(value||{}),
+        performance:value?.performance?{...value.performance}:null,
+        f1_interest:rows(value?.f1_interest).map((row)=>({
+          ...row,
+          connection_sources:rows(row?.connection_sources).slice(),
+        })),
+        best_f1_interest:value?.best_f1_interest?{
+          ...value.best_f1_interest,
+          connection_sources:rows(value.best_f1_interest?.connection_sources).slice(),
+        }:null,
       }])
     ),
     events:rows(world.events).map((row)=>({...row})),
@@ -382,6 +399,9 @@ export function rollLowerSeriesWorld(world,{
     :{};
   const previousTeams=previous.teams&&typeof previous.teams==="object"
     ?previous.teams
+    :{};
+  const previousProspects=previous.prospects&&typeof previous.prospects==="object"
+    ?previous.prospects
     :{};
 
   const next=emptyWorld(year,previous.source_season??previous.season_year??year);
@@ -461,6 +481,12 @@ export function rollLowerSeriesWorld(world,{
 
   next.entries=Object.fromEntries(Object.entries(entries).sort(([a],[b])=>a.localeCompare(b)));
   next.teams=Object.fromEntries(Object.entries(teams).sort(([a],[b])=>a.localeCompare(b)));
+  next.prospects=Object.fromEntries(
+    Object.keys(next.entries)
+      .sort()
+      .map((id)=>[id,carryLowerSeriesProspect(previousProspects[id]||null,year)])
+      .filter(([,value])=>Boolean(value))
+  );
   return next;
 }
 
@@ -485,11 +511,14 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
         lower_series_level:null,
         lower_series_candidates:[],
         lower_series_resolution:"left_for_f1_race_seat",
+        lower_series_prospect_reputation:null,
+        lower_series_f1_interest:[],
       };
     }
 
     const entry=lowerSeriesEntry(world,id);
     if(!entry)return driver;
+    const prospect=world?.prospects?.[id]||null;
 
     return {
       ...driver,
@@ -502,6 +531,10 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
       lower_series_rule_id:entry.rule_id,
       lower_series_team_id:entry.lower_team_id,
       lower_series_team_name:entry.team_name,
+      lower_series_prospect_reputation:prospect?.prospect_reputation??null,
+      lower_series_f1_interest:rows(prospect?.f1_interest).map((row)=>({...row})),
+      lower_series_best_f1_interest:prospect?.best_f1_interest?{...prospect.best_f1_interest}:null,
+      lower_series_academy_team_id:prospect?.academy_team_id??null,
       world_runtime_source:"lower_series_world",
     };
   });
