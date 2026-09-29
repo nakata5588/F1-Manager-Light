@@ -34,6 +34,28 @@ export function seriesNameOf(series){
   return text(series?.series_name??series?.name??series?.short_name??series?.series_short_name??seriesIdOf(series));
 }
 
+export const SERIES_COMPETITION_MODELS=Object.freeze({
+  TEAM_BASED:"TEAM_BASED",
+  CENTRAL_OPERATION:"CENTRAL_OPERATION",
+});
+
+export function seriesCompetitionModel(series){
+  const raw=text(
+    series?.competition_model??
+    series?.competitionModel??
+    series?.team_model??
+    series?.entry_model
+  ).toUpperCase().replace(/[^A-Z0-9]+/g,"_");
+  if(["CENTRAL_OPERATION","CENTRAL","SPEC_CENTRAL","DRIVER_ONLY","INDIVIDUAL"].includes(raw)){
+    return SERIES_COMPETITION_MODELS.CENTRAL_OPERATION;
+  }
+  return SERIES_COMPETITION_MODELS.TEAM_BASED;
+}
+
+export function seriesHasTeamCompetition(series){
+  return seriesCompetitionModel(series)===SERIES_COMPETITION_MODELS.TEAM_BASED;
+}
+
 function normalized(value){
   return text(value).toLowerCase().normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
