@@ -134,6 +134,58 @@ test("RW8.10 contact uses the shared CarDamageEngine and persists canonical dama
   assert.equal(first.events.filter((event)=>event.type==="damage").length,2);
 });
 
+test("RW8.10 contact retirement is independent from solo-accident conditional retirement calibration",()=>{
+  let base=runningState({accidentRetirementChance:0});
+  base=patchCars(base,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:42,speedKmh:151.2,effectiveCornerSeverity:0.15},
+    C2:{absoluteDistanceM:99,distanceAlongLapM:99,speedMs:40,speedKmh:144,effectiveCornerSeverity:0.15},
+  });
+  const source=[{
+    type:"contact",
+    carIds:["C1","C2"],
+    driverIds:["D1","D2"],
+    payload:{attemptId:"contact-retirement-calibration"},
+  }];
+
+  const lowConditional=resolveRaceIncidents(base,base.cars,source,{stepMs:100});
+  const highState={
+    ...base,
+    cars:base.cars.map((row)=>({
+      ...row,
+      reliability:{...row.reliability,accidentConditionalRetirementChance:1},
+    })),
+  };
+  const highConditional=resolveRaceIncidents(highState,highState.cars,source,{stepMs:100});
+
+  assert.deepEqual(
+    lowConditional.cars.map((row)=>({carId:row.carId,dnf:row.dnf,damage:row.damage})),
+    highConditional.cars.map((row)=>({carId:row.carId,dnf:row.dnf,damage:row.damage}))
+  );
+});
+
+test("RW8.10 finish-crossing distance still contributes to incident exposure",()=>{
+  let state=runningState({mechanicalChance:1});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:3990,distanceAlongLapM:990,completedLaps:3,lap:4,status:"running"},
+  });
+  const moved=state.cars.map((row)=>row.carId==="C1"?{
+    ...row,
+    absoluteDistanceM:4000,
+    distanceAlongLapM:0,
+    completedLaps:4,
+    lap:4,
+    status:"finished",
+    speedMs:55,
+    speedKmh:198,
+  }:row);
+
+  const resolved=resolveRaceIncidents(state,moved,[],{stepMs:100});
+  const failed=car({cars:resolved.cars},"C1");
+  assert.equal(failed.dnf,true);
+  assert.equal(failed.retirement.kind,"mechanical");
+  assert.ok(resolved.events.some((event)=>event.type==="mechanical_failure"&&event.carIds.includes("C1")));
+});
+
 test("RW8.10 guaranteed mechanical exposure creates canonical DNF with reason",()=>{
   let state=runningState({mechanicalChance:1});
   const moved=state.cars.map((row)=>({
