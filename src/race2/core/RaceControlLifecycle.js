@@ -219,6 +219,28 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
   }
 
   if(current!=="GREEN"){
+    if(recommended!=="GREEN"){
+      const duration=raceControlDurationLaps(
+        recommended,
+        deterministicUnit(state,`downgrade:${current}:${recommended}:${state?.tick}:${referenceLap}`)
+      );
+      return {
+        raceControlState:{
+          ...control,
+          mode:recommended,
+          source:assessedControl?.source??previous?.source??null,
+          activatedTick:Math.max(0,Math.floor(finite(state?.tick,0))),
+          activatedReferenceLap:referenceLap,
+          minimumReleaseLap:referenceLap+Math.max(1,duration),
+          sequence:finite(previous?.sequence,0)+1,
+          redFlagLifecycle:null,
+        },
+        events:[lifecycleEvent(state,current,recommended,assessedControl?.source??"downgrade",{
+          durationLaps:duration,
+          referenceLap,
+        })],
+      };
+    }
     return {
       raceControlState:{
         ...control,
