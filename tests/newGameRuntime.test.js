@@ -337,3 +337,16 @@ test("daily advance paths share one canonical subsystem pipeline and fail closed
   assert.match(storeSource,/throw dailyPipelineFailure\("RaceWeekend state sync",e\)/);
   assert.match(buttonSource,/title: "Advance failed"/);
 });
+
+
+test("season rollover is atomic and never fabricates a partial next season",async()=>{
+  const [storeSource,modalSource]=await Promise.all([
+    fs.readFile(new URL("../src/state/GameStore.js",import.meta.url),"utf8"),
+    fs.readFile(new URL("../src/components/entity/SeasonSummaryModal.jsx",import.meta.url),"utf8"),
+  ]);
+  assert.equal(storeSource.includes("rolloverSeason fallback:"),false);
+  assert.match(storeSource,/const nextState=processPlayerTechnicalLifecycle\(rolloverSeasonPure\(st,nextYear\)\)/);
+  assert.match(storeSource,/return \{ok:false,error\}/);
+  assert.equal(modalSource.includes('setGameState({ showSeasonSummary: false });\n    await rolloverSeason(nextYear);'),false);
+  assert.match(modalSource,/if\(result\?\.ok===false\)/);
+});
