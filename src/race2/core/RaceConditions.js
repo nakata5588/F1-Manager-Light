@@ -297,9 +297,9 @@ export function advanceRaceConditions(state,cars,sourceEvents=[]){
     weatherState,
     raceControlState:{
       ...(state?.raceControlState||initialRaceControlState({})),
-      model:"rw8.11a",
+      model:state?.raceControlState?.model??"rw8.11a",
       phase:"assessment",
-      mode:"GREEN",
+      mode:text(state?.raceControlState?.mode||"GREEN").toUpperCase(),
       recommendedMode:nextMode,
       source:nextMode==="GREEN"?null:chosen?.source??null,
       referenceLap,
