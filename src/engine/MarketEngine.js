@@ -65,7 +65,7 @@ function candidateForTeam(gs,drivers,teamId,role){
   const ranked=rankAiRecruitmentCandidates(gs,candidates,teamId,role,{
     activeOfferCount:(driverId)=>activeOfferCount(gs,driverId),
   });
-  return ranked[0]?.driver||null;
+  return ranked[0]||null;
 }
 
 function renewalRetentionChance(gs,contract){
@@ -153,7 +153,8 @@ export function applyMarketTick(gs){
         .filter((role)=>["Main Driver","Second Driver","Reserve Driver"].includes(role));
 
       for(const role of targetRoles){
-        const driver=candidateForTeam(next,f1EligibleDrivers,tid,role);
+        const candidate=candidateForTeam(next,f1EligibleDrivers,tid,role);
+        const driver=candidate?.driver||null;
         if(!driver)break;
         const did=driverIdOf(driver);
         const expected=expectedDriverSalary(next,did,{role});
@@ -168,6 +169,7 @@ export function applyMarketTick(gs){
             role,
           },
           origin:"ai",
+          lowerSeriesOpportunity:candidate?.fit?.lower_series_opportunity||null,
         });
       }
 
