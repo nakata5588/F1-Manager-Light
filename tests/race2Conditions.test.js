@@ -54,7 +54,7 @@ function input({
   ],
 }={}){
   return {
-    schemaVersion:12,
+    schemaVersion:13,
     engineVersion:"rw2",
     weekendKey:"rw8.11a-conditions",
     seed:"rw8.11a",
@@ -97,13 +97,16 @@ function input({
 
 test("RW8.11A initial RaceState materialises canonical weather, track and era Race Control state",()=>{
   const state=createRaceState(input());
-  assert.equal(state.schemaVersion,10);
+  assert.equal(state.schemaVersion,11);
   assert.equal(state.trackState.weatherState,"SUNNY");
   assert.equal(state.trackState.referenceLap,1);
   assert.equal(state.weatherState.currentLap,1);
   assert.equal(state.weatherState.timeline.length,3);
   assert.equal(state.raceControlState.rules.era_id,"pre_standard_safety_car");
   assert.equal(state.raceControlState.recommendedMode,"GREEN");
+  assert.equal(state.raceControlState.model,"rw8.11b");
+  assert.equal(state.raceControlState.phase,"enforced");
+  assert.equal(state.raceControlState.sequence,0);
 });
 
 test("RW8.11A conditions follow the leader reference lap from the snapshotted weather timeline",()=>{
@@ -198,5 +201,5 @@ test("RW8.11A fixed-step simulation persists canonical condition state",()=>{
   assert.equal(next.trackState.referenceLap,2);
   assert.equal(next.weatherState.currentLap,2);
   assert.equal(next.session.weather.state,"LIGHT_RAIN");
-  assert.equal(next.session.raceControl.model,"rw8.11a");
+  assert.equal(next.session.raceControl.model,"rw8.11b");
 });

@@ -420,11 +420,17 @@ function responseForIncident(rules,incident,weatherLap){
     weatherRow:weatherLap,
   }).action;
 }
-function durationFor(response,rng,laps){
+export function raceControlDurationLaps(response,roll=0){
+  const unit=Math.max(0,Math.min(0.999999,Number(roll)||0));
   if(response==="RED_FLAG")return 1;
-  if(response==="SAFETY_CAR")return 2+Math.floor(rng.next()*3);
-  if(response==="VSC")return 1+Math.floor(rng.next()*2);
+  if(response==="SAFETY_CAR")return 2+Math.floor(unit*3);
+  if(response==="VSC")return 1+Math.floor(unit*2);
   return 1;
+}
+function durationFor(response,rng,laps){
+  void laps;
+  const needsRoll=response==="SAFETY_CAR"||response==="VSC";
+  return raceControlDurationLaps(response,needsRoll?rng.next():0);
 }
 function mergePeriods(periods,totalLaps){
   const sorted=periods.slice().sort((a,b)=>periodStartOrdinal(a)-periodStartOrdinal(b)||a.priority-b.priority);

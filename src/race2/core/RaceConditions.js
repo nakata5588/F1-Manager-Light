@@ -166,8 +166,8 @@ function weatherStateFromRow(base,row){
 
 function initialRaceControlState(input){
   return {
-    model:"rw8.11a",
-    phase:"assessment",
+    model:"rw8.11b",
+    phase:"enforced",
     mode:"GREEN",
     recommendedMode:"GREEN",
     source:null,
@@ -175,6 +175,11 @@ function initialRaceControlState(input){
     rules:{...(input?.raceControl?.rules||{})},
     assessment:null,
     updatedTick:0,
+    activatedTick:null,
+    activatedReferenceLap:null,
+    minimumReleaseLap:null,
+    sequence:0,
+    redFlagLifecycle:null,
   };
 }
 
@@ -297,9 +302,9 @@ export function advanceRaceConditions(state,cars,sourceEvents=[]){
     weatherState,
     raceControlState:{
       ...(state?.raceControlState||initialRaceControlState({})),
-      model:"rw8.11a",
+      model:state?.raceControlState?.model??"rw8.11a",
       phase:"assessment",
-      mode:"GREEN",
+      mode:text(state?.raceControlState?.mode||"GREEN").toUpperCase(),
       recommendedMode:nextMode,
       source:nextMode==="GREEN"?null:chosen?.source??null,
       referenceLap,
