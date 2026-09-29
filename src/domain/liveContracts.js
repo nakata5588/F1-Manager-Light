@@ -47,7 +47,7 @@ export function contractEndYear(contract,fallbackYear=NaN){
 
 export function contractStartYear(contract,fallbackYear=NaN){
   const direct=Number(pickValue(contract,["year","season_year"],fallbackYear));
-  const value=Number(pickValue(contract,["contract_start_year","start_year"],direct));
+  const value=Number(pickValue(contract,["contract_start_year","contract_start","start_year"],direct));
   return Number.isFinite(value)?value:(Number.isFinite(direct)?direct:Number(fallbackYear));
 }
 
