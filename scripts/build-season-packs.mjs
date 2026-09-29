@@ -19,7 +19,7 @@ await fs.mkdir(outRoot,{recursive:true});
 const [
   drivers,calendar,teams,driverRatings,historicalRatingSnapshots,driverRatingProfiles,
   driverYearStatus,driverOpeningState,driverDevelopmentHistory,driverAvailabilityHistory,driverTeamHistory,
-  teamEngineHistory,carCompetitiveness,driverCareer,series,seriesRules,driverHistory,historicalChampionships,teamLineageHistory,staffRatings,staffCore,
+  teamEngineHistory,carCompetitiveness,driverCareer,series,seriesRules,lowerSeriesTeams,driverHistory,historicalChampionships,teamLineageHistory,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
@@ -41,6 +41,7 @@ const [
   readJson("driver_career.json"),
   readJson("series.json",[]),
   readJson("series_rules.json",[]),
+  readJson("lower_series_teams.json",[]),
   readJson("driver_f1_history.json"),
   readJson("historical_championships.json",{drivers:[],constructors:[]}),
   readJson("team_lineage_history.json",[]),
@@ -74,7 +75,7 @@ const [
 const globalData={
   drivers,calendar,teams,driverRatings,historicalRatingSnapshots,driverRatingProfiles,
   driverYearStatus,driverOpeningState,driverDevelopmentHistory,driverAvailabilityHistory,driverTeamHistory,
-  teamEngineHistory,carCompetitiveness,driverCareer,series,seriesRules,driverHistory,historicalChampionships,teamLineageHistory,staffRatings,staffCore,
+  teamEngineHistory,carCompetitiveness,driverCareer,series,seriesRules,lowerSeriesTeams,driverHistory,historicalChampionships,teamLineageHistory,staffRatings,staffCore,
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel:Array.isArray(accidentModel)?accidentModel:Object.values(accidentModel||{}),
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,

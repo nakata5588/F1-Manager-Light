@@ -89,7 +89,7 @@ async function fetchOptional(path, fallback = []) {
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
 const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings","dbSeries","dbSeriesRules",
+  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings","dbSeries","dbSeriesRules","dbLowerSeriesTeams",
   "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
   "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
   "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
@@ -466,6 +466,7 @@ export const useGame = create((set, get) => ({
     dbWeatherProfiles: [],
     dbWeatherStates: [],
     dbPitcrewRoster: [],
+    dbLowerSeriesTeams: [],
 
     yearsAvailable: [],
     seasonPackIndex: [],
@@ -480,6 +481,7 @@ export const useGame = create((set, get) => ({
     driverWorldEntry: [],
     driverFeederPlacement: [],
     driverOpeningState: [],
+    lowerSeriesTeams: [],
     staffRatings: [],
     staffCore: [],
     teamBrands: [],
@@ -789,7 +791,7 @@ export const useGame = create((set, get) => ({
         tyresRaw, pointsSystemsRaw, qualifyingRulesRaw, qualifyingRuleOverridesRaw, penaltiesRulesRaw, financialRulesRaw, boardGoalsRaw,
         agendaBlocksRaw, logosIndexRaw, aiDifficultyRaw, contractRulesRaw, youthIntakeRaw,
         scoutingZonesRaw, trackLayoutByYearRaw, teamSeasonsRaw, teamConstructorBridgeRaw, teamLineageHistoryRaw, coreTracksRaw,
-        weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seriesRaw, seriesRulesRaw, seasonIndexRaw,
+        weatherProfilesRaw, weatherStatesRaw, pitcrewRosterRaw, seriesRaw, seriesRulesRaw, lowerSeriesTeamsRaw, seasonIndexRaw,
       ] = await Promise.all([
         fetchJsonSafe("/data/drivers.json"),
         fetchJsonSafe("/data/calendar.json"),
@@ -838,6 +840,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/pitcrew_roster.json", []),
         fetchOptional("/data/series.json", []),
         fetchOptional("/data/series_rules.json", []),
+        fetchOptional("/data/lower_series_teams.json", []),
         fetchOptional("/data/seasons/index.json", { years: [] }),
       ]);
 
@@ -890,6 +893,7 @@ export const useGame = create((set, get) => ({
       const pitcrewRoster       = unexcelDeep(pitcrewRosterRaw);
       const series               = unexcelDeep(seriesRaw);
       const seriesRules          = unexcelDeep(seriesRulesRaw);
+      const lowerSeriesTeams     = unexcelDeep(lowerSeriesTeamsRaw);
       const seasonPackIndex      = Array.isArray(seasonIndexRaw?.years) ? unexcelDeep(seasonIndexRaw.years) : [];
 
       const packYears = seasonPackIndex
@@ -955,6 +959,7 @@ export const useGame = create((set, get) => ({
           dbPitcrewRoster: pitcrewRoster,
           dbSeries: series,
           dbSeriesRules: seriesRules,
+          dbLowerSeriesTeams: lowerSeriesTeams,
           coreTracks,
           trackLayoutByYear,
 

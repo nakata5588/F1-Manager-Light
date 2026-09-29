@@ -251,6 +251,10 @@ test("fresh career creates a new lowerSeriesWorld from the selected opening seas
       {series_id:"s_f2",series_name:"European Formula Two",series_level:2,start_year:1967,end_year:1984},
     ],
     dbSeriesRules:[],
+    dbLowerSeriesTeams:[
+      {lower_team_id:"LT_OPEN",team_name:"Opening Team",series_id:"s_f2",valid_from:1979,valid_to:1982},
+      {lower_team_id:"LT_FUTURE",team_name:"Future Team",series_id:"s_f2",valid_from:1981,valid_to:1982},
+    ],
     drivers:[
       {driver_id:"D1",display_name:"Prospect",dob:"1958-01-01",status:"lower_series",active_lower_series:true},
     ],
@@ -278,6 +282,9 @@ test("fresh career creates a new lowerSeriesWorld from the selected opening seas
   assert.equal(fresh.lowerSeriesWorld.entries.OLD,undefined);
   assert.equal(fresh.lowerSeriesWorld.entries.D1.series_id,"s_f2");
   assert.equal(fresh.lowerSeriesWorld.entries.D1.team_name,"Opening Team");
+  assert.equal(fresh.lowerSeriesWorld.entries.D1.lower_team_id,"LT_OPEN");
+  assert.equal(fresh.lowerSeriesWorld.teams.LT_OPEN.team_strength,50);
+  assert.equal(Boolean(fresh.lowerSeriesWorld.teams.LT_FUTURE),false);
   assert.equal(fresh.drivers[0].lower_series_id,"s_f2");
   assert.equal(fresh.drivers[0].lower_series_team_name,"Opening Team");
   assert.equal(fresh.drivers[0].world_runtime_source,"lower_series_world");
