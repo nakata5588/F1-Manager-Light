@@ -5,6 +5,8 @@ import { StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import { contractActiveForYear } from "../../domain/liveContracts.js";
 import { resolveStaffId, staffRoleLabel } from "../../domain/staffRoles.js";
 import { staffRoleRating } from "../../domain/staffPerformance.js";
+import { staffCareerHistory } from "../../domain/staffHistory.js";
+import { currentStakeholderTeamForStaff } from "../../domain/teamStakeholders.js";
 
 const unbox=(v)=>v&&typeof v==="object"&&!Array.isArray(v)?(v.result??v.value??v):v;
 const pick=(o,keys,fb=undefined)=>{for(const k of keys){const v=unbox(o?.[k]);if(v!==undefined&&v!==null&&v!=="")return v;}return fb;};
@@ -57,8 +59,12 @@ export default function StaffModal({entity,onClose,pageMode=false}){
     return [...merged.values()];
   },[dbContracts,contracts,gs,id]);
   const contract=useMemo(()=>contractRows.find((row)=>contractActiveForYear(row,year))||null,[contractRows,year]);
+  const careerRows=useMemo(()=>staffCareerHistory(gs,id),[gs,id]);
+  const ownerStakeholder=useMemo(()=>currentStakeholderTeamForStaff(gs,id,"owner"),[gs,id]);
+  const backerStakeholder=useMemo(()=>currentStakeholderTeamForStaff(gs,id,"sponsor_backer"),[gs,id]);
+  const stakeholder=ownerStakeholder||backerStakeholder||null;
 
-  if(!staff&&!contract){
+  if(!staff&&!contract&&!stakeholder){
     return <div className="rounded-2xl border border-white/10 bg-[#090b10] p-6 text-slate-100">
       <div className="flex justify-between"><h3 className="font-semibold">Staff member not found</h3>{!pageMode&&<button onClick={onClose}><X size={18}/></button>}</div>
       <p className="text-sm text-slate-500">{id}</p>
@@ -67,7 +73,7 @@ export default function StaffModal({entity,onClose,pageMode=false}){
 
   const name=pick(staff,["staff_name","display_name","name"],pick(contract,["staff_name","name"],id));
   const country=pick(staff,["country_name","country","nationality"],"");
-  const roleRaw=pick(contract,["role","position"],pick(staff,["role_primary"],"Staff"));
+  const roleRaw=pick(contract,["role","position"],stakeholder?.stakeholder_role||pick(staff,["role_primary"],"Staff"));
   const role=staffRoleLabel(roleRaw);
   const primaryRole=staffRoleLabel(pick(staff,["role_primary"],roleRaw));
   const roleRating=staffRoleRating(rating,roleRaw);
@@ -76,11 +82,13 @@ export default function StaffModal({entity,onClose,pageMode=false}){
   const skills=Object.entries(rating||{})
     .filter(([k,v])=>!["staff_id","staff_name","year"].includes(k)&&Number.isFinite(Number(v)))
     .sort((a,b)=>Number(b[1])-Number(a[1]));
-  const teamId=String(pick(contract,["team_id","team"],""));
+  const teamId=String(pick(contract,["team_id","team"],stakeholder?.team_id||""));
   const team=teams.find((row)=>String(row?.team_id??row?.id??"")===teamId)||null;
-  const teamName=pick(contract,["team_name"],pick(team,["team_name","name","short_name"],teamId||"Free"));
-  const until=pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—");
-  const salary=fmtMoney(pick(contract,["salary","salary_yearly"],null));
+  const teamName=pick(contract,["team_name"],stakeholder?.team_name||pick(team,["team_name","name","short_name"],teamId||"Free"));
+  const until=contract
+    ?pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—")
+    :(stakeholder?"Active stakeholder":"—");
+  const salary=contract?fmtMoney(pick(contract,["salary","salary_yearly"],null)):"—";
 
   return <div className={"flex flex-col overflow-hidden bg-[#090b10] text-slate-100 lg:flex-row "+(pageMode
     ?"min-h-[calc(100vh-5rem)] rounded-2xl border border-white/10 shadow-xl"
@@ -153,27 +161,35 @@ export default function StaffModal({entity,onClose,pageMode=false}){
 
         <section>
           <div className="mb-2">
-            <h3 className="font-semibold">Career Assignments</h3>
-            <p className="text-xs text-slate-500">Historical team and role records available in the database.</p>
+            <h3 className="font-semibold">Career History</h3>
+            <p className="text-xs text-slate-500">Employment, transfers, ownership and backing history derived from historical contracts and the current Save World.</p>
           </div>
           <div className="space-y-2">
-            {contractRows.slice().sort((a,b)=>Number(b?.year??b?.season_year??0)-Number(a?.year??a?.season_year??0)).map((row,index)=>{
-              const rowTeamId=String(pick(row,["team_id","team"],""));
+            {careerRows.map((row,index)=>{
+              const rowTeamId=String(row?.team_id||"");
               const rowTeam=teams.find((teamRow)=>String(teamRow?.team_id??teamRow?.id??"")===rowTeamId)||null;
-              const rowTeamName=pick(row,["team_name"],pick(rowTeam,["team_name","name","short_name"],rowTeamId||"Unknown Team"));
-              const start=pick(row,["contract_start","contract_start_year","start_year","year"],"—");
-              const end=pick(row,["contract_until","contract_until_year","end_year","year"],"—");
-              const range=String(start)===String(end)?String(start):String(start)+"–"+String(end);
-              return <div key={rowTeamId+"|"+String(row?.role||row?.position||"")+"|"+index} className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
+              const rowTeamName=row?.team_name||pick(rowTeam,["team_name","name","short_name"],rowTeamId||"Unknown Team");
+              const start=row?.start_year??"—";
+              const end=row?.end_year;
+              const range=end==null
+                ?String(start)+"–Present"
+                :(String(start)===String(end)?String(start):String(start)+"–"+String(end));
+              const commercial=row.kind==="ownership"
+                ?(Number(row?.acquisition_value)>0?" · Acquisition "+fmtMoney(row.acquisition_value):"")
+                :row.kind==="backing"
+                  ?(Number(row?.investment)>0?" · Investment "+fmtMoney(row.investment):"")
+                  :"";
+              const status=row?.status&&row.status!=="active"?" · "+nice(row.status):"";
+              return <div key={[row.kind,rowTeamId,row.role,row.start_year,row.end_year,index].join("|")} className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#171a23] px-3 py-2">
                 {rowTeamId?<button type="button" data-entity="team" data-id={rowTeamId} className="shrink-0"><TeamLogo teamId={rowTeamId} name={rowTeamName} size="h-8 w-8"/></button>:null}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{rowTeamId?<button type="button" data-entity="team" data-id={rowTeamId} className="hover:underline">{rowTeamName}</button>:rowTeamName}</div>
-                  <div className="text-xs text-slate-500">{staffRoleLabel(pick(row,["role","position"],"Staff"))}</div>
+                  <div className="text-xs text-slate-500">{row.role_label||staffRoleLabel(row.role)}{commercial}{status}</div>
                 </div>
                 <div className="shrink-0 text-xs text-slate-400">{range}</div>
               </div>;
             })}
-            {!contractRows.length?<div className="rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-500">No historical staff assignments recorded.</div>:null}
+            {!careerRows.length?<div className="rounded-lg border border-white/10 bg-[#171a23] p-4 text-sm text-slate-500">No Staff career history recorded.</div>:null}
           </div>
         </section>
 

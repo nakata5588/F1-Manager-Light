@@ -6,6 +6,7 @@ import { contractActiveForYear } from "../domain/liveContracts.js";
 import { resolveStaffId, staffRoleDepartment, staffRoleLabel } from "../domain/staffRoles.js";
 import { staffRoleRating } from "../domain/staffPerformance.js";
 import { staffNegotiationEligibility } from "../domain/staffMarket.js";
+import { currentStakeholderTeamForStaff } from "../domain/teamStakeholders.js";
 import {
   acceptStaffCounterOffer,
   staffNegotiations,
@@ -30,6 +31,9 @@ const actionLabel=(reason)=>{
   if(reason==="non_hireable_role")return "Not hireable";
   if(reason==="not_interested")return "Not interested";
   if(reason==="budget")return "Budget";
+  if(reason==="insufficient_buyout_funds")return "Transfer budget";
+  if(reason==="under_contract")return "Not transferable";
+  if(reason==="already_contracted")return "Your Staff";
   if(reason==="unavailable")return "Unavailable";
   return "—";
 };
@@ -79,15 +83,28 @@ export default function Staff(){
     // Only people with a current-season rating or contract are considered active.
     // staff_core is identity metadata and must not make every living person "active".
     const activeContracts=contracts.filter((contract)=>contractActiveForYear(contract,year));
-    const ids=new Set([...ratings.map(staffIdOf),...activeContracts.map((contract)=>resolveStaffId(gs,contract))]);
+    const stakeholderIds=(Array.isArray(gs?.teamStakeholders)?gs.teamStakeholders:[])
+      .filter((row)=>!["ended","expired","released","inactive","void","sold"].includes(String(row?.status||"active").toLowerCase()))
+      .map((row)=>String(row?.staff_id??row?.person_id??""))
+      .filter(Boolean);
+    const ids=new Set([
+      ...ratings.map(staffIdOf),
+      ...activeContracts.map((contract)=>resolveStaffId(gs,contract)),
+      ...stakeholderIds,
+    ]);
     return [...ids].filter(Boolean).map(id=>{
       const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
       const contract=activeContracts.find((row)=>resolveStaffId(gs,row)===id)||null;
       const primaryRole=pick(s,["role_primary"],"Staff");
-      const assignedRole=contract?pick(contract,["role","position"],primaryRole):null;
+      const ownerStakeholder=currentStakeholderTeamForStaff(gs,id,"owner");
+      const backerStakeholder=currentStakeholderTeamForStaff(gs,id,"sponsor_backer");
+      const stakeholder=ownerStakeholder||backerStakeholder||null;
+      const assignedRole=contract
+        ?pick(contract,["role","position"],primaryRole)
+        :(stakeholder?.stakeholder_role||null);
       const role=assignedRole||primaryRole;
       const roleLabel=staffRoleLabel(role);
-      const tid=teamIdOf(contract);
+      const tid=contract?teamIdOf(contract):String(stakeholder?.team_id||"");
       const pending=activeByStaff.get(id)||null;
       const eligibility=userTeamId
         ?staffNegotiationEligibility(gs,{staffId:id,teamId:userTeamId})
@@ -104,14 +121,24 @@ export default function Staff(){
         country:pick(s,["country_name","country","nationality"],"—"),
         code:pick(s,["country_code"],""),
         overall:staffRoleRating(rating,assignedRole||primaryRole).score??"—",
-        team:contract?(teamNameById.get(tid)||pick(contract,["team_name"],"—")):"Free",
+        team:(contract||stakeholder)
+          ?(teamNameById.get(tid)||pick(contract||stakeholder,["team_name"],"—"))
+          :"Free",
         salary:Number(pick(contract,["salary","salary_yearly"],0))||0,
-        until:contract?pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—"):"—",
+        until:contract
+          ?pick(contract,["contract_until","contract_until_year","end_year","end_date"],"—")
+          :(stakeholder?"Stakeholder":"—"),
         pending,
         canNegotiate:Boolean(eligibility.canNegotiate)&&!pending,
         negotiationReason:pending?"negotiating":eligibility.reason,
         negotiationRole:eligibility.role||eligibility.roles?.[0]||null,
         expectedSalary:Number(eligibility.expectedSalary||0),
+        negotiationKind:eligibility.kind||null,
+        buyoutFee:Number(eligibility?.buyout?.fee||0),
+        sellerTeamId:String(eligibility?.sellerTeamId||eligibility?.buyout?.sellerTeamId||""),
+        sellerTeamName:eligibility?.sellerTeamId||eligibility?.buyout?.sellerTeamId
+          ?(teamNameById.get(String(eligibility?.sellerTeamId||eligibility?.buyout?.sellerTeamId))||"Current team")
+          :null,
         replacementCost:Number(eligibility.replacementCost||0),
         incumbent:incumbentId?{
           id:incumbentId,
@@ -156,7 +183,7 @@ export default function Staff(){
   return <div className="grid gap-4 text-slate-100">
     <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
       <h2 className="text-lg font-semibold">Staff Market</h2>
-      <p className="text-sm text-slate-400">Season {year||"—"} · free operational Staff can be approached and negotiated with. Governance roles such as Owner/President are not hireable.</p>
+      <p className="text-sm text-slate-400">Season {year||"—"} · free or contracted operational Staff can be approached. Contracted Staff require compensation to their current team. Owners and Sponsor Backers move through the stakeholder market.</p>
       <div className="mt-3 flex flex-col gap-2 lg:flex-row">
         <input className="flex-1 rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600" placeholder="Search name/role/team/nationality…" value={q} onChange={e=>setQ(e.target.value)}/>
         <button
@@ -187,7 +214,7 @@ export default function Staff(){
         {activePlayerNegotiations.map(n=><div key={n.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#171a23] p-3 lg:flex-row lg:items-center">
           <div className="min-w-0 flex-1">
             <div className="font-medium">{n.staff_name}</div>
-            <div className="text-xs text-slate-500">{staffRoleLabel(n.role)} · {money(n.offer?.salary)} · {n.offer?.years} year{Number(n.offer?.years)===1?"":"s"}{n.status==="submitted"&&n.response_date?" · response by "+n.response_date:""}</div>
+            <div className="text-xs text-slate-500">{staffRoleLabel(n.role)} · {money(n.offer?.salary)} · {n.offer?.years} year{Number(n.offer?.years)===1?"":"s"}{n.kind==="transfer"?" · transfer "+money(n.buyout_fee):""}{n.status==="submitted"&&n.response_date?" · response by "+n.response_date:""}</div>
             {n.status==="countered"&&n.counter_offer?<div className="mt-1 text-sm">Representative asks for <strong>{money(n.counter_offer.salary)}</strong>.</div>:null}
           </div>
           <span className={"rounded px-2 py-1 text-xs font-medium "+statusClass(n.status)}>{String(n.status||"").replaceAll("_"," ")}</span>
@@ -238,6 +265,11 @@ export default function Staff(){
       expectedSalary={negotiatingStaff.expectedSalary}
       incumbent={negotiatingStaff.incumbent}
       replacementCost={negotiatingStaff.replacementCost}
+      transfer={negotiatingStaff.negotiationKind==="transfer"?{
+        fee:negotiatingStaff.buyoutFee,
+        sellerTeamId:negotiatingStaff.sellerTeamId,
+        sellerTeamName:negotiatingStaff.sellerTeamName,
+      }:null}
       onClose={()=>setNegotiatingStaff(null)}
       onSubmit={submitNegotiation}
     />:null}

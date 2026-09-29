@@ -14,6 +14,9 @@ import {
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { applyStaffMarketTick } from "../src/engine/StaffMarketEngine.js";
 import { staffNegotiationEligibility, staffTerminationCost } from "../src/domain/staffMarket.js";
+import { staffCareerHistory } from "../src/domain/staffHistory.js";
+import { currentTeamBacker, currentTeamOwner } from "../src/domain/teamStakeholders.js";
+import { applyStakeholderMarketTick } from "../src/engine/StakeholderMarketEngine.js";
 import { processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
 import {
   acceptStaffCounterOffer,
@@ -632,17 +635,22 @@ test("AI Staff market upgrades only for a material affordable improvement",()=>{
   assert.equal(tiny.staffContracts.some((row)=>row.staff_id==="S_AI"&&row.status==="released"),false);
 });
 
-test("AI Staff hiring respects budget and contractual availability",()=>{
+test("AI Staff hiring respects budget and approaches contracted upgrades instead of moving them instantly",()=>{
   const poor=applyStaffMarketTick(staffMarketFixture({aiBudget:100_000}));
   assert.equal(poor.staffContracts.some((row)=>String(row.team_id)==="T2"&&row.staff_id==="S_FREE"),false);
 
   const contracted=applyStaffMarketTick(staffMarketFixture({
-    incumbentScore:55,candidateScore:95,candidateContracted:true,
+    incumbentScore:55,candidateScore:85,candidateContracted:true,
   }));
   const active=contracted.staffContracts.find((row)=>
     String(row.team_id)==="T2"&&row.status==="active"&&String(row.role)==="team_principal"
   );
   assert.equal(active.staff_id,"S_AI");
+  const approach=(contracted.staffNegotiations||[]).find((row)=>
+    row.origin==="ai"&&row.kind==="transfer"&&row.staff_id==="S_FREE"&&row.team_id==="T2"
+  );
+  assert.ok(approach);
+  assert.ok(Number(approach.buyout_fee)>0);
 });
 
 test("AI renews valuable Staff and Staff-market decisions are deterministic",()=>{
@@ -780,4 +788,174 @@ test("AI Staff market never recruits governance-only Staff into operational role
     next.staffContracts.some((row)=>String(row.team_id)==="T2"&&row.staff_id==="S_OWNER"),
     false
   );
+});
+
+
+test("contracted Staff can transfer for compensation paid to the current team",()=>{
+  const gs=staffMarketFixture({candidateScore:85,candidateContracted:true});
+  gs.finances={balance:5_000_000,budget:5_000_000,season_spend:0,season_income:0};
+  gs.financeLog=[];
+  gs.inbox=[];
+
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  assert.equal(eligibility.canNegotiate,true);
+  assert.equal(eligibility.kind,"transfer");
+  assert.equal(eligibility.sellerTeamId,"T3");
+  assert.ok(Number(eligibility.buyout?.fee)>0);
+
+  const fee=Number(eligibility.buyout.fee);
+  const incumbent=gs.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
+  const termination=staffTerminationCost(gs,incumbent);
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:2},
+  });
+  const negotiation=next.staffNegotiations[0];
+  assert.equal(negotiation.kind,"transfer");
+  assert.equal(negotiation.buyout_fee,fee);
+
+  next={...next,currentDateISO:"1980-08-02"};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[negotiation.id]:"accepted"}});
+
+  const sellerContract=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T3");
+  const buyerContract=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T1"&&row.status==="active");
+  assert.equal(sellerContract.status,"bought_out");
+  assert.equal(sellerContract.transfer_fee,fee);
+  assert.ok(buyerContract);
+  assert.equal(buyerContract.source,"player_staff_transfer");
+  assert.equal(buyerContract.transfer_fee,fee);
+  assert.equal(next.finances.balance,5_000_000-fee-termination);
+  assert.equal(next.teams.find((row)=>row.team_id==="T3").budget,5_000_000+fee);
+});
+
+test("Staff career history keeps old club and new club after a transfer",()=>{
+  const gs=staffMarketFixture({candidateScore:85,candidateContracted:true});
+  gs.finances={balance:5_000_000,budget:5_000_000,season_spend:0,season_income:0};
+  gs.financeLog=[];
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:2},
+  });
+  const id=next.staffNegotiations[0].id;
+  next={...next,currentDateISO:"1980-08-02"};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[id]:"accepted"}});
+
+  const history=staffCareerHistory(next,"S_FREE");
+  assert.ok(history.some((row)=>row.team_id==="T3"&&row.status==="bought_out"));
+  assert.equal(history.find((row)=>row.team_id==="T3"&&row.status==="bought_out").end_year,1980);
+  assert.ok(history.some((row)=>row.team_id==="T1"&&row.status==="active"));
+  assert.ok(history.every((row)=>Number(row.start_year)<=1980));
+});
+
+test("Owners acquire only ownerless teams and Sponsor Backers occupy one backer slot per team",()=>{
+  const gs=staffMarketFixture();
+  gs.currentDateISO="1980-01-01";
+  gs.staffCore.push(
+    {staff_id:"S_OWNER",staff_name:"Owner Candidate",role_primary:"owner"},
+    {staff_id:"S_BACKER",staff_name:"Backer Candidate",role_primary:"sponsor_backer"}
+  );
+  const elite=(id)=>({
+    year:1980,staff_id:id,reputation:95,
+    leadership:95,technical:70,strategy:70,motivation:90,communication:90,
+    pitstop_management:60,reliability_focus:70,data_analysis:75,innovation:75,
+    budget_management:98,driver_development:70,conflict_management:90,negotiation:98,
+  });
+  gs.staffRatings.push(elite("S_OWNER"),elite("S_BACKER"));
+  gs.inbox=[];
+  gs.teamStakeholders=[];
+
+  const beforeBudgets=new Map(gs.teams.map((team)=>[team.team_id,team.budget]));
+  const next=applyStakeholderMarketTick(gs,{forceDecisions:true});
+  const owners=next.teamStakeholders.filter((row)=>row.stakeholder_role==="owner"&&row.status==="active");
+  const backers=next.teamStakeholders.filter((row)=>row.stakeholder_role==="sponsor_backer"&&row.status==="active");
+  assert.equal(owners.length,1);
+  assert.equal(backers.length,1);
+  assert.ok(currentTeamOwner(next,owners[0].team_id));
+  assert.ok(currentTeamBacker(next,backers[0].team_id));
+  assert.ok(Number(backers[0].investment)>0);
+
+  const backerTeamId=backers[0].team_id;
+  const playerTeamId=String(next.team?.team_id||"");
+  const afterBudget=backerTeamId===playerTeamId
+    ?Number(next.finances?.balance??next.team?.budget)
+    :Number(next.teams.find((team)=>team.team_id===backerTeamId)?.budget);
+  assert.equal(afterBudget,Number(beforeBudgets.get(backerTeamId))+Number(backers[0].investment));
+
+  const sameMonth=applyStakeholderMarketTick(next,{forceDecisions:true});
+  assert.equal(sameMonth.teamStakeholders.length,next.teamStakeholders.length);
+});
+
+test("Stakeholder history records ownership and backing separately from employment",()=>{
+  const gs=staffMarketFixture();
+  gs.teamStakeholders=[
+    {
+      id:"stake_owner",staff_id:"S_FREE",staff_name:"Free Principal",
+      team_id:"T2",team_name:"AI Team",stakeholder_role:"owner",
+      start_year:1980,end_year:null,status:"active",acquisition_value:2_000_000,
+      source:"simulation_owner_acquisition",
+    },
+  ];
+  const history=staffCareerHistory(gs,"S_FREE");
+  assert.ok(history.some((row)=>row.kind==="ownership"&&row.team_id==="T2"));
+  assert.equal(history.filter((row)=>row.kind==="ownership").length,1);
+  assert.equal(history.find((row)=>row.kind==="ownership").end_year,null);
+});
+
+
+test("accepted AI contracted-Staff pursuit pays the seller and completes a material upgrade",()=>{
+  let gs=staffMarketFixture({
+    incumbentScore:55,candidateScore:85,candidateContracted:true,
+  });
+  gs.inbox=[];
+  gs.financeLog=[];
+  let next=applyStaffMarketTick(gs);
+  const approach=(next.staffNegotiations||[]).find((row)=>
+    row.origin==="ai"&&row.kind==="transfer"&&row.staff_id==="S_FREE"&&row.team_id==="T2"
+  );
+  assert.ok(approach);
+  const fee=Number(approach.buyout_fee);
+  next={...next,currentDateISO:approach.response_date};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[approach.id]:"accepted"}});
+
+  const oldAI=next.staffContracts.find((row)=>row.staff_id==="S_AI"&&row.team_id==="T2");
+  const seller=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T3");
+  const hired=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T2"&&row.status==="active");
+  assert.equal(oldAI.status,"released");
+  assert.equal(seller.status,"bought_out");
+  assert.equal(seller.transfer_fee,fee);
+  assert.equal(hired.source,"ai_staff_transfer");
+  assert.equal(next.teams.find((row)=>row.team_id==="T2").budget,5_000_000-fee);
+  assert.equal(next.teams.find((row)=>row.team_id==="T3").budget,5_000_000+fee);
+});
+
+
+test("Staff transfer does not move money when combined fee and incumbent termination are unaffordable",()=>{
+  const gs=staffMarketFixture({candidateScore:85,candidateContracted:true});
+  const incumbent=gs.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
+  incumbent.salary=1_500_000;
+  gs.finances={balance:2_000_000,budget:2_000_000,season_spend:0,season_income:0};
+  gs.team={...gs.team,budget:2_000_000};
+  gs.teams=gs.teams.map((team)=>team.team_id==="T1"?{...team,budget:2_000_000}:team);
+  gs.inbox=[];
+  gs.financeLog=[];
+
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  assert.equal(eligibility.canNegotiate,true);
+  const totalPackage=Number(eligibility.buyout.fee)+staffTerminationCost(gs,incumbent);
+  assert.ok(totalPackage>gs.finances.balance);
+
+  const opening=Number(gs.finances.balance);
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:1},
+  });
+  const id=next.staffNegotiations[0].id;
+  next={...next,currentDateISO:"1980-08-02"};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[id]:"accepted"}});
+
+  assert.equal(next.staffNegotiations[0].status,"rejected");
+  assert.equal(next.finances.balance,opening);
+  assert.equal(next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.team_id==="T3").status,"active");
+  assert.equal(next.financeLog.length,0);
 });

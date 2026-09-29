@@ -6,6 +6,7 @@ import { driverIdOf, driverLineupSlots } from "@/domain/driverContracts.js";
 import { driverRoleLabelForSlot } from "@/domain/contractRoles.js";
 import { raceEngineerAssignmentStatus } from "@/domain/driverStaffAssignments.js";
 import { teamStaffStructure } from "@/domain/staffRoles.js";
+import { currentTeamBacker, currentTeamOwner } from "@/domain/teamStakeholders.js";
 import { driverCondition, fatigueStatus } from "@/domain/driverRating.js";
 import { driverOverallPresentation } from "@/domain/driverMarketEvaluation.js";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
@@ -69,7 +70,9 @@ export default function Team(){
 
   const staff=useMemo(()=>teamStaffStructure(gs,teamId),[gs,teamId]);
   const engineerStatus=useMemo(()=>raceEngineerAssignmentStatus(gs,teamId),[gs,teamId]);
-  const leadership=staff.find((row)=>["team_principal","owner"].includes(row?.canonical_role))||null;
+  const owner=useMemo(()=>currentTeamOwner(gs,teamId),[gs,teamId]);
+  const backer=useMemo(()=>currentTeamBacker(gs,teamId),[gs,teamId]);
+  const leadership=staff.find((row)=>row?.canonical_role==="team_principal")||null;
   const technicalLead=staff.find((row)=>["technical_director","chief_engineer","chief_designer"].includes(row?.canonical_role))||null;
   const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,teamId),[gs,teamId]);
   const ranking=useMemo(()=>carPerformanceRanking(gs),[gs]);
@@ -155,6 +158,7 @@ export default function Team(){
 
       <Panel title="Staff & operations" className="xl:col-span-4" action={<Link to="/MyStaff" className="text-xs text-slate-300 hover:text-white">My Staff ›</Link>}>
         <div className="p-4 space-y-2">
+          <Metric label="Owner" value={owner?.staff_name||owner?.name||"Ownerless"}/>
           <Metric label="Leadership" value={leadership?.staff_name||leadership?.name||leadership?.role_label||"Not recorded"}/>
           <Metric label="Technical lead" value={technicalLead?.staff_name||technicalLead?.name||technicalLead?.role_label||"Not recorded"}/>
           <Metric label="Race Engineer coverage" value={engineerStatus.status==="not_recorded"?"Not recorded for era":engineerStatus.status==="covered"?"Complete":engineerStatus.label}/>
@@ -187,9 +191,11 @@ export default function Team(){
       <Panel title="Commercial" className="xl:col-span-5" action={<Link to="/Finances" className="text-xs text-slate-300 hover:text-white">Finances ›</Link>}>
         <div className="p-4 grid grid-cols-2 gap-2">
           <Metric label="Active sponsors" value={sponsors.length}/>
+          <Metric label="Sponsor Backer" value={backer?.staff_name||backer?.name||"None"}/>
           <Metric label="Annual sponsor value" value={money(sponsorValue)}/>
           <Metric label="Current balance" value={money(balance)}/>
           <Metric label="Season net" value={money(gs?.finances?.season_income-gs?.finances?.season_spend)}/>
+          <Metric label="Backer investment" value={backer?.investment?money(backer.investment):"—"}/>
         </div>
       </Panel>
 

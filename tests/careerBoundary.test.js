@@ -180,3 +180,68 @@ test("career boundary preserves continuity only for legacy Staff contracts",()=>
   assert.equal(contract.contract_until_year,1981);
   assert.equal(contract.source,"simulation_staff_continuity");
 });
+
+
+test("career boundary expires legacy Owner and Sponsor Backer terms instead of renewing them as employees",()=>{
+  const state=fixture();
+  state.staffContracts=[
+    {
+      year:1980,team_id:"T1",staff_id:"S_OWNER",staff_name:"Owner",
+      role:"owner",contract_start:1975,contract_until:1980,status:"active",
+    },
+    {
+      year:1980,team_id:"T1",staff_id:"S_BACKER",staff_name:"Backer",
+      role:"sponsor_backer",contract_start:1978,contract_until:1980,status:"active",
+    },
+  ];
+  state.staffCore=[
+    {staff_id:"S_OWNER",staff_name:"Owner",dob:"1940-01-01"},
+    {staff_id:"S_BACKER",staff_name:"Backer",dob:"1945-01-01"},
+  ];
+  state.staffRatings=[
+    {year:1980,staff_id:"S_OWNER",leadership:80},
+    {year:1980,staff_id:"S_BACKER",negotiation:80},
+  ];
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  for(const id of ["S_OWNER","S_BACKER"]){
+    const contract=next.staffContracts.find((row)=>row.staff_id===id);
+    assert.equal(contract.status,"expired");
+    assert.equal(contract.expiry_reason,"stakeholder_term_end");
+    assert.equal(contract.continuity_renewal,undefined);
+  }
+});
+
+test("career boundary respects Staff transfer contract duration",()=>{
+  const state=fixture();
+  state.staffContracts=[{
+    year:1980,team_id:"T1",staff_id:"S1",role:"technical_director",
+    contract_start_year:1980,contract_until_year:1980,
+    salary:200_000,status:"active",source:"player_staff_transfer",
+    negotiation_id:"staff_transfer_1",transfer_from_team_id:"T2",transfer_fee:250_000,
+  }];
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  const contract=next.staffContracts.find((row)=>row.staff_id==="S1");
+  assert.equal(contract.status,"expired");
+  assert.equal(contract.expiry_reason,"contract_end");
+  assert.equal(contract.continuity_renewal,undefined);
+});
+
+
+test("career boundary preserves active Save-World team stakeholders",()=>{
+  const state=fixture();
+  state.teamStakeholders=[
+    {
+      id:"stakeholder_owner_1",staff_id:"S1",staff_name:"Current Staff",
+      team_id:"T1",team_name:"Alpha",stakeholder_role:"owner",
+      start_year:1980,end_year:null,status:"active",source:"simulation_owner_acquisition",
+    },
+  ];
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  assert.equal(next.teamStakeholders.length,1);
+  assert.equal(next.teamStakeholders[0].staff_id,"S1");
+  assert.equal(next.teamStakeholders[0].status,"active");
+  assert.equal(next.teamStakeholders[0].end_year,null);
+});

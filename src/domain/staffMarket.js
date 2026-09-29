@@ -8,6 +8,7 @@ import {
   collectionRows,
   contractEndYear,
   staffIdOf,
+  teamIdOfContract,
 } from "./liveContracts.js";
 import {
   canonicalStaffRole,
@@ -21,6 +22,8 @@ import {
   staffRoleRating,
 } from "./staffPerformance.js";
 import { teamReputation } from "./teamReputation.js";
+import { teamBudgetAvailable } from "./teamFinance.js";
+import { canAffordStaffTransfer, staffBuyoutQuote } from "./staffTransfers.js";
 
 export const STAFF_HIREABLE_ROLES=Object.freeze([
   "team_principal",
@@ -97,17 +100,7 @@ export function staffExpectedSalary(gs,staffId,role){
   return Math.round((min+(max-min)*ratio*ratio)/5_000)*5_000;
 }
 export function staffTeamBudget(gs,teamId){
-  const id=text(teamId);
-  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
-  if(id&&id===playerTeamId){
-    const playerBudget=num(gs?.finances?.balance??gs?.team?.budget,NaN);
-    if(Number.isFinite(playerBudget))return playerBudget;
-  }
-  const aiBudget=num(gs?.aiTechnicalWorld?.teams?.[id]?.budget,NaN);
-  if(Number.isFinite(aiBudget))return aiBudget;
-  const team=teamRows(gs).find((row)=>teamIdOf(row)===id);
-  const direct=num(team?.budget??team?.cash??team?.balance,NaN);
-  return Number.isFinite(direct)?direct:NaN;
+  return teamBudgetAvailable(gs,teamId);
 }
 export function staffTeamReputation(gs,teamId){
   let value=50;
@@ -176,16 +169,80 @@ export function staffNegotiationEligibility(gs,{staffId,teamId,role=null}={}){
   if(!staffAliveForDate(staff,dateOnly(gs?.currentDateISO))){
     return {canNegotiate:false,reason:"unavailable",roles:[]};
   }
+
   const active=staffActiveContract(gs,id);
+  const primaryRoles=staffMarketRoles(gs,id);
   if(active){
+    const sellerTeamId=teamIdOfContract(active);
+    if(sellerTeamId===tid){
+      return {canNegotiate:false,reason:"already_contracted",roles:[],contract:active};
+    }
+    const activeRole=staffContractRole(active);
+    const roles=[...new Set([activeRole,...primaryRoles])]
+      .filter((candidateRole)=>isStaffRoleHireable(candidateRole));
+    if(!roles.length){
+      return {
+        canNegotiate:false,
+        reason:"non_hireable_role",
+        roles:[],
+        contract:active,
+        primaryRole:staffPrimaryRole(gs,id),
+      };
+    }
+    const requested=role?canonicalStaffRole(role):(roles.includes(activeRole)?activeRole:roles[0]);
+    if(!roles.includes(requested)){
+      return {canNegotiate:false,reason:"role_unavailable",roles,contract:active};
+    }
+    if(!staffWillConsiderTeam(gs,tid,id)){
+      return {canNegotiate:false,reason:"not_interested",roles,contract:active};
+    }
+    const expectedSalary=staffExpectedSalary(gs,id,requested);
+    if(!staffSalaryAffordable(gs,tid,expectedSalary)){
+      return {
+        canNegotiate:false,
+        reason:"budget",
+        roles,
+        contract:active,
+        expectedSalary,
+      };
+    }
+    const buyout=staffBuyoutQuote(gs,active,{staffId:id,role:requested});
+    if(!buyout.allowed){
+      return {
+        canNegotiate:false,
+        reason:"under_contract",
+        roles,
+        contract:active,
+        buyout,
+      };
+    }
+    if(!canAffordStaffTransfer(gs,tid,buyout.fee)){
+      return {
+        canNegotiate:false,
+        reason:"insufficient_buyout_funds",
+        roles,
+        contract:active,
+        buyout,
+        expectedSalary,
+      };
+    }
+    const incumbent=staffRoleIncumbent(gs,tid,requested);
     return {
-      canNegotiate:false,
-      reason:"contracted",
-      roles:[],
+      canNegotiate:true,
+      reason:"transfer_available",
+      kind:"transfer",
+      roles,
+      role:requested,
+      expectedSalary,
+      incumbent,
+      replacementCost:staffTerminationCost(gs,incumbent),
       contract:active,
+      sellerTeamId,
+      buyout,
     };
   }
-  const roles=staffMarketRoles(gs,id);
+
+  const roles=primaryRoles;
   if(!roles.length){
     return {
       canNegotiate:false,
@@ -214,10 +271,12 @@ export function staffNegotiationEligibility(gs,{staffId,teamId,role=null}={}){
   return {
     canNegotiate:true,
     reason:"available",
+    kind:"new_staff_contract",
     roles,
     role:requested,
     expectedSalary,
     incumbent,
     replacementCost:staffTerminationCost(gs,incumbent),
+    buyout:null,
   };
 }

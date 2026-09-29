@@ -257,7 +257,7 @@ function carryStaffContracts(rows,targetYear){
     const renewalPlan=String(row?.ai_staff_renewal_plan||"").toLowerCase();
     const marketOwned=
       Boolean(row?.negotiation_id)
-      ||["player_staff_negotiation","staff_negotiation","ai_staff_market"].includes(source)
+      ||["player_staff_negotiation","staff_negotiation","player_staff_transfer","ai_staff_transfer","ai_staff_market"].includes(source)
       ||renewalSource==="ai_staff_market"
       ||["release_end","release_end_budget"].includes(renewalPlan);
 
@@ -272,8 +272,20 @@ function carryStaffContracts(rows,targetYear){
       };
     }
 
-    // Legacy saves pre-date a player Staff renewal flow. Preserve their old
-    // continuity behavior so this migration does not unexpectedly empty teams.
+    const legacyRole=String(row?.role??row?.position??"").toLowerCase().replace(/[\s-]+/g,"_");
+    if(["owner","team_owner","sponsor_backer"].includes(legacyRole)){
+      return {
+        ...row,
+        status:"expired",
+        expired_at:`${targetYear}-01-01`,
+        expiry_reason:"stakeholder_term_end",
+      };
+    }
+
+    // Legacy operational Staff saves pre-date a player Staff renewal flow.
+    // Preserve their old continuity behavior so this migration does not
+    // unexpectedly empty departments. Owners/Backers are handled above by
+    // the stakeholder market instead of being perpetual employees.
     return {
       ...row,
       year:targetYear,
@@ -454,6 +466,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     staffCore:uniqueBy([...updateAges(state.staffCore||[],targetYear),...unlockedStaff],idOfStaff),
     staffRatings:[...activeStaffRatings.values()],
     staffContracts:carryStaffContracts(state.staffContracts||[],targetYear),
+    teamStakeholders:(state.teamStakeholders||[]).map((row)=>({...row})),
     teamBrands:(state.teamBrands||[]).map((r)=>({...r,year:targetYear})),
     teamEngines:(state.teamEngines||[]).map((r)=>({...r,year:targetYear})),
     facilities:(state.facilities||[]).map((r)=>({...r,year:targetYear})),
