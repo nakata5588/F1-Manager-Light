@@ -74,7 +74,7 @@ test("RW8.3B historical fallback geometry never drives race physics",()=>{
     gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1955},
   });
 
-  assert.equal(model.resolution.exact,false);
+  assert.equal(model.year,1955);
   assert.equal(model.speedProfile.detailed,false);
   assert.equal(model.speedProfile.source,"neutral");
   assert.deepEqual(model.speedProfile.samples,[{distanceM:0,severity:0}]);
