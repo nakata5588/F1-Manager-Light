@@ -9,7 +9,7 @@ import { initialBattleState } from "./RaceOvertaking.js";
 import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
 
-export const RACE_STATE_SCHEMA_VERSION=8;
+export const RACE_STATE_SCHEMA_VERSION=9;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -101,6 +101,7 @@ function initialCarState(input,row,index){
       car:cloneRaceContractValue(car?.performance??null),
       driver:cloneRaceContractValue(driver?.performance??null),
     },
+    reliability:cloneRaceContractValue(car?.reliability??null),
     lateralOffsetM:0,
     zoneId:`sector_${sector}`,
     zoneType:"sector",
@@ -113,6 +114,7 @@ function initialCarState(input,row,index){
     resources:cloneRaceContractValue(resourceState.resources),
     components:cloneRaceContractValue(car?.state?.componentCondition??{}),
     damage:null,
+    retirement:null,
     commands:{},
     pitState:initialRacePitState(),
     traffic:initialTrafficState(),
