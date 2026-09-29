@@ -6,8 +6,9 @@ import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.j
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { initialGridAbsoluteDistanceM, initialTrafficState } from "./RaceTraffic.js";
 import { initialBattleState } from "./RaceOvertaking.js";
+import { initialRaceResources } from "./RaceResources.js";
 
-export const RACE_STATE_SCHEMA_VERSION=5;
+export const RACE_STATE_SCHEMA_VERSION=6;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -73,6 +74,7 @@ function initialCarState(input,row,index){
   if(!driverId||!teamId||!carId)return null;
 
   const gridPosition=gridPositionOf(row,index);
+  const resourceState=initialRaceResources(input,car||{},driver||{});
   const absoluteDistanceM=initialGridAbsoluteDistanceM(gridPosition);
   const distanceAlongLapM=wrapTrackDistanceM(input.track,absoluteDistanceM)??0;
   const sector=trackSectorAtDistance(input.track,distanceAlongLapM)??1;
@@ -104,9 +106,10 @@ function initialCarState(input,row,index){
     elapsedMs:0,
     finishTimeMs:null,
     status:"ready",
-    tyre:null,
-    fuelKg:null,
-    engineTemperature:null,
+    tyre:cloneRaceContractValue(resourceState.tyre),
+    fuelKg:resourceState.fuelKg,
+    engineTemperature:resourceState.engineTemperature,
+    resources:cloneRaceContractValue(resourceState.resources),
     components:cloneRaceContractValue(car?.state?.componentCondition??{}),
     damage:null,
     commands:{},
