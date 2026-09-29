@@ -47,7 +47,7 @@ function activeOfferCount(gs,driverId){
   ).length;
 }
 
-function candidateForTeam(gs,drivers,teamId,role){
+function candidateForTeam(gs,drivers,teamId,role,{requireLowerSeriesOpportunity=false}={}){
   const activeDriverIds=new Set(
     (gs?.contracts||[])
       .filter((c)=>isDriverContract(c)&&contractActiveForYear(c,Number(gs?.activeYear)))
@@ -65,7 +65,10 @@ function candidateForTeam(gs,drivers,teamId,role){
   const ranked=rankAiRecruitmentCandidates(gs,candidates,teamId,role,{
     activeOfferCount:(driverId)=>activeOfferCount(gs,driverId),
   });
-  return ranked[0]?.driver||null;
+  if(requireLowerSeriesOpportunity){
+    return ranked.find((entry)=>entry?.fit?.lower_series_opportunity?.recommended===true)||null;
+  }
+  return ranked[0]||null;
 }
 
 function renewalRetentionChance(gs,contract){
@@ -153,7 +156,8 @@ export function applyMarketTick(gs){
         .filter((role)=>["Main Driver","Second Driver","Reserve Driver"].includes(role));
 
       for(const role of targetRoles){
-        const driver=candidateForTeam(next,f1EligibleDrivers,tid,role);
+        const candidate=candidateForTeam(next,f1EligibleDrivers,tid,role);
+        const driver=candidate?.driver||null;
         if(!driver)break;
         const did=driverIdOf(driver);
         const expected=expectedDriverSalary(next,did,{role});
@@ -168,7 +172,41 @@ export function applyMarketTick(gs){
             role,
           },
           origin:"ai",
+          lowerSeriesOpportunity:candidate?.fit?.lower_series_opportunity||null,
         });
+      }
+
+      // LS6: Test seats are not filled by the generic free-agent market.
+      // They become a genuine junior pathway only when this F1 team has a
+      // sufficiently strong Lower Series opportunity signal for a prospect.
+      const testRoleAvailable=availableContractRoles(next,tid,{respectPending:false})
+        .includes("Test Driver");
+      if(testRoleAvailable){
+        const juniorCandidate=candidateForTeam(
+          next,
+          f1EligibleDrivers.filter((driver)=>driver?.active_lower_series===true),
+          tid,
+          "Test Driver",
+          {requireLowerSeriesOpportunity:true}
+        );
+        const junior=juniorCandidate?.driver||null;
+        if(junior){
+          const did=driverIdOf(junior);
+          const expected=expectedDriverSalary(next,did,{role:"Test Driver"});
+          const salary=Math.round(expected/5_000)*5_000;
+          next=startDriverNegotiation(next,{
+            driverId:did,
+            teamId:tid,
+            teamName:team?.team_name||team?.name||tid,
+            offer:{
+              salary:Math.max(50_000,salary),
+              years:marketRng.chance(0.35)?2:1,
+              role:"Test Driver",
+            },
+            origin:"ai",
+            lowerSeriesOpportunity:juniorCandidate?.fit?.lower_series_opportunity||null,
+          });
+        }
       }
 
       // D7.1B: a full race line-up is not automatically a good line-up.

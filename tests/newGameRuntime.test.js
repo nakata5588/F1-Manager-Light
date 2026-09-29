@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import { buildFreshCareerState, freshCareerRuntimeState } from "../src/state/newGameRuntime.js";
 import { seasonPackStatePatch } from "../src/data/seasonPackLoader.js";
 
@@ -294,4 +295,26 @@ test("fresh career creates a new lowerSeriesWorld from the selected opening seas
   assert.equal(fresh.lowerSeriesWorld.events.length,10);
   assert.ok(fresh.lowerSeriesWorld.events.every((event)=>event.status==="scheduled"));
   assert.deepEqual(fresh.lowerSeriesWorld.results,[]);
+});
+
+
+test("New Game refuses unsafe legacy year-filter fallback when Season Pack materialization fails",async()=>{
+  const [storeSource,newGameSource]=await Promise.all([
+    fs.readFile(new URL("../src/state/GameStore.js",import.meta.url),"utf8"),
+    fs.readFile(new URL("../src/pages/NewGame.jsx",import.meta.url),"utf8"),
+  ]);
+  assert.equal(storeSource.includes('format: "legacy-year-filter"'),false);
+  assert.equal(storeSource.includes('source: "legacy"'),false);
+  assert.match(storeSource,/source:\s*"unavailable"/);
+  assert.equal(storeSource.includes('fetchJsonSafe("/data/accident_model.json").catch(() => ({}))'),false);
+  assert.equal(newGameSource.includes('setYearSource("Legacy fallback")'),false);
+  assert.match(newGameSource,/eraYears\.includes\(year\) && !yearError/);
+});
+
+test("dev-data bootstrap watches non-public constructor references and historical asset inputs",async()=>{
+  const source=await fs.readFile(new URL("../scripts/ensure-dev-data.mjs",import.meta.url),"utf8");
+  assert.match(source,/data\/reference\/constructor_id_map\.json/);
+  assert.match(source,/public\/assets\/drivers/);
+  assert.match(source,/public\/assets\/teams/);
+  assert.match(source,/latestDirectoryFileMtime/);
 });

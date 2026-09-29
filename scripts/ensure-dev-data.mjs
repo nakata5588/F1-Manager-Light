@@ -29,6 +29,19 @@ const generatorFiles=[
   "src/domain/lowerSeriesTeams.js",
 ];
 
+const externalSourceFiles=[
+  "data/reference/constructor_id_map.json",
+];
+
+const historicalAssetDirs=[
+  "public/assets/drivers",
+  "public/portraits/drivers",
+  "public/assets/staff",
+  "public/portraits/staff",
+  "public/assets/teams",
+  "public/logos/teams",
+];
+
 async function statOrNull(file){
   try{return await fs.stat(file);}
   catch{return null;}
@@ -56,6 +69,20 @@ async function missingGeneratedOutput(){
   return null;
 }
 
+async function latestDirectoryFileMtime(rel){
+  const dir=path.join(root,rel);
+  const dirStat=await statOrNull(dir);
+  if(!dirStat?.isDirectory())return 0;
+  let latest=dirStat.mtimeMs;
+  const entries=await fs.readdir(dir,{withFileTypes:true});
+  for(const entry of entries){
+    if(!entry.isFile())continue;
+    const stat=await statOrNull(path.join(dir,entry.name));
+    if(stat)latest=Math.max(latest,stat.mtimeMs);
+  }
+  return latest;
+}
+
 async function latestSourceMtime(){
   let latest=0;
   const entries=await fs.readdir(dataDir,{withFileTypes:true});
@@ -64,9 +91,12 @@ async function latestSourceMtime(){
     const stat=await statOrNull(path.join(dataDir,entry.name));
     if(stat)latest=Math.max(latest,stat.mtimeMs);
   }
-  for(const rel of generatorFiles){
+  for(const rel of [...generatorFiles,...externalSourceFiles]){
     const stat=await statOrNull(path.join(root,rel));
     if(stat)latest=Math.max(latest,stat.mtimeMs);
+  }
+  for(const rel of historicalAssetDirs){
+    latest=Math.max(latest,await latestDirectoryFileMtime(rel));
   }
   return latest;
 }

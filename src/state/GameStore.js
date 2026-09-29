@@ -84,7 +84,11 @@ async function fetchJsonSafe(path) {
   return res.json();
 }
 async function fetchOptional(path, fallback = []) {
-  try { return await fetchJsonSafe(path); } catch { return fallback; }
+  try { return await fetchJsonSafe(path); }
+  catch (error) {
+    console.warn(`[Data] optional JSON unavailable: ${path}`, error);
+    return fallback;
+  }
 }
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
@@ -647,21 +651,16 @@ export const useGame = create((set, get) => ({
           }));
           return { ok: true, source: "runtime-materializer", pack, error };
         } catch (materializeError) {
-          console.warn(`[SeasonPack] ${year} runtime materializer failed; using final legacy fallback.`, materializeError);
-          get().applyYearFilter(year, { normalizeDate: true });
-          set((s) => ({
-            gameState: {
-              ...s.gameState,
-              seasonPackMeta: {
-                format: "legacy-year-filter",
-                schemaVersion: 0,
-                year,
-                error: String(materializeError?.message || materializeError),
-                generated_file_error: String(error?.message || error),
-              },
-            },
-          }));
-          return { ok: true, source: "legacy", error: materializeError };
+          console.error(
+            `[SeasonPack] ${year} unavailable: generated file and runtime materializer both failed.`,
+            materializeError
+          );
+          return {
+            ok: false,
+            source: "unavailable",
+            error: materializeError,
+            generatedFileError: error,
+          };
         }
       }
       return { ok: false, source: "season-pack", error };
@@ -799,7 +798,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/driver_ratings.json"),
         fetchOptional("/data/driver_rating_profiles.json", []),
         fetchJsonSafe("/data/driver_career.json"),
-        fetchOptional("/data/driver_f1_history.json", []),
+        fetchJsonSafe("/data/driver_f1_history.json"),
         fetchOptional("/data/historical_championships.json", { drivers: [], constructors: [] }),
         fetchOptional("/data/driver_opening_state.json", []),
         fetchJsonSafe("/data/achievements.json"),
@@ -811,7 +810,7 @@ export const useGame = create((set, get) => ({
         fetchJsonSafe("/data/sponsors_contracts.json"),
         fetchJsonSafe("/data/rules.json"),
         fetchJsonSafe("/data/era_safety.json"),
-        fetchJsonSafe("/data/accident_model.json").catch(() => ({})),
+        fetchOptional("/data/accident_model.json", {}),
         fetchJsonSafe("/data/facilities.json"),
         fetchOptional("/data/car_stats_by_year.json", []),
         fetchOptional("/data/car_parts.json", []),
@@ -831,7 +830,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/youth_intake_rules.json", []),
         fetchOptional("/data/scouting_zones.json", []),
         fetchOptional("/data/track_layout_by_year.json", []),
-        fetchOptional("/data/team_seasons.json", []),
+        fetchJsonSafe("/data/team_seasons.json"),
         fetchOptional("/data/team_constructor_bridge.json", []),
         fetchOptional("/data/team_lineage_history.json", []),
         fetchOptional("/data/core_tracks.json", []),
@@ -841,7 +840,7 @@ export const useGame = create((set, get) => ({
         fetchOptional("/data/series.json", []),
         fetchOptional("/data/series_rules.json", []),
         fetchOptional("/data/lower_series_teams.json", []),
-        fetchOptional("/data/seasons/index.json", { years: [] }),
+        fetchJsonSafe("/data/seasons/index.json"),
       ]);
 
       const drivers           = unexcelDeep(driversRaw);

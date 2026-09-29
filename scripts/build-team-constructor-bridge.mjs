@@ -1,22 +1,18 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readJsonOptional, readJsonRequired } from "./lib/json-source.mjs";
 import { createTeamConstructorBridgeResolver } from "../src/domain/teamConstructorBridge.js";
 
 const root=process.cwd();
 const dataDir=path.join(root,"public","data");
 const target=path.join(dataDir,"team_constructor_bridge.json");
 
-async function readJson(file,fallback=[]){
-  try{return JSON.parse(await fs.readFile(file,"utf8"));}
-  catch{return fallback;}
-}
-
 const [raceRows,teams,drivers,constructorReference,entryRows]=await Promise.all([
-  readJson(path.join(dataDir,"race_results.json"),[]),
-  readJson(path.join(dataDir,"teams.json"),[]),
-  readJson(path.join(dataDir,"drivers.json"),[]),
-  readJson(path.join(root,"data","reference","constructor_id_map.json"),{constructors:[]}),
-  readJson(path.join(dataDir,"f1_entry_list_history.json"),[]),
+  readJsonRequired(path.join(dataDir,"race_results.json"),{label:"race_results.json"}),
+  readJsonRequired(path.join(dataDir,"teams.json"),{label:"teams.json"}),
+  readJsonRequired(path.join(dataDir,"drivers.json"),{label:"drivers.json"}),
+  readJsonRequired(path.join(root,"data","reference","constructor_id_map.json"),{label:"data/reference/constructor_id_map.json"}),
+  readJsonOptional(path.join(dataDir,"f1_entry_list_history.json"),[]),
 ]);
 
 const unwrap=(value)=>{
