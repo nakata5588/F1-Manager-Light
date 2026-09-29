@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isRaceDriverContract } from "../src/domain/contractRoles.js";
-import { materializeSeasonPackFromDatabaseState } from "../src/data/seasonPackLoader.js";
+import { materializeSeasonPackFromDatabaseState, SEASON_PACK_SCHEMA_VERSION, validateLoadedSeasonPack } from "../src/data/seasonPackLoader.js";
+import { materializeLowerSeriesWorld } from "../src/domain/lowerSeriesWorld.js";
+import { initializeLowerSeriesSeason } from "../src/engine/LowerSeriesEngine.js";
 import { teamOrganizationHistoryFromState } from "../src/domain/teamOrganizationHistory.js";
 import { teamChampionshipSummary } from "../src/domain/championshipHistory.js";
 import { teamReputation } from "../src/domain/teamReputation.js";
@@ -29,6 +31,62 @@ async function readPack(year){
   const file=path.join(root,"public","data","seasons",String(year),"season.json");
   return JSON.parse(await fs.readFile(file,"utf8"));
 }
+
+
+test("generated Season Packs use the current schema and stale local packs are rejected",async()=>{
+  const pack=await readPack(1980);
+  assert.equal(Number(pack.schemaVersion),SEASON_PACK_SCHEMA_VERSION);
+  assert.doesNotThrow(()=>validateLoadedSeasonPack(pack,1980));
+
+  const stale={
+    ...pack,
+    schemaVersion:SEASON_PACK_SCHEMA_VERSION-1,
+  };
+  assert.throws(
+    ()=>validateLoadedSeasonPack(stale,1980),
+    /stale/i,
+    "long-lived Codespaces must not silently reuse pre-Lower-Series Season Packs"
+  );
+});
+
+test("1980 generated New Game data materializes a populated Lower Series world",async()=>{
+  const pack=await readPack(1980);
+  const [series,seriesRules]=await Promise.all([
+    fs.readFile(path.join(root,"public","data","series.json"),"utf8").then(JSON.parse),
+    fs.readFile(path.join(root,"public","data","series_rules.json"),"utf8").then(JSON.parse).catch(()=>[]),
+  ]);
+
+  const opening=materializeLowerSeriesWorld({
+    year:1980,
+    sourceSeason:1980,
+    series,
+    seriesRules,
+    placements:pack.state?.driverFeederPlacement||[],
+    driverCareer:pack.state?.driverCareer||[],
+    drivers:pack.state?.drivers||[],
+  });
+  const state=initializeLowerSeriesSeason({
+    activeYear:1980,
+    currentDateISO:"1980-01-01",
+    saveMeta:{seed:"real-1980-lower-series"},
+    contracts:pack.state?.contracts||[],
+    drivers:pack.state?.drivers||[],
+    dbDrivers:pack.state?.drivers||[],
+    driverRatings:pack.state?.driverRatings||[],
+    lowerSeriesWorld:opening,
+    results:[],
+  });
+
+  const world=state.lowerSeriesWorld;
+  const entries=Object.values(world?.entries||{});
+  const formulaTwo=entries.filter((row)=>Number(row?.series_level)===2&&row?.series_id);
+  assert.ok(entries.length>0,"1980 Lower Series Save World must contain feeder drivers");
+  assert.ok(formulaTwo.length>0,"1980 must contain at least one concrete Formula Two placement");
+  assert.ok(
+    (world?.events||[]).some((row)=>Number(row?.series_level)===2),
+    "1980 Formula Two must receive a simulated calendar when feeder drivers are present"
+  );
+});
 
 for(const year of targetYears){
   test(`generated Season Pack ${year} is structurally playable`,async()=>{
