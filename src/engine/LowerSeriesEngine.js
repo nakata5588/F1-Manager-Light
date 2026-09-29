@@ -12,8 +12,10 @@ import { isRaceDriverContract } from "../domain/contractRoles.js";
 import { applyLowerSeriesWorldToDrivers } from "../domain/lowerSeriesWorld.js";
 
 export const LOWER_SERIES_SIMULATION_MODEL="lower_series_light_v1";
+export const LOWER_SERIES_TEAM_MODEL="lower_series_team_light_v1";
 export const LOWER_SERIES_SIMULATED_LEVELS=Object.freeze([2,3]);
 
+const TRACKED_TEAM_CAPACITY=2;
 const POINTS=Object.freeze([25,18,15,12,10,8,6,4,2,1]);
 const ROUNDS_BY_LEVEL=Object.freeze({2:10,3:8});
 
@@ -133,6 +135,161 @@ function participantsBySeries(world,gameState){
   return bySeries;
 }
 
+function teamReliabilityPercent(value){
+  const raw=num(value,null);
+  if(raw===null)return 90;
+  return raw<=1?clamp(raw*100,0,100):clamp(raw,0,100);
+}
+
+function materializeTeamPerformance(gameState,world){
+  const next=cloneWorld(world);
+  if(!next)return world;
+  const year=Number(next.season_year??gameState?.activeYear);
+  if(!Number.isInteger(year))return next;
+
+  for(const [teamId,team] of Object.entries(next.teams||{})){
+    if(Number(team?.performance_profile_year)===year)continue;
+
+    const rng=gameplayRngFor(
+      gameState,
+      "lower-series-team-profile",
+      `${year}:${teamId}`
+    );
+    const previousProfileYear=num(team?.performance_profile_year,null);
+    const carried=Number.isFinite(previousProfileYear)&&previousProfileYear<year;
+
+    let teamStrength;
+    let reliability;
+    let developmentEnvironment;
+    if(carried){
+      const priorStrength=num(team?.team_strength,50);
+      const priorReliability=teamReliabilityPercent(team?.reliability);
+      const priorDevelopment=num(team?.development_environment,50);
+      const developmentEffect=clamp((priorDevelopment-50)/25,-1,1);
+      teamStrength=clamp(
+        priorStrength+developmentEffect*0.75+(rng.next()-0.5)*2.2,
+        35,72
+      );
+      reliability=clamp(
+        priorReliability+(rng.next()-0.5)*1.8,
+        80,98
+      );
+      developmentEnvironment=clamp(
+        priorDevelopment+(rng.next()-0.5)*1.4,
+        35,75
+      );
+    }else{
+      teamStrength=clamp(50+(rng.next()-0.5)*14,43,57);
+      reliability=clamp(90+(rng.next()-0.5)*8,86,94);
+      developmentEnvironment=clamp(50+(rng.next()-0.5)*18,41,59);
+    }
+
+    next.teams[teamId]={
+      ...team,
+      team_strength:Number(teamStrength.toFixed(1)),
+      reliability:Number(reliability.toFixed(1)),
+      development_environment:Number(developmentEnvironment.toFixed(1)),
+      performance_profile_year:year,
+      performance_profile_model:LOWER_SERIES_TEAM_MODEL,
+      calibration_status:carried?"save_world_light_evolution":"simulated_light_profile",
+    };
+  }
+  return next;
+}
+
+function assignTeamLineups(gameState,world){
+  const next=cloneWorld(world);
+  if(!next)return world;
+  const year=Number(next.season_year??gameState?.activeYear);
+  if(!Number.isInteger(year))return next;
+
+  const excluded=activeF1RaceDriverIds(gameState);
+  const seriesIds=new Set(
+    Object.values(next.entries||{})
+      .map((entry)=>text(entry?.series_id))
+      .filter(Boolean)
+  );
+
+  for(const seriesId of [...seriesIds].sort()){
+    const teams=Object.values(next.teams||{})
+      .filter((team)=>text(team?.series_id)===seriesId)
+      .sort((a,b)=>String(teamIdOf(a)).localeCompare(String(teamIdOf(b))));
+    if(!teams.length)continue;
+
+    const entries=Object.values(next.entries||{})
+      .filter((entry)=>text(entry?.series_id)===seriesId)
+      .filter((entry)=>!excluded.has(text(entry?.driver_id)));
+    if(!entries.length)continue;
+
+    const teamById=new Map(teams.map((team)=>[teamIdOf(team),team]));
+    const occupied=new Map(teams.map((team)=>[teamIdOf(team),0]));
+    for(const entry of entries){
+      const teamId=text(entry?.lower_team_id);
+      if(teamById.has(teamId)){
+        occupied.set(teamId,(occupied.get(teamId)||0)+1);
+      }
+    }
+
+    const freeSlots=[];
+    for(const team of teams){
+      const teamId=teamIdOf(team);
+      const available=Math.max(0,TRACKED_TEAM_CAPACITY-(occupied.get(teamId)||0));
+      for(let slot=0;slot<available;slot++){
+        const rng=gameplayRngFor(
+          gameState,
+          "lower-series-team-slot",
+          `${year}:${seriesId}:${teamId}:${slot}`
+        );
+        freeSlots.push({
+          team,
+          teamId,
+          slot,
+          score:num(team?.team_strength,50)+(rng.next()-0.5)*4,
+        });
+      }
+    }
+    if(!freeSlots.length)continue;
+
+    const unassigned=entries
+      .filter((entry)=>!teamById.has(text(entry?.lower_team_id)))
+      .map((entry)=>{
+        const rating=ratingForDriver(gameState,entry.driver_id);
+        const rng=gameplayRngFor(
+          gameState,
+          "lower-series-lineup-driver",
+          `${year}:${seriesId}:${entry.driver_id}`
+        );
+        return {
+          entry,
+          score:abilityAnchor(rating)+(rng.next()-0.5)*5,
+        };
+      })
+      .sort((a,b)=>
+        b.score-a.score||
+        String(a.entry.driver_id).localeCompare(String(b.entry.driver_id))
+      );
+    freeSlots.sort((a,b)=>
+      b.score-a.score||
+      String(a.teamId).localeCompare(String(b.teamId))||
+      a.slot-b.slot
+    );
+
+    for(let index=0;index<Math.min(unassigned.length,freeSlots.length);index++){
+      const {entry}=unassigned[index];
+      const {team,teamId}=freeSlots[index];
+      next.entries[entry.driver_id]={
+        ...entry,
+        lower_team_id:teamId,
+        team_name:text(team?.team_name)||teamId,
+        placement_status:"placed_with_team",
+        lineup_source:"save_world_team_assignment",
+      };
+    }
+  }
+
+  return next;
+}
+
 function scheduleForSeries(series,year,seriesIndex){
   const level=num(series?.series_level,null);
   const total=ROUNDS_BY_LEVEL[level]||0;
@@ -166,6 +323,9 @@ export function initializeLowerSeriesSeason(gameState){
   let world=resolveCandidatePlacements(gameState,original);
   const year=Number(world.season_year??gameState?.activeYear);
   if(!Number.isInteger(year))return {...gameState,lowerSeriesWorld:world};
+
+  world=materializeTeamPerformance(gameState,world);
+  world=assignTeamLineups(gameState,world);
 
   const alreadyScheduled=rows(world.events).some((event)=>Number(event?.season_year)===year);
   if(!alreadyScheduled){
