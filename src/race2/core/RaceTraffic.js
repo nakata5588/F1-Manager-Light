@@ -202,7 +202,33 @@ export function enforceRaceTrafficSpacing(state,proposedCars,{stepMs=100,iterati
 
       const previousAhead=currentCarById(state,context.aheadCarId);
       const ahead=byId.get(context.aheadCarId);
-      if(!previousAhead||!ahead||ahead?.dnf||ahead?.status==="dnf"||ahead?.status==="finished")continue;
+      if(!previousAhead||!ahead||ahead?.dnf||ahead?.status==="dnf")continue;
+
+      // Overtaking is not active yet. If both cars cross the finish during the
+      // same fixed step, preserve the pre-step road order even though both
+      // positions clamp to the same finish distance.
+      if(ahead?.status==="finished"&&follower?.status==="finished"){
+        const aheadFinish=finite(ahead?.finishTimeMs,null);
+        const followerFinish=finite(follower?.finishTimeMs,null);
+        if(aheadFinish!=null&&followerFinish!=null&&followerFinish<=aheadFinish){
+          const adjustedFinish=Number((aheadFinish+0.001).toFixed(3));
+          const adjusted={
+            ...follower,
+            finishTimeMs:adjustedFinish,
+            elapsedMs:adjustedFinish,
+            traffic:{
+              ...(follower?.traffic||{}),
+              limited:true,
+              hardLimited:true,
+            },
+          };
+          out[index]=adjusted;
+          byId.set(adjusted.carId,adjusted);
+          changed=true;
+        }
+        continue;
+      }
+      if(ahead?.status==="finished")continue;
 
       const followerStart=finite(previousFollower?.absoluteDistanceM,0);
       const aheadStart=finite(previousAhead?.absoluteDistanceM,0);
