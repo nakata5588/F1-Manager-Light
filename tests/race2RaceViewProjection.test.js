@@ -92,7 +92,7 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
       fuelKg:12.5,
       retirement:{reason:"Engine failure"},
       damage:{severity:"major"},
-      pitState:{phase:"retired"},
+      pitState:{phase:"retired",active:false},
     }:car),
   };
   state={
@@ -107,12 +107,15 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
   const row=view.classification.find((candidate)=>candidate.car_id===first.carId);
 
   assert.equal(view.current_control,"VSC");
+  assert.equal(view.last_weather,state.weatherState.state);
+  assert.equal(view.track_state.track_wetness,state.weatherState.track_wetness);
+  assert.equal(view.track_state.grip_index,state.weatherState.grip_index);
   assert.equal(row.retired,true);
   assert.equal(row.status,"DNF");
   assert.equal(row.retirement_reason,"Engine failure");
   assert.equal(row.fuel_kg,12.5);
   assert.deepEqual(row.damage_state,{severity:"major"});
-  assert.equal(view.pit_states[row.driver_id].active,true);
+  assert.equal(view.pit_states[row.driver_id].active,false);
 });
 
 test("RW8.14A rejects missing canonical state explicitly",()=>{
