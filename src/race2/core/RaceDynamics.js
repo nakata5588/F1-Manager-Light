@@ -1,0 +1,136 @@
+// src/race2/core/RaceDynamics.js
+// RW8.3B: deterministic pace, speed, braking and corner response for RW2.
+//
+// This module is pure RaceState logic. It consumes only detached performance
+// snapshots and the canonical TrackModel; it never reaches back into GameState.
+
+import {
+  trackCornerSeverityAhead,
+  trackCornerSeverityAtDistance,
+} from "../track/TrackModel.js";
+
+const finite=(value,fallback=0)=>{
+  if(value===null||value===undefined||value==="")return fallback;
+  const parsed=Number(value);
+  return Number.isFinite(parsed)?parsed:fallback;
+};
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,finite(value,min)));
+const round=(value,digits=3)=>Number(finite(value,0).toFixed(digits));
+
+const ERA_STRAIGHT_SPEED_KMH=Object.freeze([
+  [1950,275],
+  [1960,290],
+  [1970,305],
+  [1980,315],
+  [1990,325],
+  [2000,335],
+  [2010,340],
+  [2020,345],
+  [2030,350],
+]);
+
+export function eraStraightSpeedKmh(year){
+  const y=finite(year,1980);
+  if(y<=ERA_STRAIGHT_SPEED_KMH[0][0])return ERA_STRAIGHT_SPEED_KMH[0][1];
+  for(let index=1;index<ERA_STRAIGHT_SPEED_KMH.length;index+=1){
+    const [yearB,speedB]=ERA_STRAIGHT_SPEED_KMH[index];
+    const [yearA,speedA]=ERA_STRAIGHT_SPEED_KMH[index-1];
+    if(y<=yearB){
+      const t=(y-yearA)/Math.max(1,yearB-yearA);
+      return speedA+(speedB-speedA)*t;
+    }
+  }
+  return ERA_STRAIGHT_SPEED_KMH[ERA_STRAIGHT_SPEED_KMH.length-1][1];
+}
+
+function carPerformance(car){
+  return car?.performance?.car||{};
+}
+
+function driverPerformance(car){
+  return car?.performance?.driver||{};
+}
+
+function performanceScore(car,key,fallback=70){
+  return clamp(carPerformance(car)?.[key],0,100)||fallback;
+}
+
+function driverRaceScore(car){
+  return clamp(driverPerformance(car)?.raceScore,0,100)||70;
+}
+
+export function raceTargetSpeedProfile(state,car){
+  const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
+  const distance=finite(car?.distanceAlongLapM,0);
+  const currentSeverity=trackCornerSeverityAtDistance(state?.track,distance);
+  const lookaheadM=clamp(45+speedMs*1.55,45,185);
+  const aheadSeverity=trackCornerSeverityAhead(
+    state?.track,
+    distance,
+    lookaheadM,
+    {samples:6}
+  );
+  const effectiveSeverity=clamp(Math.max(currentSeverity,aheadSeverity*0.96),0,1);
+
+  const power=performanceScore(car,"power",70);
+  const race=performanceScore(car,"race",70);
+  const chassis=performanceScore(car,"chassis",70);
+  const driver=driverRaceScore(car);
+
+  const straightScore=power*0.55+race*0.30+driver*0.15;
+  const straightFactor=clamp(0.90+straightScore*0.00135,0.90,1.04);
+  const straightTarget=eraStraightSpeedKmh(state?.track?.year)*straightFactor;
+
+  const handlingScore=chassis*0.55+race*0.20+driver*0.25;
+  const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44);
+  const targetSpeedKmh=Math.max(
+    55,
+    straightTarget*(1-effectiveSeverity*(1-cornerRetention))
+  );
+
+  return {
+    targetSpeedKmh:round(targetSpeedKmh,3),
+    straightTargetKmh:round(straightTarget,3),
+    cornerSeverity:round(currentSeverity,4),
+    effectiveCornerSeverity:round(effectiveSeverity,4),
+    lookaheadM:round(lookaheadM,3),
+  };
+}
+
+export function raceAccelerationForTarget(state,car,targetSpeedKmh){
+  const stepMs=clamp(state?.session?.simulation?.stepMs,10,1000);
+  const dt=stepMs/1000;
+  const currentMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
+  const targetMs=Math.max(0,finite(targetSpeedKmh,0)/3.6);
+  const delta=targetMs-currentMs;
+
+  const power=performanceScore(car,"power",70);
+  const chassis=performanceScore(car,"chassis",70);
+  const driver=driverRaceScore(car);
+
+  if(delta<-0.05){
+    const brakingCapability=7.4+chassis*0.026+driver*0.010;
+    const needed=Math.abs(delta)/Math.max(1e-9,dt);
+    return -round(Math.min(brakingCapability,needed),4);
+  }
+
+  if(delta>0.05){
+    const baseAcceleration=3.2+power*0.035;
+    const remainingRatio=targetMs>0?clamp(delta/targetMs,0,1):0;
+    const taper=clamp(remainingRatio*2.4,0.16,1);
+    const capability=baseAcceleration*taper;
+    const needed=delta/Math.max(1e-9,dt);
+    return round(Math.min(capability,needed),4);
+  }
+
+  return 0;
+}
+
+export function raceDynamicsForCar(state,car){
+  if(!car?.performance?.car&&!car?.performance?.driver)return null;
+  const profile=raceTargetSpeedProfile(state,car);
+  return {
+    ...profile,
+    accelerationMs2:raceAccelerationForTarget(state,car,profile.targetSpeedKmh),
+  };
+}
