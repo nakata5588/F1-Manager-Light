@@ -1,5 +1,5 @@
 // src/pages/ManagerProfile.jsx
-import React from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { UserRound, BriefcaseBusiness, Trophy, Gauge, Info } from "lucide-react";
 import { useGame } from "../state/GameStore.js";
@@ -14,6 +14,8 @@ import {
   managerReputationLabel,
 } from "../domain/managerProfile.js";
 import { managerEmploymentAssessment } from "../domain/managerEmployment.js";
+import { managerJobApplications, managerJobOpportunities } from "../domain/managerJobMarket.js";
+import { acceptManagerJobOffer, submitManagerJobApplication } from "../engine/ManagerCareerEngine.js";
 
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 
@@ -71,6 +73,7 @@ function effectText(row){
 
 export default function ManagerProfile(){
   const gameState=useGame((state)=>state.gameState);
+  const setGameState=useGame((state)=>state.setGameState);
   const manager=gameState?.manager||null;
 
   if(!manager){
@@ -101,6 +104,33 @@ export default function ManagerProfile(){
   const history=Array.isArray(manager.career_history)?manager.career_history:[];
   const achievements=Array.isArray(manager.achievements)?manager.achievements:[];
   const employment=managerEmploymentAssessment(gameState);
+  const unemployed=employment.status==="unemployed";
+  const opportunities=useMemo(
+    ()=>unemployed?managerJobOpportunities(gameState):[],
+    [unemployed,gameState]
+  );
+  const applications=useMemo(
+    ()=>managerJobApplications(gameState)
+      .slice()
+      .sort((a,b)=>String(b?.resolved_at||b?.submitted_at||"").localeCompare(String(a?.resolved_at||a?.submitted_at||""))),
+    [gameState]
+  );
+  const activeApplicationByTeam=useMemo(()=>{
+    const map=new Map();
+    for(const row of applications){
+      if(["submitted","offer"].includes(String(row?.status||"").toLowerCase())&&!map.has(String(row?.team_id))){
+        map.set(String(row.team_id),row);
+      }
+    }
+    return map;
+  },[applications]);
+
+  const applyForJob=(teamId)=>{
+    setGameState(submitManagerJobApplication(gameState,teamId));
+  };
+  const acceptOffer=(applicationId)=>{
+    setGameState(acceptManagerJobOffer(gameState,applicationId));
+  };
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] p-4 md:p-6 text-slate-100 space-y-4">
     <section className="rounded-xl border border-white/10 bg-[#12141c] p-5">
@@ -127,6 +157,82 @@ export default function ManagerProfile(){
         </div>
       </div>
     </section>
+
+    {unemployed?<section className="rounded-xl border border-amber-400/20 bg-[#12141c] overflow-hidden">
+      <div className="border-b border-white/10 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-200">Team Principal Job Market</h2>
+            <p className="mt-1 text-xs text-slate-400">Your Save World continues while you are unattached. Apply to teams with a vacancy or a Board willing to replace its current Team Principal.</p>
+          </div>
+          <div className="flex-1"/>
+          <div className="rounded-md border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+            Reputation {Math.round(Number(manager.reputation||0))}/100
+          </div>
+        </div>
+      </div>
+
+      {applications.some((row)=>["submitted","offer"].includes(String(row?.status||"").toLowerCase()))?<div className="border-b border-white/10 p-4">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Active applications</div>
+        <div className="grid gap-2 md:grid-cols-2">
+          {applications.filter((row)=>["submitted","offer"].includes(String(row?.status||"").toLowerCase())).map((row)=><div key={row.id} className="rounded-lg border border-white/10 bg-[#0d1017] p-3">
+            <div className="flex items-start gap-3">
+              <TeamLogo teamId={row.team_id} name={row.team_name} size="h-9 w-9" className="p-0.5"/>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{row.team_name}</div>
+                <div className="text-xs text-slate-500">
+                  {row.status==="offer"
+                    ?("Offer · "+Number(row.offer?.contract_years||2)+" years")
+                    :("Application submitted · response "+(row.response_date||"pending"))}
+                </div>
+              </div>
+              {row.status==="offer"?<button type="button" onClick={()=>acceptOffer(row.id)} className="rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400">Accept offer</button>:null}
+            </div>
+          </div>)}
+        </div>
+      </div>:null}
+
+      <div className="grid gap-3 p-4 lg:grid-cols-2">
+        {opportunities.map((row)=>{
+          const active=activeApplicationByTeam.get(String(row.team_id));
+          return <div key={row.team_id} className={"rounded-lg border p-3 "+(row.available?"border-white/10 bg-[#0d1017]":"border-white/5 bg-black/10 opacity-70")}>
+            <div className="flex items-start gap-3">
+              <TeamLogo teamId={row.team_id} name={row.team_name} size="h-11 w-11" className="p-0.5"/>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold">{row.team_name}</div>
+                <div className="mt-0.5 text-xs text-slate-500">Board interest {row.interest}% · Team reputation {Math.round(row.team_reputation)}</div>
+                <div className="mt-2 text-xs text-slate-400">
+                  {row.vacancy
+                    ?"Team Principal vacancy"
+                    :row.incumbent
+                      ?("Current TP: "+(row.incumbent.staff_name||row.incumbent.staff_id)+" · "+Math.round(row.incumbent.market_score))
+                      :"No incumbent recorded"}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{row.reason}</div>
+              </div>
+              <div className="shrink-0">
+                {active
+                  ?<span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300">{active.status==="offer"?"Offer received":"Applied"}</span>
+                  :row.available
+                    ?<button type="button" onClick={()=>applyForJob(row.team_id)} className="rounded-md border border-sky-400/30 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/25">Apply</button>
+                    :<span className="text-xs text-slate-600">Unavailable</span>}
+              </div>
+            </div>
+          </div>;
+        })}
+        {!opportunities.length?<div className="rounded-lg border border-white/10 bg-[#0d1017] p-4 text-sm text-slate-400">No active F1 Team Principal opportunities are currently visible.</div>:null}
+      </div>
+
+      {applications.some((row)=>!["submitted","offer"].includes(String(row?.status||"").toLowerCase()))?<details className="border-t border-white/10 p-4">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-400">Application history</summary>
+        <div className="mt-3 grid gap-2">
+          {applications.filter((row)=>!["submitted","offer"].includes(String(row?.status||"").toLowerCase())).slice(0,12).map((row)=><div key={row.id} className="flex items-center gap-3 rounded-lg bg-white/[0.025] px-3 py-2 text-sm">
+            <span className="flex-1">{row.team_name}</span>
+            <span className="text-xs text-slate-500">{String(row.status||"").replaceAll("_"," ")}</span>
+          </div>)}
+        </div>
+      </details>:null}
+    </section>:null}
 
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
       <section className="xl:col-span-8 rounded-xl border border-white/10 bg-[#12141c] overflow-hidden">
