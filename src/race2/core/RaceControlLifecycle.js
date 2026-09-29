@@ -172,7 +172,7 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
           mode:recommended,
           activatedTick:Math.max(0,Math.floor(finite(state?.tick,0))),
           activatedReferenceLap:referenceLap,
-          minimumReleaseLap:referenceLap+Math.max(1,duration)-1,
+          minimumReleaseLap:referenceLap+Math.max(1,duration),
           sequence:finite(previous?.sequence,0)+1,
           redFlagLifecycle:null,
         },
