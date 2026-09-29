@@ -29,7 +29,7 @@ function paceModeOf(car){
   return RACE_PACE_MODES[id]?id:"balanced";
 }
 
-function trackTempC(stateLike){
+export function raceTrackTempC(stateLike){
   const explicit=finite(
     stateLike?.trackState?.trackTemp
     ??stateLike?.weatherState?.track_temp_c
@@ -56,18 +56,14 @@ function tyreOptionsFor(inputCar,year){
   return supplied.length?supplied:genericTyresForYear(year);
 }
 
-function initialTyre(input,inputCar,driver){
-  const year=finite(input?.year,input?.track?.year??1980);
-  const options=tyreOptionsFor(inputCar,year);
-  const requested=String(inputCar?.resourceSetup?.strategy?.startTyreId??"");
-  const chosen=options.find((row)=>String(row?.tyre_id??row?.id??"")===requested)
-    ??options.filter((row)=>String(row?.category||"dry")==="dry")
-      .sort((a,b)=>finite(b?.grip_index,75)-finite(a?.grip_index,75))[0]
-    ??options[0]
-    ??genericTyresForYear(year)[0];
-
+export function freshRaceTyre(option,{
+  trackTempC=30,
+  tyreManagement=60,
+  stintNumber=1,
+}={}){
+  const chosen=option||{};
   const optimum=optimalTyreTemperatureC(chosen);
-  const startingTemp=clamp(trackTempC(input)+18,40,optimum-4);
+  const startingTemp=clamp(finite(trackTempC,30)+18,40,optimum-4);
   const effects=tyreConditionEffects(100);
   return {
     tyre_id:String(chosen?.tyre_id??chosen?.id??""),
@@ -83,14 +79,31 @@ function initialTyre(input,inputCar,driver){
     optimal_temperature_c:round(optimum,3),
     age_distance_m:0,
     age_laps:0,
-    stint_number:1,
+    stint_number:Math.max(1,Math.round(finite(stintNumber,1))),
     wear_per_lap_pct:0,
     grip_multiplier:effects.grip_multiplier,
     pace_penalty_s:effects.pace_penalty_s,
     risk_multiplier:effects.risk_multiplier,
     band:effects.band,
-    tyre_management:round(finite(driver?.performance?.tyreManagement,60),3),
+    tyre_management:round(finite(tyreManagement,60),3),
   };
+}
+
+function initialTyre(input,inputCar,driver){
+  const year=finite(input?.year,input?.track?.year??1980);
+  const options=tyreOptionsFor(inputCar,year);
+  const requested=String(inputCar?.resourceSetup?.strategy?.startTyreId??"");
+  const chosen=options.find((row)=>String(row?.tyre_id??row?.id??"")===requested)
+    ??options.filter((row)=>String(row?.category||"dry")==="dry")
+      .sort((a,b)=>finite(b?.grip_index,75)-finite(a?.grip_index,75))[0]
+    ??options[0]
+    ??genericTyresForYear(year)[0];
+
+  return freshRaceTyre(chosen,{
+    trackTempC:raceTrackTempC(input),
+    tyreManagement:driver?.performance?.tyreManagement,
+    stintNumber:1,
+  });
 }
 
 export function fuelBurnKgPerKmForYear(yearInput){
@@ -109,23 +122,33 @@ function initialFuel(input,inputCar){
   const laps=Math.max(1,Math.round(finite(input?.track?.laps,61)));
   const raceKm=(lengthM*laps)/1000;
   const burn=fuelBurnKgPerKmForYear(input?.year??input?.track?.year);
-  // RW8.7 has no pit/refuelling execution yet. Pace commands may still change
-  // during the race, so size the temporary full-race load for the worst normal
-  // burn modifiers accepted by updateFuel(): attack pace (1.04) and max power
-  // multiplier (1.05). RW8.8 can replace this with real stint/refuel planning.
-  const fullRaceBurn=raceKm*burn*1.04*1.05;
-  const reserve=Math.max(1.5,fullRaceBurn*0.03);
-  const initial=fullRaceBurn+reserve;
+  const refuellingAllowed=Boolean(input?.rules?.race?.refuelling_allowed);
+  const plannedStopLap=Math.max(
+    0,
+    Math.round(finite(inputCar?.resourceSetup?.strategy?.plannedStopLap,0))
+  );
+  const hasPlannedRefuelStint=
+    refuellingAllowed&&
+    plannedStopLap>=1&&
+    plannedStopLap<laps;
+  const stintKm=hasPlannedRefuelStint
+    ?(lengthM*plannedStopLap)/1000
+    :raceKm;
+
+  const worstNormalBurn=stintKm*burn*1.04*1.05;
+  const reserve=Math.max(1.5,worstNormalBurn*0.03);
+  const initial=worstNormalBurn+reserve;
   return {
     fuelKg:round(initial,6),
     initialFuelKg:round(initial,6),
     burnKgPerKm:round(burn,6),
     reserveKg:round(reserve,6),
     fuelPlan:inputCar?.resourceSetup?.strategy?.fuelPlan??null,
-    refuellingDeferred:Boolean(input?.rules?.race?.refuelling_allowed),
+    refuellingDeferred:refuellingAllowed,
+    fuelStintPlanned:hasPlannedRefuelStint,
+    plannedFuelStopLap:hasPlannedRefuelStint?plannedStopLap:null,
   };
 }
-
 export function initialRaceResources(input,inputCar,driver){
   const fuel=initialFuel(input,inputCar);
   const tyre=initialTyre(input,inputCar,driver);
@@ -159,6 +182,11 @@ export function initialRaceResources(input,inputCar,driver){
       fuelReserveKg:fuel.reserveKg,
       fuelPlan:fuel.fuelPlan,
       refuellingDeferred:fuel.refuellingDeferred,
+      fuelStintPlanned:fuel.fuelStintPlanned,
+      plannedFuelStopLap:fuel.plannedFuelStopLap,
+      pitCrew:inputCar?.resourceSetup?.pitCrew
+        ?{...inputCar.resourceSetup.pitCrew}
+        :null,
       tyreGripMultiplier:1,
       tyreTemperaturePenalty:0,
       fuelMassPenalty:0,
@@ -175,7 +203,7 @@ function tyreTemperatureTargetC(state,car){
   const pace=paceModeOf(car);
   const paceDelta=pace==="attack"?5:pace==="conserve"?-4:0;
   const cornerLoad=clamp(finite(car?.effectiveCornerSeverity,0),0,1)*2.5;
-  return optimum+(trackTempC(state)-28)*0.28+paceDelta+cornerLoad;
+  return optimum+(raceTrackTempC(state)-28)*0.28+paceDelta+cornerLoad;
 }
 
 function tyreWearDriverMultiplier(car){
@@ -193,7 +221,7 @@ function updateTyre(state,previous,next,deltaM,stepMs){
   if(!tyre?.tyre_id)return tyre;
 
   const dt=Math.max(0.01,finite(stepMs,100)/1000);
-  const currentTemp=finite(tyre?.temperature_c,trackTempC(state)+18);
+  const currentTemp=finite(tyre?.temperature_c,raceTrackTempC(state)+18);
   const targetTemp=tyreTemperatureTargetC(state,{...previous,...next,tyre});
   const warmupTime=Math.max(0.5,finite(tyre?.warmup_time_s,2.5));
   const tau=Math.max(8,warmupTime*8);
@@ -249,7 +277,7 @@ function updateEngineTemperature(state,previous,next,stepMs){
   const speedKmh=Math.max(0,finite(next?.speedKmh,previous?.speedKmh??0));
   const paceDelta=pace==="attack"?7:pace==="conserve"?-4:0;
   const cooling=clamp(speedKmh/350*9,0,9);
-  const ambient=trackTempC(state);
+  const ambient=raceTrackTempC(state);
   const target=88+power*0.09+paceDelta+(ambient-28)*0.10-cooling;
   const alpha=1-Math.exp(-dt/18);
   return clamp(current+(target-current)*alpha,55,135);
@@ -309,17 +337,26 @@ export function raceResourcePerformance(car){
 export function advanceRaceResources(state,cars,{stepMs=100}={}){
   const previousById=new Map((state?.cars||[]).map((car)=>[car?.carId,car]));
   return (cars||[]).map((next)=>{
-    const previous=previousById.get(next?.carId);
-    if(!previous||previous?.dnf||previous?.status==="dnf"||previous?.status==="finished"){
+    const originalPrevious=previousById.get(next?.carId);
+    if(!originalPrevious||originalPrevious?.dnf||originalPrevious?.status==="dnf"||originalPrevious?.status==="finished"){
       return next;
     }
+    const serviceApplied=Boolean(next?.pitState?.serviceAppliedThisStep);
+    const previous=serviceApplied
+      ?{
+        ...originalPrevious,
+        tyre:next?.tyre??originalPrevious?.tyre,
+        fuelKg:finite(next?.fuelKg,originalPrevious?.fuelKg),
+        resources:next?.resources??originalPrevious?.resources,
+      }
+      :originalPrevious;
     const deltaM=Math.max(
       0,
-      finite(next?.absoluteDistanceM,0)-finite(previous?.absoluteDistanceM,0)
+      finite(next?.absoluteDistanceM,0)-finite(originalPrevious?.absoluteDistanceM,0)
     );
     const tyre=updateTyre(state,previous,next,deltaM,stepMs);
     const fuelKg=updateFuel(state,previous,deltaM);
-    const engineTemperature=updateEngineTemperature(state,previous,next,stepMs);
+    const engineTemperature=updateEngineTemperature(state,originalPrevious,next,stepMs);
     const provisional={
       ...next,
       tyre,
