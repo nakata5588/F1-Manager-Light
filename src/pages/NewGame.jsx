@@ -406,7 +406,7 @@ export default function NewGame() {
 
               {step === 2 && (
                 <div className="space-y-3">
-                  <h2 className="text-xl font-semibold">Create Team Manager</h2>
+                  <h2 className="text-xl font-semibold">Create Team Principal</h2>
 
                   <div className="rounded-xl border border-white/10 bg-[#0d0f15] p-2.5">
                     <div className="flex flex-wrap items-center gap-2">
