@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createCareerMeta, materializeNextCareerSeason } from "../src/core/careerBoundary.js";
+import { initializeLowerSeriesSeason } from "../src/engine/LowerSeriesEngine.js";
 
 function fixture(){
   return {
@@ -277,4 +278,58 @@ test("career boundary creates and owns future lower-series placement without imp
     false
   );
   assert.equal(next.careerMeta.lastRollover.lowerSeriesDrivers,1);
+  assert.equal(next.lowerSeriesWorld.events.length,8);
+  assert.ok(next.lowerSeriesWorld.events.every((event)=>event.status==="scheduled"));
+  assert.deepEqual(next.lowerSeriesWorld.results,[]);
+});
+
+
+test("career boundary completes and archives the outgoing Lower Series season before scheduling the next one",()=>{
+  let state=fixture();
+  state.careerMeta=createCareerMeta(state,1980);
+  state.saveMeta={seed:"career-ls3-boundary"};
+  state.dbSeries=[
+    {series_id:"F3",series_name:"Formula Three",series_level:3,start_year:1975,end_year:1990},
+  ];
+  state.dbSeriesRules=[];
+  state.drivers=[
+    ...state.drivers,
+    {driver_id:"L1",display_name:"Lower One",dob:"1960-01-01",age:20,status:"lower_series",active_lower_series:true,lower_series_level:3},
+    {driver_id:"L2",display_name:"Lower Two",dob:"1961-01-01",age:19,status:"lower_series",active_lower_series:true,lower_series_level:3},
+  ];
+  state.dbDrivers=[
+    ...state.dbDrivers,
+    {driver_id:"L1",display_name:"Lower One",dob:"1960-01-01",career_start_year:1978,f1_rookie_season:1985},
+    {driver_id:"L2",display_name:"Lower Two",dob:"1961-01-01",career_start_year:1979,f1_rookie_season:1986},
+  ];
+  state.driverRatings=[
+    ...state.driverRatings,
+    {year:1980,driver_id:"L1",current_ability:70,pace:71,qualifying:70,racecraft:69,consistency:72},
+    {year:1980,driver_id:"L2",current_ability:67,pace:68,qualifying:67,racecraft:68,consistency:66},
+  ];
+  state.lowerSeriesWorld={
+    version:2,
+    authority:"save_world",
+    season_year:1980,
+    source_season:1980,
+    series:[{series_id:"F3",series_name:"Formula Three",series_level:3}],
+    teams:{},
+    entries:{
+      L1:{driver_id:"L1",series_id:"F3",series_name:"Formula Three",series_level:3,series_candidates:[],placement_status:"series_only"},
+      L2:{driver_id:"L2",series_id:"F3",series_name:"Formula Three",series_level:3,series_candidates:[],placement_status:"series_only"},
+    },
+    standings:{},
+    events:[],
+    results:[],
+    history:[],
+  };
+  state=initializeLowerSeriesSeason(state);
+
+  const next=materializeNextCareerSeason(state,1981);
+  assert.equal(next.lowerSeriesWorld.history.length,1);
+  assert.equal(next.lowerSeriesWorld.history[0].season_year,1980);
+  assert.equal(next.lowerSeriesWorld.history[0].results.length,8);
+  assert.equal(next.lowerSeriesWorld.history[0].standings.F3.complete,true);
+  assert.equal(next.lowerSeriesWorld.events.length,8);
+  assert.deepEqual(next.lowerSeriesWorld.results,[]);
 });

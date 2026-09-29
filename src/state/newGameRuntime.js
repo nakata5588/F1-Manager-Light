@@ -1,6 +1,7 @@
 import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
 import { hydrateDriverPortraitRows } from "../domain/driverPortraits.js";
 import { applyLowerSeriesWorldToDrivers, materializeLowerSeriesWorld } from "../domain/lowerSeriesWorld.js";
+import { initializeLowerSeriesSeason } from "../engine/LowerSeriesEngine.js";
 
 // src/state/newGameRuntime.js
 // New Game isolation boundary.
@@ -155,5 +156,6 @@ export function buildFreshCareerState(source,runtimePatch={}){
     })()
     :withPortraits;
 
-  return synchronizeDriverRelationships(withLowerSeries,{source:"career_start_neutral"});
+  const withLowerSeriesSeason=initializeLowerSeriesSeason(withLowerSeries);
+  return synchronizeDriverRelationships(withLowerSeriesSeason,{source:"career_start_neutral"});
 }
