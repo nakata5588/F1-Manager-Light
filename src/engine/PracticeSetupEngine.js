@@ -145,6 +145,7 @@ export function simulatePracticeSession(gs,{gp={},selections={}}={}){
   }).filter(Boolean);
 
   const simulated=simulateCanonicalPractice({
+    modelVersion:1,
     seed:getSaveSeed(gs),
     weekendKey:weekend.key,
     trackProfile:profile,
