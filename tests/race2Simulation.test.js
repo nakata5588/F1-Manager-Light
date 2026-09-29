@@ -13,7 +13,7 @@ function withKinematics(state,carId,patch){return {...state,cars:state.cars.map(
 
 test("RW8.2 creates one authoritative continuous CarState per entered grid car",()=>{
   const state=createRaceState(input());
-  assert.equal(state.schemaVersion,RACE_STATE_SCHEMA_VERSION); assert.equal(state.status,"ready"); assert.equal(state.tick,0); assert.equal(state.simulationTimeMs,0); assert.equal(state.session.simulation.stepMs,DEFAULT_RACE_STEP_MS); assert.equal(state.cars.length,2); assert.deepEqual(state.cars.map((car)=>car.carId),["car_1","car_2"]); assert.ok(state.cars.every((car)=>car.lap===1)); assert.ok(state.cars.every((car)=>car.completedLaps===0)); assert.ok(state.cars.every((car)=>car.distanceAlongLapM===0)); assert.ok(state.cars.every((car)=>car.absoluteDistanceM===0)); assert.ok(state.cars.every((car)=>car.sector===1));
+  assert.equal(state.schemaVersion,RACE_STATE_SCHEMA_VERSION); assert.equal(state.status,"ready"); assert.equal(state.tick,0); assert.equal(state.simulationTimeMs,0); assert.equal(state.session.simulation.stepMs,DEFAULT_RACE_STEP_MS); assert.equal(state.cars.length,2); assert.deepEqual(state.cars.map((car)=>car.carId),["car_1","car_2"]); assert.ok(state.cars.every((car)=>car.lap===1)); assert.ok(state.cars.every((car)=>car.completedLaps===0)); assert.deepEqual(state.cars.map((car)=>car.absoluteDistanceM),[0,-8]); assert.deepEqual(state.cars.map((car)=>car.gridStartOffsetM),[0,-8]); assert.equal(state.cars[0].distanceAlongLapM,0); assert.equal(state.cars[1].distanceAlongLapM,92); assert.ok(state.cars.every((car)=>car.sector===1));
 });
 
 test("RW8.2 fixed-step advancement converts speed into continuous physical distance",()=>{
@@ -37,7 +37,7 @@ test("RW8.2 lap fields derive from the stored canonical absolute distance",()=>{
 });
 
 test("RW8.2 DNF cars are frozen while the same core continues advancing active cars",()=>{
-  let state=startRaceState(createRaceState(input())); state={...state,cars:state.cars.map((car)=>car.carId==="car_1"?{...car,dnf:true,status:"dnf",absoluteDistanceM:42,distanceAlongLapM:42,speedMs:50,speedKmh:180}:{...car,speedMs:10,speedKmh:36})}; const next=stepRaceState(state); const retired=next.cars.find((row)=>row.carId==="car_1"); const active=next.cars.find((row)=>row.carId==="car_2"); assert.equal(retired.absoluteDistanceM,42); assert.equal(retired.distanceAlongLapM,42); assert.equal(retired.elapsedMs,0); assert.ok(active.absoluteDistanceM>0); assert.equal(next.status,"running");
+  let state=startRaceState(createRaceState(input())); state={...state,cars:state.cars.map((car)=>car.carId==="car_1"?{...car,dnf:true,status:"dnf",absoluteDistanceM:42,distanceAlongLapM:42,speedMs:50,speedKmh:180}:{...car,speedMs:10,speedKmh:36})}; const before=state.cars.find((row)=>row.carId==="car_2").absoluteDistanceM; const next=stepRaceState(state); const retired=next.cars.find((row)=>row.carId==="car_1"); const active=next.cars.find((row)=>row.carId==="car_2"); assert.equal(retired.absoluteDistanceM,42); assert.equal(retired.distanceAlongLapM,42); assert.equal(retired.elapsedMs,0); assert.ok(active.absoluteDistanceM>before); assert.equal(next.status,"running");
 });
 
 test("RW8.2 the canonical core clamps a car at the race finish",()=>{
