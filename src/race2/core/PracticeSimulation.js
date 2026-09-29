@@ -20,6 +20,8 @@ const num=(value,fallback=0)=>{
 };
 const text=(value)=>String(value??"");
 
+export const PRACTICE_MODEL_VERSION=1;
+
 export const PRACTICE_PROGRAMMES=Object.freeze({
   balanced:Object.freeze({
     id:"balanced",
@@ -179,6 +181,9 @@ function issueFor(input,entry,programme){
 }
 
 export function simulateCanonicalPractice(input={}){
+  if(Number(input?.modelVersion)!==PRACTICE_MODEL_VERSION){
+    throw new TypeError(`PracticeInput.modelVersion must be ${PRACTICE_MODEL_VERSION}`);
+  }
   const trackProfile=input?.trackProfile||{};
   const target=trackProfile?.target||{};
   const sessionWeather=input?.sessionWeather||null;
@@ -286,6 +291,7 @@ export function simulateCanonicalPractice(input={}){
 
   return {
     model:"rw8.12",
+    modelVersion:PRACTICE_MODEL_VERSION,
     source:"rw8.12_practice_core",
     results,
     effects:{conditionByDriver},
