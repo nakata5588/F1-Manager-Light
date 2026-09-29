@@ -260,6 +260,8 @@ const VERIFIED_PIT_CONTEXT={
   hasPitLane:true,
   pitEntryProgress:0.9499,
   pitExitProgress:0.0789,
+  pitEntryLaneProgress:0.22,
+  pitExitLaneProgress:0.78,
 };
 
 function pitRow(phase,{
@@ -289,20 +291,20 @@ function pitRow(phase,{
   };
 }
 
-test("RW6.7B 1 — PIT_ENTRY progressively leaves the racing line at PIT IN",()=>{
+test("RW6.7B 1 — PIT_ENTRY follows the shaped pit merge instead of cutting laterally",()=>{
   const visual=visualPitLaneState(pitRow("pit_entry"),VERIFIED_PIT_CONTEXT);
-  assert.equal(visual.path,"pit_transition");
+  assert.equal(visual.path,"pit_lane");
   assert.equal(visual.track_anchor_progress,0.9499);
-  assert.equal(visual.pit_lane_progress,0);
-  assert.ok(Math.abs(visual.pit_lane_mix-0.5)<1e-9);
+  assert.ok(Math.abs(visual.pit_lane_progress-0.11)<1e-9);
+  assert.equal(visual.pit_lane_mix,1);
   assert.equal(pitPhase(pitRow("pit_entry")),"pit_entry");
   assert.equal(visualMotionMode(pitRow("pit_entry")),RACE_VISUAL_MOTION_MODES.PIT_ENTRY);
 });
 
-test("RW6.7B 2 — PIT_LANE advances on normalized validated pit-lane progress",()=>{
+test("RW6.7B 2 — PIT_LANE continues from the completed entry merge",()=>{
   const visual=visualPitLaneState(pitRow("pit_lane"),VERIFIED_PIT_CONTEXT);
   assert.equal(visual.path,"pit_lane");
-  assert.ok(Math.abs(visual.pit_lane_progress-0.25)<1e-9);
+  assert.ok(Math.abs(visual.pit_lane_progress-0.36)<1e-9);
   assert.equal(visual.pit_lane_mix,1);
   assert.equal(visual.stopped,false);
 });
@@ -332,20 +334,31 @@ test("RW6.7B 5 — PIT_RELEASE remains stationary until the authoritative hold e
   assert.equal(visualMotionMode(pitRow("pit_release")),RACE_VISUAL_MOTION_MODES.PIT_RELEASE);
 });
 
-test("RW6.7B 6 — PIT_EXIT advances through the final half of the pit lane",()=>{
+test("RW6.7B 6 — PIT_EXIT approaches the start of the shaped rejoin",()=>{
   const visual=visualPitLaneState(pitRow("pit_exit"),VERIFIED_PIT_CONTEXT);
   assert.equal(visual.path,"pit_lane");
-  assert.ok(Math.abs(visual.pit_lane_progress-0.75)<1e-9);
+  assert.ok(Math.abs(visual.pit_lane_progress-0.64)<1e-9);
   assert.equal(visual.track_anchor_progress,0.0789);
 });
 
-test("RW6.7B 7 — REJOIN progressively returns from pit lane to racing line at PIT OUT",()=>{
+test("RW6.7B 7 — REJOIN follows the final pit curve onto the racing line",()=>{
   const visual=visualPitLaneState(pitRow("rejoin"),VERIFIED_PIT_CONTEXT);
-  assert.equal(visual.path,"pit_transition");
-  assert.equal(visual.pit_lane_progress,1);
+  assert.equal(visual.path,"pit_lane");
+  assert.ok(Math.abs(visual.pit_lane_progress-0.89)<1e-9);
   assert.equal(visual.track_anchor_progress,0.0789);
-  assert.ok(Math.abs(visual.pit_lane_mix-0.5)<1e-9);
+  assert.equal(visual.pit_lane_mix,1);
   assert.equal(visualMotionMode(pitRow("rejoin")),RACE_VISUAL_MOTION_MODES.REJOIN);
+});
+
+test("RW6.7B 7A — tracks without shaped merge metadata keep the legacy transition fallback",()=>{
+  const visual=visualPitLaneState(pitRow("pit_entry"),{
+    hasPitLane:true,
+    pitEntryProgress:0.9499,
+    pitExitProgress:0.0789,
+  });
+  assert.equal(visual.path,"pit_transition");
+  assert.equal(visual.pit_lane_progress,0);
+  assert.ok(Math.abs(visual.pit_lane_mix-0.5)<1e-9);
 });
 
 test("RW6.7B 8 — completed pit lifecycle returns to normal track progression",()=>{
