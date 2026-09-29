@@ -13,6 +13,8 @@ import {
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { applyStaffMarketTick } from "../src/engine/StaffMarketEngine.js";
+import { managerJobOpportunity } from "../src/domain/managerJobMarket.js";
+import { staffRoleIsRepresented } from "../src/domain/staffRoles.js";
 import { staffNegotiationEligibility, staffTerminationCost } from "../src/domain/staffMarket.js";
 import { staffCareerHistory } from "../src/domain/staffHistory.js";
 import { currentTeamBacker, currentTeamOwner } from "../src/domain/teamStakeholders.js";
@@ -617,6 +619,62 @@ test("AI Staff market fills an important represented vacancy",()=>{
   assert.ok(aiPrincipal);
   assert.equal(aiPrincipal.staff_id,"S_FREE");
   assert.equal(aiPrincipal.source,"ai_staff_market");
+});
+
+
+test("Staff role coverage survives an in-era release but not a genuinely unrecorded era",()=>{
+  const recorded=staffMarketFixture();
+  recorded.staffContracts=recorded.staffContracts.map((row)=>({
+    ...row,
+    status:"released",
+    released_at:"1980-08-01",
+    end_year:1980,
+  }));
+  assert.equal(staffRoleIsRepresented(recorded,"team_principal"),true);
+
+  const unrecorded={...staffMarketFixture(),staffContracts:[]};
+  assert.equal(staffRoleIsRepresented(unrecorded,"team_principal"),false);
+  const next=applyStaffMarketTick(unrecorded);
+  assert.equal(
+    next.staffContracts.some((row)=>String(row.team_id)==="T2"&&String(row.role)==="team_principal"),
+    false
+  );
+});
+
+test("Manager Job Market distinguishes a factual vacancy from missing Team Principal data",()=>{
+  const manager={
+    reputation:60,
+    attributes:{
+      leadership:60,personnel:60,negotiation:60,
+      technical:60,commercial:60,race_management:60,
+    },
+  };
+  const unrecorded={
+    ...staffMarketFixture(),
+    manager,
+    staffContracts:[],
+    teamReputationState:{T1:{reputation:45},T2:{reputation:50}},
+  };
+  const unknown=managerJobOpportunity(unrecorded,"T2");
+  assert.equal(unknown.principal_role_recorded,false);
+  assert.equal(unknown.incumbent_recorded,false);
+  assert.equal(unknown.unrecorded_role,true);
+  assert.equal(unknown.vacancy,false);
+  assert.equal(unknown.available,true);
+  assert.equal(unknown.reason,"Team Principal role not recorded — Board opportunity");
+
+  const recorded={
+    ...staffMarketFixture(),
+    manager,
+    teamReputationState:{T1:{reputation:45},T2:{reputation:50}},
+  };
+  const vacancy=managerJobOpportunity(recorded,"T2");
+  assert.equal(vacancy.principal_role_recorded,true);
+  assert.equal(vacancy.incumbent_recorded,false);
+  assert.equal(vacancy.unrecorded_role,false);
+  assert.equal(vacancy.vacancy,true);
+  assert.equal(vacancy.available,true);
+  assert.equal(vacancy.reason,"Team Principal vacancy");
 });
 
 test("AI Staff market upgrades only for a material affordable improvement",()=>{
