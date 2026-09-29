@@ -407,6 +407,7 @@ test("Manager job market can move control to a different team's own assets",()=>
   };
   gs.development={projects:[{id:"old_project"}],parts:[],partUnits:[],manufacturing:[],research:[],aeroTestingUsage:[],technologyProjects:[]};
   gs.hq={facilityLevels:{design_centre:2},upgrades:[]};
+  gs.meta={popularity:{drivers:{D1:7}}};
   gs.aiTechnicalWorld={
     version:1,
     teams:{
