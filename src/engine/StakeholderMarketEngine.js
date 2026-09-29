@@ -156,7 +156,7 @@ function stakeholderNews(gs,{role,staff,team,value=0}){
   };
 }
 
-export function applyStakeholderMarketTick(gs){
+export function applyStakeholderMarketTick(gs,{forceDecisions=false}={}){
   if(!gs)return gs;
   const date=dateOnly(gs?.currentDateISO);
   if(!date)return gs;
@@ -169,7 +169,7 @@ export function applyStakeholderMarketTick(gs){
     const rng=rngFor(next,"stakeholder-market:"+month);
 
     const owner=ownerOpportunity(next);
-    if(owner&&owner.fit>=50&&rng.chance(clamp(0.25+(owner.fit-50)*0.008,0.25,0.72))){
+    if(owner&&owner.fit>=50&&(forceDecisions||rng.chance(clamp(0.25+(owner.fit-50)*0.008,0.25,0.72)))){
       const staff=staffCoreFor(next,owner.owner.staff_id)||owner.owner.staff;
       next=addTeamStakeholder(next,{
         staffId:owner.owner.staff_id,
@@ -185,7 +185,7 @@ export function applyStakeholderMarketTick(gs){
     }
 
     const backer=backerOpportunity(next);
-    if(backer&&backer.fit>=48&&rng.chance(clamp(0.30+(backer.fit-48)*0.009,0.30,0.75))){
+    if(backer&&backer.fit>=48&&(forceDecisions||rng.chance(clamp(0.30+(backer.fit-48)*0.009,0.30,0.75)))){
       const staff=staffCoreFor(next,backer.backer.staff_id)||backer.backer.staff;
       next=addTeamStakeholder(next,{
         staffId:backer.backer.staff_id,
