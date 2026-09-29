@@ -14,6 +14,7 @@ import { teamStakeholderHistory } from "./teamStakeholders.js";
 
 const text=(value)=>String(value??"");
 const num=(value,fallback=NaN)=>{
+  if(value===null||value===undefined||value==="")return fallback;
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
