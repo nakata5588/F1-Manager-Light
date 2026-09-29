@@ -40,6 +40,7 @@ import {
   applyLowerSeriesEntriesToPlacements,
   openingLowerSeriesEntriesForYear,
 } from "@/domain/lowerSeriesEntries";
+import { activeLowerSeriesTeamsForYear } from "@/domain/lowerSeriesTeams";
 import { materializeMissingStartingRatings } from "@/domain/driverStartingRating";
 
 /** ===== CONSTs de save ===== */
@@ -1442,7 +1443,7 @@ export const useGame = create((set, get) => ({
       driverWorldEntry: worldEntries,
       driverFeederPlacement: feederPlacements,
       driverOpeningState,
-      lowerSeriesTeams: filterByYearRange(prev.dbLowerSeriesTeams || [], y),
+      lowerSeriesTeams: activeLowerSeriesTeamsForYear(prev.dbLowerSeriesTeams || [], y),
       lowerSeriesEntries,
       staffRatings,
       staffCore,
