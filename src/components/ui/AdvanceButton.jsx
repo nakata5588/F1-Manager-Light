@@ -13,7 +13,7 @@ export default function AdvanceButton({
   onDone,        // opcional: callback(res) quando terminar
   ...rest
 }) {
-  const { advanceOneDayUntilBreak } = useGame();
+  const { advanceOneDayUntilBreak, pushToast } = useGame();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
 
@@ -35,8 +35,12 @@ export default function AdvanceButton({
       onDone?.(res);
     } catch (err) {
       console.error("[Advance] FAILED:", err);
-      // opcional: algum toast se tiveres
-      // toast.error("Advance failed. Check console.");
+      pushToast?.({
+        title: "Advance failed",
+        description: String(err?.message||err||"A daily subsystem failed."),
+        type: "error",
+        ttl: 7000,
+      });
     } finally {
       setBusy(false);
     }

@@ -318,3 +318,22 @@ test("dev-data bootstrap watches non-public constructor references and historica
   assert.match(source,/public\/assets\/teams/);
   assert.match(source,/latestDirectoryFileMtime/);
 });
+
+
+test("daily advance paths share one canonical subsystem pipeline and fail closed",async()=>{
+  const [storeSource,buttonSource]=await Promise.all([
+    fs.readFile(new URL("../src/state/GameStore.js",import.meta.url),"utf8"),
+    fs.readFile(new URL("../src/components/ui/AdvanceButton.jsx",import.meta.url),"utf8"),
+  ]);
+  assert.match(storeSource,/async function applyDailyWorldSystems\(/);
+  assert.equal((storeSource.match(/applyDailyWorldSystems\(updated\)/g)||[]).length,2);
+  for(const moduleName of [
+    "RuleEngine","ProgressionEngine","EconomyEngine","MarketEngine",
+    "NegotiationEngine","StaffNegotiationEngine","InboxEngine",
+  ]){
+    const token=`import("@/engine/${moduleName}")`;
+    assert.equal(storeSource.split(token).length-1,1,moduleName+" daily import must have one canonical call site");
+  }
+  assert.match(storeSource,/throw dailyPipelineFailure\("RaceWeekend state sync",e\)/);
+  assert.match(buttonSource,/title: "Advance failed"/);
+});
