@@ -140,7 +140,7 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.WeatherState.includes("timeline"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.PracticeInput.includes("entrants"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.PracticeEntrant.includes("reliabilityProfile"));
-  assert.deepEqual(RACE_WEEKEND_CONTRACT_FIELDS.PracticeResult,["model","source","results","effects"]);
+  assert.deepEqual(RACE_WEEKEND_CONTRACT_FIELDS.PracticeResult,["model","modelVersion","source","results","effects"]);
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("recommendedMode"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("minimumReleaseLap"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("redFlagLifecycle"));
