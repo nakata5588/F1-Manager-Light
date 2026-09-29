@@ -218,6 +218,21 @@ test("RW8.8 pit cars leave normal traffic and overtaking space immediately",()=>
   assert.equal(car(next,"C1").traffic.aheadCarId,null);
 });
 
+test("RW8.8 pit-lane loss stays additive to normal race-line transit",()=>{
+  let state=placeBeforePit(runningState({cars:1}));
+  state=stepRaceState(state);
+  const row=car(state);
+  const phases=row.pitState.service.phases;
+  const physicalMs=phases.reduce((sum,phase)=>sum+Number(phase.duration_ms||0),0);
+  const lossMs=phases.reduce((sum,phase)=>sum+Number(phase.loss_ms||0),0);
+  const transitMs=Math.round(Number(row.pitState.service.track_transit_s||0)*1000);
+
+  assert.ok(transitMs>0);
+  assert.equal(lossMs,row.pitState.lossTotalMs);
+  assert.ok(physicalMs>lossMs);
+  assert.ok(Math.abs((physicalMs-lossMs)-transitMs)<=2);
+});
+
 test("RW8.8 completed stop changes tyre, refuels when allowed and rejoins same canonical race",()=>{
   let state=placeBeforePit(runningState({year:1980,refuellingAllowed:true,cars:1}));
   state=stepRaceState(state);
