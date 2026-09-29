@@ -3,8 +3,9 @@
 
 import { cloneRaceContractValue } from "../contracts/raceContracts.js";
 import { trackSectorAtDistance } from "../track/TrackModel.js";
+import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 
-export const RACE_STATE_SCHEMA_VERSION=2;
+export const RACE_STATE_SCHEMA_VERSION=3;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -95,6 +96,7 @@ function initialCarState(input,row,index){
     zoneId:`sector_${sector}`,
     zoneType:"sector",
     elapsedMs:0,
+    finishTimeMs:null,
     status:"ready",
     tyre:null,
     fuelKg:null,
@@ -136,7 +138,7 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
 
   if(!cars.length)throw new TypeError("RaceWeekendInput must contain at least one entered car");
 
-  return {
+  const state={
     schemaVersion:RACE_STATE_SCHEMA_VERSION,
     contractVersion:finite(input?.schemaVersion,null),
     engineVersion:input?.engineVersion??null,
@@ -159,6 +161,8 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
     status:"ready",
     track:cloneRaceContractValue(input.track),
     cars,
+    classification:[],
+    timingState:null,
     trackState:initialTrackState(),
     weatherState:cloneRaceContractValue(input?.weather??null),
     raceControlState:null,
@@ -169,4 +173,5 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
     rngState:{seed:text(input?.seed)||null,counter:0},
     result:null,
   };
+  return {...state,...projectCanonicalRaceTiming(state)};
 }
