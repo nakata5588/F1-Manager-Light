@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   activeSeriesForYear,
+  seriesCompetitionModel,
+  seriesHasTeamCompetition,
   seriesLevelOf,
   seriesRuleForYear,
   seriesAgeEligibility,
@@ -76,4 +78,22 @@ test("legacy division-4 Formula 4 maps to pyramid level 5 without rewriting old 
     series_level:4,
     series_name:"Formula Regional European Championship",
   }),4);
+});
+
+
+test("series competition model defaults to teams and supports central operation",()=>{
+  assert.equal(seriesCompetitionModel({series_id:"gp2"}),"TEAM_BASED");
+  assert.equal(seriesHasTeamCompetition({series_id:"gp2"}),true);
+
+  const central={
+    series_id:"fia_f2_2009",
+    competition_model:"CENTRAL_OPERATION",
+  };
+  assert.equal(seriesCompetitionModel(central),"CENTRAL_OPERATION");
+  assert.equal(seriesHasTeamCompetition(central),false);
+
+  assert.equal(
+    seriesCompetitionModel({series_id:"alias",competition_model:"driver_only"}),
+    "CENTRAL_OPERATION"
+  );
 });
