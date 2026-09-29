@@ -60,7 +60,7 @@ export function lowerSeriesCareerMovement(world,driver,entry,{
     100
   ));
 
-  const enoughEvidence=starts>=3;
+  const enoughEvidence=starts>=3&&championship?.complete===true;
   let decision="stay";
   let targetLevel=fromLevel;
   let f1Ready=false;
