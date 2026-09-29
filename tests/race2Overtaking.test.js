@@ -263,7 +263,7 @@ test("RW8.6 lapping battle resolves from physical track clearance, not classific
   let state=runningState();
   state=patchCars(state,{
     C1:{
-      absoluteDistanceM:1080,distanceAlongLapM:80,lap:2,completedLaps:1,
+      absoluteDistanceM:1058,distanceAlongLapM:58,lap:2,completedLaps:1,
       speedMs:40,speedKmh:144,
       performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
     },
