@@ -58,6 +58,17 @@ test("RW8.3 Live runner preserves sub-step time across save/resume",()=>{
   const initial=runnerState(); const first=createLiveRaceRunner(initial); first.advanceElapsed(255); const saved=first.snapshot(); const resumed=createLiveRaceRunner(saved.state,{accumulatorMs:saved.accumulatorMs}); resumed.advanceElapsed(745); const uninterrupted=createLiveRaceRunner(initial); uninterrupted.advanceElapsed(1000); assert.deepEqual(resumed.getState(),uninterrupted.getState()); assert.equal(resumed.getAccumulatorMs(),0);
 });
 
+test("RW8.3 Live elapsed threshold is stable for fractional millisecond chunks",()=>{
+  const initial=runnerState({laps:10});
+  const chunked=createLiveRaceRunner(initial);
+  for(let index=0;index<1000;index+=1)chunked.advanceElapsed(0.1);
+  const whole=createLiveRaceRunner(initial);
+  whole.advanceElapsed(100);
+  assert.deepEqual(chunked.getState(),whole.getState());
+  assert.equal(chunked.getState().tick,1);
+  assert.equal(chunked.getAccumulatorMs(),0);
+});
+
 test("RW8.3 Fast-to-end is only a scheduler over canonical fixed steps",()=>{
   const finished=runFastRaceToEnd(runnerState({laps:1}),{maxSteps:250}); assert.equal(finished.status,"finished"); assert.equal(finished.cars[0].status,"finished"); assert.equal(finished.cars[0].absoluteDistanceM,100); assert.equal(finished.tick,20);
 });
