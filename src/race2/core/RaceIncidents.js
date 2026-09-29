@@ -128,15 +128,14 @@ function applyDamage(car,state,{
   source,
   key,
   speedRetention=0.45,
+  retirementProbabilityOverride=null,
 }={}){
+  const override=finite(retirementProbabilityOverride,null);
   const incidentDamage=damageFromIncident({
     kind,
     severityScore,
     ...incidentRolls(state,key),
-    retirementProbabilityOverride:finite(
-      car?.reliability?.accidentConditionalRetirementChance,
-      null
-    ),
+    ...(override==null?{}:{retirementProbabilityOverride:override}),
   });
   if(!incidentDamage)return {car,damage:null,retired:false};
 
@@ -249,8 +248,9 @@ function applyMechanicalFailures(state,cars){
 
   for(const candidate of [...next]){
     const car=carById(next,candidate?.carId);
-    if(!activeCar(car)||priorEventForCar(state,car?.carId,"mechanical_failure"))continue;
-    const fraction=movedFraction(state,previousById.get(text(car?.carId)),car);
+    const previous=previousById.get(text(car?.carId));
+    if(!activeCar(previous)||car?.dnf||car?.status==="dnf"||priorEventForCar(state,car?.carId,"mechanical_failure"))continue;
+    const fraction=movedFraction(state,previous,car);
     if(fraction<=0)continue;
 
     const totalChance=clamp(car?.reliability?.mechanicalFailureChance,0,1);
@@ -294,8 +294,9 @@ function applySoloAccidents(state,cars){
 
   for(const candidate of [...next]){
     const car=carById(next,candidate?.carId);
-    if(!activeCar(car)||priorEventForCar(state,car?.carId,"accident"))continue;
-    const fraction=movedFraction(state,previousById.get(text(car?.carId)),car);
+    const previous=previousById.get(text(car?.carId));
+    if(!activeCar(previous)||car?.dnf||car?.status==="dnf"||priorEventForCar(state,car?.carId,"accident"))continue;
+    const fraction=movedFraction(state,previous,car);
     if(fraction<=0)continue;
 
     const totalChance=clamp(car?.reliability?.accidentIncidentChance,0,1);
@@ -312,6 +313,7 @@ function applySoloAccidents(state,cars){
       source:"solo_accident",
       key:`accident-damage:${car?.carId}:${state?.tick}`,
       speedRetention:Math.max(0.08,0.34-severityScore*0.20),
+      retirementProbabilityOverride:car?.reliability?.accidentConditionalRetirementChance,
     });
     next=clearBattlePair(replaceCar(next,consequence.car),[car?.carId]);
 
