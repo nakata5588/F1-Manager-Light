@@ -220,23 +220,27 @@ test("RW8.8 pit cars leave normal traffic and overtaking space immediately",()=>
 
 test("RW8.8 completed stop changes tyre, refuels when allowed and rejoins same canonical race",()=>{
   let state=placeBeforePit(runningState({year:1980,refuellingAllowed:true,cars:1}));
-  const fuelBefore=car(state).fuelKg;
   state=stepRaceState(state);
-  const fuelAtEntry=car(state).fuelKg;
-  const completed=runUntil(state,(s)=>car(s).pitState.completed&&!car(s).pitState.active,{maxSteps:500});
+  const serviceAtEntry=car(state).pitState.service;
+  assert.equal(serviceAtEntry.refuelled,true);
+  assert.ok(serviceAtEntry.fuel_added_kg>0);
+  assert.ok(serviceAtEntry.fuel_target_kg>0);
 
+  const completed=runUntil(state,(s)=>car(s).pitState.completed&&!car(s).pitState.active,{maxSteps:500});
   const row=car(completed);
+  const history=row.pitState.history[0];
+
   assert.equal(row.pitState.completed,true);
   assert.equal(row.pitState.status,"track");
   assert.equal(row.tyre.tyre_id,"hard");
   assert.equal(row.tyre.stint_number,2);
-  assert.ok(row.fuelKg>fuelAtEntry);
+  assert.equal(history.refuelled,true);
+  assert.ok(history.fuelAddedKg>0);
   assert.ok(row.pitState.history.length===1);
   assert.equal(row.resources.strategy.plannedStopLap,null);
   assert.equal(row.resources.strategy.pitPlan,"completed");
   assert.ok(completed.events.some((event)=>event.type==="pit_service_completed"));
   assert.ok(completed.events.some((event)=>event.type==="pit_exit"));
-  assert.ok(fuelBefore>0);
 });
 
 test("RW8.8 no-refuelling era performs tyre stop without adding fuel",()=>{
