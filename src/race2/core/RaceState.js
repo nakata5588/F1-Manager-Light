@@ -9,7 +9,7 @@ import { initialBattleState } from "./RaceOvertaking.js";
 import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
 
-export const RACE_STATE_SCHEMA_VERSION=7;
+export const RACE_STATE_SCHEMA_VERSION=8;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -179,6 +179,7 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
     weatherState:cloneRaceContractValue(input?.weather??null),
     raceControlState:null,
     commandQueue:[],
+    nextCommandSequence:1,
     pitLaneState:{cars:[],boxes:[]},
     events:[],
     nextEventSequence:1,
