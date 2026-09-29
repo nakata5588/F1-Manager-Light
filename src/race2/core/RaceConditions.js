@@ -120,7 +120,12 @@ export function raceConditionsReferenceLap(state,cars=state?.cars){
   const active=rows.filter((car)=>!car?.dnf&&car?.status!=="dnf");
   const source=active.length?active:rows;
   const maximum=source.reduce((best,car)=>Math.max(best,finite(car?.lap,1)),1);
-  return Math.min(lapLimit,Math.max(1,Math.floor(maximum)));
+  const previous=Math.max(
+    1,
+    finite(state?.trackState?.referenceLap,1),
+    finite(state?.weatherState?.currentLap,1)
+  );
+  return Math.min(lapLimit,Math.max(previous,Math.max(1,Math.floor(maximum))));
 }
 
 export function trackStateFromWeatherRow(row={}){
