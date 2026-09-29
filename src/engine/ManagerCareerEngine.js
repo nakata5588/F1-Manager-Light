@@ -183,7 +183,7 @@ function renewManagerContract(gs,{years=2}={}){
   const manager=gs?.manager;
   if(!manager||!playerManagerIsActiveTeamPrincipal(gs))return gs;
   const currentYear=Number(gs?.activeYear);
-  const until=currentYear+Math.max(1,Number(years)||2);
+  const until=currentYear+Math.max(1,Number(years)||2)-1;
   const teamName=manager?.current_team_name||teamNameFor(gs,playerManagerTeamId(gs));
   const nextManager={
     ...manager,
