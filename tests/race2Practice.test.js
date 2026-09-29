@@ -82,10 +82,18 @@ test("RW8.12 canonical Practice core is detached and deterministic",()=>{
   assert.deepEqual(first,second);
   assert.deepEqual(original,snapshot,"canonical core must not mutate its detached input");
   assert.equal(first.model,"rw8.12");
+  assert.equal(first.modelVersion,1);
   assert.equal(first.source,"rw8.12_practice_core");
   assert.equal(first.results.length,2);
   assert.ok(first.effects.conditionByDriver.D1);
   assert.ok(first.effects.conditionByDriver.D2);
+});
+
+test("RW8.12 rejects an unversioned or incompatible Practice input",()=>{
+  assert.throws(
+    ()=>simulateCanonicalPractice({...input(),modelVersion:2}),
+    /PracticeInput\.modelVersion must be 1/
+  );
 });
 
 test("RW8.12 player programme command and AI programme policy share one catalogue",()=>{
