@@ -290,6 +290,14 @@ function finalizeAccepted(gs,negotiation,{fromCounter=false}={}){
   let prepared=gs;
   if(transfer){
     transferFee=Math.max(0,Number(negotiation.buyout_fee||0));
+    const buyerTeamId=text(negotiation.team_id);
+    const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
+    const preIncumbent=staffRoleIncumbent(gs,buyerTeamId,negotiation.role);
+    const replacementCost=buyerTeamId===playerTeamId?staffTerminationCost(gs,preIncumbent):0;
+    const available=staffTeamBudget(gs,buyerTeamId);
+    if(Number.isFinite(available)&&transferFee+replacementCost>available){
+      return rejectNegotiation(gs,negotiation,"The team cannot afford the combined Staff transfer and replacement costs.");
+    }
     const settled=applyStaffTransferSettlement(prepared,{
       staffId:negotiation.staff_id,
       buyerTeamId:negotiation.team_id,
