@@ -146,8 +146,11 @@ function checkStaffContracts(path, staffCorePath, teamsPath) {
   const missingStaff = rows.filter((row) => !staffIds.has(String(row.staff_id || "")));
   const missingTeams = rows.filter((row) => !teamIds.has(String(row.team_id || "")));
   const invalidPeriods = rows.filter((row) => {
-    const start = Number(row.contract_start_year);
-    const end = Number(row.contract_until_year);
+    const startRaw = row.contract_start_year;
+    const endRaw = row.contract_until_year;
+    if (startRaw == null || startRaw === "" || endRaw == null || endRaw === "") return false;
+    const start = Number(startRaw);
+    const end = Number(endRaw);
     return Number.isFinite(start) && Number.isFinite(end) && start > end;
   });
 
