@@ -511,11 +511,14 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
         lower_series_level:null,
         lower_series_candidates:[],
         lower_series_resolution:"left_for_f1_race_seat",
+        lower_series_prospect_reputation:null,
+        lower_series_f1_interest:[],
       };
     }
 
     const entry=lowerSeriesEntry(world,id);
     if(!entry)return driver;
+    const prospect=world?.prospects?.[id]||null;
 
     return {
       ...driver,
@@ -528,6 +531,10 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
       lower_series_rule_id:entry.rule_id,
       lower_series_team_id:entry.lower_team_id,
       lower_series_team_name:entry.team_name,
+      lower_series_prospect_reputation:prospect?.prospect_reputation??null,
+      lower_series_f1_interest:rows(prospect?.f1_interest).map((row)=>({...row})),
+      lower_series_best_f1_interest:prospect?.best_f1_interest?{...prospect.best_f1_interest}:null,
+      lower_series_academy_team_id:prospect?.academy_team_id??null,
       world_runtime_source:"lower_series_world",
     };
   });
