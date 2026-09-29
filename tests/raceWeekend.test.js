@@ -461,6 +461,7 @@ test("RW2 player Practice programmes create setup knowledge, Preparation, fatigu
   assert.equal(gs.raceWeekendState.phase,"practice_complete");
   assert.equal(gs.raceWeekendState.practice.source,"rw8.12_practice_core");
   assert.equal(gs.raceWeekendState.practice.model,"rw8.12");
+  assert.equal(gs.raceWeekendState.practice.model_version,1);
   const d1=gs.raceWeekendState.practice.results.find((row)=>row.driver_id==="D1");
   const d2=gs.raceWeekendState.practice.results.find((row)=>row.driver_id==="D2");
   assert.equal(d1.programme_id,"reliability");
