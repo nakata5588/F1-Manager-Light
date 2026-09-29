@@ -104,6 +104,9 @@ test("RW8.11A initial RaceState materialises canonical weather, track and era Ra
   assert.equal(state.weatherState.timeline.length,3);
   assert.equal(state.raceControlState.rules.era_id,"pre_standard_safety_car");
   assert.equal(state.raceControlState.recommendedMode,"GREEN");
+  assert.equal(state.raceControlState.model,"rw8.11b");
+  assert.equal(state.raceControlState.phase,"enforced");
+  assert.equal(state.raceControlState.sequence,0);
 });
 
 test("RW8.11A conditions follow the leader reference lap from the snapshotted weather timeline",()=>{
