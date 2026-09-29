@@ -94,10 +94,10 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,14);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,15);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","WeatherState","RaceControlState","PracticeInput","PracticeEntrant","PracticeResult","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","WeatherState","RaceControlState","PracticeInput","PracticeEntrant","PracticeResult","QualifyingInput","QualifyingEntrant","QualifyingResult","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
@@ -141,6 +141,9 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.PracticeInput.includes("entrants"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.PracticeEntrant.includes("reliabilityProfile"));
   assert.deepEqual(RACE_WEEKEND_CONTRACT_FIELDS.PracticeResult,["model","modelVersion","source","results","effects"]);
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.QualifyingInput.includes("entrants"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.QualifyingEntrant.includes("basePerformance"));
+  assert.deepEqual(RACE_WEEKEND_CONTRACT_FIELDS.QualifyingResult,["model","modelVersion","source","results"]);
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("recommendedMode"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("minimumReleaseLap"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("redFlagLifecycle"));

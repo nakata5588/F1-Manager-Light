@@ -347,6 +347,19 @@ test("RW3 player and AI drivers run through exactly the same qualifying sessions
   assert.equal(qSessions[0].results.filter((row)=>row.team_id==="T2").length,2);
 });
 
+test("RW8.13 Race Weekend persists the canonical Qualifying core metadata",()=>{
+  let gs=startAfterPractice({seed:"rw8.13-integration"});
+  gs=completeQualifyingSession(gs,{gp});
+
+  assert.equal(gs.raceWeekendState.qualifying.source,"rw8.13_qualifying_core");
+  assert.equal(gs.raceWeekendState.qualifying.model,"rw8.13");
+  assert.equal(gs.raceWeekendState.qualifying.model_version,1);
+  const q1=gs.raceWeekendState.sessions.find((row)=>row.id==="qualifying_1");
+  assert.equal(q1.status,"completed");
+  assert.ok(q1.results.every((row)=>Number.isFinite(row.performance)));
+  assert.ok(q1.results.every((row)=>Number.isFinite(row.lap_time_ms)&&row.lap_time_ms>0));
+});
+
 test("RW3 qualifying is deterministic for the same Save seed across session boundaries",()=>{
   const a=finish1980Qualifying({seed:"rw3-deterministic"});
   const b=finish1980Qualifying({seed:"rw3-deterministic"});
