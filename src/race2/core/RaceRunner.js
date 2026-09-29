@@ -42,10 +42,16 @@ export function createLiveRaceRunner(initialState,{accumulatorMs=0}={}){
       if(!state||state.status==="finished")return state;
       remainder+=Math.max(0,finite(elapsedMs,0));
       const stepMs=raceStepMs(state);
-      const steps=Math.floor(remainder/stepMs);
+      // Floating-point elapsed chunks (for example 1000 × 0.1 ms) can sum to
+      // a value microscopically below an exact step boundary. Use a bounded
+      // tolerance only for scheduling; canonical race physics still advances
+      // exclusively in exact fixed steps.
+      const thresholdToleranceMs=Math.max(1e-9,stepMs*1e-12);
+      const steps=Math.floor((remainder+thresholdToleranceMs)/stepMs);
       if(steps>0){
         state=runCanonicalSteps(state,steps);
         remainder-=steps*stepMs;
+        if(Math.abs(remainder)<=thresholdToleranceMs)remainder=0;
       }
       return state;
     },
