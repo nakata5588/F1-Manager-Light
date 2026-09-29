@@ -83,10 +83,10 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,7);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,8);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
@@ -101,6 +101,12 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("gridStartOffsetM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("traffic"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("battle"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.CarState.includes("resources"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceTyreState.includes("condition"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceTyreState.includes("temperature_c"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("fuelBurnKgPerKm"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("paceMultiplier"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceResourceState.includes("fuelStarvationPenalty"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceBattleState.includes("opponentCarId"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceBattleState.includes("contactRiskPct"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceEvent.includes("sequence"));
@@ -149,6 +155,9 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.ok(Number.isFinite(playerCar.performance.race));
   assert.ok(Number.isFinite(playerCar.performance.power));
   assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.raceScore));
+  assert.ok(Number.isFinite(a.drivers.find((row)=>row.driverId==="D1").performance.tyreManagement));
+  assert.ok(Array.isArray(playerCar.resourceSetup.tyres));
+  assert.ok(playerCar.resourceSetup.tyres.length>=1);
   assert.equal(a.track.speedProfile.detailed,false);
   assert.deepEqual(a.startingGrid.map((row)=>row.driver_id),["D1","D2"]);
 
