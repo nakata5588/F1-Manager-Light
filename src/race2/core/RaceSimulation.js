@@ -1,12 +1,14 @@
 // src/race2/core/RaceSimulation.js
 // RW8.2: deterministic fixed-step advancement for the canonical RW2 RaceState.
 // RW8.3B layers pace/braking/corner dynamics onto the same fixed-step core.
-// Traffic, tyres and strategy remain separate later phases.
+// RW8.5 adds canonical physical traffic/following without overtaking.
+// Tyres, strategy and overtaking remain separate later phases.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
-import { raceDynamicsForCar } from "./RaceDynamics.js";
+import { raceAccelerationForTarget, raceDynamicsForCar } from "./RaceDynamics.js";
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
+import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -57,9 +59,27 @@ function advanceCar(state,car,stepMs){
 
   const dt=stepMs/1000;
   const dynamics=raceDynamicsForCar(state,car);
+  const trafficContext=raceTrafficContext(state,car);
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
+  const freeTargetSpeedKmh=finite(dynamics?.targetSpeedKmh,null);
+  const trafficTargetSpeedKmh=trafficContext?.speedCeilingMs==null
+    ?null
+    :Math.max(0,trafficContext.speedCeilingMs*3.6);
+  const trafficLimited=trafficTargetSpeedKmh!=null&&(
+    freeTargetSpeedKmh!=null
+      ?trafficTargetSpeedKmh<freeTargetSpeedKmh-0.01
+      :trafficTargetSpeedKmh<speedMs*3.6-0.01
+  );
+  const effectiveTargetSpeedKmh=trafficLimited
+    ?Math.max(0,Math.min(
+      trafficTargetSpeedKmh,
+      freeTargetSpeedKmh??trafficTargetSpeedKmh
+    ))
+    :freeTargetSpeedKmh;
   const acceleration=Math.max(-100,Math.min(100,finite(
-    dynamics?.accelerationMs2,
+    trafficLimited
+      ?raceAccelerationForTarget(state,car,effectiveTargetSpeedKmh)
+      :dynamics?.accelerationMs2,
     finite(car?.accelerationMs2,0)
   )));
   const unconstrainedNextSpeed=speedMs+acceleration*dt;
@@ -70,7 +90,7 @@ function advanceCar(state,car,stepMs){
   const deltaM=acceleration<0&&unconstrainedNextSpeed<0
     ?((speedMs+0)/2)*motionTime
     :((speedMs+nextSpeedMs)/2)*dt;
-  const currentAbsolute=Math.max(0,finite(car?.absoluteDistanceM,0));
+  const currentAbsolute=finite(car?.absoluteDistanceM,0);
   let nextAbsolute=Number((currentAbsolute+Math.max(0,deltaM)).toFixed(6));
 
   const lapLimit=lapLimitFor(state);
@@ -105,7 +125,20 @@ function advanceCar(state,car,stepMs){
     speedMs:Number(nextSpeedMs.toFixed(6)),
     speedKmh:Number((nextSpeedMs*3.6).toFixed(6)),
     accelerationMs2:Number(acceleration.toFixed(6)),
-    targetSpeedKmh:Number(finite(dynamics?.targetSpeedKmh,car?.targetSpeedKmh||0).toFixed(6)),
+    targetSpeedKmh:Number(finite(
+      effectiveTargetSpeedKmh,
+      dynamics?.targetSpeedKmh??car?.targetSpeedKmh??0
+    ).toFixed(6)),
+    traffic:{
+      aheadCarId:trafficContext?.aheadCarId??null,
+      gapM:trafficContext?.gapM??null,
+      hardGapM:trafficContext?.hardGapM??null,
+      desiredGapM:trafficContext?.desiredGapM??null,
+      followRangeM:trafficContext?.followRangeM??null,
+      targetSpeedKmh:trafficLimited?Number(trafficTargetSpeedKmh.toFixed(6)):null,
+      limited:trafficLimited,
+      hardLimited:false,
+    },
     cornerSeverity:Number(finite(dynamics?.cornerSeverity,car?.cornerSeverity||0).toFixed(6)),
     effectiveCornerSeverity:Number(finite(dynamics?.effectiveCornerSeverity,car?.effectiveCornerSeverity||0).toFixed(6)),
     dynamicsLookaheadM:Number(finite(dynamics?.lookaheadM,car?.dynamicsLookaheadM||0).toFixed(6)),
@@ -140,7 +173,8 @@ export function startRaceState(state){
 export function stepRaceState(state){
   if(!state||state.status!=="running")return state;
   const stepMs=raceStepMs(state);
-  const cars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
+  const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
+  const cars=enforceRaceTrafficSpacing(state,proposedCars,{stepMs});
   const allResolved=cars.length>0&&cars.every((car)=>car?.dnf||car?.status==="dnf"||car?.status==="finished");
   const status=allResolved?"finished":"running";
 
