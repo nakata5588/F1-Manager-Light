@@ -13,7 +13,14 @@ import {
 } from "../src/domain/driverContracts.js";
 import { applyMarketTick } from "../src/engine/MarketEngine.js";
 import { applyStaffMarketTick } from "../src/engine/StaffMarketEngine.js";
+import { staffNegotiationEligibility, staffTerminationCost } from "../src/domain/staffMarket.js";
 import { processDriverNegotiations } from "../src/engine/NegotiationEngine.js";
+import {
+  acceptStaffCounterOffer,
+  processStaffNegotiations,
+  staffContractDecision,
+  startStaffNegotiation,
+} from "../src/engine/StaffNegotiationEngine.js";
 import { isDriverContract, isRaceDriverContract, isReserveDriverContract, isTestDriverContract } from "../src/domain/contractRoles.js";
 import { buildSeasonResultStats } from "../src/domain/seasonStats.js";
 import { applyProgressionTick } from "../src/engine/ProgressionEngine.js";
@@ -646,4 +653,112 @@ test("AI renews valuable Staff and Staff-market decisions are deterministic",()=
   const renewed=a.staffContracts.find((row)=>row.staff_id==="S_AI"&&row.status==="active");
   assert.ok(Number(renewed.contract_until_year)>1980);
   assert.equal(renewed.ai_staff_renewal_plan,"renew");
+});
+
+
+test("player Staff market blocks governance roles but allows operational free Staff",()=>{
+  const gs=staffMarketFixture();
+  gs.staffCore.push(
+    {staff_id:"S_OWNER",staff_name:"Team Owner",role_primary:"owner"},
+    {staff_id:"S_PRES",staff_name:"Club President",role_primary:"president"}
+  );
+  gs.staffRatings.push(
+    {year:1980,staff_id:"S_OWNER",reputation:80,leadership:80,budget_management:80,negotiation:80},
+    {year:1980,staff_id:"S_PRES",reputation:80,leadership:80,budget_management:80,negotiation:80}
+  );
+
+  const free=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  const owner=staffNegotiationEligibility(gs,{staffId:"S_OWNER",teamId:"T1"});
+  const president=staffNegotiationEligibility(gs,{staffId:"S_PRES",teamId:"T1"});
+
+  assert.equal(free.canNegotiate,true);
+  assert.equal(free.role,"team_principal");
+  assert.equal(owner.canNegotiate,false);
+  assert.equal(owner.reason,"non_hireable_role");
+  assert.equal(president.canNegotiate,false);
+  assert.equal(president.reason,"non_hireable_role");
+});
+
+test("player can submit a Staff offer and better salary improves acceptance chance",()=>{
+  const gs=staffMarketFixture();
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  const low=staffContractDecision(gs,{
+    staffId:"S_FREE",teamId:"T1",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary*0.75,years:1},
+  });
+  const high=staffContractDecision(gs,{
+    staffId:"S_FREE",teamId:"T1",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary*1.15,years:3},
+  });
+  assert.ok(high.acceptance_probability>low.acceptance_probability);
+
+  const offered=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:2},
+  });
+  assert.equal(offered.staffNegotiations.length,1);
+  assert.equal(offered.staffNegotiations[0].status,"submitted");
+  assert.equal(offered.staffNegotiations[0].response_date,"1980-08-02");
+});
+
+test("accepted player Staff signing replaces incumbent and pays termination cost",()=>{
+  const gs=staffMarketFixture();
+  gs.inbox=[];
+  gs.financeLog=[];
+  const incumbent=gs.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
+  const expectedCost=staffTerminationCost(gs,incumbent);
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:2},
+  });
+  const negotiation=next.staffNegotiations[0];
+  next={...next,currentDateISO:"1980-08-02"};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[negotiation.id]:"accepted"}});
+
+  const oldContract=next.staffContracts.find((row)=>row.staff_id==="S_PLAYER");
+  const newContract=next.staffContracts.find((row)=>row.staff_id==="S_FREE"&&row.status==="active");
+  assert.equal(oldContract.status,"released");
+  assert.equal(oldContract.termination_cost,expectedCost);
+  assert.ok(newContract);
+  assert.equal(newContract.role,"team_principal");
+  assert.equal(newContract.source,"player_staff_negotiation");
+  assert.equal(next.staffNegotiations[0].status,"accepted");
+  assert.equal(next.finances.balance,5_000_000-expectedCost);
+});
+
+test("Staff negotiation ends if another team signs the candidate first",()=>{
+  const gs=staffMarketFixture();
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary,years:1},
+  });
+  next={
+    ...next,
+    currentDateISO:"1980-08-02",
+    staffContracts:[...next.staffContracts,{
+      year:1980,team_id:"T2",staff_id:"S_FREE",staff_name:"Free Principal",
+      role:"team_principal",salary:eligibility.expectedSalary,
+      contract_start_year:1980,contract_until_year:1981,status:"active",
+    }],
+  };
+  next=processStaffNegotiations(next);
+  assert.equal(next.staffNegotiations[0].status,"signed_elsewhere");
+});
+
+test("Staff counter-offer can be accepted without creating duplicate active negotiations",()=>{
+  const gs=staffMarketFixture();
+  const eligibility=staffNegotiationEligibility(gs,{staffId:"S_FREE",teamId:"T1"});
+  let next=startStaffNegotiation(gs,{
+    staffId:"S_FREE",teamId:"T1",teamName:"Player Team",
+    offer:{role:"team_principal",salary:eligibility.expectedSalary*0.8,years:1},
+  });
+  const id=next.staffNegotiations[0].id;
+  next={...next,currentDateISO:"1980-08-02"};
+  next=processStaffNegotiations(next,{forceOutcomeById:{[id]:"countered"}});
+  assert.equal(next.staffNegotiations[0].status,"countered");
+  next=acceptStaffCounterOffer(next,id);
+  assert.equal(next.staffNegotiations[0].status,"accepted");
+  assert.equal(next.staffContracts.filter((row)=>row.staff_id==="S_FREE"&&row.status==="active").length,1);
 });
