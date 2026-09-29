@@ -28,6 +28,7 @@ const round=(value,digits=6)=>{
 
 export function initialGridAbsoluteDistanceM(gridPosition){
   const position=Math.max(1,Math.round(finite(gridPosition,1)));
+  if(position===1)return 0;
   return -((position-1)*RACE_GRID_SLOT_SPACING_M);
 }
 
