@@ -3,7 +3,7 @@
 // The market compares the player's career standing with team reputation and
 // the incumbent AI Team Principal. It does not change Save World state.
 
-import { activeStaffContracts } from "./liveContracts.js";
+import { activeStaffContracts, contractEndYear } from "./liveContracts.js";
 import { activeChampionshipTeamIds, resolveStaffId, staffContractRole } from "./staffRoles.js";
 import { staffRatingForYear, staffReputation, staffRoleRating } from "./staffPerformance.js";
 import { teamReputation } from "./teamReputation.js";
@@ -65,6 +65,7 @@ export function teamPrincipalIncumbent(gs,teamId){
     role_score:Number(roleScore),
     reputation:Number(reputation),
     market_score:Number((Number(roleScore)*0.88+Number(reputation)*0.12).toFixed(1)),
+    contract_end_year:contractEndYear(contract,Number(gs?.activeYear)),
   };
 }
 function recentlyLeftTeam(gs,teamId){
@@ -95,16 +96,26 @@ export function managerJobOpportunity(gs,teamId){
   const qualityDelta=managerScore-incumbentScore;
   const prestigeGap=teamRep-managerRep;
   const coolingOff=recentlyLeftTeam(gs,id);
+  const incumbentExpiring=Boolean(
+    incumbent&&Number(incumbent.contract_end_year)<=Number(gs?.activeYear)
+  );
 
   let interest=48;
   interest+=(managerScore-50)*0.55;
   interest+=(managerRep-teamRep)*0.28;
   interest+=vacancy?18:Math.max(-14,Math.min(14,qualityDelta*0.75));
+  if(incumbentExpiring)interest+=10;
   if(prestigeGap>25)interest-=8;
   if(coolingOff)interest-=35;
   interest=clamp(interest);
 
-  const replaceIncumbent=!vacancy&&qualityDelta>=4&&interest>=52;
+  const materialUpgrade=!vacancy&&qualityDelta>=4&&interest>=52;
+  const expiringOpportunity=!vacancy&&incumbentExpiring&&qualityDelta>=-4&&interest>=52;
+  const compatibleBoardReview=!vacancy
+    &&qualityDelta>=-3
+    &&interest>=62
+    &&teamRep<=managerRep+12;
+  const replaceIncumbent=materialUpgrade||expiringOpportunity||compatibleBoardReview;
   const available=!coolingOff
     &&interest>=45
     &&(vacancy||replaceIncumbent)
@@ -125,6 +136,7 @@ export function managerJobOpportunity(gs,teamId){
     incumbent,
     vacancy,
     replace_incumbent:replaceIncumbent,
+    incumbent_expiring:incumbentExpiring,
     interest:Math.round(interest),
     available,
     reason,
