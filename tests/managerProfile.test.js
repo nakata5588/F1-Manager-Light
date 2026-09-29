@@ -317,7 +317,7 @@ test("dismissing the player archives old-team assets and makes the Manager unatt
   gs.commercialScore=81;
   gs.ops={pitcrew:{error_prob:0.04,avg_time_s:4.3}};
   gs.rdProjectsActive=[{id:"legacy_rd",costMonthly:25000}];
-  gs.meta={team:{synergy:12}};
+  gs.meta={team:{synergy:12},popularity:{team:15,drivers:{D1:7}}};
   gs.selectedDrivers=["D1","D2"];
   gs.financeFlags={old_flag:true};
   gs.eventsQueue=[{
@@ -388,7 +388,7 @@ test("dismissing the player archives old-team assets and makes the Manager unatt
   assert.equal(next.commercialScore,null);
   assert.deepEqual(next.ops,{});
   assert.deepEqual(next.rdProjectsActive,[]);
-  assert.deepEqual(next.meta,{});
+  assert.deepEqual(next.meta,{popularity:{drivers:{D1:7}}});
   assert.deepEqual(next.selectedDrivers,[]);
   assert.deepEqual(next.financeFlags,{});
   assert.equal(next.managerEmploymentState.former_team_id,"T1");
@@ -430,7 +430,7 @@ test("Manager job market can move control to a different team's own assets",()=>
           commercialScore:69,
           ops:{pitcrew:{error_prob:0.02,avg_time_s:3.8}},
           rdProjectsActive:[{id:"target_legacy_rd"}],
-          meta:{team:{synergy:8}},
+          meta:{team:{synergy:8},popularity:{team:22}},
           selectedDrivers:["T2D1","T2D2"],
           financeFlags:{target_flag:true},
         },
@@ -470,6 +470,8 @@ test("Manager job market can move control to a different team's own assets",()=>
   assert.equal(gs.ops.pitcrew.avg_time_s,3.8);
   assert.equal(gs.rdProjectsActive[0].id,"target_legacy_rd");
   assert.equal(gs.meta.team.synergy,8);
+  assert.equal(gs.meta.popularity.team,22);
+  assert.equal(gs.meta.popularity.drivers.D1,7);
   assert.deepEqual(gs.selectedDrivers,["T2D1","T2D2"]);
   assert.equal(gs.financeFlags.target_flag,true);
   assert.ok(gs.aiTechnicalWorld.teams.T1);
