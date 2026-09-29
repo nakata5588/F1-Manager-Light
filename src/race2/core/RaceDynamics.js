@@ -52,11 +52,12 @@ function driverPerformance(car){
 }
 
 function performanceScore(car,key,fallback=70){
-  return clamp(carPerformance(car)?.[key],0,100)||fallback;
+  const value=finite(carPerformance(car)?.[key],fallback);
+  return clamp(value,0,100);
 }
 
 function driverRaceScore(car){
-  return clamp(driverPerformance(car)?.raceScore,0,100)||70;
+  return clamp(finite(driverPerformance(car)?.raceScore,70),0,100);
 }
 
 export function raceTargetSpeedProfile(state,car){
