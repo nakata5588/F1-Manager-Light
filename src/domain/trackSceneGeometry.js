@@ -136,6 +136,143 @@ export function openPolylineHeadingDegrees(points,progress){
   return Math.atan2(segment.b[1]-segment.a[1],segment.b[0]-segment.a[0])*(180/Math.PI);
 }
 
+
+function closestPointOnClosedPolyline(point,input){
+  const points=validPoints(input);
+  if(points.length<2||!point)return null;
+  let best=null;
+  for(let index=0;index<points.length;index+=1){
+    const a=points[index];
+    const b=points[(index+1)%points.length];
+    const dx=b[0]-a[0];
+    const dy=b[1]-a[1];
+    const lengthSq=dx*dx+dy*dy;
+    const t=lengthSq>0?Math.max(0,Math.min(1,((point.x-a[0])*dx+(point.y-a[1])*dy)/lengthSq)):0;
+    const x=a[0]+dx*t;
+    const y=a[1]+dy*t;
+    const distance=Math.hypot(point.x-x,point.y-y);
+    if(!best||distance<best.distance)best={x,y,distance};
+  }
+  return best;
+}
+
+function headingVector(degrees){
+  const angle=Number(degrees||0)*(Math.PI/180);
+  return [Math.cos(angle),Math.sin(angle)];
+}
+
+function cubicBezierPoint(a,b,c,d,t){
+  const u=1-t;
+  const uu=u*u;
+  const tt=t*t;
+  return [
+    uu*u*a[0]+3*uu*t*b[0]+3*u*tt*c[0]+tt*t*d[0],
+    uu*u*a[1]+3*uu*t*b[1]+3*u*tt*c[1]+tt*t*d[1],
+  ];
+}
+
+function sampledBezier(a,b,c,d,samples){
+  const count=Math.max(3,Math.min(32,Math.round(Number(samples)||10)));
+  return Array.from({length:count+1},(_,index)=>{
+    const point=cubicBezierPoint(a,b,c,d,index/count);
+    return [Number(point[0].toFixed(3)),Number(point[1].toFixed(3))];
+  });
+}
+
+/**
+ * Builds presentation-only pit-lane geometry from the verified functional lane.
+ * The functional pit points remain untouched. For display, the lane is moved
+ * slightly away from the circuit through the middle and joined back to the
+ * main centreline with cubic merge curves aligned to both path tangents.
+ */
+export function buildPitLanePresentationGeometry(geometry,{
+  entryProgress=null,
+  exitProgress=null,
+  separation=0,
+  mergeFraction=.14,
+  samples=72,
+  mergeSamples=12,
+}={}){
+  const main=validPoints(geometry?.points);
+  const source=validPoints(geometry?.pit_lane_points);
+  const entry=Number(entryProgress);
+  const exit=Number(exitProgress);
+  if(main.length<3||source.length<2||!Number.isFinite(entry)||!Number.isFinite(exit))return geometry;
+
+  const sampleCount=Math.max(24,Math.min(160,Math.round(Number(samples)||72)));
+  const raw=Array.from({length:sampleCount+1},(_,index)=>{
+    const progress=index/sampleCount;
+    const point=sampleOpenPolylinePoint(source,progress);
+    return [Number(point.x),Number(point.y)];
+  });
+
+  const middle=sampleOpenPolylinePoint(source,.5);
+  const middleHeading=openPolylineHeadingDegrees(source,.5);
+  const middleNormal=headingVector(middleHeading+90);
+  const nearest=closestPointOnClosedPolyline(middle,main);
+  const awayVector=nearest?[middle.x-nearest.x,middle.y-nearest.y]:middleNormal;
+  const normalSign=(awayVector[0]*middleNormal[0]+awayVector[1]*middleNormal[1])>=0?1:-1;
+  const maxSeparation=Math.max(0,Number(separation)||0);
+
+  const shifted=raw.map((point,index)=>{
+    const progress=index/sampleCount;
+    const heading=openPolylineHeadingDegrees(source,progress);
+    const normal=headingVector(heading+90);
+    const envelope=Math.sin(Math.PI*progress)**2;
+    const amount=maxSeparation*envelope*normalSign;
+    return [
+      Number((point[0]+normal[0]*amount).toFixed(3)),
+      Number((point[1]+normal[1]*amount).toFixed(3)),
+    ];
+  });
+
+  const fraction=Math.max(.06,Math.min(.28,Number(mergeFraction)||.14));
+  const startIndex=Math.max(2,Math.min(sampleCount-4,Math.round(sampleCount*fraction)));
+  const endIndex=Math.max(startIndex+3,Math.min(sampleCount-2,Math.round(sampleCount*(1-fraction))));
+  const startAnchor=sampleTrackPoint(main,entry);
+  const endAnchor=sampleTrackPoint(main,exit);
+  if(!startAnchor||!endAnchor)return {...geometry,pit_lane_points:shifted,presentation_pit_lane:true};
+
+  const startTarget=shifted[startIndex];
+  const endSource=shifted[endIndex];
+  const startTrackVector=headingVector(trackHeadingDegrees(main,entry));
+  const endTrackVector=headingVector(trackHeadingDegrees(main,exit));
+  const startPitVector=headingVector(openPolylineHeadingDegrees(shifted,startIndex/sampleCount));
+  const endPitVector=headingVector(openPolylineHeadingDegrees(shifted,endIndex/sampleCount));
+  const startDistance=Math.max(10,Math.hypot(startTarget[0]-startAnchor.x,startTarget[1]-startAnchor.y));
+  const endDistance=Math.max(10,Math.hypot(endAnchor.x-endSource[0],endAnchor.y-endSource[1]));
+
+  const startBezier=sampledBezier(
+    [startAnchor.x,startAnchor.y],
+    [startAnchor.x+startTrackVector[0]*startDistance*.46,startAnchor.y+startTrackVector[1]*startDistance*.46],
+    [startTarget[0]-startPitVector[0]*startDistance*.34,startTarget[1]-startPitVector[1]*startDistance*.34],
+    startTarget,
+    mergeSamples
+  );
+  const exitBezier=sampledBezier(
+    endSource,
+    [endSource[0]+endPitVector[0]*endDistance*.34,endSource[1]+endPitVector[1]*endDistance*.34],
+    [endAnchor.x-endTrackVector[0]*endDistance*.46,endAnchor.y-endTrackVector[1]*endDistance*.46],
+    [endAnchor.x,endAnchor.y],
+    mergeSamples
+  );
+
+  const pitLanePoints=[
+    ...startBezier,
+    ...shifted.slice(startIndex+1,endIndex),
+    ...exitBezier,
+  ];
+  return {
+    ...geometry,
+    pit_lane_points:pitLanePoints,
+    presentation_pit_lane:true,
+    presentation_pit_source_point_count:source.length,
+    presentation_pit_point_count:pitLanePoints.length,
+    presentation_pit_separation:maxSeparation,
+    presentation_pit_merge_fraction:fraction,
+  };
+}
+
 export function geometryBounds(input,{padding=0}={}){
   const points=validPoints(input);
   if(!points.length)return [0,0,1000,1000];
