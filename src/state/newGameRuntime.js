@@ -12,7 +12,7 @@ import { initializeLowerSeriesSeason } from "../engine/LowerSeriesEngine.js";
 export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
   // Global database / catalogues.
   "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships",
-  "dbDriverOpeningState","dbStaffRatings","dbStaffCore","dbDriverCareer","dbSeries","dbSeriesRules",
+  "dbDriverOpeningState","dbStaffRatings","dbStaffCore","dbDriverCareer","dbSeries","dbSeriesRules","dbLowerSeriesTeams",
   "dbAchievements","dbTeamBrands","dbTeamEngines","dbContracts",
   "dbSponsorsContracts","dbRules","dbEraSafety","dbAccidentModel",
   "dbFacilities","dbCarStats","dbCarParts","dbStaffContracts","dbTyres",
@@ -27,7 +27,7 @@ export const FRESH_CAREER_STATIC_KEYS=Object.freeze([
 
   // Historical starting conditions materialized for the selected season.
   "calendar","teams","drivers","driverRatings","driverCareer","driverHistory",
-  "driverWorldEntry","driverFeederPlacement","driverOpeningState","staffRatings","staffCore","staffContracts","teamBrands","teamHistoricalStrength",
+  "driverWorldEntry","driverFeederPlacement","driverOpeningState","lowerSeriesTeams","staffRatings","staffCore","staffContracts","teamBrands","teamHistoricalStrength",
   "teamEngines","contracts","sponsorsContracts","rules","qualifyingRules",
   "eraSafety","accidentModel","facilities","carStats","tyres","pointsSystem",
   "penaltiesRules","financialRules","agendaBlocks","coreTracks",
@@ -147,6 +147,9 @@ export function buildFreshCareerState(source,runtimePatch={}){
         placements:fresh?.driverFeederPlacement||[],
         driverCareer:fresh?.driverCareer||[],
         drivers:withPortraits?.drivers||[],
+        lowerSeriesTeams:(fresh?.lowerSeriesTeams||[]).length
+          ?fresh.lowerSeriesTeams
+          :(fresh?.dbLowerSeriesTeams||[]),
       });
       return {
         ...withPortraits,
