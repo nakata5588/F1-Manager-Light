@@ -1,5 +1,5 @@
 // src/pages/ManagerProfile.jsx
-import React, { useMemo } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import { UserRound, BriefcaseBusiness, Trophy, Gauge, Info } from "lucide-react";
 import { useGame } from "../state/GameStore.js";
@@ -105,25 +105,16 @@ export default function ManagerProfile(){
   const achievements=Array.isArray(manager.achievements)?manager.achievements:[];
   const employment=managerEmploymentAssessment(gameState);
   const unemployed=employment.status==="unemployed";
-  const opportunities=useMemo(
-    ()=>unemployed?managerJobOpportunities(gameState):[],
-    [unemployed,gameState]
-  );
-  const applications=useMemo(
-    ()=>managerJobApplications(gameState)
-      .slice()
-      .sort((a,b)=>String(b?.resolved_at||b?.submitted_at||"").localeCompare(String(a?.resolved_at||a?.submitted_at||""))),
-    [gameState]
-  );
-  const activeApplicationByTeam=useMemo(()=>{
-    const map=new Map();
-    for(const row of applications){
-      if(["submitted","offer"].includes(String(row?.status||"").toLowerCase())&&!map.has(String(row?.team_id))){
-        map.set(String(row.team_id),row);
-      }
+  const opportunities=unemployed?managerJobOpportunities(gameState):[];
+  const applications=managerJobApplications(gameState)
+    .slice()
+    .sort((a,b)=>String(b?.resolved_at||b?.submitted_at||"").localeCompare(String(a?.resolved_at||a?.submitted_at||"")));
+  const activeApplicationByTeam=new Map();
+  for(const row of applications){
+    if(["submitted","offer"].includes(String(row?.status||"").toLowerCase())&&!activeApplicationByTeam.has(String(row?.team_id))){
+      activeApplicationByTeam.set(String(row.team_id),row);
     }
-    return map;
-  },[applications]);
+  }
 
   const applyForJob=(teamId)=>{
     setGameState(submitManagerJobApplication(gameState,teamId));
