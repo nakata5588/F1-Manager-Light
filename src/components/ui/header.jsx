@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "./button";
 import AdvanceButton from "./AdvanceButton";   // 👈 novo import
 import { makeLightSnapshot, useGame } from "../../state/GameStore";
+import { playerManagerIsActiveTeamPrincipal } from "../../domain/managerEmployment.js";
 
 /* ==== helpers brand ==== */
 function resolvePlayerTeam(gameState) {
@@ -114,7 +115,8 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
 
   if (!gameState) return null;
 
-  const team = useMemo(() => resolvePlayerTeam(gameState), [gameState]);
+  const unemployed=Boolean(gameState?.manager)&&!playerManagerIsActiveTeamPrincipal(gameState);
+  const team = useMemo(() => unemployed?null:resolvePlayerTeam(gameState), [gameState,unemployed]);
   const {
     standings,
     calendar = [],
@@ -138,7 +140,7 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
   }, []);
 
   // ⚠️ usar primary_color / secondary_color (mesma convenção do Sidebar)
-  const brandObj = useMemo(() => resolveTeamBrand(teamBrands, team), [teamBrands, team]);
+  const brandObj = useMemo(() => unemployed?null:resolveTeamBrand(teamBrands, team), [teamBrands, team, unemployed]);
   const brandPrimary = brandObj?.primary_color || "#111827";   // fundo do header
   const brandSecondary = brandObj?.secondary_color || "#ffffff"; // texto geral
   const borderColor = hexToRGBA(brandSecondary, 0.22);          // borda subtil sobre o fundo
