@@ -259,6 +259,34 @@ test("RW8.6 active side-by-side battle may close below longitudinal hard gap wit
   assert.equal(attacker.lateralOffsetM,-defender.lateralOffsetM);
 });
 
+test("RW8.6 lapping battle resolves from physical track clearance, not classification distance",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:1080,distanceAlongLapM:80,lap:2,completedLaps:1,
+      speedMs:40,speedKmh:144,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+    C2:{
+      absoluteDistanceM:2050,distanceAlongLapM:50,lap:3,completedLaps:2,
+      speedMs:50,speedKmh:180,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+  });
+  state=manualBattle(state);
+
+  const next=stepRaceState(state);
+  const attacker=car(next,"C2");
+  const defender=car(next,"C1");
+
+  assert.equal(attacker.battle.phase,"side_by_side");
+  assert.equal(defender.battle.phase,"side_by_side");
+  assert.ok(
+    !next.events.some((event)=>event.type==="overtake_completed"),
+    "classification lap advantage must not instantly complete a physical lapping pass"
+  );
+});
+
 test("RW8.6 a physically cleared attacker completes the overtake and becomes classified ahead",()=>{
   let state=runningState();
   state=patchCars(state,{
