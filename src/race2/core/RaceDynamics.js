@@ -9,6 +9,7 @@ import {
   trackCornerSeverityAtDistance,
 } from "../track/TrackModel.js";
 import { raceResourcePerformance } from "./RaceResources.js";
+import { raceControlPaceMultiplier } from "./RaceControlLifecycle.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -101,11 +102,13 @@ export function raceTargetSpeedProfile(state,car){
     straightTarget*(1-effectiveSeverity*(1-cornerRetention))
   );
   const damageMultiplier=damagePaceMultiplier(state,car,rawTargetSpeedKmh);
+  const controlPaceMultiplier=raceControlPaceMultiplier(state?.raceControlState?.mode);
   const targetSpeedKmh=Math.max(
     45,
     rawTargetSpeedKmh*
       finite(resourcePerformance?.paceMultiplier,1)*
-      damageMultiplier
+      damageMultiplier*
+      controlPaceMultiplier
   );
 
   return {
@@ -114,6 +117,7 @@ export function raceTargetSpeedProfile(state,car){
     straightTargetKmh:round(straightTarget,3),
     resourcePaceMultiplier:round(resourcePerformance?.paceMultiplier,6),
     damagePaceMultiplier:round(damageMultiplier,6),
+    raceControlPaceMultiplier:round(controlPaceMultiplier,6),
     cornerSeverity:round(currentSeverity,4),
     effectiveCornerSeverity:round(effectiveSeverity,4),
     lookaheadM:round(lookaheadM,3),
