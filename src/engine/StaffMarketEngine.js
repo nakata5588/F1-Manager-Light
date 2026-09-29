@@ -20,20 +20,17 @@ import {
 import {
   staffMarketScore,
   staffRatingForYear,
-  staffReputation,
   staffRoleRating,
   teamStaffCapability,
 } from "../domain/staffPerformance.js";
-import { teamReputation } from "../domain/teamReputation.js";
+import {
+  STAFF_HIREABLE_ROLES,
+  staffExpectedSalary,
+  staffSalaryAffordable,
+  staffWillConsiderTeam,
+} from "../domain/staffMarket.js";
 
-const MANAGED_ROLES=Object.freeze([
-  "team_principal",
-  "technical_director",
-  "chief_designer",
-  "chief_engineer",
-  "chief_strategist",
-  "race_engineer",
-]);
+const MANAGED_ROLES=STAFF_HIREABLE_ROLES;
 const MANAGED_ROLE_SET=new Set(MANAGED_ROLES);
 
 const num=(value,fallback=0)=>{
@@ -64,58 +61,6 @@ function staffAliveForDate(row,dateISO){
   const death=dateOnly(row?.death_date);
   return !death||!dateISO||death>dateISO;
 }
-function financialRule(gs){
-  const year=Number(gs?.activeYear);
-  const rows=[
-    ...collectionRows(gs?.financialRules),
-    ...collectionRows(gs?.dbFinancialRules),
-  ];
-  return rows.find((row)=>Number(row?.year)===year)
-    ||rows.filter((row)=>Number(row?.year)<=year).sort((a,b)=>num(b?.year)-num(a?.year))[0]
-    ||rows[0]
-    ||{};
-}
-function salaryBounds(gs){
-  const rule=financialRule(gs);
-  const min=Math.max(20_000,num(rule?.min_salary_staff,40_000));
-  const max=Math.max(min,num(rule?.max_salary_staff,300_000));
-  return {min,max};
-}
-function teamBudget(gs,teamId){
-  const id=text(teamId);
-  const aiBudget=num(gs?.aiTechnicalWorld?.teams?.[id]?.budget,NaN);
-  if(Number.isFinite(aiBudget))return aiBudget;
-  const team=teamRows(gs).find((row)=>teamIdOf(row)===id);
-  const direct=num(team?.budget??team?.cash??team?.balance,NaN);
-  return Number.isFinite(direct)?direct:NaN;
-}
-function expectedStaffSalary(gs,staffId,role){
-  const {min,max}=salaryBounds(gs);
-  const score=staffMarketScore(gs,staffId,role);
-  const ratio=Math.max(0,Math.min(1,score/100));
-  return Math.round((min+(max-min)*ratio*ratio)/5_000)*5_000;
-}
-function staffWillingToJoin(gs,teamId,candidate){
-  const reputation=staffReputation(staffRatingForYear(gs,candidate.staff_id));
-  let teamRep=50;
-  try{
-    const value=Number(teamReputation(gs,teamId));
-    if(Number.isFinite(value))teamRep=value;
-  }catch{}
-  // Free agents can move upward or sideways freely. The very highest-profile
-  // Staff require at least a credible team; this is market willingness, not a
-  // technical-performance modifier.
-  return teamRep+55>=reputation;
-}
-function affordableStaffSalary(gs,teamId,salary){
-  const {max}=salaryBounds(gs);
-  if(num(salary)>max*1.05)return false;
-  const budget=teamBudget(gs,teamId);
-  if(!Number.isFinite(budget))return true;
-  // Salary is annual. Keep a meaningful reserve for the technical programme
-  // instead of allowing Staff recruitment to consume the whole team budget.
-  return num(salary)<=Math.max(50_000,budget*0.12);
-}
 function roleScore(gs,contract){
   const id=resolveStaffId(gs,contract)||staffIdOf(contract);
   return staffRoleRating(staffRatingForYear(gs,id),staffContractRole(contract)).score??50;
@@ -145,7 +90,7 @@ function freeCandidates(gs,role){
     })
     .map((row)=>{
       const id=staffIdOf(row);
-      const salary=expectedStaffSalary(gs,id,role);
+      const salary=staffExpectedSalary(gs,id,role);
       return {
         staff:row,
         staff_id:id,
@@ -206,8 +151,8 @@ function fillOrUpgradeRole(gs,team,role,{upgradeGap=8}={}){
     .filter((contract)=>staffContractRole(contract)===role)
     .sort((a,b)=>roleScore(gs,b)-roleScore(gs,a))[0]||null;
   const candidates=freeCandidates(gs,role)
-    .filter((candidate)=>affordableStaffSalary(gs,tid,candidate.salary))
-    .filter((candidate)=>staffWillingToJoin(gs,tid,candidate));
+    .filter((candidate)=>staffSalaryAffordable(gs,tid,candidate.salary))
+    .filter((candidate)=>staffWillConsiderTeam(gs,tid,candidate.staff_id));
   const best=candidates[0]||null;
   if(!best)return gs;
 
@@ -236,8 +181,8 @@ function renewExpiringStaff(gs,team,roles){
 
     const incumbentScore=roleScore(gs,contract);
     const alternative=freeCandidates(gs,role)
-      .filter((candidate)=>affordableStaffSalary(gs,tid,candidate.salary))
-      .filter((candidate)=>staffWillingToJoin(gs,tid,candidate))[0]||null;
+      .filter((candidate)=>staffSalaryAffordable(gs,tid,candidate.salary))
+      .filter((candidate)=>staffWillConsiderTeam(gs,tid,candidate.staff_id))[0]||null;
     const materialUpgrade=alternative&&alternative.role_score>=incumbentScore+8;
     const retain=incumbentScore>=58&&!materialUpgrade;
     changed=true;
@@ -250,10 +195,10 @@ function renewExpiringStaff(gs,team,roles){
     }
 
     const id=staffIdOf(contract);
-    const expected=expectedStaffSalary(gs,id,role);
+    const expected=staffExpectedSalary(gs,id,role);
     const current=Math.max(0,num(contract?.salary??contract?.salary_yearly,0));
     const salary=Math.max(current,expected);
-    if(!affordableStaffSalary(gs,tid,salary)){
+    if(!staffSalaryAffordable(gs,tid,salary)){
       return {
         ...contract,
         ai_staff_renewal_year:year,
