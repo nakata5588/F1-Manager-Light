@@ -225,6 +225,15 @@ function TrackSceneRenderer({
     {grandstands.map((row)=><Grandstand key={row.index} {...row} lod={lod}/>)}
     <PitComplex geometry={geometry} environment={environment} lod={lod}/>
 
+    {/* Pit lane is painted first so the main circuit masks the overlap at
+        entry/exit and the two surfaces read as a physical merge, not one road
+        drawn on top of the other. */}
+    {Array.isArray(geometry?.pit_lane_points)&&geometry.pit_lane_points.length>1?<g pointerEvents="none">
+      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#9ca3a8" strokeWidth={Number(style?.pit_width||12)+3.5} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#35373a" strokeWidth={Number(style?.pit_width||12)} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#e5e7eb" strokeWidth=".8" strokeDasharray="7 6" opacity=".7"/>
+    </g>:null}
+
     {ribbon.length>2?<g pointerEvents="none">
       <polygon points={pointsAttr(trackRibbonPolygon(points,halfWidth+6.5))} fill="#394821" opacity=".55"/>
       <polygon points={pointsAttr(shoulder)} fill="#9ca3a8"/>
@@ -247,12 +256,6 @@ function TrackSceneRenderer({
         {lod!=="overview"?<polyline points={pointsAttr(closed(barrier))} fill="none" stroke="#d1d5db" strokeWidth=".8" strokeDasharray="5 5" strokeLinejoin="round"/>:null}
       </g>)}
     </g>
-
-    {Array.isArray(geometry?.pit_lane_points)&&geometry.pit_lane_points.length>1?<g pointerEvents="none">
-      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#9ca3a8" strokeWidth={Number(style?.pit_width||12)+3.5} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#35373a" strokeWidth={Number(style?.pit_width||12)} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={pointsAttr(geometry.pit_lane_points)} fill="none" stroke="#e5e7eb" strokeWidth=".8" strokeDasharray="7 6" opacity=".7"/>
-    </g>:null}
 
     {lod!=="overview"?<GridMarkings geometry={geometry}/>:null}
     <TracksideDetails geometry={geometry} lod={lod}/>
