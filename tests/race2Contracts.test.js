@@ -94,10 +94,10 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,11);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,12);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","WeatherState","RaceControlState","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
@@ -136,6 +136,10 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceClassificationRow.includes("gapToLeaderM"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceClassificationRow.includes("gapToLeaderMs"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.TrackModel.includes("speedProfile"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.TrackState.includes("referenceLap"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.WeatherState.includes("timeline"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("recommendedMode"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceWeekendInput.includes("raceControl"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.Command.includes("effectiveAtTick"));
 });
 
@@ -181,17 +185,22 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.ok(Array.isArray(playerCar.resourceSetup.tyres));
   assert.ok(playerCar.resourceSetup.tyres.length>=1);
   assert.equal(a.track.speedProfile.detailed,false);
+  assert.equal(a.weather.timeline.length,60);
+  assert.equal(a.weather.timeline[0].state,"SUNNY");
+  assert.equal(a.raceControl.rules.era_id,"pre_standard_safety_car");
   assert.deepEqual(a.startingGrid.map((row)=>row.driver_id),["D1","D2"]);
 
   a.drivers[0].ratings.pace=1;
   playerCar.state.componentCondition.engine=1;
   aiCar.state.componentCondition.engine=2;
   a.startingGrid[0].grid=99;
+  a.weather.timeline[0].state="STORM";
 
   assert.equal(gs.driverRatings.find((row)=>row.driver_id==="D1").pace,80);
   assert.equal(gs.garage.cars.find((row)=>row.id==="car_1").componentCondition.engine,94);
   assert.equal(gs.aiTechnicalWorld.teams.T2.garage.cars[0].componentCondition.engine,91);
   assert.equal(gs.raceWeekendState.startingGrid.rows[0].grid,1);
+  assert.equal(gs.raceWeekendState.race_strategy.weather_snapshot.state,"SUNNY");
 });
 
 
