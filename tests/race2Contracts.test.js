@@ -10,6 +10,7 @@ import {
 } from "../src/race2/contracts/raceContracts.js";
 import { buildRaceWeekendInput } from "../src/race2/adapters/GameStateInputAdapter.js";
 import { mechanicalRetirementChance } from "../src/engine/RaceControlEngine.js";
+import { carReliabilityProfile } from "../src/domain/carReliability.js";
 
 function fixture(){
   return {
@@ -41,6 +42,7 @@ function fixture(){
     garage:{
       cars:[
         {id:"car_1",kind:"race",driver_id:"CONTRACTED_D1",componentCondition:{engine:94}},
+        {id:"car_2",kind:"race",driver_id:null,componentCondition:{engine:8}},
       ],
     },
     aiTechnicalWorld:{
@@ -193,12 +195,14 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
 });
 
 
-test("RW8.10 adapter derives mechanical risk from the authoritative entered team",()=>{
+test("RW8.10 adapter derives mechanical risk from the authoritative entered team and car",()=>{
   const gs=fixture();
   gs.raceEntryState={
     ...gs.raceEntryState,
     entries:gs.raceEntryState.entries.map((row)=>
-      row.driver_id==="D1"?{...row,team_id:"T2"}:row
+      row.driver_id==="D1"
+        ?{...row,team_id:"T1",car_id:"car_2",car_slot:2}
+        :row
     ),
   };
 
@@ -207,11 +211,20 @@ test("RW8.10 adapter derives mechanical risk from the authoritative entered team
   });
   const entered=input.cars.find((row)=>row.driverId==="D1");
   const row={driver:{driver_id:"D1"}};
-  const authoritative=mechanicalRetirementChance(gs,row,{teamIdOverride:"T1"});
-  const stale=mechanicalRetirementChance(gs,row);
+  const authoritativeProfile=carReliabilityProfile(gs,"T1","D1",{
+    carOverride:gs.garage.cars.find((car)=>car.id==="car_1"),
+  });
+  const staleProfile=carReliabilityProfile(gs,"T1","D1");
+  const authoritative=mechanicalRetirementChance(gs,row,{
+    teamIdOverride:"T1",
+    reliabilityProfileOverride:authoritativeProfile,
+  });
+  const stale=mechanicalRetirementChance(gs,row,{teamIdOverride:"T1"});
 
   assert.equal(entered.teamId,"T1");
-  assert.equal(entered.reliability.profile.team_id,"T1");
+  assert.equal(entered.carId,"car_1");
+  assert.deepEqual(entered.reliability.profile,authoritativeProfile);
+  assert.notDeepEqual(authoritativeProfile,staleProfile);
   assert.equal(entered.reliability.mechanicalFailureChance,authoritative);
   assert.notEqual(authoritative,stale);
 });
