@@ -126,6 +126,9 @@ function normalizedCars(gs,entries){
           pitPlan:selection?.pit_plan??null,
           plannedStopLap:finite(selection?.planned_stop_lap,null),
         }:null),
+        pitCrew:cloneRaceContractValue(
+          gs?.raceStrategyWorld?.pitCrews?.[entry.teamId]??null
+        ),
         tyres:cloneRaceContractValue(tyreOptions),
       },
       performance:{
