@@ -242,6 +242,8 @@ function useVisualRaceTimeline({
   hasPitLane=false,
   pitEntryProgress=null,
   pitExitProgress=null,
+  pitEntryLaneProgress=null,
+  pitExitLaneProgress=null,
 }){
   const snapshotKey=useMemo(
     ()=>raceVisualSnapshotKey(rows,{currentLap,currentSector}),
@@ -331,8 +333,10 @@ function useVisualRaceTimeline({
       hasPitLane,
       pitEntryProgress,
       pitExitProgress,
+      pitEntryLaneProgress,
+      pitExitLaneProgress,
     }),
-  }),[frame,rows,hasPitLane,pitEntryProgress,pitExitProgress]);
+  }),[frame,rows,hasPitLane,pitEntryProgress,pitExitProgress,pitEntryLaneProgress,pitExitLaneProgress]);
 }
 
 function pointAtOpenPolylineProgress(points,progress){
@@ -774,6 +778,11 @@ export default function Track2DView({
     &&Number.isFinite(Number(intelligence?.pit_entry_progress))
     &&Number.isFinite(Number(intelligence?.pit_exit_progress))
   );
+  const configuredPitMergeFraction=Number(environment?.race_view_style?.pit_merge_fraction);
+  const pitEntryLaneProgress=Number.isFinite(configuredPitMergeFraction)
+    ?Math.max(.03,Math.min(.42,configuredPitMergeFraction))
+    :null;
+  const pitExitLaneProgress=pitEntryLaneProgress==null?null:1-pitEntryLaneProgress;
   const [motionEngine,setMotionEngine]=useState("v3");
   const v3MotionAvailable=Number(racingLineV3?.total_length)>0;
   const v3MotionActive=motionEngine==="v3"&&v3MotionAvailable;
@@ -789,6 +798,8 @@ export default function Track2DView({
     hasPitLane:hasValidatedPitLane,
     pitEntryProgress:intelligence?.pit_entry_progress,
     pitExitProgress:intelligence?.pit_exit_progress,
+    pitEntryLaneProgress,
+    pitExitLaneProgress,
   });
   const activeRows=visualFrame.rows;
   const [cameraMode,setCameraMode]=useState("fit");
@@ -1080,6 +1091,8 @@ export default function Track2DView({
         hasPitLane:hasValidatedPitLane,
         pitEntryProgress:intelligence?.pit_entry_progress,
         pitExitProgress:intelligence?.pit_exit_progress,
+        pitEntryLaneProgress,
+        pitExitLaneProgress,
       });
       const baseWorld=authoritativeRaceWorldProgress(row,{
         currentLap,
@@ -1253,15 +1266,13 @@ export default function Track2DView({
                 strokeDasharray={historicalEnvironment?"12 8":"10 5"}
                 opacity=".95"
               />:null}
-              {showTrackIntel&&intelligence.pit_entry_progress!=null?(()=>{
+              {showTrackIntel&&trackLod==="overview"&&intelligence.pit_entry_progress!=null?(()=>{
                 const point=Array.isArray(displayGeometry?.pit_lane_points)?displayGeometry.pit_lane_points[0]:null;
-                const color=historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e";
-                return point?<g><circle cx={point[0]} cy={point[1]} r="1.8" fill={color} stroke="#0f172a" strokeWidth=".65"/>{trackLod==="overview"?<text x={point[0]} y={point[1]-7} textAnchor="middle" fontSize="5.2" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text>:null}</g>:null;
+                return point?<text x={point[0]} y={point[1]-7} textAnchor="middle" fontSize="5.2" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT IN</text>:null;
               })():null}
-              {showTrackIntel&&intelligence.pit_exit_progress!=null?(()=>{
+              {showTrackIntel&&trackLod==="overview"&&intelligence.pit_exit_progress!=null?(()=>{
                 const point=Array.isArray(displayGeometry?.pit_lane_points)?displayGeometry.pit_lane_points.at(-1):null;
-                const color=historicalEnvironment?(layout?.pit_lane_color||"#2563eb"):"#22c55e";
-                return point?<g><circle cx={point[0]} cy={point[1]} r="1.8" fill={color} stroke="#0f172a" strokeWidth=".65"/>{trackLod==="overview"?<text x={point[0]} y={point[1]-7} textAnchor="middle" fontSize="5.2" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text>:null}</g>:null;
+                return point?<text x={point[0]} y={point[1]-7} textAnchor="middle" fontSize="5.2" fontWeight="800" fill={historicalEnvironment?"#93c5fd":"#86efac"}>PIT OUT</text>:null;
               })():null}
               {showTrackIntel?(()=>{
                 const markers=[
