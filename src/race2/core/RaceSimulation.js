@@ -1,8 +1,9 @@
 // src/race2/core/RaceSimulation.js
 // RW8.2: deterministic fixed-step advancement for the canonical RW2 RaceState.
 // RW8.3B layers pace/braking/corner dynamics onto the same fixed-step core.
-// RW8.5 adds canonical physical traffic/following without overtaking.
-// Tyres, strategy and overtaking remain separate later phases.
+// RW8.5 adds canonical physical traffic/following.
+// RW8.6 adds overtaking/side-by-side battles.
+// RW8.7 adds canonical tyres, fuel and temperatures.
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
@@ -10,6 +11,7 @@ import { raceAccelerationForTarget, raceDynamicsForCar } from "./RaceDynamics.js
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
+import { advanceRaceResources } from "./RaceResources.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -176,10 +178,11 @@ export function stepRaceState(state){
   const stepMs=raceStepMs(state);
   const proposedCars=(state.cars||[]).map((car)=>advanceCar(state,car,stepMs));
   const overtaking=resolveRaceOvertaking(state,proposedCars,{stepMs});
-  const cars=enforceRaceTrafficSpacing(state,overtaking.cars,{
+  const spacedCars=enforceRaceTrafficSpacing(state,overtaking.cars,{
     stepMs,
     bypassPairs:overtaking.bypassPairs,
   });
+  const cars=advanceRaceResources(state,spacedCars,{stepMs});
   const generatedEvents=(overtaking.events||[]).map((event,index)=>{
     const sequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+index;
     return {

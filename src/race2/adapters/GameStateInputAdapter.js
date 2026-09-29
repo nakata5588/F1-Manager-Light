@@ -4,6 +4,7 @@ import { teamCarPerformance } from "../../domain/carPerformance.js";
 import { conditionModifierBreakdown, raceDriverScore } from "../../domain/driverPerformance.js";
 import { driverDerivedRating, driverMistakePropensity } from "../../domain/driverDerivedRatings.js";
 import { driverPerformanceEntries } from "../../domain/driverForm.js";
+import { tyresForTeam } from "../../domain/raceTyreModel.js";
 import { buildTrackModel } from "../track/TrackModel.js";
 import {
   RACE_WEEKEND_CONTRACT_VERSION,
@@ -72,6 +73,7 @@ function normalizedDrivers(gs,entries){
             null
           ),
           aggression:finite(rating?.aggression??rating?.agression,null),
+          tyreManagement:finite(rating?.tire_management,60),
         },
       };
     });
@@ -95,6 +97,19 @@ function normalizedCars(gs,entries){
     if(!car)continue;
 
     const performance=teamCarPerformance(gs,entry.teamId,entry.driverId||null);
+    const selection=gs?.raceWeekendState?.race_strategy?.selections?.[entry.driverId]||null;
+    const tyreOptions=tyresForTeam(gs,entry.teamId,{year:gs?.raceWeekendState?.year??gs?.activeYear})
+      .map((row)=>({
+        tyre_id:text(row?.tyre_id??row?.id)||null,
+        supplier:row?.supplier??null,
+        compound_name:row?.compound_name??row?.compound??row?.name??null,
+        category:row?.category??"dry",
+        grip_index:finite(row?.grip_index,75),
+        wear_rate:finite(row?.wear_rate,0.018),
+        warmup_time_s:finite(row?.warmup_time_s,2.5),
+        wet_efficiency:finite(row?.wet_efficiency,null),
+      }))
+      .filter((row)=>row.tyre_id);
     seen.add(entry.carId);
     cars.push({
       carId:entry.carId,
@@ -102,6 +117,17 @@ function normalizedCars(gs,entries){
       teamId:entry.teamId,
       kind:car?.kind??null,
       state:cloneRaceContractValue(car),
+      resourceSetup:{
+        strategy:cloneRaceContractValue(selection?{
+          startTyreId:selection?.start_tyre_id??null,
+          nextTyreId:selection?.next_tyre_id??null,
+          paceMode:selection?.pace_mode??"balanced",
+          fuelPlan:selection?.fuel_plan??null,
+          pitPlan:selection?.pit_plan??null,
+          plannedStopLap:finite(selection?.planned_stop_lap,null),
+        }:null),
+        tyres:cloneRaceContractValue(tyreOptions),
+      },
       performance:{
         overall:finite(performance?.overall,70),
         qualifying:finite(performance?.qualifying,70),
