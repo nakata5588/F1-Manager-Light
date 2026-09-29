@@ -898,6 +898,7 @@ test("Stakeholder history records ownership and backing separately from employme
   const history=staffCareerHistory(gs,"S_FREE");
   assert.ok(history.some((row)=>row.kind==="ownership"&&row.team_id==="T2"));
   assert.equal(history.filter((row)=>row.kind==="ownership").length,1);
+  assert.equal(history.find((row)=>row.kind==="ownership").end_year,null);
 });
 
 
