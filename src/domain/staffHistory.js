@@ -53,6 +53,8 @@ function employmentRows(gs,staffId){
     if(["owner","sponsor_backer"].includes(role))continue;
     const start=contractStartYear(row,num(row?.year,NaN));
     const end=contractEndYear(row,num(row?.year,start));
+    const activeYear=Number(gs?.activeYear);
+    if(Number.isFinite(activeYear)&&Number.isFinite(start)&&start>activeYear)continue;
     const team=teamIdOfContract(row);
     const key=[sid,team,role,start,end].join("|");
     // Live save-world rows should replace the historical seed if both describe
