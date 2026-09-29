@@ -13,6 +13,7 @@ const ATTRIBUTE_KEYS=[
   "commercial",
   "race_management",
 ];
+const MAX_DEVELOPMENT_HISTORY=60;
 
 const text=(value)=>String(value??"").trim();
 const num=(value,fallback=0)=>{
@@ -126,6 +127,56 @@ function raceOutcome(result,teamId){
   };
 }
 
+function normalizedDevelopmentHistory(value){
+  return (Array.isArray(value)?value:[])
+    .filter((row)=>row&&typeof row==="object")
+    .slice(0,MAX_DEVELOPMENT_HISTORY)
+    .map((row)=>({
+      ...row,
+      id:text(row?.id),
+      date:dateOnly(row?.date)||null,
+      type:text(row?.type)||"development",
+      title:text(row?.title)||"Career development",
+      reason:text(row?.reason)||null,
+      reputation_delta:Number.isFinite(Number(row?.reputation_delta))
+        ?Number(Number(row.reputation_delta).toFixed(2))
+        :0,
+      attribute_changes:(Array.isArray(row?.attribute_changes)?row.attribute_changes:[])
+        .filter((change)=>change&&typeof change==="object"&&text(change?.key))
+        .map((change)=>({
+          key:text(change.key),
+          delta:Number(Number(change?.delta||0).toFixed(2)),
+          before:Number.isFinite(Number(change?.before))?Number(change.before):null,
+          after:Number.isFinite(Number(change?.after))?Number(change.after):null,
+        })),
+    }));
+}
+
+function appendDevelopmentEvent(development,event){
+  const history=normalizedDevelopmentHistory(development?.history);
+  const id=text(event?.id);
+  if(id&&history.some((row)=>text(row?.id)===id))return development;
+  return {
+    ...development,
+    history:[{
+      ...event,
+      id:id||`manager_development_${history.length+1}`,
+      date:dateOnly(event?.date)||null,
+      reputation_delta:Number(Number(event?.reputation_delta||0).toFixed(2)),
+      attribute_changes:Array.isArray(event?.attribute_changes)?event.attribute_changes:[],
+    },...history].slice(0,MAX_DEVELOPMENT_HISTORY),
+  };
+}
+
+function attributeChangesFromGains(before,after,gains){
+  return Object.entries(gains||{}).map(([key,value])=>({
+    key,
+    delta:Number(value)||0,
+    before:Number(before?.[key]),
+    after:Number(after?.[key]),
+  })).filter((row)=>row.delta!==0&&Number.isFinite(row.before)&&Number.isFinite(row.after));
+}
+
 function normalizedDevelopment(manager){
   const source=manager?.development&&typeof manager.development==="object"?manager.development:{};
   return {
@@ -153,6 +204,7 @@ function normalizedDevelopment(manager){
     last_regression_reason:text(source.last_regression_reason)||null,
     attribute_regressions:Math.max(0,num(source.attribute_regressions,0)),
     reputation_lost:Math.max(0,num(source.reputation_lost,0)),
+    history:normalizedDevelopmentHistory(source.history),
   };
 }
 
@@ -263,6 +315,34 @@ export function applyManagerPerformanceRegression(gs,{
   const reputationLoss=status==="critical"?0.35:0.15;
   const reputationAfter=Number(clamp(reputationBefore-reputationLoss).toFixed(2));
   const attributeRegression=Object.values(losses).reduce((sum,value)=>sum+Number(value||0),0);
+  const date=dateOnly(gs?.currentDateISO)||null;
+  const attributeChanges=Object.entries(losses).map(([key,value])=>({
+    key,
+    delta:-Number(value||0),
+    before:Number(attributes?.[key])+Number(value||0),
+    after:Number(attributes?.[key]),
+  })).filter((row)=>row.delta!==0);
+  let nextDevelopment={
+    ...development,
+    last_regression_key:regressionKey,
+    last_regression_at:date,
+    last_regression_reason:regressionReason(status),
+    attribute_regressions:Number((development.attribute_regressions+attributeRegression).toFixed(2)),
+    reputation_lost:Number((development.reputation_lost+(reputationBefore-reputationAfter)).toFixed(2)),
+  };
+  nextDevelopment=appendDevelopmentEvent(nextDevelopment,{
+    id:`regression:${regressionKey}`,
+    date,
+    type:"regression",
+    title:status==="critical"?"Critical performance setback":"Performance setback",
+    reason:regressionReason(status),
+    status,
+    job_security:Number.isFinite(Number(assessment?.jobSecurity))?Number(assessment.jobSecurity):null,
+    level:development.level,
+    xp:development.xp,
+    reputation_delta:Number((reputationAfter-reputationBefore).toFixed(2)),
+    attribute_changes:attributeChanges,
+  });
 
   return {
     ...gs,
@@ -270,14 +350,7 @@ export function applyManagerPerformanceRegression(gs,{
       ...gs.manager,
       attributes,
       reputation:reputationAfter,
-      development:{
-        ...development,
-        last_regression_key:regressionKey,
-        last_regression_at:dateOnly(gs?.currentDateISO)||null,
-        last_regression_reason:regressionReason(status),
-        attribute_regressions:Number((development.attribute_regressions+attributeRegression).toFixed(2)),
-        reputation_lost:Number((development.reputation_lost+(reputationBefore-reputationAfter)).toFixed(2)),
-      },
+      development:nextDevelopment,
     },
   };
 }
@@ -385,30 +458,59 @@ export function applyManagerCareerProgression(gs){
     if(outcome.podium)xpGain+=4;
     if(outcome.win)xpGain+=6;
     const nextXp=manager.development.xp+xpGain;
+    const beforeAttributes={...(manager?.attributes||{})};
+    const previousLevel=manager.development.level;
+    const reputationBefore=clamp(manager?.reputation??35);
     const growth=applyLevelGrowth(manager,manager.development,nextXp);
+    const reputationAfter=Number(clamp(
+      reputationBefore
+      +(outcome.scoredPoints?0.03:0)
+      +(outcome.podium?0.08:0)
+      +(outcome.win?0.14:0)
+    ).toFixed(2));
+    const progressionDate=dateOnly(entry.row?.dateISO??entry.row?.date)||dateOnly(gs?.currentDateISO);
+    const changes=attributeChangesFromGains(beforeAttributes,growth.attributes,growth.gains);
     attributeGains={...attributeGains};
     for(const [key,value] of Object.entries(growth.gains)){
       attributeGains[key]=(attributeGains[key]||0)+value;
     }
+    let nextDevelopment={
+      ...manager.development,
+      xp:nextXp,
+      level:growth.level,
+      last_progression_at:progressionDate,
+      races_managed:manager.development.races_managed+1,
+      points_races:manager.development.points_races+(outcome.scoredPoints?1:0),
+      podiums:manager.development.podiums+(outcome.podium?1:0),
+      wins:manager.development.wins+(outcome.win?1:0),
+    };
+    const reputationDelta=Number((reputationAfter-reputationBefore).toFixed(2));
+    if(changes.length||Math.abs(reputationDelta)>=0.005){
+      nextDevelopment=appendDevelopmentEvent(nextDevelopment,{
+        id:`race:${entry.key}`,
+        date:progressionDate,
+        type:"progression",
+        title:growth.level>previousLevel
+          ?`Career Level ${growth.level}`
+          :outcome.win
+            ?"Grand Prix victory"
+            :outcome.podium
+              ?"Podium result"
+              :"Points result",
+        reason:growth.level>previousLevel
+          ?"Accumulated race experience increased the Team Principal's current skills."
+          :"Strong race results improved career reputation.",
+        level:growth.level,
+        xp:nextXp,
+        reputation_delta:reputationDelta,
+        attribute_changes:changes,
+      });
+    }
     manager={
       ...manager,
       attributes:growth.attributes,
-      reputation:Number(clamp(
-        num(manager?.reputation,35)
-        +(outcome.scoredPoints?0.03:0)
-        +(outcome.podium?0.08:0)
-        +(outcome.win?0.14:0)
-      ).toFixed(2)),
-      development:{
-        ...manager.development,
-        xp:nextXp,
-        level:growth.level,
-        last_progression_at:dateOnly(entry.row?.dateISO??entry.row?.date) || dateOnly(gs?.currentDateISO),
-        races_managed:manager.development.races_managed+1,
-        points_races:manager.development.points_races+(outcome.scoredPoints?1:0),
-        podiums:manager.development.podiums+(outcome.podium?1:0),
-        wins:manager.development.wins+(outcome.win?1:0),
-      },
+      reputation:reputationAfter,
+      development:nextDevelopment,
     };
 
     const teamName=text(
@@ -492,21 +594,40 @@ export function applyManagerCareerProgression(gs){
     }
 
     const nextXp=manager.development.xp+xpGain;
+    const beforeAttributes={...(manager?.attributes||{})};
+    const previousLevel=manager.development.level;
+    const reputationBefore=clamp(manager?.reputation??35);
     const growth=applyLevelGrowth(manager,manager.development,nextXp);
+    const reputationAfter=Number(clamp(reputationBefore+repGain).toFixed(2));
+    const changes=attributeChangesFromGains(beforeAttributes,growth.attributes,growth.gains);
     for(const [key,value] of Object.entries(growth.gains)){
       attributeGains[key]=(attributeGains[key]||0)+value;
     }
+    let nextDevelopment={
+      ...manager.development,
+      xp:nextXp,
+      level:growth.level,
+      last_progression_at:date,
+    };
+    nextDevelopment=appendDevelopmentEvent(nextDevelopment,{
+      id:`season:${year}:${teamId}`,
+      date,
+      type:"progression",
+      title:growth.level>previousLevel
+        ?`Career Level ${growth.level} · Championship season`
+        :"Championship season",
+      reason:"Championship success strengthened career standing and experience.",
+      level:growth.level,
+      xp:nextXp,
+      reputation_delta:Number((reputationAfter-reputationBefore).toFixed(2)),
+      attribute_changes:changes,
+    });
     manager={
       ...manager,
       attributes:growth.attributes,
-      reputation:Number(clamp(num(manager?.reputation,35)+repGain).toFixed(2)),
+      reputation:reputationAfter,
       achievements:[...manager.achievements,...titles],
-      development:{
-        ...manager.development,
-        xp:nextXp,
-        level:growth.level,
-        last_progression_at:date,
-      },
+      development:nextDevelopment,
     };
     newAchievements.push(...titles);
   }

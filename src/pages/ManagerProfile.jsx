@@ -53,6 +53,39 @@ function AttributeCard({definition,value}){
   </div>;
 }
 
+function signedDelta(value,{digits=0}={}){
+  const n=Number(value||0);
+  if(!Number.isFinite(n)||Math.abs(n)<0.0001)return null;
+  return (n>0?"+":"")+n.toFixed(digits);
+}
+
+function DevelopmentEvent({event}){
+  const attributeChanges=Array.isArray(event?.attribute_changes)?event.attribute_changes:[];
+  const reputationDelta=signedDelta(event?.reputation_delta,{digits:2});
+  return <div className="px-4 py-3">
+    <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+      <div className="min-w-0 flex-1">
+        <div className="font-medium text-slate-100">{event?.title||"Career development"}</div>
+        {event?.reason?<div className="mt-0.5 text-xs leading-5 text-slate-500">{event.reason}</div>:null}
+      </div>
+      {event?.date?<div className="text-xs tabular-nums text-slate-500">{event.date}</div>:null}
+    </div>
+    {(attributeChanges.length||reputationDelta)?<div className="mt-2 flex flex-wrap gap-1.5">
+      {attributeChanges.map((change,index)=>{
+        const definition=MANAGER_ATTRIBUTES.find((row)=>row.key===change?.key);
+        const delta=signedDelta(change?.delta);
+        return delta?<span key={(change?.key||"attr")+"_"+index} className={"rounded-md border px-2 py-1 text-[11px] "+(Number(change?.delta)>=0?"border-emerald-400/20 bg-emerald-400/10 text-emerald-200":"border-rose-400/20 bg-rose-400/10 text-rose-200")}>
+          {(definition?.shortLabel||String(change?.key||"Attribute").replaceAll("_"," "))+" "+delta}
+        </span>:null;
+      })}
+      {reputationDelta?<span className={"rounded-md border px-2 py-1 text-[11px] "+(Number(event?.reputation_delta)>=0?"border-sky-400/20 bg-sky-400/10 text-sky-200":"border-amber-400/20 bg-amber-400/10 text-amber-200")}>
+        Reputation {reputationDelta}
+      </span>:null}
+      {Number.isFinite(Number(event?.level))?<span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-300">Level {Number(event.level)}</span>:null}
+    </div>:null}
+  </div>;
+}
+
 function effectText(row){
   if(!row?.active)return "Foundation ready · Race Weekend wiring pending";
   const value=Number(row?.value||0);
@@ -104,6 +137,7 @@ export default function ManagerProfile(){
   const history=Array.isArray(manager.career_history)?manager.career_history:[];
   const achievements=Array.isArray(manager.achievements)?manager.achievements:[];
   const development=manager.development||{};
+  const developmentHistory=Array.isArray(development.history)?development.history:[];
   const employment=managerEmploymentAssessment(gameState);
   const unemployed=employment.status==="unemployed";
   const opportunities=unemployed?managerJobOpportunities(gameState):[];
@@ -276,6 +310,19 @@ export default function ManagerProfile(){
           <div className={"mt-1 text-sm font-semibold "+(row.active?"text-slate-100":"text-amber-300")}>{effectText(row)}</div>
         </div>)}
       </div>
+    </section>
+
+    <section className="rounded-xl border border-white/10 bg-[#12141c] overflow-hidden">
+      <div className="border-b border-white/10 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Gauge className="h-4 w-4 text-slate-400"/>
+          <h2 className="text-sm font-semibold uppercase tracking-wide">Development History</h2>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">Permanent skill and reputation changes from career progression or sustained Board pressure.</p>
+      </div>
+      {developmentHistory.length
+        ?<div className="divide-y divide-white/10">{developmentHistory.slice(0,12).map((event,index)=><DevelopmentEvent key={(event?.id||event?.date||"development")+"_"+index} event={event}/>)}</div>
+        :<div className="p-4 text-sm text-slate-500">No permanent career changes recorded yet.</div>}
     </section>
 
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

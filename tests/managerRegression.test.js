@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createManagerProfile } from "../src/domain/managerProfile.js";
 import {
+  applyManagerCareerProgression,
   applyManagerPerformanceRegression,
 } from "../src/domain/managerProgression.js";
 import { processManagerCareerTick } from "../src/engine/ManagerCareerEngine.js";
@@ -233,4 +234,81 @@ test("Manager M5 applies regression before a sustained-critical dismissal",()=>{
   assert.equal(gs.manager.attributes.race_management,49);
   assert.equal(gs.manager.attributes.leadership,49);
   assert.ok(gs.manager.reputation<35);
+});
+
+
+test("Manager M5.1 records visible progression history when a Career Level changes",()=>{
+  const gs={
+    ...state(manager({development:{xp:95,level:1}})),
+    currentDateISO:"1980-03-02",
+    results:[{
+      key:"1980_1_m51_win",
+      year:1980,
+      round:1,
+      dateISO:"1980-03-01",
+      classification:[
+        {team_id:"T1",driver_id:"T1_A",position:1,points:9,constructor_points:9,status:"Finished",retired:false},
+        {team_id:"T2",driver_id:"T2_A",position:2,points:6,constructor_points:6,status:"Finished",retired:false},
+      ],
+    }],
+  };
+
+  const next=applyManagerCareerProgression(gs);
+  const event=next.manager.development.history[0];
+
+  assert.equal(next.manager.development.level,2);
+  assert.equal(event.type,"progression");
+  assert.equal(event.title,"Career Level 2");
+  assert.equal(event.reputation_delta,0.25);
+  assert.deepEqual(event.attribute_changes,[{
+    key:"leadership",
+    delta:1,
+    before:50,
+    after:51,
+  }]);
+});
+
+test("Manager M5.1 records regression reason and survives Save/Load without duplication",()=>{
+  let gs=applyManagerPerformanceRegression(state(),{
+    assessment:assessment({status:"critical",races:6,seasonProgress:0.43,jobSecurity:18}),
+    criticalStreak:1,
+    pressureStreak:1,
+  });
+
+  assert.equal(gs.manager.development.history.length,1);
+  assert.equal(gs.manager.development.history[0].type,"regression");
+  assert.equal(gs.manager.development.history[0].reputation_delta,-0.35);
+  assert.deepEqual(gs.manager.development.history[0].attribute_changes,[{
+    key:"race_management",
+    delta:-1,
+    before:50,
+    after:49,
+  }]);
+
+  gs=migrateGameState(prepareGameStateForSave(gs));
+  assert.equal(gs.manager.development.history.length,1);
+  assert.equal(gs.manager.development.history[0].id,"regression:1980:6");
+
+  const repeated=applyManagerPerformanceRegression(gs,{
+    assessment:assessment({status:"critical",races:6,seasonProgress:0.43,jobSecurity:18}),
+    criticalStreak:1,
+    pressureStreak:1,
+  });
+  assert.equal(repeated.manager.development.history.length,1);
+});
+
+test("Manager M5.1 bounds development history in normalized profiles",()=>{
+  const history=Array.from({length:75},(_,index)=>({
+    id:"event_"+index,
+    date:`1980-01-${String((index%28)+1).padStart(2,"0")}`,
+    type:"progression",
+    title:"Event "+index,
+    reputation_delta:0.03,
+    attribute_changes:[],
+  }));
+  const normalized=manager({development:{history}});
+
+  assert.equal(normalized.development.history.length,60);
+  assert.equal(normalized.development.history[0].id,"event_0");
+  assert.equal(normalized.development.history.at(-1).id,"event_59");
 });
