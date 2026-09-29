@@ -779,6 +779,10 @@ test("LS3.5 audit: 2007 feeder population and starting-rating calibration",async
     }))
     .sort((a,b)=>a.name.localeCompare(b.name));
 
+  const profiles=JSON.parse(
+    await fs.readFile(path.join(root,"public","data","driver_rating_profiles.json"),"utf8")
+  );
+  const nickProfile=profiles.find((row)=>String(row.driver_id)==="d_0002")||null;
   const wantedNames=["Fernando Alonso","Kimi Räikkönen","Lewis Hamilton","Felipe Massa","Robert Kubica","Nico Rosberg","Nick Heidfeld"];
   const ratingById=new Map((pack.state?.driverRatings||[]).map((row)=>[String(row.driver_id),row]));
   const ratingAudit=(pack.state?.drivers||[])
@@ -822,6 +826,7 @@ test("LS3.5 audit: 2007 feeder population and starting-rating calibration",async
     active_placements:activePlacements,
     gp2_world_entries:gp2Entries,
     gp2_career_rows:gp2Career,
+    nick_profile:nickProfile,
     rating_audit:ratingAudit,
   }));
 
