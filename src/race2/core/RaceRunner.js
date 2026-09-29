@@ -4,6 +4,7 @@
 // RaceSimulation.advanceRaceState(), the canonical batch wrapper over stepRaceState().
 
 import { advanceRaceState, raceStepMs } from "./RaceSimulation.js";
+export { raceStepMs };
 
 const finite=(value,fallback=0)=>{
   const parsed=Number(value);
