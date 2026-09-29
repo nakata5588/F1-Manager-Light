@@ -817,7 +817,7 @@ export function materializeSeasonPack(globalData,yearInput){
 
   const pack={
     format:"f1ml-season-pack",
-    schemaVersion:1,
+    schemaVersion:2,
     year,
     ratingModel,
     generatedFrom:"global-runtime-json",
