@@ -915,6 +915,18 @@ test("Manager Job Market opens plausible vacancies but blocks prestige jumps and
       T1:{reputation:30},
       T2:{reputation:50},
     },
+    // Represent the Team Principal role elsewhere in the same era so T2's
+    // missing incumbent is a real Save World vacancy, not missing source data.
+    staffRatings:[{
+      year:1980,staff_id:"TP1",reputation:40,
+      leadership:40,conflict_management:40,negotiation:40,budget_management:40,
+      motivation:40,communication:40,strategy:40,technical:40,
+    }],
+    staffContracts:[{
+      year:1980,team_id:"T1",staff_id:"TP1",staff_name:"Recorded Principal",
+      role:"team_principal",status:"active",
+      contract_start_year:1979,contract_until_year:1982,
+    }],
   };
 
   const plausible=managerJobOpportunity(base,"T2");
@@ -930,6 +942,7 @@ test("Manager Job Market opens plausible vacancies but blocks prestige jumps and
 
   const coolingBase={
     ...base,
+    manager:unemployedManager({reputation:60}),
     currentDateISO:"1980-03-30",
     managerEmploymentState:{
       status:"unemployed",
