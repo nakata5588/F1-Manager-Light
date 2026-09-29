@@ -244,3 +244,38 @@ test("unemployed manager stays unattached after normalization and gameplay effec
   assert.equal(effects.active,false);
   assert.equal(effects.boardConfidenceDelta,0);
 });
+
+
+test("player appointment leaves expired historical Team Principal contracts untouched",()=>{
+  const gs=baseState(playerManager());
+  gs.activeYear=1982;
+  gs.currentDateISO="1982-03-01";
+  gs.staffContracts=[
+    {
+      year:1979,team_id:"T1",staff_id:"OLD",staff_name:"Old Principal",
+      role:"team_principal",status:"active",
+      contract_start_year:1978,contract_until_year:1980,end_year:1980,
+    },
+  ];
+  const next=applyPlayerManagerTeamPrincipalAppointment(gs);
+  const old=next.staffContracts[0];
+  assert.equal(old.status,"active");
+  assert.equal(old.contract_until_year,1980);
+  assert.equal(old.end_year,1980);
+  assert.equal(old.release_reason,undefined);
+});
+
+test("player appointment cancels persisted Team Principal negotiations",()=>{
+  const gs=baseState(playerManager());
+  gs.staffContracts=[];
+  gs.staffNegotiations=[
+    {
+      id:"legacy_tp_offer",staff_id:"P3",team_id:"T1",
+      role:"team_principal",offer:{role:"team_principal",salary:200000,years:2},
+      status:"countered",origin:"player",
+    },
+  ];
+  const next=applyPlayerManagerTeamPrincipalAppointment(gs);
+  assert.equal(next.staffNegotiations[0].status,"withdrawn");
+  assert.equal(next.staffNegotiations[0].resolution_reason,"player_manager_appointment");
+});
