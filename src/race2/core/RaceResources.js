@@ -368,6 +368,7 @@ export function advanceRaceResources(state,cars,{stepMs=100}={}){
       ...provisional,
       resources:{
         ...(previous?.resources||{}),
+        ...(next?.resources||{}),
         ...effects,
       },
     };
