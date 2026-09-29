@@ -3,7 +3,8 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
-  Handshake, FileText, Coffee, Search, Info, Trophy
+  Handshake, FileText, Coffee, Search, Info, Trophy,
+  History, ArrowUpRight, Flag, Eye, Sparkles
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -55,6 +56,7 @@ import { formatRelationshipYears, historicalDriverRelationshipRecords } from "..
 import { managerDisplayName } from "../../domain/managerProfile.js";
 import { historicalRaceStarted, historicalResultDisplay, historicalResultInfo } from "../../domain/historicalRaceStatus.js";
 import { driverCareerExperience } from "../../domain/driverLifecycle.js";
+import { driverFullCareerTimeline } from "../../domain/driverCareerTimeline.js";
 
 /* ======================== Helpers & Const ======================== */
 
@@ -66,6 +68,7 @@ const TABS = [
   { key: "relationships", label: "Relationships" },
   { key: "races",       label: "Races" },
   { key: "career",      label: "Career" },
+  { key: "timeline",    label: "Timeline" },
 ];
 
 const TAB_ALIASES = Object.freeze({
@@ -291,7 +294,7 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
   );
   const driverIdentityName = displayValue(driver?.display_name ?? driver?.name, "");
   const isRetired = String(driver?.status||"").toLowerCase()==="retired";
-  const retiredTabs = new Set(["relationships","races","career"]);
+  const retiredTabs = new Set(["relationships","races","career","timeline"]);
   const visibleTabs = isRetired ? TABS.filter((tab)=>retiredTabs.has(tab.key)) : TABS;
   const effectiveTab = isRetired && !retiredTabs.has(activeTab) ? "career" : activeTab;
 
@@ -732,6 +735,30 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
     });
     return annotateCareerTransfers(markChampionshipPositionTeam(list));
   }, [filteredCareer]);
+
+  // Timeline is intentionally independent from the Career tab series filter:
+  // it represents the driver's complete career, from junior series to F1.
+  const fullCareerRows = useMemo(() => {
+    const list=[...(careerAll||[]),...(simulatedCareerRows||[])];
+    list.sort((a,b)=>{
+      const ya=Number(unbox(a?.year))||0;
+      const yb=Number(unbox(b?.year))||0;
+      if(ya!==yb)return ya-yb;
+      const la=Number(unbox(a?.last_round));
+      const lb=Number(unbox(b?.last_round));
+      if(Number.isFinite(la)&&Number.isFinite(lb)&&la!==lb)return la-lb;
+      const oa=Number(unbox(a?.order));
+      const ob=Number(unbox(b?.order));
+      if(Number.isFinite(oa)&&Number.isFinite(ob)&&oa!==ob)return oa-ob;
+      return String(unbox(a?.team_name)||"").localeCompare(String(unbox(b?.team_name)||""));
+    });
+    return annotateCareerTransfers(markChampionshipPositionTeam(list));
+  },[careerAll,simulatedCareerRows]);
+
+  const fullDriverTimeline = useMemo(
+    ()=>driverFullCareerTimeline(gs,driverId,{careerRows:fullCareerRows}),
+    [gs,driverId,fullCareerRows]
+  );
 
   const careerTotals = useMemo(() => {
     if (!careerTimeline.length) return null;
@@ -1303,6 +1330,13 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
               loading={raceArchiveLoading}
               gameState={gs}
               teams={teamsList}
+            />
+          )}
+
+          {effectiveTab === "timeline" && (
+            <DriverTimelineTab
+              items={fullDriverTimeline}
+              driverName={driverIdentityName}
             />
           )}
 
@@ -3823,5 +3857,95 @@ function DriverActionsMenu({
       )}
       <div className="px-2 pb-2 text-[10px] text-gray-400">Scroll for more • ESC to close</div>
     </ActionsButton>
+  );
+}
+
+
+function DriverTimelineIcon({type}){
+  if(type==="champion")return <Trophy size={15} className="text-amber-300"/>;
+  if(type==="f1_call_up"||type==="team_change")return <ArrowUpRight size={15} className="text-emerald-300"/>;
+  if(type==="f1_ready")return <Sparkles size={15} className="text-violet-300"/>;
+  if(type==="f1_interest")return <Eye size={15} className="text-sky-300"/>;
+  if(type==="lower_series_season")return <Flag size={15} className="text-violet-300"/>;
+  return <Flag size={15} className="text-slate-300"/>;
+}
+
+function driverTimelineTone(type){
+  if(type==="champion")return "border-amber-400/20 bg-amber-500/[0.06]";
+  if(type==="f1_call_up")return "border-emerald-400/20 bg-emerald-500/[0.06]";
+  if(type==="f1_ready")return "border-violet-400/20 bg-violet-500/[0.06]";
+  if(type==="f1_interest")return "border-sky-400/20 bg-sky-500/[0.05]";
+  if(type==="team_change")return "border-emerald-400/15 bg-emerald-500/[0.04]";
+  if(type==="lower_series_season")return "border-violet-400/15 bg-violet-500/[0.04]";
+  return "border-white/10 bg-white/[0.03]";
+}
+
+function DriverTimelineTab({items=[],driverName=""}){
+  if(!items.length){
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
+        <History className="mx-auto h-5 w-5 text-slate-500"/>
+        <div className="mt-2 text-sm font-medium text-slate-300">No career timeline yet.</div>
+        <div className="mt-1 text-xs text-slate-500">Seasons, team changes, junior milestones and F1 call-ups will appear automatically as the career develops.</div>
+      </div>
+    );
+  }
+
+  const byYear=new Map();
+  for(const item of items){
+    const year=Number(item?.year);
+    if(!Number.isFinite(year))continue;
+    if(!byYear.has(year))byYear.set(year,[]);
+    byYear.get(year).push(item);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-white/10 bg-[#171a23] p-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <History size={15} className="text-sky-300"/>
+          Full Career Timeline
+        </div>
+        <p className="mt-1 text-xs text-slate-500">
+          {driverName||"This driver"}'s complete career path, composed automatically from historical records and this Save World.
+        </p>
+      </div>
+
+      <div className="relative">
+        <div className="absolute bottom-0 left-[2.15rem] top-0 w-px bg-white/10"/>
+        <div className="space-y-5">
+          {[...byYear.entries()].sort((a,b)=>a[0]-b[0]).map(([year,yearItems])=>(
+            <div key={year} className="relative grid grid-cols-[4.3rem_minmax(0,1fr)] gap-3">
+              <div className="relative z-10 flex h-9 items-center justify-center rounded-lg border border-white/10 bg-[#11141c] text-xs font-bold text-slate-200">
+                {year}
+              </div>
+              <div className="grid gap-2">
+                {yearItems.map((item)=>(
+                  <div key={item.id} className={"rounded-lg border p-3 "+driverTimelineTone(item.type)}>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-md border border-white/10 bg-black/10 p-1.5">
+                        <DriverTimelineIcon type={item.type}/>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <div className="text-sm font-semibold text-slate-100">{item.title}</div>
+                          {item.series_name?<span className="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-slate-500">{item.series_name}</span>:null}
+                        </div>
+                        {item.detail?<div className="mt-1 text-xs text-slate-400">{item.detail}</div>:null}
+                        {item.best_f1_interest?.f1_team_name?(
+                          <div className="mt-1 text-[10px] text-sky-300">
+                            F1 interest: {item.best_f1_interest.f1_team_name} · {String(item.best_f1_interest.status||"").replaceAll("_"," ")}
+                          </div>
+                        ):null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

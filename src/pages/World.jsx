@@ -1,11 +1,9 @@
 import React,{useMemo,useState} from "react";
 import {useSearchParams} from "react-router-dom";
 import {
-  ArrowUpRight,
   Eye,
   Flag,
   Globe2,
-  History,
   ShieldCheck,
   Sparkles,
   Trophy,
@@ -13,7 +11,6 @@ import {
 } from "lucide-react";
 import {useGame} from "../state/GameStore.js";
 import {
-  lowerSeriesCareerTimeline,
   lowerSeriesSeasonSnapshots,
   lowerSeriesWorldSummary,
 } from "../domain/lowerSeriesTimeline.js";
@@ -79,22 +76,6 @@ function movementTone(movement){
   return "border-white/10 bg-white/5 text-slate-400";
 }
 
-function eventTone(type){
-  if(type==="champion")return "border-amber-400/20 bg-amber-500/10";
-  if(type==="f1_call_up")return "border-emerald-400/20 bg-emerald-500/10";
-  if(type==="f1_ready")return "border-violet-400/20 bg-violet-500/10";
-  if(type==="movement")return "border-sky-400/20 bg-sky-500/10";
-  return "border-white/10 bg-white/[0.03]";
-}
-
-function eventIcon(type){
-  if(type==="champion")return <Trophy className="h-4 w-4 text-amber-300"/>;
-  if(type==="f1_call_up")return <ArrowUpRight className="h-4 w-4 text-emerald-300"/>;
-  if(type==="f1_ready")return <Sparkles className="h-4 w-4 text-violet-300"/>;
-  if(type==="movement")return <ArrowUpRight className="h-4 w-4 text-sky-300"/>;
-  return <Eye className="h-4 w-4 text-slate-400"/>;
-}
-
 function SummaryCard({icon:Icon,label,value,detail}){
   return <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
     <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -109,10 +90,8 @@ function SummaryCard({icon:Icon,label,value,detail}){
 function LowerSeriesView(){
   const gs=useGame((state)=>state.gameState);
   const world=gs?.lowerSeriesWorld||null;
-  const [panel,setPanel]=useState("championships");
   const [seasonChoice,setSeasonChoice]=useState(null);
   const [seriesChoice,setSeriesChoice]=useState("");
-  const [timelineDriver,setTimelineDriver]=useState("");
 
   const drivers=useMemo(()=>{
     const merged=new Map();
@@ -128,31 +107,6 @@ function LowerSeriesView(){
     [world]
   );
   const summary=useMemo(()=>lowerSeriesWorldSummary(gs),[gs]);
-  const timeline=useMemo(
-    ()=>lowerSeriesCareerTimeline(gs,{driverId:timelineDriver||null}),
-    [gs,timelineDriver]
-  );
-
-  const timelineDrivers=useMemo(()=>{
-    const ids=new Set(
-      lowerSeriesCareerTimeline(gs)
-        .map((row)=>text(row?.driver_id))
-        .filter(Boolean)
-    );
-    for(const snapshot of lowerSeriesSeasonSnapshots(world)){
-      for(const entry of entryRows(snapshot)){
-        const id=driverIdOf(entry);
-        if(id)ids.add(id);
-      }
-    }
-    return [...ids]
-      .map((id)=>({
-        id,
-        name:text(drivers.get(id)?.display_name??drivers.get(id)?.name)||id,
-      }))
-      .sort((a,b)=>a.name.localeCompare(b.name));
-  },[gs,world,drivers]);
-
   if(!world){
     return <div className="rounded-xl border border-white/10 bg-[#11141c] p-6 text-slate-300">
       <h2 className="text-lg font-semibold text-white">Lower Series</h2>
@@ -217,72 +171,11 @@ function LowerSeriesView(){
     </div>
 
     <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-semibold text-white">Lower Series</h2>
-          <p className="mt-1 text-sm text-slate-400">Championships, prospect visibility and the career path towards Formula 1.</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={()=>setPanel("championships")}
-            className={"rounded-md border px-3 py-2 text-sm font-medium "+(panel==="championships"
-              ?"border-sky-400/30 bg-sky-500/15 text-sky-200"
-              :"border-white/10 bg-white/5 text-slate-300 hover:bg-white/10")}
-          >Championships</button>
-          <button
-            type="button"
-            onClick={()=>setPanel("timeline")}
-            className={"flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium "+(panel==="timeline"
-              ?"border-violet-400/30 bg-violet-500/15 text-violet-200"
-              :"border-white/10 bg-white/5 text-slate-300 hover:bg-white/10")}
-          ><History className="h-4 w-4"/> Career Timeline</button>
-        </div>
-      </div>
+      <h2 className="text-xl font-semibold text-white">Lower Series</h2>
+      <p className="mt-1 text-sm text-slate-400">Championships, standings, prospect visibility and the route towards Formula 1.</p>
     </div>
 
-    {panel==="timeline"?<>
-      <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-white">Lower Series career history</h3>
-            <p className="mt-1 text-sm text-slate-400">Derived from archived Save-World seasons, F1 interest, LS7 career movement and accepted LS6 call-ups.</p>
-          </div>
-          <label className="grid gap-1 text-xs text-slate-500">
-            Driver
-            <select
-              className="min-w-64 rounded-md border border-white/10 bg-[#171a23] px-3 py-2 text-sm text-slate-100"
-              value={timelineDriver}
-              onChange={(event)=>setTimelineDriver(event.target.value)}
-            >
-              <option value="">All drivers</option>
-              {timelineDrivers.map((driver)=><option key={driver.id} value={driver.id}>{driver.name}</option>)}
-            </select>
-          </label>
-        </div>
-      </div>
 
-      <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
-        {timeline.length?<div className="grid gap-3">
-          {timeline.map((event)=><div key={event.id} className={"rounded-lg border p-4 "+eventTone(event.type)}>
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-md border border-white/10 bg-black/10 p-2">{eventIcon(event.type)}</div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{event.year}</span>
-                  {event.series_name?<span className="text-xs text-slate-500">{event.series_name}</span>:null}
-                  {event.f1_team_name?<span className="text-xs text-slate-500">{event.f1_team_name}</span>:null}
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-100">
-                  {event.driver_id?<button type="button" data-entity="driver" data-id={event.driver_id} className="text-left hover:underline">{event.title}</button>:event.title}
-                </div>
-                <div className="mt-1 text-sm text-slate-400">{event.detail}</div>
-              </div>
-            </div>
-          </div>)}
-        </div>:<div className="py-8 text-center text-sm text-slate-500">No Lower Series career events are available for this filter yet.</div>}
-      </div>
-    </>:<>
       <div className="rounded-xl border border-white/10 bg-[#11141c] p-4 shadow-xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="min-w-0 flex-1">
@@ -336,7 +229,7 @@ function LowerSeriesView(){
               <th className="px-4 py-2 text-right">Wins</th>
               <th className="px-4 py-2 text-right">Podiums</th>
               <th className="px-4 py-2 text-right">Pts</th>
-              <th className="px-4 py-2 text-left">Prospect</th>
+              <th className="px-4 py-2 text-left" title="Public junior-career reputation. Before race evidence it starts from a category-level baseline.">Prospect Rep.</th>
               <th className="px-4 py-2 text-left">F1 Interest</th>
               <th className="px-4 py-2 text-left">Career Path</th>
             </tr></thead>
@@ -353,7 +246,16 @@ function LowerSeriesView(){
                 <td className="px-4 py-3 text-right">{row.wins||0}</td>
                 <td className="px-4 py-3 text-right">{row.podiums||0}</td>
                 <td className="px-4 py-3 text-right font-semibold">{row.points||0}</td>
-                <td className="px-4 py-3 text-slate-300">{num(prospect?.prospect_reputation,null)??"—"}</td>
+                <td className="px-4 py-3 text-slate-300">
+                  {num(prospect?.prospect_reputation,null)===null
+                    ?"—"
+                    :<span title={num(prospect?.performance?.starts,0)>0
+                      ?"Public reputation derived from Lower Series results."
+                      :"Initial category baseline; it will move once race results exist."}>
+                      {prospect.prospect_reputation}
+                      {num(prospect?.performance?.starts,0)===0?<span className="ml-1 text-[9px] uppercase tracking-wide text-slate-600">baseline</span>:null}
+                    </span>}
+                </td>
                 <td className="px-4 py-3">
                   {interest?<span className={"inline-flex rounded-full border px-2 py-1 text-xs capitalize "+interestTone(interest?.status)}>
                     {interestLabel(interest)}
@@ -376,7 +278,7 @@ function LowerSeriesView(){
                 <button type="button" data-entity="driver" data-id={id} className="font-medium text-slate-100 hover:underline">{driver?.display_name||driver?.name||id}</button>
                 <span className="text-slate-500">{entry.team_name||"Team not assigned"}</span>
                 <div className="md:ml-auto flex flex-wrap gap-2">
-                  {num(prospect?.prospect_reputation,null)!==null?<span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300">Prospect {prospect.prospect_reputation}</span>:null}
+                  {num(prospect?.prospect_reputation,null)!==null?<span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300">Prospect Rep. {prospect.prospect_reputation}{num(prospect?.performance?.starts,0)===0?" · baseline":""}</span>:null}
                   {interest?<span className={"rounded-full border px-2 py-1 text-xs capitalize "+interestTone(interest?.status)}>{interestLabel(interest)}</span>:null}
                   {entry?.career_movement?<span className={"rounded-full border px-2 py-1 text-xs "+movementTone(entry.career_movement)}>{lowerSeriesMovementLabel(entry.career_movement)}</span>:null}
                 </div>
@@ -409,7 +311,7 @@ function LowerSeriesView(){
           </table></div>:<div className="p-5 text-sm text-slate-500">{simulated?"No events scheduled.":"Race simulation is not active for this level yet."}</div>}
         </div>
       </>}
-    </>}
+
   </div>;
 }
 

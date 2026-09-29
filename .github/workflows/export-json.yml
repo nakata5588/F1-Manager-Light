@@ -78,7 +78,7 @@ jobs:
         run: node --test tests/lowerSeriesWorld.test.js
 
       - name: Test Lower Series deterministic simulation
-        run: node --test tests/lowerSeriesSimulation.test.js tests/lowerSeriesProspects.test.js tests/lowerSeriesCallups.test.js tests/lowerSeriesCareerMovement.test.js tests/lowerSeriesTimeline.test.js
+        run: node --test tests/lowerSeriesSimulation.test.js tests/lowerSeriesProspects.test.js tests/lowerSeriesCallups.test.js tests/lowerSeriesCareerMovement.test.js tests/lowerSeriesTimeline.test.js tests/driverCareerTimeline.test.js
 
       - name: Test Starting Rating materializer principles
         run: npm run test:starting-ratings
