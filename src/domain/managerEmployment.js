@@ -9,6 +9,7 @@ import { deriveBoardState } from "./boardState.js";
 import { activeStaffContracts, teamIdOfContract } from "./liveContracts.js";
 import { managerDisplayName } from "./managerProfile.js";
 import { staffContractRole } from "./staffRoles.js";
+import { synchronizeDriverRelationships } from "./driverRelationships.js";
 
 const text=(value)=>String(value??"").trim();
 const clamp01=(value)=>Math.max(0,Math.min(1,Number(value)||0));
@@ -57,8 +58,8 @@ export function applyPlayerManagerTeamPrincipalAppointment(gs){
     changed=true;
     return closeHistoricalPrincipal(contract,gs);
   });
-  if(!changed)return gs;
-  return {...gs,staffContracts:contracts};
+  if(!changed)return synchronizeDriverRelationships(gs,{source:"player_manager_team_principal"});
+  return synchronizeDriverRelationships({...gs,staffContracts:contracts},{source:"player_manager_team_principal"});
 }
 
 export function managerEmploymentAssessment(gs){
