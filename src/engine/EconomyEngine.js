@@ -427,30 +427,25 @@ function processSeasonBonuses(gs) {
 
 // =================== API pública ===================
 export function applyEconomyTick(state) {
-  try {
-    let gs = { ...(state || {}) };
+  let gs = { ...(state || {}) };
 
-    if (!Array.isArray(gs.financeLog)) gs.financeLog = [];
-    if (!gs.team) gs.team = { name: "Team", budget: 0 };
-    if (!gs.finances) gs.finances = { budget: N(gs.team.budget, 0), balance: N(gs.team.budget, 0), weekly_burn: 0, season_spend: 0, season_income: 0 };
+  if (!Array.isArray(gs.financeLog)) gs.financeLog = [];
+  if (!gs.team) gs.team = { name: "Team", budget: 0 };
+  if (!gs.finances) gs.finances = { budget: N(gs.team.budget, 0), balance: N(gs.team.budget, 0), weekly_burn: 0, season_spend: 0, season_income: 0 };
 
-    // NOTA: Não lançamos "Starting Budget" no ledger (fica só no snapshot).
+  // NOTA: Não lançamos "Starting Budget" no ledger (fica só no snapshot).
 
-    // 1) sponsors upfront (quando chegar a data)
-    gs = processSponsorsUpfront(gs);
+  // 1) sponsors upfront (quando chegar a data)
+  gs = processSponsorsUpfront(gs);
 
-    // 2) fecho mensal (dia 1 → fechar mês anterior + email)
-    gs = processMonthEnd(gs);
+  // 2) fecho mensal (dia 1 → fechar mês anterior + email)
+  gs = processMonthEnd(gs);
 
-    // 3) filas operacionais (carro/peças/RD)
-    gs = processOperationalQueues(gs);
+  // 3) filas operacionais (carro/peças/RD)
+  gs = processOperationalQueues(gs);
 
-    // 4) bónus de campeão (no fecho da época)
-    gs = processSeasonBonuses(gs);
+  // 4) bónus de campeão (no fecho da época)
+  gs = processSeasonBonuses(gs);
 
-    return gs;
-  } catch (e) {
-    console.warn("[EconomyEngine] applyEconomyTick failed:", e);
-    return state;
-  }
+  return gs;
 }

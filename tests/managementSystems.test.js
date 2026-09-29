@@ -1079,3 +1079,16 @@ test("persisted Team Principal counter-offer cannot be accepted after player occ
     false
   );
 });
+
+
+test("EconomyEngine propagates failures so the canonical daily pipeline can fail closed",()=>{
+  const brokenState=new Proxy({},{
+    ownKeys(){
+      throw new Error("economy fixture failure");
+    },
+  });
+  assert.throws(
+    ()=>applyEconomyTick(brokenState),
+    /economy fixture failure/
+  );
+});
