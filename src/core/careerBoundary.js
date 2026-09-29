@@ -11,6 +11,7 @@ import { materializeNextSeasonTechnicalWorld } from "../domain/nextSeasonMateria
 import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { isRaceDriverContract } from "../domain/contractRoles.js";
 import { applyLowerSeriesWorldToDrivers, rollLowerSeriesWorld } from "../domain/lowerSeriesWorld.js";
+import { completeLowerSeriesSeason, initializeLowerSeriesSeason } from "../engine/LowerSeriesEngine.js";
 
 const num=(v,fb=NaN)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
 const text=(v)=>v==null?"":String(v);
@@ -349,6 +350,11 @@ export function materializeNextCareerSeason(state,targetYearInput){
   const previousYear=Number(state?.activeYear??targetYear-1);
   if(!Number.isInteger(targetYear))throw new TypeError("Target season must be an integer.");
 
+  // A direct rollover must not skip Lower Series events that were still due
+  // in the outgoing season. Complete only the Save-World simulation; no
+  // historical future outcomes are consulted.
+  state=completeLowerSeriesSeason(state);
+
   // Close the previous season before clearing live standings. Team Reputation
   // receives title and final expectation effects while the final table exists.
   const seasonReviewedState=applySeasonTeamReputation(state,previousYear);
@@ -475,7 +481,7 @@ export function materializeNextCareerSeason(state,targetYearInput){
     unread:true,
   },...(state.inbox||[])];
 
-  return {
+  const nextState={
     ...technicalSeasonState,
     activeYear:targetYear,
     currentDateISO:`${targetYear}-01-01`,
@@ -526,4 +532,5 @@ export function materializeNextCareerSeason(state,targetYearInput){
     _seasonFinishedAt:null,
     showSeasonSummary:false,
   };
+  return initializeLowerSeriesSeason(nextState);
 }

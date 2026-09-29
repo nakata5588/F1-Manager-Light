@@ -18,7 +18,7 @@ import {
   seriesRuleForYear,
 } from "./seriesCatalog.js";
 
-export const LOWER_SERIES_WORLD_VERSION=1;
+export const LOWER_SERIES_WORLD_VERSION=2;
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -320,8 +320,18 @@ function archiveWorldSeason(world){
       ...row,
       series_candidates:candidateRows(row?.series_candidates),
     })),
-    standings:{...(world.standings||{})},
-    results:rows(world.results).map((row)=>({...row})),
+    standings:Object.fromEntries(
+      Object.entries(world.standings||{}).map(([id,value])=>[id,{
+        ...(value||{}),
+        drivers:rows(value?.drivers).map((row)=>({...row})),
+        teams:rows(value?.teams).map((row)=>({...row})),
+      }])
+    ),
+    events:rows(world.events).map((row)=>({...row})),
+    results:rows(world.results).map((row)=>({
+      ...row,
+      classification:rows(row?.classification).map((item)=>({...item})),
+    })),
   });
   return history;
 }

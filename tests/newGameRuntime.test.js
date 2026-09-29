@@ -281,4 +281,7 @@ test("fresh career creates a new lowerSeriesWorld from the selected opening seas
   assert.equal(fresh.drivers[0].lower_series_id,"s_f2");
   assert.equal(fresh.drivers[0].lower_series_team_name,"Opening Team");
   assert.equal(fresh.drivers[0].world_runtime_source,"lower_series_world");
+  assert.equal(fresh.lowerSeriesWorld.events.length,10);
+  assert.ok(fresh.lowerSeriesWorld.events.every((event)=>event.status==="scheduled"));
+  assert.deepEqual(fresh.lowerSeriesWorld.results,[]);
 });

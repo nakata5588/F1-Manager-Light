@@ -1,6 +1,7 @@
 // src/engine/EventEngine.js
 import { ensureAbilityAnchor, intensiveTrainingStatus, recalculateCurrentAbility } from "../domain/driverRating.js";
 import { appendDriverMentalStateLog, applyMentalStateDeltaToCondition, mentalStateCondition } from "../domain/driverMentalState.js";
+import { processLowerSeriesTick } from "./LowerSeriesEngine.js";
 
 /** Pequenas utils */
 function pad2(n) { return String(n).padStart(2, "0"); }
@@ -413,9 +414,12 @@ export function triggerDailyTick(gs) {
   if (!gs) return gs;
 
   const today = toISODateOnly(gs.currentDateISO || Date.now());
-  const queue = Array.isArray(gs.eventsQueue) ? gs.eventsQueue.slice() : [];
+  // Lower Series shares the canonical daily pipeline. It owns only
+  // lowerSeriesWorld and never writes to the F1 Results archive.
+  const dailyBase = processLowerSeriesTick(gs,{throughDate:today});
+  const queue = Array.isArray(dailyBase.eventsQueue) ? dailyBase.eventsQueue.slice() : [];
 
-  const drivers = gs.drivers?.length ? gs.drivers : (gs.dbDrivers || []);
+  const drivers = dailyBase.drivers?.length ? dailyBase.drivers : (dailyBase.dbDrivers || []);
   const toProcessIdx = [];
 
   // encontrar eventos por processar agendados para hoje ou antes
@@ -426,11 +430,11 @@ export function triggerDailyTick(gs) {
     if (d && d <= today) toProcessIdx.push(i);
   }
 
-  if (!toProcessIdx.length) return gs; // nada para fazer hoje
+  if (!toProcessIdx.length) return dailyBase; // nada para fazer hoje
 
   // Vamos aplicar efeitos e gerar inbox
-  let nextState = { ...gs };
-  const inbox = Array.isArray(gs.inbox) ? gs.inbox.slice() : [];
+  let nextState = { ...dailyBase };
+  const inbox = Array.isArray(dailyBase.inbox) ? dailyBase.inbox.slice() : [];
 
   for (const idx of toProcessIdx) {
     const ev = { ...queue[idx] };
