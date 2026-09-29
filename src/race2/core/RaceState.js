@@ -10,7 +10,7 @@ import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
 import { initialRaceConditions } from "./RaceConditions.js";
 
-export const RACE_STATE_SCHEMA_VERSION=10;
+export const RACE_STATE_SCHEMA_VERSION=11;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
