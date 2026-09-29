@@ -109,11 +109,13 @@ function initialFuel(input,inputCar){
   const laps=Math.max(1,Math.round(finite(input?.track?.laps,61)));
   const raceKm=(lengthM*laps)/1000;
   const burn=fuelBurnKgPerKmForYear(input?.year??input?.track?.year);
-  // RW8.7 has no pit/refuelling execution yet. Every car therefore starts
-  // with enough fuel to finish plus a deterministic reserve, even in eras
-  // where a future pit phase may later choose a lighter strategy.
-  const reserve=Math.max(1.5,raceKm*burn*0.03);
-  const initial=raceKm*burn+reserve;
+  // RW8.7 has no pit/refuelling execution yet. Pace commands may still change
+  // during the race, so size the temporary full-race load for the worst normal
+  // burn modifiers accepted by updateFuel(): attack pace (1.04) and max power
+  // multiplier (1.05). RW8.8 can replace this with real stint/refuel planning.
+  const fullRaceBurn=raceKm*burn*1.04*1.05;
+  const reserve=Math.max(1.5,fullRaceBurn*0.03);
+  const initial=fullRaceBurn+reserve;
   return {
     fuelKg:round(initial,6),
     initialFuelKg:round(initial,6),
