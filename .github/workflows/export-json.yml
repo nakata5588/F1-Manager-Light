@@ -74,6 +74,9 @@ jobs:
       - name: Test generic feeder placement principles
         run: npm run test:world-placement
 
+      - name: Test Lower Series Save World
+        run: node --test tests/lowerSeriesWorld.test.js
+
       - name: Test Starting Rating materializer principles
         run: npm run test:starting-ratings
 

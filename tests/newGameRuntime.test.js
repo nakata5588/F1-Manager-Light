@@ -241,3 +241,44 @@ test("Season Pack world-entry metadata survives loader and fresh-career boundary
   assert.equal(fresh.driverWorldEntry[0].first_world_year,1978);
   assert.equal(fresh.driverFeederPlacement[0].placement,"YOUTH");
 });
+
+
+test("fresh career creates a new lowerSeriesWorld from the selected opening season",()=>{
+  const fresh=buildFreshCareerState({
+    activeYear:1980,
+    seasonPackMeta:{format:"f1ml-season-pack",year:1980},
+    dbSeries:[
+      {series_id:"s_f2",series_name:"European Formula Two",series_level:2,start_year:1967,end_year:1984},
+    ],
+    dbSeriesRules:[],
+    drivers:[
+      {driver_id:"D1",display_name:"Prospect",dob:"1958-01-01",status:"lower_series",active_lower_series:true},
+    ],
+    driverFeederPlacement:[
+      {
+        driver_id:"D1",year:1980,placement:"LOWER_SERIES",active_pre_f1_world:true,
+        series_id:"s_f2",series_name:"European Formula Two",series_level:2,
+        series_resolution:"historical_series_id",series_candidates:[],
+      },
+    ],
+    driverCareer:[
+      {driver_id:"D1",year:1980,series_id:"s_f2",series_division:"F2",team_name:"Opening Team"},
+    ],
+    lowerSeriesWorld:{
+      version:1,season_year:1979,
+      entries:{OLD:{driver_id:"OLD",series_id:"old"}},
+      teams:{},series:[],standings:{},events:[],results:[],history:[],
+    },
+  },{
+    activeYear:1980,
+    currentDateISO:"1980-01-01",
+  });
+
+  assert.equal(fresh.lowerSeriesWorld.season_year,1980);
+  assert.equal(fresh.lowerSeriesWorld.entries.OLD,undefined);
+  assert.equal(fresh.lowerSeriesWorld.entries.D1.series_id,"s_f2");
+  assert.equal(fresh.lowerSeriesWorld.entries.D1.team_name,"Opening Team");
+  assert.equal(fresh.drivers[0].lower_series_id,"s_f2");
+  assert.equal(fresh.drivers[0].lower_series_team_name,"Opening Team");
+  assert.equal(fresh.drivers[0].world_runtime_source,"lower_series_world");
+});

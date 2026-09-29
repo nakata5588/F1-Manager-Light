@@ -1,5 +1,6 @@
 import { synchronizeDriverRelationships } from "../domain/driverRelationships.js";
 import { hydrateDriverPortraitRows } from "../domain/driverPortraits.js";
+import { applyLowerSeriesWorldToDrivers, materializeLowerSeriesWorld } from "../domain/lowerSeriesWorld.js";
 
 // src/state/newGameRuntime.js
 // New Game isolation boundary.
@@ -104,6 +105,9 @@ export function freshCareerRuntimeState({ initialDriverConditions = {} } = {}) {
     academy: { drivers: [] },
     scouting: { assignments: [], shortlist: [] },
 
+    // LS2 Save World. New Game materialises this after static/opening data is copied.
+    lowerSeriesWorld: null,
+
     // Team operational state is simulated runtime state.
     teamOperationalState: {},
     teamMoraleLog: {},
@@ -129,5 +133,27 @@ export function buildFreshCareerState(source,runtimePatch={}){
     drivers:hydrateDriverPortraitRows(fresh?.drivers,activeYear),
     dbDrivers:hydrateDriverPortraitRows(fresh?.dbDrivers,activeYear),
   };
-  return synchronizeDriverRelationships(withPortraits,{source:"career_start_neutral"});
+
+  // lowerSeriesWorld is Save World state: seed it once from the selected
+  // opening season, then never inherit a previous career's world.
+  const withLowerSeries=Number.isInteger(activeYear)
+    ?(()=>{
+      const lowerSeriesWorld=materializeLowerSeriesWorld({
+        year:activeYear,
+        sourceSeason:Number(fresh?.seasonPackMeta?.year??activeYear),
+        series:fresh?.dbSeries||[],
+        seriesRules:fresh?.dbSeriesRules||[],
+        placements:fresh?.driverFeederPlacement||[],
+        driverCareer:fresh?.driverCareer||[],
+        drivers:withPortraits?.drivers||[],
+      });
+      return {
+        ...withPortraits,
+        lowerSeriesWorld,
+        drivers:applyLowerSeriesWorldToDrivers(withPortraits?.drivers||[],lowerSeriesWorld),
+      };
+    })()
+    :withPortraits;
+
+  return synchronizeDriverRelationships(withLowerSeries,{source:"career_start_neutral"});
 }
