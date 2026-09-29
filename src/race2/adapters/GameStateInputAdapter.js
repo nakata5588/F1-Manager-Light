@@ -1,5 +1,7 @@
 // src/race2/adapters/GameStateInputAdapter.js
 import { getSaveSeed } from "../../core/random.js";
+import { teamCarPerformance } from "../../domain/carPerformance.js";
+import { conditionModifierBreakdown, raceDriverScore } from "../../domain/driverPerformance.js";
 import { buildTrackModel } from "../track/TrackModel.js";
 import {
   RACE_WEEKEND_CONTRACT_VERSION,
@@ -46,14 +48,22 @@ function normalizedDrivers(gs,entries){
   const teamByDriver=new Map(entries.filter((entry)=>entry.driverId).map((entry)=>[entry.driverId,entry.teamId]));
   return [...new Set(entries.map((entry)=>entry.driverId).filter(Boolean))]
     .sort((a,b)=>a.localeCompare(b))
-    .map((driverId)=>({
-      driverId,
-      teamId:teamByDriver.get(driverId)||teamIdOf(driversById.get(driverId))||null,
-      profile:cloneRaceContractValue(driversById.get(driverId)||{}),
-      ratings:cloneRaceContractValue(ratingsById.get(driverId)||{}),
-      condition:cloneRaceContractValue(gs?.driverAttributes?.[driverId]||{}),
-      availability:cloneRaceContractValue(gs?.driverAvailability?.[driverId]||null),
-    }));
+    .map((driverId)=>{
+      const rating=ratingsById.get(driverId)||{};
+      const condition=conditionModifierBreakdown(gs,driverId);
+      return {
+        driverId,
+        teamId:teamByDriver.get(driverId)||teamIdOf(driversById.get(driverId))||null,
+        profile:cloneRaceContractValue(driversById.get(driverId)||{}),
+        ratings:cloneRaceContractValue(rating),
+        condition:cloneRaceContractValue(gs?.driverAttributes?.[driverId]||{}),
+        availability:cloneRaceContractValue(gs?.driverAvailability?.[driverId]||null),
+        performance:{
+          raceScore:Number(raceDriverScore(rating,gs,driverId).toFixed(3)),
+          conditionModifier:Number(Number(condition?.total||0).toFixed(3)),
+        },
+      };
+    });
 }
 
 function garageCarsForTeam(gs,teamId){
@@ -73,6 +83,7 @@ function normalizedCars(gs,entries){
       .find((row)=>text(row?.id)===entry.carId);
     if(!car)continue;
 
+    const performance=teamCarPerformance(gs,entry.teamId,entry.driverId||null);
     seen.add(entry.carId);
     cars.push({
       carId:entry.carId,
@@ -80,6 +91,16 @@ function normalizedCars(gs,entries){
       teamId:entry.teamId,
       kind:car?.kind??null,
       state:cloneRaceContractValue(car),
+      performance:{
+        overall:finite(performance?.overall,70),
+        qualifying:finite(performance?.qualifying,70),
+        race:finite(performance?.race,70),
+        reliability:finite(performance?.reliability,75),
+        chassis:finite(performance?.chassis,70),
+        power:finite(performance?.power,70),
+        technicalDelta:cloneRaceContractValue(performance?.technical_delta||{}),
+        wearPenalty:cloneRaceContractValue(performance?.wear_penalty||{}),
+      },
     });
   }
 
