@@ -96,8 +96,8 @@ const Item = ({ to, label, icon: IconComp, brand, badge = 0 }) => {
 export default function Sidebar() {
   const { gameState } = useGame();
   const eventNews = useEventStore((s) => s.news);
-  const team = useMemo(() => resolvePlayerTeam(gameState), [gameState]);
   const unemployed=Boolean(gameState?.manager)&&!playerManagerIsActiveTeamPrincipal(gameState);
+  const team = useMemo(() => unemployed?null:resolvePlayerTeam(gameState), [gameState,unemployed]);
   const [brands, setBrands] = useState([]);
 
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function Sidebar() {
     return () => { alive = false; };
   }, []);
 
-  const brand = useMemo(() => resolveTeamBrand(brands, team), [brands, team]);
+  const brand = useMemo(() => unemployed?null:resolveTeamBrand(brands, team), [brands, team, unemployed]);
   const primary = brand?.primary_color || "#334155";
   const secondary = brand?.secondary_color || "#ffffff";
 
