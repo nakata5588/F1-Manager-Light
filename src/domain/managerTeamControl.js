@@ -184,6 +184,9 @@ export function materializeTeamForPlayer(gs,teamId){
   let next={
     ...normalized,
     team:{...row,budget},
+    teams:Array.isArray(normalized?.teams)
+      ?normalized.teams.map((team)=>teamIdOf(team)===targetId?{...team,budget}:team)
+      :normalized?.teams,
     finances,
     financeLog:clone(state?.finance_log)||[],
     garage:clone(state?.garage)||defaultGarage(),
