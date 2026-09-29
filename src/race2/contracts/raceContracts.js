@@ -1,7 +1,7 @@
 // src/race2/contracts/raceContracts.js
 // RW8.0A: stable, engine-agnostic contracts for the Race Weekend 2.0 boundary.
 
-export const RACE_WEEKEND_CONTRACT_VERSION=7;
+export const RACE_WEEKEND_CONTRACT_VERSION=8;
 
 export const RACE_WEEKEND_ENGINES=Object.freeze({
   LEGACY:"legacy",
@@ -38,7 +38,18 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
     "distanceAlongLapM","absoluteDistanceM","speedMs","speedKmh","accelerationMs2",
     "targetSpeedKmh","cornerSeverity","effectiveCornerSeverity","dynamicsLookaheadM",
     "performance","lateralOffsetM","zoneId","zoneType","elapsedMs","finishTimeMs","status","tyre","fuelKg",
-    "engineTemperature","components","damage","commands","pitState","traffic","battle","dnf",
+    "engineTemperature","resources","components","damage","commands","pitState","traffic","battle","dnf",
+  ]),
+  RaceTyreState:Object.freeze([
+    "tyre_id","supplier","compound","category","grip_index","wear_rate","warmup_time_s",
+    "condition","temperature_c","optimal_temperature_c","age_distance_m","age_laps",
+    "stint_number","wear_per_lap_pct","grip_multiplier","pace_penalty_s","risk_multiplier","band",
+    "wet_efficiency","tyre_management",
+  ]),
+  RaceResourceState:Object.freeze([
+    "paceMode","strategy","availableTyres","initialFuelKg","fuelBurnKgPerKm","fuelReserveKg",
+    "fuelPlan","refuellingDeferred","tyreGripMultiplier","tyreTemperaturePenalty",
+    "fuelMassPenalty","fuelStarvationPenalty","engineTemperaturePenalty","paceMultiplier","accelerationMultiplier",
   ]),
   RaceBattleState:Object.freeze([
     "phase","opponentCarId","role","side","attemptId","startedTick","startedAtMs",
