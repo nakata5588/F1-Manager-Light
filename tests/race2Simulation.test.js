@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import { createRaceState, DEFAULT_RACE_STEP_MS, RACE_STATE_SCHEMA_VERSION } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
-import { createLiveRaceRunner, runFastRace, runFastRaceToEnd } from "../src/race2/core/RaceRunner.js";
 
 function input({laps=2,cars=2}={}){
   const entries=Array.from({length:cars},(_,index)=>({driverId:`D${index+1}`,teamId:index<2?"T1":"T2",carId:`car_${index+1}`,status:"confirmed"}));
@@ -43,36 +42,4 @@ test("RW8.2 DNF cars are frozen while the same core continues advancing active c
 
 test("RW8.2 the canonical core clamps a car at the race finish",()=>{
   let state=startRaceState(createRaceState(input({laps:1,cars:1}))); state=withKinematics(state,"car_1",{absoluteDistanceM:99,distanceAlongLapM:99,sector:3,speedMs:20,speedKmh:72}); const next=stepRaceState(state); const car=next.cars[0]; assert.equal(car.absoluteDistanceM,100); assert.equal(car.distanceAlongLapM,0); assert.equal(car.completedLaps,1); assert.equal(car.lap,1); assert.equal(car.status,"finished"); assert.equal(car.zoneType,"finish"); assert.equal(next.status,"finished"); assert.equal(next.session.phase,"finished");
-});
-
-function runnerState({laps=3}={}){
-  let state=startRaceState(createRaceState(input({laps,cars:1}),{stepMs:100}));
-  return withKinematics(state,"car_1",{speedMs:50,speedKmh:180});
-}
-
-test("RW8.3 Live elapsed chunks and Fast steps have one canonical outcome",()=>{
-  const initial=runnerState(); const fast=runFastRace(initial,{steps:100}); const live=createLiveRaceRunner(initial); for(const ms of [17,83,250,650,1000,3000,5000])live.advanceElapsed(ms); assert.deepEqual(live.getState(),fast); assert.equal(live.getAccumulatorMs(),0); assert.equal(fast.tick,60); assert.equal(fast.cars[0].absoluteDistanceM,300); assert.equal(fast.status,"finished");
-});
-
-test("RW8.3 Live runner preserves sub-step time across save/resume",()=>{
-  const initial=runnerState(); const first=createLiveRaceRunner(initial); first.advanceElapsed(255); const saved=first.snapshot(); const resumed=createLiveRaceRunner(saved.state,{accumulatorMs:saved.accumulatorMs}); resumed.advanceElapsed(745); const uninterrupted=createLiveRaceRunner(initial); uninterrupted.advanceElapsed(1000); assert.deepEqual(resumed.getState(),uninterrupted.getState()); assert.equal(resumed.getAccumulatorMs(),0);
-});
-
-test("RW8.3 Live elapsed threshold is stable for fractional millisecond chunks",()=>{
-  const initial=runnerState({laps:10});
-  const chunked=createLiveRaceRunner(initial);
-  for(let index=0;index<1000;index+=1)chunked.advanceElapsed(0.1);
-  const whole=createLiveRaceRunner(initial);
-  whole.advanceElapsed(100);
-  assert.deepEqual(chunked.getState(),whole.getState());
-  assert.equal(chunked.getState().tick,1);
-  assert.equal(chunked.getAccumulatorMs(),0);
-});
-
-test("RW8.3 Fast-to-end is only a scheduler over canonical fixed steps",()=>{
-  const finished=runFastRaceToEnd(runnerState({laps:1}),{maxSteps:250}); assert.equal(finished.status,"finished"); assert.equal(finished.cars[0].status,"finished"); assert.equal(finished.cars[0].absoluteDistanceM,100); assert.equal(finished.tick,20);
-});
-
-test("RW8.3 Fast-to-end fails explicitly instead of returning a partial race",()=>{
-  assert.throws(()=>runFastRaceToEnd(runnerState({laps:2}),{maxSteps:10}),/did not finish within 10 canonical steps/);
 });

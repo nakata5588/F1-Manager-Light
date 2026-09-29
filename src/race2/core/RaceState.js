@@ -18,6 +18,12 @@ const positive=(value,fallback=null)=>{
   return parsed!=null&&parsed>0?parsed:fallback;
 };
 
+export function normalizeRaceStepMs(value=DEFAULT_RACE_STEP_MS){
+  return Math.max(10,Math.min(1000,Math.round(
+    positive(value,DEFAULT_RACE_STEP_MS)
+  )));
+}
+
 function driverIdOf(row){
   return text(row?.driverId??row?.driver_id??row?.id)||null;
 }
@@ -105,7 +111,7 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
   const lengthM=positive(input?.track?.lengthM,null);
   if(lengthM==null)throw new TypeError("RaceWeekendInput.track.lengthM must be a positive number");
 
-  const normalizedStepMs=Math.max(10,Math.min(1000,Math.round(positive(stepMs,DEFAULT_RACE_STEP_MS))));
+  const normalizedStepMs=normalizeRaceStepMs(stepMs);
   const grid=Array.isArray(input?.startingGrid)&&input.startingGrid.length
     ?input.startingGrid
     :(input?.entries||[]);
