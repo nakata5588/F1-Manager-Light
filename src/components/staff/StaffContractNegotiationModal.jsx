@@ -11,6 +11,7 @@ export default function StaffContractNegotiationModal({
   expectedSalary=0,
   incumbent=null,
   replacementCost=0,
+  transfer=null,
   onClose,
   onSubmit,
 }){
@@ -41,6 +42,10 @@ export default function StaffContractNegotiationModal({
           <div className="font-semibold">{money(expectedSalary)}</div>
         </div>
 
+        {transfer&&Number(transfer.fee)>0?<div className="rounded-xl border border-sky-400/20 bg-sky-400/10 p-3 text-sm text-sky-100">
+          {name} is under contract with <strong>{transfer.sellerTeamName||"another team"}</strong>. If personal terms are accepted, Staff compensation of <strong>{money(transfer.fee)}</strong> will be paid to that team.
+        </div>:null}
+
         {incumbent&&<div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-100">
           If this offer is accepted, {incumbent.name||"the current incumbent"} will be replaced. Estimated contract termination cost: <strong>{money(replacementCost)}</strong>.
         </div>}
@@ -70,7 +75,7 @@ export default function StaffContractNegotiationModal({
         </label>
 
         <div className="rounded-xl border border-white/10 bg-[#171a23] p-3 text-xs text-slate-300">
-          Salary, team reputation, contract length and your Manager negotiation ability influence the chance of agreement. Owners, Presidents and other governance roles are not recruitable Staff positions.
+          Salary, team reputation, contract length and your Manager negotiation ability influence the chance of agreement. Contracted Staff also require compensation to their current team. Owners and Sponsor Backers use the stakeholder market rather than employment contracts.
         </div>
       </div>
 
