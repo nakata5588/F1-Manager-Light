@@ -122,6 +122,16 @@ test("RW8.4 a retired car freezes at its real distance and drops only when passe
   assert.equal(projected.classification[0].timingBasis,"leader");
 
   state=patchCars(state,{
+    C2:{absoluteDistanceM:240,distanceAlongLapM:40},
+  });
+  projected=projectCanonicalRaceTiming(state);
+  assert.deepEqual(
+    projected.classification.map((row)=>row.carId),
+    ["C1","C2"],
+    "matching a retired car's frozen distance is not yet an overtake"
+  );
+
+  state=patchCars(state,{
     C2:{absoluteDistanceM:245,distanceAlongLapM:45},
   });
   projected=projectCanonicalRaceTiming(state);
