@@ -24,6 +24,7 @@ import {
 import { teamReputation } from "./teamReputation.js";
 import { teamBudgetAvailable } from "./teamFinance.js";
 import { canAffordStaffTransfer, staffBuyoutQuote } from "./staffTransfers.js";
+import { playerManagerIsActiveTeamPrincipal } from "./managerEmployment.js";
 
 export const STAFF_HIREABLE_ROLES=Object.freeze([
   "team_principal",
@@ -190,8 +191,7 @@ export function staffNegotiationEligibility(gs,{staffId,teamId,role=null}={}){
       };
     }
     const requested=role?canonicalStaffRole(role):(roles.includes(activeRole)?activeRole:roles[0]);
-    const playerTeamId=text(gs?.manager?.current_team_id??gs?.team?.team_id??gs?.team?.id);
-    if(tid===playerTeamId&&requested==="team_principal"){
+    if(requested==="team_principal"&&playerManagerIsActiveTeamPrincipal(gs,tid)){
       return {
         canNegotiate:false,
         reason:"player_team_principal",
@@ -262,8 +262,7 @@ export function staffNegotiationEligibility(gs,{staffId,teamId,role=null}={}){
     };
   }
   const requested=role?canonicalStaffRole(role):roles[0];
-  const playerTeamId=text(gs?.manager?.current_team_id??gs?.team?.team_id??gs?.team?.id);
-  if(tid===playerTeamId&&requested==="team_principal"){
+  if(requested==="team_principal"&&playerManagerIsActiveTeamPrincipal(gs,tid)){
     return {
       canNegotiate:false,
       reason:"player_team_principal",
