@@ -41,8 +41,8 @@ function fixture(){
     },
     garage:{
       cars:[
-        {id:"car_1",kind:"race",driver_id:"CONTRACTED_D1",componentCondition:{engine:94}},
-        {id:"car_2",kind:"race",driver_id:null,componentCondition:{engine:8}},
+        {id:"car_1",kind:"race",driver_id:"CONTRACTED_D1",componentCondition:{engine:94,suspension:94}},
+        {id:"car_2",kind:"race",driver_id:null,componentCondition:{engine:8,suspension:8}},
       ],
     },
     aiTechnicalWorld:{
