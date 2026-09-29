@@ -5,6 +5,7 @@
 
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
+import { raceDynamicsForCar } from "./RaceDynamics.js";
 
 const finite=(value,fallback=0)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -31,8 +32,12 @@ function advanceCar(state,car,stepMs){
   if(lengthM<=0)return car;
 
   const dt=stepMs/1000;
+  const dynamics=raceDynamicsForCar(state,car);
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
-  const acceleration=Math.max(-100,Math.min(100,finite(car?.accelerationMs2,0)));
+  const acceleration=Math.max(-100,Math.min(100,finite(
+    dynamics?.accelerationMs2,
+    finite(car?.accelerationMs2,0)
+  )));
   const unconstrainedNextSpeed=speedMs+acceleration*dt;
   const nextSpeedMs=Math.max(0,unconstrainedNextSpeed);
   const motionTime=acceleration<0&&unconstrainedNextSpeed<0
