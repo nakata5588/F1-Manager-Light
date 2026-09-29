@@ -94,10 +94,10 @@ function fixture(){
 }
 
 test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarState",()=>{
-  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,13);
+  assert.equal(RACE_WEEKEND_CONTRACT_VERSION,14);
   assert.deepEqual(
     Object.keys(RACE_WEEKEND_CONTRACT_FIELDS),
-    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","WeatherState","RaceControlState","Command","SessionState","RaceWeekendResult"]
+    ["RaceWeekendInput","RaceState","CarState","RaceTyreState","RaceResourceState","RacePitState","RacePitLaneState","RaceBattleState","RaceEvent","RaceTrafficState","RaceClassificationRow","RaceTimingState","TrackModel","TrackState","WeatherState","RaceControlState","PracticeInput","PracticeEntrant","PracticeResult","Command","SessionState","RaceWeekendResult"]
   );
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("track"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceState.includes("engineVersion"));
@@ -138,6 +138,9 @@ test("RW8 boundary contracts expose the canonical TrackModel, RaceState and CarS
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.TrackModel.includes("speedProfile"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.TrackState.includes("referenceLap"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.WeatherState.includes("timeline"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.PracticeInput.includes("entrants"));
+  assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.PracticeEntrant.includes("reliabilityProfile"));
+  assert.deepEqual(RACE_WEEKEND_CONTRACT_FIELDS.PracticeResult,["model","modelVersion","source","results","effects"]);
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("recommendedMode"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("minimumReleaseLap"));
   assert.ok(RACE_WEEKEND_CONTRACT_FIELDS.RaceControlState.includes("redFlagLifecycle"));
