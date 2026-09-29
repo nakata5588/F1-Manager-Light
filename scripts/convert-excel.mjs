@@ -246,6 +246,37 @@ const SHEET_CONFIG = {
     }
   },
 
+  staff_contracts: {
+    out: "staff_contracts.json",
+    columns: {
+      year: ["year","season","ano"],
+      team_id: ["team_id","constructor_id","team"],
+      team_name: ["team_name","constructor_name","team"],
+      staff_id: ["staff_id","person_id","id"],
+      staff_name: ["staff_name","person_name","name","display_name"],
+      role: ["role","position","job","cargo"],
+      contract_start: ["contract_start","contract_start_year","start_year","from","inicio"],
+      contract_until: ["contract_until","contract_until_year","end_year","to","fim"],
+      salary: ["salary","salary_yearly","base_salary"],
+      source_url: ["source_url","url","source"],
+      notes: ["notes","obs","observations"],
+    },
+    post(row) {
+      const startY = normalizeYear(row.contract_start ?? row.contract_start_year ?? row.start_year);
+      const endY = normalizeYear(row.contract_until ?? row.contract_until_year ?? row.end_year);
+      return {
+        ...row,
+        year: normalizeYear(row.year),
+        staff_id: row.staff_id == null || row.staff_id === "" ? null : String(row.staff_id).trim(),
+        staff_name: row.staff_name == null ? null : String(row.staff_name).trim(),
+        role: row.role == null ? null : String(row.role).trim(),
+        contract_start_year: startY,
+        contract_until_year: endY,
+        salary: numOrNull(row.salary),
+      };
+    }
+  },
+
   teams: {
     out: "teams.json",
     columns: {
@@ -777,6 +808,45 @@ const SHEET_CONFIG = {
 };
 
 // ---------- Pipeline ----------
+function uniqueStaffIdentityByName(rows) {
+  const index = new Map();
+  const ambiguous = new Set();
+  for (const row of rows || []) {
+    const id = String(row?.staff_id ?? row?.person_id ?? row?.id ?? "").trim();
+    const nameKey = norm(row?.staff_name ?? row?.person_name ?? row?.name ?? row?.display_name);
+    if (!id || !nameKey) continue;
+    const previous = index.get(nameKey);
+    if (previous && previous !== id) {
+      ambiguous.add(nameKey);
+      index.delete(nameKey);
+      continue;
+    }
+    if (!ambiguous.has(nameKey)) index.set(nameKey, id);
+  }
+  return index;
+}
+
+function resolveStaffContractIds(rows, staffCoreRows) {
+  const byName = uniqueStaffIdentityByName(staffCoreRows);
+  let resolved = 0;
+  let unresolved = 0;
+  const next = (rows || []).map((row) => {
+    const direct = String(row?.staff_id ?? "").trim();
+    if (direct) return { ...row, staff_id: direct };
+    const nameKey = norm(row?.staff_name ?? row?.person_name ?? row?.name ?? row?.display_name);
+    const matched = nameKey ? byName.get(nameKey) : null;
+    if (matched) {
+      resolved += 1;
+      return { ...row, staff_id: matched };
+    }
+    unresolved += 1;
+    return row;
+  });
+  if (resolved) console.log(`[convert-excel] Resolved ${resolved} staff_contracts staff_id values from exact staff_core name matches.`);
+  if (unresolved) console.warn(`[convert-excel] staff_contracts still has ${unresolved} rows without a resolvable staff_id.`);
+  return next;
+}
+
 async function processSheet(ws, cfg) {
   const rawHeaders = readHeader(ws);
   const headers = rawHeaders.map(cleanHeader).map((h, i) => h ?? `col_${i+1}`);
@@ -812,6 +882,7 @@ async function main() {
 
   // correr apenas as folhas do SHEET_CONFIG; apagar outputs quando faltarem
   const results = [];
+  const processedBySheet = new Map();
   for (const [sheetName, cfg] of Object.entries(SHEET_CONFIG)) {
     const outName = cfg?.out || `${slug(sheetName)}.json`;
     const outPath = path.join(OUT_DIR, outName);
@@ -825,6 +896,9 @@ async function main() {
     }
 
     let rows = await processSheet(ws, cfg);
+    if (sheetName === "staff_contracts") {
+      rows = resolveStaffContractIds(rows, processedBySheet.get("staff_core") || []);
+    }
 
     // Canonicalise exact historical aliases before any downstream builders
     // consume the exported JSON. "Team Lotus" (t_0040) is the same works
@@ -832,6 +906,7 @@ async function main() {
     // constructor names are intentionally untouched.
     rows = rows.map(canonicalTeamIdentity);
     if (sheetName === "teams") rows = mergeCanonicalTeamRows(rows);
+    processedBySheet.set(sheetName, rows);
 
     fs.writeFileSync(outPath, JSON.stringify(rows, null, 2), "utf8");
     results.push({ outName, count: rows.length });
