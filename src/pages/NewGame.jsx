@@ -112,7 +112,7 @@ function TeamLogo({ candidates, title, large=false }) {
 }
 
 function ManagerPortrait({manager,size="large"}){
-  const name=(String(manager?.first_name||"")+" "+String(manager?.last_name||"")).trim()||"Team Manager";
+  const name=(String(manager?.first_name||"")+" "+String(manager?.last_name||"")).trim()||"Team Principal";
   const large=size==="large";
   if(manager?.portrait_data_url){
     return <img src={manager.portrait_data_url} alt={name} className={(large?"w-24 h-24 rounded-2xl":"w-12 h-12 rounded-xl")+" object-cover border border-white/10 bg-white/5"}/>;
@@ -413,7 +413,7 @@ export default function NewGame() {
                       <div className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Manager Profiles</div>
                       {lastUsedManager?<button type="button" onClick={()=>loadManagerDraft(lastUsedManager,"Last Used")} className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5 text-left hover:border-emerald-300">
                         <div className="text-[10px] uppercase tracking-wide text-emerald-300">Last Used</div>
-                        <div className="text-sm font-semibold">{[lastUsedManager.first_name,lastUsedManager.last_name].filter(Boolean).join(" ")||"Team Manager"}</div>
+                        <div className="text-sm font-semibold">{[lastUsedManager.first_name,lastUsedManager.last_name].filter(Boolean).join(" ")||"Team Principal"}</div>
                       </button>:null}
                       {savedManagerProfiles.map((row)=><div key={row.id} className="flex overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]">
                         <button type="button" onClick={()=>loadManagerDraft(row.profile,row.label)} className="px-2.5 py-1.5 text-left hover:bg-white/[0.05]">
