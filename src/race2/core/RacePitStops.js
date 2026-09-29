@@ -114,7 +114,65 @@ function tyreOption(car,id){
   return options.find((row)=>String(row?.tyre_id??"")===String(id??""))??null;
 }
 
-function servicePlan(state,car,entryAbsoluteM){
+function raceLineTransitSeconds(state,car,entryAbsoluteM,exitAbsoluteM){
+  const distanceM=Math.max(0,finite(exitAbsoluteM,entryAbsoluteM)-finite(entryAbsoluteM,0));
+  if(distanceM<=0)return 0;
+  const speedFromTarget=finite(car?.targetSpeedKmh,null);
+  const referenceSpeedMs=Math.max(
+    20,
+    finite(car?.speedMs,speedFromTarget==null?50:speedFromTarget/3.6)
+  );
+  return distanceM/referenceSpeedMs;
+}
+
+function physicalPitPhases(lossPhases,trackTransitS){
+  const phases=(lossPhases||[]).map((row)=>({...row}));
+  const transitMs=Math.max(0,Math.round(finite(trackTransitS,0)*1000));
+  if(transitMs<=0)return phases;
+
+  const moving=new Set(["pit_entry","pit_lane","pit_exit","rejoin"]);
+  const movingWeight=phases
+    .filter((row)=>moving.has(String(row?.phase||"")))
+    .reduce((sum,row)=>sum+Math.max(0,finite(row?.duration_ms,0)),0);
+
+  let allocated=0;
+  let lastMoving=-1;
+  for(let index=0;index<phases.length;index+=1){
+    if(!moving.has(String(phases[index]?.phase||"")))continue;
+    lastMoving=index;
+    const weight=Math.max(0,finite(phases[index]?.duration_ms,0));
+    const extra=movingWeight>0
+      ?Math.floor(transitMs*weight/movingWeight)
+      :0;
+    phases[index]={
+      ...phases[index],
+      duration_ms:Math.max(0,Math.round(finite(phases[index]?.duration_ms,0)))+extra,
+    };
+    allocated+=extra;
+  }
+
+  if(lastMoving<0){
+    const laneIndex=phases.findIndex((row)=>String(row?.phase||"")==="pit_lane");
+    if(laneIndex>=0){
+      phases[laneIndex]={
+        ...phases[laneIndex],
+        duration_ms:Math.max(0,Math.round(finite(phases[laneIndex]?.duration_ms,0)))+transitMs,
+      };
+    }
+    return phases;
+  }
+
+  const remainder=transitMs-allocated;
+  if(remainder>0){
+    phases[lastMoving]={
+      ...phases[lastMoving],
+      duration_ms:Math.max(0,Math.round(finite(phases[lastMoving]?.duration_ms,0)))+remainder,
+    };
+  }
+  return phases;
+}
+
+function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   const nextTyreId=car?.resources?.strategy?.nextTyreId??null;
   const tyreChoice=tyreOption(car,nextTyreId);
   const tyreChange=Boolean(
@@ -148,6 +206,7 @@ function servicePlan(state,car,entryAbsoluteM){
   const errorDelayS=error?3+unit(state,`error-delay:${key}`)*8:0;
   const stationaryS=Math.max(tyreServiceS,refuelServiceS)+errorDelayS;
   const laneLossS=pitLaneLossSeconds(state?.track,24);
+  const trackTransitS=raceLineTransitSeconds(state,car,entryAbsoluteM,exitAbsoluteM);
   const stop={
     lap:plannedStopLap(car),
     tyre_from:car?.tyre?.tyre_id??null,
@@ -161,11 +220,13 @@ function servicePlan(state,car,entryAbsoluteM){
     crew_error:error,
     crew_error_delay_s:round(errorDelayS,3),
     pit_lane_loss_s:round(laneLossS,3),
+    track_transit_s:round(trackTransitS,3),
     total_loss_s:round(laneLossS+stationaryS,3),
   };
+  const lossPhases=normalisePitPhaseDurations(stop);
   return {
     stop,
-    phases:normalisePitPhaseDurations(stop),
+    phases:physicalPitPhases(lossPhases,trackTransitS),
     tyreChoice,
   };
 }
@@ -179,7 +240,12 @@ function beginPitStop(state,previous,proposed){
   const entryAbsoluteM=stopEntryAbsoluteM(state,previous);
   if(entryAbsoluteM==null)return proposed;
   const exitAbsoluteM=Math.max(entryAbsoluteM,finite(stopExitAbsoluteM(state,previous),entryAbsoluteM));
-  const {stop,phases,tyreChoice}=servicePlan(state,previous,entryAbsoluteM);
+  const {stop,phases,tyreChoice}=servicePlan(
+    state,
+    previous,
+    entryAbsoluteM,
+    exitAbsoluteM
+  );
   const first=firstPositivePhase(phases);
   const boxAbsoluteM=entryAbsoluteM+(exitAbsoluteM-entryAbsoluteM)*0.52;
   const sequence=Math.max(1,Math.floor(finite(previous?.pitState?.stopSequence,0))+1);
@@ -362,10 +428,21 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
     }
 
     const consumed=Math.min(room,remaining);
+    const phaseLoss=Math.max(0,finite(row?.loss_ms,duration));
+    const lossBefore=duration>0
+      ?phaseLoss*clamp(elapsed/duration,0,1)
+      :phaseLoss;
+    const lossAfter=duration>0
+      ?phaseLoss*clamp((elapsed+consumed)/duration,0,1)
+      :phaseLoss;
+    const consumedLoss=Math.max(0,lossAfter-lossBefore);
     pit={
       ...pit,
       phaseElapsedMs:elapsed+consumed,
-      lossElapsedMs:Math.min(finite(pit.lossTotalMs,0),finite(pit.lossElapsedMs,0)+consumed),
+      lossElapsedMs:Math.min(
+        finite(pit.lossTotalMs,0),
+        finite(pit.lossElapsedMs,0)+consumedLoss
+      ),
     };
     remaining-=consumed;
   }
