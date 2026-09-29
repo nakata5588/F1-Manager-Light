@@ -8,7 +8,6 @@ import { staffRoleRating } from "../domain/staffPerformance.js";
 import { staffNegotiationEligibility } from "../domain/staffMarket.js";
 import {
   acceptStaffCounterOffer,
-  isStaffNegotiationActive,
   staffNegotiations,
   staffNegotiationStatusBuckets,
   startStaffNegotiation,
