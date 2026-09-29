@@ -90,8 +90,10 @@ if(!decision.refresh){
 }
 
 console.log(`[dev-data] ${decision.reason}; rebuilding derived runtime data once before Vite.`);
-const npm=process.platform==="win32"?"npm.cmd":"npm";
-const run=spawnSync(npm,["run","season:derive"],{
+const npmExec=process.env.npm_execpath;
+const command=npmExec?process.execPath:(process.platform==="win32"?"npm.cmd":"npm");
+const args=npmExec?[npmExec,"run","season:derive"]:["run","season:derive"];
+const run=spawnSync(command,args,{
   cwd:root,
   stdio:"inherit",
 });
