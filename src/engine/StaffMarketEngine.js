@@ -159,11 +159,22 @@ function contractedUpgradeCandidates(gs,buyerTeamId,role,currentScore,{upgradeGa
 }
 function hasPendingStaffRole(gs,teamId,role){
   const target=canonicalStaffRole(role);
-  return staffNegotiations(gs).some((row)=>
+  const staffPending=staffNegotiations(gs).some((row)=>
     isStaffNegotiationActive(row)
     &&text(row?.team_id)===text(teamId)
     &&canonicalStaffRole(row?.role??row?.offer?.role)===target
   );
+  if(staffPending)return true;
+
+  // Once a Board has issued the player a Team Principal offer, keep that
+  // vacancy reserved until the offer is accepted or expires.
+  if(target==="team_principal"){
+    return (Array.isArray(gs?.managerJobApplications)?gs.managerJobApplications:[]).some((row)=>
+      text(row?.team_id)===text(teamId)&&
+      text(row?.status).toLowerCase()==="offer"
+    );
+  }
+  return false;
 }
 function capabilityPriority(gs,teamId,role){
   if(["technical_director","chief_designer","chief_engineer"].includes(role)){
