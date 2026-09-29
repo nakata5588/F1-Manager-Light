@@ -120,7 +120,8 @@ function raceLineTransitSeconds(state,car,entryAbsoluteM,exitAbsoluteM){
   const speedFromTarget=finite(car?.targetSpeedKmh,null);
   const referenceSpeedMs=Math.max(
     20,
-    finite(car?.speedMs,speedFromTarget==null?50:speedFromTarget/3.6)
+    finite(car?.speedMs,0),
+    speedFromTarget==null?0:speedFromTarget/3.6
   );
   return distanceM/referenceSpeedMs;
 }
