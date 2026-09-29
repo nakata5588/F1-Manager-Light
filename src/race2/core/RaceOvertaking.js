@@ -18,6 +18,7 @@ import {
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.4;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
 export const RACE_BATTLE_DURATION_MS=2400;
+export const RACE_BATTLE_EXTENSION_MS=800;
 export const RACE_BATTLE_RETRY_COOLDOWN_MS=1600;
 
 const finite=(value,fallback=null)=>{
@@ -412,6 +413,34 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
 
     const expired=nextTime>=finite(previousBattle?.expiresAtMs,nextTime);
     const defenderClearance=-clearance;
+    if(expired&&clearance>=0){
+      const extendedExpiry=nextTime+RACE_BATTLE_EXTENSION_MS;
+      const side=Number(previousBattle?.side)||1;
+      const contactRiskPct=round(contactProbability*100,5);
+      attacker=withBattle(attacker,{
+        opponentCarId:defender?.carId,
+        role:"attacker",
+        side,
+        attemptId,
+        startedTick:previousBattle?.startedTick,
+        startedAtMs:previousBattle?.startedAtMs,
+        expiresAtMs:extendedExpiry,
+        contactRiskPct,
+      });
+      defender=withBattle(defender,{
+        opponentCarId:attacker?.carId,
+        role:"defender",
+        side:-side,
+        attemptId,
+        startedTick:previousBattle?.startedTick,
+        startedAtMs:previousBattle?.startedAtMs,
+        expiresAtMs:extendedExpiry,
+        contactRiskPct,
+      });
+      cars=setCar(setCar(cars,attacker),defender);
+      bypassPairs.add(pairKey);
+      continue;
+    }
     if(expired||defenderClearance>=RACE_OVERTAKE_ATTEMPT_RANGE_M){
       attacker=withYieldingBattle(attacker,{
         opponentCarId:defender?.carId,
