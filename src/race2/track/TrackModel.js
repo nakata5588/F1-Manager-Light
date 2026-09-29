@@ -199,6 +199,7 @@ export function buildTrackSpeedProfile(model,{detailed=null}={}){
   const hasLine=positive(model?.racingLine?.total_length,0)>0;
   const trusted=detailed==null
     ?Boolean(
+      model?.resolution?.exact===true&&
       model?.geometry?.source==="f1track_functional"&&
       /verified/i.test(String(model?.geometry?.quality??""))
     )
@@ -306,6 +307,7 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
     lengthM,
     racingLine:racingLineContract,
     geometry:geometryContract,
+    resolution:{exact:Boolean(resolved?.exact)},
     startFinish,
   });
   const pitPoints=clonePoints(geometry?.pit_lane_points);
