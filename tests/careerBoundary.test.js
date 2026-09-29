@@ -137,3 +137,46 @@ test("career boundary carries only contracts that are genuinely valid for the ne
   assert.equal(carried.contract_until_year,1981);
   assert.equal(carried.continuity_renewal,undefined);
 });
+
+
+test("career boundary respects explicit player Staff contract duration",()=>{
+  const state=fixture();
+  state.staffContracts=[{
+    year:1980,team_id:"T1",staff_id:"S1",role:"team_principal",
+    contract_start_year:1980,contract_until_year:1980,
+    salary:150_000,status:"active",source:"player_staff_negotiation",
+    negotiation_id:"staffneg_1",
+  }];
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  const contract=next.staffContracts.find((row)=>row.staff_id==="S1");
+  assert.equal(contract.status,"expired");
+  assert.equal(contract.expiry_reason,"contract_end");
+  assert.equal(contract.continuity_renewal,undefined);
+});
+
+test("career boundary honors AI Staff release-at-end decisions",()=>{
+  const state=fixture();
+  state.staffContracts=[{
+    year:1980,team_id:"T1",staff_id:"S1",role:"team_principal",
+    contract_start_year:1979,contract_until_year:1980,
+    salary:150_000,status:"active",source:"ai_staff_market",
+    ai_staff_renewal_year:1980,ai_staff_renewal_plan:"release_end",
+  }];
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  const contract=next.staffContracts.find((row)=>row.staff_id==="S1");
+  assert.equal(contract.status,"expired");
+  assert.equal(contract.expiry_reason,"release_end");
+});
+
+test("career boundary preserves continuity only for legacy Staff contracts",()=>{
+  const state=fixture();
+  state.careerMeta=createCareerMeta(state,1980);
+  const next=materializeNextCareerSeason(state,1981);
+  const contract=next.staffContracts.find((row)=>row.staff_id==="S1");
+  assert.equal(contract.status??"active","active");
+  assert.equal(contract.continuity_renewal,true);
+  assert.equal(contract.contract_until_year,1981);
+  assert.equal(contract.source,"simulation_staff_continuity");
+});
