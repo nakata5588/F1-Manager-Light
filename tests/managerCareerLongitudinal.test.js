@@ -196,4 +196,4 @@ test("Manager M4 Save/Load preserves the exact progression ledger before later r
   assert.equal(gs.manager.development.xp,before.xp+11);
   assert.equal(gs.manager.development.processed_result_keys.length,3);
   assert.equal(new Set(gs.manager.development.processed_result_keys).size,3);
-};
+});
