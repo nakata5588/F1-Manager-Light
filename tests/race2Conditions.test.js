@@ -161,7 +161,14 @@ test("RW8.11A severe weather assessment can recommend an era-available Red Flag"
 
 test("RW8.11A fixed-step simulation persists canonical condition state",()=>{
   let state=startRaceState(createRaceState(input()));
-  state={...state,cars:state.cars.map((car)=>({...car,lap:2,completedLaps:1}))};
+  state={...state,cars:state.cars.map((car)=>({
+    ...car,
+    lap:2,
+    completedLaps:1,
+    absoluteDistanceM:1000,
+    distanceAlongLapM:0,
+    sector:1,
+  }))};
   const next=stepRaceState(state);
   assert.equal(next.trackState.referenceLap,2);
   assert.equal(next.weatherState.currentLap,2);
