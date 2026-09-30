@@ -14,6 +14,8 @@ import {
   canonicalStaffRole,
   resolveStaffId,
   staffContractRole,
+  staffPrimaryCareerRole,
+  staffRecordedRoles,
 } from "./staffRoles.js";
 import {
   staffMarketScore,
@@ -83,12 +85,11 @@ export function isStaffRoleHireable(role){
   return HIREABLE_ROLE_SET.has(canonicalStaffRole(role));
 }
 export function staffPrimaryRole(gs,staffId){
-  const row=staffCoreFor(gs,staffId);
-  return canonicalStaffRole(row?.role_primary??row?.role??row?.position??"staff");
+  return staffPrimaryCareerRole(gs,staffId);
 }
 export function staffMarketRoles(gs,staffId){
-  const role=staffPrimaryRole(gs,staffId);
-  return isStaffRoleHireable(role)?[role]:[];
+  return staffRecordedRoles(gs,staffId)
+    .filter((role)=>isStaffRoleHireable(role));
 }
 export function staffActiveContract(gs,staffId){
   const id=text(staffId);
