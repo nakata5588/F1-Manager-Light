@@ -5,6 +5,7 @@ import {
   canonicalRaceView,
   restoreCanonicalRaceRunner,
 } from "../src/race2/runtime/RaceRuntime.js";
+import { RACE_VIEW_PROJECTION_SOURCE } from "../src/race2/adapters/RaceViewProjection.js";
 import { createLiveRaceRunner } from "../src/race2/core/RaceRunner.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState } from "../src/race2/core/RaceSimulation.js";
@@ -94,8 +95,11 @@ test("RW8.14B serialized runtime matches an uninterrupted canonical runner",()=>
 test("RW8.14B Race View is a projection of the persisted canonical state",()=>{
   const next=advanceCanonicalRaceRuntime(runtime(),300);
   const view=canonicalRaceView(next);
-  assert.equal(view.source,"rw8.14a_race_state");
+  assert.equal(view.source,RACE_VIEW_PROJECTION_SOURCE);
   assert.equal(view.canonical_tick,next.state.tick);
-  assert.equal(view.cars.length,next.state.cars.length);
-  assert.equal(view.cars[0].absolute_distance_m,next.state.cars.find((car)=>car.carId===view.cars[0].car_id).absoluteDistanceM);
+  assert.equal(view.classification.length,next.state.cars.length);
+  assert.equal(
+    view.classification[0].absolute_distance_m,
+    next.state.cars.find((car)=>car.carId===view.classification[0].car_id).absoluteDistanceM
+  );
 });
