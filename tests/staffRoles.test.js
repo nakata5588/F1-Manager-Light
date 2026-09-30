@@ -4,9 +4,12 @@ import {
   canonicalStaffRole,
   raceEngineerEraCoverage,
   resolveStaffId,
+  staffPrimaryCareerRole,
+  staffRecordedRoles,
   staffRoleDepartment,
   staffRoleLabel,
 } from "../src/domain/staffRoles.js";
+import { staffMarketRoles } from "../src/domain/staffMarket.js";
 import { teamEngineeringSupport, teamSetupSupport } from "../src/engine/PracticeSetupEngine.js";
 import { forecastAccuracyForTeam } from "../src/engine/WeekendWeatherEngine.js";
 import { seedTechnicalKnowledge } from "../src/domain/technicalKnowledge.js";
@@ -49,6 +52,60 @@ test("D6.3D resolves missing contract staff IDs from canonical staff identity",(
   const gs=fixture();
   assert.equal(resolveStaffId(gs,{staff_id:null,staff_name:"Pat Symonds",role:"chief_engineer"}),"S1");
   assert.equal(resolveStaffId(gs,{staff_id:"E1",staff_name:"Different Text"}),"E1");
+});
+
+test("S2.0A2 preserves legacy/map Staff core role fallback",()=>{
+  const gs={
+    activeYear:1980,
+    staffCore:{rows:[{staff_id:"S1",staff_name:"Legacy Principal",role_primary:"team_principal"}]},
+    staffContracts:[],
+  };
+  assert.equal(staffPrimaryCareerRole(gs,"S1"),"team_principal");
+  assert.deepEqual(staffMarketRoles(gs,"S1"),["team_principal"]);
+});
+
+test("S2.0A2 derives canonical Staff roles from factual career contracts",()=>{
+  const gs={
+    activeYear:2005,
+    staffCore:[{staff_id:"S2004",staff_name:"Historical Engineer"}],
+    staffContracts:[
+      {year:2004,team_id:"T1",staff_id:"S2004",role:"chief_engineer",contract_start_year:2003,contract_until_year:2004,status:"expired"},
+    ],
+  };
+  assert.deepEqual(staffRecordedRoles(gs,"S2004"),["chief_engineer"]);
+  assert.equal(staffPrimaryCareerRole(gs,"S2004"),"chief_engineer");
+  assert.deepEqual(staffMarketRoles(gs,"S2004"),["chief_engineer"]);
+});
+
+test("S2.0A2 keeps legacy primary role as fallback instead of overriding factual operational history",()=>{
+  const gs={
+    activeYear:1980,
+    staffCore:[{staff_id:"S1",staff_name:"Designer",role_primary:"race_engineer"}],
+    staffContracts:[
+      {year:1980,team_id:"T1",staff_id:"S1",role:"chief_designer",contract_start_year:1979,contract_until_year:1984},
+    ],
+  };
+  assert.deepEqual(staffRecordedRoles(gs,"S1"),["chief_designer"]);
+  assert.deepEqual(staffMarketRoles(gs,"S1"),["chief_designer"]);
+});
+
+test("S2.0A2 never leaks future Staff roles into the active career year",()=>{
+  const gs={
+    activeYear:2004,
+    staffCore:[{staff_id:"S1",staff_name:"Career Staff",role_primary:"chief_engineer"}],
+    staffContracts:[
+      {year:2004,team_id:"T1",staff_id:"S1",role:"chief_engineer",contract_start_year:2003,contract_until_year:2004},
+      {year:2008,team_id:"T2",staff_id:"S1",role:"technical_director",contract_start_year:2008,contract_until_year:2010},
+    ],
+  };
+  assert.deepEqual(staffRecordedRoles(gs,"S1"),["chief_engineer"]);
+  assert.equal(staffRecordedRoles(gs,"S1",{year:2009})[0],"technical_director");
+});
+
+test("S2.0A2 recognizes factual 2004 role families without inventing market eligibility",()=>{
+  assert.equal(canonicalStaffRole("Sporting Director"),"sporting_director");
+  assert.equal(staffRoleDepartment("Sporting Director"),"Trackside");
+  assert.equal(staffRoleDepartment("head_vehicle_performance"),"Technical");
 });
 
 test("D6.3D derives Race Engineer era coverage from recorded contracts",()=>{

@@ -2,6 +2,7 @@
 import { activeDriverContracts, teamIdOf as driverTeamIdOf } from "./driverContracts.js";
 import {
   activeStaffContracts,
+  collectionRows,
   contractEndYear,
   contractStartYear,
   staffContractsOf,
@@ -32,6 +33,54 @@ export function resolveStaffId(gs,row){
 
 export function staffNameKey(value){
   return normalizeName(value);
+}
+
+function staffCoreRows(gs){
+  const live=collectionRows(gs?.staffCore);
+  return live.length?live:collectionRows(gs?.dbStaffCore);
+}
+
+export function staffDeclaredPrimaryRole(gs,staffId){
+  const id=text(staffId);
+  const row=staffCoreRows(gs).find((staff)=>staffIdOf(staff)===id)||null;
+  return canonicalStaffRole(row?.role_primary??row?.role??row?.position??"staff");
+}
+
+export function staffRecordedRoles(gs,staffId,{year=Number(gs?.activeYear),includeLegacy=false}={}){
+  const id=text(staffId);
+  if(!id)return [];
+  const targetYear=Number(year);
+  const rows=staffContractsOf(gs)
+    .filter((contract)=>resolveStaffId(gs,contract)===id)
+    .map((contract)=>{
+      const direct=Number(contract?.year??contract?.season_year);
+      const start=contractStartYear(contract,direct);
+      const end=contractEndYear(contract,direct);
+      return {
+        role:staffContractRole(contract),
+        start:Number.isFinite(start)?start:(Number.isFinite(direct)?direct:-Infinity),
+        end:Number.isFinite(end)?end:(Number.isFinite(direct)?direct:Infinity),
+      };
+    })
+    .filter((row)=>!Number.isFinite(targetYear)||row.start<=targetYear)
+    .sort((a,b)=>{
+      const aActive=Number.isFinite(targetYear)&&a.start<=targetYear&&a.end>=targetYear?1:0;
+      const bActive=Number.isFinite(targetYear)&&b.start<=targetYear&&b.end>=targetYear?1:0;
+      return bActive-aActive||b.start-a.start||b.end-a.end||staffRolePriority(a.role)-staffRolePriority(b.role);
+    });
+
+  const roles=[];
+  const add=(role)=>{
+    const canonical=canonicalStaffRole(role);
+    if(canonical!=="staff"&&!roles.includes(canonical))roles.push(canonical);
+  };
+  for(const row of rows)add(row.role);
+  if(includeLegacy)add(staffDeclaredPrimaryRole(gs,id));
+  return roles;
+}
+
+export function staffPrimaryCareerRole(gs,staffId,options={}){
+  return staffRecordedRoles(gs,staffId,options)[0]||staffDeclaredPrimaryRole(gs,staffId)||"staff";
 }
 
 export function canonicalStaffRole(value){
@@ -75,8 +124,8 @@ export function staffRoleLabel(value){
 export function staffRoleDepartment(value){
   const role=canonicalStaffRole(value);
   if(["owner","team_principal"].includes(role))return "Leadership";
-  if(["technical_director","chief_engineer","chief_designer"].includes(role))return "Technical";
-  if(["race_engineer","chief_strategist"].includes(role))return "Trackside";
+  if(["technical_director","chief_engineer","chief_designer","head_vehicle_performance"].includes(role))return "Technical";
+  if(["race_engineer","chief_strategist","sporting_director"].includes(role))return "Trackside";
   if(role==="sponsor_backer")return "Commercial";
   return "Staff";
 }
