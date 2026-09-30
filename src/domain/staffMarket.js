@@ -14,6 +14,7 @@ import {
   canonicalStaffRole,
   resolveStaffId,
   staffContractRole,
+  staffDeclaredPrimaryRole,
   staffPrimaryCareerRole,
   staffRecordedRoles,
 } from "./staffRoles.js";
@@ -88,8 +89,11 @@ export function staffPrimaryRole(gs,staffId){
   return staffPrimaryCareerRole(gs,staffId);
 }
 export function staffMarketRoles(gs,staffId){
-  return staffRecordedRoles(gs,staffId)
+  const recorded=staffRecordedRoles(gs,staffId)
     .filter((role)=>isStaffRoleHireable(role));
+  if(recorded.length)return recorded;
+  const fallback=staffDeclaredPrimaryRole(gs,staffId);
+  return isStaffRoleHireable(fallback)?[fallback]:[];
 }
 export function staffActiveContract(gs,staffId){
   const id=text(staffId);
