@@ -6,6 +6,12 @@ import {
   raceWeekendCanonicalView,
   raceWeekendUsesCanonicalRuntime,
 } from "../src/race2/gateway/RaceWeekendRuntimeGateway.js";
+import {
+  RACE_VIEW_PLAYBACK_SPEEDS,
+  advanceCanonicalRaceViewFrame,
+  canonicalRaceViewElapsedMs,
+  canonicalRaceViewPlaybackSpeed,
+} from "../src/race2/runtime/RaceViewPlayback.js";
 
 const state=(engine_version="legacy",phase="race")=>({
   raceWeekendState:{engine_version,phase},
@@ -27,4 +33,20 @@ test("RW8.14E leaves Legacy and pre-race states byte-for-byte untouched",()=>{
   assert.equal(advanceRaceWeekendElapsed(preRace,{elapsedMs:1000}),preRace);
   assert.equal(raceWeekendCanonicalView(legacy),null);
   assert.equal(raceWeekendCanonicalView(preRace),null);
+});
+
+test("RW8.14G Race View playback scales elapsed time instead of sector stepping",()=>{
+  assert.deepEqual(RACE_VIEW_PLAYBACK_SPEEDS,[0.5,1,2,4,8]);
+  assert.equal(canonicalRaceViewPlaybackSpeed(1.8),2);
+  assert.equal(canonicalRaceViewPlaybackSpeed(99),8);
+  assert.equal(canonicalRaceViewElapsedMs(250,4),1000);
+  assert.equal(canonicalRaceViewElapsedMs(250,0.5),125);
+});
+
+test("RW8.14G Race View playback cannot route Legacy into canonical runtime",()=>{
+  const legacy=state("legacy","race");
+  const frame=advanceCanonicalRaceViewFrame(legacy,{elapsedMs:250,playbackSpeed:4});
+  assert.equal(frame.gameState,legacy);
+  assert.equal(frame.view,null);
+  assert.equal(frame.advancedMs,0);
 });
