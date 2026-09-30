@@ -1,5 +1,5 @@
 // src/race2/runtime/RaceViewPlayback.js
-// RW8.14G/H: Race View-facing playback boundary. The UI supplies wall-clock
+// RW8.14G-I: Race View-facing playback boundary. The UI supplies wall-clock
 // elapsed time and a playback multiplier; canonical RW2 owns fixed-step
 // accumulation and physics. No sectors/laps are synthesized here.
 
@@ -53,6 +53,33 @@ export function advanceCanonicalRaceViewTimestamp(gs,{
     playbackSpeed,
     stepMs,
   });
+}
+
+// Small stateful adapter intended to live in a React ref. It owns only browser
+// frame-clock continuity; RaceRunner remains the sole owner of simulation time.
+// reset() is used on pause/resume/unmount so wall-clock gaps never become race time.
+export function createCanonicalRaceViewFrameClock(){
+  let previousTimestampMs=null;
+  return {
+    reset(){previousTimestampMs=null;},
+    frame(gs,{
+      gp=null,
+      timestampMs=null,
+      playbackSpeed=1,
+      stepMs=null,
+    }={}){
+      const previous=previousTimestampMs;
+      const current=timestampMs==null?null:finite(timestampMs,NaN);
+      previousTimestampMs=Number.isFinite(current)?current:null;
+      return advanceCanonicalRaceViewTimestamp(gs,{
+        gp,
+        previousTimestampMs:previous,
+        currentTimestampMs:current,
+        playbackSpeed,
+        stepMs,
+      });
+    },
+  };
 }
 
 export function advanceCanonicalRaceViewFrame(gs,{
