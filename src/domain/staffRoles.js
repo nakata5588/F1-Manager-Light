@@ -45,7 +45,7 @@ export function staffDeclaredPrimaryRole(gs,staffId){
   return canonicalStaffRole(row?.role_primary??row?.role??row?.position??"staff");
 }
 
-export function staffRecordedRoles(gs,staffId,{year=Number(gs?.activeYear),includeLegacy=true}={}){
+export function staffRecordedRoles(gs,staffId,{year=Number(gs?.activeYear),includeLegacy=false}={}){
   const id=text(staffId);
   if(!id)return [];
   const targetYear=Number(year);
