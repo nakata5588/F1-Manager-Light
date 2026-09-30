@@ -3,7 +3,7 @@ import { useGame } from "../state/GameStore.js";
 import { flagFromCountry } from "../components/entity/EntityVisuals.jsx";
 import StaffContractNegotiationModal from "../components/staff/StaffContractNegotiationModal.jsx";
 import { contractActiveForYear } from "../domain/liveContracts.js";
-import { resolveStaffId, staffRoleDepartment, staffRoleLabel } from "../domain/staffRoles.js";
+import { resolveStaffId, staffPrimaryCareerRole, staffRoleDepartment, staffRoleLabel } from "../domain/staffRoles.js";
 import { staffRoleRating } from "../domain/staffPerformance.js";
 import { staffNegotiationEligibility } from "../domain/staffMarket.js";
 import { currentStakeholderTeamForStaff } from "../domain/teamStakeholders.js";
@@ -96,7 +96,7 @@ export default function Staff(){
     return [...ids].filter(Boolean).map(id=>{
       const s=coreById.get(id)||{}, rating=ratingById.get(id)||{};
       const contract=activeContracts.find((row)=>resolveStaffId(gs,row)===id)||null;
-      const primaryRole=pick(s,["role_primary"],"Staff");
+      const primaryRole=staffPrimaryCareerRole(gs,id);
       const ownerStakeholder=currentStakeholderTeamForStaff(gs,id,"owner");
       const backerStakeholder=currentStakeholderTeamForStaff(gs,id,"sponsor_backer");
       const stakeholder=ownerStakeholder||backerStakeholder||null;
