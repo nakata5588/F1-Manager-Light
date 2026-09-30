@@ -11,9 +11,10 @@ const state=(engine_version="legacy",phase="race")=>({
   raceWeekendState:{engine_version,phase},
 });
 
-test("RW8.14E canonical runtime routing is explicit and race-phase locked",()=>{
+test("RW8.14E canonical runtime routing is explicit, normalized and race-phase locked",()=>{
   assert.equal(CANONICAL_RACE_ENGINE_VERSION,"rw2");
   assert.equal(raceWeekendUsesCanonicalRuntime(state("rw2","race")),true);
+  assert.equal(raceWeekendUsesCanonicalRuntime(state(" RW2 "," RACE ")),true);
   assert.equal(raceWeekendUsesCanonicalRuntime(state("legacy","race")),false);
   assert.equal(raceWeekendUsesCanonicalRuntime(state("rw2","grid_ready")),false);
   assert.equal(raceWeekendUsesCanonicalRuntime({}),false);
