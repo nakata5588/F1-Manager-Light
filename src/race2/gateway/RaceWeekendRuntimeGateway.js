@@ -7,18 +7,22 @@
 // game-state reference so their sector/lap path remains untouched.
 
 import {
+  RACE_WEEKEND_ENGINES,
+  normalizeRaceWeekendEngineVersion,
+} from "../contracts/raceContracts.js";
+import {
   advanceCanonicalRaceWeekendElapsed,
   canonicalRaceWeekendView,
 } from "../runtime/RaceRuntime.js";
 
-export const CANONICAL_RACE_ENGINE_VERSION="rw2";
+export const CANONICAL_RACE_ENGINE_VERSION=RACE_WEEKEND_ENGINES.RW2;
 
 export function raceWeekendUsesCanonicalRuntime(gs){
   const weekend=gs?.raceWeekendState;
   return Boolean(
     weekend&&
-    String(weekend.engine_version||"").toLowerCase()===CANONICAL_RACE_ENGINE_VERSION&&
-    String(weekend.phase||"").toLowerCase()==="race"
+    normalizeRaceWeekendEngineVersion(weekend.engine_version,{fallback:RACE_WEEKEND_ENGINES.LEGACY})===CANONICAL_RACE_ENGINE_VERSION&&
+    String(weekend.phase||"").trim().toLowerCase()==="race"
   );
 }
 
