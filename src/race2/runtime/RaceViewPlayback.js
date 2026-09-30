@@ -33,6 +33,7 @@ export function canonicalRaceViewElapsedMs(elapsedMs,playbackSpeed=1){
 // A missing/invalid previous timestamp deliberately produces a zero-time priming
 // frame, preventing resume/remount gaps from being simulated as race time.
 export function raceViewFrameElapsedMs(previousTimestampMs,currentTimestampMs){
+  if(previousTimestampMs==null||currentTimestampMs==null)return 0;
   const current=finite(currentTimestampMs,NaN);
   const previous=finite(previousTimestampMs,NaN);
   if(!Number.isFinite(current)||!Number.isFinite(previous))return 0;
