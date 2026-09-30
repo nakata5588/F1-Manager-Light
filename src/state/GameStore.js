@@ -1970,6 +1970,27 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  advanceRaceWeekendElapsed: async (elapsedMs=0) => {
+    const beforeImport=get().gameState;
+    if(!beforeImport?.raceWeekendState)return null;
+
+    const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+
+    // The import yields to the event loop. Re-read GameState so overlapping UI
+    // ticks cannot advance an RW2 runtime from a stale snapshot.
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
+
+    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const next=mod.advanceRaceWeekendElapsed(gs,{gp,elapsedMs});
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
+    return mod.raceWeekendCanonicalView(next);
+  },
+
   advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
     const mod=await import("@/engine/RaceWeekendEngine");
     // Re-read after the dynamic import so a simultaneous sector advance cannot
