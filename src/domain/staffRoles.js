@@ -2,6 +2,7 @@
 import { activeDriverContracts, teamIdOf as driverTeamIdOf } from "./driverContracts.js";
 import {
   activeStaffContracts,
+  collectionRows,
   contractEndYear,
   contractStartYear,
   staffContractsOf,
@@ -35,8 +36,8 @@ export function staffNameKey(value){
 }
 
 function staffCoreRows(gs){
-  const live=Array.isArray(gs?.staffCore)?gs.staffCore:[];
-  return live.length?live:(Array.isArray(gs?.dbStaffCore)?gs.dbStaffCore:[]);
+  const live=collectionRows(gs?.staffCore);
+  return live.length?live:collectionRows(gs?.dbStaffCore);
 }
 
 export function staffDeclaredPrimaryRole(gs,staffId){
