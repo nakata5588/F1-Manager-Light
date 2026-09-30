@@ -222,7 +222,7 @@ export function staffRatingForYear(gs,staffId,year=Number(gs?.activeYear)){
   const historical=rows
     .filter((row)=>Number(row?.year??row?.season_year??-Infinity)<=Number(year))
     .sort((a,b)=>Number(b?.year??b?.season_year??0)-Number(a?.year??a?.season_year??0));
-  return historical[0]||rows[0]||{};
+  return historical[0]||{};
 }
 
 function weightedScore(rating,weights){
