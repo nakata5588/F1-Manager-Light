@@ -4,6 +4,7 @@ import { teamCarPerformance } from "../../domain/carPerformance.js";
 import { conditionModifierBreakdown, raceDriverScore } from "../../domain/driverPerformance.js";
 import { driverDerivedRating, driverMistakePropensity } from "../../domain/driverDerivedRatings.js";
 import { driverPerformanceEntries } from "../../domain/driverForm.js";
+import { managerGameplayEffects } from "../../domain/managerProfile.js";
 import { tyresForTeam } from "../../domain/raceTyreModel.js";
 import { carReliabilityProfile } from "../../domain/carReliability.js";
 import {
@@ -94,6 +95,18 @@ function garageCarsForTeam(gs,teamId){
   return gs?.aiTechnicalWorld?.teams?.[tid]?.garage?.cars||[];
 }
 
+export function managerAdjustedPitCrew(gs,teamId,pitCrew){
+  if(!pitCrew||typeof pitCrew!=="object")return pitCrew??null;
+  const effects=managerGameplayEffects(gs,{teamId});
+  if(!effects.active)return {...pitCrew};
+  const baseError=Math.max(0,finite(pitCrew?.effective_error_chance,pitCrew?.error_rate??0.05));
+  return {
+    ...pitCrew,
+    effective_error_chance:Number((baseError*effects.raceExecutionErrorMultiplier).toFixed(6)),
+    manager_race_execution_multiplier:effects.raceExecutionErrorMultiplier,
+  };
+}
+
 function normalizedCars(gs,entries){
   const seen=new Set();
   const cars=[];
@@ -156,9 +169,11 @@ function normalizedCars(gs,entries){
           pitPlan:selection?.pit_plan??null,
           plannedStopLap:finite(selection?.planned_stop_lap,null),
         }:null),
-        pitCrew:cloneRaceContractValue(
+        pitCrew:cloneRaceContractValue(managerAdjustedPitCrew(
+          gs,
+          entry.teamId,
           gs?.raceStrategyWorld?.pitCrews?.[entry.teamId]??null
-        ),
+        )),
         tyres:cloneRaceContractValue(tyreOptions),
       },
       performance:{
