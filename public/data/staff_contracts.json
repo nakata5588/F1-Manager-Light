@@ -8,7 +8,9 @@
     "role": "chief_designer",
     "contract_start": 1979,
     "contract_until": 1982,
-    "salary": 200000
+    "salary": 200000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1982
   },
   {
     "year": 1980,
@@ -19,7 +21,9 @@
     "role": "chief_designer",
     "contract_start": 1973,
     "contract_until": 1986,
-    "salary": 220000
+    "salary": 220000,
+    "contract_start_year": 1973,
+    "contract_until_year": 1986
   },
   {
     "year": 1980,
@@ -30,7 +34,9 @@
     "role": "chief_designer",
     "contract_start": 1979,
     "contract_until": 1984,
-    "salary": 180000
+    "salary": 180000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1984
   },
   {
     "year": 1980,
@@ -41,7 +47,9 @@
     "role": "chief_designer",
     "contract_start": 1979,
     "contract_until": 1981,
-    "salary": 200000
+    "salary": 200000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1981
   },
   {
     "year": 1980,
@@ -52,7 +60,9 @@
     "role": "chief_engineer",
     "contract_start": 1962,
     "contract_until": 1984,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 1962,
+    "contract_until_year": 1984
   },
   {
     "year": 1980,
@@ -63,7 +73,9 @@
     "role": "owner",
     "contract_start": 1972,
     "contract_until": 1987,
-    "salary": 350000
+    "salary": 350000,
+    "contract_start_year": 1972,
+    "contract_until_year": 1987
   },
   {
     "year": 1980,
@@ -74,7 +86,9 @@
     "role": "owner",
     "contract_start": 1958,
     "contract_until": 1982,
-    "salary": 400000
+    "salary": 400000,
+    "contract_start_year": 1958,
+    "contract_until_year": 1982
   },
   {
     "year": 1980,
@@ -85,7 +99,9 @@
     "role": "owner",
     "contract_start": 1973,
     "contract_until": 1980,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 1973,
+    "contract_until_year": 1980
   },
   {
     "year": 1980,
@@ -96,7 +112,9 @@
     "role": "owner",
     "contract_start": 1929,
     "contract_until": 1988,
-    "salary": 400000
+    "salary": 400000,
+    "contract_start_year": 1929,
+    "contract_until_year": 1988
   },
   {
     "year": 1980,
@@ -107,7 +125,9 @@
     "role": "owner",
     "contract_start": 1980,
     "contract_until": 1985,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 1980,
+    "contract_until_year": 1985
   },
   {
     "year": 1980,
@@ -118,7 +138,9 @@
     "role": "owner",
     "contract_start": 1977,
     "contract_until": 1985,
-    "salary": 300000
+    "salary": 300000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1985
   },
   {
     "year": 1980,
@@ -129,7 +151,9 @@
     "role": "owner",
     "contract_start": 1977,
     "contract_until": 1984,
-    "salary": 280000
+    "salary": 280000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1984
   },
   {
     "year": 1980,
@@ -140,7 +164,9 @@
     "role": "owner",
     "contract_start": 1976,
     "contract_until": 1985,
-    "salary": 280000
+    "salary": 280000,
+    "contract_start_year": 1976,
+    "contract_until_year": 1985
   },
   {
     "year": 1980,
@@ -151,7 +177,9 @@
     "role": "owner",
     "contract_start": 1968,
     "contract_until": 1985,
-    "salary": 320000
+    "salary": 320000,
+    "contract_start_year": 1968,
+    "contract_until_year": 1985
   },
   {
     "year": 1980,
@@ -162,7 +190,9 @@
     "role": "owner",
     "contract_start": 1973,
     "contract_until": 1983,
-    "salary": 260000
+    "salary": 260000,
+    "contract_start_year": 1973,
+    "contract_until_year": 1983
   },
   {
     "year": 1980,
@@ -173,7 +203,9 @@
     "role": "owner",
     "contract_start": 1975,
     "contract_until": 1985,
-    "salary": 280000
+    "salary": 280000,
+    "contract_start_year": 1975,
+    "contract_until_year": 1985
   },
   {
     "year": 1980,
@@ -184,7 +216,9 @@
     "role": "team_principal",
     "contract_start": 1977,
     "contract_until": 1982,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1982
   },
   {
     "year": 1980,
@@ -195,7 +229,9 @@
     "role": "team_principal",
     "contract_start": 1970,
     "contract_until": 1981,
-    "salary": 300000
+    "salary": 300000,
+    "contract_start_year": 1970,
+    "contract_until_year": 1981
   },
   {
     "year": 1980,
@@ -206,7 +242,9 @@
     "role": "technical_director",
     "contract_start": 1979,
     "contract_until": 1982,
-    "salary": 220000
+    "salary": 220000,
+    "contract_start_year": 1979,
+    "contract_until_year": 1982
   },
   {
     "year": 1980,
@@ -217,7 +255,9 @@
     "role": "technical_director",
     "contract_start": 1977,
     "contract_until": 1983,
-    "salary": 230000
+    "salary": 230000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1983
   },
   {
     "year": 1980,
@@ -228,292 +268,346 @@
     "role": "technical_director",
     "contract_start": 1977,
     "contract_until": 1983,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 1977,
+    "contract_until_year": 1983
   },
   {
     "year": 2004,
     "team_id": "t_0001",
     "team_name": "Williams",
-    "staff_id": null,
+    "staff_id": "st_0026",
     "staff_name": "Gavin Fisher",
     "role": "chief_designer",
     "contract_start": 1997,
     "contract_until": 2005,
-    "salary": 220000
+    "salary": 220000,
+    "contract_start_year": 1997,
+    "contract_until_year": 2005
   },
   {
     "year": 2004,
     "team_id": "t_0009",
     "team_name": "McLaren",
-    "staff_id": null,
+    "staff_id": "st_0027",
     "staff_name": "Mike Coughlan",
     "role": "chief_designer",
     "contract_start": 2002,
     "contract_until": 2007,
-    "salary": 220000
+    "salary": 220000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2007
   },
   {
     "year": 2004,
     "team_id": "t_0010",
     "team_name": "Ferrari",
-    "staff_id": null,
+    "staff_id": "st_0028",
     "staff_name": "Rory Byrne",
     "role": "chief_designer",
     "contract_start": 1997,
     "contract_until": 2004,
-    "salary": 400000
+    "salary": 400000,
+    "contract_start_year": 1997,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0001",
     "team_name": "Williams",
-    "staff_id": null,
+    "staff_id": "st_0029",
     "staff_name": "Sam Michael",
     "role": "chief_engineer",
     "contract_start": 2001,
     "contract_until": 2004,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 2001,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0004",
     "team_name": "Renault",
-    "staff_id": null,
+    "staff_id": "st_0030",
     "staff_name": "Pat Symonds",
     "role": "chief_engineer",
     "contract_start": 2001,
     "contract_until": 2009,
-    "salary": 350000
+    "salary": 350000,
+    "contract_start_year": 2001,
+    "contract_until_year": 2009
   },
   {
     "year": 2004,
     "team_id": "t_0010",
     "team_name": "Ferrari",
-    "staff_id": null,
+    "staff_id": "st_0031",
     "staff_name": "Paolo Martinelli",
     "role": "chief_engineer",
     "contract_start": 1994,
     "contract_until": 2006,
-    "salary": 300000
+    "salary": 300000,
+    "contract_start_year": 1994,
+    "contract_until_year": 2006
   },
   {
     "year": 2004,
     "team_id": "t_0030",
     "team_name": "Jaguar",
-    "staff_id": null,
+    "staff_id": "st_0032",
     "staff_name": "Mark Gillan",
     "role": "head_vehicle_performance",
     "contract_start": 2003,
     "contract_until": 2004,
-    "salary": 200000
+    "salary": 200000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0029",
     "team_name": "Minardi",
-    "staff_id": null,
+    "staff_id": "st_0033",
     "staff_name": "Paul Stoddart",
     "role": "owner",
     "contract_start": 2001,
     "contract_until": 2005,
-    "salary": 250000
+    "salary": 250000,
+    "contract_start_year": 2001,
+    "contract_until_year": 2005
   },
   {
     "year": 2004,
     "team_id": "t_0029",
     "team_name": "Minardi",
-    "staff_id": null,
+    "staff_id": "st_0034",
     "staff_name": "John Walton",
     "role": "Sporting Director",
     "contract_start": 2002,
     "contract_until": 2005,
-    "salary": 200000
+    "salary": 200000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2005
   },
   {
     "year": 2004,
     "team_id": "t_0027",
     "team_name": "BAR",
-    "staff_id": null,
+    "staff_id": "st_0035",
     "staff_name": "David Richards",
     "role": "team_principal",
     "contract_start": 2002,
     "contract_until": 2004,
-    "salary": 380000
+    "salary": 380000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0028",
     "team_name": "Jordan",
-    "staff_id": null,
+    "staff_id": "st_0036",
     "staff_name": "Eddie Jordan",
     "role": "team_principal",
     "contract_start": 1991,
     "contract_until": 2004,
-    "salary": 350000
+    "salary": 350000,
+    "contract_start_year": 1991,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0004",
     "team_name": "Renault",
-    "staff_id": null,
+    "staff_id": "st_0037",
     "staff_name": "Flavio Briatore",
     "role": "team_principal",
     "contract_start": 2002,
     "contract_until": 2009,
-    "salary": 400000
+    "salary": 400000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2009
   },
   {
     "year": 2004,
     "team_id": "t_0010",
     "team_name": "Ferrari",
-    "staff_id": null,
+    "staff_id": "st_0038",
     "staff_name": "Jean Todt",
     "role": "team_principal",
     "contract_start": 1993,
     "contract_until": 2007,
-    "salary": 500000
+    "salary": 500000,
+    "contract_start_year": 1993,
+    "contract_until_year": 2007
   },
   {
     "year": 2004,
     "team_id": "t_0026",
     "team_name": "Sauber",
-    "staff_id": null,
+    "staff_id": "st_0039",
     "staff_name": "Peter Sauber",
     "role": "team_principal",
     "contract_start": 1993,
     "contract_until": 2005,
-    "salary": 300000
+    "salary": 300000,
+    "contract_start_year": 1993,
+    "contract_until_year": 2005
   },
   {
     "year": 2004,
     "team_id": "t_0009",
     "team_name": "McLaren",
-    "staff_id": null,
+    "staff_id": "st_0040",
     "staff_name": "Ron Dennis",
     "role": "team_principal",
-    "contract_start": "(long before)",
-    "contract_until": "2004+",
-    "salary": 450000
+    "contract_start": 1981,
+    "contract_until": 2008,
+    "salary": 450000,
+    "contract_start_year": 1981,
+    "contract_until_year": 2008
   },
   {
     "year": 2004,
     "team_id": "t_0018",
     "team_name": "Toyota",
-    "staff_id": null,
+    "staff_id": "st_0041",
     "staff_name": "Tsutomu Tomita",
     "role": "team_principal",
     "contract_start": 2004,
     "contract_until": 2007,
-    "salary": 420000
+    "salary": 420000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2007
   },
   {
     "year": 2004,
     "team_id": "t_0009",
     "team_name": "McLaren",
-    "staff_id": null,
+    "staff_id": "st_0042",
     "staff_name": "Adrian Newey",
     "role": "technical_director",
     "contract_start": 1997,
     "contract_until": 2006,
-    "salary": 500000
+    "salary": 500000,
+    "contract_start_year": 1997,
+    "contract_until_year": 2006
   },
   {
     "year": 2004,
     "team_id": "t_0004",
     "team_name": "Renault",
-    "staff_id": null,
+    "staff_id": "st_0043",
     "staff_name": "Bob Bell",
     "role": "technical_director",
     "contract_start": 2003,
     "contract_until": 2010,
-    "salary": 300000
+    "salary": 300000,
+    "contract_start_year": 2003,
+    "contract_until_year": 2010
   },
   {
     "year": 2004,
     "team_id": "t_0030",
     "team_name": "Jaguar",
-    "staff_id": null,
+    "staff_id": "st_0044",
     "staff_name": "David Pitchforth",
     "role": "technical_director",
     "contract_start": 2002,
     "contract_until": 2004,
-    "salary": 390000
+    "salary": 390000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0029",
     "team_name": "Minardi",
-    "staff_id": null,
+    "staff_id": "st_0045",
     "staff_name": "Gabriele Tredozi",
     "role": "technical_director",
     "contract_start": 2001,
     "contract_until": 2005,
-    "salary": 180000
+    "salary": 180000,
+    "contract_start_year": 2001,
+    "contract_until_year": 2005
   },
   {
     "year": 2004,
     "team_id": "t_0027",
     "team_name": "BAR",
-    "staff_id": null,
+    "staff_id": "st_0046",
     "staff_name": "Geoff Willis",
     "role": "technical_director",
     "contract_start": 2002,
     "contract_until": 2006,
-    "salary": 350000
+    "salary": 350000,
+    "contract_start_year": 2002,
+    "contract_until_year": 2006
   },
   {
     "year": 2004,
     "team_id": "t_0028",
     "team_name": "Jordan",
-    "staff_id": null,
+    "staff_id": "st_0047",
     "staff_name": "Mark Smith",
     "role": "technical_director",
     "contract_start": 2004,
     "contract_until": 2004,
-    "salary": 180000
+    "salary": 180000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0018",
     "team_name": "Toyota",
-    "staff_id": null,
+    "staff_id": "st_0048",
     "staff_name": "Mike Gascoyne",
     "role": "technical_director",
     "contract_start": 2004,
     "contract_until": 2006,
-    "salary": 400000
+    "salary": 400000,
+    "contract_start_year": 2004,
+    "contract_until_year": 2006
   },
   {
     "year": 2004,
     "team_id": "t_0001",
     "team_name": "Williams",
-    "staff_id": null,
+    "staff_id": "st_0016",
     "staff_name": "Patrick Head",
     "role": "technical_director",
     "contract_start": 1977,
     "contract_until": 2004,
-    "salary": 420000
+    "salary": 420000,
+    "contract_start_year": 1977,
+    "contract_until_year": 2004
   },
   {
     "year": 2004,
     "team_id": "t_0010",
     "team_name": "Ferrari",
-    "staff_id": null,
+    "staff_id": "st_0049",
     "staff_name": "Ross Brawn",
     "role": "technical_director",
     "contract_start": 1997,
     "contract_until": 2006,
-    "salary": 450000
+    "salary": 450000,
+    "contract_start_year": 1997,
+    "contract_until_year": 2006
   },
   {
     "year": 2004,
     "team_id": "t_0026",
     "team_name": "Sauber",
-    "staff_id": null,
+    "staff_id": "st_0050",
     "staff_name": "Willy Rampf",
     "role": "technical_director",
     "contract_start": 2000,
     "contract_until": 2010,
-    "salary": 280000
+    "salary": 280000,
+    "contract_start_year": 2000,
+    "contract_until_year": 2010
   }
 ]
