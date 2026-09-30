@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   advanceCanonicalRaceRuntime,
   canonicalRaceView,
+  ensureCanonicalRaceRuntime,
   restoreCanonicalRaceRunner,
 } from "../src/race2/runtime/RaceRuntime.js";
 import { RACE_VIEW_PROJECTION_SOURCE } from "../src/race2/adapters/RaceViewProjection.js";
@@ -68,6 +69,30 @@ function runtime(){
   };
 }
 
+function gameState({engine="rw2",phase="race",runtimeSnapshot=null}={}){
+  const source=input();
+  return {
+    activeYear:2004,
+    raceEntryState:{entries:source.entries},
+    raceWeekendState:{
+      engine_version:engine,
+      key:source.weekendKey,
+      year:2004,
+      phase,
+      entrants:source.entries,
+      startingGrid:{rows:source.startingGrid},
+      canonical_race_runtime:runtimeSnapshot,
+    },
+    drivers:source.drivers.map((row)=>({driver_id:row.driverId,team_id:row.teamId})),
+    dbDrivers:source.drivers.map((row)=>({driver_id:row.driverId,team_id:row.teamId})),
+    dbCarStats:[],
+    dbCoreTracks:[],
+    dbTrackLayoutByYear:[],
+    dbWeatherProfiles:[],
+    dbWeatherStates:[],
+  };
+}
+
 test("RW8.14B runtime restoration preserves fixed-step elapsed scheduling",()=>{
   const initial=runtime();
   const first=advanceCanonicalRaceRuntime(initial,250);
@@ -102,4 +127,18 @@ test("RW8.14B Race View is a projection of the persisted canonical state",()=>{
     view.classification[0].absolute_distance_m,
     next.state.cars.find((car)=>car.carId===view.classification[0].car_id).absoluteDistanceM
   );
+});
+
+test("RW8.14C runtime entry leaves Legacy and pre-race weekends untouched",()=>{
+  const legacy=gameState({engine:"legacy"});
+  assert.equal(ensureCanonicalRaceRuntime(legacy),legacy);
+  const preRace=gameState({engine:"rw2",phase:"grid_ready"});
+  assert.equal(ensureCanonicalRaceRuntime(preRace),preRace);
+});
+
+test("RW8.14C runtime entry resumes an existing RW2 snapshot without recreating it",()=>{
+  const snapshot=runtime();
+  const gs=gameState({runtimeSnapshot:snapshot});
+  assert.equal(ensureCanonicalRaceRuntime(gs),gs);
+  assert.equal(gs.raceWeekendState.canonical_race_runtime,snapshot);
 });
