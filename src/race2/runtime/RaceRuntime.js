@@ -1,5 +1,5 @@
 // src/race2/runtime/RaceRuntime.js
-// RW8.14B: serializable lifecycle boundary between GameState and the canonical
+// RW8.14B/C: serializable lifecycle boundary between GameState and the canonical
 // fixed-step RaceRunner. Runtime snapshots persist state + scheduler remainder;
 // no wall-clock or UI-derived race physics are stored here.
 
@@ -73,6 +73,17 @@ export function attachCanonicalRaceRuntime(gs,runtime){
 export function startCanonicalRaceRuntime(gs,{gp=null,stepMs=null}={}){
   const runtime=createCanonicalRaceRuntime(gs,{gp,stepMs});
   return runtime?attachCanonicalRaceRuntime(gs,runtime):gs;
+}
+
+// RW8.14C: one engine-locked entry point for the gameplay layer. Existing RW2
+// snapshots are resumed verbatim; a runtime is created only for a locked RW2
+// weekend that has actually reached the race phase. Legacy weekends remain
+// untouched, so callers never need to infer/migrate engine ownership.
+export function ensureCanonicalRaceRuntime(gs,{gp=null,stepMs=null}={}){
+  if(!isCanonicalRaceWeekend(gs))return gs;
+  if(String(gs?.raceWeekendState?.phase||"")!=="race")return gs;
+  if(gs?.raceWeekendState?.canonical_race_runtime?.state)return gs;
+  return startCanonicalRaceRuntime(gs,{gp,stepMs});
 }
 
 export function advanceAttachedCanonicalRaceRuntime(gs,elapsedMs){
