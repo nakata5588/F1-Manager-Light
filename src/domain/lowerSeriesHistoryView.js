@@ -6,7 +6,7 @@
 // opening season; Save-World rows are the only source for seasons played in the
 // active career.
 
-import { historicalLowerSeriesResultsBefore } from "./lowerSeriesHistoricalResults.js";
+import { lowerSeriesHistoricalResultsBeforeYear } from "./lowerSeriesHistoricalResults.js";
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -54,7 +54,7 @@ export function lowerSeriesHistoryForCareer({
   const did=text(driverId);
   const sid=text(seriesId);
 
-  const factual=historicalLowerSeriesResultsBefore(historicalResults,startYear)
+  const factual=lowerSeriesHistoricalResultsBeforeYear(historicalResults,startYear)
     .filter((row)=>!did||text(row?.driver_id)===did)
     .filter((row)=>!sid||text(row?.series_id)===sid)
     .map(historicalViewRow);
