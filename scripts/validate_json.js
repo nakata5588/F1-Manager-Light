@@ -66,6 +66,32 @@ const schemas = {
       }
     }
   },
+  staffRatings: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["year", "staff_id"],
+      properties: {
+        year: { type: ["integer", "number"] },
+        staff_id: { type: "string", minLength: 1 },
+        staff_name: { type: ["string", "null"] },
+        reputation: { type: ["integer", "number", "null"] },
+        leadership: { type: ["integer", "number", "null"] },
+        technical: { type: ["integer", "number", "null"] },
+        strategy: { type: ["integer", "number", "null"] },
+        motivation: { type: ["integer", "number", "null"] },
+        communication: { type: ["integer", "number", "null"] },
+        pitstop_management: { type: ["integer", "number", "null"] },
+        reliability_focus: { type: ["integer", "number", "null"] },
+        data_analysis: { type: ["integer", "number", "null"] },
+        innovation: { type: ["integer", "number", "null"] },
+        budget_management: { type: ["integer", "number", "null"] },
+        driver_development: { type: ["integer", "number", "null"] },
+        conflict_management: { type: ["integer", "number", "null"] },
+        negotiation: { type: ["integer", "number", "null"] }
+      }
+    }
+  },
   staffContracts: {
     type: "array",
     items: {
@@ -127,6 +153,84 @@ function check(path, key) {
     return;
   }
   console.log(`[OK] ${path}: ${Array.isArray(data) ? data.length : "valid"} records`);
+}
+
+const STAFF_RATING_FIELDS = [
+  "reputation",
+  "leadership",
+  "technical",
+  "strategy",
+  "motivation",
+  "communication",
+  "pitstop_management",
+  "reliability_focus",
+  "data_analysis",
+  "innovation",
+  "budget_management",
+  "driver_development",
+  "conflict_management",
+  "negotiation",
+];
+
+function hasStaffRatingSignal(row) {
+  return STAFF_RATING_FIELDS.some((key) => {
+    const value = row?.[key];
+    return value != null && value !== "" && Number.isFinite(Number(value));
+  });
+}
+
+function checkStaffRatings(path, staffCorePath) {
+  const rows = readJson(path);
+  const staff = readJson(staffCorePath);
+  const validate = ajv.compile(schemas.staffRatings);
+  if (!validate(rows)) {
+    console.error(`[FAIL] ${path}`);
+    console.error(validate.errors);
+    process.exitCode = 1;
+    return;
+  }
+
+  const staffIds = new Set(staff.map((row) => String(row.staff_id || "")));
+  const missingStaff = rows.filter((row) => !staffIds.has(String(row.staff_id || "")));
+  const blanks = rows.filter((row) => !hasStaffRatingSignal(row));
+  const invalidValues = rows.filter((row) =>
+    STAFF_RATING_FIELDS.some((key) => {
+      const value = row?.[key];
+      if (value == null || value === "") return false;
+      const n = Number(value);
+      return !Number.isFinite(n) || n < 0 || n > 100;
+    })
+  );
+  const seen = new Set();
+  const duplicates = [];
+  for (const row of rows) {
+    const key = `${Number(row.year)}|${String(row.staff_id)}`;
+    if (seen.has(key)) duplicates.push(key);
+    seen.add(key);
+  }
+
+  if (missingStaff.length) {
+    console.error(`[FAIL] ${path}: ${missingStaff.length} rows reference missing staff identities`);
+    console.error(missingStaff.slice(0, 10));
+    process.exitCode = 1;
+  }
+  if (blanks.length) {
+    console.error(`[FAIL] ${path}: ${blanks.length} rows contain no usable Staff rating data`);
+    console.error(blanks.slice(0, 10));
+    process.exitCode = 1;
+  }
+  if (invalidValues.length) {
+    console.error(`[FAIL] ${path}: ${invalidValues.length} rows contain ratings outside 0..100`);
+    console.error(invalidValues.slice(0, 10));
+    process.exitCode = 1;
+  }
+  if (duplicates.length) {
+    console.error(`[FAIL] ${path}: duplicate year/staff rows: ${duplicates.slice(0, 10).join(", ")}`);
+    process.exitCode = 1;
+  }
+  if (!missingStaff.length && !blanks.length && !invalidValues.length && !duplicates.length) {
+    console.log(`[OK] ${path}: ${rows.length} canonical Staff rating rows`);
+  }
 }
 
 function checkStaffContracts(path, staffCorePath, teamsPath) {
@@ -209,6 +313,7 @@ try {
   check("public/data/calendar.json", "calendar");
   check("public/data/points_systems.json", "pointsSystems");
   check("public/data/staff_core.json", "staffCore");
+  checkStaffRatings("public/data/staff_ratings.json", "public/data/staff_core.json");
   checkStaffContracts("public/data/staff_contracts.json", "public/data/staff_core.json", "public/data/teams.json");
   checkOpeningState("public/data/driver_opening_state.json");
 } catch (error) {
