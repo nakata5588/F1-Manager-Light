@@ -67,6 +67,18 @@ test("S2.0A2 derives canonical Staff roles from factual career contracts",()=>{
   assert.deepEqual(staffMarketRoles(gs,"S2004"),["chief_engineer"]);
 });
 
+test("S2.0A2 keeps legacy primary role as fallback instead of overriding factual operational history",()=>{
+  const gs={
+    activeYear:1980,
+    staffCore:[{staff_id:"S1",staff_name:"Designer",role_primary:"race_engineer"}],
+    staffContracts:[
+      {year:1980,team_id:"T1",staff_id:"S1",role:"chief_designer",contract_start_year:1979,contract_until_year:1984},
+    ],
+  };
+  assert.deepEqual(staffRecordedRoles(gs,"S1"),["chief_designer"]);
+  assert.deepEqual(staffMarketRoles(gs,"S1"),["chief_designer"]);
+});
+
 test("S2.0A2 never leaks future Staff roles into the active career year",()=>{
   const gs={
     activeYear:2004,
