@@ -11,6 +11,7 @@
 import { gameplayRngFor } from "../core/random.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
 import { seriesHasTeamCompetition } from "../domain/seriesCatalog.js";
+import { sanitizeLowerSeriesCompetitionWorld } from "../domain/lowerSeriesCompetitionGuard.js";
 import { isRaceDriverContract } from "../domain/contractRoles.js";
 import { rebuildLowerSeriesProspects } from "../domain/lowerSeriesProspects.js";
 import { applyLowerSeriesWorldToDrivers } from "../domain/lowerSeriesWorld.js";
@@ -395,7 +396,9 @@ export function initializeLowerSeriesSeason(gameState){
   const original=gameState?.lowerSeriesWorld;
   if(!original||typeof original!=="object")return gameState;
 
-  let world=resolveCandidatePlacements(gameState,original);
+  let world=sanitizeLowerSeriesCompetitionWorld(
+    resolveCandidatePlacements(gameState,original)
+  );
   const year=Number(world.season_year??gameState?.activeYear);
   if(!Number.isInteger(year))return {...gameState,lowerSeriesWorld:world};
 

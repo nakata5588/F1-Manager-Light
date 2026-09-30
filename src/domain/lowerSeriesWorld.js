@@ -27,6 +27,7 @@ import {
 import { carryLowerSeriesProspect } from "./lowerSeriesProspects.js";
 import { openingLowerSeriesEntryForDriver } from "./lowerSeriesEntries.js";
 import { lowerSeriesCareerMovement } from "./lowerSeriesCareerMovement.js";
+import { sanitizeLowerSeriesCompetitionWorld } from "./lowerSeriesCompetitionGuard.js";
 
 export const LOWER_SERIES_WORLD_VERSION=5;
 
@@ -288,7 +289,7 @@ export function materializeLowerSeriesWorld({
 
   world.teams=Object.fromEntries([...teams].sort(([a],[b])=>a.localeCompare(b)));
   world.entries=Object.fromEntries(Object.entries(entries).sort(([a],[b])=>a.localeCompare(b)));
-  return world;
+  return sanitizeLowerSeriesCompetitionWorld(world);
 }
 
 function targetLevelForDriver(driver,previousEntry){
@@ -598,7 +599,7 @@ export function rollLowerSeriesWorld(world,{
       .map((id)=>[id,carryLowerSeriesProspect(previousProspects[id]||null,year)])
       .filter(([,value])=>Boolean(value))
   );
-  return next;
+  return sanitizeLowerSeriesCompetitionWorld(next);
 }
 
 export function lowerSeriesEntry(world,driverId){
