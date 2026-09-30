@@ -1,5 +1,5 @@
 // src/race2/runtime/RaceRuntime.js
-// RW8.14B/C: serializable lifecycle boundary between GameState and the canonical
+// RW8.14B-D: serializable lifecycle boundary between GameState and the canonical
 // fixed-step RaceRunner. Runtime snapshots persist state + scheduler remainder;
 // no wall-clock or UI-derived race physics are stored here.
 
@@ -90,4 +90,23 @@ export function advanceAttachedCanonicalRaceRuntime(gs,elapsedMs){
   const runtime=gs?.raceWeekendState?.canonical_race_runtime;
   if(!runtime)return gs;
   return attachCanonicalRaceRuntime(gs,advanceCanonicalRaceRuntime(runtime,elapsedMs));
+}
+
+// RW8.14D: gameplay-facing elapsed-time dispatch for RW2. This deliberately
+// refuses to translate elapsed time into Legacy sectors/laps. The engine lock
+// owns routing: RW2 ensures/resumes its canonical runtime and advances fixed
+// steps; Legacy remains byte-for-byte untouched for its existing caller path.
+export function advanceCanonicalRaceWeekendElapsed(gs,{gp=null,elapsedMs=0,stepMs=null}={}){
+  if(!isCanonicalRaceWeekend(gs))return gs;
+  const ready=ensureCanonicalRaceRuntime(gs,{gp,stepMs});
+  const runtime=ready?.raceWeekendState?.canonical_race_runtime;
+  if(!runtime)return ready;
+  const elapsed=Math.max(0,finite(elapsedMs,0));
+  if(elapsed===0)return ready;
+  return advanceAttachedCanonicalRaceRuntime(ready,elapsed);
+}
+
+export function canonicalRaceWeekendView(gs){
+  if(!isCanonicalRaceWeekend(gs))return null;
+  return canonicalRaceView(gs?.raceWeekendState?.canonical_race_runtime);
 }
