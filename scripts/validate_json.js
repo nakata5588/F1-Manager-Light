@@ -55,6 +55,33 @@ const schemas = {
       }
     }
   },
+  staffCore: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["staff_id", "staff_name"],
+      properties: {
+        staff_id: { type: "string", minLength: 1 },
+        staff_name: { type: "string", minLength: 1 }
+      }
+    }
+  },
+  staffContracts: {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["year", "team_id", "staff_id", "role"],
+      properties: {
+        year: { type: ["integer", "number"] },
+        team_id: { type: "string", minLength: 1 },
+        staff_id: { type: "string", minLength: 1 },
+        staff_name: { type: ["string", "null"] },
+        role: { type: "string", minLength: 1 },
+        contract_start_year: { type: ["integer", "number", "null"] },
+        contract_until_year: { type: ["integer", "number", "null"] }
+      }
+    }
+  },
   driverOpeningState: {
     type: "array",
     items: {
@@ -102,6 +129,51 @@ function check(path, key) {
   console.log(`[OK] ${path}: ${Array.isArray(data) ? data.length : "valid"} records`);
 }
 
+function checkStaffContracts(path, staffCorePath, teamsPath) {
+  const rows = readJson(path);
+  const staff = readJson(staffCorePath);
+  const teams = readJson(teamsPath);
+  const validate = ajv.compile(schemas.staffContracts);
+  if (!validate(rows)) {
+    console.error(`[FAIL] ${path}`);
+    console.error(validate.errors);
+    process.exitCode = 1;
+    return;
+  }
+
+  const staffIds = new Set(staff.map((row) => String(row.staff_id || "")));
+  const teamIds = new Set(teams.map((row) => String(row.team_id || "")));
+  const missingStaff = rows.filter((row) => !staffIds.has(String(row.staff_id || "")));
+  const missingTeams = rows.filter((row) => !teamIds.has(String(row.team_id || "")));
+  const invalidPeriods = rows.filter((row) => {
+    const startRaw = row.contract_start_year;
+    const endRaw = row.contract_until_year;
+    if (startRaw == null || startRaw === "" || endRaw == null || endRaw === "") return false;
+    const start = Number(startRaw);
+    const end = Number(endRaw);
+    return Number.isFinite(start) && Number.isFinite(end) && start > end;
+  });
+
+  if (missingStaff.length) {
+    console.error(`[FAIL] ${path}: ${missingStaff.length} rows reference missing staff identities`);
+    console.error(missingStaff.slice(0, 10));
+    process.exitCode = 1;
+  }
+  if (missingTeams.length) {
+    console.error(`[FAIL] ${path}: ${missingTeams.length} rows reference missing teams`);
+    console.error(missingTeams.slice(0, 10));
+    process.exitCode = 1;
+  }
+  if (invalidPeriods.length) {
+    console.error(`[FAIL] ${path}: ${invalidPeriods.length} rows have contract_start_year > contract_until_year`);
+    console.error(invalidPeriods.slice(0, 10));
+    process.exitCode = 1;
+  }
+  if (!missingStaff.length && !missingTeams.length && !invalidPeriods.length) {
+    console.log(`[OK] ${path}: ${rows.length} staff contracts with canonical IDs`);
+  }
+}
+
 function checkOpeningState(path) {
   if (!fs.existsSync(path)) {
     console.log(`[SKIP] ${path}: optional until a canonical workbook exposes driver_opening_state`);
@@ -136,6 +208,8 @@ try {
   check("public/data/teams.json", "teams");
   check("public/data/calendar.json", "calendar");
   check("public/data/points_systems.json", "pointsSystems");
+  check("public/data/staff_core.json", "staffCore");
+  checkStaffContracts("public/data/staff_contracts.json", "public/data/staff_core.json", "public/data/teams.json");
   checkOpeningState("public/data/driver_opening_state.json");
 } catch (error) {
   console.error("[FAIL] Data validation:", error.message);
