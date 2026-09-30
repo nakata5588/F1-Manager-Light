@@ -31,7 +31,7 @@
     "test:ai-reserves": "node --test tests/aiReserveMarket.test.js",
     "test:negotiations": "node --test tests/contractNegotiations.test.js",
     "test:roles": "node --test tests/driverRoleManagement.test.js",
-    "test:race-weekend": "node --test tests/raceWeekend.test.js tests/race2Contracts.test.js tests/race2Gateway.test.js tests/race2TrackModel.test.js tests/race2Simulation.test.js tests/race2Runner.test.js tests/race2Dynamics.test.js tests/race2Classification.test.js tests/race2Traffic.test.js tests/race2Overtaking.test.js tests/race2Resources.test.js tests/race2PitStops.test.js tests/race2Commands.test.js tests/race2Incidents.test.js tests/race2Conditions.test.js tests/race2RaceControl.test.js tests/race2Practice.test.js tests/race2Qualifying.test.js tests/race2RaceViewProjection.test.js",
+    "test:race-weekend": "node --test tests/raceWeekend.test.js tests/race2Contracts.test.js tests/race2Gateway.test.js tests/race2TrackModel.test.js tests/race2Simulation.test.js tests/race2Runner.test.js tests/race2Dynamics.test.js tests/race2Classification.test.js tests/race2Traffic.test.js tests/race2Overtaking.test.js tests/race2Resources.test.js tests/race2PitStops.test.js tests/race2Commands.test.js tests/race2Incidents.test.js tests/race2Conditions.test.js tests/race2RaceControl.test.js tests/race2Practice.test.js tests/race2Qualifying.test.js tests/race2RaceViewProjection.test.js tests/race2Runtime.test.js",
     "test:race-strategy": "node --test tests/raceStrategy.test.js tests/aiPitRepair.test.js",
     "test:live-race": "node --test tests/liveRace.test.js tests/raceVisualModel.test.js tests/redFlagLifecycle.test.js tests/redFlagWork.test.js tests/restartHysteresis.test.js tests/carDamage.test.js tests/pitService.test.js",
     "test:management-events": "node --test tests/managementEvents.test.js",
@@ -71,34 +71,10 @@
     "test:race-parity": "node --test tests/raceParity.test.js",
     "season:derive": "node scripts/build-team-constructor-bridge.mjs && node scripts/build-team-seasons.mjs && node scripts/build-driver-history.mjs && node scripts/build-historical-championships.mjs && node scripts/build-race-results-archive.mjs && node scripts/build-season-packs.mjs && node scripts/build-historical-assets.mjs"
   },
-  "keywords": [
-    "f1",
-    "manager",
-    "simulation",
-    "react"
-  ],
+  "keywords": ["f1", "manager", "simulation", "react"],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "ajv": "^8.17.1",
-    "lucide-react": "^0.542.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-router-dom": "^7.8.2",
-    "zustand": "^5.0.8"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.12",
-    "@vitejs/plugin-react": "^5.0.2",
-    "autoprefixer": "^10.4.21",
-    "chokidar-cli": "^3.0.0",
-    "eslint": "^9.34.0",
-    "exceljs": "^4.4.0",
-    "npm-run-all": "^4.1.5",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.12",
-    "vite": "^7.1.3",
-    "xlsx": "^0.18.5"
-  },
+  "dependencies": {"ajv":"^8.17.1","lucide-react":"^0.542.0","react":"^19.1.1","react-dom":"^19.1.1","react-router-dom":"^7.8.2","zustand":"^5.0.8"},
+  "devDependencies": {"@tailwindcss/postcss":"^4.1.12","@vitejs/plugin-react":"^5.0.2","autoprefixer":"^10.4.21","chokidar-cli":"^3.0.0","eslint":"^9.34.0","exceljs":"^4.4.0","npm-run-all":"^4.1.5","postcss":"^8.5.6","tailwindcss":"^4.1.12","vite":"^7.1.3","xlsx":"^0.18.5"},
   "type": "module"
 }
