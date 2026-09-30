@@ -54,6 +54,16 @@ test("D6.3D resolves missing contract staff IDs from canonical staff identity",(
   assert.equal(resolveStaffId(gs,{staff_id:"E1",staff_name:"Different Text"}),"E1");
 });
 
+test("S2.0A2 preserves legacy/map Staff core role fallback",()=>{
+  const gs={
+    activeYear:1980,
+    staffCore:{rows:[{staff_id:"S1",staff_name:"Legacy Principal",role_primary:"team_principal"}]},
+    staffContracts:[],
+  };
+  assert.equal(staffPrimaryCareerRole(gs,"S1"),"team_principal");
+  assert.deepEqual(staffMarketRoles(gs,"S1"),["team_principal"]);
+});
+
 test("S2.0A2 derives canonical Staff roles from factual career contracts",()=>{
   const gs={
     activeYear:2005,
