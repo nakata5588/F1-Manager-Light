@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advanceCanonicalRaceRuntime,
+  advanceCanonicalRaceWeekendElapsed,
   canonicalRaceView,
+  canonicalRaceWeekendView,
   ensureCanonicalRaceRuntime,
   restoreCanonicalRaceRunner,
 } from "../src/race2/runtime/RaceRuntime.js";
@@ -47,13 +49,7 @@ function input(){
         {id:"sector_2",sector:2,startM:1666,endM:3333,lengthM:1667},
         {id:"sector_3",sector:3,startM:3333,endM:5000,lengthM:1667},
       ],
-      speedProfile:{
-        source:"neutral",
-        detailed:false,
-        sampleSpacingM:5000,
-        windowM:null,
-        samples:[{distanceM:0,severity:0}],
-      },
+      speedProfile:{source:"neutral",detailed:false,sampleSpacingM:5000,windowM:null,samples:[{distanceM:0,severity:0}]},
     },
     weather:{state:"SUNNY",avg_temp_c:22,track_temp_c:30,timeline:[]},
     raceControl:{rules:{}},
@@ -61,12 +57,7 @@ function input(){
 }
 
 function runtime(){
-  return {
-    version:1,
-    source:"rw8.14b_race_runtime",
-    state:startRaceState(createRaceState(input(),{stepMs:100})),
-    accumulatorMs:0,
-  };
+  return {version:1,source:"rw8.14b_race_runtime",state:startRaceState(createRaceState(input(),{stepMs:100})),accumulatorMs:0};
 }
 
 function gameState({engine="rw2",phase="race",runtimeSnapshot=null}={}){
@@ -74,22 +65,10 @@ function gameState({engine="rw2",phase="race",runtimeSnapshot=null}={}){
   return {
     activeYear:2004,
     raceEntryState:{entries:source.entries},
-    raceWeekendState:{
-      engine_version:engine,
-      key:source.weekendKey,
-      year:2004,
-      phase,
-      entrants:source.entries,
-      startingGrid:{rows:source.startingGrid},
-      canonical_race_runtime:runtimeSnapshot,
-    },
+    raceWeekendState:{engine_version:engine,key:source.weekendKey,year:2004,phase,entrants:source.entries,startingGrid:{rows:source.startingGrid},canonical_race_runtime:runtimeSnapshot},
     drivers:source.drivers.map((row)=>({driver_id:row.driverId,team_id:row.teamId})),
     dbDrivers:source.drivers.map((row)=>({driver_id:row.driverId,team_id:row.teamId})),
-    dbCarStats:[],
-    dbCoreTracks:[],
-    dbTrackLayoutByYear:[],
-    dbWeatherProfiles:[],
-    dbWeatherStates:[],
+    dbCarStats:[],dbCoreTracks:[],dbTrackLayoutByYear:[],dbWeatherProfiles:[],dbWeatherStates:[],
   };
 }
 
@@ -98,7 +77,6 @@ test("RW8.14B runtime restoration preserves fixed-step elapsed scheduling",()=>{
   const first=advanceCanonicalRaceRuntime(initial,250);
   assert.equal(first.state.tick,2);
   assert.equal(first.accumulatorMs,50);
-
   const restored=restoreCanonicalRaceRunner(first);
   restored.advanceElapsed(50);
   assert.equal(restored.getState().tick,3);
@@ -109,10 +87,8 @@ test("RW8.14B serialized runtime matches an uninterrupted canonical runner",()=>
   const initial=runtime();
   const uninterrupted=createLiveRaceRunner(initial.state);
   uninterrupted.advanceElapsed(375);
-
   const persisted=advanceCanonicalRaceRuntime(initial,125);
   const resumed=advanceCanonicalRaceRuntime(persisted,250);
-
   assert.deepEqual(resumed.state,uninterrupted.getState());
   assert.equal(resumed.accumulatorMs,uninterrupted.getAccumulatorMs());
 });
@@ -123,10 +99,7 @@ test("RW8.14B Race View is a projection of the persisted canonical state",()=>{
   assert.equal(view.source,RACE_VIEW_PROJECTION_SOURCE);
   assert.equal(view.canonical_tick,next.state.tick);
   assert.equal(view.classification.length,next.state.cars.length);
-  assert.equal(
-    view.classification[0].absolute_distance_m,
-    next.state.cars.find((car)=>car.carId===view.classification[0].car_id).absoluteDistanceM
-  );
+  assert.equal(view.classification[0].absolute_distance_m,next.state.cars.find((car)=>car.carId===view.classification[0].car_id).absoluteDistanceM);
 });
 
 test("RW8.14C runtime entry leaves Legacy and pre-race weekends untouched",()=>{
@@ -141,4 +114,22 @@ test("RW8.14C runtime entry resumes an existing RW2 snapshot without recreating 
   const gs=gameState({runtimeSnapshot:snapshot});
   assert.equal(ensureCanonicalRaceRuntime(gs),gs);
   assert.equal(gs.raceWeekendState.canonical_race_runtime,snapshot);
+});
+
+test("RW8.14D elapsed dispatch advances RW2 fixed steps without sector translation",()=>{
+  const gs=gameState({runtimeSnapshot:runtime()});
+  const next=advanceCanonicalRaceWeekendElapsed(gs,{elapsedMs:250});
+  assert.equal(next.raceWeekendState.canonical_race_runtime.state.tick,2);
+  assert.equal(next.raceWeekendState.canonical_race_runtime.accumulatorMs,50);
+  const view=canonicalRaceWeekendView(next);
+  assert.equal(view.source,RACE_VIEW_PROJECTION_SOURCE);
+  assert.equal(view.canonical_tick,2);
+});
+
+test("RW8.14D elapsed dispatch cannot mutate Legacy or pre-race weekends",()=>{
+  const legacy=gameState({engine:"legacy",runtimeSnapshot:runtime()});
+  assert.equal(advanceCanonicalRaceWeekendElapsed(legacy,{elapsedMs:1000}),legacy);
+  assert.equal(canonicalRaceWeekendView(legacy),null);
+  const preRace=gameState({engine:"rw2",phase:"grid_ready"});
+  assert.equal(advanceCanonicalRaceWeekendElapsed(preRace,{elapsedMs:1000}),preRace);
 });
