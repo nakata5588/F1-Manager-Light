@@ -7,6 +7,7 @@ import {
   advanceCanonicalRaceViewTimestamp,
   canonicalRaceViewElapsedMs,
   canonicalRaceViewPlaybackSpeed,
+  createCanonicalRaceViewFrameClock,
   raceViewFrameElapsedMs,
 } from "../src/race2/runtime/RaceViewPlayback.js";
 
@@ -54,4 +55,28 @@ test("RW8.14H timestamp boundary still refuses to advance Legacy",()=>{
   assert.equal(frame.gameState,gs);
   assert.equal(frame.view,null);
   assert.equal(frame.advancedMs,0);
+});
+
+test("RW8.14I frame clock owns only wall-clock continuity and resets cleanly",()=>{
+  const gs=legacyState();
+  const clock=createCanonicalRaceViewFrameClock();
+
+  const prime=clock.frame(gs,{timestampMs:1000,playbackSpeed:4});
+  assert.equal(prime.advancedMs,0);
+
+  const next=clock.frame(gs,{timestampMs:1250,playbackSpeed:4});
+  assert.equal(next.advancedMs,0,"Legacy remains isolated even when frame time advances");
+
+  clock.reset();
+  const resumed=clock.frame(gs,{timestampMs:9000,playbackSpeed:4});
+  assert.equal(resumed.advancedMs,0,"resume primes instead of simulating the paused wall-clock gap");
+});
+
+test("RW8.14I invalid frame timestamps break continuity instead of creating catch-up time",()=>{
+  const gs=legacyState();
+  const clock=createCanonicalRaceViewFrameClock();
+  clock.frame(gs,{timestampMs:1000});
+  clock.frame(gs,{timestampMs:Number.NaN});
+  const recovered=clock.frame(gs,{timestampMs:5000});
+  assert.equal(recovered.advancedMs,0);
 });
