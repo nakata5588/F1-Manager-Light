@@ -32,8 +32,28 @@ function input(){
       {driverId:"D1",teamId:"T1",gridPosition:1},
       {driverId:"D2",teamId:"T2",gridPosition:2},
     ],
-    track:{trackId:"T",lengthM:5000,laps:3,sectors:[{id:"s1",startM:0,endM:5000}],traits:{}},
-    weather:{timeline:[]},
+    track:{
+      schemaVersion:2,
+      trackId:"T",
+      year:2004,
+      lengthM:5000,
+      laps:3,
+      traits:{},
+      startFinish:{progress:0,distanceM:0},
+      sectors:[
+        {id:"sector_1",sector:1,startM:0,endM:1666,lengthM:1666},
+        {id:"sector_2",sector:2,startM:1666,endM:3333,lengthM:1667},
+        {id:"sector_3",sector:3,startM:3333,endM:5000,lengthM:1667},
+      ],
+      speedProfile:{
+        source:"neutral",
+        detailed:false,
+        sampleSpacingM:5000,
+        windowM:null,
+        samples:[{distanceM:0,severity:0}],
+      },
+    },
+    weather:{state:"SUNNY",avg_temp_c:22,track_temp_c:30,timeline:[]},
     raceControl:{rules:{}},
   };
 }
