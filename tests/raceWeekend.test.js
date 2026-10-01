@@ -571,30 +571,52 @@ test("RW4.3 weekend weather persists across Practice and Qualifying and refreshe
 });
 
 
-test("refresh recovery keeps an active Live Race authoritative over stale weekend sessions", () => {
+test("RW9E1 refresh recovery migrates an active Legacy race to RW2 and restarts from the saved grid", () => {
   for (const stalePhase of ["practice", "practice_complete", "qualifying", "qualifying_wait", "grid_ready"]) {
-    const liveRace = {
-      status: "running",
-      current_lap: 17,
-      current_sector: 2,
-      classification: [{ driver_id: "D1", position: 1 }],
-    };
     const weekend = {
       phase: stalePhase,
       active_session_id: "qualifying_2",
-      live_race: liveRace,
+      live_race: {
+        status: "running",
+        current_lap: 17,
+        current_sector: 2,
+        classification: [{ driver_id: "D1", position: 1 }],
+      },
     };
 
     const resumed = normalizeRaceWeekendResumeState(weekend);
 
+    assert.equal(resumed.engine_version, "rw2");
     assert.equal(resumed.phase, "race");
     assert.equal(resumed.active_session_id, "race");
-    assert.equal(resumed.live_race, liveRace);
-    assert.equal(resumed.live_race.current_lap, 17);
-    assert.equal(resumed.live_race.current_sector, 2);
-    assert.equal(raceWindowForWeekend(resumed), "live");
-    assert.equal(raceWindowForWeekend(weekend), "live");
+    assert.equal(resumed.live_race, null);
+    assert.equal(resumed.canonical_race_runtime, null);
+    assert.equal(resumed.engine_migration.source, "rw9e1_legacy_save_migration");
+    assert.equal(resumed.engine_migration.race_restarted_from_grid, true);
+    assert.equal(resumed.engine_migration.legacy_progress.current_lap, 17);
+    assert.equal(resumed.engine_migration.legacy_progress.current_sector, 2);
+    assert.equal(raceWindowForWeekend(resumed), "grid");
   }
+});
+
+test("RW9E1 pre-race Legacy saves keep their weekend progress while adopting RW2",()=>{
+  const weekend={
+    engine_version:"legacy",
+    phase:"grid_ready",
+    active_session_id:"grid",
+    startingGrid:{rows:[{driver_id:"D1",grid:1}]},
+    race_strategy:{selections:{D1:{pit_plan:"adaptive"}}},
+  };
+
+  const resumed=normalizeRaceWeekendResumeState(weekend);
+
+  assert.equal(resumed.engine_version,"rw2");
+  assert.equal(resumed.phase,"grid_ready");
+  assert.equal(resumed.active_session_id,"grid");
+  assert.deepEqual(resumed.startingGrid,weekend.startingGrid);
+  assert.deepEqual(resumed.race_strategy,weekend.race_strategy);
+  assert.equal(resumed.live_race,null);
+  assert.equal(resumed.engine_migration.race_restarted_from_grid,false);
 });
 
 test("refresh recovery does not reopen a finished Live Race over Results", () => {
@@ -610,7 +632,10 @@ test("refresh recovery does not reopen a finished Live Race over Results", () =>
 
   const resumed = normalizeRaceWeekendResumeState(weekend);
 
-  assert.equal(resumed, weekend);
+  assert.equal(resumed.engine_version, "rw2");
+  assert.equal(resumed.phase, "results");
+  assert.equal(resumed.live_race, null);
+  assert.equal(resumed.engine_migration.race_restarted_from_grid, false);
   assert.equal(raceWindowForWeekend(resumed), "classification");
 });
 
