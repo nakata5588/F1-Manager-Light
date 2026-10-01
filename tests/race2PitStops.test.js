@@ -7,6 +7,7 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
+import { presentCanonicalRaceEvent } from "../src/race2/presentation/RaceEventPresenter.js";
 
 function input({
   year=1980,
@@ -317,6 +318,38 @@ test("RW8.8 same-team simultaneous stops create a canonical double-stack queue",
   assert.ok(queued,"expected one same-team car to wait for the occupied box");
   assert.ok(queued.pitState.queueElapsedMs>0);
   assert.ok(queued.pitState.lossTotalMs>Math.round(queued.pitState.service.total_loss_s*1000));
+
+  const queuedCarId=queued.carId;
+  const queuedDriverId=queued.driverId;
+  state=runUntil(
+    state,
+    (candidate)=>{
+      const row=car(candidate,queuedCarId);
+      return row?.pitState?.completed&&!row?.pitState?.active;
+    },
+    {maxSteps:500}
+  );
+
+  const serviceEvent=state.events.find((event)=>
+    event.type==="pit_service_completed"&&event.driverIds?.includes(queuedDriverId)
+  );
+  const exitEvent=state.events.find((event)=>
+    event.type==="pit_exit"&&event.driverIds?.includes(queuedDriverId)
+  );
+  assert.ok(serviceEvent);
+  assert.ok(exitEvent);
+  assert.equal(serviceEvent.payload.doubleStack,true);
+  assert.ok(serviceEvent.payload.queueDelayMs>0);
+  assert.ok(serviceEvent.payload.stationaryMs>=0);
+  assert.ok(serviceEvent.payload.pitLaneLossMs>=0);
+  assert.equal(exitEvent.payload.doubleStack,true);
+  assert.equal(exitEvent.payload.queueDelayMs,serviceEvent.payload.queueDelayMs);
+
+  const presented=presentCanonicalRaceEvent(serviceEvent,{
+    drivers:[{driver_id:queuedDriverId,display_name:"Queued Driver"}],
+    tyres:[],
+  });
+  assert.match(presented.text,/double-stack delay/i);
 });
 
 test("RW8.8 pit state survives save/resume deterministically",()=>{

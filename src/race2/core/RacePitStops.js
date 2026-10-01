@@ -503,6 +503,11 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
         ?[...pit.service.repair.repaired_components]
         :[],
       repairDurationS:finite(pit?.service?.repair?.duration_s,0),
+      stationaryMs:Math.max(0,Math.round(finite(pit?.service?.stationary_s,0)*1000)),
+      pitLaneLossMs:Math.max(0,Math.round(finite(pit?.service?.pit_lane_loss_s,0)*1000)),
+      queueDelayMs:Math.max(0,Math.round(finite(pit?.queueElapsedMs,0))),
+      crewErrorDelayMs:Math.max(0,Math.round(finite(pit?.service?.crew_error_delay_s,0)*1000)),
+      doubleStack:finite(pit?.queueElapsedMs,0)>0,
       lossMs:finite(pit?.lossElapsedMs,pit?.lossTotalMs??0),
     };
     pit={
@@ -619,6 +624,11 @@ export function advanceRacePitStops(state,proposedCars,{stepMs=100}={}){
           repairDurationS:finite(proposed?.pitState?.service?.repair?.duration_s,0),
           paceLossBeforeSPerLap:finite(proposed?.pitState?.service?.repair?.pace_loss_before_s_per_lap,null),
           paceLossAfterSPerLap:finite(proposed?.pitState?.service?.repair?.pace_loss_after_s_per_lap,null),
+          stationaryMs:Math.max(0,Math.round(finite(proposed?.pitState?.service?.stationary_s,0)*1000)),
+          pitLaneLossMs:Math.max(0,Math.round(finite(proposed?.pitState?.service?.pit_lane_loss_s,0)*1000)),
+          queueDelayMs:Math.max(0,Math.round(finite(proposed?.pitState?.queueElapsedMs,0))),
+          crewErrorDelayMs:Math.max(0,Math.round(finite(proposed?.pitState?.service?.crew_error_delay_s,0)*1000)),
+          doubleStack:finite(proposed?.pitState?.queueElapsedMs,0)>0,
           crewError:Boolean(proposed?.pitState?.service?.crew_error),
         }));
       }
@@ -626,6 +636,12 @@ export function advanceRacePitStops(state,proposedCars,{stepMs=100}={}){
         events.push(event("pit_exit",state,proposed,{
           stopSequence:proposed.pitState.stopSequence,
           lossMs:proposed.pitState.lossElapsedMs,
+          stationaryMs:Math.max(0,Math.round(finite(proposed?.pitState?.service?.stationary_s,0)*1000)),
+          pitLaneLossMs:Math.max(0,Math.round(finite(proposed?.pitState?.service?.pit_lane_loss_s,0)*1000)),
+          queueDelayMs:Math.max(0,Math.round(finite(proposed?.pitState?.queueElapsedMs,0))),
+          crewErrorDelayMs:Math.max(0,Math.round(finite(proposed?.pitState?.service?.crew_error_delay_s,0)*1000)),
+          doubleStack:finite(proposed?.pitState?.queueElapsedMs,0)>0,
+          crewError:Boolean(proposed?.pitState?.service?.crew_error),
         }));
       }
       continue;

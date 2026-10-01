@@ -358,13 +358,20 @@ export function presentCanonicalRaceEvent(event,context={}){
       payload?.refuelled?"refuels":null,
       repairAction,
     ].filter(Boolean);
+    const queueMs=finite(payload?.queueDelayMs,0);
+    const crewDelayMs=finite(payload?.crewErrorDelayMs,0);
+    const delays=[
+      payload?.doubleStack&&queueMs>0?`double-stack delay ${(queueMs/1000).toFixed(1)}s`:null,
+      payload?.crewError&&crewDelayMs>0?`crew delay ${(crewDelayMs/1000).toFixed(1)}s`:null,
+    ].filter(Boolean);
+    const serviceText=actions.length
+      ?`${driver} ${actions.join(" and ")}`
+      :`${driver} completes pit service`;
     return presentation(
       "Pit service",
-      actions.length
-        ?`${driver} ${actions.join(" and ")}`
-        :`${driver} completes pit service`,
+      delays.length?`${serviceText} — ${delays.join(" · ")}`:serviceText,
       "pit",
-      "normal"
+      payload?.crewError?"important":"normal"
     );
   }
 
