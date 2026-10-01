@@ -10,8 +10,11 @@ import { activeStaffContracts } from "../domain/liveContracts.js";
 import { driverRoleLabelForSlot } from "../domain/contractRoles.js";
 import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
+import { driverFormSnapshot } from "../domain/driverForm.js";
 import { upcomingManagementEvents, daysBetweenISO } from "../domain/managementEvents.js";
 import { deriveBoardState } from "../domain/boardState.js";
+import { carPerformanceRanking } from "../domain/carPerformance.js";
+import { normalizeNextSeasonCarProgramme } from "../domain/nextSeasonCar.js";
 
 const firstArray=(...candidates)=>candidates.find(Array.isArray)||[];
 const num=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
@@ -31,6 +34,22 @@ function ordinal(value){
 }
 function isUnread(message){
   return message?.unread===true||message?.read===false||message?.is_unread===true;
+}
+function relativeDaysLabel(fromISO,toISO){
+  const days=daysBetweenISO(fromISO,toISO);
+  if(!Number.isFinite(days))return null;
+  if(days===0)return "Today";
+  if(days===1)return "Tomorrow";
+  return `In ${days} days`;
+}
+function raceRound(event,fallback=null){
+  const gp=event?.meta?.gp||{};
+  const value=gp?.round??gp?.round_number??gp?.Round??event?.round;
+  const parsed=Number(value);
+  return Number.isFinite(parsed)&&parsed>0?parsed:fallback;
+}
+function projectLabel(project){
+  return project?.name??project?.part_name??project?.type??project?.slot??project?.area??"Development project";
 }
 function Panel({title,action,children,className=""}){
   return <section className={`rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden ${className}`}>
@@ -81,8 +100,9 @@ export default function Home(){
       );
       const condition=driverCondition(gameState,id);
       const overall=driverOverallPresentation(gameState,driver);
+      const form=driverFormSnapshot(gameState,id);
       return {
-        ...driver,id,role:driverRoleLabelForSlot(slot),standing,condition,
+        ...driver,id,role:driverRoleLabelForSlot(slot),standing,condition,form,
         fatigue:fatigueStatus(gameState,id),
         overall:overall?.value??driver.current_ability??driver.rating??driver.overall??"—",
         overallEstimated:Boolean(overall?.estimated),
@@ -99,8 +119,24 @@ export default function Home(){
       String(row.team_name??row.name??"")===String(teamName)
     );
 
-    const upcoming=upcomingManagementEvents(gameState,{limit:10});
-    const nextRace=upcoming.find((event)=>event.type==="GP")||null;
+    const upcoming=upcomingManagementEvents(gameState,{limit:24});
+    const upcomingRaces=upcoming.filter((event)=>event.type==="GP").slice(0,4);
+    const nextRace=upcomingRaces[0]||null;
+
+    const carRanking=carPerformanceRanking(gameState);
+    const carPerformance=carRanking.find((row)=>String(row?.team_id??"")===teamId)||null;
+    const development=gameState.development||{};
+    const developmentProjects=(Array.isArray(development.projects)?development.projects:[])
+      .filter((project)=>["active","paused"].includes(String(project?.status??"").toLowerCase()));
+    const nextProject=developmentProjects
+      .filter((project)=>project?.finishes_at)
+      .slice()
+      .sort((a,b)=>String(a.finishes_at).localeCompare(String(b.finishes_at)))[0]||null;
+    const nextSeasonCar=normalizeNextSeasonCarProgramme(
+      development.nextSeasonCar,
+      {activeYear:Number(gameState.activeYear)||1980}
+    );
+
     const inbox=[
       ...(Array.isArray(gameState.inbox)?gameState.inbox:[]),
       ...(Array.isArray(eventNews)?eventNews:[]),
@@ -163,7 +199,7 @@ export default function Home(){
       }
     }
 
-    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,pendingDecisions,finance,monthlyNet,seasonNet,driverWages,staffWages,wageBill,sponsorRows,sponsorIncome,board,objectives,lowComponents,inbox};
+    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcomingRaces,nextRace,carPerformance,developmentProjects,nextProject,nextSeasonCar,alerts,pendingDecisions,finance,monthlyNet,seasonNet,driverWages,staffWages,wageBill,sponsorRows,sponsorIncome,board,objectives,lowComponents,inbox};
   },[gameState,eventNews]);
 
   if(!gameState||!data){
@@ -173,11 +209,9 @@ export default function Home(){
     </div>;
   }
 
-  const unread=data.inbox.filter(isUnread).length;
   const boardStatus=Number.isFinite(Number(data.board?.confidence))?`${Math.round(Number(data.board.confidence)*100)}%`:(data.board?.rating??data.board?.status??"—");
   const seasonObjective=data.board?.expectationLabel??data.objectives[0]?.title??"No objective set";
   const currentDate=gameState.currentDateISO||"";
-  const nextRaceDays=data.nextRace?daysBetweenISO(currentDate,data.nextRace.date):null;
   const completedObjectives=data.objectives.filter((objective)=>objective?.status==="completed").length;
   const boardObjectiveValue=data.objectives.length
     ?`${completedObjectives}/${data.objectives.length}`
@@ -191,20 +225,7 @@ export default function Home(){
     ?data.teamStandings.slice(0,6)
     :data.teamStandings.slice(0,7);
 
-  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] p-4 md:p-6 text-slate-100 space-y-4">
-    <div className="flex flex-wrap items-end gap-3">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold">Home</h1>
-        <p className="text-sm text-slate-400">
-          {data.teamName} · Season {gameState.activeYear??gameState.season??"—"} · {currentDate||"Date unavailable"}
-        </p>
-      </div>
-      <div className="flex-1"/>
-      {unread>0?<Link to="/Inbox" className="rounded-full bg-white/10 text-white px-3 py-1 text-xs font-semibold">
-        {unread} unread message{unread===1?"":"s"}
-      </Link>:null}
-    </div>
-
+  return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] px-4 pb-4 pt-2 md:px-6 md:pb-6 md:pt-3 text-slate-100">
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
       <Panel title="Team overview" className="xl:col-span-4" action={<SmallLink to="/Board">Board ›</SmallLink>}>
         <div className="p-5">
@@ -219,7 +240,7 @@ export default function Home(){
             <OverviewRow label="Constructors" value={data.constructorRow?.position?ordinal(data.constructorRow.position):"—"}/>
             <OverviewRow label="Points" value={data.constructorRow?.points??0}/>
             <OverviewRow label="Season objective" value={seasonObjective}/>
-            <OverviewRow label="Board confidence" value={boardStatus}/>
+            <OverviewRow label="Board confidence" value={boardStatus} alert={boardUnderPressure}/>
           </div>
         </div>
       </Panel>
@@ -234,7 +255,7 @@ export default function Home(){
           <DecisionRow label="Pending decisions" value={data.pendingDecisions} warning={data.pendingDecisions>0} to="/Inbox"/>
           <DecisionRow label="Fatigued drivers" value={data.raceDrivers.filter((d)=>d.condition.fatigue>=70).length} warning={data.raceDrivers.some((d)=>d.condition.fatigue>=70)} to="/MyDrivers"/>
           <DecisionRow label="Worn components" value={data.lowComponents.length} warning={data.lowComponents.length>0} to="/Car"/>
-          <DecisionRow label="Board objectives" value={boardObjectiveValue} warning={boardUnderPressure} to="/Board"/>
+          <DecisionRow label="Board objectives" value={boardObjectiveValue} neutral to="/Board"/>
         </div>
       </Panel>
 
@@ -250,18 +271,26 @@ export default function Home(){
       </Panel>
 
       <Panel title="Up next" className="xl:col-span-5" action={<SmallLink to="/CalendarPage">Calendar ›</SmallLink>}>
-        {data.nextRace?<div className="p-5 bg-gradient-to-br from-[#171a23] to-[#101219]">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Next Grand Prix</div>
-          <div className="mt-2 flex items-center gap-2 text-3xl font-bold">
-            <GrandPrixFlag gameState={gameState} gp={data.nextRace?.meta?.gp} record={data.nextRace} size="lg"/>
-            <span>{data.nextRace.title}</span>
+        {data.nextRace?<div>
+          <div className="p-5 bg-gradient-to-br from-[#171a23] to-[#101219]">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+              <span>Next Grand Prix</span>
+              {raceRound(data.nextRace)?<span className="rounded bg-white/8 px-2 py-0.5 tracking-normal">Round {raceRound(data.nextRace)}</span>:null}
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-3xl font-bold">
+              <GrandPrixFlag gameState={gameState} gp={data.nextRace?.meta?.gp} record={data.nextRace} size="lg"/>
+              <span>{data.nextRace.title}</span>
+            </div>
+            <div className="mt-1 text-sm text-slate-400">{data.nextRace.subtitle||"Race weekend"}</div>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="rounded bg-white/10 px-3 py-1.5 text-sm">{data.nextRace.date}</span>
+              {relativeDaysLabel(currentDate,data.nextRace.date)?<span className="rounded bg-white/10 px-3 py-1.5 text-sm text-slate-200">{relativeDaysLabel(currentDate,data.nextRace.date)}</span>:null}
+              <Link to="/RaceWeekend" className="ml-auto inline-flex rounded-md bg-slate-100 text-slate-950 px-3 py-1.5 text-sm font-semibold hover:bg-white">Open weekend</Link>
+            </div>
           </div>
-          <div className="mt-1 text-sm text-slate-400">{data.nextRace.subtitle||"Race weekend"}</div>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <span className="rounded bg-white/10 px-3 py-1.5 text-sm">{data.nextRace.date}</span>
-            {Number.isFinite(nextRaceDays)?<span className="rounded bg-white/10 px-3 py-1.5 text-sm text-slate-200">{nextRaceDays===0?"Today":`In ${nextRaceDays} day${nextRaceDays===1?"":"s"}`}</span>:null}
-          </div>
-          <div className="mt-5"><Link to="/RaceWeekend" className="inline-flex rounded-md bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold hover:bg-white">Open race weekend</Link></div>
+          {data.upcomingRaces.slice(1).length?<div className="divide-y divide-white/10 border-t border-white/10">
+            {data.upcomingRaces.slice(1).map((race,index)=><NextRaceRow key={race.id} race={race} currentDate={currentDate} gameState={gameState} fallbackRound={raceRound(data.nextRace,0)+index+1}/>)}
+          </div>:null}
         </div>:<div className="p-5 text-sm text-slate-400">No upcoming Grand Prix.</div>}
       </Panel>
 
@@ -276,27 +305,26 @@ export default function Home(){
         </div>
       </Panel>
 
-      <Panel title="Upcoming events" className="xl:col-span-7" action={<SmallLink to="/CalendarPage">View calendar ›</SmallLink>}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10">
-          {data.upcoming.slice(0,6).map((event)=>{
-            const eventDays=daysBetweenISO(currentDate,event.date);
-            const relative=Number.isFinite(eventDays)
-              ?(eventDays===0?"Today":eventDays===1?"Tomorrow":`In ${eventDays} days`)
-              :null;
-            return <Link key={event.id} to={event.route||"/CalendarPage"} className="bg-[#12141c] p-3 hover:bg-[#1a1d27] transition-colors">
-              <div className="flex items-start gap-3">
-                <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${event.priority==="high"?"bg-rose-400":"bg-slate-400"}`}/>
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                    {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
-                    <span className="truncate">{event.title}</span>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">{event.date} · {relative?relative+" · ":""}{String(event.type).replaceAll("_"," ")}</div>
-                </div>
-              </div>
-            </Link>;
-          })}
-          {!data.upcoming.length?<div className="p-4 text-sm text-slate-400">Nothing scheduled.</div>:null}
+      <Panel title="Car & development" className="xl:col-span-7" action={<div className="flex items-center gap-4"><SmallLink to="/Car">Cars ›</SmallLink><SmallLink to="/Development">Development ›</SmallLink></div>}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/10">
+          <DashboardMetric label="Car rank" value={data.carPerformance?`#${data.carPerformance.rank} / ${Math.max(1,firstArray(gameState.teams,gameState.dbTeams).length)}`:"—"}/>
+          <DashboardMetric label="Performance" value={data.carPerformance?Number(data.carPerformance.overall).toFixed(1):"—"}/>
+          <DashboardMetric label="Reliability" value={data.carPerformance?`${Math.round(Number(data.carPerformance.reliability))}%`:"—"} alert={Number(data.carPerformance?.reliability)<60}/>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/10 border-t border-white/10">
+          <DashboardMetric label="Active projects" value={data.developmentProjects.length}/>
+          <DashboardMetric
+            label="Next completion"
+            value={data.nextProject?projectLabel(data.nextProject):"No active project"}
+            hint={data.nextProject?.finishes_at?(relativeDaysLabel(currentDate,data.nextProject.finishes_at)||data.nextProject.finishes_at):null}
+            compact
+          />
+          <DashboardMetric
+            label={`Next season car · ${data.nextSeasonCar.targetSeason}`}
+            value={data.nextSeasonCar.status==="not_started"?"Not started":`${Math.round(Number(data.nextSeasonCar.overall_progress||0))}%`}
+            hint={data.nextSeasonCar.status==="not_started"?"Open Development to begin":String(data.nextSeasonCar.phase||"").replaceAll("_"," ")}
+            compact
+          />
         </div>
       </Panel>
 
@@ -319,6 +347,8 @@ function DriverCard({driver,index}){
   const name=driver.display_name||driver.name||[driver.first_name,driver.last_name].filter(Boolean).join(" ")||driver.id;
   const standing=driver.standing||{};
   const fatigue=driver.condition.fatigue;
+  const formScore=Number(driver.form?.score);
+  const hasForm=Number.isFinite(formScore)&&Number(driver.form?.sample)>0;
   return <Link to={`/drivers/${encodeURIComponent(driver.id)}`} className="rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden hover:border-white/25 transition">
     <div className="p-4 flex items-start gap-3">
       <DriverPortrait driver={driver} size="h-20 w-20" className="ring-white/15"/>
@@ -329,16 +359,32 @@ function DriverCard({driver,index}){
           <div className="text-xs uppercase tracking-wide text-slate-500">Car {index}</div>
         </div>
         <div className="text-xl font-bold mt-1 truncate">{name}</div>
-        <div className="text-xs text-slate-500 mt-1">{standing.position?ordinal(standing.position):"No championship position yet"}</div>
+        <div className="text-xs text-slate-500 mt-1">{hasForm?`${driver.form.label} form · ${driver.form.sample} race${driver.form.sample===1?"":"s"}`:"Season not started"}</div>
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-px bg-white/10 border-t border-white/10">
+    <div className="grid grid-cols-3 gap-px bg-white/10 border-t border-white/10">
       <MiniMetric label="Rating" value={driver.overallEstimated?`~${driver.overall}`:driver.overall}/>
+      <MiniMetric label="WDC" value={standing.position?`P${standing.position}`:"—"}/>
       <MiniMetric label="Points" value={standing.points??0}/>
-      <MiniMetric label="Fatigue" value={`${Math.round(fatigue)}%`} alert={fatigue>=70}/>
+      <MiniMetric label="Form" value={hasForm?Math.round(formScore):"—"} hint={hasForm?driver.form.label:null}/>
+      <MiniMetric label="Fatigue" value={`${Math.round(fatigue)}%`} hint={driver.fatigue?.label} alert={fatigue>=70}/>
       <MiniMetric label="Preparation" value={`${Math.round(driver.condition.preparation)}%`}/>
     </div>
-    <div className={`px-4 py-3 text-xs font-semibold ${fatigue>=70?"text-rose-300":fatigue>=40?"text-amber-300":"text-emerald-300"}`}>{driver.fatigue.label}</div>
+  </Link>;
+}
+function NextRaceRow({race,currentDate,gameState,fallbackRound}){
+  const round=raceRound(race,fallbackRound);
+  return <Link to="/CalendarPage" className="px-4 py-2.5 flex items-center gap-3 hover:bg-white/[0.04]">
+    <div className="w-10 text-xs font-semibold text-slate-500">{round?`R${round}`:"—"}</div>
+    <GrandPrixFlag gameState={gameState} gp={race?.meta?.gp} record={race} size="sm"/>
+    <div className="min-w-0 flex-1">
+      <div className="text-sm font-medium truncate">{race.title}</div>
+      <div className="text-xs text-slate-500">{race.subtitle||"Grand Prix"}</div>
+    </div>
+    <div className="text-right">
+      <div className="text-xs font-medium text-slate-300">{race.date}</div>
+      <div className="text-[10px] text-slate-500">{relativeDaysLabel(currentDate,race.date)||""}</div>
+    </div>
   </Link>;
 }
 function StandingRow({row,fallbackPosition,teamId}){
@@ -352,22 +398,31 @@ function StandingRow({row,fallbackPosition,teamId}){
     <div className="font-semibold">{row?.points??0}</div>
   </div>;
 }
-function MiniMetric({label,value,alert=false}){
-  return <div className="bg-[#171a23] px-3 py-2">
+function MiniMetric({label,value,hint=null,alert=false}){
+  return <div className="bg-[#171a23] px-3 py-2 min-w-0">
     <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
-    <div className={`mt-0.5 text-lg font-semibold ${alert?"text-rose-300":""}`}>{value}</div>
+    <div className={`mt-0.5 text-lg font-semibold truncate ${alert?"text-rose-300":""}`}>{value}</div>
+    {hint?<div className="text-[9px] text-slate-500 truncate">{hint}</div>:null}
   </div>;
 }
-function OverviewRow({label,value}){
+function DashboardMetric({label,value,hint=null,alert=false,compact=false}){
+  return <div className="bg-[#12141c] p-4 min-w-0">
+    <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
+    <div className={`mt-1 font-semibold ${compact?"text-sm":"text-2xl"} ${alert?"text-rose-300":"text-slate-100"} truncate`}>{value}</div>
+    {hint?<div className="mt-1 text-xs text-slate-500 truncate">{hint}</div>:null}
+  </div>;
+}
+function OverviewRow({label,value,alert=false}){
   return <div className="flex items-start gap-3 text-sm">
     <span className="text-slate-400 flex-1">{label}</span>
-    <span className="font-semibold text-right max-w-[65%]">{value??"—"}</span>
+    <span className={`font-semibold text-right max-w-[65%] ${alert?"text-rose-300":""}`}>{value??"—"}</span>
   </div>;
 }
-function DecisionRow({label,value,warning,to}){
+function DecisionRow({label,value,warning=false,neutral=false,to}){
+  const dot=neutral?"bg-slate-500":warning?"bg-rose-400":"bg-emerald-400";
   return <Link to={to} className="px-4 py-3 flex items-center gap-3 hover:bg-white/5">
-    <div className={`h-2.5 w-2.5 rounded-full ${warning?"bg-rose-400":"bg-emerald-400"}`}/>
+    <div className={`h-2.5 w-2.5 rounded-full ${dot}`}/>
     <div className="flex-1 text-sm">{label}</div>
-    <div className={`font-bold ${warning?"text-rose-300":"text-slate-200"}`}>{value}</div>
+    <div className={`font-bold ${warning&&!neutral?"text-rose-300":"text-slate-200"}`}>{value}</div>
   </Link>;
 }
