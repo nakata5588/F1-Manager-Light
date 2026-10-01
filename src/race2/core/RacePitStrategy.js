@@ -299,7 +299,10 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
       fieldSize:classification.length,
     });
     const repairOnly=Boolean(
-      !baseWindow&&repairDecision?.should_repair&&repairDecision?.dedicated_stop
+      strategy?.aiControlled!==false&&
+      !baseWindow&&
+      repairDecision?.should_repair&&
+      repairDecision?.dedicated_stop
     );
     const repairLap=repairOnly?nextReachablePitLap(stateLike,car):null;
     const window=baseWindow??(repairLap==null?null:{
@@ -425,14 +428,28 @@ function planCar(state,car,forecast){
   };
 
   if(car?.dnf||["dnf","finished"].includes(text(car?.status))||car?.pitState?.active)return base;
-  if(text(strategy?.pitPlan)!=="adaptive")return base;
+
+  const pitPlan=text(strategy?.pitPlan);
+  const adaptive=pitPlan==="adaptive";
+  const aiControlled=strategy?.aiControlled!==false;
+  const automaticRepair=Boolean(
+    aiControlled&&
+    forecast?.damage_repair?.should_repair&&
+    Array.isArray(forecast?.damage_repair?.repair_components)&&
+    forecast.damage_repair.repair_components.length
+  );
+
+  // A player pit command is authoritative. The shared repair engine can still
+  // expose advisory forecast data, but must never add work to that command.
+  if(pitPlan==="command")return base;
+  if(!adaptive&&!automaticRepair)return base;
 
   const window=forecast?.pit_window??null;
   if(!window){
     const requestedRepairs=Array.isArray(strategy?.repairComponentsRequested)
       ?strategy.repairComponentsRequested
       :[];
-    if(!strategy?.autoPitReason&&!requestedRepairs.length)return base;
+    if(!adaptive||(!strategy?.autoPitReason&&!requestedRepairs.length))return base;
     return {
       ...base,
       resources:{
@@ -460,8 +477,7 @@ function planCar(state,car,forecast){
   const nextTyreId=tyreChangeRequested
     ?forecast?.next_tyre_id??strategy?.nextTyreId??null
     :strategy?.nextTyreId??null;
-  const repairComponents=forecast?.damage_repair?.should_repair&&
-    Array.isArray(forecast?.damage_repair?.repair_components)
+  const repairComponents=automaticRepair
     ?forecast.damage_repair.repair_components.map(String).filter(Boolean)
     :[];
 
@@ -475,7 +491,9 @@ function planCar(state,car,forecast){
         nextTyreId,
         tyreChangeRequested,
         repairComponentsRequested:repairComponents,
-        autoPitReason:forecast?.pit_reason??"strategy",
+        autoPitReason:adaptive||forecast?.pit_reason==="damage_repair"
+          ?forecast?.pit_reason??"strategy"
+          :strategy?.autoPitReason??null,
       },
     },
   };
