@@ -9,6 +9,7 @@ import {
   cancelCanonicalRaceWeekendCommand,
   ensureCanonicalRaceRuntime,
   queueCanonicalRaceWeekendCommand,
+  runCanonicalRaceWeekendToEnd,
   restoreCanonicalRaceRunner,
 } from "../src/race2/runtime/RaceRuntime.js";
 import { RACE_VIEW_PROJECTION_SOURCE } from "../src/race2/adapters/RaceViewProjection.js";
@@ -162,4 +163,16 @@ test("RW8.14J canonical checkpoint cadence follows simulation time instead of br
   assert.equal(canonicalRaceRuntimeNeedsCheckpoint(initial,beforeBoundary),false);
   assert.equal(canonicalRaceRuntimeNeedsCheckpoint(beforeBoundary,acrossBoundary),true);
   assert.equal(canonicalRaceRuntimeNeedsCheckpoint(acrossBoundary,sameBucket),false);
+});
+
+
+test("RW9C gameplay fast policy finishes the attached canonical runtime",()=>{
+  const initial=gameState({runtimeSnapshot:runtime()});
+  const next=runCanonicalRaceWeekendToEnd(initial,{maxSteps:200_000});
+  const state=next.raceWeekendState.canonical_race_runtime.state;
+
+  assert.equal(state.status,"finished");
+  assert.ok(state.cars.every((car)=>car.dnf||car.status==="finished"));
+  assert.equal(next.raceWeekendState.engine_version,"rw2");
+  assert.equal(initial.raceWeekendState.canonical_race_runtime.state.status,"running","fast policy must not mutate the input snapshot");
 });
