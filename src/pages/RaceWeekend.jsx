@@ -8,6 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
 import { canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
+import { presentCanonicalRaceEvent } from "../race2/presentation/RaceEventPresenter.js";
 import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../race2/gateway/RaceWeekendRuntimeGateway.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
@@ -351,6 +352,7 @@ function liveEventText(event,drivers,tyres=[]){
 }
 
 function raceEventLabel(event){
+  if(event?.display_label)return String(event.display_label);
   if(event?.type==="event_batch")return `${event.events?.length||0} race updates`;
   if(event?.type==="weather_report")return {
     rain_started:"Rain started",
@@ -370,6 +372,12 @@ function raceEventLabel(event){
 }
 function raceEventIcon(event,className="h-5 w-5"){
   const common={className};
+  const presented=String(event?.display_icon_key||"");
+  if(presented==="pit")return <Wrench {...common}/>;
+  if(presented==="race_control"||presented==="retirement"||presented==="failure")return <Flag {...common}/>;
+  if(presented==="incident"||presented==="damage")return <Activity {...common}/>;
+  if(presented==="command")return <Gauge {...common}/>;
+  if(presented==="battle")return <Car {...common}/>;
   if(event?.type==="pit_service"||event?.type==="pit")return <Wrench {...common}/>;
   if(event?.type==="incident"||String(event?.control_type||"")==="RED_FLAG")return <Flag {...common}/>;
   if(event?.type==="driver_feedback")return <Activity {...common}/>;
@@ -666,10 +674,25 @@ export default function RaceWeekend(){
   });
   const trackState=raceViewModel?.track_state||null;
   const timingSummary=raceViewModel?.timing_summary||null;
-  const allRaceEvents=useMemo(()=>collectionRows(raceViewModel?.events).slice().reverse().map((event)=>({
-    ...event,
-    display_text:liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[]),
-  })),[raceViewModel?.events,drivers,gs?.tyres,gs?.dbTyres]);
+  const allRaceEvents=useMemo(()=>collectionRows(raceViewModel?.events).slice().reverse().map((event)=>{
+    if(usesCanonicalRaceRuntime){
+      const presented=presentCanonicalRaceEvent(event,{
+        drivers,
+        tyres:gs?.tyres||gs?.dbTyres||[],
+      });
+      return {
+        ...event,
+        display_text:presented.text,
+        display_label:presented.label,
+        display_icon_key:presented.iconKey,
+        display_priority:presented.priority,
+      };
+    }
+    return {
+      ...event,
+      display_text:liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[]),
+    };
+  }),[raceViewModel?.events,usesCanonicalRaceRuntime,drivers,gs?.tyres,gs?.dbTyres]);
   const raceViewEvents=useMemo(()=>allRaceEvents.slice(0,40),[allRaceEvents]);
   const raceFeedGroups=useMemo(()=>{
     const byLap=new Map();

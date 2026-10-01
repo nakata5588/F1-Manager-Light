@@ -9,6 +9,7 @@ import {
   projectRaceStateToRaceView,
 } from "../src/race2/adapters/RaceViewProjection.js";
 import { canonicalRaceViewCars } from "../src/race2/view/CanonicalRaceViewModel.js";
+import { presentCanonicalRaceEvent } from "../src/race2/presentation/RaceEventPresenter.js";
 
 function input(){
   return {
@@ -162,4 +163,74 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
   assert.equal(cars[1].track_progress,0.4175);
   assert.equal(cars[0].distance_along_lap_m,417.5);
   assert.equal(cars[1].distance_along_lap_m,417.5);
+});
+
+
+test("RW10B canonical event presenter humanizes Race Control lifecycle events",()=>{
+  const deployed=presentCanonicalRaceEvent({
+    type:"race_control_changed",
+    payload:{from:"GREEN",to:"SAFETY_CAR",source:"incident"},
+  });
+  const resumed=presentCanonicalRaceEvent({
+    type:"race_control_changed",
+    payload:{from:"RED_FLAG",to:"GREEN",source:"restart"},
+  });
+
+  assert.equal(deployed.label,"Race Control");
+  assert.equal(deployed.text,"Safety Car deployed");
+  assert.equal(deployed.iconKey,"race_control");
+  assert.equal(deployed.priority,"important");
+  assert.equal(resumed.text,"Race restarted under green flag");
+});
+
+test("RW10B canonical event presenter resolves driver and tyre facts without writing UI text into RaceState",()=>{
+  const context={
+    drivers:[{driver_id:"D1",display_name:"Mario Andretti"}],
+    tyres:[{tyre_id:"gy_s",compound_name:"Soft"}],
+  };
+  const source={
+    type:"pit_service_completed",
+    driverIds:["D1"],
+    payload:{tyreTo:"gy_s",tyreChanged:true,refuelled:false},
+  };
+  const presented=presentCanonicalRaceEvent(source,context);
+
+  assert.equal(presented.label,"Pit service");
+  assert.equal(presented.text,"Mario Andretti changes to Soft tyres");
+  assert.equal(presented.iconKey,"pit");
+  assert.equal(source.message,undefined);
+  assert.equal(source.display_text,undefined);
+});
+
+test("RW10B canonical event presenter covers incidents, retirements and battles with human messages",()=>{
+  const context={
+    drivers:[
+      {driver_id:"D1",display_name:"Mario Andretti"},
+      {driver_id:"D2",display_name:"Keke Rosberg"},
+    ],
+  };
+  assert.equal(
+    presentCanonicalRaceEvent({
+      type:"retirement",
+      driverIds:["D2"],
+      payload:{reason:"gearbox_failure"},
+    },context).text,
+    "Keke Rosberg retires — Gearbox failure"
+  );
+  assert.equal(
+    presentCanonicalRaceEvent({
+      type:"contact",
+      driverIds:["D1","D2"],
+      payload:{severity:"minor"},
+    },context).text,
+    "Contact between Mario Andretti and Keke Rosberg"
+  );
+  assert.equal(
+    presentCanonicalRaceEvent({
+      type:"overtake_completed",
+      driverIds:["D1","D2"],
+      payload:{},
+    },context).text,
+    "Mario Andretti passes Keke Rosberg"
+  );
 });
