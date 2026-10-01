@@ -349,9 +349,16 @@ export function presentCanonicalRaceEvent(event,context={}){
       :compound
         ?`completes pit service on ${compound} tyres`
         :null;
+    const repaired=rows(payload?.repairedComponents).map((component)=>
+      text(component).replaceAll("_"," ")
+    ).filter(Boolean);
+    const repairAction=repaired.length
+      ?`repairs ${repaired.join(", ")}`
+      :null;
     const actions=[
       tyreAction,
       payload?.refuelled?"refuels":null,
+      repairAction,
     ].filter(Boolean);
     return presentation(
       "Pit service",
@@ -479,9 +486,13 @@ export function presentCanonicalRaceEvent(event,context={}){
     }
     if(command==="pit"){
       const compound=tyreName(context,payload?.tyreId);
+      const repaired=rows(payload?.repairComponents).map((component)=>
+        text(component).replaceAll("_"," ")
+      ).filter(Boolean);
       const details=[
         compound?`${compound} tyres`:null,
         payload?.refuel?"refuel":null,
+        repaired.length?`repair ${repaired.join(", ")}`:null,
       ].filter(Boolean);
       return presentation(
         "Team radio",
@@ -495,6 +506,16 @@ export function presentCanonicalRaceEvent(event,context={}){
       `${driver}: ${humanize(command||"command")} applied`,
       "command",
       "normal"
+    );
+  }
+
+  if(type==="command_cancelled"){
+    const command=humanize(payload?.commandType||"order").toLowerCase();
+    return presentation(
+      "Team radio",
+      `${driver}: ${command} cancelled`,
+      "command",
+      "info"
     );
   }
 
