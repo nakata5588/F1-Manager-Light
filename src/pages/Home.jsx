@@ -111,6 +111,11 @@ export default function Home(){
       message?.requires_response===true||
       /high|urgent|critical/i.test(String(message?.priority??""))
     ).slice(0,5);
+    const pendingDecisions=inbox.filter((message)=>
+      message?.action_required===true||
+      message?.requires_response===true||
+      ["pending","awaiting_response","action_required"].includes(String(message?.status??"").toLowerCase())
+    ).length;
 
     const finance=gameState.finances||gameState.finance||{};
     const financeLog=Array.isArray(gameState.financeLog)?gameState.financeLog:[];
@@ -158,7 +163,7 @@ export default function Home(){
       }
     }
 
-    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,finance,monthlyNet,seasonNet,driverWages,staffWages,wageBill,sponsorRows,sponsorIncome,board,objectives,lowComponents,inbox};
+    return {team,teamId,teamName,raceDrivers,teamStandings,constructorRow,upcoming,nextRace,alerts,pendingDecisions,finance,monthlyNet,seasonNet,driverWages,staffWages,wageBill,sponsorRows,sponsorIncome,board,objectives,lowComponents,inbox};
   },[gameState,eventNews]);
 
   if(!gameState||!data){
@@ -173,6 +178,18 @@ export default function Home(){
   const seasonObjective=data.board?.expectationLabel??data.objectives[0]?.title??"No objective set";
   const currentDate=gameState.currentDateISO||"";
   const nextRaceDays=data.nextRace?daysBetweenISO(currentDate,data.nextRace.date):null;
+  const completedObjectives=data.objectives.filter((objective)=>objective?.status==="completed").length;
+  const boardObjectiveValue=data.objectives.length
+    ?`${completedObjectives}/${data.objectives.length}`
+    :"—";
+  const boardUnderPressure=Number(data.board?.confidence)<0.45;
+  const playerOutsideTopSeven=Boolean(
+    data.constructorRow&&
+    Number(data.constructorRow?.position)>7
+  );
+  const standingsRows=playerOutsideTopSeven
+    ?data.teamStandings.slice(0,6)
+    :data.teamStandings.slice(0,7);
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] p-4 md:p-6 text-slate-100 space-y-4">
     <div className="flex flex-wrap items-end gap-3">
@@ -214,26 +231,20 @@ export default function Home(){
 
       <Panel title="Decision centre" className="xl:col-span-3" action={<SmallLink to="/Inbox">Inbox ›</SmallLink>}>
         <div className="divide-y divide-white/10">
-          <DecisionRow label="Unread inbox" value={unread} warning={unread>0} to="/Inbox"/>
+          <DecisionRow label="Pending decisions" value={data.pendingDecisions} warning={data.pendingDecisions>0} to="/Inbox"/>
           <DecisionRow label="Fatigued drivers" value={data.raceDrivers.filter((d)=>d.condition.fatigue>=70).length} warning={data.raceDrivers.some((d)=>d.condition.fatigue>=70)} to="/MyDrivers"/>
           <DecisionRow label="Worn components" value={data.lowComponents.length} warning={data.lowComponents.length>0} to="/Car"/>
-          <DecisionRow label="Objectives at risk" value={data.objectives.filter((o)=>/risk|warning|fail|overdue|blocked/i.test(String(o?.status??o?.state??""))).length} warning={data.objectives.some((o)=>/risk|warning|fail|overdue|blocked/i.test(String(o?.status??o?.state??"")))} to="/Board"/>
+          <DecisionRow label="Board objectives" value={boardObjectiveValue} warning={boardUnderPressure} to="/Board"/>
         </div>
       </Panel>
 
       <Panel title="Standings" className="xl:col-span-4" action={<SmallLink to="/Standings">Full standings ›</SmallLink>}>
         <div className="divide-y divide-white/10">
-          {data.teamStandings.slice(0,7).map((row,index)=>{
-            const id=String(row.team_id??row.constructor_id??row.id??"");
-            const name=row.team_name??row.name??row.constructor_name??row.team?.team_name??row.team?.name??id;
-            const isMine=data.teamId&&id===data.teamId;
-            return <div key={id||index} className={`px-4 py-2.5 flex items-center gap-3 ${isMine?"bg-white/8":""}`}>
-              <div className="w-6 text-right text-sm font-semibold">{row.position??index+1}</div>
-              <TeamLogo teamId={id} name={name} size="h-7 w-7" className="p-0.5"/>
-              <div className="flex-1 truncate text-sm">{name}</div>
-              <div className="font-semibold">{row.points??0}</div>
-            </div>;
-          })}
+          {standingsRows.map((row,index)=><StandingRow key={String(row.team_id??row.constructor_id??row.id??index)} row={row} fallbackPosition={index+1} teamId={data.teamId}/>)}
+          {playerOutsideTopSeven?<>
+            <div className="px-4 py-1 text-center text-xs text-slate-600">•••</div>
+            <StandingRow row={data.constructorRow} fallbackPosition={data.constructorRow?.position} teamId={data.teamId}/>
+          </>:null}
           {!data.teamStandings.length?<div className="p-4 text-sm text-slate-400">No standings yet.</div>:null}
         </div>
       </Panel>
@@ -267,18 +278,24 @@ export default function Home(){
 
       <Panel title="Upcoming events" className="xl:col-span-7" action={<SmallLink to="/CalendarPage">View calendar ›</SmallLink>}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10">
-          {data.upcoming.slice(0,6).map((event)=><Link key={event.id} to={event.route||"/CalendarPage"} className="bg-[#12141c] p-3 hover:bg-[#1a1d27] transition-colors">
-            <div className="flex items-start gap-3">
-              <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${event.priority==="high"?"bg-rose-400":"bg-slate-400"}`}/>
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                  {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
-                  <span className="truncate">{event.title}</span>
+          {data.upcoming.slice(0,6).map((event)=>{
+            const eventDays=daysBetweenISO(currentDate,event.date);
+            const relative=Number.isFinite(eventDays)
+              ?(eventDays===0?"Today":eventDays===1?"Tomorrow":`In ${eventDays} days`)
+              :null;
+            return <Link key={event.id} to={event.route||"/CalendarPage"} className="bg-[#12141c] p-3 hover:bg-[#1a1d27] transition-colors">
+              <div className="flex items-start gap-3">
+                <div className={`mt-1.5 h-2.5 w-2.5 rounded-full shrink-0 ${event.priority==="high"?"bg-rose-400":"bg-slate-400"}`}/>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                    {event?.meta?.gp ? <GrandPrixFlag gameState={gameState} gp={event.meta.gp} size="sm"/> : null}
+                    <span className="truncate">{event.title}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">{event.date} · {relative?relative+" · ":""}{String(event.type).replaceAll("_"," ")}</div>
                 </div>
-                <div className="text-xs text-slate-500 mt-0.5">{event.date} · {String(event.type).replaceAll("_"," ")}</div>
               </div>
-            </div>
-          </Link>)}
+            </Link>;
+          })}
           {!data.upcoming.length?<div className="p-4 text-sm text-slate-400">Nothing scheduled.</div>:null}
         </div>
       </Panel>
@@ -287,7 +304,9 @@ export default function Home(){
         <div className="divide-y divide-white/10">
           {data.alerts.map((message,index)=><Link key={message.id??index} to="/Inbox" className="block px-4 py-3 hover:bg-white/5">
             <div className="text-sm font-medium truncate">{message.subject??message.title??message.headline??"Team message"}</div>
-            <div className="text-xs text-slate-500 mt-1">{message.category??message.type??"Inbox"}</div>
+            <div className="text-xs text-slate-500 mt-1">
+              {[message.date,message.from??message.sender??message.category??message.type??"Inbox"].filter(Boolean).join(" · ")}
+            </div>
           </Link>)}
           {!data.alerts.length?<div className="p-4 text-sm text-slate-400">No urgent alerts.</div>:null}
         </div>
@@ -300,7 +319,7 @@ function DriverCard({driver,index}){
   const name=driver.display_name||driver.name||[driver.first_name,driver.last_name].filter(Boolean).join(" ")||driver.id;
   const standing=driver.standing||{};
   const fatigue=driver.condition.fatigue;
-  return <Link to="/MyDrivers" className="rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden hover:border-white/25 transition">
+  return <Link to={`/drivers/${encodeURIComponent(driver.id)}`} className="rounded-xl border border-white/10 bg-[#12141c] text-slate-100 shadow-lg overflow-hidden hover:border-white/25 transition">
     <div className="p-4 flex items-start gap-3">
       <DriverPortrait driver={driver} size="h-20 w-20" className="ring-white/15"/>
       <div className="min-w-0 flex-1">
@@ -321,6 +340,17 @@ function DriverCard({driver,index}){
     </div>
     <div className={`px-4 py-3 text-xs font-semibold ${fatigue>=70?"text-rose-300":fatigue>=40?"text-amber-300":"text-emerald-300"}`}>{driver.fatigue.label}</div>
   </Link>;
+}
+function StandingRow({row,fallbackPosition,teamId}){
+  const id=String(row?.team_id??row?.constructor_id??row?.id??"");
+  const name=row?.team_name??row?.name??row?.constructor_name??row?.team?.team_name??row?.team?.name??id;
+  const isMine=Boolean(teamId&&id===teamId);
+  return <div className={`px-4 py-2.5 flex items-center gap-3 ${isMine?"bg-white/8 ring-1 ring-inset ring-white/10":""}`}>
+    <div className="w-6 text-right text-sm font-semibold">{row?.position??fallbackPosition??"—"}</div>
+    <TeamLogo teamId={id} name={name} size="h-7 w-7" className="p-0.5"/>
+    <div className={`flex-1 truncate text-sm ${isMine?"font-semibold text-white":"text-slate-200"}`}>{name}</div>
+    <div className="font-semibold">{row?.points??0}</div>
+  </div>;
 }
 function MiniMetric({label,value,alert=false}){
   return <div className="bg-[#171a23] px-3 py-2">
