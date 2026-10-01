@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { raceControlRulesForYear } from "../src/engine/RaceControlEngine.js";
-import { createRaceState } from "../src/race2/core/RaceState.js";
+import { createRaceState, RACE_STATE_SCHEMA_VERSION } from "../src/race2/core/RaceState.js";
 import { advanceRaceConditions } from "../src/race2/core/RaceConditions.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 
@@ -97,7 +97,7 @@ function input({
 
 test("RW8.11A initial RaceState materialises canonical weather, track and era Race Control state",()=>{
   const state=createRaceState(input());
-  assert.equal(state.schemaVersion,11);
+  assert.equal(state.schemaVersion,RACE_STATE_SCHEMA_VERSION);
   assert.equal(state.trackState.weatherState,"SUNNY");
   assert.equal(state.trackState.referenceLap,1);
   assert.equal(state.weatherState.currentLap,1);

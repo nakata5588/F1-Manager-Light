@@ -154,6 +154,9 @@ export function buildRaceClassification(state){
       lapsBehind,
       timingBasis:rowTimingBasis(car,{leader:index===0,leaderCar:leader,lapsBehind}),
       finishTimeMs:finishTime==null?null:round(finishTime,3),
+      lastLapMs:round(car?.lastLapMs,3),
+      bestLapMs:round(car?.bestLapMs,3),
+      bestLapNumber:finite(car?.bestLapNumber,null),
     };
   });
 }
@@ -168,6 +171,7 @@ export function buildRaceTimingState(state,classification=null){
     referenceSpeedMs:canonicalTimingReferenceSpeedMs(state),
     leaderCarId:leader?.carId??null,
     leaderDistanceM:leader?.absoluteDistanceM??0,
+    officialRaceTimeMs:Math.max(0,finite(state?.officialRaceTimeMs,0)),
   };
 }
 
