@@ -43,9 +43,9 @@ const series=[
     end_year:1990,
   },
   {
-    series_id:"s_regional",
-    series_name:"Formula Regional Test",
-    short_name:"FR",
+    series_id:"s_f4",
+    series_name:"Formula Four Test",
+    short_name:"F4",
     series_level:4,
     start_year:1980,
     end_year:1990,
