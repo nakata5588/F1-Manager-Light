@@ -191,7 +191,7 @@ test("RW10B canonical event presenter resolves driver and tyre facts without wri
   const source={
     type:"pit_service_completed",
     driverIds:["D1"],
-    payload:{tyreTo:"gy_s",refuelled:false},
+    payload:{tyreTo:"gy_s",tyreChanged:true,refuelled:false},
   };
   const presented=presentCanonicalRaceEvent(source,context);
 
