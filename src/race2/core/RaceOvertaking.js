@@ -508,6 +508,10 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
           result:"lost",
           cooldownUntilMs:nextTime+500,
         });
+        // The pass is already physically decisive, but the cars are still
+        // clearing each other laterally. Keep this pair out of longitudinal
+        // hard-spacing until the normal yielding phase restores the full gap.
+        bypassPairs.add(pairKey);
       }
       cars=setCar(setCar(cars,attacker),defender);
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
