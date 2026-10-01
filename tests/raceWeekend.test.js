@@ -776,6 +776,8 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
   const retiredDriverId=ordered.at(-1);
   const finisherIds=ordered.slice(0,-1);
   const finishTimes=new Map(finisherIds.map((did,index)=>[did,5_000_000+index*2_500]));
+  const bestLaps=new Map(finisherIds.map((did,index)=>[did,90_000-index*1_000]));
+  const fastestDriverId=finisherIds.at(-1);
   const leaderTime=finishTimes.get(finisherIds[0]);
   const totalLaps=Math.max(1,Number(state.session?.lapLimit)||76);
   const distance=Math.max(1,Number(state.track?.lengthM)||3340)*totalLaps;
@@ -804,6 +806,9 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
       absoluteDistanceM:distance,
       distanceAlongLapM:0,
       finishTimeMs:finishTimes.get(did),
+      lastLapMs:(bestLaps.get(did)??90_000)+500,
+      bestLapMs:bestLaps.get(did),
+      bestLapNumber:20+finisherIds.indexOf(did),
     };
   });
   state.classification=ordered.map((did,index)=>{
@@ -852,6 +857,14 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
   const timedDriverId=finisherIds[1]??finisherIds[0];
   const timedRow=next.results[0].classification.find((row)=>row.driver_id===timedDriverId);
   assert.equal(timedRow.total_time_ms,finishTimes.get(timedDriverId));
+
+  const fastestRow=next.results[0].classification.find((row)=>row.driver_id===fastestDriverId);
+  assert.ok(fastestRow);
+  assert.equal(fastestRow.best_lap_ms,bestLaps.get(fastestDriverId));
+  assert.equal(fastestRow.fastest_lap,true);
+  for(const row of next.results[0].classification.filter((row)=>row.driver_id!==fastestDriverId)){
+    assert.equal(Boolean(row.fastest_lap),false);
+  }
 });
 
 
