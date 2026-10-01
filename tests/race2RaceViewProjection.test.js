@@ -490,3 +490,55 @@ test("RW10E presenter reports canonical pit repairs and cancelled commands witho
   assert.equal(cancelled.text,"Mario Andretti: pit cancelled");
   assert.equal(cancelled.iconKey,"command");
 });
+
+
+test("RW10F projects canonical Red Flag restart information without sharing nested RaceState references",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  state={
+    ...state,
+    raceControlState:{
+      ...(state.raceControlState||{}),
+      mode:"RED_FLAG",
+      source:"weather",
+      redFlagLifecycle:{
+        phase:"suspended",
+        triggered_lap:3,
+        triggered_sector:2,
+        holding_area:"starting_grid",
+        restart_grid_source:"suspension_order",
+        restart_grid:[
+          {driver_id:"D1",team_id:"T1",restart_position:1},
+          {driver_id:"D2",team_id:"T2",restart_position:2},
+        ],
+        restart_monitor:{
+          status:"waiting_for_improvement",
+          check_count:1,
+          safe_streak:0,
+          required_safe_checks:2,
+          restart_authorized:false,
+        },
+        work_policy:{
+          id:"historic_restart_service",
+          label:"Historic restart service",
+          tyre_change:true,
+        },
+      },
+    },
+  };
+
+  const view=projectRaceStateToRaceView(state);
+  const lifecycle=view.race_control_state.redFlagLifecycle;
+
+  assert.equal(view.current_control,"RED_FLAG");
+  assert.equal(lifecycle.phase,"suspended");
+  assert.equal(lifecycle.restart_grid[0].driver_id,"D1");
+  assert.equal(lifecycle.restart_monitor.required_safe_checks,2);
+
+  lifecycle.restart_grid[0].restart_position=99;
+  lifecycle.restart_monitor.safe_streak=99;
+  lifecycle.work_policy.label="mutated";
+
+  assert.equal(state.raceControlState.redFlagLifecycle.restart_grid[0].restart_position,1);
+  assert.equal(state.raceControlState.redFlagLifecycle.restart_monitor.safe_streak,0);
+  assert.equal(state.raceControlState.redFlagLifecycle.work_policy.label,"Historic restart service");
+});
