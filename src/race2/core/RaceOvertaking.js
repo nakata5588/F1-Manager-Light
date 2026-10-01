@@ -17,6 +17,7 @@ import {
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.4;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
+export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
 export const RACE_BATTLE_DURATION_MS=3500;
 export const RACE_BATTLE_MAX_DURATION_MS=12000;
 export const RACE_BATTLE_EXTENSION_MS=1800;
@@ -388,8 +389,12 @@ function resolveYieldingBattles(state,proposedCars){
 
     const attackerClearance=physicalClearanceM(state,attacker,defender);
     const defenderClearance=-attackerClearance;
+    const completedPass=previousAttacker?.battle?.result==="completed";
+    const restoredGap=completedPass
+      ?attackerClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9
+      :defenderClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9;
 
-    if(defenderClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
+    if(restoredGap){
       attacker=clearBattle(attacker,{
         result:previousAttacker?.battle?.result,
         cooldownUntilMs:previousAttacker?.battle?.cooldownUntilMs,
@@ -483,14 +488,32 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
 
     const clearance=physicalClearanceM(state,attacker,defender);
 
-    if(clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
-      attacker=clearBattle(attacker,{result:"completed",cooldownUntilMs:nextTime+500});
-      defender=clearBattle(defender,{result:"lost",cooldownUntilMs:nextTime+500});
+    if(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M-1e-9){
+      const fullyClear=clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9;
+      if(fullyClear){
+        attacker=clearBattle(attacker,{result:"completed",cooldownUntilMs:nextTime+500});
+        defender=clearBattle(defender,{result:"lost",cooldownUntilMs:nextTime+500});
+      }else{
+        attacker=withYieldingBattle(attacker,{
+          opponentCarId:defender?.carId,
+          role:"attacker",
+          side:Number(previousBattle?.side)||1,
+          result:"completed",
+          cooldownUntilMs:nextTime+500,
+        });
+        defender=withYieldingBattle(defender,{
+          opponentCarId:attacker?.carId,
+          role:"defender",
+          side:-(Number(previousBattle?.side)||1),
+          result:"lost",
+          cooldownUntilMs:nextTime+500,
+        });
+      }
       cars=setCar(setCar(cars,attacker),defender);
-      bypassPairs.add(pairKey);
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
         attemptId,
         clearanceM:round(clearance,6),
+        fullyClear,
       }));
       continue;
     }
