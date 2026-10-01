@@ -101,24 +101,19 @@ function controlTone(control){
   return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200";
 }
 
-function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,playbackRunning,onSelect,scale=1}){
+function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,scale=1}){
   const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
   if(!pose)return null;
   const length=14*scale;
   const width=7*scale;
-  const transform=`translate(${pose.x}px, ${pose.y}px) rotate(${pose.heading}deg)`;
   return <g
     role="button"
     tabIndex="0"
     aria-label={label}
+    transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
     onClick={onSelect}
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
-    style={{
-      transform,
-      transformOrigin:"0 0",
-      transition:playbackRunning?"transform 90ms linear":"none",
-      cursor:"pointer",
-    }}
+    style={{cursor:"pointer"}}
   >
     <title>{label}</title>
     {selected?<circle cx="0" cy="0" r={12*scale} fill="none" stroke="#fff" strokeWidth={1.7*scale} opacity=".9"/>:null}
