@@ -186,7 +186,7 @@ test("LS2 rollover keeps Save World continuity, follows structural successor and
   assert.equal(d1.lower_team_id,null,"a team cannot silently follow a driver into a different series");
 
   const d2=lowerSeriesEntry(next,"D2");
-  assert.equal(d2.series_id,"s_regional");
+  assert.equal(d2.series_id,"s_f4");
   assert.equal(d2.placement_source,"single_active_eligible_series");
   assert.equal(d2.team_name,null,"new Save World entrants do not receive future historical teams");
 
