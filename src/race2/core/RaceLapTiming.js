@@ -43,14 +43,25 @@ export function canonicalOfficialRaceTimeMs(state){
   ));
 }
 
-function timingSeed(car){
+function timingSeed(car,officialStartMs){
   const lapTimes=Array.isArray(car?.lapTimes)?car.lapTimes.map((row)=>({...row})):[];
+  const explicitStart=finite(car?.lapStartedAtMs,null);
+  const migratedPartialLap=(
+    car?.lapTimingBaselineValid===false||
+    (
+      car?.lapTimingBaselineValid==null&&
+      explicitStart==null&&
+      lapTimes.length===0&&
+      officialStartMs>0
+    )
+  );
   return {
     lapTimes,
-    lapStartedAtMs:Math.max(0,finite(
-      car?.lapStartedAtMs,
-      finite(lapTimes.at(-1)?.completedAtMs,0)
-    )),
+    lapStartedAtMs:Math.max(0,migratedPartialLap
+      ?officialStartMs
+      :finite(explicitStart,finite(lapTimes.at(-1)?.completedAtMs,0))
+    ),
+    lapTimingBaselineValid:!migratedPartialLap,
     lastLapMs:finite(car?.lastLapMs,null),
     bestLapMs:finite(car?.bestLapMs,null),
     bestLapNumber:finite(car?.bestLapNumber,null),
@@ -178,13 +189,15 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
 
   return cars.map((next)=>{
     const previous=previousById.get(String(next?.carId??""))??next;
-    const seed=timingSeed(previous);
+    const seed=timingSeed(previous,officialStartMs);
     let {
       lapTimes,
       lapStartedAtMs,
+      lapTimingBaselineValid,
       lastLapMs,
       bestLapMs,
       bestLapNumber,
+      lapTimingBaselineValid,
     }=seed;
     let finishTimeMs=finite(previous?.finishTimeMs,null);
 
@@ -194,6 +207,14 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
     for(const crossing of crossings){
       if(lapTimes.some((row)=>Number(row?.lap)===crossing.lapNumber))continue;
       const completedAtMs=round(officialStartMs+crossing.resolvedOffsetMs,3);
+      if(!lapTimingBaselineValid){
+        lapStartedAtMs=completedAtMs;
+        lapTimingBaselineValid=true;
+        if(crossing.lapNumber===lapLimit&&String(next?.status||"")==="finished"){
+          finishTimeMs=completedAtMs;
+        }
+        continue;
+      }
       const lapTimeMs=round(completedAtMs-lapStartedAtMs,3);
       if(lapTimeMs==null||lapTimeMs<=0)continue;
       lapTimes=[...lapTimes,{lap:crossing.lapNumber,timeMs:lapTimeMs,completedAtMs}];
