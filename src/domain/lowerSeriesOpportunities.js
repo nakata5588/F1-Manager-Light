@@ -6,6 +6,7 @@
 // that the existing AI market can use when filling F1 roles.
 
 import { lowerSeriesF1Interest, lowerSeriesProspect } from "./lowerSeriesProspects.js";
+import { canonicalFeederLevel } from "./seriesCatalog.js";
 
 export const LOWER_SERIES_OPPORTUNITY_MODEL="lower_series_f1_opportunity_v1";
 
@@ -60,8 +61,7 @@ const STATUS_SCORE_DELTA=Object.freeze({
 const SERIES_LEVEL_DELTA=Object.freeze({
   2:6,
   3:3,
-  4:0,
-  5:-3,
+  4:-3,
 });
 
 function championshipBonus(world,prospect){
@@ -98,7 +98,7 @@ export function lowerSeriesF1Opportunity(gameState,driverOrId,teamId,role){
   const reputation=clamp(num(prospect?.prospect_reputation,0),0,100);
   const performanceScore=clamp(num(prospect?.performance?.score,0),0,100);
   const interestScore=clamp(num(interest?.score,0),0,100);
-  const level=clamp(num(prospect?.series_level,5),2,5);
+  const level=clamp(canonicalFeederLevel(prospect?.series_level)??4,2,4);
   const status=text(interest?.status)||"none";
   const academy=status==="academy_priority";
   const linked=rows(interest?.connection_sources).length>0;
