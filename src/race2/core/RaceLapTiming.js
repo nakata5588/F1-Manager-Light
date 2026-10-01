@@ -63,6 +63,8 @@ function timingSeed(car,officialStartMs){
     ),
     lapTimingBaselineValid:!migratedPartialLap,
     lastLapMs:finite(car?.lastLapMs,null),
+    previousLapMs:finite(car?.previousLapMs,null),
+    lastLapDeltaMs:finite(car?.lastLapDeltaMs,null),
     bestLapMs:finite(car?.bestLapMs,null),
     bestLapNumber:finite(car?.bestLapNumber,null),
   };
@@ -173,6 +175,98 @@ function orderCandidates(candidates,stepMs){
   return resolved;
 }
 
+
+function sectorTimingSeed(car,officialStartMs){
+  const sectorTimes=Array.isArray(car?.sectorTimes)?car.sectorTimes.map((row)=>({...row})):[];
+  const explicitStart=finite(car?.sectorStartedAtMs,null);
+  const migratedPartialSector=(
+    car?.sectorTimingBaselineValid===false||
+    (
+      car?.sectorTimingBaselineValid==null&&
+      explicitStart==null&&
+      sectorTimes.length===0&&
+      officialStartMs>0
+    )
+  );
+  return {
+    sectorTimes,
+    sectorStartedAtMs:Math.max(0,migratedPartialSector
+      ?officialStartMs
+      :finite(explicitStart,finite(sectorTimes.at(-1)?.completedAtMs,0))
+    ),
+    sectorTimingBaselineValid:!migratedPartialSector,
+    sector1Ms:finite(car?.sector1Ms,null),
+    sector2Ms:finite(car?.sector2Ms,null),
+    sector3Ms:finite(car?.sector3Ms,null),
+  };
+}
+
+function sectorBoundaries(state){
+  const lengthM=Math.max(0,finite(state?.track?.lengthM,0));
+  if(lengthM<=0)return [];
+  const rows=(Array.isArray(state?.track?.sectors)?state.track.sectors:[])
+    .slice()
+    .sort((a,b)=>finite(a?.sector,0)-finite(b?.sector,0));
+  const first=clamp(finite(rows.find((row)=>Number(row?.sector)===1)?.endM,lengthM/3),0,lengthM);
+  const second=clamp(finite(rows.find((row)=>Number(row?.sector)===2)?.endM,lengthM*2/3),first,lengthM);
+  return [
+    {sector:1,endM:first},
+    {sector:2,endM:second},
+    {sector:3,endM:lengthM},
+  ];
+}
+
+function sectorCrossingCandidates(state,nextCars,{stepMs=100,lapCandidates=[]}={}){
+  const lengthM=Math.max(0,finite(state?.track?.lengthM,0));
+  if(lengthM<=0)return [];
+  const lapLimit=Math.max(1,Math.round(finite(state?.session?.lapLimit,state?.track?.laps??1)));
+  const boundaries=sectorBoundaries(state);
+  const previousById=new Map((state?.cars||[]).map((car)=>[String(car?.carId??""),car]));
+  const resolvedLapOffsets=new Map(
+    (lapCandidates||[]).map((candidate)=>[
+      `${String(candidate?.carId??"")}:${Number(candidate?.lapNumber)||0}`,
+      finite(candidate?.resolvedOffsetMs,candidate?.rawOffsetMs),
+    ])
+  );
+  const candidates=[];
+
+  for(const next of nextCars||[]){
+    const carId=String(next?.carId??"");
+    const previous=previousById.get(carId);
+    if(!previous)continue;
+    const from=finite(previous?.absoluteDistanceM,0);
+    const to=finite(next?.absoluteDistanceM,from);
+    if(to<=from+1e-9)continue;
+
+    const firstLapIndex=Math.max(0,Math.floor(Math.max(0,from)/lengthM));
+    const lastLapIndex=Math.max(firstLapIndex,Math.floor(Math.max(0,to)/lengthM));
+    for(let lapIndex=firstLapIndex;lapIndex<=lastLapIndex;lapIndex+=1){
+      const lapNumber=lapIndex+1;
+      if(lapNumber>lapLimit)break;
+      for(const boundary of boundaries){
+        const boundaryDistance=boundary.sector===3
+          ?(lapIndex+1)*lengthM
+          :lapIndex*lengthM+boundary.endM;
+        if(boundaryDistance<=from+1e-9||boundaryDistance>to+1e-9)continue;
+        const rawOffsetMs=rawCrossingOffsetMs(from,to,boundaryDistance,stepMs);
+        if(rawOffsetMs==null)continue;
+        const resolvedOffsetMs=boundary.sector===3
+          ?finite(resolvedLapOffsets.get(`${carId}:${lapNumber}`),rawOffsetMs)
+          :rawOffsetMs;
+        candidates.push({
+          carId,
+          lapNumber,
+          sector:boundary.sector,
+          boundaryDistance,
+          rawOffsetMs,
+          resolvedOffsetMs,
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
 export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
   const cars=Array.isArray(nextCars)?nextCars:[];
   const previousById=new Map((state?.cars||[]).map((car)=>[String(car?.carId??""),car]));
@@ -180,11 +274,17 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
   const officialStepEndMs=officialStartMs+Math.max(0,finite(stepMs,0));
   const lapLimit=Math.max(1,Math.round(finite(state?.session?.lapLimit,state?.track?.laps??1)));
   const candidates=orderCandidates(crossingCandidates(state,cars,{stepMs}),stepMs);
+  const sectorCandidates=sectorCrossingCandidates(state,cars,{stepMs,lapCandidates:candidates});
   const crossingsByCar=new Map();
+  const sectorCrossingsByCar=new Map();
 
   for(const candidate of candidates){
     if(!crossingsByCar.has(candidate.carId))crossingsByCar.set(candidate.carId,[]);
     crossingsByCar.get(candidate.carId).push(candidate);
+  }
+  for(const candidate of sectorCandidates){
+    if(!sectorCrossingsByCar.has(candidate.carId))sectorCrossingsByCar.set(candidate.carId,[]);
+    sectorCrossingsByCar.get(candidate.carId).push(candidate);
   }
 
   return cars.map((next)=>{
@@ -195,10 +295,58 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       lapStartedAtMs,
       lapTimingBaselineValid,
       lastLapMs,
+      previousLapMs,
+      lastLapDeltaMs,
       bestLapMs,
       bestLapNumber,
     }=seed;
+    let {
+      sectorTimes,
+      sectorStartedAtMs,
+      sectorTimingBaselineValid,
+      sector1Ms,
+      sector2Ms,
+      sector3Ms,
+    }=sectorTimingSeed(previous,officialStartMs);
     let finishTimeMs=finite(previous?.finishTimeMs,null);
+
+    const sectorCrossings=(sectorCrossingsByCar.get(String(next?.carId??""))||[])
+      .sort((a,b)=>
+        finite(a?.resolvedOffsetMs,a?.rawOffsetMs)-finite(b?.resolvedOffsetMs,b?.rawOffsetMs)||
+        a.sector-b.sector
+      );
+    for(const crossing of sectorCrossings){
+      if(sectorTimes.some((row)=>
+        Number(row?.lap)===crossing.lapNumber&&Number(row?.sector)===crossing.sector
+      ))continue;
+      const completedAtMs=round(
+        officialStartMs+finite(crossing?.resolvedOffsetMs,crossing?.rawOffsetMs),
+        3
+      );
+      if(!sectorTimingBaselineValid){
+        sectorStartedAtMs=completedAtMs;
+        sectorTimingBaselineValid=true;
+        continue;
+      }
+      const sectorTimeMs=round(completedAtMs-sectorStartedAtMs,3);
+      if(sectorTimeMs==null||sectorTimeMs<=0)continue;
+      sectorTimes=[...sectorTimes,{
+        lap:crossing.lapNumber,
+        sector:crossing.sector,
+        timeMs:sectorTimeMs,
+        completedAtMs,
+      }];
+      if(crossing.sector===1){
+        sector1Ms=sectorTimeMs;
+        sector2Ms=null;
+        sector3Ms=null;
+      }else if(crossing.sector===2){
+        sector2Ms=sectorTimeMs;
+      }else{
+        sector3Ms=sectorTimeMs;
+      }
+      sectorStartedAtMs=completedAtMs;
+    }
 
     const crossings=(crossingsByCar.get(String(next?.carId??""))||[])
       .sort((a,b)=>a.lapNumber-b.lapNumber);
@@ -217,7 +365,9 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       const lapTimeMs=round(completedAtMs-lapStartedAtMs,3);
       if(lapTimeMs==null||lapTimeMs<=0)continue;
       lapTimes=[...lapTimes,{lap:crossing.lapNumber,timeMs:lapTimeMs,completedAtMs}];
+      previousLapMs=lastLapMs;
       lastLapMs=lapTimeMs;
+      lastLapDeltaMs=previousLapMs==null?null:round(lastLapMs-previousLapMs,3);
       if(bestLapMs==null||lapTimeMs<bestLapMs-1e-6){
         bestLapMs=lapTimeMs;
         bestLapNumber=crossing.lapNumber;
@@ -242,9 +392,17 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       lapStartedAtMs,
       lapTimingBaselineValid,
       lastLapMs,
+      previousLapMs,
+      lastLapDeltaMs,
       bestLapMs,
       bestLapNumber,
       lapTimes,
+      sectorStartedAtMs,
+      sectorTimingBaselineValid,
+      sector1Ms,
+      sector2Ms,
+      sector3Ms,
+      sectorTimes,
     };
   });
 }
