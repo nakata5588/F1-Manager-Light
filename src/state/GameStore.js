@@ -2029,6 +2029,27 @@ export const useGame = create((set, get) => ({
     return mod.raceWeekendCanonicalView(next);
   },
 
+  autosimRaceWeekendRace: async () => {
+    const beforeImport=get().gameState;
+    if(!beforeImport?.raceWeekendState)return null;
+
+    const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+
+    // As with live elapsed dispatch, re-read after the async module boundary so
+    // Autosim can never overwrite a newer canonical race snapshot.
+    const gs=get().gameState;
+    const weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
+
+    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const next=mod.autosimRaceWeekendToEnd(gs,{gp});
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
+    return mod.raceWeekendCanonicalView(next);
+  },
+
   advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
     const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
     let gs=get().gameState;
