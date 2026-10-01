@@ -148,7 +148,7 @@ function collapseAiMarketContractNews(gs,today){
     body,
     market_digest:true,
     market_events:unique,
-    actions:[{label:"Open Driver Market",route:"/Drivers"}],
+    actions:[{label:"Open Driver Market",route:"/DriverMarket"}],
   };
   return {...gs,inbox:[digest,...remaining]};
 }
@@ -466,7 +466,7 @@ export function startDriverNegotiation(gs,{
           :("A "+years+"-year offer worth $"+salary.toLocaleString("en-US")+" per season has been submitted for the "+role+" role. A response is expected within "+responseDays+" day(s).")),
       driver_id:did,
       negotiation_id:id,
-      actions:[{label:"View negotiations",route:renewal?"/MyDrivers":"/Drivers"}],
+      actions:[{label:"View negotiations",route:renewal?"/MyDrivers":"/DriverMarket"}],
     });
   }
 
@@ -549,7 +549,7 @@ export function startTransferApproach(gs,{
     body:"An offer of $"+fee.toLocaleString("en-US")+" has been sent to "+approach.seller_team_name+" for permission to negotiate with "+approach.driver_name+".",
     driver_id:did,
     transfer_approach_id:id,
-    actions:[{label:"View transfer talks",route:"/Drivers"}],
+    actions:[{label:"View transfer talks",route:"/DriverMarket"}],
   }:null;
   return {
     ...gs,
@@ -656,7 +656,7 @@ export function processTransferApproaches(gs,{forceOutcomeById={}}={}){
         body:approach.seller_team_name+" will allow talks with "+approach.driver_name+" for $"+counterFee.toLocaleString("en-US")+".",
         driver_id:approach.driver_id,
         transfer_approach_id:approach.id,
-        actions:[{label:"Review transfer talks",route:"/Drivers"}],
+        actions:[{label:"Review transfer talks",route:"/DriverMarket"}],
       }:null;
       next={
         ...next,
@@ -1032,7 +1032,7 @@ function counterOffer(gs,negotiation){
     body:negotiation.driver_name+"'s representatives are willing to continue talks, but want $"+counterSalary.toLocaleString("en-US")+" per season for "+counterYears+" year(s) as "+negotiation.offer.role+".",
     driver_id:negotiation.driver_id,
     negotiation_id:negotiation.id,
-    actions:[{label:"Review counter-offer",route:negotiation?.kind==="renewal"?"/MyDrivers":"/Drivers"}],
+    actions:[{label:"Review counter-offer",route:negotiation?.kind==="renewal"?"/MyDrivers":"/DriverMarket"}],
   };
   return {
     ...gs,
