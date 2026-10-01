@@ -118,6 +118,16 @@ export function isRaceWeekendActive(gs){
   return Boolean(phase)&&phase!=="completed";
 }
 
+export const GAMEPLAY_RACE_WEEKEND_ENGINE_VERSION=RACE_WEEKEND_ENGINES.RW2;
+
+export function createGameplayRaceWeekendState(gs,{roundIndex,gp}={}){
+  return createRaceWeekendState(gs,{
+    roundIndex,
+    gp,
+    engineVersion:GAMEPLAY_RACE_WEEKEND_ENGINE_VERSION,
+  });
+}
+
 export function createRaceWeekendState(gs,{roundIndex,gp,engineVersion=null}={}){
   if(!gs||!gp)return gs;
   const id=gpId(gp,roundIndex);
