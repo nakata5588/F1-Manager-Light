@@ -151,6 +151,31 @@ function staffIdOrNull(value) {
   return id || null;
 }
 
+const STAFF_RATING_FIELDS = Object.freeze([
+  "reputation",
+  "leadership",
+  "technical",
+  "strategy",
+  "motivation",
+  "communication",
+  "pitstop_management",
+  "reliability_focus",
+  "data_analysis",
+  "innovation",
+  "budget_management",
+  "driver_development",
+  "conflict_management",
+  "negotiation",
+]);
+
+function staffRatingHasSignal(row) {
+  return STAFF_RATING_FIELDS.some((key) => {
+    const raw = unwrapExcelFormulaResult(row?.[key]);
+    if (raw == null || raw === "") return false;
+    return Number.isFinite(Number(raw));
+  });
+}
+
 function rowToObjExpanded(row, headers, cfg) {
   const obj = {};
   headers.forEach((h, idx) => {
@@ -265,6 +290,14 @@ const SHEET_CONFIG = {
       year: ["year"],
       staff_id: ["staff_id","id"],
       staff_name: ["staff_name","name","display_name"],
+    },
+    post(row) {
+      return {
+        ...row,
+        year: normalizeYear(row.year),
+        staff_id: staffIdOrNull(row.staff_id),
+        staff_name: row.staff_name == null ? null : String(row.staff_name).trim(),
+      };
     }
   },
 
@@ -848,7 +881,7 @@ function uniqueStaffIdentityByName(rows) {
   return index;
 }
 
-function resolveStaffContractIds(rows, staffCoreRows) {
+function resolveStaffIds(rows, staffCoreRows, sourceLabel) {
   const byName = uniqueStaffIdentityByName(staffCoreRows);
   let resolved = 0;
   let unresolved = 0;
@@ -864,8 +897,8 @@ function resolveStaffContractIds(rows, staffCoreRows) {
     unresolved += 1;
     return { ...row, staff_id: null };
   });
-  if (resolved) console.log(`[convert-excel] Resolved ${resolved} staff_contracts staff_id values from exact staff_core name matches.`);
-  if (unresolved) console.warn(`[convert-excel] staff_contracts still has ${unresolved} rows without a resolvable staff_id.`);
+  if (resolved) console.log(`[convert-excel] Resolved ${resolved} ${sourceLabel} staff_id values from exact staff_core name matches.`);
+  if (unresolved) console.warn(`[convert-excel] ${sourceLabel} still has ${unresolved} rows without a resolvable staff_id.`);
   return next;
 }
 
@@ -918,8 +951,14 @@ async function main() {
     }
 
     let rows = await processSheet(ws, cfg);
-    if (sheetName === "staff_contracts") {
-      rows = resolveStaffContractIds(rows, processedBySheet.get("staff_core") || []);
+    if (sheetName === "staff_contracts" || sheetName === "staff_ratings") {
+      rows = resolveStaffIds(rows, processedBySheet.get("staff_core") || [], sheetName);
+    }
+    if (sheetName === "staff_ratings") {
+      const before = rows.length;
+      rows = rows.filter(staffRatingHasSignal);
+      const dropped = before - rows.length;
+      if (dropped) console.warn(`[convert-excel] Dropped ${dropped} staff_ratings placeholder rows with no rating data.`);
     }
 
     // Canonicalise exact historical aliases before any downstream builders

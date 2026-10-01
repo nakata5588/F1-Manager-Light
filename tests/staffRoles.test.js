@@ -15,6 +15,7 @@ import { forecastAccuracyForTeam } from "../src/engine/WeekendWeatherEngine.js";
 import { seedTechnicalKnowledge } from "../src/domain/technicalKnowledge.js";
 import {
   STAFF_ROLE_WEIGHTS,
+  staffRatingForYear,
   staffRoleRating,
   staffStrategyDecisionDelta,
   teamStaffCapability,
@@ -178,6 +179,41 @@ test("D6.3D resolved staff identity feeds existing engineering, weather and know
   assert.ok(knowledge.opening_context.staff_quality>80);
 });
 
+
+test("S2.0A3 treats null Staff rating cells as unknown rather than zero",()=>{
+  const role=staffRoleRating({
+    technical:null,
+    innovation:null,
+    data_analysis:null,
+    reliability_focus:null,
+    communication:null,
+    budget_management:null,
+    leadership:null,
+  },"technical_director");
+  assert.equal(role.score,50);
+});
+
+test("S2.0A3 ignores blank exact-year placeholders and falls back to the latest usable rating",()=>{
+  const gs={
+    activeYear:2004,
+    staffRatings:[
+      {year:1980,staff_id:"S1",technical:82,innovation:78,data_analysis:76,reliability_focus:80,communication:74,budget_management:70,leadership:72},
+      {year:2004,staff_id:"S1",technical:null,innovation:null,data_analysis:null,reliability_focus:null,communication:null,budget_management:null,leadership:null},
+    ],
+  };
+  assert.equal(staffRatingForYear(gs,"S1").year,1980);
+  assert.ok(staffRoleRating(staffRatingForYear(gs,"S1"),"technical_director").score>70);
+});
+
+test("S2.0A3 resolves formula-backed Staff rating IDs in legacy saves",()=>{
+  const gs={
+    activeYear:2004,
+    staffRatings:[
+      {year:2004,staff_id:{formula:"legacy",result:"S1"},technical:88,innovation:84,data_analysis:82,reliability_focus:80,communication:78,budget_management:70,leadership:72},
+    ],
+  };
+  assert.equal(staffRatingForYear(gs,"S1").technical,88);
+});
 
 test("Staff Overall is role-specific and every role weight totals 100",()=>{
   for(const weights of Object.values(STAFF_ROLE_WEIGHTS)){

@@ -16,9 +16,32 @@ import {
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,Number(value)||0));
 const round=(value,digits=1)=>Number(Number(value||0).toFixed(digits));
 const num=(value,fallback=50)=>{
+  if(value==null||value==="")return fallback;
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
+
+function unboxRatingValue(value){
+  let current=value;
+  const seen=new Set();
+  while(current&&typeof current==="object"&&Object.prototype.hasOwnProperty.call(current,"result")){
+    if(seen.has(current))break;
+    seen.add(current);
+    current=current.result;
+  }
+  return current;
+}
+
+function staffRatingId(row){
+  return String(unboxRatingValue(row?.staff_id??row?.person_id??row?.id)??"");
+}
+
+export function staffRatingHasSignal(row){
+  return [...STAFF_SKILL_ATTRIBUTES,...STAFF_MARKET_ATTRIBUTES].some((key)=>{
+    const value=unboxRatingValue(row?.[key]);
+    return value!=null&&value!==""&&Number.isFinite(Number(value));
+  });
+}
 
 export const STAFF_SKILL_ATTRIBUTES=Object.freeze([
   "leadership",
@@ -215,14 +238,16 @@ function ratingRows(gs){
 
 export function staffRatingForYear(gs,staffId,year=Number(gs?.activeYear)){
   const id=String(staffId??"");
-  const rows=ratingRows(gs).filter((row)=>String(row?.staff_id??row?.person_id??row?.id??"")===id);
+  const rows=ratingRows(gs)
+    .filter((row)=>staffRatingId(row)===id)
+    .filter(staffRatingHasSignal);
   if(!rows.length)return {};
   const exact=rows.find((row)=>Number(row?.year??row?.season_year)===Number(year));
   if(exact)return exact;
   const historical=rows
     .filter((row)=>Number(row?.year??row?.season_year??-Infinity)<=Number(year))
     .sort((a,b)=>Number(b?.year??b?.season_year??0)-Number(a?.year??a?.season_year??0));
-  return historical[0]||rows[0]||{};
+  return historical[0]||{};
 }
 
 function weightedScore(rating,weights){
