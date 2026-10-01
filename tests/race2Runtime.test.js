@@ -4,8 +4,11 @@ import {
   advanceCanonicalRaceRuntime,
   advanceCanonicalRaceWeekendElapsed,
   canonicalRaceView,
+  canonicalRaceRuntimeNeedsCheckpoint,
   canonicalRaceWeekendView,
+  cancelCanonicalRaceWeekendCommand,
   ensureCanonicalRaceRuntime,
+  queueCanonicalRaceWeekendCommand,
   restoreCanonicalRaceRunner,
 } from "../src/race2/runtime/RaceRuntime.js";
 import { RACE_VIEW_PROJECTION_SOURCE } from "../src/race2/adapters/RaceViewProjection.js";
@@ -132,4 +135,31 @@ test("RW8.14D elapsed dispatch cannot mutate Legacy or pre-race weekends",()=>{
   assert.equal(canonicalRaceWeekendView(legacy),null);
   const preRace=gameState({engine:"rw2",phase:"grid_ready"});
   assert.equal(advanceCanonicalRaceWeekendElapsed(preRace,{elapsedMs:1000}),preRace);
+});
+
+
+test("RW8.14J canonical command boundary queues and cancels RaceRunner commands",()=>{
+  const gs=gameState({runtimeSnapshot:runtime()});
+  const queued=queueCanonicalRaceWeekendCommand(gs,{
+    command:{type:"pace",driverId:"D1",paceMode:"attack"},
+  });
+  const queue=queued.raceWeekendState.canonical_race_runtime.state.commandQueue;
+  assert.equal(queue.length,1);
+  assert.equal(queue[0].driverId,"D1");
+  assert.equal(queue[0].type,"pace");
+  assert.equal(queue[0].paceMode,"attack");
+
+  const cancelled=cancelCanonicalRaceWeekendCommand(queued,{criteria:{driverId:"D1"}});
+  assert.equal(cancelled.raceWeekendState.canonical_race_runtime.state.commandQueue.length,0);
+});
+
+test("RW8.14J canonical checkpoint cadence follows simulation time instead of browser frames",()=>{
+  const initial=runtime();
+  const beforeBoundary=advanceCanonicalRaceRuntime(initial,4900);
+  const acrossBoundary=advanceCanonicalRaceRuntime(beforeBoundary,200);
+  const sameBucket=advanceCanonicalRaceRuntime(acrossBoundary,100);
+
+  assert.equal(canonicalRaceRuntimeNeedsCheckpoint(initial,beforeBoundary),false);
+  assert.equal(canonicalRaceRuntimeNeedsCheckpoint(beforeBoundary,acrossBoundary),true);
+  assert.equal(canonicalRaceRuntimeNeedsCheckpoint(acrossBoundary,sameBucket),false);
 });
