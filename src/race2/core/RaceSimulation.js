@@ -18,6 +18,7 @@ import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js"
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
+import { planCanonicalPitStrategies } from "./RacePitStrategy.js";
 import { applyDueRaceCommands } from "./RaceCommands.js";
 import { resolveRaceIncidents } from "./RaceIncidents.js";
 import { advanceRaceConditions, trackStateFromWeatherRow } from "./RaceConditions.js";
@@ -268,9 +269,10 @@ export function stepRaceState(state){
   }
 
   const commands=applyDueRaceCommands(state);
+  const strategyCars=planCanonicalPitStrategies(state,commands.cars);
   const workingState={
     ...state,
-    cars:commands.cars,
+    cars:strategyCars,
     commandQueue:commands.commandQueue,
   };
   const proposedCars=(workingState.cars||[]).map((car)=>advanceCar(workingState,car,stepMs));

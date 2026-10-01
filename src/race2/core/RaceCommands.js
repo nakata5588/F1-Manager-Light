@@ -7,6 +7,7 @@
 
 import { RACE_COMMAND_TYPES } from "../contracts/raceContracts.js";
 import { RACE_PACE_MODES } from "../../domain/raceTyreModel.js";
+import { nextReachablePitLap } from "./RacePitStrategy.js";
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -138,21 +139,6 @@ export function cancelRaceCommand(state,{id=null,driverId=null,type=null}={}){
   });
   if(next.length===queue.length)return state;
   return {...state,commandQueue:next.map((row)=>({...row}))};
-}
-
-function nextReachablePitLap(state,car){
-  const length=Math.max(1,finite(state?.track?.lengthM,1));
-  const absolute=finite(car?.absoluteDistanceM,0);
-  const currentLap=Math.max(1,Math.floor(Math.max(0,absolute)/length)+1);
-  const entry=finite(state?.track?.pitLane?.entryM,null);
-  const currentEntry=entry==null
-    ?currentLap*length
-    :(currentLap-1)*length+entry;
-  const target=absolute<currentEntry-1e-6
-    ?currentLap
-    :currentLap+1;
-  const limit=Math.max(1,Math.round(finite(state?.session?.lapLimit,state?.track?.laps??1)));
-  return target<=limit?target:null;
 }
 
 function event(type,state,car,command,payload={}){
