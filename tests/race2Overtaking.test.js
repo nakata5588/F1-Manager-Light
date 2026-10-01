@@ -5,6 +5,7 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   RACE_BATTLE_LATERAL_OFFSET_M,
+  RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
   initialBattleState,
   overtakeAttemptProbability,
@@ -577,4 +578,50 @@ test("RW11B canonical dynamics preserve free target speed before traffic limitin
   const next=stepRaceState(started);
   assert.ok(car(next,"C1").freeTargetSpeedKmh>0);
   assert.ok(car(next,"C2").freeTargetSpeedKmh>0);
+});
+
+
+test("RW11B a decisive pass in a train keeps lateral separation until hard gap is restored",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+    C2:{
+      absoluteDistanceM:100+RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
+      distanceAlongLapM:100+RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
+      speedMs:41,speedKmh:147.6,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+  });
+  state=manualBattle(state,{expiresAtMs:5000});
+
+  const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  const attacker=car({cars:resolved.cars},"C2");
+  const defender=car({cars:resolved.cars},"C1");
+
+  assert.equal(attacker.battle.phase,"yielding");
+  assert.equal(attacker.battle.result,"completed");
+  assert.equal(defender.battle.result,"lost");
+  assert.notEqual(attacker.lateralOffsetM,0);
+  assert.ok(resolved.events.some((event)=>event.type==="overtake_completed"));
+
+  let canonical={
+    ...state,
+    cars:resolved.cars,
+    classification:[
+      {position:1,carId:"C2"},
+      {position:2,carId:"C1"},
+    ],
+  };
+  for(let index=0;index<80&&car(canonical,"C2").battle.phase!=="none";index+=1){
+    canonical=stepRaceState(canonical);
+  }
+  assert.equal(car(canonical,"C2").battle.phase,"none");
+  assert.equal(car(canonical,"C1").battle.phase,"none");
+  assert.ok(
+    car(canonical,"C2").absoluteDistanceM-car(canonical,"C1").absoluteDistanceM>=
+      RACE_TRAFFIC_HARD_GAP_M-1e-6
+  );
 });
