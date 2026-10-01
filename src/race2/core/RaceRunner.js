@@ -39,8 +39,26 @@ export function createLiveRaceRunner(initialState,{accumulatorMs=0}={}){
       const thresholdToleranceMs=Math.max(1e-9,stepMs*1e-12);
       const steps=Math.floor((remainder+thresholdToleranceMs)/stepMs);
       if(steps>0){
-        state=runCanonicalSteps(state,steps);
-        remainder-=steps*stepMs;
+        let consumed=0;
+        let redFlagActivated=false;
+        for(let index=0;index<steps;index+=1){
+          const beforeMode=String(state?.raceControlState?.mode||"GREEN").toUpperCase();
+          state=runCanonicalSteps(state,1);
+          consumed+=1;
+          const afterMode=String(state?.raceControlState?.mode||"GREEN").toUpperCase();
+          if(beforeMode!=="RED_FLAG"&&afterMode==="RED_FLAG"){
+            redFlagActivated=true;
+            break;
+          }
+          if(!state||state.status==="finished")break;
+        }
+        remainder-=consumed*stepMs;
+        if(redFlagActivated){
+          // A race suspension invalidates queued live wall-clock catch-up.
+          // Keep only a sub-step remainder; subsequent Red Flag/restart
+          // progression happens after the UI has observed the stopped state.
+          remainder=((remainder%stepMs)+stepMs)%stepMs;
+        }
         if(Math.abs(remainder)<=thresholdToleranceMs)remainder=0;
       }
       return state;
