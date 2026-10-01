@@ -12,6 +12,7 @@
 import { driverWorldStageAtYear } from "./driverWorldEntry.js";
 import {
   activeSeriesForYear,
+  canonicalFeederLevel,
   eligibleSeriesForDriver,
   seriesAgeEligibility,
   seriesIdOf,
@@ -82,53 +83,68 @@ function seriesRuleId(rule){
 }
 
 function careerLevelHint(row){
-  const explicit=num(row?.series_level,null);
+  const explicit=canonicalFeederLevel(row?.series_level);
   if(Number.isFinite(explicit))return explicit;
 
   const raw=text(row?.series_division??row?.division??row?.series);
-  const numeric=Number(raw);
-  if(Number.isFinite(numeric)&&numeric>=1&&numeric<=5)return numeric;
+  const numeric=canonicalFeederLevel(raw);
+  if(Number.isFinite(numeric)&&numeric>=1&&numeric<=4)return numeric;
 
   const value=norm(raw);
   if(!value)return null;
   if(value==="f1"||value.includes("formula1"))return 1;
   if(
     value==="f2"||value.includes("formula2")||value.includes("f3000")||
-    value.includes("gp2")||value.includes("formula35")||value.includes("formulav835")
+    value.includes("gp2")||value.includes("formula35")||value.includes("formulav835")||
+    value.includes("formularenault35")||value.includes("worldseriesbyrenault")
   )return 2;
   if(value==="f3"||value.includes("formula3")||value.includes("gp3"))return 3;
-  if(value.includes("regional")||value.includes("formulerenault")||value.includes("formularenault"))return 4;
   if(
+    value.includes("regional")||value.includes("formularenault")||value.includes("formulerenault")||
     value==="f4"||value.includes("formula4")||value.includes("formulaford")||
     value.includes("formulajunior")||value.includes("formulaabarth")
-  )return 5;
+  )return 4;
   return null;
 }
+
 
 function openingTargetLevel(placement,age,yearsToReferenceDebut,careerRows=[]){
   const careerHint=careerRows.map(careerLevelHint).find((level)=>Number.isFinite(level)&&level>1);
   if(Number.isFinite(careerHint))return careerHint;
 
   if(placement==="F1_READY")return 2;
-  if(placement==="YOUTH"){
-    return Number.isFinite(age)&&age<=17?5:4;
-  }
+  if(placement==="YOUTH")return 4;
 
   if(placement==="LOWER_SERIES"){
     if(Number.isInteger(yearsToReferenceDebut)){
       if(yearsToReferenceDebut<=2)return 2;
       if(yearsToReferenceDebut<=4)return 3;
-      return Number.isFinite(age)&&age<=19?4:3;
+      return Number.isFinite(age)&&age<=18?4:3;
     }
     if(Number.isFinite(age)){
-      if(age<=17)return 5;
-      if(age<=19)return 4;
-      if(age<=22)return 3;
+      if(age<=18)return 4;
+      if(age<=21)return 3;
       return 2;
     }
   }
   return null;
 }
+
+function nearestActiveEligibleLevel(seriesRows,seriesRules,driver,year,targetLevel){
+  const target=canonicalFeederLevel(targetLevel);
+  if(!Number.isFinite(target))return null;
+  const alternatives=[2,3,4]
+    .filter((level)=>level!==target)
+    .sort((a,b)=>Math.abs(a-target)-Math.abs(b-target)||a-b);
+  for(const level of alternatives){
+    const eligible=eligibleSeriesForDriver(
+      seriesRows,seriesRules,driver,year,{levels:[level]}
+    );
+    if(eligible.length)return {level,eligible};
+  }
+  return null;
+}
+
 
 function historicalSeriesMatch(driver,year,seriesRows,seriesRules,careerRows){
   const active=activeSeriesForYear(seriesRows,year);
@@ -213,9 +229,23 @@ function resolveOpeningSeries(driver,row,options={}){
     };
   }
 
-  const eligible=eligibleSeriesForDriver(
+  let eligible=eligibleSeriesForDriver(
     seriesRows,seriesRules,driver,row.year,{levels:[targetLevel]}
   );
+  let resolvedLevel=targetLevel;
+  let fallback=false;
+
+  if(!eligible.length){
+    const nearest=nearestActiveEligibleLevel(
+      seriesRows,seriesRules,driver,row.year,targetLevel
+    );
+    if(nearest){
+      eligible=nearest.eligible;
+      resolvedLevel=nearest.level;
+      fallback=true;
+    }
+  }
+
   const candidates=eligible.map(({series})=>({
     series_id:seriesIdOf(series),
     series_name:seriesNameOf(series),
@@ -230,7 +260,9 @@ function resolveOpeningSeries(driver,row,options={}){
       series_name:seriesNameOf(series)||null,
       series_level:seriesLevelOf(series),
       series_rule_id:seriesRuleId(rule),
-      series_resolution:"single_active_eligible_series",
+      series_resolution:fallback
+        ?"nearest_active_feeder_level"
+        :"single_active_eligible_series",
       series_candidates:[],
       opening_series_seed:true,
       forced_future_series:false,
@@ -241,9 +273,11 @@ function resolveOpeningSeries(driver,row,options={}){
     ...row,
     series_id:null,
     series_name:null,
-    series_level:targetLevel,
+    series_level:resolvedLevel,
     series_rule_id:null,
-    series_resolution:eligible.length>1?"candidate_pool":"no_catalog_match",
+    series_resolution:eligible.length>1
+      ?(fallback?"nearest_active_feeder_candidate_pool":"candidate_pool")
+      :"no_catalog_match",
     series_candidates:candidates,
     opening_series_seed:true,
     forced_future_series:false,
