@@ -40,6 +40,8 @@ function eventCount(events,type){
 export function summarizeRaceBehaviour(state,{scenario=null,seed=null}={}){
   const events=Array.isArray(state?.events)?state.events:[];
   const cars=Array.isArray(state?.cars)?state.cars:[];
+  const overtakeStarts=events.filter((event)=>event?.type==="overtake_started");
+  const overtakeFailures=events.filter((event)=>event?.type==="overtake_failed");
   const pitServices=events.filter((event)=>event?.type==="pit_service_completed");
   const damageEvents=events.filter((event)=>event?.type==="damage");
   const controlEvents=events.filter((event)=>event?.type==="race_control_changed");
@@ -61,11 +63,15 @@ export function summarizeRaceBehaviour(state,{scenario=null,seed=null}={}){
     raceTimeMs:Math.max(0,finite(state?.officialRaceTimeMs,finite(state?.simulationTimeMs,0))),
     eventTypes:countBy(events,(event)=>event?.type??"unknown"),
     overtakes:{
-      attempts:eventCount(events,"overtake_started"),
+      attempts:overtakeStarts.length,
       completed:eventCount(events,"overtake_completed"),
-      failed:eventCount(events,"overtake_failed"),
+      failed:overtakeFailures.length,
       aborted:eventCount(events,"overtake_aborted"),
       contacts:eventCount(events,"contact"),
+      averageStartGapM:round(average(overtakeStarts.map((event)=>event?.payload?.gapM)),3),
+      averageClosingPotentialMs:round(average(overtakeStarts.map((event)=>event?.payload?.closingPotentialMs)),3),
+      averageDurationMs:round(average(overtakeStarts.map((event)=>event?.payload?.durationMs)),1),
+      failureReasons:countBy(overtakeFailures,(event)=>event?.payload?.reason??"unknown"),
     },
     pits:{
       entries:eventCount(events,"pit_entry"),
@@ -124,6 +130,9 @@ export function aggregateRaceBehaviour(summaries=[]){
       completed:meanOf(rows,(row)=>row?.overtakes?.completed),
       failed:meanOf(rows,(row)=>row?.overtakes?.failed),
       contacts:meanOf(rows,(row)=>row?.overtakes?.contacts),
+      averageStartGapM:meanOf(rows,(row)=>row?.overtakes?.averageStartGapM),
+      averageClosingPotentialMs:meanOf(rows,(row)=>row?.overtakes?.averageClosingPotentialMs),
+      averageDurationMs:meanOf(rows,(row)=>row?.overtakes?.averageDurationMs),
     },
     pits:{
       services:meanOf(rows,(row)=>row?.pits?.services),
