@@ -8,6 +8,7 @@
 // if the alternative-history results do not attract F1 attention.
 
 import { gameplayRngFor } from "../core/random.js";
+import { canonicalFeederLevel } from "./seriesCatalog.js";
 import { teamReputation } from "./teamReputation.js";
 
 export const LOWER_SERIES_PROSPECT_MODEL="lower_series_prospect_interest_v1";
@@ -101,8 +102,8 @@ function standingFor(world,entry){
 }
 
 function defaultReputation(entry){
-  const level=num(entry?.series_level,5);
-  return clamp(32-level*2,18,28);
+  const level=clamp(canonicalFeederLevel(entry?.series_level)??4,2,4);
+  return ({2:28,3:26,4:22}[level]??22);
 }
 
 function performanceSignal(entry,standingRow,standings){
@@ -146,8 +147,8 @@ function prospectReputation(gameState,world,entry,previous){
   const age=num(driver?.age,null);
   const perf=standingFor(world,entry);
   const signal=performanceSignal(entry,perf.driver,perf.standing);
-  const level=clamp(num(entry?.series_level,5),2,5);
-  const levelWeight={2:1,3:0.92,4:0.84,5:0.76}[level]||0.8;
+  const level=clamp(canonicalFeederLevel(entry?.series_level)??4,2,4);
+  const levelWeight={2:1,3:0.92,4:0.76}[level]||0.76;
   const ageBonus=Number.isFinite(age)?clamp((22-age)*1.8,-6,10):0;
   const seasonStart=clamp(
     num(previous?.season_start_reputation,previous?.prospect_reputation??defaultReputation(entry)),
