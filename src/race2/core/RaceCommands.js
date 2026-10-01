@@ -7,6 +7,7 @@
 
 import { RACE_COMMAND_TYPES } from "../contracts/raceContracts.js";
 import { RACE_PACE_MODES } from "../../domain/raceTyreModel.js";
+import { CAR_DAMAGE_COMPONENTS } from "../../engine/CarDamageEngine.js";
 import { nextReachablePitLap } from "./RacePitStrategy.js";
 
 const finite=(value,fallback=null)=>{
@@ -26,6 +27,30 @@ function tyreAvailable(car,tyreId){
   if(!wanted)return false;
   return (car?.resources?.availableTyres||[])
     .some((row)=>text(row?.tyre_id??row?.id)===wanted);
+}
+
+function repairComponentsFor(car,payload={}){
+  const damaged=new Set(
+    (Array.isArray(car?.damage?.damaged_components)?car.damage.damaged_components:[])
+      .map(text)
+      .filter(Boolean)
+  );
+  if(!damaged.size)return [];
+
+  const repairAll=payload?.repairDamage===true||payload?.repair_damage===true;
+  const requested=repairAll
+    ?[...damaged]
+    :Array.isArray(payload?.repairComponents)
+      ?payload.repairComponents
+      :Array.isArray(payload?.repair_components)
+        ?payload.repair_components
+        :[];
+
+  return [...new Set(
+    requested
+      .map(text)
+      .filter((component)=>CAR_DAMAGE_COMPONENTS.includes(component)&&damaged.has(component))
+  )];
 }
 
 function normalizedPayload(state,car,type,raw={}){
@@ -52,11 +77,13 @@ function normalizedPayload(state,car,type,raw={}){
     if(tyreChange&&!tyreAvailable(car,tyreId))return null;
     if(explicitRefuel===true&&!car?.resources?.refuellingDeferred)return null;
     const inheritedRefuel=Boolean(car?.resources?.strategy?.refuelRequested);
-    if(!tyreChange&&explicitRefuel!==true&&!inheritedRefuel)return null;
+    const repairComponents=repairComponentsFor(car,payload);
+    if(!tyreChange&&explicitRefuel!==true&&!inheritedRefuel&&!repairComponents.length)return null;
     return {
       tyreId,
       tyreChange,
       refuel:explicitRefuel,
+      repairComponents,
     };
   }
 
@@ -131,14 +158,38 @@ export function cancelRaceCommand(state,{id=null,driverId=null,type=null}={}){
   const wantedDriver=text(driverId);
   const wantedType=text(type);
   const queue=state?.commandQueue||[];
+  const removed=[];
   const next=queue.filter((row)=>{
-    if(wantedId)return text(row?.id)!==wantedId;
-    if(wantedDriver&&text(row?.driverId)!==wantedDriver)return true;
-    if(wantedType&&text(row?.type)!==wantedType)return true;
-    return !(wantedDriver||wantedType);
+    let matches=false;
+    if(wantedId){
+      matches=text(row?.id)===wantedId;
+    }else{
+      if(wantedDriver&&text(row?.driverId)!==wantedDriver)return true;
+      if(wantedType&&text(row?.type)!==wantedType)return true;
+      matches=Boolean(wantedDriver||wantedType);
+    }
+    if(matches)removed.push(row);
+    return !matches;
   });
-  if(next.length===queue.length)return state;
-  return {...state,commandQueue:next.map((row)=>({...row}))};
+  if(!removed.length)return state;
+
+  const startSequence=Math.max(1,Math.floor(finite(state?.nextEventSequence,1)));
+  const cancelledEvents=removed.map((command,index)=>{
+    const sequence=startSequence+index;
+    const car=carForDriver(state,command?.driverId);
+    return {
+      id:`${state?.weekendKey??"race"}:${sequence}`,
+      sequence,
+      ...event("command_cancelled",state,car,command,{reason:"player_cancelled"}),
+    };
+  });
+
+  return {
+    ...state,
+    commandQueue:next.map((row)=>({...row})),
+    events:[...(state?.events||[]),...cancelledEvents],
+    nextEventSequence:startSequence+cancelledEvents.length,
+  };
 }
 
 function event(type,state,car,command,payload={}){
@@ -186,6 +237,9 @@ function applyPit(state,car,command){
   const refuelRequested=explicitRefuel===null||explicitRefuel===undefined
     ?Boolean(car?.resources?.strategy?.refuelRequested)
     :Boolean(explicitRefuel&&car?.resources?.refuellingDeferred);
+  const repairComponents=Array.isArray(command?.payload?.repairComponents)
+    ?[...command.payload.repairComponents]
+    :[];
 
   return {
     car:{
@@ -197,6 +251,7 @@ function applyPit(state,car,command){
           nextTyreId:tyreChange?tyreId:car?.resources?.strategy?.nextTyreId??null,
           tyreChangeRequested:tyreChange,
           refuelRequested,
+          repairComponentsRequested:repairComponents,
           pitPlan:"command",
           plannedStopLap,
         },
@@ -207,6 +262,7 @@ function applyPit(state,car,command){
       tyreId:tyreChange?tyreId:null,
       tyreChange,
       refuel:refuelRequested,
+      repairComponents,
     },
   };
 }
