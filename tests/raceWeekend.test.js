@@ -771,15 +771,19 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
 
   const state=structuredClone(runtime.state);
   const byDriver=new Map(state.cars.map((car)=>[String(car.driverId),car]));
-  const ordered=["D3","D1","D4","D2"];
-  const finishTimes=new Map([["D3",5_000_000],["D1",5_002_500],["D4",5_010_000]]);
+  const ordered=state.cars.map((car)=>String(car.driverId));
+  assert.ok(ordered.length>=2,"canonical fixture must materialize at least two race cars");
+  const retiredDriverId=ordered.at(-1);
+  const finisherIds=ordered.slice(0,-1);
+  const finishTimes=new Map(finisherIds.map((did,index)=>[did,5_000_000+index*2_500]));
+  const leaderTime=finishTimes.get(finisherIds[0]);
   const totalLaps=Math.max(1,Number(state.session?.lapLimit)||76);
   const distance=Math.max(1,Number(state.track?.lengthM)||3340)*totalLaps;
 
   state.status="finished";
   state.cars=state.cars.map((car)=>{
     const did=String(car.driverId);
-    if(did==="D2"){
+    if(did===retiredDriverId){
       return {
         ...car,
         dnf:true,
@@ -799,13 +803,15 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
       sector:3,
       absoluteDistanceM:distance,
       distanceAlongLapM:0,
-      finishTimeMs:finishTimes.get(did)??5_020_000,
+      finishTimeMs:finishTimes.get(did),
     };
   });
   state.classification=ordered.map((did,index)=>{
     const car=byDriver.get(did);
-    const retired=did==="D2";
+    const retired=did===retiredDriverId;
     const finishTimeMs=finishTimes.get(did)??null;
+    const previousId=index>0?ordered[index-1]:null;
+    const previousTime=previousId?finishTimes.get(previousId):null;
     return {
       position:index+1,
       carId:car.carId,
@@ -817,8 +823,8 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
       sector:retired?2:3,
       absoluteDistanceM:retired?Math.max(0,Number(car.absoluteDistanceM)||0):distance,
       distanceAlongLapM:retired?Number(car.distanceAlongLapM)||0:0,
-      gapToLeaderMs:retired?null:(finishTimeMs-5_000_000),
-      intervalMs:retired?null:(index===0?0:finishTimeMs-(finishTimes.get(ordered[index-1])??finishTimeMs)),
+      gapToLeaderMs:retired?null:(finishTimeMs-leaderTime),
+      intervalMs:retired?null:(index===0?0:finishTimeMs-(previousTime??finishTimeMs)),
       finishTimeMs,
     };
   });
@@ -839,12 +845,13 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
     ordered,
     "Results must preserve canonical finishing order"
   );
-  const d2=next.results[0].classification.find((row)=>row.driver_id==="D2");
-  assert.equal(d2.retired,true);
-  assert.equal(d2.retirement_reason,"Engine");
-  assert.equal(d2.laps_completed,40);
-  const d1=next.results[0].classification.find((row)=>row.driver_id==="D1");
-  assert.equal(d1.total_time_ms,5_002_500);
+  const retiredRow=next.results[0].classification.find((row)=>row.driver_id===retiredDriverId);
+  assert.equal(retiredRow.retired,true);
+  assert.equal(retiredRow.retirement_reason,"Engine");
+  assert.equal(retiredRow.laps_completed,40);
+  const timedDriverId=finisherIds[1]??finisherIds[0];
+  const timedRow=next.results[0].classification.find((row)=>row.driver_id===timedDriverId);
+  assert.equal(timedRow.total_time_ms,finishTimes.get(timedDriverId));
 });
 
 
