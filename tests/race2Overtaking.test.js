@@ -333,7 +333,7 @@ test("RW8.6 lapping battle resolves from physical track clearance, not classific
   );
 });
 
-test("RW8.6 a physically cleared attacker completes the overtake and becomes classified ahead",()=>{
+test("RW8.6 a physically decisive attacker completes the overtake and becomes classified ahead",()=>{
   let state=runningState();
   state=patchCars(state,{
     C1:{
@@ -350,14 +350,22 @@ test("RW8.6 a physically cleared attacker completes the overtake and becomes cla
   const next=stepRaceState(state);
   const attacker=car(next,"C2");
   const defender=car(next,"C1");
+  const clearance=attacker.absoluteDistanceM-defender.absoluteDistanceM;
 
-  assert.ok(attacker.absoluteDistanceM-defender.absoluteDistanceM>=RACE_TRAFFIC_HARD_GAP_M);
-  assert.equal(attacker.battle.phase,"none");
-  assert.equal(defender.battle.phase,"none");
+  assert.ok(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M);
   assert.equal(attacker.battle.result,"completed");
-  assert.equal(attacker.lateralOffsetM,0);
   assert.equal(next.classification[0].carId,"C2");
   assert.ok(next.events.some((event)=>event.type==="overtake_completed"));
+
+  if(clearance<RACE_TRAFFIC_HARD_GAP_M){
+    assert.equal(attacker.battle.phase,"yielding");
+    assert.equal(defender.battle.phase,"yielding");
+    assert.notEqual(attacker.lateralOffsetM,0);
+  }else{
+    assert.equal(attacker.battle.phase,"none");
+    assert.equal(defender.battle.phase,"none");
+    assert.equal(attacker.lateralOffsetM,0);
+  }
 });
 
 test("RW8.6 expired battle extends while attacker is ahead but not yet fully clear",()=>{
