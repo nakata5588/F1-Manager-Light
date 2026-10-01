@@ -6,6 +6,7 @@ import {
   deriveManagerAttributes,
   managerGameplayEffects,
   managerEffectSummary,
+  managerCareerJobStatusLabel,
 } from "../src/domain/managerProfile.js";
 import { deriveBoardState } from "../src/domain/boardState.js";
 import {
@@ -89,6 +90,19 @@ test("manager backgrounds are balanced trade-offs rather than free overall point
   assert.ok(engineer.commercial<newcomer.commercial);
   assert.ok(commercial.negotiation>newcomer.negotiation);
   assert.ok(commercial.technical<newcomer.technical);
+});
+
+test("career history status labels distinguish active, dismissal and contract end states",()=>{
+  assert.equal(managerCareerJobStatusLabel({status:"active",end_year:null}),"Active");
+  assert.equal(
+    managerCareerJobStatusLabel({status:"fired",end_year:1982,end_reason:"board_dismissal"}),
+    "Dismissed"
+  );
+  assert.equal(
+    managerCareerJobStatusLabel({status:"contract_ended",end_year:1983,end_reason:"contract_not_renewed"}),
+    "Contract ended"
+  );
+  assert.equal(managerCareerJobStatusLabel({status:"resigned",end_year:1984}),"Resigned");
 });
 
 test("experience trades starting strength and reputation for growth potential",()=>{
