@@ -225,6 +225,21 @@ test("RW8.7 tyre wear and fuel burn integrate from actual physical distance",()=
   assert.ok(Math.abs((previous.fuelKg-next.fuelKg)-expectedFuelUse)<1e-5);
 });
 
+test("RW10A canonical race steps consume tyres and fuel from real travelled distance",()=>{
+  const initial=runningState({paceMode:"balanced"});
+  const before=car(initial);
+  let next=initial;
+
+  for(let index=0;index<400;index+=1)next=stepRaceState(next);
+
+  const evolved=car(next);
+  assert.ok(evolved.absoluteDistanceM>before.absoluteDistanceM);
+  assert.ok(evolved.tyre.condition<before.tyre.condition);
+  assert.ok(evolved.tyre.age_distance_m>0);
+  assert.ok(evolved.tyre.age_laps>0);
+  assert.ok(evolved.fuelKg<before.fuelKg);
+});
+
 test("RW8.7 stopped distance does not consume tyre condition or fuel",()=>{
   const state=runningState();
   const previous=car(state);
