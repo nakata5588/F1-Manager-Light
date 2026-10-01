@@ -239,6 +239,39 @@ test("LS3 is idempotent when the same date is processed more than once",()=>{
   assert.deepEqual(twice.lowerSeriesWorld.standings,once.lowerSeriesWorld.standings);
 });
 
+test("LS4 quiet calendar days are exact no-ops before and after results exist",()=>{
+  const scheduled=initializeLowerSeriesSeason(baseState());
+  const beforeFirst={...scheduled,currentDateISO:"1980-02-01"};
+  assert.equal(processLowerSeriesTick(beforeFirst),beforeFirst);
+  assert.equal(triggerDailyTick(beforeFirst),beforeFirst);
+
+  const firstF2=scheduled.lowerSeriesWorld.events.find((event)=>event.series_id==="F2");
+  const afterEvent=processLowerSeriesTick({...scheduled,currentDateISO:firstF2.event_date});
+  assert.ok(afterEvent.lowerSeriesWorld.results.length>0);
+
+  const quiet={...afterEvent,currentDateISO:"1980-03-16"};
+  assert.equal(processLowerSeriesTick(quiet),quiet);
+  assert.equal(triggerDailyTick(quiet),quiet);
+});
+
+test("LS4 quiet days still sync feeder drivers that gain an F1 race seat",()=>{
+  const scheduled=initializeLowerSeriesSeason(baseState());
+  const quiet={
+    ...scheduled,
+    currentDateISO:"1980-02-01",
+    contracts:[{
+      year:1980,team_id:"F1_TEAM",driver_id:"D1",role:"Main Driver",
+      status:"active",contract_start_year:1980,contract_until_year:1980,
+    }],
+  };
+  const next=processLowerSeriesTick(quiet);
+
+  assert.notEqual(next,quiet);
+  assert.equal(next.lowerSeriesWorld,quiet.lowerSeriesWorld);
+  assert.equal(next.drivers.find((row)=>row.driver_id==="D1").active_lower_series,false);
+  assert.equal(next.drivers.find((row)=>row.driver_id==="D1").lower_series_resolution,"left_for_f1_race_seat");
+});
+
 
 test("LS3 completed season is archived inside lowerSeriesWorld and not the F1 Results archive",()=>{
   const completed=completeLowerSeriesSeason(baseState());
