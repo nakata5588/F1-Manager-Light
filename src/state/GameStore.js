@@ -2035,19 +2035,49 @@ export const useGame = create((set, get) => ({
 
     const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
 
-    // As with live elapsed dispatch, re-read after the async module boundary so
-    // Autosim can never overwrite a newer canonical race snapshot.
-    const gs=get().gameState;
-    const weekend=gs?.raceWeekendState;
+    // Re-read after the async module boundary, then keep this exact GameState
+    // as the optimistic-concurrency base for the whole fast simulation. We do
+    // not overwrite any external state change that occurs while Autosim yields.
+    const base=get().gameState;
+    const weekend=base?.raceWeekendState;
     if(!weekend)return null;
 
-    const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
-    const next=mod.autosimRaceWeekendToEnd(gs,{gp});
-    if(next!==gs){
-      set({gameState:next});
-      checkpointRaceWeekendState(next);
+    const gp=base?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const batchSteps=250;
+    const maxSteps=1_000_000;
+    let simulated=base;
+    let steps=0;
+
+    while(
+      String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"&&
+      steps<maxSteps
+    ){
+      simulated=mod.autosimRaceWeekendBatch(simulated,{
+        gp,
+        steps:Math.min(batchSteps,maxSteps-steps),
+      });
+      steps+=batchSteps;
+
+      if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")==="finished")break;
+
+      // Yield a macrotask between deterministic canonical batches so React can
+      // paint the busy state and the browser can process input.
+      await new Promise((resolve)=>setTimeout(resolve,0));
+      if(get().gameState!==base){
+        throw new Error("Race Weekend state changed while canonical Autosim was running");
+      }
     }
-    return mod.raceWeekendCanonicalView(next);
+
+    if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"){
+      throw new Error(`RW2 race did not finish within ${maxSteps} canonical steps`);
+    }
+    if(get().gameState!==base){
+      throw new Error("Race Weekend state changed before canonical Autosim could commit");
+    }
+
+    set({gameState:simulated});
+    checkpointRaceWeekendState(simulated);
+    return mod.raceWeekendCanonicalView(simulated);
   },
 
   advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
