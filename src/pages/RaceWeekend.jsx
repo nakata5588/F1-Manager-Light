@@ -7,6 +7,8 @@ import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategy
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
+import { canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
+import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../race2/gateway/RaceWeekendRuntimeGateway.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
@@ -601,6 +603,7 @@ export default function RaceWeekend(){
   const advanceLiveRace=useGame((s)=>s.advanceRaceWeekendLiveRace);
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const advanceLivePitClock=useGame((s)=>s.advanceRaceWeekendLivePitClock);
+  const advanceCanonicalRaceElapsed=useGame((s)=>s.advanceRaceWeekendElapsed);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
@@ -623,8 +626,11 @@ export default function RaceWeekend(){
   const racePlaybackRemainingRatioRef=useRef(1);
   const racePlaybackTimerStateRef=useRef(null);
   const racePlaybackActivatedRef=useRef(false);
+  const canonicalRaceFrameClockRef=useRef(null);
+  if(!canonicalRaceFrameClockRef.current)canonicalRaceFrameClockRef.current=createCanonicalRaceViewFrameClock();
 
   const weekend=gs?.raceWeekendState;
+  const usesCanonicalRaceRuntime=raceWeekendUsesCanonicalRuntime(gs);
   const drivers=gs?.drivers||[];
   const teams=gs?.teams||[];
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
@@ -643,23 +649,25 @@ export default function RaceWeekend(){
   const dnqRows=classification.filter((row)=>["DNQ","DNPQ"].includes(String(row?.status||"")));
   const raceStrategy=weekend?.race_strategy||null;
   const liveRace=weekend?.live_race||null;
+  const canonicalRaceView=usesCanonicalRaceRuntime?raceWeekendCanonicalView(gs):null;
+  const raceViewModel=canonicalRaceView||liveRace;
   const canFinalizeLiveRace=raceWeekendCanFinalizeLiveRace(weekend);
-  const hasActivePitStop=Object.values(liveRace?.pit_states||{}).some((state)=>state?.active);
-  const redFlagLifecycle=liveRace?.red_flag_lifecycle||null;
+  const hasActivePitStop=Object.values(raceViewModel?.pit_states||{}).some((state)=>state?.active);
+  const redFlagLifecycle=usesCanonicalRaceRuntime?null:liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
   const restartGridRows=collectionRows(redFlagLifecycle?.restart_grid)
     .slice()
     .sort((a,b)=>Number(a?.restart_position??999)-Number(b?.restart_position??999));
-  const liveRows=collectionRows(liveRace?.classification);
-  const playbackSectorMs=raceReferenceSectorMs(liveRows,liveRace?.current_sector,{
+  const liveRows=collectionRows(raceViewModel?.classification);
+  const playbackSectorMs=raceReferenceSectorMs(liveRows,raceViewModel?.current_sector,{
     fallbackLapMs:raceStrategy?.track_snapshot?.reference_lap_ms||90000,
   });
-  const trackState=liveRace?.track_state||null;
-  const timingSummary=liveRace?.timing_summary||null;
-  const allRaceEvents=useMemo(()=>collectionRows(liveRace?.events).slice().reverse().map((event)=>({
+  const trackState=raceViewModel?.track_state||null;
+  const timingSummary=raceViewModel?.timing_summary||null;
+  const allRaceEvents=useMemo(()=>collectionRows(raceViewModel?.events).slice().reverse().map((event)=>({
     ...event,
     display_text:liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[]),
-  })),[liveRace?.events,drivers,gs?.tyres,gs?.dbTyres]);
+  })),[raceViewModel?.events,drivers,gs?.tyres,gs?.dbTyres]);
   const raceViewEvents=useMemo(()=>allRaceEvents.slice(0,40),[allRaceEvents]);
   const raceFeedGroups=useMemo(()=>{
     const byLap=new Map();
@@ -700,11 +708,11 @@ export default function RaceWeekend(){
       ??""
   ):"";
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
-  const activeControlNotice=controlNotice(raceControlPlan,liveRace,drivers);
+  const activeControlNotice=usesCanonicalRaceRuntime?null:controlNotice(raceControlPlan,raceViewModel,drivers);
   const liveTeamForecast=teamRaceForecast(gs,{
-    currentLap:liveRace?.current_lap||0,
-    currentWeather:liveRace?.last_weather||null,
-    totalLaps:liveRace?.total_laps||raceStrategy?.track_snapshot?.laps,
+    currentLap:raceViewModel?.current_lap||0,
+    currentWeather:raceViewModel?.last_weather||null,
+    totalLaps:raceViewModel?.total_laps||raceStrategy?.track_snapshot?.laps,
   });
   const lastObservedWeather=lastCompletedQualifyingSession
     ?weekendWeather?.sessions?.[String(lastCompletedQualifyingSession.id)]
@@ -730,9 +738,9 @@ export default function RaceWeekend(){
   };
   useEffect(()=>{
     setActiveWindow(raceWindowForWeekend(weekend));
-  },[weekend?.phase,weekend?.active_session_id,liveRace?.status,Boolean(liveRace)]);
+  },[weekend?.phase,weekend?.active_session_id,raceViewModel?.status,Boolean(raceViewModel)]);
   useEffect(()=>{
-    if(!liveRace){
+    if(!raceViewModel){
       setSelectedLiveDriverId("");
       return;
     }
@@ -740,9 +748,10 @@ export default function RaceWeekend(){
       if(!current)return "";
       return liveRows.some((row)=>String(row?.driver_id??"")===String(current))?current:"";
     });
-  },[Boolean(liveRace),liveRows.length]);
+  },[Boolean(raceViewModel),liveRows.length]);
   useEffect(()=>{
     if(
+      usesCanonicalRaceRuntime||
       !liveRace||
       weekend?.phase!=="race"||
       !racePlaying||
@@ -761,7 +770,64 @@ export default function RaceWeekend(){
     liveRace?.status,
     hasActivePitStop,
     advanceLivePitClock,
+    usesCanonicalRaceRuntime,
   ]);
+
+  useEffect(()=>{
+    const frameClock=canonicalRaceFrameClockRef.current;
+    if(!usesCanonicalRaceRuntime||weekend?.phase!=="race"||!racePlaying||busy){
+      frameClock.reset();
+      return undefined;
+    }
+
+    let cancelled=false;
+    let animationFrameId=null;
+    let advancing=false;
+    let queuedElapsedMs=0;
+
+    const flushElapsed=async()=>{
+      if(cancelled||advancing||queuedElapsedMs<=0)return;
+      const elapsedMs=queuedElapsedMs;
+      queuedElapsedMs=0;
+      advancing=true;
+      try{
+        const view=await advanceCanonicalRaceElapsed(elapsedMs);
+        if(!cancelled&&String(view?.status||"").toLowerCase()==="finished"){
+          setRacePlaying(false);
+        }
+      }catch(error){
+        console.error("[RaceWeekend] canonical Race View frame failed:",error);
+        if(!cancelled)setRacePlaying(false);
+      }finally{
+        advancing=false;
+      }
+    };
+
+    const onFrame=(timestampMs)=>{
+      if(cancelled)return;
+      const elapsedMs=frameClock.sampleElapsedMs(timestampMs);
+      if(elapsedMs>0){
+        queuedElapsedMs+=canonicalRaceViewElapsedMs(elapsedMs,racePlaybackSpeed);
+        void flushElapsed();
+      }
+      animationFrameId=window.requestAnimationFrame(onFrame);
+    };
+
+    animationFrameId=window.requestAnimationFrame(onFrame);
+    return ()=>{
+      cancelled=true;
+      if(animationFrameId!=null)window.cancelAnimationFrame(animationFrameId);
+      frameClock.reset();
+    };
+  },[
+    usesCanonicalRaceRuntime,
+    weekend?.phase,
+    racePlaying,
+    racePlaybackSpeed,
+    busy,
+    advanceCanonicalRaceElapsed,
+  ]);
+
   useEffect(()=>{
     // A new authoritative sector target starts a fresh visual/playback clock.
     racePlaybackRemainingRatioRef.current=1;
@@ -769,6 +835,7 @@ export default function RaceWeekend(){
   },[liveRace?.current_lap,liveRace?.current_sector]);
 
   useEffect(()=>{
+    if(usesCanonicalRaceRuntime)return undefined;
     if(!liveRace||weekend?.phase!=="race"||!racePlaybackCanRun(liveRace)){
       if(racePlaying)setRacePlaying(false);
       return undefined;
@@ -819,9 +886,10 @@ export default function RaceWeekend(){
     liveRace?.current_sector,
     liveRace?.total_laps,
     playbackSectorMs,
+    usesCanonicalRaceRuntime,
   ]);
   useEffect(()=>{
-    if(!liveRace)return;
+    if(usesCanonicalRaceRuntime||!liveRace)return;
     const currentLap=Number(liveRace?.current_lap)||0;
     const important=batchRaceEvents(liveRace?.events||[],playerTeamId,currentLap,playerDriverIds);
     if(!important)return;
@@ -829,13 +897,13 @@ export default function RaceWeekend(){
     if(!key||lastAutoPopupKey.current===key)return;
     lastAutoPopupKey.current=key;
     openRaceEvent(important,{auto:true});
-  },[liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
+  },[usesCanonicalRaceRuntime,liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
 
   useEffect(()=>{
     const shortcutActive=()=>(
       activeWindow==="live"&&
       weekend?.phase==="race"&&
-      String(liveRace?.status||"")==="running"&&
+      String(raceViewModel?.status||"")==="running"&&
       !selectedRaceEvent
     );
     const editableTarget=(target)=>{
@@ -864,9 +932,9 @@ export default function RaceWeekend(){
   },[
     activeWindow,
     weekend?.phase,
-    liveRace?.status,
-    liveRace?.current_lap,
-    liveRace?.current_sector,
+    raceViewModel?.status,
+    raceViewModel?.current_lap,
+    raceViewModel?.current_sector,
     racePlaying,
     busy,
     selectedRaceEvent,
@@ -931,8 +999,8 @@ export default function RaceWeekend(){
     {id:"strategy",label:"Strategy",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&Boolean(raceStrategy)},
     {id:"grid",label:"Starting Grid",enabled:["grid_ready","race"].includes(String(weekend?.phase))&&startingGridRows.length>0},
     {id:"live",label:"Live Timing",enabled:String(weekend?.phase)==="race"},
-    {id:"detailed_timing",label:"Detailed Timing",enabled:String(weekend?.phase)==="race"&&Boolean(liveRace)},
-    {id:"race_feed",label:"Race Feed",enabled:String(weekend?.phase)==="race"&&Boolean(liveRace)},
+    {id:"detailed_timing",label:"Detailed Timing",enabled:String(weekend?.phase)==="race"&&Boolean(raceViewModel)},
+    {id:"race_feed",label:"Race Feed",enabled:String(weekend?.phase)==="race"&&Boolean(raceViewModel)},
     {id:"classification",label:"Results",enabled:Boolean(lastResult)||terminalWeekend},
   ];
 
@@ -975,7 +1043,7 @@ export default function RaceWeekend(){
     if(String(nextWeekend?.phase||"")==="results")setActiveWindow("classification");
   });
   const toggleRacePlayback=()=>{
-    if(busy||String(liveRace?.status||"")!=="running")return;
+    if(busy||String(raceViewModel?.status||"")!=="running")return;
     if(racePlaying){
       setRacePlaying(false);
       return;
@@ -988,8 +1056,10 @@ export default function RaceWeekend(){
     // fractional sector. Advance immediately so Play always produces motion.
     // Normal Pause/Resume in the same view preserves the remaining clock.
     if(
-      firstActivation||
-      (Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0)
+      !usesCanonicalRaceRuntime&&(
+        firstActivation||
+        (Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0)
+      )
     ){
       racePlaybackRemainingRatioRef.current=1;
       perform(()=>advanceLiveRaceSector(1));
@@ -1035,7 +1105,7 @@ export default function RaceWeekend(){
             </button>
           ))}
         </div>
-        {weekend.phase==="race"&&liveRace?.status==="running"?<div className="flex shrink-0 items-center gap-1">
+        {weekend.phase==="race"&&raceViewModel?.status==="running"?<div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             disabled={busy}
@@ -1056,10 +1126,13 @@ export default function RaceWeekend(){
           </div>
           {racePlaying?<span className="hidden items-center gap-1 rounded bg-emerald-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-300 lg:inline-flex"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300"/>Live Motion</span>:null}
           {!racePlaying&&raceAutoPaused?<span className="hidden items-center gap-1 rounded border border-amber-400/20 bg-amber-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-amber-300 lg:inline-flex"><Pause className="h-3 w-3"/>Auto-paused</span>:null}
-                    <div className="mx-0.5 h-5 w-px bg-white/10"/>
+          {!usesCanonicalRaceRuntime?<>
+
+          <div className="mx-0.5 h-5 w-px bg-white/10"/>
           <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
           <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
           <button disabled={busy} className="rounded-md bg-slate-100 px-2 py-1.5 text-[9px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1));}}>Finish</button>
+          </>:<span className="rounded border border-cyan-400/20 bg-cyan-400/[0.06] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-cyan-200">RW2 continuous</span>}
         </div>:canFinalizeLiveRace?<div className="flex shrink-0 items-center gap-2">
           <span className="hidden rounded border border-emerald-400/20 bg-emerald-500/[0.08] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300 md:inline-flex">Race finished</span>
           <button
@@ -1616,7 +1689,7 @@ export default function RaceWeekend(){
         </div>
 
 
-        {activeWindow==="live"&&weekend.phase==="race"&&liveRace&&(
+        {activeWindow==="live"&&weekend.phase==="race"&&raceViewModel&&(
           <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
             <div className="border-b border-white/10 bg-[#0b1017] p-2 md:p-3">
               <Track2DView
@@ -1628,12 +1701,12 @@ export default function RaceWeekend(){
                 teams={teams}
                 teamBrands={gs?.teamBrands||gs?.team_brands||[]}
                 playerTeamId={playerTeamId}
-                currentLap={liveRace?.current_lap||0}
-                currentSector={liveRace?.current_sector||0}
-                totalLaps={liveRace?.total_laps||raceStrategy?.track_snapshot?.laps||0}
-                currentControl={liveRace?.current_control||"GREEN"}
-                raceStatus={liveRace?.status||"running"}
-                lastWeather={liveRace?.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY"}
+                currentLap={raceViewModel?.current_lap||0}
+                currentSector={raceViewModel?.current_sector||0}
+                totalLaps={raceViewModel?.total_laps||raceStrategy?.track_snapshot?.laps||0}
+                currentControl={raceViewModel?.current_control||"GREEN"}
+                raceStatus={raceViewModel?.status||"running"}
+                lastWeather={raceViewModel?.last_weather||raceStrategy?.weather_snapshot?.state||"SUNNY"}
                 trackState={trackState}
                 timingSummary={timingSummary}
                 forecast={liveTeamForecast}
@@ -1646,10 +1719,10 @@ export default function RaceWeekend(){
                 playbackBaseSectorMs={playbackSectorMs}
                 lapLengthKm={raceStrategy?.track_snapshot?.lap_length_km||practiceTrackInputs.lap_length_km||null}
                 busy={busy}
-                onRestartRace={()=>perform(restartLiveRace)}
-                onConfirmResults={()=>perform(runRace)}
+                onRestartRace={usesCanonicalRaceRuntime?undefined:()=>perform(restartLiveRace)}
+                onConfirmResults={finalizeLiveRace}
               />
-              {liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
+              {!usesCanonicalRaceRuntime&&liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div className="flex min-w-0 items-start gap-2">
                     <Flag className="mt-0.5 h-5 w-5 shrink-0 fill-current text-red-300"/>
@@ -1818,26 +1891,27 @@ export default function RaceWeekend(){
                   const did=String(entry.driver_id);
                   const driver=driverObject(drivers,did);
                   const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
-                  const commands=raceStrategy?.live_commands?.[did]||[];
+                  const commands=usesCanonicalRaceRuntime?[]:(raceStrategy?.live_commands?.[did]||[]);
                   const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
                   const damagedComponents=Array.isArray(liveDriver?.damage_state?.damaged_components)?liveDriver.damage_state.damaged_components:[];
                   const hasRepairableDamage=damagedComponents.length>0;
                   const hasFrontWingDamage=damagedComponents.includes("front_wing");
                   const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
-                  const unavailable=liveRace.status!=="running"||Boolean(liveDriver?.retired);
+                  const unavailable=String(raceViewModel?.status||"")!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
-                  const pending=commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace.current_lap||0));
+                  const pending=usesCanonicalRaceRuntime?[]:commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace?.current_lap||0));
                   const teammateEntry=playerEntrants.find((candidate)=>String(candidate?.driver_id??"")!==did)||null;
                   const teammateId=String(teammateEntry?.driver_id??"");
                   const teammateLive=teammateId?liveRows.find((row)=>String(row?.driver_id??"")===teammateId):null;
                   const teammateGapMs=Number(teammateLive?.gap_to_previous_ms??teammateLive?.interval_ms);
                   const canYieldToTeammate=Boolean(
+                    !usesCanonicalRaceRuntime&&
                     teammateId&&liveDriver&&!liveDriver?.retired&&teammateLive&&!teammateLive?.retired&&
                     Number(teammateLive?.position)===Number(liveDriver?.position)+1&&
                     (!Number.isFinite(teammateGapMs)||teammateGapMs<=3500)&&
                     !pending.some((command)=>command?.type==="team_order")
                   );
-                  const lastFeedback=!liveDriver?.retired?(liveRace.events||[]).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
+                  const lastFeedback=!liveDriver?.retired?collectionRows(raceViewModel?.events).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
                   return <div className={"relative grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 pr-9 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <button type="button" onClick={()=>setSelectedLiveDriverId("")} title="Close driver controls" className="absolute right-2 top-2 rounded border border-white/10 bg-black/25 p-1 text-slate-500 hover:bg-white/[0.08] hover:text-slate-200"><X className="h-3.5 w-3.5"/></button>
                     <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
@@ -1883,12 +1957,12 @@ export default function RaceWeekend(){
                             >
                               <option value="">Stay out</option>
                               {teamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
-                              {hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
-                              {hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
-                              {hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
-                              {hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
+                              {!usesCanonicalRaceRuntime&&hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
+                              {!usesCanonicalRaceRuntime&&hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
+                              {!usesCanonicalRaceRuntime&&hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
+                              {!usesCanonicalRaceRuntime&&hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
-                            {canYieldToTeammate?<button
+                            {!usesCanonicalRaceRuntime&&canYieldToTeammate?<button
                               type="button"
                               title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
                               onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
@@ -1907,7 +1981,7 @@ export default function RaceWeekend(){
           </div>
         )}
 
-        {activeWindow==="race_feed"&&weekend.phase==="race"&&liveRace&&(
+        {activeWindow==="race_feed"&&weekend.phase==="race"&&raceViewModel&&(
           <div className="overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1017] px-4 py-3">
               <div>
@@ -1916,7 +1990,7 @@ export default function RaceWeekend(){
                 <div className="text-[10px] text-slate-500">Chronological race-control, incident, pit, weather and team-command history grouped by lap.</div>
               </div>
               <div className="text-right text-[10px] text-slate-500">
-                <div>L{liveRace.current_lap||0}/{liveRace.total_laps||0}{Number(liveRace.current_sector)>0?` · S${liveRace.current_sector}`:""}</div>
+                <div>L{raceViewModel.current_lap||0}/{raceViewModel.total_laps||0}{Number(raceViewModel.current_sector)>0?` · S${raceViewModel.current_sector}`:""}</div>
                 <div>{allRaceEvents.length} recorded events</div>
               </div>
             </div>
@@ -1957,7 +2031,7 @@ export default function RaceWeekend(){
             </div>
           </div>
         )}
-        {activeWindow==="detailed_timing"&&weekend.phase==="race"&&liveRace&&(
+        {activeWindow==="detailed_timing"&&weekend.phase==="race"&&raceViewModel&&(
           <div className="overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0b1017] px-4 py-3">
               <div>
@@ -1966,8 +2040,8 @@ export default function RaceWeekend(){
                 <div className="text-[10px] text-slate-500">Full classification, sectors, tyres and strategy detail. Select a row to keep that driver selected in Race View.</div>
               </div>
               <div className="text-right text-[10px] text-slate-500">
-                <div>L{liveRace.current_lap||0}/{liveRace.total_laps||0}{Number(liveRace.current_sector)>0?` · S${liveRace.current_sector}`:""}</div>
-                <div>{String(liveRace.current_control||"GREEN").replaceAll("_"," ")}</div>
+                <div>L{raceViewModel.current_lap||0}/{raceViewModel.total_laps||0}{Number(raceViewModel.current_sector)>0?` · S${raceViewModel.current_sector}`:""}</div>
+                <div>{String(raceViewModel.current_control||"GREEN").replaceAll("_"," ")}</div>
               </div>
             </div>
             <div className="border-b border-white/10 bg-[#0c1118] px-4 py-2">
@@ -2214,7 +2288,7 @@ export default function RaceWeekend(){
                 <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
                   {busy?"Advancing…":"Advance to Race Day"}
                 </button>
-              ):!liveRace?(
+              ):!raceViewModel?(
                 <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
                   {busy?"Preparing…":"Start Race"}
                 </button>

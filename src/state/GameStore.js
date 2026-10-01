@@ -1935,38 +1935,74 @@ export const useGame = create((set, get) => ({
   },
 
   startRaceWeekendLiveRace: async () => {
-    const gs=get().gameState;
-    const weekend=gs?.raceWeekendState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    let weekend=gs?.raceWeekendState;
     if(!weekend)return null;
     const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
+
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const next=runtimeMod.advanceRaceWeekendElapsed(gs,{gp,elapsedMs:0});
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
+    weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
     const next=mod.startLiveRace(gs,{gp});
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
   advanceRaceWeekendLiveRace: async (laps=1) => {
-    const gs=get().gameState;
-    const weekend=gs?.raceWeekendState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    let weekend=gs?.raceWeekendState;
     if(!weekend)return null;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      return runtimeMod.raceWeekendCanonicalView(gs);
+    }
+
     const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
+    weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
     const next=mod.advanceLiveRaceSession(gs,{gp,laps});
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
   advanceRaceWeekendLiveRaceSector: async (sectors=1) => {
-    const gs=get().gameState;
-    const weekend=gs?.raceWeekendState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    let weekend=gs?.raceWeekendState;
     if(!weekend)return null;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      return runtimeMod.raceWeekendCanonicalView(gs);
+    }
+
     const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
+    weekend=gs?.raceWeekendState;
+    if(!weekend)return null;
     const next=mod.advanceLiveRaceSectorSession(gs,{gp,sectors});
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
@@ -1986,36 +2022,74 @@ export const useGame = create((set, get) => ({
     const next=mod.advanceRaceWeekendElapsed(gs,{gp,elapsedMs});
     if(next!==gs){
       set({gameState:next});
-      checkpointRaceWeekendState(next);
+      if(mod.raceWeekendCanonicalCheckpointDue(gs,next)){
+        checkpointRaceWeekendState(next);
+      }
     }
     return mod.raceWeekendCanonicalView(next);
   },
 
   advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      return runtimeMod.raceWeekendCanonicalView(gs);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
     // Re-read after the dynamic import so a simultaneous sector advance cannot
     // be overwritten by a pit-clock tick that started from an older snapshot.
-    const gs=get().gameState;
+    gs=get().gameState;
     const next=mod.advanceLivePitClockSession(gs,{deltaMs});
     if(next!==gs)set({gameState:next});
     return next?.raceWeekendState?.live_race||null;
   },
 
   setRaceWeekendLiveCommand: async (command) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.queueRaceWeekendCanonicalCommand(gs,{gp,command:command||{}});
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.setLiveRaceCommand(gs,command||{});
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
   cancelRaceWeekendLiveCommand: async (command={}) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.cancelRaceWeekendCanonicalCommand(gs,{gp,criteria:command});
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.cancelLiveRaceOrder(gs,command);
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 

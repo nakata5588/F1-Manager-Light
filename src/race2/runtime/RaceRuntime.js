@@ -13,6 +13,7 @@ import { raceWeekendEngineVersion } from "../gateway/RaceWeekendGateway.js";
 
 export const RACE_RUNTIME_VERSION=1;
 export const RACE_RUNTIME_SOURCE="rw8.14b_race_runtime";
+export const RACE_RUNTIME_CHECKPOINT_INTERVAL_MS=5000;
 
 const finite=(value,fallback=0)=>{
   const parsed=Number(value);
@@ -43,9 +44,7 @@ export function restoreCanonicalRaceRunner(runtime){
   });
 }
 
-export function advanceCanonicalRaceRuntime(runtime,elapsedMs){
-  const runner=restoreCanonicalRaceRunner(runtime);
-  runner.advanceElapsed(elapsedMs);
+function serializedRunner(runner){
   const snapshot=runner.snapshot();
   return {
     version:RACE_RUNTIME_VERSION,
@@ -53,6 +52,36 @@ export function advanceCanonicalRaceRuntime(runtime,elapsedMs){
     state:snapshot.state,
     accumulatorMs:snapshot.accumulatorMs,
   };
+}
+
+export function advanceCanonicalRaceRuntime(runtime,elapsedMs){
+  const runner=restoreCanonicalRaceRunner(runtime);
+  runner.advanceElapsed(elapsedMs);
+  return serializedRunner(runner);
+}
+
+export function queueCanonicalRaceRuntimeCommand(runtime,command){
+  const runner=restoreCanonicalRaceRunner(runtime);
+  runner.queueCommand(command);
+  return serializedRunner(runner);
+}
+
+export function cancelCanonicalRaceRuntimeCommand(runtime,criteria={}){
+  const runner=restoreCanonicalRaceRunner(runtime);
+  runner.cancelCommand(criteria);
+  return serializedRunner(runner);
+}
+
+export function canonicalRaceRuntimeNeedsCheckpoint(previousRuntime,nextRuntime,{intervalMs=RACE_RUNTIME_CHECKPOINT_INTERVAL_MS}={}){
+  if(!nextRuntime?.state)return false;
+  if(!previousRuntime?.state)return true;
+  const previousStatus=String(previousRuntime.state?.status||"");
+  const nextStatus=String(nextRuntime.state?.status||"");
+  if(nextStatus==="finished"&&previousStatus!=="finished")return true;
+  const interval=Math.max(1000,finite(intervalMs,RACE_RUNTIME_CHECKPOINT_INTERVAL_MS));
+  const previousMs=Math.max(0,finite(previousRuntime.state?.simulationTimeMs,0));
+  const nextMs=Math.max(0,finite(nextRuntime.state?.simulationTimeMs,0));
+  return Math.floor(previousMs/interval)!==Math.floor(nextMs/interval);
 }
 
 export function canonicalRaceView(runtime){
@@ -90,6 +119,31 @@ export function advanceAttachedCanonicalRaceRuntime(gs,elapsedMs){
   const runtime=gs?.raceWeekendState?.canonical_race_runtime;
   if(!runtime)return gs;
   return attachCanonicalRaceRuntime(gs,advanceCanonicalRaceRuntime(runtime,elapsedMs));
+}
+
+export function queueCanonicalRaceWeekendCommand(gs,{gp=null,command=null,stepMs=null}={}){
+  if(!isCanonicalRaceWeekend(gs))return gs;
+  const ready=ensureCanonicalRaceRuntime(gs,{gp,stepMs});
+  const runtime=ready?.raceWeekendState?.canonical_race_runtime;
+  if(!runtime||!command)return ready;
+  return attachCanonicalRaceRuntime(ready,queueCanonicalRaceRuntimeCommand(runtime,command));
+}
+
+export function cancelCanonicalRaceWeekendCommand(gs,{gp=null,criteria={},stepMs=null}={}){
+  if(!isCanonicalRaceWeekend(gs))return gs;
+  const ready=ensureCanonicalRaceRuntime(gs,{gp,stepMs});
+  const runtime=ready?.raceWeekendState?.canonical_race_runtime;
+  if(!runtime)return ready;
+  return attachCanonicalRaceRuntime(ready,cancelCanonicalRaceRuntimeCommand(runtime,criteria));
+}
+
+export function canonicalRaceWeekendNeedsCheckpoint(previousGs,nextGs,options={}){
+  if(!isCanonicalRaceWeekend(nextGs))return false;
+  return canonicalRaceRuntimeNeedsCheckpoint(
+    previousGs?.raceWeekendState?.canonical_race_runtime,
+    nextGs?.raceWeekendState?.canonical_race_runtime,
+    options
+  );
 }
 
 // RW8.14D: gameplay-facing elapsed-time dispatch for RW2. This deliberately

@@ -97,3 +97,13 @@ test("RW8.14I invalid frame timestamps break continuity instead of creating catc
   const recovered=clock.frame(gs,{timestampMs:5000});
   assert.equal(recovered.advancedMs,0);
 });
+
+
+test("RW8.14J frame clock exposes elapsed sampling for the Zustand dispatch boundary",()=>{
+  const clock=createCanonicalRaceViewFrameClock();
+  assert.equal(clock.sampleElapsedMs(1000),0);
+  assert.equal(clock.sampleElapsedMs(1125),125);
+  clock.reset();
+  assert.equal(clock.sampleElapsedMs(9000),0);
+  assert.equal(clock.sampleElapsedMs(9250),250);
+});

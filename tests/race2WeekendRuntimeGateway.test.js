@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   CANONICAL_RACE_ENGINE_VERSION,
   advanceRaceWeekendElapsed,
+  cancelRaceWeekendCanonicalCommand,
+  queueRaceWeekendCanonicalCommand,
+  raceWeekendCanonicalCheckpointDue,
   raceWeekendCanonicalView,
   raceWeekendUsesCanonicalRuntime,
 } from "../src/race2/gateway/RaceWeekendRuntimeGateway.js";
@@ -49,4 +52,12 @@ test("RW8.14G Race View playback cannot route Legacy into canonical runtime",()=
   assert.equal(frame.gameState,legacy);
   assert.equal(frame.view,null);
   assert.equal(frame.advancedMs,0);
+});
+
+
+test("RW8.14J command and checkpoint gateways refuse Legacy ownership",()=>{
+  const legacy=state("legacy","race");
+  assert.equal(queueRaceWeekendCanonicalCommand(legacy,{command:{type:"pace",driverId:"D1",paceMode:"attack"}}),legacy);
+  assert.equal(cancelRaceWeekendCanonicalCommand(legacy,{criteria:{driverId:"D1"}}),legacy);
+  assert.equal(raceWeekendCanonicalCheckpointDue(legacy,legacy),false);
 });

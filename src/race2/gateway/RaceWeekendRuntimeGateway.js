@@ -12,7 +12,10 @@ import {
 } from "../contracts/raceContracts.js";
 import {
   advanceCanonicalRaceWeekendElapsed,
+  cancelCanonicalRaceWeekendCommand,
+  canonicalRaceWeekendNeedsCheckpoint,
   canonicalRaceWeekendView,
+  queueCanonicalRaceWeekendCommand,
 } from "../runtime/RaceRuntime.js";
 
 export const CANONICAL_RACE_ENGINE_VERSION=RACE_WEEKEND_ENGINES.RW2;
@@ -34,4 +37,20 @@ export function advanceRaceWeekendElapsed(gs,{gp=null,elapsedMs=0,stepMs=null}={
 export function raceWeekendCanonicalView(gs){
   if(!raceWeekendUsesCanonicalRuntime(gs))return null;
   return canonicalRaceWeekendView(gs);
+}
+
+
+export function queueRaceWeekendCanonicalCommand(gs,{gp=null,command=null}={}){
+  if(!raceWeekendUsesCanonicalRuntime(gs))return gs;
+  return queueCanonicalRaceWeekendCommand(gs,{gp,command});
+}
+
+export function cancelRaceWeekendCanonicalCommand(gs,{gp=null,criteria={}}={}){
+  if(!raceWeekendUsesCanonicalRuntime(gs))return gs;
+  return cancelCanonicalRaceWeekendCommand(gs,{gp,criteria});
+}
+
+export function raceWeekendCanonicalCheckpointDue(previousGs,nextGs,options={}){
+  if(!raceWeekendUsesCanonicalRuntime(nextGs))return false;
+  return canonicalRaceWeekendNeedsCheckpoint(previousGs,nextGs,options);
 }

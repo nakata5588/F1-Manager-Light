@@ -20,7 +20,12 @@ import {
   resolveQualifyingRules,
   weekendScheduleFromSessions,
 } from "./QualifyingRulesEngine.js";
-import { lockRaceWeekendEngineVersion } from "../race2/gateway/RaceWeekendGateway.js";
+import { lockRaceWeekendEngineVersion, raceWeekendEngineVersion } from "../race2/gateway/RaceWeekendGateway.js";
+import { RACE_WEEKEND_ENGINES } from "../race2/contracts/raceContracts.js";
+import {
+  canonicalRacePostRaceContext,
+  projectCanonicalRaceStateToOfficialRows,
+} from "../race2/adapters/OfficialRaceResultProjection.js";
 
 const clampISO=(iso)=>String(iso||"").slice(0,10);
 
@@ -551,19 +556,32 @@ export function completeQualifyingSession(gs,{gp}={}){
 export async function completeRaceSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
-  if(weekend.live_race&&!liveRaceReadyToFinalize(gs))return gs;
+  const canonical=raceWeekendEngineVersion(weekend)===RACE_WEEKEND_ENGINES.RW2;
+  const canonicalState=weekend?.canonical_race_runtime?.state||null;
+  if(canonical){
+    if(String(canonicalState?.status||"")!=="finished")return gs;
+  }else if(weekend.live_race&&!liveRaceReadyToFinalize(gs)){
+    return gs;
+  }
+
   const targetGp=targetGpForWeekend(weekend,gp);
   const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
   if(!startingGridRows.length)return gs;
 
-  const liveRaceRows=weekend.live_race?finalizedLiveRaceRows(gs):null;
+  const raceRows=canonical
+    ?projectCanonicalRaceStateToOfficialRows(gs,canonicalState)
+    :(weekend.live_race?finalizedLiveRaceRows(gs):null);
+  const raceContextOverride=canonical
+    ?canonicalRacePostRaceContext(gs,canonicalState)
+    :null;
   const next=await runRaceWeekend(gs,{
     roundIndex:Number(weekend.roundIndex)||0,
     gp:targetGp,
     startingGridOverride:startingGridRows,
     qualifyingClassificationOverride:weekend.qualifying?.classification||[],
     raceEntryOverride:gs?.raceEntryState,
-    raceOverride:liveRaceRows,
+    raceOverride:raceRows,
+    raceContextOverride,
   });
   const sessions=sessionWithPatch(weekend.sessions,"race",{
     status:"completed",

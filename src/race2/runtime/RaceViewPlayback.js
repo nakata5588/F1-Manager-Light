@@ -60,21 +60,24 @@ export function advanceCanonicalRaceViewTimestamp(gs,{
 // reset() is used on pause/resume/unmount so wall-clock gaps never become race time.
 export function createCanonicalRaceViewFrameClock(){
   let previousTimestampMs=null;
+  const sampleElapsedMs=(timestampMs=null)=>{
+    const previous=previousTimestampMs;
+    const current=timestampMs==null?null:finite(timestampMs,NaN);
+    previousTimestampMs=Number.isFinite(current)?current:null;
+    return raceViewFrameElapsedMs(previous,current);
+  };
   return {
     reset(){previousTimestampMs=null;},
+    sampleElapsedMs,
     frame(gs,{
       gp=null,
       timestampMs=null,
       playbackSpeed=1,
       stepMs=null,
     }={}){
-      const previous=previousTimestampMs;
-      const current=timestampMs==null?null:finite(timestampMs,NaN);
-      previousTimestampMs=Number.isFinite(current)?current:null;
-      return advanceCanonicalRaceViewTimestamp(gs,{
+      return advanceCanonicalRaceViewFrame(gs,{
         gp,
-        previousTimestampMs:previous,
-        currentTimestampMs:current,
+        elapsedMs:sampleElapsedMs(timestampMs),
         playbackSpeed,
         stepMs,
       });

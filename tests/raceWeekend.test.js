@@ -17,6 +17,8 @@ import { conditionModifier, practiceWeekendImpact } from "../src/domain/driverPe
 import { normalizePhysicalPartState, partUnitById } from "../src/domain/partUnits.js";
 import { normalizeRaceWeekendResumeState, raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../src/domain/raceWeekendResume.js";
 import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
+import { ensureCanonicalRaceRuntime } from "../src/race2/runtime/RaceRuntime.js";
+import { CANONICAL_RACE_RESULT_SOURCE } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 
 const gp={
   gp_id:"monaco",
@@ -744,4 +746,132 @@ test("RW5.3E direct Race DNF preserves the incident sector and contains no post-
   assert.ok(projected.pit_stops.every((stop)=>Number(stop.lap)<5));
   assert.ok(projected.strategy_decisions.every((decision)=>Number(decision.lap)<5));
   assert.ok(projected.stints.every((stint)=>Number(stint.end_lap)<=4));
+});
+
+
+test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy race result",async()=>{
+  let gs=createRaceWeekendState(
+    fixture({seed:"rw8.14j-canonical-final"}),
+    {roundIndex:0,gp,engineVersion:"rw2"}
+  );
+  gs=completePracticeSession(gs,{gp});
+  gs=continueRaceWeekendSession(gs);
+  gs=completeQualifyingSession(gs,{gp});
+  gs={...gs,currentDateISO:"1980-05-17"};
+  gs=continueRaceWeekendSession(gs);
+  gs=completeQualifyingSession(gs,{gp});
+  gs=continueRaceWeekendSession(gs);
+  assert.equal(gs.raceWeekendState.phase,"grid_ready");
+
+  gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
+  assert.equal(gs.raceWeekendState.phase,"race");
+  gs=ensureCanonicalRaceRuntime(gs,{gp});
+  const runtime=gs.raceWeekendState.canonical_race_runtime;
+  assert.ok(runtime?.state);
+
+  const state=structuredClone(runtime.state);
+  const byDriver=new Map(state.cars.map((car)=>[String(car.driverId),car]));
+  const ordered=state.cars.map((car)=>String(car.driverId));
+  assert.ok(ordered.length>=2,"canonical fixture must materialize at least two race cars");
+  const retiredDriverId=ordered.at(-1);
+  const finisherIds=ordered.slice(0,-1);
+  const finishTimes=new Map(finisherIds.map((did,index)=>[did,5_000_000+index*2_500]));
+  const leaderTime=finishTimes.get(finisherIds[0]);
+  const totalLaps=Math.max(1,Number(state.session?.lapLimit)||76);
+  const distance=Math.max(1,Number(state.track?.lengthM)||3340)*totalLaps;
+
+  state.status="finished";
+  state.cars=state.cars.map((car)=>{
+    const did=String(car.driverId);
+    if(did===retiredDriverId){
+      return {
+        ...car,
+        dnf:true,
+        status:"dnf",
+        completedLaps:40,
+        lap:41,
+        sector:2,
+        retirement:{kind:"mechanical",reason:"Engine",source:"test",tick:1,timeMs:3_000_000},
+      };
+    }
+    return {
+      ...car,
+      dnf:false,
+      status:"finished",
+      completedLaps:totalLaps,
+      lap:totalLaps,
+      sector:3,
+      absoluteDistanceM:distance,
+      distanceAlongLapM:0,
+      finishTimeMs:finishTimes.get(did),
+    };
+  });
+  state.classification=ordered.map((did,index)=>{
+    const car=byDriver.get(did);
+    const retired=did===retiredDriverId;
+    const finishTimeMs=finishTimes.get(did)??null;
+    const previousId=index>0?ordered[index-1]:null;
+    const previousTime=previousId?finishTimes.get(previousId):null;
+    return {
+      position:index+1,
+      carId:car.carId,
+      driverId:did,
+      teamId:car.teamId,
+      status:retired?"dnf":"finished",
+      lap:retired?41:totalLaps,
+      completedLaps:retired?40:totalLaps,
+      sector:retired?2:3,
+      absoluteDistanceM:retired?Math.max(0,Number(car.absoluteDistanceM)||0):distance,
+      distanceAlongLapM:retired?Number(car.distanceAlongLapM)||0:0,
+      gapToLeaderMs:retired?null:(finishTimeMs-leaderTime),
+      intervalMs:retired?null:(index===0?0:finishTimeMs-(previousTime??finishTimeMs)),
+      finishTimeMs,
+    };
+  });
+  gs={
+    ...gs,
+    raceWeekendState:{
+      ...gs.raceWeekendState,
+      canonical_race_runtime:{...runtime,state},
+      live_race:null,
+    },
+  };
+
+  const next=await completeRaceSession(gs,{gp});
+  assert.equal(next.raceWeekendState.phase,"results");
+  assert.equal(next.lastRace.strategySummary.source,CANONICAL_RACE_RESULT_SOURCE);
+  assert.deepEqual(
+    next.results[0].classification.map((row)=>row.driver_id),
+    ordered,
+    "Results must preserve canonical finishing order"
+  );
+  const retiredRow=next.results[0].classification.find((row)=>row.driver_id===retiredDriverId);
+  assert.equal(retiredRow.retired,true);
+  assert.equal(retiredRow.retirement_reason,"Engine");
+  assert.equal(retiredRow.laps_completed,40);
+  const timedDriverId=finisherIds[1]??finisherIds[0];
+  const timedRow=next.results[0].classification.find((row)=>row.driver_id===timedDriverId);
+  assert.equal(timedRow.total_time_ms,finishTimes.get(timedDriverId));
+});
+
+
+test("RW8.14J canonical runtime owns resume window and finalization readiness",()=>{
+  const running={
+    engine_version:"rw2",
+    phase:"qualifying",
+    active_session_id:"qualifying_2",
+    canonical_race_runtime:{state:{status:"running"}},
+  };
+  const resumed=normalizeRaceWeekendResumeState(running);
+  assert.equal(resumed.phase,"race");
+  assert.equal(resumed.active_session_id,"race");
+  assert.equal(raceWindowForWeekend(resumed),"live");
+  assert.equal(raceWeekendCanFinalizeLiveRace(resumed),false);
+
+  const finished={
+    ...resumed,
+    canonical_race_runtime:{state:{status:"finished"}},
+  };
+  assert.equal(raceWindowForWeekend(finished),"live");
+  assert.equal(raceWeekendCanFinalizeLiveRace(finished),true);
 });
