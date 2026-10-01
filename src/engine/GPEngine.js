@@ -1023,6 +1023,7 @@ export async function runRaceWeekend(gs, {
       gap_to_winner_ms: row.gap_to_winner_ms,
       gap_to_previous_ms: row.gap_to_previous_ms,
       best_lap_ms: row.best_lap_ms,
+      best_lap_number: row.best_lap_number ?? null,
       fastest_lap: fastestLap,
     };
   });
