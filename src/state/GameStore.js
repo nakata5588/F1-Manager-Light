@@ -2275,7 +2275,7 @@ export const useGame = create((set, get) => ({
         const roundNow=updated.currentRound??0;
         const gp=updated.calendar?.[roundNow]??null;
         if(mod.shouldCreateWeekendForDate(updated,{roundIndex:roundNow,gp,dateISO:updated.currentDateISO})){
-          updated=mod.createRaceWeekendState(updated,{roundIndex:roundNow,gp});
+          updated=mod.createGameplayRaceWeekendState(updated,{roundIndex:roundNow,gp});
         }
         const phase=String(updated?.raceWeekendState?.phase||"");
         if(["practice","qualifying","race"].includes(phase)){
