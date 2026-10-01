@@ -1805,6 +1805,15 @@ export default function RaceWeekend(){
               {activeControlNotice&&String(activeControlNotice.type)!=="GREEN"?<div className="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2">
                 <RaceFlagBanner notice={activeControlNotice}/>
               </div>:null}
+              {usesCanonicalRaceRuntime?<div className="mt-2 grid gap-1.5 rounded-lg border border-white/10 bg-black/20 p-2 text-[9px] text-slate-400 md:grid-cols-[repeat(6,minmax(0,auto))_minmax(180px,1fr)] md:items-center">
+                <span><strong className="text-slate-200">Weather</strong> {weatherStateLabel(raceViewModel?.last_weather||"SUNNY")}</span>
+                <span><strong className="text-slate-200">Rain</strong> {Number.isFinite(Number(trackState?.rain_intensity))?Math.round(Number(trackState.rain_intensity)*100)+"%":"—"}</span>
+                <span><strong className="text-slate-200">Wet</strong> {Number.isFinite(Number(trackState?.track_wetness))?Math.round(Number(trackState.track_wetness)*100)+"%":"—"}</span>
+                <span><strong className="text-slate-200">Grip</strong> {Number.isFinite(Number(trackState?.grip_index))?Number(trackState.grip_index).toFixed(0)+"/100":"—"}</span>
+                <span><strong className="text-slate-200">Visibility</strong> {Number.isFinite(Number(trackState?.visibility_index))?Number(trackState.visibility_index).toFixed(0)+"%":"—"}</span>
+                <span><strong className="text-slate-200">Track</strong> {Number.isFinite(Number(trackState?.track_temp_c))?Number(trackState.track_temp_c).toFixed(1)+"°C":"—"}</span>
+                <span className="min-w-0 truncate text-sky-300/90" title={liveTeamForecast?.message||"Team forecast unavailable"}><strong className="text-sky-200">Team forecast:</strong> {liveTeamForecast?.message||"—"}</span>
+              </div>:null}
               {!usesCanonicalRaceRuntime&&liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div className="flex min-w-0 items-start gap-2">
