@@ -14,6 +14,7 @@ import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.j
 import { normalizeRaceStepMs } from "./RaceState.js";
 import { raceAccelerationForTarget, raceDynamicsForCar } from "./RaceDynamics.js";
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
+import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs, terminalOfficialRaceTimeMs } from "./RaceLapTiming.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { advanceRaceResources } from "./RaceResources.js";
@@ -245,10 +246,12 @@ export function stepRaceState(state){
         :{...car,speedMs:0,speedKmh:0,accelerationMs2:0,targetSpeedKmh:0}
     );
     const generatedEvents=sequencedEvents(state,suspension.events||[]);
+    const officialRaceTimeMs=canonicalOfficialRaceTimeMs(state);
     const next={
       ...state,
       tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
       simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
+      officialRaceTimeMs,
       session:{
         ...state.session,
         weather:recoveredWeather?.current??state?.session?.weather??null,
@@ -256,6 +259,7 @@ export function stepRaceState(state){
         clock:{
           ...(state?.session?.clock||{}),
           elapsedMs:Math.max(0,finite(state?.session?.clock?.elapsedMs,0))+stepMs,
+          officialElapsedMs:officialRaceTimeMs,
         },
       },
       cars:frozenCars,
@@ -317,7 +321,8 @@ export function stepRaceState(state){
     weatherState:conditions.weatherState,
     raceControlState:lifecycle.raceControlState,
   };
-  const cars=advanceRaceResources(conditionsState,incidents.cars,{stepMs});
+  const resourceCars=advanceRaceResources(conditionsState,incidents.cars,{stepMs});
+  const cars=applyCanonicalLapTiming(state,resourceCars,{stepMs});
   const rawEvents=[
     ...(commands.events||[]),
     ...(pits.events||[]),
@@ -329,11 +334,13 @@ export function stepRaceState(state){
   const generatedEvents=sequencedEvents(state,rawEvents);
   const allResolved=cars.length>0&&cars.every((car)=>car?.dnf||car?.status==="dnf"||car?.status==="finished");
   const status=allResolved?"finished":"running";
+  const officialRaceTimeMs=terminalOfficialRaceTimeMs(state,cars,{stepMs});
 
   const next={
     ...workingState,
     tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
     simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
+    officialRaceTimeMs,
     status,
     session:{
       ...state.session,
@@ -343,6 +350,7 @@ export function stepRaceState(state){
       clock:{
         ...(state?.session?.clock||{}),
         elapsedMs:Math.max(0,finite(state?.session?.clock?.elapsedMs,0))+stepMs,
+        officialElapsedMs:officialRaceTimeMs,
       },
     },
     cars,
