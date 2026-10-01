@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
+import { authoritativeRaceWorldProgress } from "../src/domain/raceVisualModel.js";
 import {
   RACE_VIEW_PROJECTION_SOURCE,
   RACE_VIEW_PROJECTION_VERSION,
@@ -120,4 +121,20 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
 
 test("RW8.14A rejects missing canonical state explicitly",()=>{
   assert.throws(()=>projectRaceStateToRaceView(null),/RaceState is required/);
+});
+
+
+test("RW8.14K1.5 Race View uses canonical physical progress instead of rebuilding position from sector gaps",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  for(let i=0;i<25;i+=1)state=stepRaceState(state);
+  const view=projectRaceStateToRaceView(state);
+  const row=view.classification[0];
+  const physicalWorld=authoritativeRaceWorldProgress(row,{
+    currentLap:view.current_lap,
+    currentSector:3,
+    referenceLapMs:90000,
+    index:0,
+  });
+  assert.equal(physicalWorld,(row.lap-1)+row.visual_track_progress);
+  assert.notEqual(physicalWorld,(row.lap-1)+1,"sector checkpoint must not replace canonical distance");
 });
