@@ -8,7 +8,6 @@
 
 import { hashSeed } from "../../core/random.js";
 import { trackForwardGapM } from "../track/TrackModel.js";
-import { raceTargetSpeedProfile } from "./RaceDynamics.js";
 import {
   RACE_TRAFFIC_HARD_GAP_M,
   desiredTrafficGapM,
@@ -65,18 +64,28 @@ function overtakingRangeFactor(state){
   return clamp(1.08-overtakingDifficulty(state)*0.0035,0.72,1.08);
 }
 
-function freeTargetSpeedMs(state,car){
-  const target=finite(raceTargetSpeedProfile(state,car)?.targetSpeedKmh,null);
-  if(target==null)return Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
-  return Math.max(0,target/3.6);
+function overtakingPerformancePotential(car,{attacker=false}={}){
+  const driver=driverPerformance(car);
+  const machine=carPerformance(car);
+  return (
+    score(machine?.race,70)*0.38+
+    score(machine?.power,70)*0.24+
+    score(machine?.chassis,70)*0.12+
+    score(driver?.raceScore,70)*0.16+
+    score(attacker?driver?.overtaking:driver?.defending,70)*0.10
+  );
 }
 
 function overtakeClosingPotentialMs(state,attacker,defender){
+  void state;
   const currentAttacker=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
   const currentDefender=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
   const currentClosing=currentAttacker-currentDefender;
-  const freeClosing=freeTargetSpeedMs(state,attacker)-freeTargetSpeedMs(state,defender);
-  return Math.max(currentClosing,freeClosing);
+  const performanceDelta=
+    overtakingPerformancePotential(attacker,{attacker:true})-
+    overtakingPerformancePotential(defender,{attacker:false});
+  const performanceClosing=performanceDelta*0.085;
+  return Math.max(currentClosing,performanceClosing);
 }
 
 function battleDurationMs(state,gapM,closingPotentialMs){
