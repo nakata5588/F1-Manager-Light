@@ -783,10 +783,12 @@ export default function RaceWeekend(){
       return;
     }
     setSelectedLiveDriverId((current)=>{
-      if(!current)return "";
-      return liveRows.some((row)=>String(row?.driver_id??"")===String(current))?current:"";
+      if(current&&liveRows.some((row)=>String(row?.driver_id??"")===String(current)))return current;
+      return playerDriverIds.find((id)=>
+        liveRows.some((row)=>String(row?.driver_id??"")===String(id))
+      )||"";
     });
-  },[Boolean(raceViewModel),liveRows.length]);
+  },[Boolean(raceViewModel),liveRows.length,playerDriverIds.join("|")]);
   useEffect(()=>{
     if(
       usesCanonicalRaceRuntime||
