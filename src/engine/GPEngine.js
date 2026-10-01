@@ -878,6 +878,7 @@ export async function runRaceWeekend(gs, {
   startingGridOverride=null,
   raceEntryOverride=null,
   raceOverride=null,
+  raceContextOverride=null,
 } = {}) {
   const hasPersistentGrid=Array.isArray(startingGridOverride)&&startingGridOverride.length>0;
   let qualifyingSession=null;
@@ -914,16 +915,31 @@ export async function runRaceWeekend(gs, {
       ?qualifyingFromOverride(gs,qualifyingOverride)
       :(qualifyingSession?.qualifying||[]);
 
-  const preliminaryRace=simulateManagedRace(gs,{
-    gp,
-    grid:qualy,
-    ratings,
-    roundIndex,
-  });
   const hasRaceOverride=Array.isArray(raceOverride)&&raceOverride.length>0;
+  const hasRaceContextOverride=Boolean(
+    hasRaceOverride&&
+    raceContextOverride&&
+    typeof raceContextOverride==="object"
+  );
+  const preliminaryRace=hasRaceContextOverride
+    ?{
+        gameState:raceContextOverride.gameState||gs,
+        race:raceOverride,
+        weather:raceContextOverride.weather||{},
+        track:raceContextOverride.track||{},
+        rules:raceContextOverride.rules||{},
+        strategyState:raceContextOverride.strategyState||gs?.raceWeekendState?.race_strategy||null,
+        summary:raceContextOverride.summary||{},
+      }
+    :simulateManagedRace(gs,{
+        gp,
+        grid:qualy,
+        ratings,
+        roundIndex,
+      });
   const existingRaceControlPlan=gs?.raceWeekendState?.race_strategy?.race_control_plan||null;
   const raceControlPlan=hasRaceOverride
-    ?existingRaceControlPlan
+    ?raceContextOverride?.raceControlPlan??existingRaceControlPlan
     :existingRaceControlPlan||createRaceControlPlan(preliminaryRace.gameState,{
       gp,
       race:preliminaryRace.race,
