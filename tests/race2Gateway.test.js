@@ -8,9 +8,10 @@ import {
   stampRaceWeekendEngineVersion,
 } from "../src/race2/gateway/RaceWeekendGateway.js";
 
-test("RW8.0A new weekends default to Legacy and can explicitly lock RW2",()=>{
-  assert.equal(lockRaceWeekendEngineVersion(null),"legacy");
+test("RW9D new weekends default to RW2 while explicit Legacy remains transitional",()=>{
+  assert.equal(lockRaceWeekendEngineVersion(null),"rw2");
   assert.equal(lockRaceWeekendEngineVersion(null,{requestedEngineVersion:"rw2"}),"rw2");
+  assert.equal(lockRaceWeekendEngineVersion(null,{requestedEngineVersion:"legacy"}),"legacy");
 });
 
 test("RW8.0A an existing weekend never switches engine mid-session",()=>{

@@ -167,7 +167,7 @@ function fixture(seed) {
 }
 
 export function createParityRaceStart(seed = "rw7.1-parity") {
-  let gs = createRaceWeekendState(fixture(seed), { roundIndex: 0, gp: PARITY_GP });
+  let gs = createRaceWeekendState(fixture(seed), { roundIndex: 0, gp: PARITY_GP, engineVersion: "legacy" });
   gs = completePracticeSession(gs, { gp: PARITY_GP });
   gs = continueRaceWeekendSession(gs);
   gs = completeQualifyingSession(gs, { gp: PARITY_GP });
