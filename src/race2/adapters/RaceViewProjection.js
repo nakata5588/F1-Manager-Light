@@ -114,6 +114,8 @@ export function projectRaceStateToRaceView(state){
       status:retired?"DNF":text(row?.status||car?.status||"running").toUpperCase(),
       retired,
       retirement_reason:car?.retirement?.reason??null,
+      incident_lap:retired?finite(car?.lap,null):null,
+      incident_sector:retired?finite(car?.sector,null):null,
       gap_to_leader_ms:finite(row?.gapToLeaderMs,null),
       gap_to_previous_ms:finite(row?.intervalMs,null),
       interval_ms:finite(row?.intervalMs,null),
