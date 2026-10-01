@@ -18,6 +18,7 @@ import Board from "./pages/Board.jsx";
 import CalendarPage from "./pages/CalendarPage.jsx";
 import CarPage from "./pages/Car.jsx";
 import Drivers from "./pages/Drivers.jsx";
+import AllDrivers from "./pages/AllDrivers.jsx";
 import Finances from "./pages/Finances.jsx";
 import Home from "./pages/Home.jsx";
 import MyDrivers from "./pages/MyDrivers.jsx";
@@ -33,7 +34,11 @@ import Scouting from "./pages/Scouting.jsx";
 import Settings from "./pages/Settings.jsx";
 import Staff from "./pages/Staff.jsx";
 import Standings from "./pages/Standings.jsx";
+import Champions from "./pages/Champions.jsx";
 import World from "./pages/World.jsx";
+import LowerSeries from "./pages/LowerSeries.jsx";
+import LowerSeriesResults from "./pages/LowerSeriesResults.jsx";
+import LowerSeriesChampions from "./pages/LowerSeriesChampions.jsx";
 import Team from "./pages/Team.jsx";
 import Results from "./pages/Results.jsx";
 import RaceWeekend from "./pages/RaceWeekend.jsx";
@@ -189,7 +194,8 @@ export default function App() {
           <Route path="/Home" element={<Home />} />
           <Route path="/ManagerProfile" element={<ManagerProfile />} />
           <Route path="/Inbox" element={<Inbox />} />
-          <Route path="/Drivers" element={<Drivers />} />
+          <Route path="/Drivers" element={<AllDrivers />} />
+          <Route path="/DriverMarket" element={<Drivers />} />
           <Route path="/drivers/:driverId" element={<DriverProfilePage />} />
           <Route path="/Teams" element={<Teams />} />
           <Route path="/teams/:teamId" element={<TeamProfilePage />} />
@@ -198,8 +204,11 @@ export default function App() {
           <Route path="/MyStaff" element={<MyStaff />} />
           <Route path="/Standings" element={<Standings />} />
           <Route path="/Results" element={<Results />} />
+          <Route path="/Champions" element={<Champions />} />
+          <Route path="/LowerSeries" element={<LowerSeries />} />
+          <Route path="/LowerResults" element={<LowerSeriesResults />} />
+          <Route path="/LowerChampions" element={<LowerSeriesChampions />} />
           <Route path="/World" element={<World />} />
-          <Route path="/Champions" element={<Navigate to="/World?view=champions" replace />} />
           <Route path="/GameSettings" element={<Settings embedded />} />
           <Route path="/CalendarPage" element={<CalendarPage />} />
           <Route path="/Development" element={<Navigate to="/Car?view=development" replace />} />
