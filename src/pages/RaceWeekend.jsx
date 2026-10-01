@@ -2066,10 +2066,10 @@ export default function RaceWeekend(){
                             >
                               <option value="">Stay out</option>
                               {teamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
-                              {!usesCanonicalRaceRuntime&&hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
-                              {!usesCanonicalRaceRuntime&&hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
-                              {!usesCanonicalRaceRuntime&&hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
-                              {!usesCanonicalRaceRuntime&&hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
+                              {hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
+                              {hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
+                              {hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
+                              {hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
                             {!usesCanonicalRaceRuntime&&canYieldToTeammate?<button
                               type="button"
