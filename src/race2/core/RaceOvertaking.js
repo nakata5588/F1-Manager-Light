@@ -17,9 +17,9 @@ import {
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.4;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
-export const RACE_BATTLE_DURATION_MS=3200;
-export const RACE_BATTLE_MAX_DURATION_MS=9000;
-export const RACE_BATTLE_EXTENSION_MS=1200;
+export const RACE_BATTLE_DURATION_MS=3500;
+export const RACE_BATTLE_MAX_DURATION_MS=12000;
+export const RACE_BATTLE_EXTENSION_MS=1800;
 export const RACE_BATTLE_RETRY_COOLDOWN_MS=5000;
 
 const finite=(value,fallback=null)=>{
@@ -81,22 +81,31 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   const currentAttacker=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
   const currentDefender=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
   const currentClosing=currentAttacker-currentDefender;
+  const attackerFree=finite(attacker?.freeTargetSpeedKmh,null);
+  const defenderFree=finite(defender?.freeTargetSpeedKmh,null);
+  const hasFreeTelemetry=
+    attackerFree!=null&&attackerFree>0&&
+    defenderFree!=null&&defenderFree>0;
+  const freeClosing=hasFreeTelemetry
+    ?(attackerFree-defenderFree)/3.6
+    :null;
   const performanceDelta=
     overtakingPerformancePotential(attacker,{attacker:true})-
     overtakingPerformancePotential(defender,{attacker:false});
   const performanceClosing=performanceDelta*0.085;
-  return Math.max(currentClosing,performanceClosing);
+  return Math.max(
+    currentClosing,
+    freeClosing==null?performanceClosing:freeClosing
+  );
 }
 
 function battleDurationMs(state,gapM,closingPotentialMs){
-  const requiredGain=Math.max(
-    RACE_TRAFFIC_HARD_GAP_M,
-    Math.max(0,finite(gapM,0))+RACE_TRAFFIC_HARD_GAP_M
-  );
-  const usableClosing=Math.max(1.2,finite(closingPotentialMs,0));
+  void state;
+  const requiredGain=Math.max(0.5,Math.max(0,finite(gapM,0))+0.5);
+  const usableClosing=Math.max(0.75,finite(closingPotentialMs,0));
   const estimatedMs=(requiredGain/usableClosing)*1000;
   return Math.round(clamp(
-    estimatedMs*1.15+900,
+    estimatedMs*1.20+1500,
     RACE_BATTLE_DURATION_MS,
     RACE_BATTLE_MAX_DURATION_MS
   ));
@@ -322,11 +331,15 @@ function attemptOpportunity(state,attacker,occupied){
     RACE_OVERTAKE_ATTEMPT_RANGE_M,
     finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)+8
   );
-  const attemptRange=baseAttemptRange*overtakingRangeFactor(state);
-  if(gapM>attemptRange)return null;
-
+  const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
   const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
-  if(closingPotentialMs<0.45)return null;
+  if(closingPotentialMs<0.75)return null;
+  const physicallyReachableRange=Math.max(
+    0,
+    closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)*0.82
+  );
+  const attemptRange=Math.min(trackAttemptRange,physicallyReachableRange);
+  if(gapM>attemptRange)return null;
 
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
