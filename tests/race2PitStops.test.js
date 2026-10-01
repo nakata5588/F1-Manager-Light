@@ -711,3 +711,92 @@ test("RW11D player-controlled car receives repair advice without automatic repai
   assert.equal(planned.resources.strategy.plannedStopLap,null);
   assert.deepEqual(planned.resources.strategy.repairComponentsRequested??[],[]);
 });
+
+
+test("RW11E AI no-stop plan is an opening intent, not a lock against severe tyre degradation",()=>{
+  let state=runningState({
+    cars:1,
+    plannedStopLap:null,
+    pitPlan:"no_stop",
+    laps:20,
+    aiControlled:true,
+  });
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:12900,
+    distanceAlongLapM:900,
+    completedLaps:12,
+    lap:13,
+    sector:3,
+    tyre:{
+      ...car(state).tyre,
+      condition:28,
+      wear_rate:0.028,
+      wear_per_lap_pct:4.2,
+    },
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  assert.equal(planned.resources.strategy.pitPlan,"no_stop");
+  assert.equal(planned.resources.strategy.forecast?.pit_reason,"degradation");
+  assert.equal(planned.resources.strategy.autoPitReason,"degradation");
+  assert.ok(Number.isFinite(planned.resources.strategy.plannedStopLap));
+  assert.ok(planned.resources.strategy.plannedStopLap>=13);
+  assert.equal(planned.resources.strategy.tyreChangeRequested,true);
+});
+
+test("RW11E player no-stop plan receives degradation forecast without an automatic pit order",()=>{
+  let state=runningState({
+    cars:1,
+    plannedStopLap:null,
+    pitPlan:"no_stop",
+    laps:20,
+    aiControlled:false,
+  });
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:12900,
+    distanceAlongLapM:900,
+    completedLaps:12,
+    lap:13,
+    sector:3,
+    tyre:{
+      ...car(state).tyre,
+      condition:28,
+      wear_rate:0.028,
+      wear_per_lap_pct:4.2,
+    },
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  assert.equal(planned.resources.strategy.forecast?.pit_reason,"degradation");
+  assert.equal(planned.resources.strategy.plannedStopLap,null);
+  assert.equal(planned.resources.strategy.autoPitReason??null,null);
+});
+
+test("RW11E AI no-stop plan reacts immediately to a canonical wet-weather crossover",()=>{
+  let state=runningState({
+    cars:1,
+    plannedStopLap:null,
+    pitPlan:"no_stop",
+    laps:12,
+    aiControlled:true,
+  });
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.35},
+    trackState:{...(state.trackState||{}),wetness:0.35,weatherState:"WETTING"},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:3898,
+    distanceAlongLapM:898,
+    completedLaps:3,
+    lap:4,
+    sector:3,
+    tyre:{...car(state).tyre,condition:90,category:"dry"},
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  assert.equal(planned.resources.strategy.forecast?.pit_reason,"weather");
+  assert.equal(planned.resources.strategy.nextTyreId,"inter");
+  assert.equal(planned.resources.strategy.autoPitReason,"weather");
+  assert.equal(planned.resources.strategy.plannedStopLap,4);
+});
