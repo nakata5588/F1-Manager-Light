@@ -1143,7 +1143,7 @@ export default function RaceWeekend(){
               className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[9px] font-bold text-slate-950 hover:bg-white disabled:opacity-50"
               title="Run the same canonical race simulation to the finish without animation"
             >
-              Simulate to finish
+              {busy?"Simulating…":"Simulate to finish"}
             </button>
           </>}
         </div>:canFinalizeLiveRace?<div className="flex shrink-0 items-center gap-2">
