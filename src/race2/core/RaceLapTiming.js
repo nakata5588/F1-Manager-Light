@@ -15,9 +15,28 @@ const finite=(value,fallback=null)=>{
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 export function canonicalOfficialRaceTimeMs(state){
-  return Math.max(0,finite(
+  const explicit=finite(
     state?.officialRaceTimeMs,
-    finite(state?.session?.clock?.officialElapsedMs,0)
+    finite(state?.session?.clock?.officialElapsedMs,null)
+  );
+  if(explicit!=null)return Math.max(0,explicit);
+
+  // Save compatibility for schema <= 11. The old per-car elapsed clock stopped
+  // during Red Flags and is therefore a better migration source than the
+  // simulation/weather wall clock. Existing finish times are included so the
+  // migrated clock can never jump behind a car already classified as finished.
+  const carClock=Math.max(
+    0,
+    ...(state?.cars||[]).flatMap((car)=>[
+      finite(car?.elapsedMs,0),
+      finite(car?.finishTimeMs,0),
+    ])
+  );
+  if(carClock>0)return carClock;
+
+  return Math.max(0,finite(
+    state?.session?.clock?.elapsedMs,
+    finite(state?.simulationTimeMs,0)
   ));
 }
 
