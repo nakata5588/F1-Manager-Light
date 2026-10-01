@@ -10,6 +10,7 @@ import {
   ensureCanonicalRaceRuntime,
   queueCanonicalRaceWeekendCommand,
   restoreCanonicalRaceRunner,
+  runCanonicalRaceWeekendBatch,
 } from "../src/race2/runtime/RaceRuntime.js";
 import { RACE_VIEW_PROJECTION_SOURCE } from "../src/race2/adapters/RaceViewProjection.js";
 import { createLiveRaceRunner } from "../src/race2/core/RaceRunner.js";
@@ -162,4 +163,25 @@ test("RW8.14J canonical checkpoint cadence follows simulation time instead of br
   assert.equal(canonicalRaceRuntimeNeedsCheckpoint(initial,beforeBoundary),false);
   assert.equal(canonicalRaceRuntimeNeedsCheckpoint(beforeBoundary,acrossBoundary),true);
   assert.equal(canonicalRaceRuntimeNeedsCheckpoint(acrossBoundary,sameBucket),false);
+});
+
+
+test("RW9C canonical Autosim batches converge without mutating their input",()=>{
+  const snapshot=runtime();
+  const initial=gameState({runtimeSnapshot:snapshot});
+  let next=initial;
+  let guard=0;
+
+  while(next.raceWeekendState.canonical_race_runtime.state.status!=="finished"&&guard<2000){
+    next=runCanonicalRaceWeekendBatch(next,{steps:250});
+    guard+=1;
+  }
+
+  const state=next.raceWeekendState.canonical_race_runtime.state;
+  assert.ok(guard<2000);
+  assert.equal(state.status,"finished");
+  assert.ok(state.cars.every((car)=>car.dnf||car.status==="finished"));
+  assert.equal(next.raceWeekendState.engine_version,"rw2");
+  assert.equal(initial.raceWeekendState.canonical_race_runtime.state.status,"running");
+  assert.equal(next.raceWeekendState.canonical_race_runtime.accumulatorMs,0);
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CANONICAL_RACE_ENGINE_VERSION,
   advanceRaceWeekendElapsed,
+  autosimRaceWeekendBatch,
   cancelRaceWeekendCanonicalCommand,
   queueRaceWeekendCanonicalCommand,
   raceWeekendCanonicalCheckpointDue,
@@ -33,6 +34,7 @@ test("RW8.14E leaves Legacy and pre-race states byte-for-byte untouched",()=>{
   const legacy=state("legacy","race");
   const preRace=state("rw2","grid_ready");
   assert.equal(advanceRaceWeekendElapsed(legacy,{elapsedMs:1000}),legacy);
+  assert.equal(autosimRaceWeekendBatch(legacy,{steps:250}),legacy);
   assert.equal(advanceRaceWeekendElapsed(preRace,{elapsedMs:1000}),preRace);
   assert.equal(raceWeekendCanonicalView(legacy),null);
   assert.equal(raceWeekendCanonicalView(preRace),null);

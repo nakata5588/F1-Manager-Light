@@ -2029,6 +2029,58 @@ export const useGame = create((set, get) => ({
     return mod.raceWeekendCanonicalView(next);
   },
 
+  autosimRaceWeekendRace: async () => {
+    const beforeImport=get().gameState;
+    if(!beforeImport?.raceWeekendState)return null;
+
+    const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+
+    // Re-read after the async module boundary, then keep this exact GameState
+    // as the optimistic-concurrency base for the whole fast simulation. We do
+    // not overwrite any external state change that occurs while Autosim yields.
+    const base=get().gameState;
+    const weekend=base?.raceWeekendState;
+    if(!weekend)return null;
+    if(!mod.raceWeekendUsesCanonicalRuntime(base))return null;
+
+    const gp=base?.calendar?.[Number(weekend.roundIndex)||0]||null;
+    const batchSteps=250;
+    const maxSteps=1_000_000;
+    let simulated=base;
+    let steps=0;
+
+    while(
+      String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"&&
+      steps<maxSteps
+    ){
+      simulated=mod.autosimRaceWeekendBatch(simulated,{
+        gp,
+        steps:Math.min(batchSteps,maxSteps-steps),
+      });
+      steps+=batchSteps;
+
+      if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")==="finished")break;
+
+      // Yield a macrotask between deterministic canonical batches so React can
+      // paint the busy state and the browser can process input.
+      await new Promise((resolve)=>setTimeout(resolve,0));
+      if(get().gameState!==base){
+        throw new Error("Race Weekend state changed while canonical Autosim was running");
+      }
+    }
+
+    if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"){
+      throw new Error(`RW2 race did not finish within ${maxSteps} canonical steps`);
+    }
+    if(get().gameState!==base){
+      throw new Error("Race Weekend state changed before canonical Autosim could commit");
+    }
+
+    set({gameState:simulated});
+    checkpointRaceWeekendState(simulated);
+    return mod.raceWeekendCanonicalView(simulated);
+  },
+
   advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
     const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
     let gs=get().gameState;
