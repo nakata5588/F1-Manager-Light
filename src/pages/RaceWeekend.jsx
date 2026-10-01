@@ -2033,6 +2033,10 @@ export default function RaceWeekend(){
                         <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
                         <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
                         <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
+                        {damagedComponents.length?<span
+                          title={damagedComponents.map((component)=>String(component).replaceAll("_"," ")).join(", ")}
+                          className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-1 font-semibold text-rose-300"
+                        ><Wrench className="h-3 w-3"/>DMG · {String(liveDriver?.damage_severity||liveDriver?.damage_state?.severity||"minor").toUpperCase()}</span>:null}
                         <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
                       </div>
 
