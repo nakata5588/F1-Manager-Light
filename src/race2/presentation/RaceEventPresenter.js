@@ -346,9 +346,7 @@ export function presentCanonicalRaceEvent(event,context={}){
     const compound=tyreName(context,payload?.tyreTo);
     const tyreAction=compound&&payload?.tyreChanged===true
       ?`changes to ${compound} tyres`
-      :compound
-        ?`completes pit service on ${compound} tyres`
-        :null;
+      :null;
     const repaired=rows(payload?.repairedComponents).map((component)=>
       text(component).replaceAll("_"," ")
     ).filter(Boolean);
