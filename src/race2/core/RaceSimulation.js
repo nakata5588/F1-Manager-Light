@@ -72,6 +72,58 @@ function timeToDistanceS(speedMs,accelerationMs2,distanceM,maxTimeS){
   return candidates.length?Math.min(...candidates):maxTime;
 }
 
+function canonicalOfficialTimeMs(state){
+  return Math.max(0,finite(
+    state?.officialRaceTimeMs,
+    finite(state?.session?.clock?.officialElapsedMs,0)
+  ));
+}
+
+function canonicalLapTimingAfterMove(state,car,{
+  currentAbsolute,
+  nextAbsolute,
+  lengthM,
+  speedMs,
+  acceleration,
+  motionTime,
+}){
+  const existing=Array.isArray(car?.lapTimes)?car.lapTimes:[];
+  let lapTimes=existing;
+  let lapStartedAtMs=Math.max(0,finite(
+    car?.lapStartedAtMs,
+    finite(existing.at(-1)?.completedAtMs,0)
+  ));
+  let lastLapMs=finite(car?.lastLapMs,null);
+  let bestLapMs=finite(car?.bestLapMs,null);
+  let bestLapNumber=finite(car?.bestLapNumber,null);
+
+  const firstBoundary=Math.max(1,Math.floor(finite(currentAbsolute,0)/lengthM)+1);
+  const lastBoundary=Math.max(0,Math.floor((finite(nextAbsolute,0)+1e-9)/lengthM));
+  if(lastBoundary<firstBoundary){
+    return {lapTimes,lapStartedAtMs,lastLapMs,bestLapMs,bestLapNumber};
+  }
+
+  const officialStartMs=canonicalOfficialTimeMs(state);
+  lapTimes=[...existing];
+  for(let lapNumber=firstBoundary;lapNumber<=lastBoundary;lapNumber+=1){
+    const boundaryDistance=lapNumber*lengthM;
+    const distanceToBoundary=boundaryDistance-finite(currentAbsolute,0);
+    if(distanceToBoundary<=1e-9)continue;
+    const crossingTimeS=timeToDistanceS(speedMs,acceleration,distanceToBoundary,motionTime);
+    const completedAtMs=Number((officialStartMs+crossingTimeS*1000).toFixed(3));
+    const lapTimeMs=Number((completedAtMs-lapStartedAtMs).toFixed(3));
+    if(lapTimeMs<=0)continue;
+    lapTimes.push({lap:lapNumber,timeMs:lapTimeMs,completedAtMs});
+    lastLapMs=lapTimeMs;
+    if(bestLapMs==null||lapTimeMs<bestLapMs-1e-6){
+      bestLapMs=lapTimeMs;
+      bestLapNumber=lapNumber;
+    }
+    lapStartedAtMs=completedAtMs;
+  }
+  return {lapTimes,lapStartedAtMs,lastLapMs,bestLapMs,bestLapNumber};
+}
+
 function advanceCar(state,car,stepMs){
   if(car?.dnf||car?.status==="dnf"||car?.status==="finished")return car;
   if(String(car?.pitState?.status??"track")!=="track")return car;
@@ -121,7 +173,7 @@ function advanceCar(state,car,stepMs){
   if(finished){
     const remainingDistance=Math.max(0,finishDistance-currentAbsolute);
     const crossingTimeS=timeToDistanceS(speedMs,acceleration,remainingDistance,motionTime);
-    finishTimeMs=Number((Math.max(0,finite(state?.simulationTimeMs,0))+crossingTimeS*1000).toFixed(3));
+    finishTimeMs=Number((canonicalOfficialTimeMs(state)+crossingTimeS*1000).toFixed(3));
     nextAbsolute=Number(finishDistance.toFixed(6));
   }
 
@@ -135,6 +187,14 @@ function advanceCar(state,car,stepMs){
   const sector=finished
     ?3
     :(trackSectorAtDistance(state.track,distanceAlongLapM)??1);
+  const lapTiming=canonicalLapTimingAfterMove(state,car,{
+    currentAbsolute,
+    nextAbsolute,
+    lengthM,
+    speedMs,
+    acceleration,
+    motionTime,
+  });
 
   return {
     ...car,
@@ -165,8 +225,13 @@ function advanceCar(state,car,stepMs){
     dynamicsLookaheadM:Number(finite(dynamics?.lookaheadM,car?.dynamicsLookaheadM||0).toFixed(6)),
     elapsedMs:finished
       ?finishTimeMs
-      :Math.max(0,finite(car?.elapsedMs,0))+stepMs,
+      :canonicalOfficialTimeMs(state)+stepMs,
     finishTimeMs,
+    lapStartedAtMs:lapTiming.lapStartedAtMs,
+    lastLapMs:lapTiming.lastLapMs,
+    bestLapMs:lapTiming.bestLapMs,
+    bestLapNumber:lapTiming.bestLapNumber,
+    lapTimes:lapTiming.lapTimes,
     zoneId:finished?"finish":`sector_${sector}`,
     zoneType:finished?"finish":"sector",
     status:finished?"finished":"running",
@@ -334,6 +399,7 @@ export function stepRaceState(state){
     ...workingState,
     tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
     simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
+    officialRaceTimeMs:canonicalOfficialTimeMs(state)+stepMs,
     status,
     session:{
       ...state.session,
@@ -343,6 +409,7 @@ export function stepRaceState(state){
       clock:{
         ...(state?.session?.clock||{}),
         elapsedMs:Math.max(0,finite(state?.session?.clock?.elapsedMs,0))+stepMs,
+        officialElapsedMs:canonicalOfficialTimeMs(state)+stepMs,
       },
     },
     cars,
