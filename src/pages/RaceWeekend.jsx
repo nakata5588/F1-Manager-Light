@@ -1962,7 +1962,7 @@ export default function RaceWeekend(){
                               {!usesCanonicalRaceRuntime&&hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
                               {!usesCanonicalRaceRuntime&&hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
-                            {canYieldToTeammate?<button
+                            {!usesCanonicalRaceRuntime&&canYieldToTeammate?<button
                               type="button"
                               title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
                               onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
