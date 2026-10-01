@@ -166,6 +166,7 @@ export function initialRaceResources(input,inputCar,driver){
         nextTyreId:inputCar?.resourceSetup?.strategy?.nextTyreId??null,
         pitPlan:inputCar?.resourceSetup?.strategy?.pitPlan??null,
         plannedStopLap:finite(inputCar?.resourceSetup?.strategy?.plannedStopLap,null),
+        aiControlled:inputCar?.resourceSetup?.strategy?.aiControlled!==false,
         fuelPlan:inputCar?.resourceSetup?.strategy?.fuelPlan??null,
         tyreChangeRequested:true,
         refuelRequested:fuel.fuelStintPlanned,
