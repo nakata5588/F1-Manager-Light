@@ -160,6 +160,14 @@ function setRollingSnapshot(value) {
   cleanupLegacyAutosaveDuplicate();
   return setItemQuotaSafe(SAVE_KEY, value, { evictManualSaves: false });
 }
+function writeRollingAutosave(gs) {
+  if (gs?.settings?.autosave === false) return false;
+  // Build and serialize one canonical Continue snapshot. The retired
+  // f1ml.autosave duplicate is cleaned by setRollingSnapshot and is never
+  // written again.
+  const serialized = JSON.stringify(makeLightSnapshot(gs));
+  return setRollingSnapshot(serialized);
+}
 function setSessionRecoverySnapshot(gs) {
   try {
     if (typeof sessionStorage === "undefined") return false;
@@ -1907,11 +1915,7 @@ export const useGame = create((set, get) => ({
     const next=mod.completePracticeSession(gs,{gp});
     set({gameState:next});
     try {
-      if(next?.settings?.autosave!==false){
-        const light=makeLightSnapshot(next);
-        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setRollingSnapshot(JSON.stringify(light));
-      }
+      writeRollingAutosave(next);
     } catch {}
     return next?.raceWeekendState||null;
   },
@@ -1925,11 +1929,7 @@ export const useGame = create((set, get) => ({
     const next=mod.completeQualifyingSession(gs,{gp});
     set({gameState:next});
     try {
-      if(next?.settings?.autosave!==false){
-        const light=makeLightSnapshot(next);
-        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setRollingSnapshot(JSON.stringify(light));
-      }
+      writeRollingAutosave(next);
     } catch {}
     return next?.raceWeekendState||null;
   },
@@ -2226,11 +2226,7 @@ export const useGame = create((set, get) => ({
     const next=await mod.completeRaceSession(gs,{gp});
     set({gameState:next});
     try {
-      if(next?.settings?.autosave!==false){
-        const light=makeLightSnapshot(next);
-        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setRollingSnapshot(JSON.stringify(light));
-      }
+      writeRollingAutosave(next);
     } catch {}
     return next?.raceWeekendState||null;
   },
@@ -2359,11 +2355,7 @@ export const useGame = create((set, get) => ({
     }
 
     try {
-      if(updated?.settings?.autosave!==false){
-        const light=makeLightSnapshot(updated);
-        localStorage.setItem("f1ml.autosave",JSON.stringify({gameState:light,ts:Date.now()}));
-        setRollingSnapshot(JSON.stringify(light));
-      }
+      writeRollingAutosave(updated);
     } catch(error) {
       console.warn("[Autosave] daily checkpoint failed:",error);
     }
