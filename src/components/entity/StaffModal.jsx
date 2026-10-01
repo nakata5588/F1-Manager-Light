@@ -95,7 +95,7 @@ export default function StaffModal({entity,onClose,pageMode=false,onBack=null}){
     :"max-h-[92vh] rounded-2xl border border-white/10 shadow-2xl")}>
     <aside className="shrink-0 border-b border-white/10 bg-[#11141c] p-5 lg:w-[290px] lg:border-b-0 lg:border-r">
       <div className="flex items-center gap-3">
-        <StaffPortrait staff={staff||{staff_name:name}} size="h-20 w-20" className="!rounded-xl" editable/>
+        <StaffPortrait staff={staff||{staff_id:id,staff_name:name}} size="h-20 w-20" className="!rounded-xl" editable/>
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Staff</div>
           <div className="truncate text-xl font-semibold leading-tight">{name}</div>
