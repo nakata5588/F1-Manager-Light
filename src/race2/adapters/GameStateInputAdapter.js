@@ -77,6 +77,7 @@ function normalizedDrivers(gs,entries){
           overtaking:finite(driverDerivedRating(rating,"overtaking"),null),
           defending:finite(driverDerivedRating(rating,"defending"),null),
           mistakePropensity:finite(driverMistakePropensity(rating,{performanceEntries:driverPerformanceEntries(gs,driverId)})?.value,null),
+          raceIntelligence:finite(rating?.race_intelligence,60),
           aggression:finite(rating?.aggression??rating?.agression,null),
           tyreManagement:finite(rating?.tire_management,60),
         },
@@ -102,6 +103,7 @@ export function managerAdjustedPitCrew(gs,teamId,pitCrew){
 function normalizedCars(gs,entries){
   const seen=new Set();
   const cars=[];
+  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
   for(const entry of entries){
     if(!entry?.teamId||!entry?.carId||seen.has(entry.carId))continue;
     const car=(garageCarsForTeam(gs,entry.teamId)||[]).find((row)=>text(row?.id)===entry.carId);
@@ -113,7 +115,7 @@ function normalizedCars(gs,entries){
     const reliabilityProfile=entry.driverId?carReliabilityProfile(gs,entry.teamId,entry.driverId,{carOverride:car}):null;
     const reliability=entry.driverId?{profile:cloneRaceContractValue(reliabilityProfile),mechanicalFailureChance:finite(mechanicalRetirementChance(gs,incidentRow,{teamIdOverride:entry.teamId,reliabilityProfileOverride:reliabilityProfile}),0),accidentIncidentChance:finite(accidentIncidentChance(gs,incidentRow),0),accidentConditionalRetirementChance:finite(accidentConditionalRetirementChance(gs,incidentRow),0)}:null;
     seen.add(entry.carId);
-    cars.push({carId:entry.carId,driverId:entry.driverId||null,teamId:entry.teamId,kind:car?.kind??null,state:cloneRaceContractValue(car),reliability:cloneRaceContractValue(reliability),resourceSetup:{strategy:cloneRaceContractValue(selection?{startTyreId:selection?.start_tyre_id??null,nextTyreId:selection?.next_tyre_id??null,paceMode:selection?.pace_mode??"balanced",fuelPlan:selection?.fuel_plan??null,pitPlan:selection?.pit_plan??null,plannedStopLap:finite(selection?.planned_stop_lap,null)}:null),pitCrew:cloneRaceContractValue(managerAdjustedPitCrew(gs,entry.teamId,gs?.raceStrategyWorld?.pitCrews?.[entry.teamId]??null)),tyres:cloneRaceContractValue(tyreOptions)},performance:{overall:finite(performance?.overall,70),qualifying:finite(performance?.qualifying,70),race:finite(performance?.race,70),reliability:finite(performance?.reliability,75),chassis:finite(performance?.chassis,70),power:finite(performance?.power,70),technicalDelta:cloneRaceContractValue(performance?.technical_delta||{}),wearPenalty:cloneRaceContractValue(performance?.wear_penalty||{})}});
+    cars.push({carId:entry.carId,driverId:entry.driverId||null,teamId:entry.teamId,kind:car?.kind??null,state:cloneRaceContractValue(car),reliability:cloneRaceContractValue(reliability),resourceSetup:{strategy:cloneRaceContractValue({startTyreId:selection?.start_tyre_id??null,nextTyreId:selection?.next_tyre_id??null,paceMode:selection?.pace_mode??"balanced",fuelPlan:selection?.fuel_plan??null,pitPlan:selection?.pit_plan??null,plannedStopLap:finite(selection?.planned_stop_lap,null),aiControlled:Boolean(entry.teamId&&entry.teamId!==playerTeamId)}),pitCrew:cloneRaceContractValue(managerAdjustedPitCrew(gs,entry.teamId,gs?.raceStrategyWorld?.pitCrews?.[entry.teamId]??null)),tyres:cloneRaceContractValue(tyreOptions)},performance:{overall:finite(performance?.overall,70),qualifying:finite(performance?.qualifying,70),race:finite(performance?.race,70),reliability:finite(performance?.reliability,75),chassis:finite(performance?.chassis,70),power:finite(performance?.power,70),technicalDelta:cloneRaceContractValue(performance?.technical_delta||{}),wearPenalty:cloneRaceContractValue(performance?.wear_penalty||{})}});
   }
   return cars.sort((a,b)=>a.carId.localeCompare(b.carId));
 }

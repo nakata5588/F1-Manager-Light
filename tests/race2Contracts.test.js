@@ -181,6 +181,8 @@ test("RW8.0A GameState adapter is deterministic, detached and preserves the full
   assert.equal(playerCar.driverId,"D1","race entry owns the weekend driver assignment");
   assert.equal(aiCar.driverId,"D2","AI cars without persisted driver IDs use the authoritative race entry");
   assert.equal(aiCar.teamId,"T2");
+  assert.equal(playerCar.resourceSetup.strategy.aiControlled,false);
+  assert.equal(aiCar.resourceSetup.strategy.aiControlled,true);
   assert.equal(aiCar.state.componentCondition.engine,91);
   assert.ok(Number.isFinite(playerCar.performance.race));
   assert.ok(Number.isFinite(playerCar.performance.power));

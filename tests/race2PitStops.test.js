@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { normalisePitPhaseDurations } from "../src/domain/racePitModel.js";
+import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createLivePitState } from "../src/engine/LivePitStopEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
@@ -22,6 +23,7 @@ function input({
   plannedStopLap=2,
   pitPlan="one_stop",
   laps=4,
+  aiControlled=true,
 }={}){
   const entries=Array.from({length:cars},(_,index)=>({
     driverId:`D${index+1}`,
@@ -52,6 +54,7 @@ function input({
         overtaking:75,
         defending:75,
         mistakePropensity:15,
+        raceIntelligence:75,
         aggression:45,
         tyreManagement:70,
       },
@@ -69,6 +72,7 @@ function input({
           fuelPlan:"balanced",
           pitPlan,
           plannedStopLap,
+          aiControlled,
         },
         pitCrew:{
           avg_time_s:2.2,
@@ -544,4 +548,166 @@ test("RW11D live weather mismatch produces an immediate canonical strategy windo
   assert.equal(forecast.next_tyre_id,"inter");
   assert.equal(planned.resources.strategy.plannedStopLap,4);
   assert.equal(planned.resources.strategy.nextTyreId,"inter");
+});
+
+
+test("RW11D damage repair joins an existing adaptive tyre stop instead of creating a second strategy",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:24});
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1898,
+    distanceAlongLapM:898,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    speedMs:60,
+    speedKmh:216,
+    tyre:{...car(state).tyre,condition:33},
+    damage:damageStateFromComponents({front_wing:70}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  const forecast=planned.resources.strategy.forecast;
+  assert.equal(forecast.pit_reason,"degradation");
+  assert.equal(forecast.damage_repair.should_repair,true);
+  assert.equal(forecast.damage_repair.dedicated_stop,false);
+  assert.ok(forecast.damage_repair.repair_components.includes("front_wing"));
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested,["front_wing"]);
+  assert.equal(planned.resources.strategy.tyreChangeRequested,true);
+
+  const next=stepRaceState(state);
+  const row=car(next);
+  assert.equal(row.pitState.active,true);
+  assert.equal(row.pitState.service.reason,"degradation");
+  assert.equal(row.pitState.service.tyre_changed,true);
+  assert.ok(row.pitState.service.repair.repaired_components.includes("front_wing"));
+});
+
+test("RW11D minor damage does not invent a dedicated repair stop when value is negative",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:6});
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1900,
+    distanceAlongLapM:900,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    tyre:{...car(state).tyre,condition:98,wear_rate:0.002},
+    damage:damageStateFromComponents({front_wing:20}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  const forecast=planned.resources.strategy.forecast;
+  assert.equal(forecast.pit_window,null);
+  assert.equal(forecast.damage_repair.should_repair,false);
+  assert.equal(forecast.damage_repair.dedicated_stop,false);
+  assert.equal(planned.resources.strategy.plannedStopLap,null);
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested??[],[]);
+});
+
+test("RW11D neutralisation can create a canonical dedicated damage-repair stop without changing tyres",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:45});
+  state={
+    ...state,
+    raceControlState:{...(state.raceControlState||{}),mode:"SAFETY_CAR"},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1900,
+    distanceAlongLapM:900,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    tyre:{...car(state).tyre,condition:100,wear_rate:0.002},
+    damage:damageStateFromComponents({front_wing:90}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  const forecast=planned.resources.strategy.forecast;
+  assert.equal(forecast.pit_reason,"damage_repair");
+  assert.ok(forecast.pit_window);
+  assert.equal(forecast.damage_repair.should_repair,true);
+  assert.equal(forecast.damage_repair.dedicated_stop,true);
+  assert.ok(forecast.damage_repair.repair_components.includes("front_wing"));
+  assert.equal(forecast.tyre_change_requested,false);
+  assert.equal(planned.resources.strategy.tyreChangeRequested,false);
+  assert.ok(planned.resources.strategy.plannedStopLap>=2);
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested,["front_wing"]);
+});
+
+
+test("RW11D canonical forecast and pit execution share the same Safety Car pit-lane loss",()=>{
+  let state=placeBeforePit(runningState({
+    cars:1,
+    plannedStopLap:2,
+    pitPlan:"one_stop",
+    refuellingAllowed:false,
+  }));
+  state={
+    ...state,
+    raceControlState:{...(state.raceControlState||{}),mode:"SAFETY_CAR"},
+  };
+
+  const forecast=buildCanonicalStrategyForecasts(state,state.cars).get("C1");
+  assert.ok(forecast?.pit_window);
+  assert.equal(forecast.expected_pit_loss_s,6.84);
+
+  const next=stepRaceState(state);
+  const service=car(next).pitState.service;
+  assert.equal(car(next).pitState.active,true);
+  assert.equal(service.pit_lane_loss_s,4.64);
+  assert.equal(service.expected_stationary_s,2.2);
+  assert.equal(service.total_loss_s,6.84);
+});
+
+
+test("RW11D AI fixed one-stop attaches valuable repair work to the existing stop",()=>{
+  let state=placeBeforePit(runningState({
+    cars:1,
+    plannedStopLap:2,
+    pitPlan:"one_stop",
+    laps:24,
+    aiControlled:true,
+  }));
+  state=patchCar(state,"C1",{
+    damage:damageStateFromComponents({front_wing:70}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  assert.equal(planned.resources.strategy.pitPlan,"one_stop");
+  assert.equal(planned.resources.strategy.plannedStopLap,2);
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested,["front_wing"]);
+
+  const next=stepRaceState(state);
+  assert.equal(car(next).pitState.active,true);
+  assert.equal(car(next).pitState.service.reason,"planned");
+  assert.ok(car(next).pitState.service.repair.repaired_components.includes("front_wing"));
+});
+
+test("RW11D player-controlled car receives repair advice without automatic repair orders",()=>{
+  let state=runningState({
+    cars:1,
+    plannedStopLap:null,
+    pitPlan:"adaptive",
+    laps:45,
+    aiControlled:false,
+  });
+  state={
+    ...state,
+    raceControlState:{...(state.raceControlState||{}),mode:"SAFETY_CAR"},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1900,
+    distanceAlongLapM:900,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    tyre:{...car(state).tyre,condition:100,wear_rate:0.002},
+    damage:damageStateFromComponents({front_wing:90}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  const forecast=planned.resources.strategy.forecast;
+  assert.equal(forecast.damage_repair.should_repair,true);
+  assert.equal(forecast.damage_repair.dedicated_stop,true);
+  assert.equal(forecast.pit_window,null);
+  assert.equal(planned.resources.strategy.plannedStopLap,null);
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested??[],[]);
 });

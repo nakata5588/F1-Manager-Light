@@ -28,6 +28,14 @@ export function pitLaneLossSeconds(trackLike={},fallback=24){
   return Math.max(8,finite(raw,fallback));
 }
 
+export function pitLaneLossMultiplierForRaceControl(controlType){
+  const type=String(controlType||"GREEN").toUpperCase();
+  if(type==="SAFETY_CAR")return 0.58;
+  if(type==="VSC")return 0.76;
+  if(type==="RED_FLAG")return 0.35;
+  return 1;
+}
+
 export function pitRefuelServiceSecondsForYear(yearInput){
   const year=finite(yearInput,1980);
   return year<=1983?9:6;
