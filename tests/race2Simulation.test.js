@@ -165,3 +165,110 @@ test("RW9B2 resumed schema-11 partial lap cannot become fastest lap",()=>{
   assert.equal(migrated.lapTimingBaselineValid,true);
   assert.ok(migrated.lapStartedAtMs>=50_000&&migrated.lapStartedAtMs<=51_000);
 });
+
+
+test("RW10G canonical sector crossings sum to official lap time and preserve lap deltas",()=>{
+  let state=startRaceState(createRaceState(input({laps:2,cars:1}),{stepMs:1000}));
+
+  const advanceTiming=(distance,{stepMs=1000,status="running"}={})=>{
+    const previous=state.cars[0];
+    const completedLaps=Math.max(0,Math.floor(distance/state.track.lengthM));
+    const distanceAlongLapM=((distance%state.track.lengthM)+state.track.lengthM)%state.track.lengthM;
+    const nextCar={
+      ...previous,
+      absoluteDistanceM:distance,
+      distanceAlongLapM,
+      completedLaps,
+      lap:Math.min(state.session.lapLimit,completedLaps+1),
+      sector:distanceAlongLapM<33?1:distanceAlongLapM<66?2:3,
+      status,
+    };
+    const [timed]=applyCanonicalLapTiming(state,[nextCar],{stepMs});
+    const officialStart=canonicalOfficialRaceTimeMs(state);
+    state={
+      ...state,
+      officialRaceTimeMs:officialStart+stepMs,
+      session:{
+        ...state.session,
+        clock:{
+          ...(state.session.clock||{}),
+          officialElapsedMs:officialStart+stepMs,
+        },
+      },
+      cars:[timed],
+    };
+    return timed;
+  };
+
+  let car=advanceTiming(40);
+  assert.equal(car.sectorTimes.length,1);
+  assert.equal(car.sectorTimes[0].sector,1);
+  assert.equal(car.sector1Ms,825);
+
+  car=advanceTiming(75);
+  assert.equal(car.sectorTimes.length,2);
+  assert.equal(car.sectorTimes[1].sector,2);
+
+  car=advanceTiming(100);
+  assert.equal(car.sectorTimes.length,3);
+  assert.deepEqual(car.sectorTimes.map((row)=>row.sector),[1,2,3]);
+  assert.equal(car.lastLapMs,3000);
+  assert.equal(
+    Number((car.sector1Ms+car.sector2Ms+car.sector3Ms).toFixed(3)),
+    car.lastLapMs
+  );
+  assert.equal(car.previousLapMs,null);
+  assert.equal(car.lastLapDeltaMs,null);
+
+  car=advanceTiming(200,{stepMs:4000,status:"finished"});
+  assert.equal(car.sectorTimes.length,6);
+  assert.equal(car.lastLapMs,4000);
+  assert.equal(car.previousLapMs,3000);
+  assert.equal(car.lastLapDeltaMs,1000);
+  assert.equal(
+    Number((car.sector1Ms+car.sector2Ms+car.sector3Ms).toFixed(3)),
+    car.lastLapMs
+  );
+});
+
+test("RW10G migrated runtime skips one partial sector instead of inventing a fastest split",()=>{
+  const legacy={
+    schemaVersion:12,
+    officialRaceTimeMs:50_000,
+    session:{lapLimit:3,clock:{officialElapsedMs:50_000}},
+    track:{
+      lengthM:100,
+      laps:3,
+      sectors:[
+        {sector:1,startM:0,endM:33},
+        {sector:2,startM:33,endM:66},
+        {sector:3,startM:66,endM:100},
+      ],
+    },
+    cars:[{
+      carId:"car_1",
+      gridPosition:1,
+      status:"running",
+      dnf:false,
+      absoluteDistanceM:40,
+      distanceAlongLapM:40,
+      completedLaps:0,
+      lap:1,
+      elapsedMs:50_000,
+      lapStartedAtMs:0,
+      lapTimingBaselineValid:true,
+      pitState:{status:"track"},
+    }],
+  };
+  const nextCar={
+    ...legacy.cars[0],
+    absoluteDistanceM:70,
+    distanceAlongLapM:70,
+    sector:3,
+  };
+  const [migrated]=applyCanonicalLapTiming(legacy,[nextCar],{stepMs:1000});
+
+  assert.equal(migrated.sectorTimes.length,0);
+  assert.equal(migrated.sectorTimingBaselineValid,true);
+  assert.ok(migrated.sectorStartedAtMs>=50_000&&migrated.sectorStartedAtMs<=51_000);
+});
