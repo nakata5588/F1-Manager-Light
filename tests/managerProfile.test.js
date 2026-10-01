@@ -5,6 +5,7 @@ import {
   createManagerProfile,
   deriveManagerAttributes,
   managerGameplayEffects,
+  managerEffectSummary,
 } from "../src/domain/managerProfile.js";
 import { deriveBoardState } from "../src/domain/boardState.js";
 import {
@@ -178,7 +179,21 @@ test("technical and race-management modifiers stay deliberately bounded",()=>{
   assert.ok(effects.technicalTimeMultiplier>=0.94);
   assert.ok(effects.technicalRiskMultiplier>=0.90);
   assert.ok(effects.raceExecutionErrorMultiplier>=0.92);
-  assert.ok(Math.abs(effects.raceStrategyQualityDelta)<=0.05);
+  assert.equal("raceStrategyQualityDelta" in effects,false);
+});
+
+test("M6.1 exposes Race Management as a live pit execution modifier",()=>{
+  const manager=playerManager({
+    attributes:{race_management:100},
+  });
+  const summary=managerEffectSummary(baseState(manager))
+    .find((row)=>row.key==="race_management");
+
+  assert.ok(summary);
+  assert.equal(summary.active,true);
+  assert.equal(summary.format,"error_percent");
+  assert.equal(summary.label,"Pit execution error chance");
+  assert.ok(Math.abs(summary.value+0.0784)<1e-10);
 });
 
 

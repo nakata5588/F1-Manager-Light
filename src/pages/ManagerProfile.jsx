@@ -101,6 +101,11 @@ function effectText(row){
     const pct=Math.round((-value)*1000)/10;
     return (pct>=0?"+":"")+pct.toFixed(1)+"% faster lead time";
   }
+  if(row.format==="error_percent"){
+    const pct=Math.round(Math.abs(value)*1000)/10;
+    if(pct===0)return "Neutral pit execution-error chance";
+    return pct.toFixed(1)+"% "+(value<0?"lower":"higher")+" pit execution-error chance";
+  }
   return "—";
 }
 
