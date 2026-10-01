@@ -215,6 +215,7 @@ const scenarios=[
 
 const seedCount=Math.max(1,Math.min(30,Number(arg("seeds",4))||4));
 const scenarioFilter=String(arg("scenario","")).trim();
+const jsonOnly=process.argv.slice(2).includes("--json-only");
 const selected=scenarioFilter
   ?scenarios.filter((scenario)=>scenario.name===scenarioFilter)
   :scenarios;
@@ -257,5 +258,9 @@ const table=Object.entries(output.scenarios).map(([name,value])=>({
   flags:value.aggregate.raceControl.changes,
 }));
 
-console.table(table);
-console.log(JSON.stringify(output,null,2));
+if(jsonOnly){
+  console.log(`RW11A_JSON=${JSON.stringify(output)}`);
+}else{
+  console.table(table);
+  console.log(JSON.stringify(output,null,2));
+}
