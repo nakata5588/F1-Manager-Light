@@ -4,13 +4,13 @@
 //
 // lowerSeriesWorld remains the canonical state. This module only transforms
 // that world: it resolves Save-World candidate placements, derives a light
-// season calendar for levels 2-5, simulates due events deterministically,
+// season calendar for canonical levels 2-4, simulates due events deterministically,
 // applies an era-aware scoring snapshot and rebuilds driver/team standings.
 // It never writes to the canonical F1 results archive.
 
 import { gameplayRngFor } from "../core/random.js";
 import { championshipPointsSystem } from "../domain/championshipRules.js";
-import { seriesHasTeamCompetition } from "../domain/seriesCatalog.js";
+import { canonicalFeederLevel, seriesHasTeamCompetition } from "../domain/seriesCatalog.js";
 import { sanitizeLowerSeriesCompetitionWorld } from "../domain/lowerSeriesCompetitionGuard.js";
 import { isRaceDriverContract } from "../domain/contractRoles.js";
 import { rebuildLowerSeriesProspects } from "../domain/lowerSeriesProspects.js";
@@ -19,10 +19,10 @@ import { applyLowerSeriesWorldToDrivers } from "../domain/lowerSeriesWorld.js";
 export const LOWER_SERIES_SIMULATION_MODEL="lower_series_light_v1";
 export const LOWER_SERIES_CHAMPIONSHIP_MODEL="lower_series_championship_v2";
 export const LOWER_SERIES_TEAM_MODEL="lower_series_team_light_v1";
-export const LOWER_SERIES_SIMULATED_LEVELS=Object.freeze([2,3,4,5]);
+export const LOWER_SERIES_SIMULATED_LEVELS=Object.freeze([2,3,4]);
 
 const TRACKED_TEAM_CAPACITY=2;
-const ROUNDS_BY_LEVEL=Object.freeze({2:10,3:8,4:7,5:6});
+const ROUNDS_BY_LEVEL=Object.freeze({2:10,3:8,4:6});
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -161,7 +161,7 @@ function participantsBySeries(world,gameState){
   for(const entry of Object.values(world?.entries||{})){
     const driverId=text(entry?.driver_id);
     const seriesId=text(entry?.series_id);
-    const level=num(entry?.series_level,null);
+    const level=canonicalFeederLevel(entry?.series_level);
     if(!driverId||!seriesId||excluded.has(driverId))continue;
     if(!LOWER_SERIES_SIMULATED_LEVELS.includes(level))continue;
     if(!bySeries.has(seriesId))bySeries.set(seriesId,[]);
@@ -364,7 +364,7 @@ function pointsForPosition(table,position){
 }
 
 function scheduleForSeries(series,year,seriesIndex){
-  const level=num(series?.series_level,null);
+  const level=canonicalFeederLevel(series?.series_level);
   const total=ROUNDS_BY_LEVEL[level]||0;
   if(!total)return [];
 
@@ -409,7 +409,7 @@ export function initializeLowerSeriesSeason(gameState){
   if(!alreadyScheduled){
     const participants=participantsBySeries(world,gameState);
     const series=rows(world.series)
-      .filter((row)=>LOWER_SERIES_SIMULATED_LEVELS.includes(num(row?.series_level,null)))
+      .filter((row)=>LOWER_SERIES_SIMULATED_LEVELS.includes(canonicalFeederLevel(row?.series_level)))
       .slice()
       .sort((a,b)=>String(a?.series_id).localeCompare(String(b?.series_id)));
 
@@ -747,7 +747,7 @@ function rebuildStandings(world){
   const standings={};
   for(const series of rows(world?.series)){
     const id=text(series?.series_id);
-    if(!id||!LOWER_SERIES_SIMULATED_LEVELS.includes(num(series?.series_level,null)))continue;
+    if(!id||!LOWER_SERIES_SIMULATED_LEVELS.includes(canonicalFeederLevel(series?.series_level)))continue;
     const driverRows=driverStandingRows(id,results);
     const teamRows=seriesHasTeamCompetition(series)
       ?teamStandingRows(id,results)
