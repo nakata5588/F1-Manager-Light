@@ -298,11 +298,11 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
       position,
       fieldSize:classification.length,
     });
+    const repairPlanned=Boolean(
+      strategy?.aiControlled!==false&&repairDecision?.should_repair
+    );
     const repairOnly=Boolean(
-      strategy?.aiControlled!==false&&
-      !baseWindow&&
-      repairDecision?.should_repair&&
-      repairDecision?.dedicated_stop
+      repairPlanned&&!baseWindow&&repairDecision?.dedicated_stop
     );
     const repairLap=repairOnly?nextReachablePitLap(stateLike,car):null;
     const window=baseWindow??(repairLap==null?null:{
@@ -321,7 +321,7 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
       car,
       {tyreChange:tyreChangeRequested}
     );
-    const repairServiceS=repairDecision?.should_repair
+    const repairServiceS=repairPlanned
       ?Math.max(0,finite(repairDecision?.incremental_service_s,0))
       :0;
     const pitLossS=round(basePitLossS+repairServiceS,3);
@@ -331,7 +331,7 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
     const paceSpeed=lapPaceSpeedMs(stateLike,car,referenceSpeedMs);
     const fadeCostS=tyreFadeCostSeconds(stateLike,car,window);
     const stopCostS=window?pitLossS:0;
-    const repairBenefitS=repairDecision?.should_repair
+    const repairBenefitS=repairPlanned
       ?Math.max(0,finite(repairDecision?.projected_stay_out_loss_s,0))
       :0;
     const projectedTimeS=Math.max(
