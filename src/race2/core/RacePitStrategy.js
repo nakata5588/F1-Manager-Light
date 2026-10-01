@@ -4,7 +4,8 @@
 // Strategy owns the decision and forecast. RacePitStops remains execution-only,
 // while Race View only projects the canonical fields stored here.
 
-import { pitLaneLossSeconds } from "../../domain/racePitModel.js";
+import { pitLaneLossSeconds, pitRefuelServiceSecondsForYear } from "../../domain/racePitModel.js";
+import { aiPitRepairDecision } from "../../engine/AIPitRepairEngine.js";
 import { tyreConditionEffects } from "../../domain/raceTyreModel.js";
 import {
   buildRaceClassification,
@@ -86,6 +87,50 @@ function expectedPitLossSeconds(state,car,{tyreChange=true}={}){
     ?Math.max(2,finite(crew?.avg_time_s,6.8))
     :0;
   return round(laneLoss+service,3);
+}
+
+function repairDecisionFor(state,car,{window=null,nextTyre=null,position=null,fieldSize=20}={}){
+  const damage=car?.damage;
+  const observed=Array.isArray(damage?.damaged_components)
+    ?damage.damaged_components.map(String).filter(Boolean)
+    :[];
+  if(!damage||!observed.length)return null;
+
+  const strategy=car?.resources?.strategy||{};
+  const currentLap=currentLapFor(car);
+  const stopLap=window
+    ?Math.max(currentLap,Math.round(finite(window?.recommended_lap,currentLap)))
+    :currentLap;
+  const remainingAtService=Math.max(
+    0,
+    remainingLapsFor(state,car)-Math.max(0,stopLap-currentLap)
+  );
+  const crew=car?.resources?.pitCrew||{};
+  const crewServiceS=Math.max(2,finite(crew?.avg_time_s,6.8));
+  const tyreChange=Boolean(window&&(nextTyre?.tyre_id??strategy?.nextTyreId));
+  const refuel=Boolean(
+    car?.resources?.refuellingDeferred&&strategy?.refuelRequested
+  );
+  const year=finite(state?.track?.year,1980);
+
+  return aiPitRepairDecision({
+    year,
+    damageState:damage,
+    remainingLaps:remainingAtService,
+    alreadyStopping:Boolean(window),
+    tyreChange,
+    tyreServiceS:tyreChange?crewServiceS:0,
+    refuel,
+    fuelServiceS:refuel?pitRefuelServiceSecondsForYear(year):0,
+    crewFactor:clamp(crewServiceS/6.8,0.82,1.20),
+    pitLaneLossS:pitLaneLossSeconds(state?.track,24),
+    controlType:state?.raceControlState?.mode??"GREEN",
+    raceIntelligence:finite(car?.performance?.driver?.raceIntelligence,60),
+    aggression:finite(car?.performance?.driver?.aggression,50),
+    trackOvertakingDifficulty:finite(state?.track?.traits?.overtakingDifficulty,50),
+    position,
+    fieldSize,
+  });
 }
 
 function pitWindowFor(state,car){
@@ -237,17 +282,54 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
       continue;
     }
 
-    const window=pitWindowFor(stateLike,car);
-    const targetCategory=window?.target_category??text(car?.tyre?.category||"dry");
-    const nextTyre=window?bestAvailableTyre(car,targetCategory):null;
-    const pitLossS=expectedPitLossSeconds(stateLike,car,{tyreChange:Boolean(window)});
+    const strategy=car?.resources?.strategy||{};
+    const baseWindow=pitWindowFor(stateLike,car);
+    const targetCategory=baseWindow?.target_category??text(car?.tyre?.category||"dry");
+    const nextTyre=baseWindow?bestAvailableTyre(car,targetCategory):null;
+    const position=positionByCar.get(String(car?.carId??""))??null;
+    const repairDecision=repairDecisionFor(stateLike,car,{
+      window:baseWindow,
+      nextTyre,
+      position,
+      fieldSize:classification.length,
+    });
+    const repairOnly=Boolean(
+      !baseWindow&&repairDecision?.should_repair&&repairDecision?.dedicated_stop
+    );
+    const repairLap=repairOnly?nextReachablePitLap(stateLike,car):null;
+    const window=baseWindow??(repairLap==null?null:{
+      from_lap:repairLap,
+      to_lap:repairLap,
+      recommended_lap:repairLap,
+      reason:"damage_repair",
+      target_category:text(car?.tyre?.category||"dry"),
+    });
+    const nextTyreId=baseWindow
+      ?nextTyre?.tyre_id??strategy?.nextTyreId??null
+      :null;
+    const tyreChangeRequested=Boolean(baseWindow&&nextTyreId);
+    const basePitLossS=expectedPitLossSeconds(
+      stateLike,
+      car,
+      {tyreChange:tyreChangeRequested}
+    );
+    const repairServiceS=repairDecision?.should_repair
+      ?Math.max(0,finite(repairDecision?.incremental_service_s,0))
+      :0;
+    const pitLossS=round(basePitLossS+repairServiceS,3);
     const rejoin=rejoinSnapshot(stateLike,car,pitLossS,referenceSpeedMs);
     const confidence=confidencePct(stateLike,car,window);
     const remainingDistance=Math.max(0,finishDistance-finite(car?.absoluteDistanceM,0));
     const paceSpeed=lapPaceSpeedMs(stateLike,car,referenceSpeedMs);
     const fadeCostS=tyreFadeCostSeconds(stateLike,car,window);
     const stopCostS=window?pitLossS:0;
-    const projectedTimeS=remainingDistance/paceSpeed+fadeCostS+stopCostS;
+    const repairBenefitS=repairDecision?.should_repair
+      ?Math.max(0,finite(repairDecision?.projected_stay_out_loss_s,0))
+      :0;
+    const projectedTimeS=Math.max(
+      0,
+      remainingDistance/paceSpeed+fadeCostS+stopCostS-repairBenefitS
+    );
     const uncertaintyS=Math.max(2,(100-confidence)*0.18+remainingLapsFor(stateLike,car)*0.08);
     const wearPerLap=Math.max(0,canonicalProjectedTyreWearPerLap(stateLike,car));
     const projectedFinishCondition=clamp(
@@ -262,19 +344,35 @@ export function buildCanonicalStrategyForecasts(state,cars=state?.cars||[]){
       uncertaintyS,
       forecast:{
         model:"rw11d",
-        current_position:positionByCar.get(String(car?.carId??""))??null,
+        current_position:position,
         pit_window:window?{
           from_lap:window.from_lap,
           to_lap:window.to_lap,
           recommended_lap:window.recommended_lap,
         }:null,
         pit_reason:window?.reason??null,
-        next_tyre_id:nextTyre?.tyre_id??car?.resources?.strategy?.nextTyreId??null,
+        next_tyre_id:nextTyreId,
+        tyre_change_requested:tyreChangeRequested,
         expected_pit_loss_s:window?pitLossS:null,
         pit_rejoin_position:window?rejoin.position:null,
         pit_rejoin_best:window?rejoin.best:null,
         pit_rejoin_worst:window?rejoin.worst:null,
         pit_rejoin_traffic_count:window?rejoin.trafficCount:null,
+        damage_repair:repairDecision?{
+          model:repairDecision.model??null,
+          should_repair:Boolean(repairDecision.should_repair),
+          repair_components:Array.isArray(repairDecision.repair_components)
+            ?[...repairDecision.repair_components]
+            :[],
+          dedicated_stop:Boolean(repairDecision.dedicated_stop),
+          reason:repairDecision.reason??null,
+          recovered_pace_s_per_lap:finite(repairDecision.recovered_pace_s_per_lap,0),
+          projected_stay_out_loss_s:finite(repairDecision.projected_stay_out_loss_s,0),
+          incremental_service_s:finite(repairDecision.incremental_service_s,0),
+          effective_pit_cost_s:finite(repairDecision.effective_pit_cost_s,0),
+          safety_value_s:finite(repairDecision.safety_value_s,0),
+          decision_margin_s:finite(repairDecision.decision_margin_s,0),
+        }:null,
         projected_finish_position:null,
         projected_finish_best:null,
         projected_finish_worst:null,
@@ -326,7 +424,10 @@ function planCar(state,car,forecast){
 
   const window=forecast?.pit_window??null;
   if(!window){
-    if(!strategy?.autoPitReason)return base;
+    const requestedRepairs=Array.isArray(strategy?.repairComponentsRequested)
+      ?strategy.repairComponentsRequested
+      :[];
+    if(!strategy?.autoPitReason&&!requestedRepairs.length)return base;
     return {
       ...base,
       resources:{
@@ -335,6 +436,7 @@ function planCar(state,car,forecast){
           ...base.resources.strategy,
           plannedStopLap:null,
           autoPitReason:null,
+          repairComponentsRequested:[],
         },
       },
     };
@@ -347,7 +449,16 @@ function planCar(state,car,forecast){
     reachable,
     lapLimitFor(state)
   );
-  const nextTyreId=forecast?.next_tyre_id??strategy?.nextTyreId??null;
+  const tyreChangeRequested=forecast?.tyre_change_requested===undefined
+    ?Boolean(forecast?.next_tyre_id??strategy?.nextTyreId)
+    :Boolean(forecast.tyre_change_requested);
+  const nextTyreId=tyreChangeRequested
+    ?forecast?.next_tyre_id??strategy?.nextTyreId??null
+    :strategy?.nextTyreId??null;
+  const repairComponents=forecast?.damage_repair?.should_repair&&
+    Array.isArray(forecast?.damage_repair?.repair_components)
+    ?forecast.damage_repair.repair_components.map(String).filter(Boolean)
+    :[];
 
   return {
     ...base,
@@ -357,7 +468,8 @@ function planCar(state,car,forecast){
         ...base.resources.strategy,
         plannedStopLap:recommended,
         nextTyreId,
-        tyreChangeRequested:Boolean(nextTyreId),
+        tyreChangeRequested,
+        repairComponentsRequested:repairComponents,
         autoPitReason:forecast?.pit_reason??"strategy",
       },
     },
