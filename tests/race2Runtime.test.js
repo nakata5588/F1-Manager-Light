@@ -147,7 +147,7 @@ test("RW8.14J canonical command boundary queues and cancels RaceRunner commands"
   assert.equal(queue.length,1);
   assert.equal(queue[0].driverId,"D1");
   assert.equal(queue[0].type,"pace");
-  assert.equal(queue[0].paceMode,"attack");
+  assert.equal(queue[0].payload?.paceMode,"attack");
 
   const cancelled=cancelCanonicalRaceWeekendCommand(queued,{criteria:{driverId:"D1"}});
   assert.equal(cancelled.raceWeekendState.canonical_race_runtime.state.commandQueue.length,0);
