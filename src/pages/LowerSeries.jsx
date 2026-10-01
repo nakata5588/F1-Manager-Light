@@ -146,7 +146,28 @@ export default function LowerSeries(){
             <td className="px-4 py-3">{movement?<span className={"inline-flex rounded-full border px-2 py-1 text-xs "+movementTone(movement)}>{lowerSeriesMovementLabel(movement)}</span>:<span className="text-slate-600">—</span>}</td>
           </tr>;
         })}</tbody>
-      </table></div>:<div className="p-5 text-sm text-slate-500">No standings are available for this championship yet.</div>}
+      </table></div>:seriesEntries.length?<div className="divide-y divide-white/10">
+        {seriesEntries.slice().sort((a,b)=>{
+          const an=text(drivers.get(driverIdOf(a))?.display_name??drivers.get(driverIdOf(a))?.name??driverIdOf(a));
+          const bn=text(drivers.get(driverIdOf(b))?.display_name??drivers.get(driverIdOf(b))?.name??driverIdOf(b));
+          return an.localeCompare(bn);
+        }).map((entry)=>{
+          const id=driverIdOf(entry);
+          const driver=drivers.get(id);
+          const prospect=snapshot?.prospects?.[id]||null;
+          const interest=prospect?.best_f1_interest||rows(prospect?.f1_interest)[0]||null;
+          const movement=entry?.career_movement||null;
+          return <div key={id} className="flex flex-col gap-2 px-4 py-3 text-sm md:flex-row md:items-center">
+            <button type="button" data-entity="driver" data-id={id} className="font-medium text-slate-100 hover:underline">{driver?.display_name||driver?.name||id}</button>
+            <span className="text-slate-500">{entry?.team_name||"Team not assigned"}</span>
+            <div className="flex flex-wrap gap-2 md:ml-auto">
+              {num(prospect?.prospect_reputation,null)!==null?<span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300">Prospect Rep. {prospect.prospect_reputation}{num(prospect?.performance?.starts,0)===0?" · baseline":""}</span>:null}
+              {interest?<span className={"rounded-full border px-2 py-1 text-xs capitalize "+interestTone(interest?.status)}>{interestLabel(interest)}</span>:null}
+              {movement?<span className={"rounded-full border px-2 py-1 text-xs "+movementTone(movement)}>{lowerSeriesMovementLabel(movement)}</span>:null}
+            </div>
+          </div>;
+        })}
+      </div>:<div className="p-5 text-sm text-slate-500">No drivers are currently assigned to this championship.</div>}
     </div>}
   </div>;
 }
