@@ -8,6 +8,7 @@ import { hashSeed } from "../../core/random.js";
 import { buildPitServiceSchedule } from "../../engine/PitServiceEngine.js";
 import {
   normalisePitPhaseDurations,
+  pitLaneLossMultiplierForRaceControl,
   pitLaneLossSeconds,
   pitRefuelServiceSecondsForYear,
 } from "../../domain/racePitModel.js";
@@ -226,7 +227,8 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   const error=errorRoll<errorChance;
   const errorDelayS=error?3+unit(state,`error-delay:${key}`)*8:0;
   const stationaryS=Math.max(0,finite(serviceSchedule?.total_stationary_s,0))+errorDelayS;
-  const laneLossS=pitLaneLossSeconds(state?.track,24);
+  const laneLossS=pitLaneLossSeconds(state?.track,24)*
+    pitLaneLossMultiplierForRaceControl(state?.raceControlState?.mode);
   const trackTransitS=raceLineTransitSeconds(state,car,entryAbsoluteM,exitAbsoluteM);
   const stop={
     lap:plannedStopLap(car),
