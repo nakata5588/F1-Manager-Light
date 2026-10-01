@@ -15,6 +15,7 @@ function input({
   sameTeam=false,
   withPitAnchors=true,
   plannedStopLap=2,
+  pitPlan="one_stop",
 }={}){
   const entries=Array.from({length:cars},(_,index)=>({
     driverId:`D${index+1}`,
@@ -25,6 +26,8 @@ function input({
   const tyres=[
     {tyre_id:"soft",supplier:"Test",compound_name:"Soft",category:"dry",grip_index:84,wear_rate:0.020,warmup_time_s:2.2},
     {tyre_id:"hard",supplier:"Test",compound_name:"Hard",category:"dry",grip_index:76,wear_rate:0.014,warmup_time_s:3.0},
+    {tyre_id:"inter",supplier:"Test",compound_name:"Intermediate",category:"intermediate",grip_index:70,wear_rate:0.016,warmup_time_s:2.8},
+    {tyre_id:"wet",supplier:"Test",compound_name:"Wet",category:"wet",grip_index:66,wear_rate:0.018,warmup_time_s:2.6},
   ];
   return {
     schemaVersion:9,
@@ -58,7 +61,7 @@ function input({
           nextTyreId:"hard",
           paceMode:"balanced",
           fuelPlan:"balanced",
-          pitPlan:"one_stop",
+          pitPlan,
           plannedStopLap,
         },
         pitCrew:{
@@ -329,4 +332,54 @@ test("RW8.8 Live and Fast expose identical pit lifecycle, resources and events",
   assert.deepEqual(live.getState().pitLaneState,fast.pitLaneState);
   assert.deepEqual(live.getState().events,fast.events);
   assert.deepEqual(car(live.getState()).pitState,car(fast).pitState);
+});
+
+
+test("RW8.14K1 adaptive strategy schedules a degradation stop before tyres become critical",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive"});
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1898,
+    distanceAlongLapM:898,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    speedMs:60,
+    speedKmh:216,
+    tyre:{...car(state).tyre,condition:33},
+  });
+
+  const next=stepRaceState(state);
+  const row=car(next);
+  assert.equal(row.pitState.active,true);
+  assert.equal(row.pitState.plannedStopLap,2);
+  assert.equal(row.pitState.service.reason,"degradation");
+  assert.ok(next.events.some((event)=>event.type==="pit_entry"&&event.payload?.reason==="degradation"));
+
+  const completed=runUntil(next,(s)=>car(s).pitState.completed&&!car(s).pitState.active,{maxSteps:500});
+  assert.equal(car(completed).resources.strategy.pitPlan,"adaptive");
+  assert.equal(car(completed).resources.strategy.plannedStopLap,null);
+});
+
+test("RW8.14K1 adaptive strategy switches tyre category when live weather requires it",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive"});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.35},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1898,
+    distanceAlongLapM:898,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    speedMs:60,
+    speedKmh:216,
+    tyre:{...car(state).tyre,condition:82,category:"dry"},
+  });
+
+  const next=stepRaceState(state);
+  const row=car(next);
+  assert.equal(row.pitState.active,true);
+  assert.equal(row.pitState.service.reason,"weather");
+  assert.equal(row.pitState.service.tyre_to,"inter");
 });
