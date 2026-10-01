@@ -182,7 +182,8 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   // the compound/spec identifier, not a unique physical set identifier.
   const tyreChange=Boolean(tyreChoice&&strategy?.tyreChangeRequested!==false);
   const crew=car?.resources?.pitCrew||{};
-  const expectedTyreS=tyreChange?Math.max(2,finite(crew?.avg_time_s,6.8)):0;
+  const baseCrewServiceS=Math.max(2,finite(crew?.avg_time_s,6.8));
+  const expectedTyreS=tyreChange?baseCrewServiceS:0;
   const variation=Math.max(0,finite(crew?.execution_variance_s,0.5));
   const sequence=Math.max(1,Math.floor(finite(car?.pitState?.stopSequence,0))+1);
   const key=`${state?.tick}:${car?.carId}:${sequence}`;
@@ -204,7 +205,7 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   const repairComponents=Array.isArray(strategy?.repairComponentsRequested)
     ?strategy.repairComponentsRequested.map(String).filter(Boolean)
     :[];
-  const crewFactor=clamp(expectedTyreS/6.8,0.82,1.20);
+  const crewFactor=clamp(baseCrewServiceS/6.8,0.82,1.20);
   const serviceSchedule=buildPitServiceSchedule({
     year:finite(state?.track?.year,1980),
     tyreChange,
