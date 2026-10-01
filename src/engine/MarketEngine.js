@@ -290,7 +290,7 @@ export function applyMarketTick(gs){
         tag:"Contracts",
         subject:"Reserve Driver position vacant",
         body:"The team has no contracted Reserve Driver. Opening negotiations now reduces the risk of needing a one-race emergency substitute if a race driver becomes unavailable.",
-        actions:[{label:"Open Driver Market",route:"/Drivers"}],
+        actions:[{label:"Open Driver Market",route:"/DriverMarket"}],
       });
     }
 
