@@ -79,6 +79,13 @@ export function projectCanonicalRaceStateToOfficialRows(gs,state){
   const drivers=driverById(gs);
   const cars=new Map((state?.cars||[]).map((car)=>[text(car?.carId),car]));
   const totalLaps=Math.max(1,Math.round(finite(state?.session?.lapLimit,state?.track?.laps??1)));
+  const fastestCarId=(state?.cars||[])
+    .filter((car)=>finite(car?.bestLapMs,null)!=null&&finite(car?.bestLapMs,0)>0)
+    .slice()
+    .sort((a,b)=>
+      finite(a?.bestLapMs,Infinity)-finite(b?.bestLapMs,Infinity)
+      ||text(a?.carId).localeCompare(text(b?.carId))
+    )[0]?.carId??null;
 
   return (state?.classification||[]).map((row,index)=>{
     const car=cars.get(text(row?.carId))||{};
@@ -107,6 +114,9 @@ export function projectCanonicalRaceStateToOfficialRows(gs,state){
       driver_id:driverId,
       team_id:row?.teamId??car?.teamId??driver?.team_id??null,
       total_time_ms:retired?null:finishTimeMs,
+      best_lap_ms:finite(car?.bestLapMs,null),
+      best_lap_number:finite(car?.bestLapNumber,null),
+      fastest_lap:Boolean(fastestCarId&&text(car?.carId)===text(fastestCarId)),
       gap_to_winner_ms:retired?null:finite(row?.gapToLeaderMs,null),
       gap_to_previous_ms:retired?null:finite(row?.intervalMs,null),
       retired,
