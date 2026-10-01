@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceState, DEFAULT_RACE_STEP_MS, RACE_STATE_SCHEMA_VERSION } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
+import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs } from "../src/race2/core/RaceLapTiming.js";
 
 function input({laps=2,cars=2}={}){
   const entries=Array.from({length:cars},(_,index)=>({driverId:`D${index+1}`,teamId:index<2?"T1":"T2",carId:`car_${index+1}`,status:"confirmed"}));
@@ -42,4 +43,89 @@ test("RW8.2 DNF cars are frozen while the same core continues advancing active c
 
 test("RW8.2 the canonical core clamps a car at the race finish",()=>{
   let state=startRaceState(createRaceState(input({laps:1,cars:1}))); state=withKinematics(state,"car_1",{absoluteDistanceM:99,distanceAlongLapM:99,sector:3,speedMs:20,speedKmh:72}); const next=stepRaceState(state); const car=next.cars[0]; assert.equal(car.absoluteDistanceM,100); assert.equal(car.distanceAlongLapM,0); assert.equal(car.completedLaps,1); assert.equal(car.lap,1); assert.equal(car.status,"finished"); assert.equal(car.zoneType,"finish"); assert.equal(next.status,"finished"); assert.equal(next.session.phase,"finished");
+});
+
+
+test("RW9B official clock records the physical finish-line crossing as canonical lap time",()=>{
+  let state=startRaceState(createRaceState(input({laps:1,cars:1}),{stepMs:1000}));
+  state={
+    ...state,
+    simulationTimeMs:9500,
+    officialRaceTimeMs:9500,
+    session:{
+      ...state.session,
+      clock:{...(state.session.clock||{}),elapsedMs:9500,officialElapsedMs:9500},
+    },
+  };
+  state=withKinematics(state,"car_1",{
+    absoluteDistanceM:99,
+    distanceAlongLapM:99,
+    lap:1,
+    completedLaps:0,
+    sector:3,
+    speedMs:20,
+    speedKmh:72,
+    lapStartedAtMs:0,
+  });
+
+  const next=stepRaceState(state);
+  const car=next.cars[0];
+
+  assert.equal(car.status,"finished");
+  assert.equal(car.completedLaps,1);
+  assert.equal(car.lapTimes.length,1);
+  assert.equal(car.lapTimes[0].lap,1);
+  assert.equal(car.lastLapMs,car.finishTimeMs);
+  assert.equal(car.bestLapMs,car.finishTimeMs);
+  assert.equal(car.bestLapNumber,1);
+  assert.equal(car.lapTimes[0].timeMs,car.finishTimeMs);
+  assert.equal(car.lapTimes[0].completedAtMs,car.finishTimeMs);
+  assert.ok(car.finishTimeMs>=9500&&car.finishTimeMs<=10500,"crossing must be timed inside the finalized fixed step");
+  assert.equal(next.officialRaceTimeMs,car.finishTimeMs,"terminal official clock stops at the final physical crossing");
+  assert.equal(next.session.clock.officialElapsedMs,car.finishTimeMs);
+});
+
+test("RW9B canonical lap timer also observes a start/finish crossing inside pit-lane movement",()=>{
+  let state=startRaceState(createRaceState(input({laps:3,cars:1}),{stepMs:100}));
+  state={
+    ...state,
+    officialRaceTimeMs:10_000,
+    session:{...state.session,clock:{...state.session.clock,officialElapsedMs:10_000}},
+    cars:state.cars.map((car)=>({
+      ...car,
+      absoluteDistanceM:95,
+      distanceAlongLapM:95,
+      pitState:{...(car.pitState||{}),status:"pit_lane",phase:"pit_lane",active:true},
+    })),
+  };
+  const previous=state.cars[0];
+  const nextCar={
+    ...previous,
+    absoluteDistanceM:105,
+    distanceAlongLapM:5,
+    completedLaps:1,
+    lap:2,
+    pitState:{...previous.pitState,status:"pit_lane",phase:"pit_lane",active:true},
+  };
+
+  const [timed]=applyCanonicalLapTiming(state,[nextCar],{stepMs:100});
+  assert.equal(timed.lapTimes.length,1);
+  assert.equal(timed.lapTimes[0].lap,1);
+  assert.equal(timed.lapTimes[0].completedAtMs,10_050);
+  assert.equal(timed.lastLapMs,10_050);
+  assert.equal(timed.bestLapMs,10_050);
+});
+
+
+test("RW9B schema-11 runtime migration seeds the official clock from canonical car timing",()=>{
+  const legacy={
+    schemaVersion:11,
+    simulationTimeMs:99_000,
+    session:{clock:{elapsedMs:99_000}},
+    cars:[
+      {carId:"C1",status:"running",elapsedMs:42_500,finishTimeMs:null},
+      {carId:"C2",status:"finished",elapsedMs:44_100,finishTimeMs:44_100},
+    ],
+  };
+  assert.equal(canonicalOfficialRaceTimeMs(legacy),44_100);
 });
