@@ -66,13 +66,18 @@ test("New Game keeps series catalogue and rules as immutable database context",(
 });
 
 
-test("legacy division-4 Formula 4 maps to pyramid level 5 without rewriting old data",()=>{
+test("canonical pyramid maps entry-level Formula 4 to level 4 and normalizes legacy level 5 saves",()=>{
   assert.equal(seriesLevelOf({
     series_id:"S_0009",
     series_division:4,
     series_short_name:"F4",
     series_name:"FIA Formula 4",
-  }),5);
+  }),4);
+  assert.equal(seriesLevelOf({
+    series_id:"legacy_f4",
+    series_level:5,
+    series_name:"Legacy Formula Four",
+  }),4);
   assert.equal(seriesLevelOf({
     series_id:"regional",
     series_level:4,

@@ -198,3 +198,20 @@ test("exact opening career series_id is preserved even when several series share
   assert.equal(row.series_resolution,"historical_series_id");
   assert.equal(row.forced_future_series,false);
 });
+
+test("opening placement falls to the nearest historically active feeder tier when F4 is absent",()=>{
+  const d=driver({dob:"1948-01-01"});
+  const e=entry({first_world_year:1964,reference_f1_debut_year:1970,reference_f1_last_year:1980});
+  const row=inferDriverFeederPlacement(d,e,1965,{
+    series:[
+      {series_id:"s_bf3",series_name:"British Formula Three",series_level:3,start_year:1951,end_year:2014},
+    ],
+    seriesRules:[],
+    driverCareer:[],
+  });
+
+  assert.equal(row.active_pre_f1_world,true);
+  assert.equal(row.series_id,"s_bf3");
+  assert.equal(row.series_level,3);
+  assert.equal(row.series_resolution,"nearest_active_feeder_level");
+});

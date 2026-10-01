@@ -9,6 +9,7 @@
 
 import {
   activeSeriesForYear,
+  canonicalFeederLevel,
   eligibleSeriesForDriver,
   isSeriesActiveInYear,
   seriesAgeEligibility,
@@ -29,7 +30,7 @@ import { openingLowerSeriesEntryForDriver } from "./lowerSeriesEntries.js";
 import { lowerSeriesCareerMovement } from "./lowerSeriesCareerMovement.js";
 import { sanitizeLowerSeriesCompetitionWorld } from "./lowerSeriesCompetitionGuard.js";
 
-export const LOWER_SERIES_WORLD_VERSION=5;
+export const LOWER_SERIES_WORLD_VERSION=6;
 
 const rows=(value)=>Array.isArray(value)?value:[];
 const text=(value)=>value==null?"":String(value).trim();
@@ -48,26 +49,27 @@ function norm(value){
 }
 
 function lowerCareerLevel(row){
-  const explicit=num(row?.series_level,null);
+  const explicit=canonicalFeederLevel(row?.series_level);
   if(Number.isFinite(explicit))return explicit;
 
   const raw=text(row?.series_division??row?.division??row?.series);
-  const numeric=Number(raw);
-  if(Number.isFinite(numeric)&&numeric>=1&&numeric<=5)return numeric;
+  const numeric=canonicalFeederLevel(raw);
+  if(Number.isFinite(numeric)&&numeric>=1&&numeric<=4)return numeric;
 
   const value=norm(raw);
   if(!value)return null;
   if(value==="f1"||value.includes("formula1"))return 1;
   if(
     value==="f2"||value.includes("formula2")||value.includes("f3000")||
-    value.includes("gp2")||value.includes("formula35")||value.includes("formulav835")
+    value.includes("gp2")||value.includes("formula35")||value.includes("formulav835")||
+    value.includes("formularenault35")||value.includes("worldseriesbyrenault")
   )return 2;
   if(value==="f3"||value.includes("formula3")||value.includes("gp3"))return 3;
-  if(value.includes("regional")||value.includes("formularenault")||value.includes("formulerenault"))return 4;
   if(
+    value.includes("regional")||value.includes("formularenault")||value.includes("formulerenault")||
     value==="f4"||value.includes("formula4")||value.includes("formulaford")||
     value.includes("formulajunior")||value.includes("formulaabarth")
-  )return 5;
+  )return 4;
   return null;
 }
 
@@ -76,7 +78,7 @@ function seriesRuleId(rule){
 }
 
 function activeLowerSeries(seriesRows,year){
-  return activeSeriesForYear(seriesRows,year,{levels:[2,3,4,5]});
+  return activeSeriesForYear(seriesRows,year,{levels:[2,3,4]});
 }
 
 function seriesRecord(series,ruleRows,year){
@@ -170,7 +172,7 @@ function candidateRows(value){
   return rows(value).map((row)=>({
     series_id:text(row?.series_id)||null,
     series_name:text(row?.series_name)||null,
-    series_level:num(row?.series_level,null),
+    series_level:canonicalFeederLevel(row?.series_level),
   })).filter((row)=>row.series_id);
 }
 
@@ -179,7 +181,7 @@ function openingEntry(placement,driver,year,driverCareer,lowerSeriesEntries,team
   if(!driverId||!placement?.active_pre_f1_world)return null;
 
   const seriesId=text(placement?.series_id)||null;
-  const level=num(placement?.series_level,null);
+  const level=canonicalFeederLevel(placement?.series_level);
   const candidates=candidateRows(placement?.series_candidates);
   const factualEntry=openingLowerSeriesEntryForDriver(lowerSeriesEntries,{
     year,
@@ -293,19 +295,19 @@ export function materializeLowerSeriesWorld({
 }
 
 function targetLevelForDriver(driver,previousEntry){
-  const previous=num(previousEntry?.series_level,null);
+  const previous=canonicalFeederLevel(previousEntry?.series_level);
   if(Number.isFinite(previous))return previous;
 
-  const explicit=num(driver?.lower_series_level,null);
+  const explicit=canonicalFeederLevel(driver?.lower_series_level);
   if(Number.isFinite(explicit))return explicit;
 
   const age=num(driver?.age,null);
   if(!Number.isFinite(age))return null;
-  if(age<=17)return 5;
-  if(age<=19)return 4;
+  if(age<=18)return 4;
   if(age<=21)return 3;
   return 2;
 }
+
 
 function successorSeries(seriesRows,previousSeriesId,targetYear){
   if(!previousSeriesId)return null;
@@ -314,6 +316,15 @@ function successorSeries(seriesRows,previousSeriesId,targetYear){
   if(!successorId)return null;
   const successor=rows(seriesRows).find((row)=>seriesIdOf(row)===successorId);
   return successor&&isSeriesActiveInYear(successor,targetYear)?successor:null;
+}
+
+function nextActivePromotionLevel(seriesRows,targetYear,desiredLevel){
+  const desired=canonicalFeederLevel(desiredLevel);
+  if(!Number.isFinite(desired))return null;
+  for(let level=desired;level>=2;level-=1){
+    if(activeSeriesForYear(seriesRows,targetYear,{levels:[level]}).length)return level;
+  }
+  return null;
 }
 
 function resolveRuntimeSeries({
@@ -325,12 +336,12 @@ function resolveRuntimeSeries({
   targetLevelOverride=null,
 }){
   const previousId=text(previousEntry?.series_id);
-  const previousLevel=num(previousEntry?.series_level,null);
+  const previousLevel=canonicalFeederLevel(previousEntry?.series_level);
   const previousSeries=previousId
     ?rows(series).find((row)=>seriesIdOf(row)===previousId)
     :null;
-  const targetLevel=Number.isFinite(Number(targetLevelOverride))
-    ?Number(targetLevelOverride)
+  const targetLevel=Number.isFinite(canonicalFeederLevel(targetLevelOverride))
+    ?canonicalFeederLevel(targetLevelOverride)
     :targetLevelForDriver(driver,previousEntry);
   const movementRequested=Number.isFinite(previousLevel)&&Number.isFinite(targetLevel)&&targetLevel!==previousLevel;
 
@@ -521,9 +532,23 @@ export function rollLowerSeriesWorld(world,{
     const movement=previousEntry
       ?lowerSeriesCareerMovement(previous,driver,previousEntry,{targetYear:year})
       :null;
-    const requestedLevel=Number.isFinite(Number(movement?.target_level))
-      ?Number(movement.target_level)
+    const baseRequestedLevel=Number.isFinite(canonicalFeederLevel(movement?.target_level))
+      ?canonicalFeederLevel(movement.target_level)
       :targetLevelForDriver(driver,previousEntry);
+    let requestedLevel=baseRequestedLevel;
+    let eraF1Ready=false;
+    if(movement?.decision==="promote"&&Number.isFinite(requestedLevel)){
+      const availablePromotionLevel=nextActivePromotionLevel(series,year,requestedLevel);
+      if(Number.isFinite(availablePromotionLevel)){
+        requestedLevel=availablePromotionLevel;
+      }else{
+        // Some eras do not expose every modern feeder tier. A strong driver
+        // already racing at the highest available Lower Series level may
+        // become F1-ready rather than being blocked by a category that did
+        // not exist in that season.
+        eraF1Ready=true;
+      }
+    }
     const resolved=resolveRuntimeSeries({
       driver,
       previousEntry,
@@ -538,22 +563,43 @@ export function rollLowerSeriesWorld(world,{
       ?seriesLevelOf(resolvedSeries)
       :requestedLevel;
     const candidates=candidateRows(resolved.candidates);
+    const placementResolution=eraF1Ready
+      ?"career_movement_f1_ready_no_higher_tier"
+      :resolved.resolution;
+    const requestedTarget=canonicalFeederLevel(movement?.target_level);
+    const skippedUnavailableTier=Boolean(
+      movement?.decision==="promote"&&
+      !eraF1Ready&&
+      Number.isFinite(requestedTarget)&&
+      Number(requestedLevel)!==Number(requestedTarget)
+    );
     const effectiveMovement=movement
       ?{
         ...movement,
+        requested_target_level:requestedTarget,
+        target_level:eraF1Ready
+          ?canonicalFeederLevel(previousEntry?.series_level)
+          :requestedLevel,
+        f1_ready:Boolean(eraF1Ready||movement.f1_ready),
+        reason:eraF1Ready
+          ?"top_available_tier_performance"
+          :(skippedUnavailableTier?"era_skip_unavailable_tier":movement.reason),
         effective_level:Number.isFinite(level)?level:null,
         resolved_series_id:seriesId,
-        placement_resolution:resolved.resolution,
-        effective_outcome:
-          movement.decision==="promote"
-            ?(
-              Number(level)===Number(movement.target_level)&&Boolean(seriesId)
-                ?"promoted"
-                :(candidates.length&&Number(level)===Number(movement.target_level)
-                  ?"promotion_pending"
-                  :"promotion_blocked")
-            )
-            :(movement.f1_ready?"f1_ready":"stayed"),
+        placement_resolution:placementResolution,
+        effective_outcome:eraF1Ready
+          ?"f1_ready"
+          :(
+            movement.decision==="promote"
+              ?(
+                Number(level)===Number(requestedLevel)&&Boolean(seriesId)
+                  ?"promoted"
+                  :(candidates.length&&Number(level)===Number(requestedLevel)
+                    ?"promotion_pending"
+                    :"promotion_blocked")
+              )
+              :(movement.f1_ready?"f1_ready":"stayed")
+          ),
       }
       :null;
     const sameSeries=Boolean(seriesId&&previousEntry?.series_id===seriesId);
@@ -584,7 +630,7 @@ export function rollLowerSeriesWorld(world,{
       placement_status:seriesId
         ?(carriedTeam?"placed_with_team":"series_only")
         :(candidates.length?"candidate_pool":"unresolved"),
-      placement_source:resolved.resolution,
+      placement_source:placementResolution,
       career_movement:effectiveMovement,
       opening_seed:false,
       joined_world_year:num(previousEntry?.joined_world_year,year),
@@ -639,7 +685,7 @@ export function applyLowerSeriesWorldToDrivers(drivers,world,{inactiveDriverIds=
       active_lower_series:true,
       lower_series_id:entry.series_id,
       lower_series_name:entry.series_name,
-      lower_series_level:entry.series_level,
+      lower_series_level:canonicalFeederLevel(entry.series_level),
       lower_series_candidates:candidateRows(entry.series_candidates),
       lower_series_resolution:entry.placement_source,
       lower_series_rule_id:entry.rule_id,

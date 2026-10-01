@@ -13,13 +13,12 @@ import { initializeLowerSeriesSeason } from "../src/engine/LowerSeriesEngine.js"
 const series=[
   {series_id:"F2",series_name:"Formula Two",series_level:2,start_year:2000,end_year:2015},
   {series_id:"F3",series_name:"Formula Three",series_level:3,start_year:2000,end_year:2015},
-  {series_id:"REG",series_name:"Formula Regional",series_level:4,start_year:2000,end_year:2015},
-  {series_id:"F4",series_name:"Formula Four",series_level:5,start_year:2000,end_year:2015},
+  {series_id:"F4",series_name:"Formula Four",series_level:4,start_year:2000,end_year:2015},
 ];
 
 function previousWorld({
   driverId="D1",
-  seriesId="REG",
+  seriesId="F4",
   level=4,
   position=1,
   starts=7,
@@ -29,7 +28,7 @@ function previousWorld({
   performance=78,
 }={}){
   return {
-    version:5,
+    version:6,
     authority:"save_world",
     season_year:2007,
     source_season:2007,
@@ -160,7 +159,7 @@ test("LS7 does not promote from an incomplete championship or a weak completed s
 test("LS7 rollover promotes to the next active category and never carries the old team across series",()=>{
   const world=previousWorld();
   const lowerSeriesTeams=[
-    {lower_team_id:"OLD",team_name:"Old Junior Team",series_id:"REG",valid_from:2007,valid_to:2008},
+    {lower_team_id:"OLD",team_name:"Old Junior Team",series_id:"F4",valid_from:2007,valid_to:2008},
     {lower_team_id:"NEW",team_name:"F3 Team",series_id:"F3",valid_from:2008,valid_to:2010},
   ];
   const drivers=[
@@ -192,7 +191,7 @@ test("LS7 rollover promotes to the next active category and never carries the ol
   assert.equal(projected[0].lower_series_career_movement.effective_outcome,"promoted");
 });
 
-test("LS7 keeps a prospect safely in the old level when no active promotion category exists",()=>{
+test("LS7 marks a strong driver F1-ready when the era has no higher Lower Series tier",()=>{
   const world=previousWorld({
     seriesId:"F3",level:3,position:1,champion:true,reputation:80,performance:85,
   });
@@ -212,11 +211,14 @@ test("LS7 keeps a prospect safely in the old level when no active promotion cate
 
   assert.equal(entry.series_id,"F3");
   assert.equal(entry.series_level,3);
-  assert.equal(entry.placement_source,"career_movement_blocked_no_active_series");
+  assert.equal(entry.placement_source,"career_movement_f1_ready_no_higher_tier");
   assert.equal(entry.career_movement.decision,"promote");
-  assert.equal(entry.career_movement.target_level,2);
-  assert.equal(entry.career_movement.effective_outcome,"promotion_blocked");
+  assert.equal(entry.career_movement.f1_ready,true);
+  assert.equal(entry.career_movement.effective_outcome,"f1_ready");
   assert.equal(entry.career_movement.effective_level,3);
+
+  const projected=applyLowerSeriesWorldToDrivers(drivers,next);
+  assert.equal(projected[0].lower_series_f1_ready,true);
 });
 
 test("LS7 marks strong Level 2 drivers F1 Ready without removing them before an F1 race-seat exists",()=>{

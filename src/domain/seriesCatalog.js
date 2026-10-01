@@ -16,6 +16,14 @@ function numberOrNull(value){
   return Number.isFinite(n)?n:null;
 }
 
+export function canonicalFeederLevel(value){
+  const level=numberOrNull(value);
+  // LS10: the canonical pyramid is F1=1, F2=2, F3=3, F4=4.
+  // Save worlds created before LS10 used level 5 for F4. Normalize those
+  // values at runtime so existing careers can finish and roll forward safely.
+  return level===5?4:level;
+}
+
 function yearRangeMatch(year,fromValue,toValue){
   const y=Number(year);
   if(!Number.isInteger(y))return false;
@@ -67,9 +75,8 @@ function legacyIdentityLevel(series){
   const short=normalized(series?.short_name??series?.series_short_name);
   const name=normalized(series?.series_name??series?.name);
 
-  // The pre-LS database used division 4 for its generic F4 row. The new
-  // historical pyramid reserves level 4 for Formula Regional and level 5 for
-  // entry-level F4/Formula Ford/Formula Junior categories.
+  // Historical/legacy identity fallback. The canonical game pyramid now uses
+  // level 4 for all entry-level F4/Formula Ford/Formula Junior categories.
   if(
     category.includes("formula4")||
     category.includes("formulaford")||
@@ -77,15 +84,17 @@ function legacyIdentityLevel(series){
     category.includes("formulaabarth")||
     ["f4","bf4","if4"].includes(short)||
     name.includes("formula4")
-  )return 5;
+  )return 4;
   if(category.includes("formularegional")||name.includes("formularegional"))return 4;
   return null;
 }
 
 export function seriesLevelOf(series){
-  const explicit=numberOrNull(series?.series_level??series?.level);
+  const explicit=canonicalFeederLevel(series?.series_level??series?.level);
   if(explicit!==null)return explicit;
-  return legacyIdentityLevel(series)??numberOrNull(series?.series_division??series?.division);
+  return canonicalFeederLevel(
+    legacyIdentityLevel(series)??series?.series_division??series?.division
+  );
 }
 
 export function isSeriesActiveInYear(series,year){
