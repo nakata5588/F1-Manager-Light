@@ -8,7 +8,7 @@ import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherE
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
 import { canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
-import { presentCanonicalRaceEvent } from "../race2/presentation/RaceEventPresenter.js";
+import { batchCanonicalRaceAttentionEvents, canonicalRaceFlagNotice, presentCanonicalRaceEvent } from "../race2/presentation/RaceEventPresenter.js";
 import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../race2/gateway/RaceWeekendRuntimeGateway.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
@@ -633,6 +633,7 @@ export default function RaceWeekend(){
   const [racePlaybackSpeed,setRacePlaybackSpeed]=useState(1);
   const [raceAutoPaused,setRaceAutoPaused]=useState(false);
   const lastAutoPopupKey=useRef(null);
+  const lastCanonicalPopupSequence=useRef(null);
   const racePlaybackRemainingRatioRef=useRef(1);
   const racePlaybackTimerStateRef=useRef(null);
   const racePlaybackActivatedRef=useRef(false);
@@ -732,8 +733,13 @@ export default function RaceWeekend(){
       ??confirmedEntrants.find((row)=>String(row?.driver_id??"")===selectedEventDriverId)?.team_id
       ??""
   ):"";
+  const selectedEventPayload=selectedRaceEvent?.payload&&typeof selectedRaceEvent.payload==="object"
+    ?selectedRaceEvent.payload
+    :{};
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
-  const activeControlNotice=usesCanonicalRaceRuntime?null:controlNotice(raceControlPlan,raceViewModel,drivers);
+  const activeControlNotice=usesCanonicalRaceRuntime
+    ?canonicalRaceFlagNotice(raceViewModel)
+    :controlNotice(raceControlPlan,raceViewModel,drivers);
   const liveTeamForecast=teamRaceForecast(gs,{
     currentLap:raceViewModel?.current_lap||0,
     currentWeather:raceViewModel?.last_weather||null,
@@ -923,6 +929,32 @@ export default function RaceWeekend(){
     lastAutoPopupKey.current=key;
     openRaceEvent(important,{auto:true});
   },[usesCanonicalRaceRuntime,liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
+
+  useEffect(()=>{
+    if(!usesCanonicalRaceRuntime){
+      lastCanonicalPopupSequence.current=null;
+      return;
+    }
+    const sequenced=allRaceEvents
+      .filter((event)=>Number.isFinite(Number(event?.sequence)))
+      .sort((a,b)=>Number(a.sequence)-Number(b.sequence));
+    const maximum=sequenced.length?Number(sequenced.at(-1).sequence):0;
+    const previous=lastCanonicalPopupSequence.current;
+    if(previous==null||maximum<previous){
+      lastCanonicalPopupSequence.current=maximum;
+      return;
+    }
+    if(maximum===previous)return;
+
+    const fresh=sequenced.filter((event)=>Number(event.sequence)>previous);
+    lastCanonicalPopupSequence.current=maximum;
+    const important=batchCanonicalRaceAttentionEvents(fresh,{playerDriverIds});
+    if(!important)return;
+    const key=String(important?.event_key||important?.id||important?.key||important?.sequence||"");
+    if(!key||lastAutoPopupKey.current===key)return;
+    lastAutoPopupKey.current=key;
+    openRaceEvent(important,{auto:true});
+  },[usesCanonicalRaceRuntime,allRaceEvents.length,playerDriverIds.join("|")]);
 
   useEffect(()=>{
     const shortcutActive=()=>(
@@ -1770,6 +1802,9 @@ export default function RaceWeekend(){
                 onRestartRace={()=>perform(restartLiveRace)}
                 onConfirmResults={finalizeLiveRace}
               />}
+              {activeControlNotice&&String(activeControlNotice.type)!=="GREEN"?<div className="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2">
+                <RaceFlagBanner notice={activeControlNotice}/>
+              </div>:null}
               {!usesCanonicalRaceRuntime&&liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div className="flex min-w-0 items-start gap-2">
@@ -1939,7 +1974,9 @@ export default function RaceWeekend(){
                   const did=String(entry.driver_id);
                   const driver=driverObject(drivers,did);
                   const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
-                  const commands=usesCanonicalRaceRuntime?[]:(raceStrategy?.live_commands?.[did]||[]);
+                  const commands=usesCanonicalRaceRuntime
+                    ?collectionRows(raceViewModel?.pending_commands).filter((row)=>String(row?.driverId??row?.driver_id??"")===did)
+                    :(raceStrategy?.live_commands?.[did]||[]);
                   const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
                   const damagedComponents=Array.isArray(liveDriver?.damage_state?.damaged_components)?liveDriver.damage_state.damaged_components:[];
                   const hasRepairableDamage=damagedComponents.length>0;
@@ -1947,7 +1984,9 @@ export default function RaceWeekend(){
                   const latestPace=liveDriver?.current_pace||commands.filter((row)=>row.type==="pace").at(-1)?.pace_mode||raceStrategy?.selections?.[did]?.pace_mode||"balanced";
                   const unavailable=String(raceViewModel?.status||"")!=="running"||Boolean(liveDriver?.retired);
                   const compound=liveDriver?.tyre?.compound||"—";
-                  const pending=usesCanonicalRaceRuntime?[]:commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace?.current_lap||0));
+                  const pending=usesCanonicalRaceRuntime
+                    ?commands
+                    :commands.filter((row)=>Number(row?.effective_lap)>Number(liveRace?.current_lap||0));
                   const teammateEntry=playerEntrants.find((candidate)=>String(candidate?.driver_id??"")!==did)||null;
                   const teammateId=String(teammateEntry?.driver_id??"");
                   const teammateLive=teammateId?liveRows.find((row)=>String(row?.driver_id??"")===teammateId):null;
@@ -1967,7 +2006,14 @@ export default function RaceWeekend(){
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
-                      <div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>
+                      {usesCanonicalRaceRuntime
+                        ?<div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={pending.length?pending.map((command)=>String(command?.type||"order")).join(", "):"No queued orders"}><span className="text-slate-500">Queued orders:</span> {pending.length?pending.map((command)=>{
+                          const type=String(command?.type||"order");
+                          if(type==="pace")return "pace "+String(command?.payload?.paceMode||"balanced");
+                          if(type==="pit")return "pit"+(command?.payload?.tyreId?" → "+tyreName(teamTyres,command.payload.tyreId):"");
+                          return type.replaceAll("_"," ");
+                        }).join(" · "):"—"}</div>
+                        :<div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>}
                     </div>
 
                     <div className="col-span-2 grid min-w-0 gap-1.5 lg:col-span-1">
@@ -2779,7 +2825,7 @@ export default function RaceWeekend(){
                       <span>{raceEventLabel(event)}</span>
                       {did?<><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-4 w-4" className="p-0"/><span className="normal-case tracking-normal">{driverName(drivers,did)}</span></>:null}
                     </div>
-                    <div className="mt-1 text-sm leading-relaxed text-slate-200">{liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</div>
+                    <div className="mt-1 text-sm leading-relaxed text-slate-200">{event?.display_text||liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</div>
                   </div>
                 </div>
               </div>;
@@ -2787,11 +2833,17 @@ export default function RaceWeekend(){
           </div>
           :<>
             <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-sm leading-relaxed text-slate-200">
-              {liveEventText(selectedRaceEvent,drivers,gs?.tyres||gs?.dbTyres||[])}
+              {selectedRaceEvent?.display_text||liveEventText(selectedRaceEvent,drivers,gs?.tyres||gs?.dbTyres||[])}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               {selectedRaceEvent?.driver_id?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Driver</div><div className="mt-1 font-semibold">{driverName(drivers,selectedRaceEvent.driver_id)}</div></div>:null}
-              {selectedRaceEvent?.control_type?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Race control</div><div className="mt-1 font-semibold">{String(selectedRaceEvent.control_type).replaceAll("_"," ")}</div></div>:null}
+              {(selectedRaceEvent?.control_type||selectedEventPayload?.to)?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Race control</div><div className="mt-1 font-semibold">{String(selectedRaceEvent?.control_type||selectedEventPayload?.to).replaceAll("_"," ")}</div></div>:null}
+              {selectedEventPayload?.reason?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Reason</div><div className="mt-1 font-semibold">{String(selectedEventPayload.reason).replaceAll("_"," ")}</div></div>:null}
+              {selectedEventPayload?.severity?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Severity</div><div className="mt-1 font-semibold">{String(selectedEventPayload.severity).replaceAll("_"," ")}</div></div>:null}
+              {selectedEventPayload?.tyreTo?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Tyres</div><div className="mt-1 font-semibold">{tyreName(gs?.tyres||gs?.dbTyres||[],selectedEventPayload.tyreTo)}</div></div>:null}
+              {Number.isFinite(Number(selectedEventPayload?.lossMs))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Pit loss</div><div className="mt-1 font-semibold">{(Number(selectedEventPayload.lossMs)/1000).toFixed(1)}s</div></div>:null}
+              {selectedEventPayload?.refuelled?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Fuel added</div><div className="mt-1 font-semibold">{Number.isFinite(Number(selectedEventPayload?.fuelAddedKg))?Number(selectedEventPayload.fuelAddedKg).toFixed(1)+" kg":"Refuelled"}</div></div>:null}
+              {selectedEventPayload?.crewError?<div className="rounded bg-rose-500/10 p-2 text-rose-200"><div className="text-[9px] uppercase text-rose-400">Pit crew</div><div className="mt-1 font-semibold">Service error</div></div>:null}
               {Number.isFinite(Number(selectedRaceEvent?.stationary_s))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Stationary</div><div className="mt-1 font-semibold">{Number(selectedRaceEvent.stationary_s).toFixed(1)}s</div></div>:null}
               {Number.isFinite(Number(selectedRaceEvent?.pit_lane_loss_s))?<div className="rounded bg-white/[0.04] p-2"><div className="text-[9px] uppercase text-slate-500">Pit lane loss</div><div className="mt-1 font-semibold">{Number(selectedRaceEvent.pit_lane_loss_s).toFixed(1)}s</div></div>:null}
               {selectedRaceEvent?.crew_error?<div className="rounded bg-rose-500/10 p-2 text-rose-200"><div className="text-[9px] uppercase text-rose-400">Crew delay</div><div className="mt-1 font-semibold">+{Number(selectedRaceEvent.crew_error_delay_s||0).toFixed(1)}s</div></div>:null}
