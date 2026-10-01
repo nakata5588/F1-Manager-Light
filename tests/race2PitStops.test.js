@@ -23,6 +23,7 @@ function input({
   plannedStopLap=2,
   pitPlan="one_stop",
   laps=4,
+  aiControlled=true,
 }={}){
   const entries=Array.from({length:cars},(_,index)=>({
     driverId:`D${index+1}`,
@@ -71,6 +72,7 @@ function input({
           fuelPlan:"balanced",
           pitPlan,
           plannedStopLap,
+          aiControlled,
         },
         pitCrew:{
           avg_time_s:2.2,
@@ -648,4 +650,59 @@ test("RW11D canonical forecast and pit execution share the same Safety Car pit-l
   assert.equal(service.pit_lane_loss_s,4.64);
   assert.equal(service.expected_stationary_s,2.2);
   assert.equal(service.total_loss_s,6.84);
+});
+
+
+test("RW11D AI fixed one-stop attaches valuable repair work to the existing stop",()=>{
+  let state=placeBeforePit(runningState({
+    cars:1,
+    plannedStopLap:2,
+    pitPlan:"one_stop",
+    laps:24,
+    aiControlled:true,
+  }));
+  state=patchCar(state,"C1",{
+    damage:damageStateFromComponents({front_wing:70}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  assert.equal(planned.resources.strategy.pitPlan,"one_stop");
+  assert.equal(planned.resources.strategy.plannedStopLap,2);
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested,["front_wing"]);
+
+  const next=stepRaceState(state);
+  assert.equal(car(next).pitState.active,true);
+  assert.equal(car(next).pitState.service.reason,"planned");
+  assert.ok(car(next).pitState.service.repair.repaired_components.includes("front_wing"));
+});
+
+test("RW11D player-controlled car receives repair advice without automatic repair orders",()=>{
+  let state=runningState({
+    cars:1,
+    plannedStopLap:null,
+    pitPlan:"adaptive",
+    laps:45,
+    aiControlled:false,
+  });
+  state={
+    ...state,
+    raceControlState:{...(state.raceControlState||{}),mode:"SAFETY_CAR"},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:1900,
+    distanceAlongLapM:900,
+    completedLaps:1,
+    lap:2,
+    sector:3,
+    tyre:{...car(state).tyre,condition:100,wear_rate:0.002},
+    damage:damageStateFromComponents({front_wing:90}),
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  const forecast=planned.resources.strategy.forecast;
+  assert.equal(forecast.damage_repair.should_repair,true);
+  assert.equal(forecast.damage_repair.dedicated_stop,true);
+  assert.equal(forecast.pit_window,null);
+  assert.equal(planned.resources.strategy.plannedStopLap,null);
+  assert.deepEqual(planned.resources.strategy.repairComponentsRequested??[],[]);
 });
