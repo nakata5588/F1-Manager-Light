@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceState, DEFAULT_RACE_STEP_MS, RACE_STATE_SCHEMA_VERSION } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
-import { applyCanonicalLapTiming } from "../src/race2/core/RaceLapTiming.js";
+import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs } from "../src/race2/core/RaceLapTiming.js";
 
 function input({laps=2,cars=2}={}){
   const entries=Array.from({length:cars},(_,index)=>({driverId:`D${index+1}`,teamId:index<2?"T1":"T2",carId:`car_${index+1}`,status:"confirmed"}));
@@ -114,4 +114,18 @@ test("RW9B canonical lap timer also observes a start/finish crossing inside pit-
   assert.equal(timed.lapTimes[0].completedAtMs,10_050);
   assert.equal(timed.lastLapMs,10_050);
   assert.equal(timed.bestLapMs,10_050);
+});
+
+
+test("RW9B schema-11 runtime migration seeds the official clock from canonical car timing",()=>{
+  const legacy={
+    schemaVersion:11,
+    simulationTimeMs:99_000,
+    session:{clock:{elapsedMs:99_000}},
+    cars:[
+      {carId:"C1",status:"running",elapsedMs:42_500,finishTimeMs:null},
+      {carId:"C2",status:"finished",elapsedMs:44_100,finishTimeMs:44_100},
+    ],
+  };
+  assert.equal(canonicalOfficialRaceTimeMs(legacy),44_100);
 });
