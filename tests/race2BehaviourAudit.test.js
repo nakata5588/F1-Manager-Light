@@ -1,5 +1,8 @@
 import test from "node:test";
-import assert from "node:assert/strict";\nimport { execFileSync } from "node:child_process";\nimport path from "node:path";\nimport { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   aggregateRaceBehaviour,
