@@ -10,7 +10,7 @@ import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
 import { initialRaceConditions } from "./RaceConditions.js";
 
-export const RACE_STATE_SCHEMA_VERSION=11;
+export const RACE_STATE_SCHEMA_VERSION=12;
 export const DEFAULT_RACE_STEP_MS=100;
 
 const text=(value)=>String(value??"");
@@ -108,6 +108,11 @@ function initialCarState(input,row,index){
     zoneType:"sector",
     elapsedMs:0,
     finishTimeMs:null,
+    lapStartedAtMs:0,
+    lastLapMs:null,
+    bestLapMs:null,
+    bestLapNumber:null,
+    lapTimes:[],
     status:"ready",
     tyre:cloneRaceContractValue(resourceState.tyre),
     fuelKg:resourceState.fuelKg,
@@ -149,11 +154,12 @@ export function createRaceState(input,{stepMs=DEFAULT_RACE_STEP_MS}={}){
     seed:text(input?.seed)||null,
     tick:0,
     simulationTimeMs:0,
+    officialRaceTimeMs:0,
     session:{
       type:"race",
       format:null,
       phase:"grid",
-      clock:{elapsedMs:0},
+      clock:{elapsedMs:0,officialElapsedMs:0},
       lapLimit:positive(input?.track?.laps,null),
       timeLimit:null,
       activeCars:cars.map((car)=>car.carId),
