@@ -7,6 +7,8 @@ import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategy
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
+import { canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
+import { raceWeekendUsesCanonicalRuntime } from "../race2/gateway/RaceWeekendRuntimeGateway.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
@@ -601,6 +603,7 @@ export default function RaceWeekend(){
   const advanceLiveRace=useGame((s)=>s.advanceRaceWeekendLiveRace);
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const advanceLivePitClock=useGame((s)=>s.advanceRaceWeekendLivePitClock);
+  const advanceCanonicalRaceElapsed=useGame((s)=>s.advanceRaceWeekendElapsed);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
@@ -623,8 +626,11 @@ export default function RaceWeekend(){
   const racePlaybackRemainingRatioRef=useRef(1);
   const racePlaybackTimerStateRef=useRef(null);
   const racePlaybackActivatedRef=useRef(false);
+  const canonicalRaceFrameClockRef=useRef(null);
+  if(!canonicalRaceFrameClockRef.current)canonicalRaceFrameClockRef.current=createCanonicalRaceViewFrameClock();
 
   const weekend=gs?.raceWeekendState;
+  const usesCanonicalRaceRuntime=raceWeekendUsesCanonicalRuntime(gs);
   const drivers=gs?.drivers||[];
   const teams=gs?.teams||[];
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
@@ -743,6 +749,7 @@ export default function RaceWeekend(){
   },[Boolean(liveRace),liveRows.length]);
   useEffect(()=>{
     if(
+      usesCanonicalRaceRuntime||
       !liveRace||
       weekend?.phase!=="race"||
       !racePlaying||
@@ -761,7 +768,64 @@ export default function RaceWeekend(){
     liveRace?.status,
     hasActivePitStop,
     advanceLivePitClock,
+    usesCanonicalRaceRuntime,
   ]);
+
+  useEffect(()=>{
+    const frameClock=canonicalRaceFrameClockRef.current;
+    if(!usesCanonicalRaceRuntime||weekend?.phase!=="race"||!racePlaying||busy){
+      frameClock.reset();
+      return undefined;
+    }
+
+    let cancelled=false;
+    let animationFrameId=null;
+    let advancing=false;
+    let queuedElapsedMs=0;
+
+    const flushElapsed=async()=>{
+      if(cancelled||advancing||queuedElapsedMs<=0)return;
+      const elapsedMs=queuedElapsedMs;
+      queuedElapsedMs=0;
+      advancing=true;
+      try{
+        const view=await advanceCanonicalRaceElapsed(elapsedMs);
+        if(!cancelled&&String(view?.status||"").toLowerCase()==="finished"){
+          setRacePlaying(false);
+        }
+      }catch(error){
+        console.error("[RaceWeekend] canonical Race View frame failed:",error);
+        if(!cancelled)setRacePlaying(false);
+      }finally{
+        advancing=false;
+      }
+    };
+
+    const onFrame=(timestampMs)=>{
+      if(cancelled)return;
+      const elapsedMs=frameClock.sampleElapsedMs(timestampMs);
+      if(elapsedMs>0){
+        queuedElapsedMs+=canonicalRaceViewElapsedMs(elapsedMs,racePlaybackSpeed);
+        void flushElapsed();
+      }
+      animationFrameId=window.requestAnimationFrame(onFrame);
+    };
+
+    animationFrameId=window.requestAnimationFrame(onFrame);
+    return ()=>{
+      cancelled=true;
+      if(animationFrameId!=null)window.cancelAnimationFrame(animationFrameId);
+      frameClock.reset();
+    };
+  },[
+    usesCanonicalRaceRuntime,
+    weekend?.phase,
+    racePlaying,
+    racePlaybackSpeed,
+    busy,
+    advanceCanonicalRaceElapsed,
+  ]);
+
   useEffect(()=>{
     // A new authoritative sector target starts a fresh visual/playback clock.
     racePlaybackRemainingRatioRef.current=1;
@@ -769,6 +833,7 @@ export default function RaceWeekend(){
   },[liveRace?.current_lap,liveRace?.current_sector]);
 
   useEffect(()=>{
+    if(usesCanonicalRaceRuntime)return undefined;
     if(!liveRace||weekend?.phase!=="race"||!racePlaybackCanRun(liveRace)){
       if(racePlaying)setRacePlaying(false);
       return undefined;
@@ -819,6 +884,7 @@ export default function RaceWeekend(){
     liveRace?.current_sector,
     liveRace?.total_laps,
     playbackSectorMs,
+    usesCanonicalRaceRuntime,
   ]);
   useEffect(()=>{
     if(!liveRace)return;
@@ -988,8 +1054,10 @@ export default function RaceWeekend(){
     // fractional sector. Advance immediately so Play always produces motion.
     // Normal Pause/Resume in the same view preserves the remaining clock.
     if(
-      firstActivation||
-      (Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0)
+      !usesCanonicalRaceRuntime&&(
+        firstActivation||
+        (Number(liveRace?.current_lap||0)<=0&&Number(liveRace?.current_sector||0)<=0)
+      )
     ){
       racePlaybackRemainingRatioRef.current=1;
       perform(()=>advanceLiveRaceSector(1));
@@ -1056,10 +1124,13 @@ export default function RaceWeekend(){
           </div>
           {racePlaying?<span className="hidden items-center gap-1 rounded bg-emerald-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-emerald-300 lg:inline-flex"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300"/>Live Motion</span>:null}
           {!racePlaying&&raceAutoPaused?<span className="hidden items-center gap-1 rounded border border-amber-400/20 bg-amber-500/[0.08] px-1.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-amber-300 lg:inline-flex"><Pause className="h-3 w-3"/>Auto-paused</span>:null}
-                    <div className="mx-0.5 h-5 w-px bg-white/10"/>
+          {!usesCanonicalRaceRuntime?<>
+
+          <div className="mx-0.5 h-5 w-px bg-white/10"/>
           <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
           <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
           <button disabled={busy} className="rounded-md bg-slate-100 px-2 py-1.5 text-[9px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1));}}>Finish</button>
+          </>:<span className="rounded border border-cyan-400/20 bg-cyan-400/[0.06] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-cyan-200">RW2 continuous</span>}
         </div>:canFinalizeLiveRace?<div className="flex shrink-0 items-center gap-2">
           <span className="hidden rounded border border-emerald-400/20 bg-emerald-500/[0.08] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300 md:inline-flex">Race finished</span>
           <button
