@@ -109,6 +109,7 @@ function initialCarState(input,row,index){
     elapsedMs:0,
     finishTimeMs:null,
     lapStartedAtMs:0,
+    lapTimingBaselineValid:true,
     lastLapMs:null,
     bestLapMs:null,
     bestLapNumber:null,
