@@ -5,8 +5,10 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   advanceRaceResources,
+  canonicalTyreTemperatureTargetC,
   fuelBurnKgPerKmForYear,
   raceResourcePerformance,
+  tyreThermalStressMultiplier,
 } from "../src/race2/core/RaceResources.js";
 import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
@@ -272,6 +274,94 @@ test("RW8.7 tyre management and pace mode change wear without separate engines",
   assert.ok(goodNext[0].tyre.condition>poorNext[0].tyre.condition);
   assert.ok(goodNext[0].tyre.wear_per_lap_pct<poorNext[0].tyre.wear_per_lap_pct);
   assert.ok(goodNext[0].fuelKg>poorNext[0].fuelKg);
+});
+
+test("RW11C stationary tyres cool instead of heating themselves toward optimum",()=>{
+  const state=runningState();
+  const previous=car(state);
+  const target=canonicalTyreTemperatureTargetC(state,{
+    ...previous,
+    speedMs:0,
+    speedKmh:0,
+    accelerationMs2:0,
+    effectiveCornerSeverity:0,
+  });
+  const [next]=advanceRaceResources(state,[{
+    ...previous,
+    speedMs:0,
+    speedKmh:0,
+    accelerationMs2:0,
+    effectiveCornerSeverity:0,
+  }],{stepMs:1000});
+
+  assert.ok(target<previous.tyre.temperature_c);
+  assert.ok(next.tyre.temperature_c<previous.tyre.temperature_c);
+  assert.ok(next.tyre.temperature_target_c<previous.tyre.optimal_temperature_c);
+  assert.ok(next.tyre.temperature_trend_c_per_s<0);
+});
+
+test("RW11C braking and corner load create a hotter canonical tyre target than a fast straight",()=>{
+  const state=runningState({paceMode:"balanced"});
+  const base=car(state);
+  const straight=canonicalTyreTemperatureTargetC(state,{
+    ...base,
+    speedMs:300/3.6,
+    speedKmh:300,
+    accelerationMs2:0,
+    effectiveCornerSeverity:0,
+  });
+  const loaded=canonicalTyreTemperatureTargetC(state,{
+    ...base,
+    speedMs:190/3.6,
+    speedKmh:190,
+    accelerationMs2:-18,
+    effectiveCornerSeverity:0.9,
+  });
+
+  assert.ok(loaded>straight+8);
+});
+
+test("RW11C wet track cools a dry tyre and thermal extremes increase wear stress",()=>{
+  const dry=runningState();
+  const wet={
+    ...dry,
+    trackState:{
+      ...(dry.trackState||{}),
+      trackTemp:34,
+      wetness:0.8,
+    },
+  };
+  const row={
+    ...car(dry),
+    speedMs:190/3.6,
+    speedKmh:190,
+    accelerationMs2:0,
+    effectiveCornerSeverity:0.4,
+  };
+  const dryTarget=canonicalTyreTemperatureTargetC(dry,row);
+  const wetTarget=canonicalTyreTemperatureTargetC(wet,row);
+  const optimum=row.tyre.optimal_temperature_c;
+
+  assert.ok(wetTarget<dryTarget);
+  assert.equal(tyreThermalStressMultiplier(row.tyre,optimum),1);
+  assert.ok(tyreThermalStressMultiplier(row.tyre,optimum+24)>1);
+  assert.ok(tyreThermalStressMultiplier(row.tyre,optimum-40)>1);
+});
+
+test("RW11C attack pace runs hotter than conserve under the same physical load",()=>{
+  const attack=runningState({paceMode:"attack"});
+  const conserve=runningState({paceMode:"conserve"});
+  const physical={
+    speedMs:210/3.6,
+    speedKmh:210,
+    accelerationMs2:-8,
+    effectiveCornerSeverity:0.55,
+  };
+
+  const attackTarget=canonicalTyreTemperatureTargetC(attack,{...car(attack),...physical});
+  const conserveTarget=canonicalTyreTemperatureTargetC(conserve,{...car(conserve),...physical});
+
+  assert.ok(attackTarget>conserveTarget);
 });
 
 test("RW8.7 worn or badly-temperatured tyres reduce canonical pace target",()=>{

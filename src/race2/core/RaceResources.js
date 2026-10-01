@@ -76,7 +76,10 @@ export function freshRaceTyre(option,{
     wet_efficiency:finite(chosen?.wet_efficiency,null),
     condition:100,
     temperature_c:round(startingTemp,3),
+    temperature_target_c:round(startingTemp,3),
+    temperature_trend_c_per_s:0,
     optimal_temperature_c:round(optimum,3),
+    thermal_stress_multiplier:1,
     age_distance_m:0,
     age_laps:0,
     stint_number:Math.max(1,Math.round(finite(stintNumber,1))),
@@ -199,13 +202,63 @@ export function initialRaceResources(input,inputCar,driver){
   };
 }
 
-function tyreTemperatureTargetC(state,car){
+export function raceTrackWetness(stateLike){
+  return clamp(finite(
+    stateLike?.trackState?.wetness
+    ??stateLike?.weatherState?.track_wetness
+    ??stateLike?.weatherState?.current?.track_wetness
+    ??stateLike?.weather?.track_wetness,
+    0
+  ),0,1);
+}
+
+export function canonicalTyreTemperatureTargetC(state,car){
   const tyre=car?.tyre||{};
   const optimum=finite(tyre?.optimal_temperature_c,optimalTyreTemperatureC(tyre));
+  const trackTemp=raceTrackTempC(state);
+  const speedKmh=Math.max(0,finite(car?.speedKmh,finite(car?.speedMs,0)*3.6));
+  const acceleration=finite(car?.accelerationMs2,0);
+  const cornerSeverity=clamp(finite(car?.effectiveCornerSeverity,0),0,1);
   const pace=paceModeOf(car);
   const paceDelta=pace==="attack"?5:pace==="conserve"?-4:0;
-  const cornerLoad=clamp(finite(car?.effectiveCornerSeverity,0),0,1)*2.5;
-  return optimum+(raceTrackTempC(state)-28)*0.28+paceDelta+cornerLoad;
+
+  // A stationary tyre should cool toward the circuit rather than magically
+  // heating to its optimum. Normal race speed supplies the baseline carcass
+  // energy; braking, traction and lateral load then create the useful peaks.
+  const restingTarget=clamp(trackTemp+14,30,Math.max(30,optimum-8));
+  const motionFraction=clamp(speedKmh/180,0,1);
+  const baseTarget=restingTarget+(optimum-restingTarget)*motionFraction;
+  const cornerHeat=cornerSeverity*clamp(speedKmh/220,0,1.25)*8;
+  const brakingHeat=clamp(-acceleration/18,0,1)*7;
+  const tractionHeat=clamp(acceleration/12,0,1)*4;
+  const battleHeat=car?.battle?.phase==="side_by_side"?2.5:0;
+  const straightCooling=clamp((speedKmh-210)/140,0,1)*(1-cornerSeverity)*8;
+
+  const wetness=raceTrackWetness(state);
+  const category=String(tyre?.category||"dry").toLowerCase();
+  const wetCoolingFactor=category==="wet"?2:category==="intermediate"?5:10;
+  const wetCooling=wetness*wetCoolingFactor;
+
+  return clamp(
+    baseTarget+
+      paceDelta+
+      cornerHeat+
+      brakingHeat+
+      tractionHeat+
+      battleHeat-
+      straightCooling-
+      wetCooling,
+    Math.max(20,trackTemp+4),
+    optimum+26
+  );
+}
+
+export function tyreThermalStressMultiplier(tyre,temperatureC){
+  const optimum=finite(tyre?.optimal_temperature_c,optimalTyreTemperatureC(tyre));
+  const delta=finite(temperatureC,optimum)-optimum;
+  if(delta>8)return 1+Math.min(0.35,(delta-8)*0.02);
+  if(delta<-25)return 1+Math.min(0.12,(-delta-25)*0.006);
+  return 1;
 }
 
 function tyreWearDriverMultiplier(car){
@@ -224,21 +277,19 @@ function updateTyre(state,previous,next,deltaM,stepMs){
 
   const dt=Math.max(0.01,finite(stepMs,100)/1000);
   const currentTemp=finite(tyre?.temperature_c,raceTrackTempC(state)+18);
-  const targetTemp=tyreTemperatureTargetC(state,{...previous,...next,tyre});
+  const targetTemp=canonicalTyreTemperatureTargetC(state,{...previous,...next,tyre});
   const warmupTime=Math.max(0.5,finite(tyre?.warmup_time_s,2.5));
-  const tau=Math.max(8,warmupTime*8);
+  const tau=Math.max(6,warmupTime*5);
   const alpha=1-Math.exp(-dt/tau);
   const nextTemp=currentTemp+(targetTemp-currentTemp)*alpha;
+  const temperatureTrend=(nextTemp-currentTemp)/dt;
+  const thermalStress=tyreThermalStressMultiplier(tyre,nextTemp);
 
-  const optimum=finite(tyre?.optimal_temperature_c,optimalTyreTemperatureC(tyre));
-  const hotWearMult=nextTemp>optimum+8
-    ?1+Math.min(0.25,(nextTemp-optimum-8)*0.018)
-    :1;
   const wearPerLap=projectedTyreWearPerLap(tyre,{
     trackWearMult:tyreTrackWearMultiplier(state),
     paceMode:paceModeOf(previous),
     wearDriverMult:tyreWearDriverMultiplier(previous),
-    hotWearMult,
+    hotWearMult:thermalStress,
   });
   const lengthM=Math.max(1,finite(state?.track?.lengthM,1));
   const wearPct=wearPerLap*(Math.max(0,deltaM)/lengthM);
@@ -250,6 +301,9 @@ function updateTyre(state,previous,next,deltaM,stepMs){
     ...tyre,
     condition:round(condition,6),
     temperature_c:round(nextTemp,6),
+    temperature_target_c:round(targetTemp,6),
+    temperature_trend_c_per_s:round(temperatureTrend,6),
+    thermal_stress_multiplier:round(thermalStress,6),
     age_distance_m:round(ageDistance,6),
     age_laps:round(ageDistance/lengthM,6),
     wear_per_lap_pct:round(wearPerLap,6),
