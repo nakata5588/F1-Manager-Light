@@ -634,7 +634,12 @@ test("RW11D neutralisation can create a canonical dedicated damage-repair stop w
 
 
 test("RW11D canonical forecast and pit execution share the same Safety Car pit-lane loss",()=>{
-  let state=placeBeforePit(runningState({cars:1,plannedStopLap:2,pitPlan:"one_stop"}));
+  let state=placeBeforePit(runningState({
+    cars:1,
+    plannedStopLap:2,
+    pitPlan:"one_stop",
+    refuellingAllowed:false,
+  }));
   state={
     ...state,
     raceControlState:{...(state.raceControlState||{}),mode:"SAFETY_CAR"},
