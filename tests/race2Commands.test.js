@@ -5,6 +5,7 @@ import {
   cancelRaceCommand,
   queueRaceCommand,
 } from "../src/race2/core/RaceCommands.js";
+import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
@@ -183,6 +184,12 @@ test("RW8.9 pending commands have deterministic ids and newer same-type order re
 
   state=cancelRaceCommand(state,{driverId:"D1",type:"pace"});
   assert.deepEqual(state.commandQueue,[]);
+  const cancelled=state.events.filter((event)=>event.type==="command_cancelled");
+  assert.equal(cancelled.length,2);
+  assert.deepEqual(cancelled.map((event)=>event.sequence),[1,2]);
+  assert.equal(cancelled[0].payload.commandType,"pace");
+  assert.equal(cancelled[0].payload.reason,"player_cancelled");
+  assert.equal(state.nextEventSequence,3);
 });
 
 test("RW8.9 pace command applies on its canonical tick and becomes an official event",()=>{
@@ -308,4 +315,81 @@ test("RW8.9 Live and Fast execute the same queued command through the same core"
   for(let index=0;index<80;index+=1)live.step();
 
   assert.deepEqual(live.getState(),fast);
+});
+
+
+test("RW10E repair-only pit command uses shared damage repair truth without changing tyres",()=>{
+  let state=atDistance(runningState(),898);
+  state=patchCar(state,"C1",{
+    damage:damageStateFromComponents({
+      front_wing:60,
+      floor:40,
+    },{source:"test_damage"}),
+  });
+  const startingTyre=car(state).tyre.tyre_id;
+
+  state=queueRaceCommand(state,{
+    driverId:"D1",
+    type:"pit",
+    payload:{
+      tyreChange:false,
+      refuel:false,
+      repairComponents:["front_wing"],
+    },
+    effectiveAtTick:0,
+  });
+  assert.equal(state.commandQueue.length,1);
+  assert.deepEqual(state.commandQueue[0].payload.repairComponents,["front_wing"]);
+
+  state=stepRaceState(state);
+  assert.equal(car(state).pitState.active,true);
+  assert.equal(car(state).pitState.service.tyre_changed,false);
+  assert.deepEqual(
+    car(state).pitState.service.repair.repaired_components,
+    ["front_wing"]
+  );
+
+  const completed=runUntil(
+    state,
+    (candidate)=>car(candidate).pitState.completed&&!car(candidate).pitState.active
+  );
+  const repaired=car(completed);
+
+  assert.equal(repaired.tyre.tyre_id,startingTyre);
+  assert.equal(repaired.damage.components.front_wing.damage_pct,0);
+  assert.equal(repaired.damage.components.floor.damage_pct,40);
+  assert.deepEqual(repaired.damage.damaged_components,["floor"]);
+  assert.deepEqual(repaired.resources.strategy.repairComponentsRequested,[]);
+
+  const serviceEvent=completed.events.find((event)=>
+    event.type==="pit_service_completed"&&
+    event.payload?.repairedComponents?.includes("front_wing")
+  );
+  assert.ok(serviceEvent);
+  assert.deepEqual(serviceEvent.payload.repairedComponents,["front_wing"]);
+  assert.ok(serviceEvent.payload.repairDurationS>0);
+});
+
+test("RW10E repairDamage normalizes to all currently damaged canonical components",()=>{
+  let state=runningState();
+  state=patchCar(state,"C1",{
+    damage:damageStateFromComponents({
+      front_wing:45,
+      floor:35,
+    },{source:"test_damage"}),
+  });
+
+  state=queueRaceCommand(state,{
+    driverId:"D1",
+    type:"pit",
+    tyreChange:false,
+    refuel:false,
+    repairDamage:true,
+  });
+
+  assert.equal(state.commandQueue.length,1);
+  assert.deepEqual(
+    new Set(state.commandQueue[0].payload.repairComponents),
+    new Set(["front_wing","floor"])
+  );
 });
