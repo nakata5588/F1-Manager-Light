@@ -117,6 +117,100 @@ function presentation(label,message,iconKey="update",priority="normal"){
   };
 }
 
+export function canonicalRaceFlagNotice(view){
+  const status=text(view?.status).toLowerCase();
+  if(status==="finished"){
+    return {
+      type:"CHEQUERED",
+      label:"CHEQUERED FLAG",
+      subtitle:"RACE FINISHED",
+      reason:"Race distance complete",
+    };
+  }
+
+  const current=text(view?.current_control||"GREEN").toUpperCase();
+  if(current==="GREEN"){
+    return {
+      type:"GREEN",
+      label:"GREEN FLAG",
+      subtitle:"TRACK CLEAR",
+      reason:"Racing conditions",
+    };
+  }
+
+  const controlState=view?.race_control_state||{};
+  const events=rows(view?.events);
+  const latestChange=events.slice().reverse().find((event)=>
+    text(event?.type).toLowerCase()==="race_control_changed"&&
+    text(event?.payload?.to).toUpperCase()===current
+  );
+  const source=text(controlState?.source||latestChange?.payload?.source).toLowerCase();
+  const label={
+    LOCAL_YELLOW:"YELLOW FLAG",
+    SAFETY_CAR:"SAFETY CAR",
+    VSC:"VIRTUAL SAFETY CAR",
+    RED_FLAG:"RED FLAG",
+  }[current]||humanize(current).toUpperCase();
+  const subtitle={
+    LOCAL_YELLOW:"CAUTION",
+    SAFETY_CAR:"DEPLOYED",
+    VSC:"VIRTUAL SAFETY CAR",
+    RED_FLAG:"SESSION STOPPED",
+  }[current]||"RACE CONTROL";
+  const reason=source==="weather"
+    ?"Weather conditions"
+    :source==="incident"
+      ?"Incident on track"
+      :source==="restart"
+        ?"Race restart procedure"
+        :"Race control intervention";
+
+  return {type:current,label,subtitle,reason};
+}
+
+export function canonicalRaceEventRequiresPause(event,{playerDriverIds=[]}={}){
+  const type=text(event?.type).toLowerCase();
+  const payload=event?.payload&&typeof event.payload==="object"?event.payload:{};
+  const playerDrivers=new Set(rows(playerDriverIds).map(text).filter(Boolean));
+  const involvesPlayer=eventDriverIds(event).some((id)=>playerDrivers.has(id));
+
+  if(type==="race_control_changed"){
+    return ["VSC","SAFETY_CAR","RED_FLAG"].includes(text(payload?.to).toUpperCase());
+  }
+  if(["mechanical_failure","retirement","accident","contact"].includes(type))return true;
+  if(type==="damage")return text(payload?.source).toLowerCase()==="contact"||involvesPlayer;
+  if(type==="pit_service_completed")return involvesPlayer||Boolean(payload?.crewError);
+  if(type==="command_ignored")return involvesPlayer;
+  return false;
+}
+
+export function batchCanonicalRaceAttentionEvents(events,context={}){
+  const important=rows(events).filter((event)=>canonicalRaceEventRequiresPause(event,context));
+  if(!important.length)return null;
+
+  const latestTick=Math.max(...important.map((event)=>finite(event?.tick,-1)));
+  const sameTick=important.filter((event)=>finite(event?.tick,-1)===latestTick);
+  if(sameTick.length===1)return sameTick[0];
+
+  const sequence=Math.max(...sameTick.map((event)=>finite(event?.sequence,0)));
+  const lapValues=sameTick.map((event)=>finite(event?.lap,null)).filter((value)=>value!=null);
+  const sectorValues=sameTick.map((event)=>finite(event?.sector,null)).filter((value)=>value!=null);
+  const ids=sameTick.map((event)=>text(event?.id||event?.key||event?.sequence)).filter(Boolean);
+
+  return {
+    type:"event_batch",
+    tick:latestTick,
+    sequence,
+    lap:lapValues.length?Math.max(...lapValues):null,
+    sector:sectorValues.length&&new Set(sectorValues).size===1?sectorValues[0]:null,
+    events:sameTick,
+    event_key:`rw2_event_batch:${latestTick}:${ids.join("|")}`,
+    display_label:`${sameTick.length} race updates`,
+    display_icon_key:sameTick[0]?.display_icon_key??"update",
+    display_priority:"critical",
+  };
+}
+
 export function presentCanonicalRaceEvent(event,context={}){
   const type=text(event?.type).toLowerCase();
   const payload=event?.payload&&typeof event.payload==="object"?event.payload:{};
