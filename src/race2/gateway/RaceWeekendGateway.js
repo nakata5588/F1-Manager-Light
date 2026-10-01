@@ -7,9 +7,10 @@ import {
 /**
  * Lock the engine for a weekend.
  *
- * Existing weekends always keep their engine. Old saves that pre-date RW8.0A
- * deliberately resolve to Legacy, so loading a race can never silently switch
- * simulation engines.
+ * Existing weekends always keep their engine. New weekends default to the
+ * canonical RW2 engine. Old saves that pre-date RW8.0A still resolve to Legacy
+ * while transitional load compatibility remains in place, so an in-progress
+ * historical save never silently switches simulation engines.
  */
 export function lockRaceWeekendEngineVersion(existingWeekend=null,{requestedEngineVersion=null}={}){
   if(existingWeekend&&typeof existingWeekend==="object"){
@@ -18,7 +19,7 @@ export function lockRaceWeekendEngineVersion(existingWeekend=null,{requestedEngi
     });
   }
   return normalizeRaceWeekendEngineVersion(requestedEngineVersion,{
-    fallback:RACE_WEEKEND_ENGINES.LEGACY,
+    fallback:RACE_WEEKEND_ENGINES.RW2,
   });
 }
 
@@ -36,11 +37,11 @@ export function stampRaceWeekendEngineVersion(weekend,{requestedEngineVersion=nu
 }
 
 /**
- * Thin execution boundary used while Legacy and RW2 coexist.
+ * Thin execution boundary used during the final Legacy removal window.
  *
- * RW8.0A does not wire RW2 into gameplay yet. If no RW2 handler is supplied,
+ * New weekends resolve to RW2 by default. If no matching handler is supplied,
  * the gateway returns an explicit not_implemented result instead of falling
- * through to Legacy.
+ * through to another engine.
  */
 export async function runRaceWeekendGateway({
   weekend=null,
