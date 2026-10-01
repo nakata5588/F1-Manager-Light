@@ -281,7 +281,6 @@ export function managerGameplayEffects(gs,{teamId=null}={}){
       technicalTimeMultiplier:1,
       technicalRiskMultiplier:1,
       raceExecutionErrorMultiplier:1,
-      raceStrategyQualityDelta:0,
     };
   }
 
@@ -305,7 +304,6 @@ export function managerGameplayEffects(gs,{teamId=null}={}){
     technicalTimeMultiplier:round(1-technical*0.06,4),
     technicalRiskMultiplier:round(1-technical*0.10,4),
     raceExecutionErrorMultiplier:round(1-race*0.08,4),
-    raceStrategyQualityDelta:round(race*0.05,4),
   };
 }
 
@@ -317,6 +315,6 @@ export function managerEffectSummary(gs){
     {key:"negotiation",label:"Driver contract acceptance",value:effects.contractAcceptanceDelta,format:"pp",active:true},
     {key:"technical",label:"Development lead time",value:effects.technicalTimeMultiplier-1,format:"inverse_percent",active:true},
     {key:"commercial",label:"Sponsor acceptance",value:effects.sponsorAcceptanceDelta,format:"pp",active:true},
-    {key:"race_management",label:"Race execution",value:effects.raceExecutionErrorMultiplier-1,format:"future",active:false},
+    {key:"race_management",label:"Pit execution error chance",value:effects.raceExecutionErrorMultiplier-1,format:"error_percent",active:true},
   ];
 }
