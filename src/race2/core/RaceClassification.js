@@ -155,8 +155,13 @@ export function buildRaceClassification(state){
       timingBasis:rowTimingBasis(car,{leader:index===0,leaderCar:leader,lapsBehind}),
       finishTimeMs:finishTime==null?null:round(finishTime,3),
       lastLapMs:round(car?.lastLapMs,3),
+      previousLapMs:round(car?.previousLapMs,3),
+      lastLapDeltaMs:round(car?.lastLapDeltaMs,3),
       bestLapMs:round(car?.bestLapMs,3),
       bestLapNumber:finite(car?.bestLapNumber,null),
+      sector1Ms:round(car?.sector1Ms,3),
+      sector2Ms:round(car?.sector2Ms,3),
+      sector3Ms:round(car?.sector3Ms,3),
     };
   });
 }
