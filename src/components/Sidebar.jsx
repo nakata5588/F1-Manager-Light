@@ -161,6 +161,7 @@ export default function Sidebar() {
       <Item to="/Standings" label="Standings" icon={Trophy} brand={brand} />
       <Item to="/Results" label="Results" icon={Flag} brand={brand} />
       <Item to="/Champions" label="Champions" icon={Trophy} brand={brand} />
+      {!unemployed?<Item to="/DriverMarket" label="Driver Market" icon={HelmetIcon} brand={brand} />:null}
       {!unemployed?<Item to="/Scouting" label="Scouting" icon={Search} brand={brand} />:null}
 
       <div className="px-2 py-1 mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">World</div>
