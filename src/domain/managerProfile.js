@@ -132,6 +132,19 @@ export function managerReputationLabel(value){
   return "Local";
 }
 
+export function managerCareerJobStatusLabel(job){
+  const status=text(job?.status).toLowerCase();
+  const reason=text(job?.end_reason).toLowerCase();
+  if(job?.end_year==null&&(!status||status==="active"))return "Active";
+  if(status==="fired"||reason==="board_dismissal")return "Dismissed";
+  if(status==="contract_ended"||reason==="contract_not_renewed")return "Contract ended";
+  if(status==="active")return "Completed";
+  if(!status)return job?.end_year==null?"Active":"Completed";
+  return status
+    .replaceAll("_"," ")
+    .replace(/\b\w/g,(letter)=>letter.toUpperCase());
+}
+
 export function createManagerProfile(input={},context={}){
   const year=Number(context?.year??input?.career_start_year)||1980;
   const team=context?.team||{};
