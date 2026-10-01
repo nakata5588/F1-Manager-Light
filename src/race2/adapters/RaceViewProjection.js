@@ -46,6 +46,16 @@ function raceViewPitState(car){
   };
 }
 
+function damageComponents(damage){
+  if(Array.isArray(damage?.damaged_components))return [...damage.damaged_components];
+  if(damage?.components&&typeof damage.components==="object"){
+    return Object.entries(damage.components)
+      .filter(([,value])=>finite(value?.severity??value,0)>0)
+      .map(([key])=>key);
+  }
+  return [];
+}
+
 function raceViewTrackState(state){
   const track=state?.trackState||{};
   const weather=state?.weatherState||{};
@@ -95,6 +105,9 @@ export function projectRaceStateToRaceView(state){
       team_id:row?.teamId??car?.teamId??null,
       car_id:row?.carId??car?.carId??null,
       grid_position:finite(car?.gridPosition,null),
+      position_gain:finite(car?.gridPosition,null)==null
+        ?0
+        :finite(car?.gridPosition,0)-finite(row?.position,index+1),
       lap:finite(row?.lap,finite(car?.lap,null)),
       laps_completed:finite(row?.completedLaps,finite(car?.completedLaps,0)),
       sector:finite(row?.sector,finite(car?.sector,null)),
@@ -117,11 +130,24 @@ export function projectRaceStateToRaceView(state){
       speed_ms:finite(car?.speedMs,0),
       lateral_offset_m:finite(car?.lateralOffsetM,0),
       current_pace:car?.resources?.paceMode??null,
+      planned_stop_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
+      pit_plan:car?.resources?.strategy?.pitPlan??null,
+      pit_window:finite(car?.resources?.strategy?.plannedStopLap,null)==null
+        ?null
+        :{
+          from_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
+          to_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
+        },
       tyre:raceViewTyre(car),
       fuel_kg:finite(car?.fuelKg,null),
       engine_temperature:finite(car?.engineTemperature,null),
       damage_state:car?.damage??null,
+      damage_severity:car?.damage?.severity??(damageComponents(car?.damage).length?"minor":"none"),
+      damaged_components:damageComponents(car?.damage),
+      damage_pace_loss_s_per_lap:finite(car?.damage?.pace_loss_s_per_lap,0),
       pit_state:raceViewPitState(car),
+      pit_count:(Array.isArray(car?.pitState?.history)?car.pitState.history.length:0)+
+        (car?.pitState?.active&&!car?.pitState?.completed?1:0),
       battle:car?.battle??null,
     };
   });
