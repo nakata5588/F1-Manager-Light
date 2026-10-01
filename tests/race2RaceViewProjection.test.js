@@ -474,6 +474,19 @@ test("RW10E presenter reports canonical pit repairs and cancelled commands witho
     service.text,
     "Mario Andretti changes to Soft tyres and repairs front wing"
   );
+  assert.equal(
+    presentCanonicalRaceEvent({
+      type:"pit_service_completed",
+      driverIds:["D1"],
+      payload:{
+        tyreTo:"soft",
+        tyreChanged:false,
+        refuelled:false,
+        repairedComponents:["front_wing"],
+      },
+    },context).text,
+    "Mario Andretti repairs front wing"
+  );
   assert.equal(cancelled.text,"Mario Andretti: pit cancelled");
   assert.equal(cancelled.iconKey,"command");
 });
