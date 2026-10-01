@@ -16,6 +16,7 @@ function input({
   withPitAnchors=true,
   plannedStopLap=2,
   pitPlan="one_stop",
+  laps=4,
 }={}){
   const entries=Array.from({length:cars},(_,index)=>({
     driverId:`D${index+1}`,
@@ -94,7 +95,7 @@ function input({
       trackId:"pit-test",
       year,
       lengthM:1000,
-      laps:4,
+      laps,
       traits:{tyreWear:50,pitLaneLossS:8},
       startFinish:{progress:0,distanceM:0},
       sectors:[
@@ -336,7 +337,7 @@ test("RW8.8 Live and Fast expose identical pit lifecycle, resources and events",
 
 
 test("RW8.14K1 adaptive strategy schedules a degradation stop before tyres become critical",()=>{
-  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive"});
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:12});
   state=patchCar(state,"C1",{
     absoluteDistanceM:1898,
     distanceAlongLapM:898,
