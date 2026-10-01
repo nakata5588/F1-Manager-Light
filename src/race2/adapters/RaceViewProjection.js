@@ -139,12 +139,25 @@ export function projectRaceStateToRaceView(state){
       current_pace:car?.resources?.paceMode??null,
       planned_stop_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
       pit_plan:car?.resources?.strategy?.pitPlan??null,
-      pit_window:finite(car?.resources?.strategy?.plannedStopLap,null)==null
-        ?null
-        :{
-          from_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
-          to_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
-        },
+      pit_window:car?.resources?.strategy?.forecast?.pit_window
+        ?{...car.resources.strategy.forecast.pit_window}
+        :finite(car?.resources?.strategy?.plannedStopLap,null)==null
+          ?null
+          :{
+            from_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
+            to_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
+          },
+      pit_rejoin_position:finite(car?.resources?.strategy?.forecast?.pit_rejoin_position,null),
+      pit_rejoin_best:finite(car?.resources?.strategy?.forecast?.pit_rejoin_best,null),
+      pit_rejoin_worst:finite(car?.resources?.strategy?.forecast?.pit_rejoin_worst,null),
+      pit_rejoin_traffic_count:finite(car?.resources?.strategy?.forecast?.pit_rejoin_traffic_count,null),
+      projected_finish_position:finite(car?.resources?.strategy?.forecast?.projected_finish_position,null),
+      projected_finish_best:finite(car?.resources?.strategy?.forecast?.projected_finish_best,null),
+      projected_finish_worst:finite(car?.resources?.strategy?.forecast?.projected_finish_worst,null),
+      projection_confidence_pct:finite(car?.resources?.strategy?.forecast?.projection_confidence_pct,null),
+      strategy_forecast:car?.resources?.strategy?.forecast
+        ?structuredClone(car.resources.strategy.forecast)
+        :null,
       tyre:raceViewTyre(car),
       fuel_kg:finite(car?.fuelKg,null),
       engine_temperature:finite(car?.engineTemperature,null),
