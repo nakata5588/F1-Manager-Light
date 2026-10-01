@@ -3,6 +3,8 @@ import {
   normalizeRaceWeekendEngineVersion,
 } from "../race2/contracts/raceContracts.js";
 
+export const CANONICAL_WEEKEND_MIGRATION_SOURCE="rw9e1_legacy_save_migration";
+
 export function liveRaceIsInProgress(liveRace) {
   if (!liveRace || typeof liveRace !== "object") return false;
   const status = String(liveRace.status || "running").toLowerCase();
@@ -32,20 +34,55 @@ export function raceWeekendCanFinalizeLiveRace(weekend) {
   );
 }
 
+export function migrateLegacyRaceWeekendState(weekend) {
+  if (!weekend || typeof weekend !== "object") return weekend ?? null;
+  const engine=normalizeRaceWeekendEngineVersion(weekend.engine_version,{
+    fallback:RACE_WEEKEND_ENGINES.LEGACY,
+  });
+  if(engine===RACE_WEEKEND_ENGINES.RW2)return weekend;
+
+  const phase=String(weekend.phase||"");
+  const legacyRace=weekend.live_race&&typeof weekend.live_race==="object"
+    ?weekend.live_race
+    :null;
+  const restartRace=Boolean(phase==="race"||liveRaceIsInProgress(legacyRace));
+  const legacyProgress=legacyRace?{
+    status:String(legacyRace.status||"running"),
+    current_lap:Number(legacyRace.current_lap)||0,
+    current_sector:Number(legacyRace.current_sector)||0,
+  }:null;
+
+  return {
+    ...weekend,
+    engine_version:RACE_WEEKEND_ENGINES.RW2,
+    ...(restartRace?{phase:"race",active_session_id:"race"}:{}),
+    live_race:null,
+    canonical_race_runtime:null,
+    engine_migration:{
+      source:CANONICAL_WEEKEND_MIGRATION_SOURCE,
+      from:RACE_WEEKEND_ENGINES.LEGACY,
+      to:RACE_WEEKEND_ENGINES.RW2,
+      race_restarted_from_grid:restartRace,
+      legacy_progress:legacyProgress,
+    },
+  };
+}
+
 export function normalizeRaceWeekendResumeState(weekend) {
   if (!weekend || typeof weekend !== "object") return weekend ?? null;
-  const canonical=canonicalRaceState(weekend);
+  const migrated=migrateLegacyRaceWeekendState(weekend);
+  const canonical=canonicalRaceState(migrated);
   const canonicalActive=Boolean(
     canonical&&
     !["finished","completed"].includes(String(canonical.status||"").toLowerCase())
   );
-  if (!canonicalActive && !liveRaceIsInProgress(weekend.live_race)) return weekend;
+  if (!canonicalActive) return migrated;
   if (
-    String(weekend.phase || "") === "race" &&
-    String(weekend.active_session_id || "") === "race"
-  ) return weekend;
+    String(migrated.phase || "") === "race" &&
+    String(migrated.active_session_id || "") === "race"
+  ) return migrated;
   return {
-    ...weekend,
+    ...migrated,
     phase: "race",
     active_session_id: "race",
   };
