@@ -122,6 +122,8 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
   assert.equal(row.retired,true);
   assert.equal(row.status,"DNF");
   assert.equal(row.retirement_reason,"Engine failure");
+  assert.equal(row.incident_lap,first.lap);
+  assert.equal(row.incident_sector,first.sector);
   assert.equal(row.fuel_kg,12.5);
   assert.deepEqual(row.damage_state,{severity:"major"});
   assert.equal(view.pit_states[row.driver_id].active,false);
