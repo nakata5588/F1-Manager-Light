@@ -5,6 +5,7 @@
 // execution only: entry, pit-lane timing, box queue, service, exit and rejoin.
 
 import { hashSeed } from "../../core/random.js";
+import { buildPitServiceSchedule } from "../../engine/PitServiceEngine.js";
 import {
   normalisePitPhaseDurations,
   pitLaneLossSeconds,
@@ -200,6 +201,20 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
     :0;
   const refuel=fuelAddedKg>0.01;
   const refuelServiceS=refuel?pitRefuelServiceSecondsForYear(state?.track?.year):0;
+  const repairComponents=Array.isArray(strategy?.repairComponentsRequested)
+    ?strategy.repairComponentsRequested.map(String).filter(Boolean)
+    :[];
+  const crewFactor=clamp(expectedTyreS/6.8,0.82,1.20);
+  const serviceSchedule=buildPitServiceSchedule({
+    year:finite(state?.track?.year,1980),
+    tyreChange,
+    tyreServiceS,
+    refuel,
+    fuelServiceS:refuelServiceS,
+    damageState:car?.damage,
+    repairComponents,
+    crewFactor,
+  });
 
   const errorChance=clamp(
     finite(crew?.effective_error_chance,crew?.error_rate??0.05),
@@ -209,7 +224,7 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   const errorRoll=unit(state,`error:${key}`);
   const error=errorRoll<errorChance;
   const errorDelayS=error?3+unit(state,`error-delay:${key}`)*8:0;
-  const stationaryS=Math.max(tyreServiceS,refuelServiceS)+errorDelayS;
+  const stationaryS=Math.max(0,finite(serviceSchedule?.total_stationary_s,0))+errorDelayS;
   const laneLossS=pitLaneLossSeconds(state?.track,24);
   const trackTransitS=raceLineTransitSeconds(state,car,entryAbsoluteM,exitAbsoluteM);
   const stop={
@@ -221,8 +236,10 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
     refuelled:refuel,
     fuel_added_kg:round(fuelAddedKg,6),
     fuel_target_kg:round(targetFuel,6),
-    expected_stationary_s:round(Math.max(expectedTyreS,refuelServiceS),3),
+    expected_stationary_s:round(finite(serviceSchedule?.total_stationary_s,0),3),
     stationary_s:round(stationaryS,3),
+    tasks:(serviceSchedule?.tasks||[]).map((task)=>({...task})),
+    repair:serviceSchedule?.repair?structuredClone(serviceSchedule.repair):null,
     crew_error:error,
     crew_error_delay_s:round(errorDelayS,3),
     pit_lane_loss_s:round(laneLossS,3),
@@ -353,11 +370,20 @@ function applyService(state,car,pit){
   const nextFuel=service?.refuelled
     ?Math.max(finite(car?.fuelKg,0),finite(service?.fuel_target_kg,car?.fuelKg??0))
     :car?.fuelKg;
+  const repairedComponents=Array.isArray(service?.repair?.repaired_components)
+    ?service.repair.repaired_components
+    :[];
+  const repairedDamage=repairedComponents.length
+    ?structuredClone(service?.repair?.damage_after||car?.damage)
+    :car?.damage;
   return {
     car:{
       ...car,
       tyre:nextTyre,
       fuelKg:round(nextFuel,6),
+      damage:repairedComponents.length&&!(repairedDamage?.damaged_components||[]).length
+        ?null
+        :repairedDamage,
     },
     pit:{
       ...pit,
@@ -472,6 +498,10 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
       tyreChanged:Boolean(pit?.service?.tyre_changed),
       refuelled:Boolean(pit?.service?.refuelled),
       fuelAddedKg:finite(pit?.service?.fuel_added_kg,0),
+      repairedComponents:Array.isArray(pit?.service?.repair?.repaired_components)
+        ?[...pit.service.repair.repaired_components]
+        :[],
+      repairDurationS:finite(pit?.service?.repair?.duration_s,0),
       lossMs:finite(pit?.lossElapsedMs,pit?.lossTotalMs??0),
     };
     pit={
@@ -493,6 +523,7 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
           autoPitReason:null,
           tyreChangeRequested:true,
           refuelRequested:false,
+          repairComponentsRequested:[],
         },
       },
     };
@@ -581,6 +612,12 @@ export function advanceRacePitStops(state,proposedCars,{stepMs=100}={}){
           tyreChanged:Boolean(proposed?.pitState?.service?.tyre_changed),
           refuelled:Boolean(proposed?.pitState?.service?.refuelled),
           fuelAddedKg:finite(proposed?.pitState?.service?.fuel_added_kg,0),
+          repairedComponents:Array.isArray(proposed?.pitState?.service?.repair?.repaired_components)
+            ?[...proposed.pitState.service.repair.repaired_components]
+            :[],
+          repairDurationS:finite(proposed?.pitState?.service?.repair?.duration_s,0),
+          paceLossBeforeSPerLap:finite(proposed?.pitState?.service?.repair?.pace_loss_before_s_per_lap,null),
+          paceLossAfterSPerLap:finite(proposed?.pitState?.service?.repair?.pace_loss_after_s_per_lap,null),
           crewError:Boolean(proposed?.pitState?.service?.crew_error),
         }));
       }
