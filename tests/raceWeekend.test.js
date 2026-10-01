@@ -185,8 +185,14 @@ test("RW3 1980 rule creates two timed Qualifying sessions and a persistent sessi
   assert.equal(gs.raceWeekendState.sessions.length,5);
 });
 
-test("RW8.0A fixes engine_version at GP entry and preserves it through save/load",()=>{
-  const legacy=createRaceWeekendState(fixture({seed:"rw8-legacy"}),{roundIndex:0,gp});
+test("RW9D new gameplay weekends default to RW2 and preserve an explicit engine lock",()=>{
+  const canonical=createRaceWeekendState(fixture({seed:"rw9d-default"}),{roundIndex:0,gp});
+  assert.equal(canonical.raceWeekendState.engine_version,"rw2");
+
+  const legacy=createRaceWeekendState(
+    fixture({seed:"rw8-legacy"}),
+    {roundIndex:0,gp,engineVersion:"legacy"}
+  );
   assert.equal(legacy.raceWeekendState.engine_version,"legacy");
 
   let rw2=createRaceWeekendState(
