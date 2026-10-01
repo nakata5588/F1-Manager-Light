@@ -21,12 +21,17 @@ const PAGE_TITLES = {
   "/Scouting": "Scouting",
   "/Standings": "Standings",
   "/Results": "Results",
+  "/Champions": "Champions",
   "/Finances": "Finances",
   "/Board": "Board",
-  "/Teams": "Teams",
-  "/Drivers": "Driver Market",
-  "/Staff": "Staff Market",
+  "/Teams": "All Teams",
+  "/Drivers": "All Drivers",
+  "/DriverMarket": "Driver Market",
+  "/Staff": "All Staff",
   "/World": "World",
+  "/LowerSeries": "Lower Series",
+  "/LowerResults": "Lower League Results",
+  "/LowerChampions": "Lower League Champions",
   "/RaceWeekend": "Race Weekend",
   "/Settings": "Settings",
   "/GameSettings": "Settings",
@@ -48,6 +53,9 @@ export default function HubLayout() {
     pathname==="/Teams"||
     pathname==="/Drivers"||
     pathname==="/Staff"||
+    pathname==="/LowerSeries"||
+    pathname==="/LowerResults"||
+    pathname==="/LowerChampions"||
     pathname==="/GameSettings"||
     pathname.startsWith("/drivers/")||
     pathname.startsWith("/teams/")||
