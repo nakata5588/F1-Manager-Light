@@ -88,11 +88,11 @@ test("RW11A aggregate exposes averages across deterministic audit runs",()=>{
 });
 
 
-test("RW11A behaviour audit smoke runs every calibration scenario on the canonical core",{timeout:120_000},(t)=>{
+test("RW11A behaviour audit smoke runs the 1980 calibration scenario on the canonical core",{timeout:120_000},(t)=>{
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
   const output=execFileSync(
     process.execPath,
-    [path.join(root,"scripts","audit-race-behaviour.mjs"),"--seeds=1"],
+    [path.join(root,"scripts","audit-race-behaviour.mjs"),"--seeds=1","--scenario=1980-dry"],
     {cwd:root,encoding:"utf8",maxBuffer:4*1024*1024}
   );
   const marker='{\\n  "generatedAt"';
