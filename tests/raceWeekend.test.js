@@ -846,3 +846,25 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
   const d1=next.results[0].classification.find((row)=>row.driver_id==="D1");
   assert.equal(d1.total_time_ms,5_002_500);
 });
+
+
+test("RW8.14J canonical runtime owns resume window and finalization readiness",()=>{
+  const running={
+    engine_version:"rw2",
+    phase:"qualifying",
+    active_session_id:"qualifying_2",
+    canonical_race_runtime:{state:{status:"running"}},
+  };
+  const resumed=normalizeRaceWeekendResumeState(running);
+  assert.equal(resumed.phase,"race");
+  assert.equal(resumed.active_session_id,"race");
+  assert.equal(raceWindowForWeekend(resumed),"live");
+  assert.equal(raceWeekendCanFinalizeLiveRace(resumed),false);
+
+  const finished={
+    ...resumed,
+    canonical_race_runtime:{state:{status:"finished"}},
+  };
+  assert.equal(raceWindowForWeekend(finished),"live");
+  assert.equal(raceWeekendCanFinalizeLiveRace(finished),true);
+});
