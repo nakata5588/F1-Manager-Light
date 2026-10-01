@@ -181,7 +181,7 @@ export function projectRaceStateToRaceView(state){
         ?{...state.raceControlState.assessment}
         :state.raceControlState?.assessment??null,
       redFlagLifecycle:state.raceControlState?.redFlagLifecycle
-        ?{...state.raceControlState.redFlagLifecycle}
+        ?structuredClone(state.raceControlState.redFlagLifecycle)
         :state.raceControlState?.redFlagLifecycle??null,
     }:null,
     timing_summary:state?.timingState??null,
