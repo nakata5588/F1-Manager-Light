@@ -26,6 +26,7 @@ import {
   canonicalRacePostRaceContext,
   projectCanonicalRaceStateToOfficialRows,
 } from "../race2/adapters/OfficialRaceResultProjection.js";
+import { runCanonicalRaceWeekendToEnd } from "../race2/runtime/RaceRuntime.js";
 
 const clampISO=(iso)=>String(iso||"").slice(0,10);
 
@@ -554,32 +555,40 @@ export function completeQualifyingSession(gs,{gp}={}){
 }
 
 export async function completeRaceSession(gs,{gp}={}){
-  const weekend=gs?.raceWeekendState;
-  if(!weekend||weekend.phase!=="race")return gs;
+  let source=gs;
+  let weekend=source?.raceWeekendState;
+  if(!weekend||weekend.phase!=="race")return source;
+
   const canonical=raceWeekendEngineVersion(weekend)===RACE_WEEKEND_ENGINES.RW2;
-  const canonicalState=weekend?.canonical_race_runtime?.state||null;
+  const targetGp=targetGpForWeekend(weekend,gp);
+
   if(canonical){
-    if(String(canonicalState?.status||"")!=="finished")return gs;
-  }else if(weekend.live_race&&!liveRaceReadyToFinalize(gs)){
-    return gs;
+    // Fast Sim is only a scheduling policy over the same RaceRunner used by
+    // live playback. If a live runtime already exists, continue it; otherwise
+    // materialize the canonical start state and run exact fixed steps to end.
+    source=runCanonicalRaceWeekendToEnd(source,{gp:targetGp});
+    weekend=source?.raceWeekendState;
+    if(String(weekend?.canonical_race_runtime?.state?.status||"")!=="finished")return source;
+  }else if(weekend.live_race&&!liveRaceReadyToFinalize(source)){
+    return source;
   }
 
-  const targetGp=targetGpForWeekend(weekend,gp);
+  const canonicalState=weekend?.canonical_race_runtime?.state||null;
   const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
-  if(!startingGridRows.length)return gs;
+  if(!startingGridRows.length)return source;
 
   const raceRows=canonical
-    ?projectCanonicalRaceStateToOfficialRows(gs,canonicalState)
-    :(weekend.live_race?finalizedLiveRaceRows(gs):null);
+    ?projectCanonicalRaceStateToOfficialRows(source,canonicalState)
+    :(weekend.live_race?finalizedLiveRaceRows(source):null);
   const raceContextOverride=canonical
-    ?canonicalRacePostRaceContext(gs,canonicalState)
+    ?canonicalRacePostRaceContext(source,canonicalState)
     :null;
-  const next=await runRaceWeekend(gs,{
+  const next=await runRaceWeekend(source,{
     roundIndex:Number(weekend.roundIndex)||0,
     gp:targetGp,
     startingGridOverride:startingGridRows,
     qualifyingClassificationOverride:weekend.qualifying?.classification||[],
-    raceEntryOverride:gs?.raceEntryState,
+    raceEntryOverride:source?.raceEntryState,
     raceOverride:raceRows,
     raceContextOverride,
   });
@@ -591,7 +600,7 @@ export async function completeRaceSession(gs,{gp}={}){
     ...next,
     // Player identity is a career invariant. Preserve the exact team object
     // across race finalisation so shell branding cannot disappear in Results.
-    team:gs?.team??next?.team,
+    team:source?.team??next?.team,
     raceWeekendState:{
       ...weekend,
       sessions,
