@@ -123,7 +123,7 @@ export default function MyDrivers(){
         <Metric compact label="Annual payroll" value={money(annualPayroll)}/>
         <Metric compact label="Negotiations" value={activeRenewalByDriver.size}/>
       </div>
-      <button type="button" className="rounded-md px-3 py-1.5 text-xs bg-slate-100 text-slate-950 font-semibold" onClick={()=>navigate("/Drivers")}>Driver Market</button>
+      <button type="button" className="rounded-md px-3 py-1.5 text-xs bg-slate-100 text-slate-950 font-semibold" onClick={()=>navigate("/DriverMarket")}>Driver Market</button>
     </div>
 
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -185,7 +185,7 @@ export default function MyDrivers(){
           <button type="button" className="border border-rose-500/30 text-rose-300 rounded-md px-3 py-1.5 text-xs hover:bg-rose-500/10" onClick={()=>releaseDriver(row)}>Release · {money(terminationCost(gs,row.contract))}</button>
         </div>
       </article>:<div key={row.key} className="rounded-xl border border-dashed border-white/20 bg-[#12141c] p-5">
-        <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div><div className="mt-1 text-xl font-semibold">Vacant</div><div className="mt-1 text-sm text-slate-400">{row.description}</div><button type="button" className="mt-4 rounded-md bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold" onClick={()=>navigate("/Drivers")}>Find a driver</button>
+        <div className="text-xs uppercase tracking-wide text-slate-500">{row.label}</div><div className="mt-1 text-xl font-semibold">Vacant</div><div className="mt-1 text-sm text-slate-400">{row.description}</div><button type="button" className="mt-4 rounded-md bg-slate-100 text-slate-950 px-3 py-2 text-sm font-semibold" onClick={()=>navigate("/DriverMarket")}>Find a driver</button>
       </div>)}
     </div>
 
