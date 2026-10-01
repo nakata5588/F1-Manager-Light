@@ -79,7 +79,7 @@ function result(year,round,position=1){
       {
         team_id:playerWins?"T2":"T1",
         driver_id:`B_${year}_${round}`,
-        position,
+        position:playerWins?2:position,
         points:playerWins?6:0,
         constructor_points:playerWins?6:0,
         status:"Finished",
