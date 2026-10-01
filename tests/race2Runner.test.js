@@ -112,3 +112,19 @@ test("RW8.3 Fast-to-end fails explicitly instead of returning a partial race",()
     /did not finish within 10 canonical steps/
   );
 });
+
+
+test("RW9C Live step scheduler and Fast-to-end converge on the same canonical final state",()=>{
+  const initial=runningState({laps:1});
+  const fast=runFastRaceToEnd(initial,{maxSteps:5000});
+  const live=createLiveRaceRunner(initial);
+
+  let guard=0;
+  while(live.getState()?.status!=="finished"&&guard<5000){
+    live.step();
+    guard+=1;
+  }
+
+  assert.ok(guard<5000,"live canonical runner must finish inside the same guard");
+  assert.deepEqual(live.getState(),fast);
+});
