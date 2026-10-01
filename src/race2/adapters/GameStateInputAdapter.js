@@ -27,6 +27,7 @@ const idOf=(row)=>text(row?.driver_id??row?.id);
 const teamIdOf=(row)=>text(row?.team_id??row?.constructor_id??row?.team);
 
 function finite(value,fallback=null){
+  if(value===null||value===undefined||value==="")return fallback;
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 }
