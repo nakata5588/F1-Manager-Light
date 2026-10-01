@@ -4,7 +4,11 @@
 // Strategy owns the decision and forecast. RacePitStops remains execution-only,
 // while Race View only projects the canonical fields stored here.
 
-import { pitLaneLossSeconds, pitRefuelServiceSecondsForYear } from "../../domain/racePitModel.js";
+import {
+  pitLaneLossMultiplierForRaceControl,
+  pitLaneLossSeconds,
+  pitRefuelServiceSecondsForYear,
+} from "../../domain/racePitModel.js";
 import { aiPitRepairDecision } from "../../engine/AIPitRepairEngine.js";
 import { tyreConditionEffects } from "../../domain/raceTyreModel.js";
 import {
@@ -81,7 +85,8 @@ function bestAvailableTyre(car,category){
 }
 
 function expectedPitLossSeconds(state,car,{tyreChange=true}={}){
-  const laneLoss=Math.max(0,pitLaneLossSeconds(state?.track,24));
+  const laneLoss=Math.max(0,pitLaneLossSeconds(state?.track,24))*
+    pitLaneLossMultiplierForRaceControl(state?.raceControlState?.mode);
   const crew=car?.resources?.pitCrew||{};
   const service=tyreChange
     ?Math.max(2,finite(crew?.avg_time_s,6.8))
