@@ -534,10 +534,10 @@ test("RW11B new battles receive enough physical time to clear the defender",()=>
   }
 
   assert.ok(started,"expected a deterministic physical attempt window");
-  assert.ok(started.event.payload.durationMs>=3200);
-  assert.ok(started.event.payload.durationMs<=9000);
+  assert.ok(started.event.payload.durationMs>=3500);
+  assert.ok(started.event.payload.durationMs<=12000);
   assert.ok(started.event.payload.durationMs>2400);
-  assert.ok(started.event.payload.closingPotentialMs>=0.45);
+  assert.ok(started.event.payload.closingPotentialMs>=0.75);
   assert.equal(started.event.payload.trackDifficulty,50);
   assert.equal(
     car({cars:started.resolved.cars},"C2").battle.expiresAtMs,
@@ -569,4 +569,12 @@ test("RW11B a car with no physical or performance closing potential does not spa
     const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
     assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
   }
+});
+
+
+test("RW11B canonical dynamics preserve free target speed before traffic limiting",()=>{
+  const started=runningState();
+  const next=stepRaceState(started);
+  assert.ok(car(next,"C1").freeTargetSpeedKmh>0);
+  assert.ok(car(next,"C2").freeTargetSpeedKmh>0);
 });
