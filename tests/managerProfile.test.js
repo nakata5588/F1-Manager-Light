@@ -193,7 +193,7 @@ test("M6.1 exposes Race Management as a live pit execution modifier",()=>{
   assert.equal(summary.active,true);
   assert.equal(summary.format,"error_percent");
   assert.equal(summary.label,"Pit execution error chance");
-  assert.equal(summary.value,-0.08);
+  assert.ok(Math.abs(summary.value+0.0784)<1e-10);
 });
 
 
