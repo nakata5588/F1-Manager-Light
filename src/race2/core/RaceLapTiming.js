@@ -240,6 +240,7 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       elapsedMs,
       finishTimeMs,
       lapStartedAtMs,
+      lapTimingBaselineValid,
       lastLapMs,
       bestLapMs,
       bestLapNumber,
