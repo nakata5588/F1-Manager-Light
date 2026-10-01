@@ -861,6 +861,7 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
   const fastestRow=next.results[0].classification.find((row)=>row.driver_id===fastestDriverId);
   assert.ok(fastestRow);
   assert.equal(fastestRow.best_lap_ms,bestLaps.get(fastestDriverId));
+  assert.equal(fastestRow.best_lap_number,20+finisherIds.indexOf(fastestDriverId));
   assert.equal(fastestRow.fastest_lap,true);
   for(const row of next.results[0].classification.filter((row)=>row.driver_id!==fastestDriverId)){
     assert.equal(Boolean(row.fastest_lap),false);
