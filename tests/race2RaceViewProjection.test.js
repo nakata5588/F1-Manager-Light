@@ -542,3 +542,35 @@ test("RW10F projects canonical Red Flag restart information without sharing nest
   assert.equal(state.raceControlState.redFlagLifecycle.restart_monitor.safe_streak,0);
   assert.equal(state.raceControlState.redFlagLifecycle.work_policy.label,"Historic restart service");
 });
+
+
+test("RW10G Race View projects official sector timing and lap deltas without recalculation",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  const first=state.cars[0];
+  state={
+    ...state,
+    cars:state.cars.map((car)=>car.carId===first.carId?{
+      ...car,
+      sector1Ms:21_111,
+      sector2Ms:28_222,
+      sector3Ms:30_333,
+      lastLapMs:79_666,
+      previousLapMs:80_500,
+      lastLapDeltaMs:-834,
+      bestLapMs:79_666,
+      bestLapNumber:2,
+    }:car),
+  };
+
+  const row=projectRaceStateToRaceView(state).classification
+    .find((candidate)=>candidate.car_id===first.carId);
+
+  assert.equal(row.sector_1_ms,21_111);
+  assert.equal(row.sector_2_ms,28_222);
+  assert.equal(row.sector_3_ms,30_333);
+  assert.equal(row.last_lap_ms,79_666);
+  assert.equal(row.previous_lap_ms,80_500);
+  assert.equal(row.last_lap_delta_ms,-834);
+  assert.equal(row.best_lap_ms,79_666);
+  assert.equal(row.best_lap_number,2);
+});
