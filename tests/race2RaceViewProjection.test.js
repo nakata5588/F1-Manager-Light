@@ -8,6 +8,7 @@ import {
   RACE_VIEW_PROJECTION_VERSION,
   projectRaceStateToRaceView,
 } from "../src/race2/adapters/RaceViewProjection.js";
+import { canonicalRaceViewCars } from "../src/race2/view/CanonicalRaceViewModel.js";
 
 function input(){
   return {
@@ -56,6 +57,7 @@ test("RW8.14A projects canonical RaceState into a Race View read model without r
   assert.equal(view.source,RACE_VIEW_PROJECTION_SOURCE);
   assert.equal(view.projection_version,RACE_VIEW_PROJECTION_VERSION);
   assert.equal(view.canonical_tick,state.tick);
+  assert.equal(view.track_length_m,state.track.lengthM);
   assert.equal(view.classification.length,state.classification.length);
 
   for(let index=0;index<state.classification.length;index+=1){
@@ -120,4 +122,44 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
 
 test("RW8.14A rejects missing canonical state explicitly",()=>{
   assert.throws(()=>projectRaceStateToRaceView(null),/RaceState is required/);
+});
+
+
+test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
+  const view={
+    classification:[
+      {
+        car_id:"C1",
+        driver_id:"D1",
+        team_id:"T1",
+        position:1,
+        lap:4,
+        sector:1,
+        gap_to_leader_ms:0,
+        visual_track_progress:0.4175,
+        distance_along_lap_m:417.5,
+        absolute_distance_m:3417.5,
+        speed_kmh:212,
+      },
+      {
+        car_id:"C2",
+        driver_id:"D2",
+        team_id:"T2",
+        position:2,
+        lap:4,
+        sector:3,
+        gap_to_leader_ms:45000,
+        visual_track_progress:0.4175,
+        distance_along_lap_m:417.5,
+        absolute_distance_m:3417.5,
+        speed_kmh:198,
+      },
+    ],
+  };
+
+  const cars=canonicalRaceViewCars(view);
+  assert.equal(cars[0].track_progress,0.4175);
+  assert.equal(cars[1].track_progress,0.4175);
+  assert.equal(cars[0].distance_along_lap_m,417.5);
+  assert.equal(cars[1].distance_along_lap_m,417.5);
 });
