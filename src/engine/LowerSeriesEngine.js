@@ -774,14 +774,88 @@ function rebuildStandings(world){
   return standings;
 }
 
+function lowerSeriesTickWork(gameState,world,today){
+  const events=rows(world?.events);
+  const entries=Object.values(world?.entries||{});
+  const hasTrackedEntries=entries.some((entry)=>
+    LOWER_SERIES_SIMULATED_LEVELS.includes(num(entry?.series_level,null))
+  );
+  const hasUnresolvedPlacements=entries.some((entry)=>
+    !text(entry?.series_id)&&candidateRows(entry?.series_candidates).length>0
+  );
+  const hasSchedule=events.some((event)=>
+    Number(event?.season_year)===Number(world?.season_year)
+  );
+  const hasDueEvent=events.some((event)=>
+    !["completed","skipped"].includes(String(event?.status))&&
+    String(event?.event_date||"").slice(0,10)<=today
+  );
+  const needsStandingsBackfill=
+    rows(world?.results).length>0&&
+    Object.keys(world?.standings||{}).length===0;
+  const inactiveDriverIds=[...activeF1RaceDriverIds(gameState)];
+  const inactiveSet=new Set(inactiveDriverIds);
+  const needsDriverSync=rows(gameState?.drivers).some((driver)=>{
+    const id=driverIdOf(driver);
+    if(!id||!world?.entries?.[id])return false;
+    return Boolean(driver?.active_lower_series)!==!inactiveSet.has(id);
+  });
+
+  return {
+    hasDueEvent,
+    needsStandingsBackfill,
+    needsDriverSync,
+    inactiveDriverIds,
+    hasWork:
+      hasDueEvent||
+      needsStandingsBackfill||
+      needsDriverSync||
+      hasUnresolvedPlacements||
+      (hasTrackedEntries&&!hasSchedule),
+    needsInitialization:
+      hasUnresolvedPlacements||
+      (hasTrackedEntries&&!hasSchedule),
+  };
+}
+
 export function processLowerSeriesTick(gameState,{throughDate=null}={}){
-  if(!gameState?.lowerSeriesWorld)return gameState;
-  let state=initializeLowerSeriesSeason(gameState);
+  const originalWorld=gameState?.lowerSeriesWorld;
+  if(!originalWorld)return gameState;
+
+  const today=text(throughDate??gameState?.currentDateISO).slice(0,10);
+  if(!today)return gameState;
+
+  // Quiet calendar days are the common path. Do not clone the whole Lower
+  // Series world, rebuild standings or rematerialize driver placement unless
+  // a championship event is actually due (or an older save needs one-time
+  // initialization/backfill).
+  const work=lowerSeriesTickWork(gameState,originalWorld,today);
+  if(!work.hasWork)return gameState;
+
+  // Contract changes can move a feeder driver into or out of an F1 race seat
+  // between Lower Series events. Keep that lightweight driver projection live
+  // without touching the much larger championship world.
+  if(
+    work.needsDriverSync&&
+    !work.hasDueEvent&&
+    !work.needsStandingsBackfill&&
+    !work.needsInitialization
+  ){
+    return {
+      ...gameState,
+      drivers:applyLowerSeriesWorldToDrivers(
+        gameState.drivers||[],
+        originalWorld,
+        {inactiveDriverIds:work.inactiveDriverIds}
+      ),
+    };
+  }
+
+  const state=work.needsInitialization
+    ?initializeLowerSeriesSeason(gameState)
+    :gameState;
   let world=cloneWorld(state.lowerSeriesWorld);
   if(!world)return state;
-
-  const today=text(throughDate??state?.currentDateISO).slice(0,10);
-  if(!today)return state;
 
   const existingResultIds=new Set(rows(world.results).map((row)=>String(row?.event_id)).filter(Boolean));
   const due=rows(world.events)
@@ -794,9 +868,21 @@ export function processLowerSeriesTick(gameState,{throughDate=null}={}){
     );
 
   if(!due.length){
+    if(!rows(world.results).length)return state;
     const standings=rebuildStandings(world);
-    if(JSON.stringify(standings)===JSON.stringify(world.standings||{}))return state;
-    return {...state,lowerSeriesWorld:{...world,standings}};
+    const standingsUnchanged=JSON.stringify(standings)===JSON.stringify(world.standings||{});
+    const withStandings=standingsUnchanged
+      ?state
+      :{...state,lowerSeriesWorld:{...world,standings}};
+    if(!work.needsDriverSync)return withStandings;
+    return {
+      ...withStandings,
+      drivers:applyLowerSeriesWorldToDrivers(
+        withStandings.drivers||[],
+        withStandings.lowerSeriesWorld,
+        {inactiveDriverIds:work.inactiveDriverIds}
+      ),
+    };
   }
 
   const eventById=new Map(rows(world.events).map((event)=>[String(event.event_id),event]));
