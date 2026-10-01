@@ -30,6 +30,123 @@ function controlRank(action){
   return CONTROL_RANK[text(action).toUpperCase()]??0;
 }
 
+function weatherBandRank(band){
+  return {
+    NONE:0,
+    DRIZZLE:1,
+    LIGHT:2,
+    MODERATE:3,
+    HEAVY:4,
+    EXTREME:5,
+  }[text(band).toUpperCase()]??0;
+}
+
+function targetTyreCategory(row={}){
+  const wetness=finite(row?.track_wetness,null);
+  if(wetness!=null){
+    if(wetness>=0.72)return "wet";
+    if(wetness>=0.20)return "intermediate";
+    return "dry";
+  }
+  const state=text(row?.state).toUpperCase();
+  if(["HEAVY_RAIN","STORM"].includes(state))return "wet";
+  if(["LIGHT_RAIN","WETTING","DRYING"].includes(state))return "intermediate";
+  return "dry";
+}
+
+function weatherReportKind(previousRow={},row={}){
+  const prevIntensity=finite(previousRow?.rain_intensity,0);
+  const intensity=finite(row?.rain_intensity,0);
+  const prevBand=text(previousRow?.rain_band||"NONE").toUpperCase();
+  const band=text(row?.rain_band||"NONE").toUpperCase();
+  const prevWet=finite(previousRow?.track_wetness,0);
+  const wet=finite(row?.track_wetness,0);
+  const prevVisibility=finite(previousRow?.visibility_index,100);
+  const visibility=finite(row?.visibility_index,100);
+
+  if(prevIntensity<0.04&&intensity>=0.04)return "rain_started";
+  if(prevIntensity>=0.04&&intensity<0.04)return "rain_stopped";
+  if(weatherBandRank(band)>weatherBandRank(prevBand)&&intensity-prevIntensity>=0.035)return "rain_rising";
+  if(weatherBandRank(band)<weatherBandRank(prevBand)&&prevIntensity-intensity>=0.035)return "rain_easing";
+  if(intensity>=0.18&&intensity-prevIntensity>=0.025)return "rain_rising";
+  if(prevIntensity>=0.18&&prevIntensity-intensity>=0.025)return "rain_easing";
+  if(prevWet<0.65&&wet>=0.65)return "standing_water";
+  if(prevVisibility>=70&&visibility<70)return "visibility";
+  if(prevWet>=0.20&&wet<0.20&&intensity<0.08)return "drying_track";
+  return null;
+}
+
+function weatherReportEvent(state,previousRow,row,referenceLap){
+  const previousLap=Math.max(1,Math.floor(finite(state?.weatherState?.currentLap,1)));
+  if(referenceLap<=previousLap)return null;
+  const kind=weatherReportKind(previousRow,row);
+  if(!kind)return null;
+  return {
+    type:"weather_report",
+    tick:Math.max(0,Math.floor(finite(state?.tick,0))),
+    timeMs:Math.max(0,finite(state?.simulationTimeMs,0)),
+    carIds:[],
+    driverIds:[],
+    payload:{
+      kind,
+      referenceLap,
+      fromState:text(previousRow?.state||"SUNNY").toUpperCase(),
+      toState:text(row?.state||previousRow?.state||"SUNNY").toUpperCase(),
+      previousRainIntensity:finite(previousRow?.rain_intensity,0),
+      rainIntensity:finite(row?.rain_intensity,0),
+      rainBand:row?.rain_band??null,
+      previousTrackWetness:finite(previousRow?.track_wetness,0),
+      trackWetness:finite(row?.track_wetness,0),
+      wetnessDelta:finite(row?.wetness_delta,0),
+      visibilityIndex:finite(row?.visibility_index,100),
+      standingWaterIndex:finite(row?.standing_water_index,0),
+    },
+  };
+}
+
+function tyreWeatherFeedbackEvents(state,cars,previousRow,row,referenceLap){
+  const previousById=new Map((state?.cars||[]).map((car)=>[text(car?.carId),car]));
+  const previousWanted=targetTyreCategory(previousRow);
+  const wanted=targetTyreCategory(row);
+  const previousLap=Math.max(1,Math.floor(finite(state?.weatherState?.currentLap,1)));
+  const lapAdvanced=referenceLap>previousLap;
+  const events=[];
+
+  for(const car of cars||[]){
+    if(!car||car?.dnf||car?.status==="dnf"||car?.status==="finished")continue;
+    const carId=text(car?.carId);
+    const driverId=text(car?.driverId);
+    const have=text(car?.tyre?.category||"").toLowerCase();
+    if(!carId||!driverId||!have||have===wanted)continue;
+
+    const previousCar=previousById.get(carId);
+    const previousHave=text(previousCar?.tyre?.category||"").toLowerCase();
+    const tyreChanged=Boolean(previousHave&&previousHave!==have);
+    const crossoverChanged=lapAdvanced&&previousWanted!==wanted;
+    if(!tyreChanged&&!crossoverChanged)continue;
+
+    events.push({
+      type:"driver_feedback",
+      tick:Math.max(0,Math.floor(finite(state?.tick,0))),
+      timeMs:Math.max(0,finite(state?.simulationTimeMs,0)),
+      carIds:[carId],
+      driverIds:[driverId],
+      payload:{
+        kind:"tyre_weather_mismatch",
+        referenceLap,
+        trigger:tyreChanged?"tyre_change":"weather_crossover",
+        tyreCategory:have,
+        recommendedCategory:wanted,
+        weatherState:text(row?.state||"SUNNY").toUpperCase(),
+        rainIntensity:finite(row?.rain_intensity,0),
+        trackWetness:finite(row?.track_wetness,0),
+        wetnessDelta:finite(row?.wetness_delta,0),
+      },
+    });
+  }
+  return events;
+}
+
 function timelineOf(stateLike){
   const timeline=stateLike?.weatherState?.timeline
     ??stateLike?.weather?.timeline
@@ -297,6 +414,10 @@ export function advanceRaceConditions(state,cars,sourceEvents=[]){
   const nextMode=text(chosen?.action||"GREEN").toUpperCase();
   const changed=nextMode!==previousMode;
 
+  const previousWeatherRow=state?.weatherState?.current||rowForLap(state,state?.weatherState?.currentLap??1);
+  const weatherEvent=weatherReportEvent(state,previousWeatherRow,row,referenceLap);
+  const feedbackEvents=tyreWeatherFeedbackEvents(state,cars,previousWeatherRow,row,referenceLap);
+
   return {
     trackState,
     weatherState,
@@ -311,6 +432,10 @@ export function advanceRaceConditions(state,cars,sourceEvents=[]){
       assessment:chosen?.assessment??null,
       updatedTick:Math.max(0,Math.floor(finite(state?.tick,0))),
     },
-    events:changed?[decisionEvent(state,chosen,referenceLap)]:[],
+    events:[
+      ...(weatherEvent?[weatherEvent]:[]),
+      ...feedbackEvents,
+      ...(changed?[decisionEvent(state,chosen,referenceLap)]:[]),
+    ],
   };
 }

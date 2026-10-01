@@ -203,3 +203,56 @@ test("RW8.11A fixed-step simulation persists canonical condition state",()=>{
   assert.equal(next.session.weather.state,"LIGHT_RAIN");
   assert.equal(next.session.raceControl.model,"rw8.11b");
 });
+
+
+test("RW10D canonical conditions emit structured weather and tyre mismatch feedback on a crossover",()=>{
+  const state=startRaceState(createRaceState(input()));
+  const cars=state.cars.map((car)=>({
+    ...car,
+    lap:2,
+    completedLaps:1,
+    absoluteDistanceM:1000,
+    distanceAlongLapM:0,
+    sector:1,
+  }));
+  const next=advanceRaceConditions(state,cars,[]);
+  const weather=next.events.find((event)=>event.type==="weather_report");
+  const feedback=next.events.find((event)=>event.type==="driver_feedback");
+
+  assert.equal(weather?.payload?.kind,"rain_started");
+  assert.equal(weather?.payload?.referenceLap,2);
+  assert.equal(weather?.payload?.fromState,"SUNNY");
+  assert.equal(weather?.payload?.toState,"LIGHT_RAIN");
+  assert.equal(weather?.message,undefined);
+
+  assert.equal(feedback?.driverIds?.[0],"D1");
+  assert.equal(feedback?.payload?.kind,"tyre_weather_mismatch");
+  assert.equal(feedback?.payload?.tyreCategory,"dry");
+  assert.equal(feedback?.payload?.recommendedCategory,"intermediate");
+  assert.equal(feedback?.payload?.trigger,"weather_crossover");
+  assert.equal(feedback?.message,undefined);
+});
+
+test("RW10D canonical weather and feedback events are not repeated while the reference lap is unchanged",()=>{
+  const state=startRaceState(createRaceState(input()));
+  const cars=state.cars.map((car)=>({
+    ...car,
+    lap:2,
+    completedLaps:1,
+    absoluteDistanceM:1000,
+    distanceAlongLapM:0,
+    sector:1,
+  }));
+  const advanced=advanceRaceConditions(state,cars,[]);
+  const persisted={
+    ...state,
+    cars,
+    trackState:advanced.trackState,
+    weatherState:advanced.weatherState,
+    raceControlState:advanced.raceControlState,
+  };
+  const repeat=advanceRaceConditions(persisted,cars,[]);
+
+  assert.equal(repeat.events.some((event)=>event.type==="weather_report"),false);
+  assert.equal(repeat.events.some((event)=>event.type==="driver_feedback"),false);
+});

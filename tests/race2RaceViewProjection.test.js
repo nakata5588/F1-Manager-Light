@@ -399,3 +399,51 @@ test("RW10C projection fills Legacy-compatible pit and damage display fields fro
   assert.deepEqual(row.damaged_components,["front_wing","floor"]);
   assert.equal(row.damage_pace_loss_s_per_lap,1.25);
 });
+
+
+test("RW10D presenter restores Legacy-style weather and driver feedback from canonical facts",()=>{
+  const context={
+    drivers:[{driver_id:"D1",display_name:"Mario Andretti"}],
+  };
+  const weatherSource={
+    type:"weather_report",
+    payload:{
+      kind:"rain_started",
+      referenceLap:8,
+      fromState:"SUNNY",
+      toState:"LIGHT_RAIN",
+      rainIntensity:0.22,
+      trackWetness:0.24,
+    },
+  };
+  const feedbackSource={
+    type:"driver_feedback",
+    driverIds:["D1"],
+    payload:{
+      kind:"tyre_weather_mismatch",
+      tyreCategory:"dry",
+      recommendedCategory:"intermediate",
+      trackWetness:0.24,
+    },
+  };
+
+  const weather=presentCanonicalRaceEvent(weatherSource,context);
+  const feedback=presentCanonicalRaceEvent(feedbackSource,context);
+
+  assert.equal(weather.label,"Weather");
+  assert.equal(weather.text,"Rain has started");
+  assert.equal(weather.iconKey,"weather");
+  assert.equal(weatherSource.message,undefined);
+
+  assert.equal(feedback.label,"Driver feedback");
+  assert.equal(
+    feedback.text,
+    'Mario Andretti: "It\'s getting slippery. Intermediates are becoming an option."'
+  );
+  assert.equal(feedback.iconKey,"feedback");
+  assert.equal(feedbackSource.message,undefined);
+
+  assert.equal(canonicalRaceEventRequiresPause(weatherSource,{playerDriverIds:["D1"]}),true);
+  assert.equal(canonicalRaceEventRequiresPause(feedbackSource,{playerDriverIds:["D1"]}),true);
+  assert.equal(canonicalRaceEventRequiresPause(feedbackSource,{playerDriverIds:["D2"]}),false);
+});
