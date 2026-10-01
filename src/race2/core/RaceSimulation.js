@@ -321,7 +321,13 @@ export function stepRaceState(state){
     weatherState:conditions.weatherState,
     raceControlState:lifecycle.raceControlState,
   };
-  const resourceCars=advanceRaceResources(conditionsState,incidents.cars,{stepMs});
+  const resourceState={
+    ...conditionsState,
+    // Resource deltas must be measured against the canonical pre-step cars.
+    // Using incidents.cars here makes previous === next and collapses deltaM to 0.
+    cars:workingState.cars,
+  };
+  const resourceCars=advanceRaceResources(resourceState,incidents.cars,{stepMs});
   const cars=applyCanonicalLapTiming(state,resourceCars,{stepMs});
   const rawEvents=[
     ...(commands.events||[]),

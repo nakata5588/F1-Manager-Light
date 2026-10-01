@@ -245,3 +245,38 @@ test("RW8.10 adapter derives mechanical risk from the authoritative entered team
   assert.equal(entered.reliability.mechanicalFailureChance,authoritative);
   assert.notEqual(authoritative,stale);
 });
+
+
+test("RW10A adapter preserves a nullable no-stop target instead of coercing it to lap zero",()=>{
+  const gs=fixture();
+  gs.raceWeekendState.race_strategy={
+    ...gs.raceWeekendState.race_strategy,
+    selections:{
+      D1:{
+        driver_id:"D1",
+        team_id:"T1",
+        pace_mode:"balanced",
+        pit_plan:"no_stop",
+        planned_stop_lap:null,
+        fuel_plan:"not_applicable",
+      },
+      D2:{
+        driver_id:"D2",
+        team_id:"T2",
+        pace_mode:"balanced",
+        pit_plan:"no_stop",
+        planned_stop_lap:null,
+        fuel_plan:"not_applicable",
+      },
+    },
+  };
+
+  const input=buildRaceWeekendInput(gs,{
+    gp:{gp_id:"test_gp",gp_name:"Test Grand Prix",track_id:"test_track",race_date:"1980-05-18"},
+  });
+
+  for(const car of input.cars){
+    assert.equal(car.resourceSetup.strategy.pitPlan,"no_stop");
+    assert.equal(car.resourceSetup.strategy.plannedStopLap,null);
+  }
+});
