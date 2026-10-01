@@ -13,7 +13,7 @@ import {
 import { RACE_TRAFFIC_HARD_GAP_M } from "../src/race2/core/RaceTraffic.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 
-function input({seed="rw8.6",laps=10,stepMs=100}={}){
+function input({seed="rw8.6",laps=10,stepMs=100,overtakingDifficulty=50}={}){
   const entries=[
     {driverId:"D1",teamId:"T1",carId:"C1",status:"confirmed"},
     {driverId:"D2",teamId:"T2",carId:"C2",status:"confirmed"},
@@ -72,6 +72,7 @@ function input({seed="rw8.6",laps=10,stepMs=100}={}){
       year:1980,
       lengthM:1000,
       laps,
+      traits:{overtakingDifficulty},
       startFinish:{progress:0,distanceM:0},
       sectors:[
         {id:"sector_1",sector:1,startM:0,endM:333,lengthM:333},
@@ -487,4 +488,85 @@ test("RW8.6 Live and Fast keep identical battles, events and classification",()=
   assert.deepEqual(live.getState(),fast);
   assert.deepEqual(live.getState().classification,fast.classification);
   assert.deepEqual(live.getState().events,fast.events);
+});
+
+
+test("RW11B circuit overtaking difficulty changes canonical attempt probability",()=>{
+  let easy=runningState({overtakingDifficulty:20});
+  let hard=runningState({overtakingDifficulty:90});
+  const patch={
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:42,speedKmh:151.2},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,speedMs:48,speedKmh:172.8},
+  };
+  easy=patchCars(easy,patch);
+  hard=patchCars(hard,patch);
+
+  const easyProbability=overtakeAttemptProbability(
+    easy,
+    car(easy,"C2"),
+    car(easy,"C1"),
+    {gapM:10}
+  );
+  const hardProbability=overtakeAttemptProbability(
+    hard,
+    car(hard,"C2"),
+    car(hard,"C1"),
+    {gapM:10}
+  );
+
+  assert.ok(easyProbability>hardProbability);
+  assert.ok(hardProbability<easyProbability*0.75);
+});
+
+test("RW11B new battles receive enough physical time to clear the defender",()=>{
+  let base=runningState({overtakingDifficulty:50});
+  base=patchCars(base,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:42,speedKmh:151.2,effectiveCornerSeverity:0},
+    C2:{absoluteDistanceM:91,distanceAlongLapM:91,speedMs:44,speedKmh:158.4,effectiveCornerSeverity:0},
+  });
+
+  let started=null;
+  for(let bucket=0;bucket<60&&!started;bucket+=1){
+    const state={...base,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+    const event=resolved.events.find((row)=>row.type==="overtake_started");
+    if(event)started={state,resolved,event};
+  }
+
+  assert.ok(started,"expected a deterministic physical attempt window");
+  assert.ok(started.event.payload.durationMs>=3200);
+  assert.ok(started.event.payload.durationMs<=9000);
+  assert.ok(started.event.payload.durationMs>2400);
+  assert.ok(started.event.payload.closingPotentialMs>=0.45);
+  assert.equal(started.event.payload.trackDifficulty,50);
+  assert.equal(
+    car({cars:started.resolved.cars},"C2").battle.expiresAtMs,
+    started.state.simulationTimeMs+started.event.payload.durationMs
+  );
+});
+
+test("RW11B a car with no physical or performance closing potential does not spam attempts",()=>{
+  let base=runningState({overtakingDifficulty:50});
+  base=patchCars(base,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:44,speedKmh:158.4,
+      performance:{
+        car:{race:92,power:92,chassis:92},
+        driver:{raceScore:92,overtaking:85,defending:95,mistakePropensity:10,aggression:40},
+      },
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:44,speedKmh:158.4,
+      performance:{
+        car:{race:60,power:60,chassis:60},
+        driver:{raceScore:60,overtaking:55,defending:55,mistakePropensity:10,aggression:40},
+      },
+    },
+  });
+
+  for(let bucket=0;bucket<30;bucket+=1){
+    const state={...base,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+    assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
 });
