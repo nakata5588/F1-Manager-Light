@@ -266,8 +266,39 @@ export function advanceRedFlagSuspension(state){
     return {raceControlState:{...control,mode:text(lifecycle?.restart_control||"GREEN").toUpperCase()},events:[]};
   }
 
+  const currentLap=Math.max(
+    1,
+    Math.floor(finite(control?.referenceLap,state?.trackState?.referenceLap??1))
+  );
+
+  // Do not collapse SUSPENDED -> RESTART_PENDING -> RESUMED into one 100 ms
+  // physics tick. Once conditions are safe, keep the official Red Flag active
+  // for a full canonical state so Live Race can actually observe/pause it.
+  if(text(lifecycle?.phase)==="restart_pending"){
+    const resumed=completeRedFlagRestart(lifecycle,{
+      lap:currentLap,
+      sector:1,
+      restartControl:lifecycle?.restart_monitor?.recommended_control||"GREEN",
+    });
+    const nextMode=text(resumed?.restart_control||"GREEN").toUpperCase();
+    return {
+      raceControlState:{
+        ...control,
+        mode:nextMode,
+        phase:"enforced",
+        source:nextMode==="GREEN"?null:"restart",
+        redFlagLifecycle:resumed,
+        minimumReleaseLap:nextMode==="GREEN"?null:currentLap,
+      },
+      events:[lifecycleEvent(state,"RED_FLAG",nextMode,"restart",{
+        lifecycle:"resumed",
+        checksAdvanced:lifecycle?.restart_monitor?.fast_forward_checks??0,
+      })],
+      weatherRow:null,
+    };
+  }
+
   const timeline=Array.isArray(state?.weatherState?.timeline)?state.weatherState.timeline:[];
-  const currentLap=Math.max(1,Math.floor(finite(control?.referenceLap,state?.trackState?.referenceLap??1)));
   const progressed=fastForwardRestartConditions({
     monitor:lifecycle?.restart_monitor,
     year:finite(state?.track?.year,1980),
@@ -292,23 +323,17 @@ export function advanceRedFlagSuspension(state){
     ...lifecycle,
     restart_monitor:progressed.monitor,
   });
-  const resumed=completeRedFlagRestart(prepared,{
-    lap:currentLap,
-    sector:1,
-    restartControl:progressed?.recommended_control||"GREEN",
-  });
-  const nextMode=text(resumed?.restart_control||"GREEN").toUpperCase();
   return {
     raceControlState:{
       ...control,
-      mode:nextMode,
+      mode:"RED_FLAG",
       phase:"enforced",
-      source:nextMode==="GREEN"?null:"restart",
-      redFlagLifecycle:resumed,
-      minimumReleaseLap:nextMode==="GREEN"?null:currentLap,
+      redFlagLifecycle:prepared,
+      minimumReleaseLap:currentLap,
     },
-    events:[lifecycleEvent(state,"RED_FLAG",nextMode,"restart",{
-      lifecycle:"resumed",
+    events:[eventDescriptor("red_flag_restart_ready",state,{
+      referenceLap:currentLap,
+      recommendedControl:progressed?.recommended_control||"GREEN",
       checksAdvanced:progressed?.checks_advanced??0,
     })],
     weatherRow:progressed?.observation?.track_state
