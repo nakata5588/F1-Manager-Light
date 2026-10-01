@@ -7,20 +7,13 @@
 
 import { CAR_DAMAGE_COMPONENTS } from "./CarDamageEngine.js";
 import { buildPitServiceSchedule } from "./PitServiceEngine.js";
+import { pitLaneLossMultiplierForRaceControl } from "../domain/racePitModel.js";
 
 const num=(value,fallback=0)=>{
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
 const clamp=(value,min=0,max=100)=>Math.max(min,Math.min(max,num(value,min)));
-
-function controlLaneMultiplier(controlType){
-  const type=String(controlType||"GREEN").toUpperCase();
-  if(type==="SAFETY_CAR")return 0.58;
-  if(type==="VSC")return 0.76;
-  if(type==="RED_FLAG")return 0.35;
-  return 1;
-}
 
 function subsets(values=[]){
   const rows=[];
@@ -121,7 +114,7 @@ export function aiPitRepairDecision({
   const baseStationary=Math.max(0,num(baseSchedule?.total_stationary_s,0));
   const laneCost=alreadyStopping
     ?0
-    :Math.max(0,num(pitLaneLossS,24))*controlLaneMultiplier(controlType);
+    :Math.max(0,num(pitLaneLossS,24))*pitLaneLossMultiplierForRaceControl(controlType);
 
   const intelligence=clamp(raceIntelligence);
   const driverAggression=clamp(aggression);
