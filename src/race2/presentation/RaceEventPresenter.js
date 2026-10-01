@@ -1,0 +1,340 @@
+// src/race2/presentation/RaceEventPresenter.js
+// RW10B: presentation-only mapping for canonical RaceState events.
+//
+// RaceState owns structured facts. This module turns those facts into human
+// readable labels/text for UI surfaces without changing or recalculating race
+// state, classification, timing or consequences.
+
+export const RACE_EVENT_PRESENTATION_VERSION=1;
+
+const finite=(value,fallback=null)=>{
+  if(value===null||value===undefined||value==="")return fallback;
+  const parsed=Number(value);
+  return Number.isFinite(parsed)?parsed:fallback;
+};
+const text=(value)=>String(value??"").trim();
+
+function humanize(value){
+  const raw=text(value).replaceAll("_"," ").replace(/\s+/g," ");
+  if(!raw)return "Race update";
+  return raw.charAt(0).toUpperCase()+raw.slice(1);
+}
+
+function rows(value){
+  return Array.isArray(value)?value:[];
+}
+
+function driverId(row){
+  return text(row?.driver_id??row?.driverId??row?.id);
+}
+
+function driverName(context,id){
+  const wanted=text(id);
+  const row=rows(context?.drivers).find((driver)=>driverId(driver)===wanted);
+  return row?.display_name
+    ??row?.name
+    ??`${row?.first_name??""} ${row?.last_name??""}`.trim()
+    ??wanted
+    ??"Unknown driver";
+}
+
+function tyreName(context,id){
+  const wanted=text(id);
+  if(!wanted)return null;
+  const row=rows(context?.tyres).find((tyre)=>
+    text(tyre?.tyre_id??tyre?.id)===wanted
+  );
+  return text(
+    row?.compound_name
+    ??row?.compound
+    ??row?.name
+    ??wanted
+  )||null;
+}
+
+function eventDriverIds(event){
+  const ids=Array.isArray(event?.driverIds)
+    ?event.driverIds
+    :Array.isArray(event?.driver_ids)
+      ?event.driver_ids
+      :[];
+  const explicit=text(event?.driver_id);
+  return [...new Set([
+    ...ids.map(text).filter(Boolean),
+    explicit,
+  ].filter(Boolean))];
+}
+
+function primaryDriverName(event,context){
+  return driverName(context,eventDriverIds(event)[0]);
+}
+
+function pairNames(event,context){
+  const ids=eventDriverIds(event);
+  return [
+    driverName(context,ids[0]),
+    driverName(context,ids[1]),
+  ];
+}
+
+function controlName(value){
+  const key=text(value).toUpperCase();
+  return {
+    GREEN:"Green flag",
+    LOCAL_YELLOW:"Yellow flag",
+    VSC:"Virtual Safety Car",
+    SAFETY_CAR:"Safety Car",
+    RED_FLAG:"Red flag",
+  }[key]??humanize(key);
+}
+
+function controlChangedText(payload={}){
+  const from=text(payload?.from).toUpperCase();
+  const to=text(payload?.to).toUpperCase();
+  const source=text(payload?.source).toLowerCase();
+
+  if(to==="GREEN"){
+    if(from==="RED_FLAG"||source==="restart")return "Race restarted under green flag";
+    return "Green flag — racing resumes";
+  }
+  if(to==="LOCAL_YELLOW")return "Yellow flag deployed";
+  if(to==="VSC")return "Virtual Safety Car deployed";
+  if(to==="SAFETY_CAR")return "Safety Car deployed";
+  if(to==="RED_FLAG")return "Red flag — race suspended";
+  return `${controlName(from)} → ${controlName(to)}`;
+}
+
+function lossText(ms){
+  const value=finite(ms,null);
+  return value==null?"":` — ${(value/1000).toFixed(1)}s lost`;
+}
+
+function presentation(label,message,iconKey="update",priority="normal"){
+  return {
+    version:RACE_EVENT_PRESENTATION_VERSION,
+    label,
+    text:message,
+    iconKey,
+    priority,
+  };
+}
+
+export function presentCanonicalRaceEvent(event,context={}){
+  const type=text(event?.type).toLowerCase();
+  const payload=event?.payload&&typeof event.payload==="object"?event.payload:{};
+  const driver=primaryDriverName(event,context);
+  const [first,second]=pairNames(event,context);
+
+  if(type==="race_control_changed"){
+    const to=text(payload?.to).toUpperCase();
+    return presentation(
+      "Race Control",
+      controlChangedText(payload),
+      "race_control",
+      to==="RED_FLAG"?"critical":"important"
+    );
+  }
+
+  if(type==="race_control_extended"){
+    const mode=controlName(payload?.mode);
+    return presentation(
+      "Race Control",
+      `${mode} period extended`,
+      "race_control",
+      "important"
+    );
+  }
+
+  if(type==="race_control_assessment"){
+    const action=controlName(payload?.action);
+    const source=text(payload?.source);
+    return presentation(
+      "Race Control assessment",
+      source
+        ?`${action} recommended after ${humanize(source).toLowerCase()}`
+        :`${action} recommended`,
+      "race_control",
+      "info"
+    );
+  }
+
+  if(type==="pit_entry"){
+    const reason=text(payload?.reason);
+    return presentation(
+      "Pit entry",
+      reason
+        ?`${driver} enters the pits — ${humanize(reason).toLowerCase()}`
+        :`${driver} enters the pits`,
+      "pit",
+      "normal"
+    );
+  }
+
+  if(type==="pit_service_completed"){
+    const compound=tyreName(context,payload?.tyreTo);
+    const actions=[];
+    if(compound)actions.push(`changes to ${compound} tyres`);
+    if(payload?.refuelled)actions.push("refuels");
+    return presentation(
+      "Pit service",
+      actions.length
+        ?`${driver} ${actions.join(" and ")}`
+        :`${driver} completes pit service`,
+      "pit",
+      "normal"
+    );
+  }
+
+  if(type==="pit_exit"){
+    return presentation(
+      "Pit exit",
+      `${driver} exits the pits${lossText(payload?.lossMs)}`,
+      "pit",
+      "normal"
+    );
+  }
+
+  if(type==="mechanical_failure"){
+    const reason=humanize(payload?.reason||"mechanical problem");
+    return presentation(
+      "Mechanical problem",
+      `${driver} — ${reason}`,
+      "failure",
+      "critical"
+    );
+  }
+
+  if(type==="retirement"){
+    const reason=text(payload?.reason);
+    return presentation(
+      "Retirement",
+      reason
+        ?`${driver} retires — ${humanize(reason)}`
+        :`${driver} retires`,
+      "retirement",
+      "critical"
+    );
+  }
+
+  if(type==="accident"){
+    const severity=text(payload?.severity);
+    return presentation(
+      "Race incident",
+      severity
+        ?`${driver} has a ${humanize(severity).toLowerCase()} accident`
+        :`${driver} has an accident`,
+      "incident",
+      payload?.retirement?"critical":"important"
+    );
+  }
+
+  if(type==="damage"){
+    const severity=text(payload?.severity);
+    const source=text(payload?.source);
+    const detail=severity?`${humanize(severity).toLowerCase()} damage`:"damage";
+    return presentation(
+      "Car damage",
+      source==="contact"
+        ?`${driver} suffers ${detail} after contact`
+        :`${driver} suffers ${detail}`,
+      "damage",
+      "important"
+    );
+  }
+
+  if(type==="contact"){
+    return presentation(
+      "Contact",
+      second?`Contact between ${first} and ${second}`:`Contact involving ${first}`,
+      "incident",
+      "important"
+    );
+  }
+
+  if(type==="overtake_started"){
+    return presentation(
+      "Battle",
+      second?`${first} attacks ${second}`:`${first} starts an overtaking attempt`,
+      "battle",
+      "normal"
+    );
+  }
+
+  if(type==="overtake_completed"){
+    return presentation(
+      "Overtake",
+      second?`${first} passes ${second}`:`${first} completes the overtake`,
+      "battle",
+      "normal"
+    );
+  }
+
+  if(type==="overtake_failed"){
+    return presentation(
+      "Battle",
+      second?`${second} holds off ${first}`:`${first}'s overtaking attempt fails`,
+      "battle",
+      "normal"
+    );
+  }
+
+  if(type==="overtake_aborted"){
+    return presentation(
+      "Battle",
+      second
+        ?`Overtaking attempt between ${first} and ${second} is aborted`
+        :`${first}'s overtaking attempt is aborted`,
+      "battle",
+      "info"
+    );
+  }
+
+  if(type==="command_applied"){
+    const command=text(payload?.commandType).toLowerCase();
+    if(command==="pace"){
+      return presentation(
+        "Team radio",
+        `${driver}: pace set to ${humanize(payload?.paceMode).toLowerCase()}`,
+        "command",
+        "normal"
+      );
+    }
+    if(command==="pit"){
+      const compound=tyreName(context,payload?.tyreId);
+      const details=[
+        compound?`${compound} tyres`:null,
+        payload?.refuel?"refuel":null,
+      ].filter(Boolean);
+      return presentation(
+        "Team radio",
+        `${driver} is called to pit${details.length?` for ${details.join(" + ")}`:""}`,
+        "command",
+        "normal"
+      );
+    }
+    return presentation(
+      "Team radio",
+      `${driver}: ${humanize(command||"command")} applied`,
+      "command",
+      "normal"
+    );
+  }
+
+  if(type==="command_ignored"){
+    return presentation(
+      "Team radio",
+      `${driver}: command could not be applied`,
+      "command",
+      "info"
+    );
+  }
+
+  return presentation(
+    humanize(type||"race update"),
+    eventDriverIds(event).length
+      ?`${driver} — ${humanize(type||"race update")}`
+      :humanize(type||"race update"),
+    "update",
+    "info"
+  );
+}
