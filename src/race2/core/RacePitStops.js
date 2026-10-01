@@ -214,6 +214,7 @@ function servicePlan(state,car,entryAbsoluteM,exitAbsoluteM){
   const trackTransitS=raceLineTransitSeconds(state,car,entryAbsoluteM,exitAbsoluteM);
   const stop={
     lap:plannedStopLap(car),
+    reason:strategy?.autoPitReason??(strategy?.pitPlan==="command"?"player_call":strategy?.pitPlan==="one_stop"?"planned":null),
     tyre_from:car?.tyre?.tyre_id??null,
     tyre_to:tyreChange?tyreChoice?.tyre_id??null:car?.tyre?.tyre_id??null,
     tyre_changed:tyreChange,
@@ -465,6 +466,7 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
     const record={
       stopSequence:pit.stopSequence,
       lap:pit.plannedStopLap,
+      reason:pit?.service?.reason??null,
       tyreFrom:pit?.service?.tyre_from??null,
       tyreTo:pit?.service?.tyre_to??null,
       tyreChanged:Boolean(pit?.service?.tyre_changed),
@@ -479,6 +481,7 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
       completed:true,
       history:[...(pit.history||[]),record],
     };
+    const activePlan=String(next?.resources?.strategy?.pitPlan||"");
     next={
       ...next,
       resources:{
@@ -486,7 +489,8 @@ function advanceActivePit(state,car,stepMs,{boxOccupied=false}={}){
         strategy:{
           ...(next?.resources?.strategy||{}),
           plannedStopLap:null,
-          pitPlan:"completed",
+          pitPlan:activePlan==="adaptive"?"adaptive":"completed",
+          autoPitReason:null,
           tyreChangeRequested:true,
           refuelRequested:false,
         },
@@ -590,6 +594,7 @@ export function advanceRacePitStops(state,proposedCars,{stepMs=100}={}){
       events.push(event("pit_entry",state,proposed,{
         stopSequence:proposed.pitState.stopSequence,
         plannedStopLap:proposed.pitState.plannedStopLap,
+        reason:proposed?.pitState?.service?.reason??null,
         tyreTo:proposed?.pitState?.service?.tyre_to??null,
       }));
     }
