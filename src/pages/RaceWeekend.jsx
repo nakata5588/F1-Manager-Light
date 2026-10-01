@@ -651,9 +651,7 @@ export default function RaceWeekend(){
   const liveRace=weekend?.live_race||null;
   const canonicalRaceView=usesCanonicalRaceRuntime?raceWeekendCanonicalView(gs):null;
   const raceViewModel=canonicalRaceView||liveRace;
-  const canFinalizeLiveRace=usesCanonicalRaceRuntime
-    ?String(canonicalRaceView?.status||"").toLowerCase()==="finished"
-    :raceWeekendCanFinalizeLiveRace(weekend);
+  const canFinalizeLiveRace=raceWeekendCanFinalizeLiveRace(weekend);
   const hasActivePitStop=Object.values(raceViewModel?.pit_states||{}).some((state)=>state?.active);
   const redFlagLifecycle=usesCanonicalRaceRuntime?null:liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
@@ -710,7 +708,7 @@ export default function RaceWeekend(){
       ??""
   ):"";
   const qualifyingCutoff=Number(weekend?.qualifying_rule_snapshot?.max_starters??weekend?.qualifying?.cutoff_position);
-  const activeControlNotice=controlNotice(raceControlPlan,raceViewModel,drivers);
+  const activeControlNotice=usesCanonicalRaceRuntime?null:controlNotice(raceControlPlan,raceViewModel,drivers);
   const liveTeamForecast=teamRaceForecast(gs,{
     currentLap:raceViewModel?.current_lap||0,
     currentWeather:raceViewModel?.last_weather||null,
