@@ -791,17 +791,6 @@ export default function RaceWeekend(){
   },[Boolean(raceViewModel),liveRows.length,playerDriverIds.join("|")]);
   useEffect(()=>{
     if(
-      usesCanonicalRaceRuntime&&
-      String(raceViewModel?.current_control||"").toUpperCase()==="RED_FLAG"&&
-      racePlaying
-    ){
-      setRacePlaying(false);
-      setRaceAutoPaused(true);
-    }
-  },[usesCanonicalRaceRuntime,raceViewModel?.current_control,racePlaying]);
-
-  useEffect(()=>{
-    if(
       usesCanonicalRaceRuntime||
       !liveRace||
       weekend?.phase!=="race"||
