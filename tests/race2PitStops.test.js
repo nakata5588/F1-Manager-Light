@@ -7,6 +7,10 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 import { nearestTrafficAhead } from "../src/race2/core/RaceTraffic.js";
+import {
+  buildCanonicalStrategyForecasts,
+  planCanonicalPitStrategies,
+} from "../src/race2/core/RacePitStrategy.js";
 import { presentCanonicalRaceEvent } from "../src/race2/presentation/RaceEventPresenter.js";
 
 function input({
@@ -423,4 +427,121 @@ test("RW8.14K1 adaptive strategy switches tyre category when live weather requir
   assert.equal(row.pitState.active,true);
   assert.equal(row.pitState.service.reason,"weather");
   assert.equal(row.pitState.service.tyre_to,"inter");
+});
+
+
+test("RW11D canonical strategy forecast exposes pit window, rejoin, traffic and finish projection",()=>{
+  let state=runningState({cars:3,plannedStopLap:null,pitPlan:"adaptive",laps:20});
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:3900,
+    distanceAlongLapM:900,
+    completedLaps:3,
+    lap:4,
+    sector:3,
+    tyre:{
+      ...car(state,"C1").tyre,
+      condition:65,
+      wear_rate:0.030,
+      thermal_stress_multiplier:1,
+    },
+  });
+
+  const forecasts=buildCanonicalStrategyForecasts(state,state.cars);
+  const forecast=forecasts.get("C1");
+
+  assert.ok(forecast);
+  assert.equal(forecast.model,"rw11d");
+  assert.ok(forecast.pit_window);
+  assert.equal(forecast.pit_reason,"degradation");
+  assert.ok(forecast.pit_window.recommended_lap>=4);
+  assert.ok(Number.isFinite(forecast.pit_rejoin_position));
+  assert.ok(Number.isFinite(forecast.pit_rejoin_traffic_count));
+  assert.ok(Number.isFinite(forecast.projected_finish_position));
+  assert.ok(Number.isFinite(forecast.projected_finish_best));
+  assert.ok(Number.isFinite(forecast.projected_finish_worst));
+  assert.ok(forecast.projection_confidence_pct>=35);
+  assert.ok(forecast.projection_confidence_pct<=92);
+  assert.ok(forecast.projected_finish_tyre_condition<45);
+});
+
+test("RW11D healthy tyre forecast can recommend staying out without inventing a stop",()=>{
+  let state=runningState({cars:2,plannedStopLap:null,pitPlan:"adaptive",laps:12});
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:2900,
+    distanceAlongLapM:900,
+    completedLaps:2,
+    lap:3,
+    sector:3,
+    tyre:{
+      ...car(state,"C1").tyre,
+      condition:96,
+      wear_rate:0.004,
+      thermal_stress_multiplier:1,
+    },
+  });
+
+  const forecast=buildCanonicalStrategyForecasts(state,state.cars).get("C1");
+  assert.ok(forecast);
+  assert.equal(forecast.pit_window,null);
+  assert.equal(forecast.pit_reason,null);
+  assert.equal(forecast.pit_rejoin_position,null);
+  assert.ok(Number.isFinite(forecast.projected_finish_position));
+  assert.ok(Number.isFinite(forecast.projection_confidence_pct));
+});
+
+test("RW11D adaptive strategy replans an old automatic stop from the current canonical forecast",()=>{
+  let state=runningState({cars:1,plannedStopLap:10,pitPlan:"adaptive",laps:16});
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:4900,
+    distanceAlongLapM:900,
+    completedLaps:4,
+    lap:5,
+    sector:3,
+    tyre:{
+      ...car(state,"C1").tyre,
+      condition:54,
+      wear_rate:0.034,
+      thermal_stress_multiplier:1,
+    },
+    resources:{
+      ...car(state,"C1").resources,
+      strategy:{
+        ...car(state,"C1").resources.strategy,
+        pitPlan:"adaptive",
+        plannedStopLap:10,
+        autoPitReason:"degradation",
+      },
+    },
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  assert.equal(planned.resources.strategy.pitPlan,"adaptive");
+  assert.equal(planned.resources.strategy.autoPitReason,"degradation");
+  assert.ok(planned.resources.strategy.plannedStopLap>=5);
+  assert.notEqual(planned.resources.strategy.plannedStopLap,10);
+  assert.ok(planned.resources.strategy.forecast?.pit_window);
+});
+
+test("RW11D live weather mismatch produces an immediate canonical strategy window",()=>{
+  let state=runningState({cars:1,plannedStopLap:null,pitPlan:"adaptive",laps:12});
+  state={
+    ...state,
+    weatherState:{...(state.weatherState||{}),state:"WETTING",track_wetness:0.35},
+    trackState:{...(state.trackState||{}),wetness:0.35,weatherState:"WETTING"},
+  };
+  state=patchCar(state,"C1",{
+    absoluteDistanceM:3898,
+    distanceAlongLapM:898,
+    completedLaps:3,
+    lap:4,
+    sector:3,
+    tyre:{...car(state).tyre,condition:88,category:"dry"},
+  });
+
+  const [planned]=planCanonicalPitStrategies(state,state.cars);
+  const forecast=planned.resources.strategy.forecast;
+  assert.equal(forecast.pit_reason,"weather");
+  assert.equal(forecast.next_tyre_id,"inter");
+  assert.equal(planned.resources.strategy.plannedStopLap,4);
+  assert.equal(planned.resources.strategy.nextTyreId,"inter");
 });

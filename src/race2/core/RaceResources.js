@@ -271,6 +271,21 @@ function tyreTrackWearMultiplier(state){
   return 0.62+(wear/100)*0.72;
 }
 
+export function canonicalProjectedTyreWearPerLap(state,car){
+  const tyre=car?.tyre||{};
+  if(!tyre?.tyre_id)return 0;
+  const temperature=finite(
+    tyre?.temperature_c,
+    finite(tyre?.optimal_temperature_c,optimalTyreTemperatureC(tyre))
+  );
+  return projectedTyreWearPerLap(tyre,{
+    trackWearMult:tyreTrackWearMultiplier(state),
+    paceMode:paceModeOf(car),
+    wearDriverMult:tyreWearDriverMultiplier(car),
+    hotWearMult:tyreThermalStressMultiplier(tyre,temperature),
+  });
+}
+
 function updateTyre(state,previous,next,deltaM,stepMs){
   const tyre={...(previous?.tyre||next?.tyre||{})};
   if(!tyre?.tyre_id)return tyre;
@@ -285,11 +300,10 @@ function updateTyre(state,previous,next,deltaM,stepMs){
   const temperatureTrend=(nextTemp-currentTemp)/dt;
   const thermalStress=tyreThermalStressMultiplier(tyre,nextTemp);
 
-  const wearPerLap=projectedTyreWearPerLap(tyre,{
-    trackWearMult:tyreTrackWearMultiplier(state),
-    paceMode:paceModeOf(previous),
-    wearDriverMult:tyreWearDriverMultiplier(previous),
-    hotWearMult:thermalStress,
+  const wearPerLap=canonicalProjectedTyreWearPerLap(state,{
+    ...previous,
+    ...next,
+    tyre:{...tyre,temperature_c:nextTemp,thermal_stress_multiplier:thermalStress},
   });
   const lengthM=Math.max(1,finite(state?.track?.lengthM,1));
   const wearPct=wearPerLap*(Math.max(0,deltaM)/lengthM);
