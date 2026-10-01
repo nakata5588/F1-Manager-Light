@@ -1986,7 +1986,9 @@ export const useGame = create((set, get) => ({
     const next=mod.advanceRaceWeekendElapsed(gs,{gp,elapsedMs});
     if(next!==gs){
       set({gameState:next});
-      checkpointRaceWeekendState(next);
+      if(mod.raceWeekendCanonicalCheckpointDue(gs,next)){
+        checkpointRaceWeekendState(next);
+      }
     }
     return mod.raceWeekendCanonicalView(next);
   },
@@ -2002,20 +2004,50 @@ export const useGame = create((set, get) => ({
   },
 
   setRaceWeekendLiveCommand: async (command) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.queueRaceWeekendCanonicalCommand(gs,{gp,command:command||{}});
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.setLiveRaceCommand(gs,command||{});
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
   cancelRaceWeekendLiveCommand: async (command={}) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.cancelRaceWeekendCanonicalCommand(gs,{gp,criteria:command});
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.cancelLiveRaceOrder(gs,command);
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
