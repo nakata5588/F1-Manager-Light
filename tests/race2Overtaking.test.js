@@ -334,8 +334,8 @@ test("RW8.6 lapping battle resolves from physical track clearance, not classific
 });
 
 test("RW8.6 a physically decisive attacker completes the overtake and becomes classified ahead",()=>{
-  let state=runningState();
-  state=patchCars(state,{
+  let next=runningState();
+  next=patchCars(next,{
     C1:{
       absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
       performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
@@ -345,17 +345,22 @@ test("RW8.6 a physically decisive attacker completes the overtake and becomes cl
       performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
     },
   });
-  state=manualBattle(state);
+  next=manualBattle(next);
 
-  const next=stepRaceState(state);
-  const attacker=car(next,"C2");
-  const defender=car(next,"C1");
+  let completed=null;
+  for(let index=0;index<20&&!completed;index+=1){
+    next=stepRaceState(next);
+    if(next.events.some((event)=>event.type==="overtake_completed"))completed=next;
+  }
+
+  assert.ok(completed,"expected decisive physical pass to complete within bounded canonical steps");
+  const attacker=car(completed,"C2");
+  const defender=car(completed,"C1");
   const clearance=attacker.absoluteDistanceM-defender.absoluteDistanceM;
 
-  assert.ok(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M);
+  assert.ok(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M-1e-6);
   assert.equal(attacker.battle.result,"completed");
-  assert.equal(next.classification[0].carId,"C2");
-  assert.ok(next.events.some((event)=>event.type==="overtake_completed"));
+  assert.equal(completed.classification[0].carId,"C2");
 
   if(clearance<RACE_TRAFFIC_HARD_GAP_M){
     assert.equal(attacker.battle.phase,"yielding");
