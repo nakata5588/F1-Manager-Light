@@ -11,6 +11,7 @@ import {
   submitManagerJobApplication,
 } from "../src/engine/ManagerCareerEngine.js";
 import { migrateGameState, prepareGameStateForSave } from "../src/core/saveSafety.js";
+import { normalizeAITechnicalWorld } from "../src/engine/AITechnicalEngine.js";
 
 const ATTRIBUTE_KEYS=[
   "leadership",
@@ -259,11 +260,11 @@ function evolveAiTeam(gs,teamId,{budget,gearbox,hqLevel}){
   };
 }
 
-function assertControlledIdentity(gs,teamId,{budget,gearbox,hqLevel}){
+function assertControlledIdentity(gs,teamId,{gearbox,hqLevel}){
   assert.equal(gs.team.team_id,teamId);
   assert.equal(gs.manager.current_team_id,teamId);
   assert.equal(gs.manager.current_job.status,"active");
-  assert.equal(gs.finances.balance,budget);
+  assert.equal(gs.finances.balance,gs.team.budget);
   assert.equal(gs.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,gearbox);
   assert.equal(gs.hq.facilityLevels.design_centre,hqLevel);
   assert.equal(gs.development.projects[0].id,`${teamId}_project`);
@@ -293,6 +294,13 @@ function dismissAndJoin(gs,{fromTeam,toTeam,endYear,startYear}){
   assert.equal(next.team,null);
 
   next={...next,activeYear:startYear,currentDateISO:`${startYear}-01-05`};
+  next=normalizeAITechnicalWorld(next);
+  const targetBudget=next.aiTechnicalWorld.teams[toTeam]?.budget;
+  const formerBudget=next.aiTechnicalWorld.teams[fromTeam]?.budget;
+  assert.ok(Number.isFinite(Number(targetBudget)));
+  assert.ok(Number.isFinite(Number(formerBudget)));
+  assert.notEqual(targetBudget,formerBudget,"fixture teams must keep independent finances");
+
   const opportunity=managerJobOpportunity(next,toTeam);
   assert.ok(opportunity);
   assert.equal(
@@ -323,6 +331,7 @@ function dismissAndJoin(gs,{fromTeam,toTeam,endYear,startYear}){
 
   next=acceptManagerJobOffer(next,application.id);
   assert.equal(next.manager.current_team_id,toTeam);
+  assert.equal(next.finances.balance,targetBudget,"new employer must materialize its own canonical finances");
   assert.equal(next.managerEmploymentState.status,"active");
   assert.equal(
     next.managerJobApplications.find((row)=>row.id===application.id).status,
@@ -376,8 +385,7 @@ test("Manager M7B full 16-season career survives firings, unemployment, team cha
     endYear:1983,
     startYear:1984,
   });
-  assertControlledIdentity(gs,"T2",{budget:2_200_000,gearbox:72,hqLevel:3});
-  assert.equal(gs.aiTechnicalWorld.teams.T1.budget,1_050_000);
+  assertControlledIdentity(gs,"T2",{gearbox:72,hqLevel:3});
   assert.equal(gs.managerControlArchive.T1.hq.facilityLevels.design_centre,3);
 
   gs=evolveAiTeam(gs,"T1",{budget:1_600_000,gearbox:47,hqLevel:5});
@@ -396,9 +404,7 @@ test("Manager M7B full 16-season career survives firings, unemployment, team cha
     endYear:1987,
     startYear:1988,
   });
-  assertControlledIdentity(gs,"T3",{budget:3_300_000,gearbox:83,hqLevel:4});
-  assert.equal(gs.aiTechnicalWorld.teams.T1.budget,1_600_000);
-  assert.equal(gs.aiTechnicalWorld.teams.T2.budget,2_050_000);
+  assertControlledIdentity(gs,"T3",{gearbox:83,hqLevel:4});
 
   gs=evolveAiTeam(gs,"T2",{budget:2_500_000,gearbox:56,hqLevel:5});
 
@@ -417,14 +423,12 @@ test("Manager M7B full 16-season career survives firings, unemployment, team cha
     startYear:1992,
   });
 
-  assertControlledIdentity(gs,"T1",{budget:1_600_000,gearbox:47,hqLevel:5});
+  assertControlledIdentity(gs,"T1",{gearbox:47,hqLevel:5});
   assert.equal(gs.managerControlArchive.T1.hq.facilityLevels.design_centre,3);
-  assert.equal(gs.aiTechnicalWorld.teams.T2.budget,2_500_000);
   assert.equal(
     gs.aiTechnicalWorld.teams.T2.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,
     56
   );
-  assert.equal(gs.aiTechnicalWorld.teams.T3.budget,3_000_000);
   assert.equal(
     gs.aiTechnicalWorld.teams.T3.garage.cars.find((car)=>car.id==="car_1").componentCondition.gearbox,
     71
