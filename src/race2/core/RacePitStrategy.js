@@ -94,7 +94,7 @@ function planCar(state,car){
       strategy:{
         ...strategy,
         plannedStopLap,
-        nextTyreId:nextTyreId||strategy?.nextTyreId??null,
+        nextTyreId:nextTyreId||(strategy?.nextTyreId??null),
         tyreChangeRequested:true,
         autoPitReason:reason,
       },
