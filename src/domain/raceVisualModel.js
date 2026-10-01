@@ -218,6 +218,15 @@ function wrapTrackProgress(value){
 }
 
 export function authoritativeRaceWorldProgress(row,{currentLap=0,currentSector=0,referenceLapMs=90000,index=0}={}){
+  // RW2 projection rows carry canonical physical position. Use it directly;
+  // Legacy rows do not expose distance_along_lap_m and keep the fallback below.
+  const canonicalDistance=finite(row?.distance_along_lap_m);
+  const canonicalProgress=finite(row?.visual_track_progress);
+  const canonicalLap=finite(row?.lap);
+  if(canonicalDistance!=null&&canonicalProgress!=null&&canonicalLap!=null){
+    return Math.max(0,canonicalLap-1)+wrapTrackProgress(canonicalProgress);
+  }
+
   const lap=Math.max(0,Number(currentLap)||0);
   const sector=Math.max(0,Math.min(3,Number(currentSector)||0));
   if(lap<=0||sector<=0){
