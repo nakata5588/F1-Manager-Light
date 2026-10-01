@@ -129,3 +129,39 @@ test("RW9B schema-11 runtime migration seeds the official clock from canonical c
   };
   assert.equal(canonicalOfficialRaceTimeMs(legacy),44_100);
 });
+
+
+test("RW9B2 resumed schema-11 partial lap cannot become fastest lap",()=>{
+  const legacy={
+    schemaVersion:11,
+    simulationTimeMs:50_000,
+    session:{lapLimit:3,clock:{elapsedMs:50_000}},
+    track:{lengthM:100,laps:3},
+    cars:[{
+      carId:"car_1",
+      gridPosition:1,
+      status:"running",
+      dnf:false,
+      absoluteDistanceM:190,
+      distanceAlongLapM:90,
+      completedLaps:1,
+      lap:2,
+      elapsedMs:50_000,
+      finishTimeMs:null,
+      pitState:{status:"track"},
+    }],
+  };
+  const nextCar={
+    ...legacy.cars[0],
+    absoluteDistanceM:205,
+    distanceAlongLapM:5,
+    completedLaps:2,
+    lap:3,
+  };
+  const [migrated]=applyCanonicalLapTiming(legacy,[nextCar],{stepMs:1000});
+  assert.equal(migrated.lapTimes.length,0);
+  assert.equal(migrated.bestLapMs,null);
+  assert.equal(migrated.bestLapNumber,null);
+  assert.equal(migrated.lapTimingBaselineValid,true);
+  assert.ok(migrated.lapStartedAtMs>=50_000&&migrated.lapStartedAtMs<=51_000);
+});
