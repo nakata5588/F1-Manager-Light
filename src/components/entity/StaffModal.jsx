@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Briefcase, CalendarDays, CircleDollarSign, X } from "lucide-react";
+import { ArrowLeft, Briefcase, CalendarDays, CircleDollarSign, X } from "lucide-react";
 import { useGame } from "../../state/GameStore.js";
 import { StaffPortrait, TeamLogo, flagFromCountry } from "./EntityVisuals.jsx";
 import { contractActiveForYear } from "../../domain/liveContracts.js";
@@ -23,7 +23,7 @@ function tone(value){
   return "text-rose-300";
 }
 
-export default function StaffModal({entity,onClose,pageMode=false}){
+export default function StaffModal({entity,onClose,pageMode=false,onBack=null}){
   const gs=useGame(s=>s.gameState);
   const year=Number(gs?.activeYear);
   const coreList=gs?.staffCore?.length?gs.staffCore:gs?.dbStaffCore||[];
@@ -95,7 +95,7 @@ export default function StaffModal({entity,onClose,pageMode=false}){
     :"max-h-[92vh] rounded-2xl border border-white/10 shadow-2xl")}>
     <aside className="shrink-0 border-b border-white/10 bg-[#11141c] p-5 lg:w-[290px] lg:border-b-0 lg:border-r">
       <div className="flex items-center gap-3">
-        <StaffPortrait staff={staff||{staff_name:name}} size="h-20 w-20" className="!rounded-xl"/>
+        <StaffPortrait staff={staff||{staff_id:id,staff_name:name}} size="h-20 w-20" className="!rounded-xl" editable/>
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Staff</div>
           <div className="truncate text-xl font-semibold leading-tight">{name}</div>
@@ -142,7 +142,16 @@ export default function StaffModal({entity,onClose,pageMode=false}){
           <h2 className="mt-1 text-2xl font-bold">{name}</h2>
           <p className="mt-1 text-sm text-slate-400">{role}{teamId?` · ${teamName}`:" · Free Staff"}</p>
         </div>
-        {!pageMode&&<button onClick={onClose} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5 hover:text-white"><X size={18}/></button>}
+        <div className="flex items-center gap-2">
+          {pageMode&&onBack?<button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white"
+          >
+            <ArrowLeft size={14}/> Back
+          </button>:null}
+          {!pageMode&&<button onClick={onClose} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5 hover:text-white"><X size={18}/></button>}
+        </div>
       </header>
 
       <div className="grid gap-5 p-5">

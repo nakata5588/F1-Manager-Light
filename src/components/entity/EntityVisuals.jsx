@@ -280,8 +280,9 @@ export function DriverPortrait({ driver, size = "h-8 w-8", className = "", edita
   );
 }
 
-export function StaffPortrait({ staff, size = "h-8 w-8", className = "" }) {
-  const activeYear=useActiveVisualYear();
+export function StaffPortrait({ staff, size = "h-8 w-8", className = "", editable = false, year = null }) {
+  const runtimeYear=useActiveVisualYear();
+  const activeYear=Number.isFinite(Number(year))?Number(year):runtimeYear;
   const name = staff?.display_name || staff?.staff_name || staff?.name ||
     [staff?.first_name, staff?.last_name].filter(Boolean).join(" ") || "Staff";
   const staffId=staff?.staff_id??staff?.person_id??staff?.id??"";
@@ -292,21 +293,30 @@ export function StaffPortrait({ staff, size = "h-8 w-8", className = "" }) {
     activeYear,
     [staff?.portrait_path,staff?.portrait,staff?.photo]
   );
-  if (image.src) {
-    return (
-      <img
-        src={image.src}
-        alt={name}
-        className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
-        onError={image.fail}
-      />
-    );
-  }
   const initials = name.split(/\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0,2).toUpperCase();
-  return (
+  const visual=image.src?(
+    <img
+      src={image.src}
+      alt={name}
+      className={`${size} rounded-full object-cover bg-gray-100 ring-1 ring-black/10 ${className}`}
+      onError={image.fail}
+    />
+  ):(
     <div className={`${size} rounded-full bg-gray-100 ring-1 ring-black/10 flex items-center justify-center text-[10px] font-semibold text-slate-700 ${className}`}>
       {initials || "?"}
     </div>
+  );
+
+  return (
+    <UploadableVisual
+      editable={editable}
+      type="staff"
+      entityId={staffId}
+      activeYear={activeYear}
+      label={`${name} portrait`}
+    >
+      {visual}
+    </UploadableVisual>
   );
 }
 

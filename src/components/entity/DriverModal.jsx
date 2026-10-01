@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   X, Filter, MoreVertical, Dumbbell, Megaphone,
   Handshake, FileText, Coffee, Search, Info, Trophy,
-  History, ArrowUpRight, Flag, Eye, Sparkles
+  History, ArrowUpRight, ArrowLeft, Flag, Eye, Sparkles
 } from "lucide-react";
 import { useModalStore } from "../../state/ModalStore.js";
 import { useGame } from "../../state/GameStore.js";
@@ -194,7 +194,7 @@ function extractDriverId(obj) {
 
 /* ======================== Component ======================== */
 
-export default function DriverModal({ entity, onClose, pageMode = false }) {
+export default function DriverModal({ entity, onClose, pageMode = false, onBack = null }) {
   const navigate = useNavigate();
   const modalSetTab = useModalStore((s) => s.setTab);
   const rawTab = unbox(entity.tab) || "overview";
@@ -1216,6 +1216,13 @@ export default function DriverModal({ entity, onClose, pageMode = false }) {
             </div>
 
             <div className="flex items-center gap-2">
+              {pageMode&&onBack?<button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white"
+              >
+                <ArrowLeft size={14}/> Back
+              </button>:null}
               {!isRetired&&<DriverActionsMenu
                 driver={driver}
                 condition={condition}

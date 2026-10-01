@@ -1,9 +1,10 @@
 // src/pages/ManagerProfile.jsx
 import React from "react";
 import { Link } from "react-router-dom";
-import { UserRound, BriefcaseBusiness, Trophy, Gauge, Info } from "lucide-react";
+import { Camera, LoaderCircle, UserRound, BriefcaseBusiness, Trophy, Gauge, Info } from "lucide-react";
 import { useGame } from "../state/GameStore.js";
 import { TeamLogo } from "../components/entity/EntityVisuals.jsx";
+import { optimizeVisualAssetFile, visualUploadSizeLabel } from "../domain/visualAssetUpload.js";
 import {
   MANAGER_ATTRIBUTES,
   managerAge,
@@ -24,11 +25,53 @@ function initials(name){
   return String(name||"TM").split(/\s+/).map((part)=>part[0]).filter(Boolean).slice(0,2).join("").toUpperCase()||"TM";
 }
 
-function ManagerPortrait({manager,name}){
-  if(manager?.portrait_data_url){
-    return <img src={manager.portrait_data_url} alt={name} className="h-24 w-24 rounded-2xl object-cover border border-white/10 bg-white/5"/>;
-  }
-  return <div className="h-24 w-24 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-center text-2xl font-bold text-slate-200">{initials(name)}</div>;
+function ManagerPortrait({manager,name,onUpload,onError}){
+  const inputRef=React.useRef(null);
+  const [busy,setBusy]=React.useState(false);
+  const visual=manager?.portrait_data_url
+    ?<img src={manager.portrait_data_url} alt={name} className="h-24 w-24 rounded-2xl object-cover border border-white/10 bg-white/5"/>
+    :<div className="h-24 w-24 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-center text-2xl font-bold text-slate-200">{initials(name)}</div>;
+
+  const onSelect=async(event)=>{
+    const file=event.target.files?.[0]||null;
+    event.target.value="";
+    if(!file)return;
+    setBusy(true);
+    try{
+      const optimized=await optimizeVisualAssetFile(file);
+      onUpload?.({optimized,file});
+    }catch(error){
+      onError?.(error);
+    }finally{
+      setBusy(false);
+    }
+  };
+
+  return <span className="group relative inline-flex shrink-0">
+    <button
+      type="button"
+      onClick={()=>inputRef.current?.click()}
+      disabled={busy}
+      className="relative inline-flex rounded-2xl p-0 outline-none ring-sky-400/60 transition focus-visible:ring-2"
+      title="Click to upload Team Principal portrait"
+      aria-label="Upload Team Principal portrait"
+    >
+      {visual}
+      <span className="pointer-events-none absolute inset-0 flex items-end justify-center rounded-2xl bg-black/0 pb-2 opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100 group-focus-within:bg-black/25 group-focus-within:opacity-100">
+        <span className="inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[10px] font-semibold text-white shadow">
+          {busy?<LoaderCircle size={12} className="animate-spin"/>:<Camera size={12}/>}
+          {busy?"Processing":"Change"}
+        </span>
+      </span>
+    </button>
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+      className="hidden"
+      onChange={onSelect}
+    />
+  </span>;
 }
 
 function Metric({label,value,subtle=false}){
@@ -113,6 +156,7 @@ function effectText(row){
 export default function ManagerProfile(){
   const gameState=useGame((state)=>state.gameState);
   const setGameState=useGame((state)=>state.setGameState);
+  const pushToast=useGame((state)=>state.pushToast);
   const manager=gameState?.manager||null;
 
   if(!manager){
@@ -163,11 +207,35 @@ export default function ManagerProfile(){
   const acceptOffer=(applicationId)=>{
     setGameState(acceptManagerJobOffer(gameState,applicationId));
   };
+  const updateManagerPortrait=({optimized,file})=>{
+    setGameState({
+      ...gameState,
+      manager:{
+        ...manager,
+        portrait_data_url:optimized.dataUrl,
+        portrait_file_name:file?.name||"manager-profile",
+      },
+    });
+    pushToast?.({
+      title:"Team Principal photo updated",
+      description:`${optimized.width}×${optimized.height} · ${visualUploadSizeLabel(optimized.bytes)}`,
+      type:"success",
+      ttl:3000,
+    });
+  };
+  const managerPortraitError=(error)=>{
+    pushToast?.({
+      title:"Image upload failed",
+      description:String(error?.message||error||"Could not process this image."),
+      type:"error",
+      ttl:4500,
+    });
+  };
 
   return <div className="-mx-3 -my-4 md:-mx-5 md:-my-5 min-h-[calc(100vh-4rem)] bg-[#090b10] p-4 md:p-6 text-slate-100 space-y-4">
     <section className="rounded-xl border border-white/10 bg-[#12141c] p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <ManagerPortrait manager={manager} name={name}/>
+        <ManagerPortrait manager={manager} name={name} onUpload={updateManagerPortrait} onError={managerPortraitError}/>
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Team Principal</div>
           <h1 className="mt-1 text-3xl font-semibold">{name}</h1>
