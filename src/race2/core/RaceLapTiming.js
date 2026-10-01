@@ -85,7 +85,21 @@ function crossingCandidates(state,nextCars,{stepMs}={}){
     );
     for(let lapNumber=firstBoundary;lapNumber<=lastBoundary;lapNumber+=1){
       const boundaryDistance=lapNumber*lengthM;
-      const rawOffsetMs=rawCrossingOffsetMs(from,to,boundaryDistance,stepMs);
+      const physicalFinishHintMs=finite(next?.finishTimeMs,null);
+      const simulationStepStartMs=Math.max(0,finite(state?.simulationTimeMs,0));
+      const physicalFinishOffsetMs=physicalFinishHintMs==null
+        ?null
+        :physicalFinishHintMs-simulationStepStartMs;
+      const usePhysicalFinishOffset=(
+        lapNumber===lapLimit&&
+        String(next?.status||"")==="finished"&&
+        physicalFinishOffsetMs!=null&&
+        physicalFinishOffsetMs>=-1e-6&&
+        physicalFinishOffsetMs<=Math.max(0,finite(stepMs,0))+1e-6
+      );
+      const rawOffsetMs=usePhysicalFinishOffset
+        ?round(clamp(physicalFinishOffsetMs,0,Math.max(0,finite(stepMs,0))),3)
+        :rawCrossingOffsetMs(from,to,boundaryDistance,stepMs);
       if(rawOffsetMs==null)continue;
       candidates.push({
         carId:String(next?.carId??""),
@@ -93,7 +107,7 @@ function crossingCandidates(state,nextCars,{stepMs}={}){
         rawOffsetMs,
         previousAbsoluteM:from,
         gridPosition:finite(previous?.gridPosition,Number.MAX_SAFE_INTEGER),
-        physicalFinishHintMs:finite(next?.finishTimeMs,null),
+        physicalFinishHintMs,
       });
     }
   }
