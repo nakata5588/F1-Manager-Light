@@ -629,3 +629,23 @@ test("RW11D neutralisation can create a canonical dedicated damage-repair stop w
   assert.ok(planned.resources.strategy.plannedStopLap>=2);
   assert.deepEqual(planned.resources.strategy.repairComponentsRequested,["front_wing"]);
 });
+
+
+test("RW11D canonical forecast and pit execution share the same Safety Car pit-lane loss",()=>{
+  let state=placeBeforePit(runningState({cars:1,plannedStopLap:2,pitPlan:"one_stop"}));
+  state={
+    ...state,
+    raceControlState:{...(state.raceControlState||{}),mode:"SAFETY_CAR"},
+  };
+
+  const forecast=buildCanonicalStrategyForecasts(state,state.cars).get("C1");
+  assert.ok(forecast?.pit_window);
+  assert.equal(forecast.expected_pit_loss_s,6.84);
+
+  const next=stepRaceState(state);
+  const service=car(next).pitState.service;
+  assert.equal(car(next).pitState.active,true);
+  assert.equal(service.pit_lane_loss_s,4.64);
+  assert.equal(service.expected_stationary_s,2.2);
+  assert.equal(service.total_loss_s,6.84);
+});
