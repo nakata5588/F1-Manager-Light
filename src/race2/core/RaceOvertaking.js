@@ -17,9 +17,11 @@ import {
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.4;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
-export const RACE_BATTLE_DURATION_MS=2400;
-export const RACE_BATTLE_EXTENSION_MS=800;
-export const RACE_BATTLE_RETRY_COOLDOWN_MS=1600;
+export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
+export const RACE_BATTLE_DURATION_MS=3500;
+export const RACE_BATTLE_MAX_DURATION_MS=12000;
+export const RACE_BATTLE_EXTENSION_MS=1800;
+export const RACE_BATTLE_RETRY_COOLDOWN_MS=5000;
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -49,6 +51,65 @@ function score(value,fallback=null){
   const parsed=finite(value,null);
   if(parsed==null)return fallback;
   return clamp(parsed,0,100);
+}
+
+function overtakingDifficulty(state){
+  return clamp(finite(state?.track?.traits?.overtakingDifficulty,50),0,100);
+}
+
+function overtakingTrackFactor(state){
+  return clamp(1.20-overtakingDifficulty(state)*0.008,0.40,1.10);
+}
+
+function overtakingRangeFactor(state){
+  return clamp(1.08-overtakingDifficulty(state)*0.0035,0.72,1.08);
+}
+
+function overtakingPerformancePotential(car,{attacker=false}={}){
+  const driver=driverPerformance(car);
+  const machine=carPerformance(car);
+  return (
+    score(machine?.race,70)*0.38+
+    score(machine?.power,70)*0.24+
+    score(machine?.chassis,70)*0.12+
+    score(driver?.raceScore,70)*0.16+
+    score(attacker?driver?.overtaking:driver?.defending,70)*0.10
+  );
+}
+
+function overtakeClosingPotentialMs(state,attacker,defender){
+  void state;
+  const currentAttacker=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
+  const currentDefender=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
+  const currentClosing=currentAttacker-currentDefender;
+  const attackerFree=finite(attacker?.freeTargetSpeedKmh,null);
+  const defenderFree=finite(defender?.freeTargetSpeedKmh,null);
+  const hasFreeTelemetry=
+    attackerFree!=null&&attackerFree>0&&
+    defenderFree!=null&&defenderFree>0;
+  const freeClosing=hasFreeTelemetry
+    ?(attackerFree-defenderFree)/3.6
+    :null;
+  const performanceDelta=
+    overtakingPerformancePotential(attacker,{attacker:true})-
+    overtakingPerformancePotential(defender,{attacker:false});
+  const performanceClosing=performanceDelta*0.085;
+  return Math.max(
+    currentClosing,
+    freeClosing==null?performanceClosing:freeClosing
+  );
+}
+
+function battleDurationMs(state,gapM,closingPotentialMs){
+  void state;
+  const requiredGain=Math.max(0.5,Math.max(0,finite(gapM,0))+0.5);
+  const usableClosing=Math.max(0.75,finite(closingPotentialMs,0));
+  const estimatedMs=(requiredGain/usableClosing)*1000;
+  return Math.round(clamp(
+    estimatedMs*1.20+1500,
+    RACE_BATTLE_DURATION_MS,
+    RACE_BATTLE_MAX_DURATION_MS
+  ));
 }
 
 function deterministicUnit(state,key){
@@ -177,7 +238,7 @@ export function initialBattleState(){
   };
 }
 
-export function overtakeAttemptProbability(state,attacker,defender,{gapM=null}={}){
+export function overtakeAttemptProbability(state,attacker,defender,{gapM=null,closingSpeedMs=null}={}){
   const overtaking=score(driverPerformance(attacker)?.overtaking,null);
   const defending=score(driverPerformance(defender)?.defending,null);
   if(overtaking==null||defending==null)return 0;
@@ -191,7 +252,7 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null}={
 
   const attackerSpeed=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
   const defenderSpeed=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
-  const closingSpeed=attackerSpeed-defenderSpeed;
+  const closingSpeed=finite(closingSpeedMs,attackerSpeed-defenderSpeed);
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
     clamp(defender?.effectiveCornerSeverity,0,1)
@@ -218,8 +279,13 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null}={
   const scoreDelta=(attack-defense)/110;
   const cornerPenalty=cornerSeverity*0.30;
 
+  const baseProbability=clamp(
+    0.34+gapFactor*0.20+closingBonus+scoreDelta-cornerPenalty,
+    0.04,
+    0.94
+  );
   return round(
-    clamp(0.34+gapFactor*0.20+closingBonus+scoreDelta-cornerPenalty,0.04,0.94),
+    clamp(baseProbability*overtakingTrackFactor(state),0.02,0.94),
     6
   );
 }
@@ -262,10 +328,18 @@ function attemptOpportunity(state,attacker,occupied){
   if(occupied.has(String(defender?.carId??"")))return null;
 
   const gapM=Math.max(0,finite(nearest?.gapM,Infinity));
-  const attemptRange=Math.max(
+  const baseAttemptRange=Math.max(
     RACE_OVERTAKE_ATTEMPT_RANGE_M,
     finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)+8
   );
+  const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
+  const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
+  if(closingPotentialMs<0.75)return null;
+  const physicallyReachableRange=Math.max(
+    0,
+    closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)*0.82
+  );
+  const attemptRange=Math.min(trackAttemptRange,physicallyReachableRange);
   if(gapM>attemptRange)return null;
 
   const cornerSeverity=Math.max(
@@ -274,7 +348,10 @@ function attemptOpportunity(state,attacker,occupied){
   );
   if(cornerSeverity>0.72)return null;
 
-  const probability=overtakeAttemptProbability(state,attacker,defender,{gapM});
+  const probability=overtakeAttemptProbability(state,attacker,defender,{
+    gapM,
+    closingSpeedMs:closingPotentialMs,
+  });
   if(probability<=0)return null;
 
   const bucket=Math.floor(Math.max(0,finite(state?.simulationTimeMs,0))/1000);
@@ -284,7 +361,15 @@ function attemptOpportunity(state,attacker,occupied){
   );
   if(roll>=probability)return null;
 
-  return {defender,gapM,probability,roll};
+  return {
+    defender,
+    gapM,
+    probability,
+    roll,
+    closingPotentialMs,
+    attemptRangeM:attemptRange,
+    trackDifficulty:overtakingDifficulty(state),
+  };
 }
 
 function resolveYieldingBattles(state,proposedCars){
@@ -304,8 +389,12 @@ function resolveYieldingBattles(state,proposedCars){
 
     const attackerClearance=physicalClearanceM(state,attacker,defender);
     const defenderClearance=-attackerClearance;
+    const completedPass=previousAttacker?.battle?.result==="completed";
+    const restoredGap=completedPass
+      ?attackerClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9
+      :defenderClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9;
 
-    if(defenderClearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
+    if(restoredGap){
       attacker=clearBattle(attacker,{
         result:previousAttacker?.battle?.result,
         cooldownUntilMs:previousAttacker?.battle?.cooldownUntilMs,
@@ -399,14 +488,37 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
 
     const clearance=physicalClearanceM(state,attacker,defender);
 
-    if(clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
-      attacker=clearBattle(attacker,{result:"completed",cooldownUntilMs:nextTime+500});
-      defender=clearBattle(defender,{result:"lost",cooldownUntilMs:nextTime+500});
-      cars=setCar(setCar(cars,attacker),defender);
+    if(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M-1e-9){
+      const fullyClear=clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9;
+      if(fullyClear){
+        attacker=clearBattle(attacker,{result:"completed",cooldownUntilMs:nextTime+500});
+        defender=clearBattle(defender,{result:"lost",cooldownUntilMs:nextTime+500});
+      }else{
+        attacker=withYieldingBattle(attacker,{
+          opponentCarId:defender?.carId,
+          role:"attacker",
+          side:Number(previousBattle?.side)||1,
+          result:"completed",
+          cooldownUntilMs:nextTime+500,
+        });
+        defender=withYieldingBattle(defender,{
+          opponentCarId:attacker?.carId,
+          role:"defender",
+          side:-(Number(previousBattle?.side)||1),
+          result:"lost",
+          cooldownUntilMs:nextTime+500,
+        });
+      }
+      // Traffic spacing is still based on the pre-step road order. Once this
+      // pass is physically decisive, exclude the pair for the remainder of
+      // the current step so stale ordering cannot pull the attacker backwards.
+      // The next canonical step observes the new physical road order normally.
       bypassPairs.add(pairKey);
+      cars=setCar(setCar(cars,attacker),defender);
       events.push(eventDescriptor("overtake_completed",state,attacker,defender,{
         attemptId,
         clearanceM:round(clearance,6),
+        fullyClear,
       }));
       continue;
     }
@@ -528,7 +640,12 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
       defender?.carId,
     ].join(":");
     const side=deterministicUnit(state,`side:${attemptId}`)<0.5?-1:1;
-    const expiresAtMs=now+RACE_BATTLE_DURATION_MS;
+    const durationMs=battleDurationMs(
+      state,
+      opportunity.gapM,
+      opportunity.closingPotentialMs
+    );
+    const expiresAtMs=now+durationMs;
     const contactRiskPct=round(
       battleContactProbability(state,previousAttacker,opportunity.defender,{stepMs})*100,
       5
@@ -564,6 +681,10 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
       probability:opportunity.probability,
       roll:round(opportunity.roll,8),
       side,
+      durationMs,
+      closingPotentialMs:round(opportunity.closingPotentialMs,6),
+      attemptRangeM:round(opportunity.attemptRangeM,6),
+      trackDifficulty:round(opportunity.trackDifficulty,3),
     }));
 
     // The first battle tick keeps RW8.5's longitudinal hard gap. From the

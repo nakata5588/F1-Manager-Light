@@ -95,6 +95,7 @@ function initialCarState(input,row,index){
     speedKmh:0,
     accelerationMs2:0,
     targetSpeedKmh:0,
+    freeTargetSpeedKmh:0,
     cornerSeverity:0,
     effectiveCornerSeverity:0,
     dynamicsLookaheadM:0,

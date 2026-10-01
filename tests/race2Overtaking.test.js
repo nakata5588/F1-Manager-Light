@@ -5,6 +5,7 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   RACE_BATTLE_LATERAL_OFFSET_M,
+  RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
   initialBattleState,
   overtakeAttemptProbability,
@@ -13,7 +14,7 @@ import {
 import { RACE_TRAFFIC_HARD_GAP_M } from "../src/race2/core/RaceTraffic.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 
-function input({seed="rw8.6",laps=10,stepMs=100}={}){
+function input({seed="rw8.6",laps=10,stepMs=100,overtakingDifficulty=50}={}){
   const entries=[
     {driverId:"D1",teamId:"T1",carId:"C1",status:"confirmed"},
     {driverId:"D2",teamId:"T2",carId:"C2",status:"confirmed"},
@@ -72,6 +73,7 @@ function input({seed="rw8.6",laps=10,stepMs=100}={}){
       year:1980,
       lengthM:1000,
       laps,
+      traits:{overtakingDifficulty},
       startFinish:{progress:0,distanceM:0},
       sectors:[
         {id:"sector_1",sector:1,startM:0,endM:333,lengthM:333},
@@ -331,9 +333,9 @@ test("RW8.6 lapping battle resolves from physical track clearance, not classific
   );
 });
 
-test("RW8.6 a physically cleared attacker completes the overtake and becomes classified ahead",()=>{
-  let state=runningState();
-  state=patchCars(state,{
+test("RW8.6 a physically decisive attacker completes the overtake and becomes classified ahead",()=>{
+  let next=runningState();
+  next=patchCars(next,{
     C1:{
       absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
       performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
@@ -343,19 +345,32 @@ test("RW8.6 a physically cleared attacker completes the overtake and becomes cla
       performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
     },
   });
-  state=manualBattle(state);
+  next=manualBattle(next);
 
-  const next=stepRaceState(state);
-  const attacker=car(next,"C2");
-  const defender=car(next,"C1");
+  let completed=null;
+  for(let index=0;index<20&&!completed;index+=1){
+    next=stepRaceState(next);
+    if(next.events.some((event)=>event.type==="overtake_completed"))completed=next;
+  }
 
-  assert.ok(attacker.absoluteDistanceM-defender.absoluteDistanceM>=RACE_TRAFFIC_HARD_GAP_M);
-  assert.equal(attacker.battle.phase,"none");
-  assert.equal(defender.battle.phase,"none");
+  assert.ok(completed,"expected decisive physical pass to complete within bounded canonical steps");
+  const attacker=car(completed,"C2");
+  const defender=car(completed,"C1");
+  const clearance=attacker.absoluteDistanceM-defender.absoluteDistanceM;
+
+  assert.ok(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M-1e-6);
   assert.equal(attacker.battle.result,"completed");
-  assert.equal(attacker.lateralOffsetM,0);
-  assert.equal(next.classification[0].carId,"C2");
-  assert.ok(next.events.some((event)=>event.type==="overtake_completed"));
+  assert.equal(completed.classification[0].carId,"C2");
+
+  if(clearance<RACE_TRAFFIC_HARD_GAP_M){
+    assert.equal(attacker.battle.phase,"yielding");
+    assert.equal(defender.battle.phase,"yielding");
+    assert.notEqual(attacker.lateralOffsetM,0);
+  }else{
+    assert.equal(attacker.battle.phase,"none");
+    assert.equal(defender.battle.phase,"none");
+    assert.equal(attacker.lateralOffsetM,0);
+  }
 });
 
 test("RW8.6 expired battle extends while attacker is ahead but not yet fully clear",()=>{
@@ -487,4 +502,139 @@ test("RW8.6 Live and Fast keep identical battles, events and classification",()=
   assert.deepEqual(live.getState(),fast);
   assert.deepEqual(live.getState().classification,fast.classification);
   assert.deepEqual(live.getState().events,fast.events);
+});
+
+
+test("RW11B circuit overtaking difficulty changes canonical attempt probability",()=>{
+  let easy=runningState({overtakingDifficulty:20});
+  let hard=runningState({overtakingDifficulty:90});
+  const patch={
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:42,speedKmh:151.2},
+    C2:{absoluteDistanceM:90,distanceAlongLapM:90,speedMs:48,speedKmh:172.8},
+  };
+  easy=patchCars(easy,patch);
+  hard=patchCars(hard,patch);
+
+  const easyProbability=overtakeAttemptProbability(
+    easy,
+    car(easy,"C2"),
+    car(easy,"C1"),
+    {gapM:10}
+  );
+  const hardProbability=overtakeAttemptProbability(
+    hard,
+    car(hard,"C2"),
+    car(hard,"C1"),
+    {gapM:10}
+  );
+
+  assert.ok(easyProbability>hardProbability);
+  assert.ok(hardProbability<easyProbability*0.75);
+});
+
+test("RW11B new battles receive enough physical time to clear the defender",()=>{
+  let base=runningState({overtakingDifficulty:50});
+  base=patchCars(base,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:42,speedKmh:151.2,effectiveCornerSeverity:0},
+    C2:{absoluteDistanceM:91,distanceAlongLapM:91,speedMs:44,speedKmh:158.4,effectiveCornerSeverity:0},
+  });
+
+  let started=null;
+  for(let bucket=0;bucket<60&&!started;bucket+=1){
+    const state={...base,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+    const event=resolved.events.find((row)=>row.type==="overtake_started");
+    if(event)started={state,resolved,event};
+  }
+
+  assert.ok(started,"expected a deterministic physical attempt window");
+  assert.ok(started.event.payload.durationMs>=3500);
+  assert.ok(started.event.payload.durationMs<=12000);
+  assert.ok(started.event.payload.durationMs>2400);
+  assert.ok(started.event.payload.closingPotentialMs>=0.75);
+  assert.equal(started.event.payload.trackDifficulty,50);
+  assert.equal(
+    car({cars:started.resolved.cars},"C2").battle.expiresAtMs,
+    started.state.simulationTimeMs+started.event.payload.durationMs
+  );
+});
+
+test("RW11B a car with no physical or performance closing potential does not spam attempts",()=>{
+  let base=runningState({overtakingDifficulty:50});
+  base=patchCars(base,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:44,speedKmh:158.4,
+      performance:{
+        car:{race:92,power:92,chassis:92},
+        driver:{raceScore:92,overtaking:85,defending:95,mistakePropensity:10,aggression:40},
+      },
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:44,speedKmh:158.4,
+      performance:{
+        car:{race:60,power:60,chassis:60},
+        driver:{raceScore:60,overtaking:55,defending:55,mistakePropensity:10,aggression:40},
+      },
+    },
+  });
+
+  for(let bucket=0;bucket<30;bucket+=1){
+    const state={...base,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+    assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
+});
+
+
+test("RW11B canonical dynamics preserve free target speed before traffic limiting",()=>{
+  const started=runningState();
+  const next=stepRaceState(started);
+  assert.ok(car(next,"C1").freeTargetSpeedKmh>0);
+  assert.ok(car(next,"C2").freeTargetSpeedKmh>0);
+});
+
+
+test("RW11B a decisive pass in a train keeps lateral separation until hard gap is restored",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+    C2:{
+      absoluteDistanceM:100+RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
+      distanceAlongLapM:100+RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
+      speedMs:41,speedKmh:147.6,
+      performance:{car:null,driver:{mistakePropensity:0,aggression:0}},
+    },
+  });
+  state=manualBattle(state,{expiresAtMs:5000});
+
+  const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  const attacker=car({cars:resolved.cars},"C2");
+  const defender=car({cars:resolved.cars},"C1");
+
+  assert.equal(attacker.battle.phase,"yielding");
+  assert.equal(attacker.battle.result,"completed");
+  assert.equal(defender.battle.result,"lost");
+  assert.notEqual(attacker.lateralOffsetM,0);
+  assert.ok(resolved.events.some((event)=>event.type==="overtake_completed"));
+
+  let canonical={
+    ...state,
+    cars:resolved.cars,
+    classification:[
+      {position:1,carId:"C2"},
+      {position:2,carId:"C1"},
+    ],
+  };
+  for(let index=0;index<80&&car(canonical,"C2").battle.phase!=="none";index+=1){
+    canonical=stepRaceState(canonical);
+  }
+  assert.equal(car(canonical,"C2").battle.phase,"none");
+  assert.equal(car(canonical,"C1").battle.phase,"none");
+  assert.ok(
+    car(canonical,"C2").absoluteDistanceM-car(canonical,"C1").absoluteDistanceM>=
+      RACE_TRAFFIC_HARD_GAP_M-1e-6
+  );
 });
