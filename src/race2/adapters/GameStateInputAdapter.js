@@ -77,6 +77,7 @@ function normalizedDrivers(gs,entries){
           overtaking:finite(driverDerivedRating(rating,"overtaking"),null),
           defending:finite(driverDerivedRating(rating,"defending"),null),
           mistakePropensity:finite(driverMistakePropensity(rating,{performanceEntries:driverPerformanceEntries(gs,driverId)})?.value,null),
+          raceIntelligence:finite(rating?.race_intelligence,60),
           aggression:finite(rating?.aggression??rating?.agression,null),
           tyreManagement:finite(rating?.tire_management,60),
         },
