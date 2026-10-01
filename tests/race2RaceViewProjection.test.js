@@ -9,7 +9,12 @@ import {
   projectRaceStateToRaceView,
 } from "../src/race2/adapters/RaceViewProjection.js";
 import { canonicalRaceViewCars } from "../src/race2/view/CanonicalRaceViewModel.js";
-import { presentCanonicalRaceEvent } from "../src/race2/presentation/RaceEventPresenter.js";
+import {
+  batchCanonicalRaceAttentionEvents,
+  canonicalRaceEventRequiresPause,
+  canonicalRaceFlagNotice,
+  presentCanonicalRaceEvent,
+} from "../src/race2/presentation/RaceEventPresenter.js";
 
 function input(){
   return {
@@ -233,4 +238,121 @@ test("RW10B canonical event presenter covers incidents, retirements and battles 
     },context).text,
     "Mario Andretti passes Keke Rosberg"
   );
+});
+
+
+test("RW10C Race View projection exposes pending commands and Race Control as read-only view state",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  state={
+    ...state,
+    commandQueue:[{
+      id:"cmd-1",
+      sequence:1,
+      issuedAtTick:state.tick,
+      effectiveAtTick:state.tick+1,
+      source:"player",
+      driverId:"D1",
+      teamId:"T1",
+      type:"pit",
+      payload:{tyreId:"hard",tyreChange:true,refuel:false},
+    }],
+    raceControlState:{
+      ...(state.raceControlState||{}),
+      mode:"SAFETY_CAR",
+      source:"incident",
+      assessment:{severity:"high"},
+    },
+  };
+
+  const before=JSON.parse(JSON.stringify(state));
+  const view=projectRaceStateToRaceView(state);
+
+  assert.deepEqual(state,before);
+  assert.equal(view.pending_commands.length,1);
+  assert.equal(view.pending_commands[0].driverId,"D1");
+  assert.equal(view.pending_commands[0].payload.tyreId,"hard");
+  assert.equal(view.race_control_state.mode,"SAFETY_CAR");
+  assert.equal(view.race_control_state.source,"incident");
+
+  view.pending_commands[0].payload.tyreId="mutated";
+  view.race_control_state.assessment.severity="mutated";
+  assert.equal(state.commandQueue[0].payload.tyreId,"hard");
+  assert.equal(state.raceControlState.assessment.severity,"high");
+});
+
+test("RW10C canonical Race Control banner reuses Legacy flag semantics without reading Legacy plans",()=>{
+  const safety=canonicalRaceFlagNotice({
+    status:"running",
+    current_control:"SAFETY_CAR",
+    race_control_state:{source:"incident"},
+    events:[],
+  });
+  const red=canonicalRaceFlagNotice({
+    status:"running",
+    current_control:"RED_FLAG",
+    race_control_state:{source:"weather"},
+    events:[],
+  });
+  const finished=canonicalRaceFlagNotice({
+    status:"finished",
+    current_control:"GREEN",
+  });
+
+  assert.deepEqual(
+    {type:safety.type,label:safety.label,subtitle:safety.subtitle,reason:safety.reason},
+    {type:"SAFETY_CAR",label:"SAFETY CAR",subtitle:"DEPLOYED",reason:"Incident on track"}
+  );
+  assert.equal(red.label,"RED FLAG");
+  assert.equal(red.subtitle,"SESSION STOPPED");
+  assert.equal(red.reason,"Weather conditions");
+  assert.equal(finished.type,"CHEQUERED");
+});
+
+test("RW10C canonical attention policy auto-pauses important facts but ignores routine battles",()=>{
+  const player={playerDriverIds:["D1"]};
+  assert.equal(canonicalRaceEventRequiresPause({
+    type:"race_control_changed",
+    payload:{from:"GREEN",to:"SAFETY_CAR"},
+  },player),true);
+  assert.equal(canonicalRaceEventRequiresPause({
+    type:"mechanical_failure",
+    driverIds:["D2"],
+    payload:{reason:"engine"},
+  },player),true);
+  assert.equal(canonicalRaceEventRequiresPause({
+    type:"pit_service_completed",
+    driverIds:["D1"],
+    payload:{tyreChanged:true},
+  },player),true);
+  assert.equal(canonicalRaceEventRequiresPause({
+    type:"overtake_completed",
+    driverIds:["D1","D2"],
+    payload:{},
+  },player),false);
+});
+
+test("RW10C simultaneous canonical incidents are batched into one popup payload",()=>{
+  const events=[
+    {
+      id:"evt-1",sequence:1,tick:40,type:"contact",
+      driverIds:["D1","D2"],payload:{},
+      display_text:"Contact between D1 and D2",
+    },
+    {
+      id:"evt-2",sequence:2,tick:40,type:"damage",
+      driverIds:["D1"],payload:{source:"contact",severity:"medium"},
+      display_text:"D1 suffers damage",
+    },
+    {
+      id:"evt-3",sequence:3,tick:41,type:"overtake_started",
+      driverIds:["D3","D4"],payload:{},
+      display_text:"D3 attacks D4",
+    },
+  ];
+  const batch=batchCanonicalRaceAttentionEvents(events,{playerDriverIds:["D1"]});
+
+  assert.equal(batch.type,"event_batch");
+  assert.equal(batch.tick,40);
+  assert.equal(batch.events.length,2);
+  assert.equal(batch.event_key,"rw2_event_batch:40:evt-1|evt-2");
 });
