@@ -2290,7 +2290,7 @@ export default function RaceWeekend(){
                 <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={continueRaceWeekend}>
                   {busy?"Advancing…":"Advance to Race Day"}
                 </button>
-              ):!liveRace?(
+              ):!raceViewModel?(
                 <button disabled={busy} className="rounded-lg bg-slate-100 text-slate-950 px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={()=>perform(startLiveRace)}>
                   {busy?"Preparing…":"Start Race"}
                 </button>
