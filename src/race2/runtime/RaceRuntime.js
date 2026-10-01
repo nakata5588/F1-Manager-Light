@@ -6,7 +6,7 @@
 import { buildRaceWeekendInput } from "../adapters/GameStateInputAdapter.js";
 import { projectRaceStateToRaceView } from "../adapters/RaceViewProjection.js";
 import { RACE_WEEKEND_ENGINES } from "../contracts/raceContracts.js";
-import { createLiveRaceRunner, runFastRaceToEnd } from "../core/RaceRunner.js";
+import { createLiveRaceRunner, runFastRace } from "../core/RaceRunner.js";
 import { createRaceState } from "../core/RaceState.js";
 import { startRaceState } from "../core/RaceSimulation.js";
 import { raceWeekendEngineVersion } from "../gateway/RaceWeekendGateway.js";
@@ -60,13 +60,13 @@ export function advanceCanonicalRaceRuntime(runtime,elapsedMs){
   return serializedRunner(runner);
 }
 
-export function runCanonicalRaceRuntimeToEnd(runtime,{maxSteps=1_000_000}={}){
+export function runCanonicalRaceRuntimeBatch(runtime,{steps=250}={}){
   if(!runtime?.state)throw new TypeError("Canonical race runtime state is required");
   if(runtime.state.status==="finished")return {...runtime,accumulatorMs:0};
   return {
     version:RACE_RUNTIME_VERSION,
     source:RACE_RUNTIME_SOURCE,
-    state:runFastRaceToEnd(runtime.state,{maxSteps}),
+    state:runFastRace(runtime.state,{steps:Math.max(1,Math.floor(finite(steps,250)))}),
     accumulatorMs:0,
   };
 }
@@ -171,14 +171,14 @@ export function advanceCanonicalRaceWeekendElapsed(gs,{gp=null,elapsedMs=0,stepM
   return advanceAttachedCanonicalRaceRuntime(ready,elapsed);
 }
 
-export function runCanonicalRaceWeekendToEnd(gs,{gp=null,stepMs=null,maxSteps=1_000_000}={}){
+export function runCanonicalRaceWeekendBatch(gs,{gp=null,stepMs=null,steps=250}={}){
   if(!isCanonicalRaceWeekend(gs))return gs;
   const ready=ensureCanonicalRaceRuntime(gs,{gp,stepMs});
   const runtime=ready?.raceWeekendState?.canonical_race_runtime;
   if(!runtime)return ready;
   return attachCanonicalRaceRuntime(
     ready,
-    runCanonicalRaceRuntimeToEnd(runtime,{maxSteps})
+    runCanonicalRaceRuntimeBatch(runtime,{steps})
   );
 }
 
