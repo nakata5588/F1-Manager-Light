@@ -6,6 +6,8 @@
 // standings, public prospect reputation and the level already being raced.
 // It never consults the historical future career or hidden Potential Ability.
 
+import { canonicalFeederLevel } from "./seriesCatalog.js";
+
 export const LOWER_SERIES_MOVEMENT_MODEL="lower_series_career_movement_v1";
 
 const rows=(value)=>Array.isArray(value)?value:[];
@@ -39,7 +41,7 @@ export function lowerSeriesCareerMovement(world,driver,entry,{
   targetYear=null,
 }={}){
   const driverId=driverIdOf(entry)||driverIdOf(driver);
-  const fromLevel=clamp(num(entry?.series_level,5),2,5);
+  const fromLevel=clamp(canonicalFeederLevel(entry?.series_level)??4,2,4);
   const prospect=world?.prospects?.[driverId]||null;
   const {championship,standing}=standingFor(world,entry,driverId);
   const starts=Math.max(0,num(standing?.starts,0));
