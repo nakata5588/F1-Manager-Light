@@ -664,6 +664,13 @@ export default function RaceWeekend(){
   const raceViewModel=canonicalRaceView||liveRace;
   const canFinalizeLiveRace=raceWeekendCanFinalizeLiveRace(weekend);
   const hasActivePitStop=Object.values(raceViewModel?.pit_states||{}).some((state)=>state?.active);
+  const canonicalRedFlagLifecycle=usesCanonicalRaceRuntime
+    ?raceViewModel?.race_control_state?.redFlagLifecycle||null
+    :null;
+  const canonicalRestartMonitor=canonicalRedFlagLifecycle?.restart_monitor||null;
+  const canonicalRestartGridRows=collectionRows(canonicalRedFlagLifecycle?.restart_grid)
+    .slice()
+    .sort((a,b)=>Number(a?.restart_position??999)-Number(b?.restart_position??999));
   const redFlagLifecycle=usesCanonicalRaceRuntime?null:liveRace?.red_flag_lifecycle||null;
   const restartMonitor=redFlagLifecycle?.restart_monitor||null;
   const restartGridRows=collectionRows(redFlagLifecycle?.restart_grid)
@@ -1813,6 +1820,54 @@ export default function RaceWeekend(){
                 <span><strong className="text-slate-200">Visibility</strong> {Number.isFinite(Number(trackState?.visibility_index))?Number(trackState.visibility_index).toFixed(0)+"%":"—"}</span>
                 <span><strong className="text-slate-200">Track</strong> {Number.isFinite(Number(trackState?.track_temp_c))?Number(trackState.track_temp_c).toFixed(1)+"°C":"—"}</span>
                 <span className="min-w-0 truncate text-sky-300/90" title={liveTeamForecast?.message||"Team forecast unavailable"}><strong className="text-sky-200">Team forecast:</strong> {liveTeamForecast?.message||"—"}</span>
+              </div>:null}
+              {usesCanonicalRaceRuntime&&String(raceViewModel?.current_control||"").toUpperCase()==="RED_FLAG"&&canonicalRedFlagLifecycle?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
+                <div className="flex min-w-0 items-start gap-2">
+                  <Flag className="mt-0.5 h-5 w-5 shrink-0 fill-current text-red-300"/>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-red-200">Race suspended</div>
+                    <div className="mt-0.5 text-[11px] text-red-100/80">
+                      Lap {canonicalRedFlagLifecycle?.triggered_lap??raceViewModel?.current_lap??0} · Sector {canonicalRedFlagLifecycle?.triggered_sector??raceViewModel?.current_sector??1}
+                      {canonicalRedFlagLifecycle?.holding_area?` · Cars held at ${String(canonicalRedFlagLifecycle.holding_area).replaceAll("_"," ")}`:""}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-red-200/65">
+                      {canonicalRestartMonitor?.restart_authorized
+                        ?`Race Control has cleared the restart window. Canonical playback will resume under ${String(canonicalRestartMonitor?.recommended_control||"GREEN").replaceAll("_"," ")} conditions.`
+                        :"Race distance is frozen. Restart conditions are being evaluated by the canonical Race Control lifecycle."}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-red-100/60">
+                      <span>Status {String(canonicalRestartMonitor?.status||canonicalRedFlagLifecycle?.phase||"suspended").replaceAll("_"," ")}</span>
+                      <span>Checks {Number(canonicalRestartMonitor?.check_count||0)}</span>
+                      <span>Safe streak {Number(canonicalRestartMonitor?.safe_streak||0)}/{Math.max(1,Number(canonicalRestartMonitor?.required_safe_checks||1))}</span>
+                      {Number.isFinite(Number(canonicalRestartMonitor?.latest_score))?<span>Race Control score {Number(canonicalRestartMonitor.latest_score).toFixed(0)}</span>:null}
+                      {canonicalRedFlagLifecycle?.work_policy?.label?<span>Work policy {canonicalRedFlagLifecycle.work_policy.label}</span>:null}
+                    </div>
+                  </div>
+                </div>
+                {canonicalRestartGridRows.length?<div className="mt-2 rounded-md border border-white/10 bg-black/20 p-2">
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-200">Standing restart grid</div>
+                      <div className="text-[8px] text-slate-500">
+                        {canonicalRedFlagLifecycle?.restart_grid_source==="starting_grid"
+                          ?"Race stopped at the start · qualifying grid restored"
+                          :"Race stopped in progress · order frozen at the Red Flag"}
+                      </div>
+                    </div>
+                    <div className="text-[8px] uppercase tracking-[0.10em] text-slate-500">{canonicalRestartGridRows.length} cars</div>
+                  </div>
+                  <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                    {canonicalRestartGridRows.map((row,index)=>{
+                      const did=String(row?.driver_id||"");
+                      const tid=String(row?.team_id||"");
+                      return <div key={did||index} className="flex min-w-0 items-center gap-1.5 rounded border border-white/[0.06] bg-white/[0.025] px-1.5 py-1">
+                        <span className="w-5 shrink-0 text-right text-[9px] font-black text-slate-100">P{row?.restart_position??index+1}</span>
+                        <TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="shrink-0 p-0"/>
+                        <span className="truncate text-[9px] font-semibold text-slate-300">{driverName(drivers,did)}</span>
+                      </div>;
+                    })}
+                  </div>
+                </div>:null}
               </div>:null}
               {!usesCanonicalRaceRuntime&&liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
