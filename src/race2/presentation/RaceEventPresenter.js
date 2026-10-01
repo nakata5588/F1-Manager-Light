@@ -31,11 +31,9 @@ function driverId(row){
 function driverName(context,id){
   const wanted=text(id);
   const row=rows(context?.drivers).find((driver)=>driverId(driver)===wanted);
-  return row?.display_name
-    ??row?.name
-    ??`${row?.first_name??""} ${row?.last_name??""}`.trim()
-    ??wanted
-    ??"Unknown driver";
+  const explicit=text(row?.display_name??row?.name);
+  const composed=`${row?.first_name??""} ${row?.last_name??""}`.trim();
+  return explicit||composed||wanted||"Unknown driver";
 }
 
 function tyreName(context,id){
