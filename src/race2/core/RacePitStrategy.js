@@ -432,6 +432,8 @@ function planCar(state,car,forecast){
   const pitPlan=text(strategy?.pitPlan);
   const adaptive=pitPlan==="adaptive";
   const aiControlled=strategy?.aiControlled!==false;
+  const window=forecast?.pit_window??null;
+  const automaticWindow=Boolean(aiControlled&&window);
   const automaticRepair=Boolean(
     aiControlled&&
     forecast?.damage_repair?.should_repair&&
@@ -439,17 +441,23 @@ function planCar(state,car,forecast){
     forecast.damage_repair.repair_components.length
   );
 
-  // A player pit command is authoritative. The shared repair engine can still
-  // expose advisory forecast data, but must never add work to that command.
+  // A player pit command is authoritative. The shared strategy engine may
+  // expose advice, but must never silently rewrite an explicit player call.
   if(pitPlan==="command")return base;
-  if(!adaptive&&!automaticRepair)return base;
 
-  const window=forecast?.pit_window??null;
+  // AI plans are starting intentions, not hard locks. Once the canonical
+  // forecast identifies a real weather/degradation window, AI cars must be
+  // allowed to react even if they began the race as no_stop / one_stop /
+  // completed. Player non-adaptive plans remain untouched.
+  if(!adaptive&&!automaticWindow&&!automaticRepair)return base;
+
   if(!window){
     const requestedRepairs=Array.isArray(strategy?.repairComponentsRequested)
       ?strategy.repairComponentsRequested
       :[];
-    if(!adaptive||(!strategy?.autoPitReason&&!requestedRepairs.length))return base;
+    const hasAutomaticPlan=Boolean(strategy?.autoPitReason)||requestedRepairs.length>0;
+    if(!hasAutomaticPlan)return base;
+    if(!adaptive&&!aiControlled)return base;
     return {
       ...base,
       resources:{
@@ -491,7 +499,7 @@ function planCar(state,car,forecast){
         nextTyreId,
         tyreChangeRequested,
         repairComponentsRequested:repairComponents,
-        autoPitReason:adaptive||forecast?.pit_reason==="damage_repair"
+        autoPitReason:adaptive||automaticWindow||forecast?.pit_reason==="damage_repair"
           ?forecast?.pit_reason??"strategy"
           :strategy?.autoPitReason??null,
       },
