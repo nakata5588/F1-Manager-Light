@@ -37,7 +37,7 @@ function baseState(){
         {series_id:"F2",series_name:"Formula Two",series_level:2},
         {series_id:"F3A",series_name:"Formula Three A",series_level:3},
         {series_id:"F3B",series_name:"Formula Three B",series_level:3},
-        {series_id:"FR",series_name:"Formula Regional",series_level:4},
+        {series_id:"F4A",series_name:"Formula Four A",series_level:4},
       ],
       teams:{
         T1:{lower_team_id:"T1",series_id:"F2",team_name:"Team One",team_strength:62,reliability:92},
@@ -61,7 +61,7 @@ function baseState(){
           ],
         },
         D4:{
-          driver_id:"D4",series_id:"FR",series_name:"Formula Regional",series_level:4,
+          driver_id:"D4",series_id:"F4A",series_name:"Formula Four A",series_level:4,
           lower_team_id:null,team_name:null,series_candidates:[],placement_status:"series_only",
         },
       },
@@ -73,7 +73,7 @@ function baseState(){
   };
 }
 
-test("LS4 initializes deterministic Save-World placements and schedules levels 2-5",()=>{
+test("LS4 initializes deterministic Save-World placements and schedules canonical levels 2-4",()=>{
   const a=initializeLowerSeriesSeason(baseState());
   const b=initializeLowerSeriesSeason(baseState());
 
@@ -90,7 +90,7 @@ test("LS4 initializes deterministic Save-World placements and schedules levels 2
 
   const chosenF3=a.lowerSeriesWorld.entries.D3.series_id;
   assert.equal(a.lowerSeriesWorld.events.filter((event)=>event.series_id===chosenF3).length,8);
-  assert.equal(a.lowerSeriesWorld.events.filter((event)=>event.series_id==="FR").length,7);
+  assert.equal(a.lowerSeriesWorld.events.filter((event)=>event.series_id==="F4A").length,6);
   assert.deepEqual(a.lowerSeriesWorld.results,[]);
 });
 
@@ -104,7 +104,7 @@ test("LS4 also schedules entry-level series and snapshots the save-year F1 point
     source_season:2007,
     series:[
       {series_id:"GP2",series_name:"GP2 Series",series_level:2},
-      {series_id:"F4",series_name:"Formula Four",series_level:5},
+      {series_id:"F4",series_name:"Formula Four",series_level:4},
     ],
     entries:{
       D1:{
@@ -116,7 +116,7 @@ test("LS4 also schedules entry-level series and snapshots the save-year F1 point
         lower_team_id:"T2",team_name:"Team Two",series_candidates:[],placement_status:"placed_with_team",
       },
       D5:{
-        driver_id:"D5",series_id:"F4",series_name:"Formula Four",series_level:5,
+        driver_id:"D5",series_id:"F4",series_name:"Formula Four",series_level:4,
         lower_team_id:null,team_name:null,series_candidates:[],placement_status:"series_only",
       },
     },
