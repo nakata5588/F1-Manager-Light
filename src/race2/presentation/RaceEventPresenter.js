@@ -102,6 +102,50 @@ function controlChangedText(payload={}){
   return `${controlName(from)} → ${controlName(to)}`;
 }
 
+function weatherReportText(payload={}){
+  const kind=text(payload?.kind).toLowerCase();
+  const band=humanize(payload?.rainBand||"rain").toLowerCase();
+  const intensity=finite(payload?.rainIntensity,null);
+  if(kind==="rain_started")return "Rain has started";
+  if(kind==="rain_stopped")return "The rain has stopped";
+  if(kind==="rain_rising"){
+    return intensity!=null
+      ?`Rain intensity is rising — ${Math.round(intensity*100)}% now`
+      :`Rain intensity is rising — ${band} rain now`;
+  }
+  if(kind==="rain_easing"){
+    return intensity!=null
+      ?`Rain is easing — ${Math.round(intensity*100)}% now`
+      :`Rain is easing — ${band} rain now`;
+  }
+  if(kind==="standing_water")return "Standing water is building on the circuit";
+  if(kind==="visibility")return "Visibility is deteriorating in the spray";
+  if(kind==="drying_track")return "The racing line is drying quickly";
+  return "Weather conditions are changing";
+}
+
+function tyreWeatherFeedbackText(driver,payload={}){
+  const have=text(payload?.tyreCategory).toLowerCase();
+  const wanted=text(payload?.recommendedCategory).toLowerCase();
+  let message="These tyres don't feel right for the conditions.";
+
+  if(have==="dry"&&wanted==="intermediate"){
+    message="It's getting slippery. Intermediates are becoming an option.";
+  }else if(have==="dry"&&wanted==="wet"){
+    message="I'm really struggling for grip — it's too wet for slicks.";
+  }else if(have==="intermediate"&&wanted==="wet"){
+    message="There's too much standing water for the intermediates.";
+  }else if(have==="intermediate"&&wanted==="dry"){
+    message="The track is drying — the intermediates are overheating.";
+  }else if(have==="wet"&&wanted==="dry"){
+    message="The track is too dry for the wets; they're overheating.";
+  }else if(have==="wet"&&wanted==="intermediate"){
+    message="The wets are starting to overheat; intermediates may be quicker now.";
+  }
+
+  return `${driver}: "${message}"`;
+}
+
 function lossText(ms){
   const value=finite(ms,null);
   return value==null?"":` — ${(value/1000).toFixed(1)}s lost`;
@@ -177,6 +221,12 @@ export function canonicalRaceEventRequiresPause(event,{playerDriverIds=[]}={}){
   if(type==="race_control_changed"){
     return ["VSC","SAFETY_CAR","RED_FLAG"].includes(text(payload?.to).toUpperCase());
   }
+  if(type==="weather_report"){
+    return ["rain_started","rain_stopped","standing_water","visibility"].includes(
+      text(payload?.kind).toLowerCase()
+    );
+  }
+  if(type==="driver_feedback")return involvesPlayer;
   if(["mechanical_failure","retirement","accident","contact"].includes(type))return true;
   if(type==="damage")return text(payload?.source).toLowerCase()==="contact"||involvesPlayer;
   if(type==="pit_service_completed")return involvesPlayer||Boolean(payload?.crewError);
@@ -216,6 +266,36 @@ export function presentCanonicalRaceEvent(event,context={}){
   const payload=event?.payload&&typeof event.payload==="object"?event.payload:{};
   const driver=primaryDriverName(event,context);
   const [first,second]=pairNames(event,context);
+
+  if(type==="weather_report"){
+    const kind=text(payload?.kind).toLowerCase();
+    const priority=["rain_started","rain_stopped","standing_water","visibility"].includes(kind)
+      ?"important"
+      :"info";
+    return presentation(
+      "Weather",
+      weatherReportText(payload),
+      "weather",
+      priority
+    );
+  }
+
+  if(type==="driver_feedback"){
+    if(text(payload?.kind).toLowerCase()==="tyre_weather_mismatch"){
+      return presentation(
+        "Driver feedback",
+        tyreWeatherFeedbackText(driver,payload),
+        "feedback",
+        "important"
+      );
+    }
+    return presentation(
+      "Driver feedback",
+      `${driver}: "${humanize(payload?.kind||"race update")}"`,
+      "feedback",
+      "normal"
+    );
+  }
 
   if(type==="race_control_changed"){
     const to=text(payload?.to).toUpperCase();
