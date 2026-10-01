@@ -95,6 +95,9 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
       retirement:{reason:"Engine failure"},
       damage:{severity:"major"},
       pitState:{phase:"retired",active:false},
+      lastLapMs:91_250,
+      bestLapMs:89_750,
+      bestLapNumber:2,
     }:car),
   };
   state={
@@ -116,6 +119,9 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
   assert.equal(row.status,"DNF");
   assert.equal(row.retirement_reason,"Engine failure");
   assert.equal(row.fuel_kg,12.5);
+  assert.equal(row.last_lap_ms,91_250);
+  assert.equal(row.best_lap_ms,89_750);
+  assert.equal(row.best_lap_number,2);
   assert.deepEqual(row.damage_state,{severity:"major"});
   assert.equal(view.pit_states[row.driver_id].active,false);
 });
