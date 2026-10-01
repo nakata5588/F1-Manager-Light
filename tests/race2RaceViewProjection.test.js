@@ -447,3 +447,33 @@ test("RW10D presenter restores Legacy-style weather and driver feedback from can
   assert.equal(canonicalRaceEventRequiresPause(feedbackSource,{playerDriverIds:["D1"]}),true);
   assert.equal(canonicalRaceEventRequiresPause(feedbackSource,{playerDriverIds:["D2"]}),false);
 });
+
+
+test("RW10E presenter reports canonical pit repairs and cancelled commands without inferring damage",()=>{
+  const context={
+    drivers:[{driver_id:"D1",display_name:"Mario Andretti"}],
+    tyres:[{tyre_id:"soft",compound_name:"Soft"}],
+  };
+  const service=presentCanonicalRaceEvent({
+    type:"pit_service_completed",
+    driverIds:["D1"],
+    payload:{
+      tyreTo:"soft",
+      tyreChanged:true,
+      refuelled:false,
+      repairedComponents:["front_wing"],
+    },
+  },context);
+  const cancelled=presentCanonicalRaceEvent({
+    type:"command_cancelled",
+    driverIds:["D1"],
+    payload:{commandType:"pit",reason:"player_cancelled"},
+  },context);
+
+  assert.equal(
+    service.text,
+    "Mario Andretti changes to Soft tyres and repairs front wing"
+  );
+  assert.equal(cancelled.text,"Mario Andretti: pit cancelled");
+  assert.equal(cancelled.iconKey,"command");
+});
