@@ -16,7 +16,7 @@ import {
   canonicalRaceWeekendNeedsCheckpoint,
   canonicalRaceWeekendView,
   queueCanonicalRaceWeekendCommand,
-  runCanonicalRaceWeekendToEnd,
+  runCanonicalRaceWeekendBatch,
 } from "../runtime/RaceRuntime.js";
 
 export const CANONICAL_RACE_ENGINE_VERSION=RACE_WEEKEND_ENGINES.RW2;
@@ -35,9 +35,9 @@ export function advanceRaceWeekendElapsed(gs,{gp=null,elapsedMs=0,stepMs=null}={
   return advanceCanonicalRaceWeekendElapsed(gs,{gp,elapsedMs,stepMs});
 }
 
-export function autosimRaceWeekendToEnd(gs,{gp=null,maxSteps=1_000_000}={}){
+export function autosimRaceWeekendBatch(gs,{gp=null,steps=250}={}){
   if(!raceWeekendUsesCanonicalRuntime(gs))return gs;
-  return runCanonicalRaceWeekendToEnd(gs,{gp,maxSteps});
+  return runCanonicalRaceWeekendBatch(gs,{gp,steps});
 }
 
 export function raceWeekendCanonicalView(gs){
