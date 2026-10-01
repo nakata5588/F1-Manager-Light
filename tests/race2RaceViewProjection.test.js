@@ -74,6 +74,7 @@ test("RW8.14A projects canonical RaceState into a Race View read model without r
     assert.equal(row.position,canonical.position);
     assert.equal(row.driver_id,canonical.driverId);
     assert.equal(row.team_id,canonical.teamId);
+    assert.equal(row.position_gain,Number(car.gridPosition||0)-Number(canonical.position||0));
     assert.equal(row.gap_to_leader_ms,canonical.gapToLeaderMs);
     assert.equal(row.gap_to_previous_ms,canonical.intervalMs);
     assert.equal(row.distance_along_lap_m,canonical.distanceAlongLapM);
@@ -355,4 +356,44 @@ test("RW10C simultaneous canonical incidents are batched into one popup payload"
   assert.equal(batch.tick,40);
   assert.equal(batch.events.length,2);
   assert.equal(batch.event_key,"rw2_event_batch:40:evt-1|evt-2");
+});
+
+
+test("RW10C projection fills Legacy-compatible pit and damage display fields from canonical CarState",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  const first=state.cars[0];
+  state={
+    ...state,
+    cars:state.cars.map((car)=>car.carId===first.carId?{
+      ...car,
+      damage:{
+        severity:"major",
+        damaged_components:["front_wing","floor"],
+        pace_loss_s_per_lap:1.25,
+      },
+      pitState:{
+        ...(car.pitState||{}),
+        active:true,
+        completed:false,
+        history:[{stopSequence:1,lap:1}],
+      },
+      resources:{
+        ...(car.resources||{}),
+        strategy:{
+          ...(car.resources?.strategy||{}),
+          pitPlan:"one_stop",
+          plannedStopLap:2,
+        },
+      },
+    }:car),
+  };
+
+  const row=projectRaceStateToRaceView(state).classification.find((candidate)=>candidate.car_id===first.carId);
+  assert.equal(row.planned_stop_lap,2);
+  assert.equal(row.pit_plan,"one_stop");
+  assert.deepEqual(row.pit_window,{from_lap:2,to_lap:2});
+  assert.equal(row.pit_count,2);
+  assert.equal(row.damage_severity,"major");
+  assert.deepEqual(row.damaged_components,["front_wing","floor"]);
+  assert.equal(row.damage_pace_loss_s_per_lap,1.25);
 });
