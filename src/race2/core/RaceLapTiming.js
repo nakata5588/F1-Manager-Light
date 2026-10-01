@@ -35,7 +35,37 @@ function timingSeed(car){
   };
 }
 
-function crossingOffsetMs(from,to,boundary,stepMs){
+function kinematicCrossingOffsetMs(previous,next,distanceM,stepMs){
+  if(
+    String(previous?.pitState?.status??"track")!=="track"||
+    String(next?.pitState?.status??"track")!=="track"
+  )return null;
+  const speed=Math.max(0,finite(previous?.speedMs,finite(previous?.speedKmh,0)/3.6));
+  const acceleration=finite(next?.accelerationMs2,0);
+  const distance=Math.max(0,finite(distanceM,0));
+  const maxTime=Math.max(0,finite(stepMs,0))/1000;
+  if(distance<=0||maxTime<=0)return 0;
+
+  if(Math.abs(acceleration)<1e-9){
+    if(speed<=1e-9)return null;
+    const time=distance/speed;
+    return time<=maxTime+1e-9?Number((time*1000).toFixed(3)):null;
+  }
+
+  const discriminant=speed*speed+2*acceleration*distance;
+  if(discriminant<0)return null;
+  const root=Math.sqrt(discriminant);
+  const candidates=[
+    (-speed+root)/acceleration,
+    (-speed-root)/acceleration,
+  ].filter((value)=>Number.isFinite(value)&&value>=0&&value<=maxTime+1e-9);
+  if(!candidates.length)return null;
+  return Number((Math.min(...candidates)*1000).toFixed(3));
+}
+
+function crossingOffsetMs(previous,next,from,to,boundary,stepMs){
+  const exact=kinematicCrossingOffsetMs(previous,next,boundary-from,stepMs);
+  if(exact!=null)return exact;
   const distance=Math.max(0,to-from);
   if(distance<=1e-9)return 0;
   const fraction=clamp((boundary-from)/distance,0,1);
@@ -67,7 +97,7 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
           if(lapTimes.some((row)=>Number(row?.lap)===lapNumber))continue;
           const boundaryDistance=lapNumber*lengthM;
           const completedAtMs=Number((
-            officialStartMs+crossingOffsetMs(from,to,boundaryDistance,stepMs)
+            officialStartMs+crossingOffsetMs(previous,next,from,to,boundaryDistance,stepMs)
           ).toFixed(3));
           const lapTimeMs=Number((completedAtMs-lapStartedAtMs).toFixed(3));
           if(lapTimeMs<=0)continue;
