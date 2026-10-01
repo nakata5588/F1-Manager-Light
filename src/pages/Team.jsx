@@ -145,7 +145,7 @@ export default function Team(){
                 </div>
               </div>
             </div>
-          </Link>:<Link key={row.slot} to="/Drivers" className="bg-[#12141c] p-4 hover:bg-[#171a23]"><div className="text-[10px] uppercase tracking-wide text-slate-500">{row.label}</div><div className="font-semibold mt-1">Vacant seat</div><div className="text-xs text-slate-500 mt-1">Open Driver Market →</div></Link>)}
+          </Link>:<Link key={row.slot} to="/DriverMarket" className="bg-[#12141c] p-4 hover:bg-[#171a23]"><div className="text-[10px] uppercase tracking-wide text-slate-500">{row.label}</div><div className="font-semibold mt-1">Vacant seat</div><div className="text-xs text-slate-500 mt-1">Open Driver Market →</div></Link>)}
         </div>
       </Panel>
 
