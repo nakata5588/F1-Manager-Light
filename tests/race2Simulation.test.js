@@ -43,3 +43,43 @@ test("RW8.2 DNF cars are frozen while the same core continues advancing active c
 test("RW8.2 the canonical core clamps a car at the race finish",()=>{
   let state=startRaceState(createRaceState(input({laps:1,cars:1}))); state=withKinematics(state,"car_1",{absoluteDistanceM:99,distanceAlongLapM:99,sector:3,speedMs:20,speedKmh:72}); const next=stepRaceState(state); const car=next.cars[0]; assert.equal(car.absoluteDistanceM,100); assert.equal(car.distanceAlongLapM,0); assert.equal(car.completedLaps,1); assert.equal(car.lap,1); assert.equal(car.status,"finished"); assert.equal(car.zoneType,"finish"); assert.equal(next.status,"finished"); assert.equal(next.session.phase,"finished");
 });
+
+
+test("RW9B official clock records the physical finish-line crossing as canonical lap time",()=>{
+  let state=startRaceState(createRaceState(input({laps:1,cars:1}),{stepMs:1000}));
+  state={
+    ...state,
+    simulationTimeMs:9500,
+    officialRaceTimeMs:9500,
+    session:{
+      ...state.session,
+      clock:{...(state.session.clock||{}),elapsedMs:9500,officialElapsedMs:9500},
+    },
+  };
+  state=withKinematics(state,"car_1",{
+    absoluteDistanceM:99,
+    distanceAlongLapM:99,
+    lap:1,
+    completedLaps:0,
+    sector:3,
+    speedMs:20,
+    speedKmh:72,
+    lapStartedAtMs:0,
+  });
+
+  const next=stepRaceState(state);
+  const car=next.cars[0];
+
+  assert.equal(car.status,"finished");
+  assert.equal(car.completedLaps,1);
+  assert.equal(car.lapTimes.length,1);
+  assert.equal(car.lapTimes[0].lap,1);
+  assert.equal(car.lastLapMs,car.finishTimeMs);
+  assert.equal(car.bestLapMs,car.finishTimeMs);
+  assert.equal(car.bestLapNumber,1);
+  assert.equal(car.lapTimes[0].timeMs,car.finishTimeMs);
+  assert.equal(car.lapTimes[0].completedAtMs,car.finishTimeMs);
+  assert.ok(car.finishTimeMs>9500&&car.finishTimeMs<10500,"crossing must be timed inside the fixed step");
+  assert.equal(next.officialRaceTimeMs,10500,"official race clock advances by the full fixed step");
+  assert.equal(next.session.clock.officialElapsedMs,10500);
+});
