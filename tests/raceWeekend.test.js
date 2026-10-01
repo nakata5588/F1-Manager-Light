@@ -7,6 +7,7 @@ import {
   completeQualifyingSession,
   completeRaceSession,
   continueRaceWeekendSession,
+  createGameplayRaceWeekendState,
   createRaceWeekendState,
   raceWeekendSchedule,
   setPracticeProgramme,
@@ -161,6 +162,18 @@ function finish1980Qualifying(options={}){
   assert.equal(gs.raceWeekendState.phase,"grid_ready");
   return gs;
 }
+
+test("RW8.14K new gameplay weekends use RW2 while an existing Legacy weekend keeps its lock",()=>{
+  const base=fixture({seed:"rw8.14k-gameplay-cutover"});
+  const canonical=createGameplayRaceWeekendState(base,{roundIndex:0,gp});
+  assert.equal(canonical.raceWeekendState.engine_version,"rw2");
+
+  const legacy=createRaceWeekendState(base,{roundIndex:0,gp});
+  assert.equal(legacy.raceWeekendState.engine_version,"legacy");
+  const preserved=createGameplayRaceWeekendState(legacy,{roundIndex:0,gp});
+  assert.equal(preserved,legacy);
+  assert.equal(preserved.raceWeekendState.engine_version,"legacy");
+});
 
 test("RW3 1980 rule creates two timed Qualifying sessions and a persistent session list",()=>{
   const schedule=raceWeekendSchedule(gp,defaultQualifyingRule);
