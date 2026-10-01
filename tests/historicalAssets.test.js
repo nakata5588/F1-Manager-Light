@@ -99,3 +99,25 @@ test("uploaded image wins over repository asset for the same effective year", ()
   assert.equal(historicalAssetCandidatesFromSet(merged,1981)[0],dataUrl);
   assert.equal(historicalAssetCandidatesFromSet(merged,1985)[0],dataUrl);
 });
+
+test("uploaded Staff portrait uses the same season-aware override pipeline", () => {
+  const base={
+    default:"/assets/staff/st_0017.webp",
+    history:[{year:1985,path:"/assets/staff/st_0017_1985.webp"}],
+  };
+  const dataUrl="data:image/webp;base64,CUSTOM_STAFF_1980";
+  const overrides=withVisualAssetOverride({},{
+    type:"staff",
+    entityId:"st_0017",
+    year:1980,
+    path:dataUrl,
+  });
+  const merged=mergeHistoricalAssetSets(
+    base,
+    visualAssetOverrideSet(overrides,"staff","st_0017")
+  );
+
+  assert.equal(historicalAssetCandidatesFromSet(merged,1980)[0],dataUrl);
+  assert.equal(historicalAssetCandidatesFromSet(merged,1985)[0],"/assets/staff/st_0017_1985.webp");
+});
+
