@@ -2041,6 +2041,7 @@ export const useGame = create((set, get) => ({
     const base=get().gameState;
     const weekend=base?.raceWeekendState;
     if(!weekend)return null;
+    if(!mod.raceWeekendUsesCanonicalRuntime(base))return null;
 
     const gp=base?.calendar?.[Number(weekend.roundIndex)||0]||null;
     const batchSteps=250;
