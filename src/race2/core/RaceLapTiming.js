@@ -197,7 +197,6 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       lastLapMs,
       bestLapMs,
       bestLapNumber,
-      lapTimingBaselineValid,
     }=seed;
     let finishTimeMs=finite(previous?.finishTimeMs,null);
 
