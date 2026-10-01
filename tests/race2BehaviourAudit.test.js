@@ -92,17 +92,14 @@ test("RW11A behaviour audit smoke runs the 1980 calibration scenario on the cano
   const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
   const output=execFileSync(
     process.execPath,
-    [path.join(root,"scripts","audit-race-behaviour.mjs"),"--seeds=1","--scenario=1980-dry"],
+    [path.join(root,"scripts","audit-race-behaviour.mjs"),"--seeds=1","--scenario=1980-dry","--json-only"],
     {cwd:root,encoding:"utf8",maxBuffer:4*1024*1024}
   );
-  const marker='{\\n  "generatedAt"';
-  const start=output.indexOf(marker);
-  assert.ok(start>=0,"audit output must include its JSON report");
-  const report=JSON.parse(output.slice(start));
-  assert.deepEqual(
-    Object.keys(report.scenarios),
-    ["1980-dry","1980-wet","2004-dry","2026-dry"]
-  );
+  const marker="RW11A_JSON=";
+  const line=output.split(/\\r?\\n/).find((row)=>row.startsWith(marker));
+  assert.ok(line,"audit output must include its machine-readable report");
+  const report=JSON.parse(line.slice(marker.length));
+  assert.deepEqual(Object.keys(report.scenarios),["1980-dry"]);
   for(const [name,row] of Object.entries(report.scenarios)){
     assert.equal(row.aggregate.runs,1);
     assert.equal(row.runs[0].status,"finished");
