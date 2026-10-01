@@ -147,7 +147,20 @@ export function projectRaceStateToRaceView(state){
     current_control:text(state?.raceControlState?.mode||"GREEN").toUpperCase(),
     last_weather:state?.weatherState?.state??state?.weatherState?.current?.state??"SUNNY",
     track_state:raceViewTrackState(state),
+    race_control_state:state?.raceControlState?{
+      ...state.raceControlState,
+      assessment:state.raceControlState?.assessment
+        ?{...state.raceControlState.assessment}
+        :state.raceControlState?.assessment??null,
+      redFlagLifecycle:state.raceControlState?.redFlagLifecycle
+        ?{...state.raceControlState.redFlagLifecycle}
+        :state.raceControlState?.redFlagLifecycle??null,
+    }:null,
     timing_summary:state?.timingState??null,
+    pending_commands:(state?.commandQueue||[]).map((command)=>({
+      ...command,
+      payload:command?.payload?{...command.payload}:command?.payload,
+    })),
     classification,
     pit_states:pitStates,
     events:(state?.events||[]).map(projectedEvent),
