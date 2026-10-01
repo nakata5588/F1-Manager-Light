@@ -575,8 +575,13 @@ export function advanceRacePitStops(state,proposedCars,{stepMs=100}={}){
       if(!beforeService&&proposed?.pitState?.serviceApplied){
         events.push(event("pit_service_completed",state,proposed,{
           stopSequence:proposed.pitState.stopSequence,
+          reason:proposed?.pitState?.service?.reason??null,
+          tyreFrom:proposed?.pitState?.service?.tyre_from??null,
           tyreTo:proposed?.pitState?.service?.tyre_to??null,
+          tyreChanged:Boolean(proposed?.pitState?.service?.tyre_changed),
           refuelled:Boolean(proposed?.pitState?.service?.refuelled),
+          fuelAddedKg:finite(proposed?.pitState?.service?.fuel_added_kg,0),
+          crewError:Boolean(proposed?.pitState?.service?.crew_error),
         }));
       }
       if(beforePhase!=="completed"&&proposed?.pitState?.completed){
