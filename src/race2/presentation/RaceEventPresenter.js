@@ -170,9 +170,15 @@ export function presentCanonicalRaceEvent(event,context={}){
 
   if(type==="pit_service_completed"){
     const compound=tyreName(context,payload?.tyreTo);
-    const actions=[];
-    if(compound)actions.push(`changes to ${compound} tyres`);
-    if(payload?.refuelled)actions.push("refuels");
+    const tyreAction=compound&&payload?.tyreChanged===true
+      ?`changes to ${compound} tyres`
+      :compound
+        ?`completes pit service on ${compound} tyres`
+        :null;
+    const actions=[
+      tyreAction,
+      payload?.refuelled?"refuels":null,
+    ].filter(Boolean);
     return presentation(
       "Pit service",
       actions.length
