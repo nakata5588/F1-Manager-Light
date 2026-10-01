@@ -314,3 +314,20 @@ test("Staff capability model is independent of Race Weekend engine selection",()
     teamStaffCapability(make("rw2"),"T1","setup")
   );
 });
+
+
+test("S2.0B1 Staff rating profiles obey the career-year temporal contract",()=>{
+  const gs={
+    activeYear:2004,
+    staffRatings:[
+      {year:1980,staff_id:"S1",technical:70},
+      {season_year:1990,staff_id:"S1",technical:80},
+      {year:2010,staff_id:"S1",technical:95},
+      {year:2010,staff_id:"S2",technical:99},
+    ],
+  };
+  assert.equal(staffRatingForYear(gs,"S1",1990).technical,80);
+  assert.equal(staffRatingForYear(gs,"S1",2004).technical,80);
+  assert.deepEqual(staffRatingForYear(gs,"S2",2004),{});
+  assert.equal(staffRatingForYear(gs,"S1",2010).technical,95);
+});
