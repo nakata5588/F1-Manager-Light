@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 
 import { createRng, rngFor } from "../src/core/random.js";
 import {
@@ -650,4 +651,25 @@ test("finished race refresh state keeps final projected race needed for result f
   const compact=compactRaceWeekendForRecovery(weekend);
   assert.deepEqual(compact.live_race.projected_race,weekend.live_race.projected_race);
   assert.deepEqual(compact.live_race.projected_summary,weekend.live_race.projected_summary);
+});
+
+test("rolling autosave writes one canonical Continue snapshot and no legacy duplicate",async()=>{
+  const source=await fs.readFile(new URL("../src/state/GameStore.js",import.meta.url),"utf8");
+  assert.match(source,/function writeRollingAutosave\(gs\)/);
+  assert.equal(
+    (source.match(/localStorage\.setItem\("f1ml\.autosave"/g)||[]).length,
+    0,
+    "daily/session autosaves must not write the retired f1ml.autosave duplicate"
+  );
+  assert.equal(
+    (source.match(/writeRollingAutosave\(/g)||[]).length,
+    5,
+    "one helper plus four automatic checkpoint call sites should share the same rolling writer"
+  );
+  const helperStart=source.indexOf("function writeRollingAutosave(gs)");
+  const helperEnd=source.indexOf("function setSessionRecoverySnapshot",helperStart);
+  const helper=source.slice(helperStart,helperEnd);
+  assert.equal((helper.match(/makeLightSnapshot\(/g)||[]).length,1);
+  assert.equal((helper.match(/JSON\.stringify\(/g)||[]).length,1);
+  assert.equal((helper.match(/setRollingSnapshot\(/g)||[]).length,1);
 });
