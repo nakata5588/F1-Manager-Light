@@ -138,7 +138,8 @@ function fixture({qualifyingRules=defaultQualifyingRule,currentDateISO="1980-05-
 }
 
 function startAfterPractice(options={}){
-  let gs=createRaceWeekendState(fixture(options),{roundIndex:0,gp});
+  const {engineVersion=null,...fixtureOptions}=options||{};
+  let gs=createRaceWeekendState(fixture(fixtureOptions),{roundIndex:0,gp,engineVersion});
   gs=completePracticeSession(gs,{gp});
   assert.equal(gs.raceWeekendState.phase,"practice_complete");
   gs=continueRaceWeekendSession(gs);
@@ -377,7 +378,7 @@ test("RW3 qualifying is deterministic for the same Save seed across session boun
 });
 
 test("RW3 Race consumes exactly the saved Starting Grid and never re-runs Qualifying",async()=>{
-  let gs=finish1980Qualifying();
+  let gs=finish1980Qualifying({engineVersion:"legacy"});
   const originalClassification=structuredClone(gs.raceWeekendState.qualifying.classification);
   const reversed=gs.raceWeekendState.startingGrid.rows
     .slice()
@@ -443,7 +444,7 @@ test("RW3 pre-qualifying is rule-driven and can eliminate DNPQ before main Quali
 });
 
 test("results remain visible until calendar advances beyond race day",async()=>{
-  let gs=finish1980Qualifying();
+  let gs=finish1980Qualifying({engineVersion:"legacy"});
   gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
   const playerTeam=structuredClone(gs.team);
   gs=await completeRaceSession(gs,{gp});
@@ -635,7 +636,7 @@ test("finished live race exposes an explicit finalization gate",()=>{
 
 
 test("RW5.3D direct Race autosim creates and consumes an authoritative Race Control plan",async()=>{
-  let gs=finish1980Qualifying({seed:"rw5.3d-autosim-plan"});
+  let gs=finish1980Qualifying({seed:"rw5.3d-autosim-plan",engineVersion:"legacy"});
   gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
   assert.equal(gs.raceWeekendState.phase,"race");
 
@@ -649,7 +650,7 @@ test("RW5.3D direct Race autosim creates and consumes an authoritative Race Cont
 });
 
 test("RW5.3D direct Race damage can trigger an AI repair and final damage reflects that repair",async()=>{
-  let gs=finish1980Qualifying({seed:"rw5.3d-autosim-repair"});
+  let gs=finish1980Qualifying({seed:"rw5.3d-autosim-repair",engineVersion:"legacy"});
   gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
   assert.equal(gs.raceWeekendState.phase,"race");
 
@@ -701,7 +702,7 @@ test("RW5.3D direct Race damage can trigger an AI repair and final damage reflec
 
 
 test("RW5.3E direct Race DNF preserves the incident sector and contains no post-retirement simulation",async()=>{
-  let gs=finish1980Qualifying({seed:"rw5.3e-causal-dnf"});
+  let gs=finish1980Qualifying({seed:"rw5.3e-causal-dnf",engineVersion:"legacy"});
   gs=syncRaceWeekendPhaseForDate({...gs,currentDateISO:"1980-05-18"},"1980-05-18");
   assert.equal(gs.raceWeekendState.phase,"race");
 
