@@ -2014,7 +2014,9 @@ export default function RaceWeekend(){
                     <div className="min-w-0">
                       <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
-                      <div className="text-[10px] text-sky-300">{liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window"}</div>
+                      <div className="text-[10px] text-sky-300">{usesCanonicalRaceRuntime
+                        ?(Number.isFinite(Number(liveDriver?.planned_stop_lap))?`Planned stop L${liveDriver.planned_stop_lap}`:"No planned stop")
+                        :(liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window")}</div>
                       {usesCanonicalRaceRuntime
                         ?<div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={pending.length?pending.map((command)=>String(command?.type||"order")).join(", "):"No queued orders"}><span className="text-slate-500">Queued orders:</span> {pending.length?pending.map((command)=>{
                           const type=String(command?.type||"order");
