@@ -605,6 +605,7 @@ export default function RaceWeekend(){
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const advanceLivePitClock=useGame((s)=>s.advanceRaceWeekendLivePitClock);
   const advanceCanonicalRaceElapsed=useGame((s)=>s.advanceRaceWeekendElapsed);
+  const autosimCanonicalRace=useGame((s)=>s.autosimRaceWeekendRace);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
   const setRedFlagTyre=useGame((s)=>s.setRaceWeekendRedFlagTyre);
@@ -1133,7 +1134,18 @@ export default function RaceWeekend(){
           <button disabled={busy} className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-2 py-1.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-400/[0.12] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRaceSector(1));}}>Step</button>
           <button disabled={busy} className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-1.5 text-[9px] font-semibold hover:bg-white/[0.08] disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(1));}}>+1 Lap</button>
           <button disabled={busy} className="rounded-md bg-slate-100 px-2 py-1.5 text-[9px] font-semibold text-slate-950 hover:bg-white disabled:opacity-50" onClick={()=>{setRacePlaying(false);perform(()=>advanceLiveRace(Number(liveRace.total_laps)||1));}}>Finish</button>
-          </>:<span className="rounded border border-cyan-400/20 bg-cyan-400/[0.06] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-cyan-200">RW2 continuous</span>}
+          </>:<>
+            <span className="rounded border border-cyan-400/20 bg-cyan-400/[0.06] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.12em] text-cyan-200">RW2 continuous</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={()=>{setRacePlaying(false);perform(()=>autosimCanonicalRace());}}
+              className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[9px] font-bold text-slate-950 hover:bg-white disabled:opacity-50"
+              title="Run the same canonical race simulation to the finish without animation"
+            >
+              Simulate to finish
+            </button>
+          </>}
         </div>:canFinalizeLiveRace?<div className="flex shrink-0 items-center gap-2">
           <span className="hidden rounded border border-emerald-400/20 bg-emerald-500/[0.08] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-300 md:inline-flex">Race finished</span>
           <button
