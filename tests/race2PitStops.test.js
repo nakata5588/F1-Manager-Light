@@ -258,7 +258,14 @@ test("RW8.8 completed stop changes tyre, refuels when allowed and rejoins same c
   assert.ok(row.pitState.history.length===1);
   assert.equal(row.resources.strategy.plannedStopLap,null);
   assert.equal(row.resources.strategy.pitPlan,"completed");
-  assert.ok(completed.events.some((event)=>event.type==="pit_service_completed"));
+  const serviceEvent=completed.events.find((event)=>event.type==="pit_service_completed");
+  assert.ok(serviceEvent);
+  assert.equal(serviceEvent.payload.tyreFrom,"soft");
+  assert.equal(serviceEvent.payload.tyreTo,"hard");
+  assert.equal(serviceEvent.payload.tyreChanged,true);
+  assert.equal(serviceEvent.payload.refuelled,true);
+  assert.ok(serviceEvent.payload.fuelAddedKg>0);
+  assert.equal(typeof serviceEvent.payload.crewError,"boolean");
   assert.ok(completed.events.some((event)=>event.type==="pit_exit"));
 });
 
