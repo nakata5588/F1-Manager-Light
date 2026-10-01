@@ -166,7 +166,7 @@ export function cancelRaceCommand(state,{id=null,driverId=null,type=null}={}){
     }else{
       if(wantedDriver&&text(row?.driverId)!==wantedDriver)return true;
       if(wantedType&&text(row?.type)!==wantedType)return true;
-      matches=Boolean(wantedDriver||wantedType);
+      matches=true;
     }
     if(matches)removed.push(row);
     return !matches;
