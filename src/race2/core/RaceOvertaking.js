@@ -8,6 +8,7 @@
 
 import { hashSeed } from "../../core/random.js";
 import { trackForwardGapM } from "../track/TrackModel.js";
+import { raceTargetSpeedProfile } from "./RaceDynamics.js";
 import {
   RACE_TRAFFIC_HARD_GAP_M,
   desiredTrafficGapM,
@@ -17,9 +18,10 @@ import {
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.4;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
-export const RACE_BATTLE_DURATION_MS=2400;
-export const RACE_BATTLE_EXTENSION_MS=800;
-export const RACE_BATTLE_RETRY_COOLDOWN_MS=1600;
+export const RACE_BATTLE_DURATION_MS=3200;
+export const RACE_BATTLE_MAX_DURATION_MS=9000;
+export const RACE_BATTLE_EXTENSION_MS=1200;
+export const RACE_BATTLE_RETRY_COOLDOWN_MS=5000;
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -49,6 +51,46 @@ function score(value,fallback=null){
   const parsed=finite(value,null);
   if(parsed==null)return fallback;
   return clamp(parsed,0,100);
+}
+
+function overtakingDifficulty(state){
+  return clamp(finite(state?.track?.traits?.overtakingDifficulty,50),0,100);
+}
+
+function overtakingTrackFactor(state){
+  return clamp(1.20-overtakingDifficulty(state)*0.008,0.40,1.10);
+}
+
+function overtakingRangeFactor(state){
+  return clamp(1.08-overtakingDifficulty(state)*0.0035,0.72,1.08);
+}
+
+function freeTargetSpeedMs(state,car){
+  const target=finite(raceTargetSpeedProfile(state,car)?.targetSpeedKmh,null);
+  if(target==null)return Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
+  return Math.max(0,target/3.6);
+}
+
+function overtakeClosingPotentialMs(state,attacker,defender){
+  const currentAttacker=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
+  const currentDefender=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
+  const currentClosing=currentAttacker-currentDefender;
+  const freeClosing=freeTargetSpeedMs(state,attacker)-freeTargetSpeedMs(state,defender);
+  return Math.max(currentClosing,freeClosing);
+}
+
+function battleDurationMs(state,gapM,closingPotentialMs){
+  const requiredGain=Math.max(
+    RACE_TRAFFIC_HARD_GAP_M,
+    Math.max(0,finite(gapM,0))+RACE_TRAFFIC_HARD_GAP_M
+  );
+  const usableClosing=Math.max(1.2,finite(closingPotentialMs,0));
+  const estimatedMs=(requiredGain/usableClosing)*1000;
+  return Math.round(clamp(
+    estimatedMs*1.15+900,
+    RACE_BATTLE_DURATION_MS,
+    RACE_BATTLE_MAX_DURATION_MS
+  ));
 }
 
 function deterministicUnit(state,key){
@@ -177,7 +219,7 @@ export function initialBattleState(){
   };
 }
 
-export function overtakeAttemptProbability(state,attacker,defender,{gapM=null}={}){
+export function overtakeAttemptProbability(state,attacker,defender,{gapM=null,closingSpeedMs=null}={}){
   const overtaking=score(driverPerformance(attacker)?.overtaking,null);
   const defending=score(driverPerformance(defender)?.defending,null);
   if(overtaking==null||defending==null)return 0;
@@ -191,7 +233,7 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null}={
 
   const attackerSpeed=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
   const defenderSpeed=Math.max(0,finite(defender?.speedMs,finite(defender?.speedKmh,0)/3.6));
-  const closingSpeed=attackerSpeed-defenderSpeed;
+  const closingSpeed=finite(closingSpeedMs,attackerSpeed-defenderSpeed);
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
     clamp(defender?.effectiveCornerSeverity,0,1)
@@ -218,8 +260,13 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null}={
   const scoreDelta=(attack-defense)/110;
   const cornerPenalty=cornerSeverity*0.30;
 
+  const baseProbability=clamp(
+    0.34+gapFactor*0.20+closingBonus+scoreDelta-cornerPenalty,
+    0.04,
+    0.94
+  );
   return round(
-    clamp(0.34+gapFactor*0.20+closingBonus+scoreDelta-cornerPenalty,0.04,0.94),
+    clamp(baseProbability*overtakingTrackFactor(state),0.02,0.94),
     6
   );
 }
@@ -262,11 +309,15 @@ function attemptOpportunity(state,attacker,occupied){
   if(occupied.has(String(defender?.carId??"")))return null;
 
   const gapM=Math.max(0,finite(nearest?.gapM,Infinity));
-  const attemptRange=Math.max(
+  const baseAttemptRange=Math.max(
     RACE_OVERTAKE_ATTEMPT_RANGE_M,
     finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)+8
   );
+  const attemptRange=baseAttemptRange*overtakingRangeFactor(state);
   if(gapM>attemptRange)return null;
+
+  const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
+  if(closingPotentialMs<0.45)return null;
 
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
@@ -274,7 +325,10 @@ function attemptOpportunity(state,attacker,occupied){
   );
   if(cornerSeverity>0.72)return null;
 
-  const probability=overtakeAttemptProbability(state,attacker,defender,{gapM});
+  const probability=overtakeAttemptProbability(state,attacker,defender,{
+    gapM,
+    closingSpeedMs:closingPotentialMs,
+  });
   if(probability<=0)return null;
 
   const bucket=Math.floor(Math.max(0,finite(state?.simulationTimeMs,0))/1000);
@@ -284,7 +338,15 @@ function attemptOpportunity(state,attacker,occupied){
   );
   if(roll>=probability)return null;
 
-  return {defender,gapM,probability,roll};
+  return {
+    defender,
+    gapM,
+    probability,
+    roll,
+    closingPotentialMs,
+    attemptRangeM:attemptRange,
+    trackDifficulty:overtakingDifficulty(state),
+  };
 }
 
 function resolveYieldingBattles(state,proposedCars){
@@ -528,7 +590,12 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
       defender?.carId,
     ].join(":");
     const side=deterministicUnit(state,`side:${attemptId}`)<0.5?-1:1;
-    const expiresAtMs=now+RACE_BATTLE_DURATION_MS;
+    const durationMs=battleDurationMs(
+      state,
+      opportunity.gapM,
+      opportunity.closingPotentialMs
+    );
+    const expiresAtMs=now+durationMs;
     const contactRiskPct=round(
       battleContactProbability(state,previousAttacker,opportunity.defender,{stepMs})*100,
       5
@@ -564,6 +631,10 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
       probability:opportunity.probability,
       roll:round(opportunity.roll,8),
       side,
+      durationMs,
+      closingPotentialMs:round(opportunity.closingPotentialMs,6),
+      attemptRangeM:round(opportunity.attemptRangeM,6),
+      trackDifficulty:round(opportunity.trackDifficulty,3),
     }));
 
     // The first battle tick keeps RW8.5's longitudinal hard gap. From the
