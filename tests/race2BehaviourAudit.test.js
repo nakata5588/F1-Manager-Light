@@ -1,5 +1,5 @@
 import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "node:assert/strict";\nimport { execFileSync } from "node:child_process";\nimport path from "node:path";\nimport { fileURLToPath } from "node:url";
 
 import {
   aggregateRaceBehaviour,
@@ -82,4 +82,28 @@ test("RW11A aggregate exposes averages across deterministic audit runs",()=>{
   assert.equal(aggregate.pits.services,1.5);
   assert.equal(aggregate.finalState.dnfs,1);
   assert.equal(aggregate.tyres.averageCondition,65);
+});
+
+
+test("RW11A behaviour audit smoke runs every calibration scenario on the canonical core",{timeout:120_000},(t)=>{
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+  const output=execFileSync(
+    process.execPath,
+    [path.join(root,"scripts","audit-race-behaviour.mjs"),"--seeds=1"],
+    {cwd:root,encoding:"utf8",maxBuffer:4*1024*1024}
+  );
+  const marker='{\\n  "generatedAt"';
+  const start=output.indexOf(marker);
+  assert.ok(start>=0,"audit output must include its JSON report");
+  const report=JSON.parse(output.slice(start));
+  assert.deepEqual(
+    Object.keys(report.scenarios),
+    ["1980-dry","1980-wet","2004-dry","2026-dry"]
+  );
+  for(const [name,row] of Object.entries(report.scenarios)){
+    assert.equal(row.aggregate.runs,1);
+    assert.equal(row.runs[0].status,"finished");
+    assert.equal(row.runs[0].fieldSize,16);
+    t.diagnostic(`RW11A ${name} baseline ${JSON.stringify(row.aggregate)}`);
+  }
 });
