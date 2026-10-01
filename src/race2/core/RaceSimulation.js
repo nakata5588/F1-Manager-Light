@@ -151,6 +151,10 @@ function advanceCar(state,car,stepMs){
       effectiveTargetSpeedKmh,
       dynamics?.targetSpeedKmh??car?.targetSpeedKmh??0
     ).toFixed(6)),
+    freeTargetSpeedKmh:Number(finite(
+      freeTargetSpeedKmh,
+      car?.freeTargetSpeedKmh??0
+    ).toFixed(6)),
     traffic:{
       aheadCarId:trafficContext?.aheadCarId??null,
       gapM:trafficContext?.gapM??null,
