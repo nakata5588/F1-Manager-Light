@@ -319,13 +319,19 @@ export default function CanonicalRaceView({
   const motionTargets=useMemo(()=>cars.map((car)=>{
     const boxProgress=raceViewPitBoxProgress(teamIds,car?.team_id);
     const active=Boolean(car?.pit_state?.active);
+    const retirementCleared=Boolean(
+      car?.retired&&car?.retirement_trackside?.status==="cleared"
+    );
     return {
       ...car,
-      pit_lane_active:active,
-      pit_lane_progress:active
-        ?pitLaneProgressForPhase(car.pit_state,{boxProgress})
-        :null,
+      pit_lane_active:active||retirementCleared,
+      pit_lane_progress:retirementCleared
+        ?boxProgress
+        :active
+          ?pitLaneProgressForPhase(car.pit_state,{boxProgress})
+          :null,
       pit_box_progress:boxProgress,
+      pit_box_parked:retirementCleared,
     };
   }),[cars,teamIds]);
   const visualCars=useCanonicalRaceViewMotion(motionTargets,{
@@ -354,7 +360,9 @@ export default function CanonicalRaceView({
     ?visualCarPose(selectedVisual,geometry,unitsPerMeter)
     :null;
   const activePitTeamIds=new Set(
-    visualCars.filter((car)=>car?.pit_lane_active).map((car)=>String(car?.team_id||""))
+    visualCars
+      .filter((car)=>car?.pit_lane_active&&!car?.retired)
+      .map((car)=>String(car?.team_id||""))
   );
   const [cameraMode,setCameraMode]=useState("fit");
   const [cameraZoom,setCameraZoom]=useState(1);
@@ -508,7 +516,11 @@ export default function CanonicalRaceView({
           pointerEvents="none"
         />:null}
         <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth=".65" strokeDasharray="2 13" opacity=".18"/>
-        {visualCars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=><CanonicalSpray
+        {visualCars.filter((car)=>
+          !car.retired||
+          car.retirement_trackside?.visible!==false||
+          (car.pit_box_parked&&pitLanePoints.length>1)
+        ).map((car)=><CanonicalSpray
           key={`spray_${car.id}`}
           car={car}
           geometry={geometry}
@@ -516,7 +528,11 @@ export default function CanonicalRaceView({
           opacity={weatherVisuals.sprayOpacity}
           scale={markerScale}
         />)}
-        {visualCars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=>{
+        {visualCars.filter((car)=>
+          !car.retired||
+          car.retirement_trackside?.visible!==false||
+          (car.pit_box_parked&&pitLanePoints.length>1)
+        ).map((car)=>{
           const color=teamColor(teamBrands,car.team_id,year);
           const label=shortName(drivers,car.driver_id);
           const title=`P${car.position} · ${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)} · ${formatSpeed(car.speed_kmh)}`;
@@ -577,7 +593,7 @@ export default function CanonicalRaceView({
             <span className="min-w-0">
               <span className="block truncate text-[11px] font-semibold text-slate-200">{driverName(drivers,car.driver_id)}</span>
               <span className="block truncate text-[9px] text-slate-500">{car.retired
-                ?car.status
+                ?(car?.retirement_trackside?.status==="cleared"?"DNF · PIT BOX":car.status)
                 :car?.pit_state?.active
                   ?`PIT · ${String(car.pit_state.phase||car.pit_state.status||"service").replaceAll("_"," ")}`
                   :`${formatSpeed(car.speed_kmh)} · ${car.tyre?.compound||"—"} ${Number.isFinite(Number(car.tyre?.condition))?Math.round(Number(car.tyre.condition))+"%":""}`
