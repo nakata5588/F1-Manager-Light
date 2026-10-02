@@ -556,18 +556,9 @@ export function completeQualifyingSession(gs,{gp}={}){
 export async function completeRaceSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
-  const canonical=raceWeekendEngineVersion(weekend)===RACE_WEEKEND_ENGINES.RW2;
-  const canonicalState=weekend?.canonical_race_runtime?.state||null;
-  if(canonical){
-    if(String(canonicalState?.status||"")!=="finished")return gs;
-  }else if(weekend.live_race&&!liveRaceReadyToFinalize(gs)){
-    return gs;
-  }
 
   const targetGp=targetGpForWeekend(weekend,gp);
   const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
-  if(!startingGridRows.length)return gs;
-
   const expectedResultKey=String(
     weekend?.race_result_key||
     weekend?.key||
@@ -576,6 +567,11 @@ export async function completeRaceSession(gs,{gp}={}){
   const archivedResult=(Array.isArray(gs?.results)?gs.results:[]).find(
     (result)=>String(result?.key||"")===expectedResultKey
   );
+
+  // Recovery must win over stale live/runtime readiness. The tab-local
+  // session journal can be older than the rolling Continue snapshot while
+  // both still belong to the same career. If the official result is already
+  // archived, restore Results without replaying any race/post-race effects.
   if(archivedResult){
     const sessions=sessionWithPatch(weekend.sessions,"race",{
       status:"completed",
@@ -601,6 +597,16 @@ export async function completeRaceSession(gs,{gp}={}){
         race_completed_at:clampISO(archivedResult?.dateISO||gs?.currentDateISO),
       },
     };
+  }
+
+  if(!startingGridRows.length)return gs;
+
+  const canonical=raceWeekendEngineVersion(weekend)===RACE_WEEKEND_ENGINES.RW2;
+  const canonicalState=weekend?.canonical_race_runtime?.state||null;
+  if(canonical){
+    if(String(canonicalState?.status||"")!=="finished")return gs;
+  }else if(weekend.live_race&&!liveRaceReadyToFinalize(gs)){
+    return gs;
   }
 
   const raceRows=canonical
