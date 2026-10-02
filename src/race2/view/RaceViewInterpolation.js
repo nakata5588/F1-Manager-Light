@@ -70,38 +70,51 @@ export function interpolateRaceViewCar(fromCar,toCar,{
   const fromPitActive=Boolean(fromCar?.pit_lane_active);
   const targetPitActive=Boolean(toCar?.pit_lane_active);
   const targetPitBoxParked=Boolean(toCar?.pit_box_parked);
-  const fromPitProgress=Number.isFinite(Number(fromCar?.pit_lane_progress))
-    ?Number(fromCar.pit_lane_progress)
-    :targetPitActive?0:null;
-  const targetPitProgress=Number.isFinite(Number(toCar?.pit_lane_progress))
-    ?Number(toCar.pit_lane_progress)
-    :fromPitActive?1:null;
-  const pitLaneProgress=fromPitProgress==null&&targetPitProgress==null
-    ?null
-    :interpolateNumber(
-      fromPitProgress??targetPitProgress??0,
-      targetPitProgress??fromPitProgress??0,
-      t
-    );
-  const fromPitMix=Number.isFinite(Number(fromCar?.pit_lane_mix))
-    ?Number(fromCar.pit_lane_mix)
-    :(fromPitActive?1:0);
-  const targetPitMix=targetPitBoxParked
-    ?1
-    :Number.isFinite(Number(toCar?.pit_lane_mix))
+  let pitLaneProgress=null;
+  let pitLaneMix=0;
+  let pitBoxMix=0;
+  let pitLaneActive=false;
+
+  // RW12D: once a retired car is officially cleared from the track, its
+  // presentation moves straight to the team box. It must not appear to drive
+  // through the pit lane after retirement.
+  if(targetPitBoxParked){
+    pitLaneProgress=Number.isFinite(Number(toCar?.pit_box_progress))
+      ?Number(toCar.pit_box_progress)
+      :Number(toCar?.pit_lane_progress??0.52);
+    pitLaneMix=1;
+    pitBoxMix=1;
+    pitLaneActive=true;
+  }else{
+    const fromPitProgress=Number.isFinite(Number(fromCar?.pit_lane_progress))
+      ?Number(fromCar.pit_lane_progress)
+      :targetPitActive?0:null;
+    const targetPitProgress=Number.isFinite(Number(toCar?.pit_lane_progress))
+      ?Number(toCar.pit_lane_progress)
+      :fromPitActive?1:null;
+    pitLaneProgress=fromPitProgress==null&&targetPitProgress==null
+      ?null
+      :interpolateNumber(
+        fromPitProgress??targetPitProgress??0,
+        targetPitProgress??fromPitProgress??0,
+        t
+      );
+    const fromPitMix=Number.isFinite(Number(fromCar?.pit_lane_mix))
+      ?Number(fromCar.pit_lane_mix)
+      :(fromPitActive?1:0);
+    const targetPitMix=Number.isFinite(Number(toCar?.pit_lane_mix))
       ?Number(toCar.pit_lane_mix)
       :(targetPitActive?1:0);
-  const pitLaneMix=interpolateNumber(fromPitMix,targetPitMix,t);
-  const fromBoxMix=Number.isFinite(Number(fromCar?.pit_box_mix))
-    ?Number(fromCar.pit_box_mix)
-    :(fromCar?.pit_box_parked?1:0);
-  const targetBoxMix=targetPitBoxParked
-    ?1
-    :Number.isFinite(Number(toCar?.pit_box_mix))
+    pitLaneMix=interpolateNumber(fromPitMix,targetPitMix,t);
+    const fromBoxMix=Number.isFinite(Number(fromCar?.pit_box_mix))
+      ?Number(fromCar.pit_box_mix)
+      :(fromCar?.pit_box_parked?1:0);
+    const targetBoxMix=Number.isFinite(Number(toCar?.pit_box_mix))
       ?Number(toCar.pit_box_mix)
       :0;
-  const pitBoxMix=interpolateNumber(fromBoxMix,targetBoxMix,t);
-  const pitLaneActive=targetPitBoxParked||pitLaneMix>0.001||(targetPitActive&&t<1);
+    pitBoxMix=interpolateNumber(fromBoxMix,targetBoxMix,t);
+    pitLaneActive=pitLaneMix>0.001||(targetPitActive&&t<1);
+  }
 
   return {
     ...toCar,
