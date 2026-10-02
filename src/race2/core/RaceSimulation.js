@@ -21,7 +21,7 @@ import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { planCanonicalPitStrategies } from "./RacePitStrategy.js";
 import { applyDueRaceCommands } from "./RaceCommands.js";
-import { resolveRaceIncidents } from "./RaceIncidents.js";
+import { advanceRetirementTrackside, resolveRaceIncidents } from "./RaceIncidents.js";
 import { advanceRaceConditions, trackStateFromWeatherRow } from "./RaceConditions.js";
 import {
   advanceRedFlagSuspension,
@@ -332,12 +332,14 @@ export function stepRaceState(state){
     cars:workingState.cars,
   };
   const resourceCars=advanceRaceResources(resourceState,incidents.cars,{stepMs});
-  const cars=applyCanonicalLapTiming(state,resourceCars,{stepMs});
+  const retirementLifecycle=advanceRetirementTrackside(workingState,resourceCars);
+  const cars=applyCanonicalLapTiming(state,retirementLifecycle.cars,{stepMs});
   const rawEvents=[
     ...(commands.events||[]),
     ...(pits.events||[]),
     ...(overtaking.events||[]),
     ...(incidents.events||[]),
+    ...(retirementLifecycle.events||[]),
     ...(conditions.events||[]),
     ...(lifecycle.events||[]),
   ];
