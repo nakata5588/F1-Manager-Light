@@ -470,7 +470,7 @@ function CanonicalMiniMap({
           fill={teamColor(teamBrands,car.team_id,year)}
           stroke={selected?"#fff":"#020617"}
           strokeWidth={selected?2:1}
-          opacity={car.retired?.65:.95}
+          opacity={car.retired?0.65:0.95}
         />;
       })}
     </svg>
