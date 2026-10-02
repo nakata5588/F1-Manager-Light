@@ -23,6 +23,7 @@ import {
   interpolateRaceViewCars,
   raceViewInterpolationAlpha,
   raceViewInterpolationDurationMs,
+  raceViewRetargetCanonicalDeltaMs,
   retimeRaceViewInterpolation,
 } from "../../race2/view/RaceViewInterpolation.js";
 import {
@@ -296,6 +297,33 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     const target=canonicalCars;
     const previousTick=previousTickRef.current;
     const previousCanonicalTime=previousCanonicalTimeRef.current;
+    const now=performance.now();
+    let from=visualCarsRef.current;
+    let carriedCanonicalMs=0;
+
+    // If a newer canonical snapshot interrupts an interpolation before its
+    // visual pose reaches the previous target, carry that unfinished canonical
+    // distance forward. Otherwise high-speed playback can accumulate visual
+    // lag that is accidentally discarded when the next target arrives.
+    const interrupted=interpolationRef.current;
+    if(playbackRunning&&interrupted){
+      const carry=retimeRaceViewInterpolation({
+        startedAtMs:interrupted.startedAtMs,
+        durationMs:interrupted.durationMs,
+        canonicalDeltaMs:interrupted.canonicalDeltaMs,
+        timestampMs:now,
+        playbackSpeed,
+      });
+      if(carry.alpha<1){
+        from=interpolateRaceViewCars(interrupted.from,interrupted.target,{
+          alpha:carry.alpha,
+          trackLengthM,
+        });
+        visualCarsRef.current=from;
+        carriedCanonicalMs=carry.remainingCanonicalMs;
+      }
+    }
+
     previousTickRef.current=canonicalTick;
     previousCanonicalTimeRef.current=canonicalTimeMs;
 
@@ -303,7 +331,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
       !playbackRunning||
       previousTick==null||
       canonicalTick<=previousTick||
-      !visualCarsRef.current?.length
+      !from?.length
     );
     if(reset){
       interpolationRef.current=null;
@@ -312,10 +340,14 @@ function useCanonicalRaceViewMotion(canonicalCars,{
       return undefined;
     }
 
-    const canonicalDeltaMs=Math.max(0,Number(canonicalTimeMs)-Number(previousCanonicalTime||0));
-    const durationMs=raceViewInterpolationDurationMs(
+    const canonicalDeltaMs=raceViewRetargetCanonicalDeltaMs(
+      carriedCanonicalMs,
       previousCanonicalTime,
-      canonicalTimeMs,
+      canonicalTimeMs
+    );
+    const durationMs=raceViewInterpolationDurationMs(
+      0,
+      canonicalDeltaMs,
       playbackSpeed
     );
     if(durationMs<=0){
@@ -326,9 +358,9 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     }
 
     interpolationRef.current={
-      from:visualCarsRef.current,
+      from,
       target,
-      startedAtMs:performance.now(),
+      startedAtMs:now,
       durationMs,
       canonicalDeltaMs,
     };
