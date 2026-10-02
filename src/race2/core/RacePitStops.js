@@ -8,6 +8,7 @@ import { hashSeed } from "../../core/random.js";
 import { buildPitServiceSchedule } from "../../engine/PitServiceEngine.js";
 import {
   normalisePitPhaseDurations,
+  pitLaneProgressForPhase,
   pitLaneLossMultiplierForRaceControl,
   pitLaneLossSeconds,
   pitRefuelServiceSecondsForYear,
@@ -319,44 +320,12 @@ function beginPitStop(state,previous,proposed){
   };
 }
 
-function phaseLaneProgress(pit){
-  const phases=pit?.service?.phases||[];
-  const index=Math.max(0,Math.floor(finite(pit?.phaseIndex,0)));
-  const elapsed=Math.max(0,finite(pit?.phaseElapsedMs,0));
-  const phase=String(pit?.phase||"");
-  const entryLane=new Set(["pit_entry","pit_lane"]);
-  const exitLane=new Set(["pit_exit","rejoin"]);
-
-  if(entryLane.has(phase)){
-    const total=phases
-      .filter((row)=>entryLane.has(row.phase))
-      .reduce((sum,row)=>sum+Math.max(0,finite(row.duration_ms,0)),0);
-    const before=phases.slice(0,index)
-      .filter((row)=>entryLane.has(row.phase))
-      .reduce((sum,row)=>sum+Math.max(0,finite(row.duration_ms,0)),0);
-    return {segment:"entry",progress:total>0?clamp((before+elapsed)/total,0,1):1};
-  }
-  if(exitLane.has(phase)){
-    const total=phases
-      .filter((row)=>exitLane.has(row.phase))
-      .reduce((sum,row)=>sum+Math.max(0,finite(row.duration_ms,0)),0);
-    const before=phases.slice(0,index)
-      .filter((row)=>exitLane.has(row.phase))
-      .reduce((sum,row)=>sum+Math.max(0,finite(row.duration_ms,0)),0);
-    return {segment:"exit",progress:total>0?clamp((before+elapsed)/total,0,1):1};
-  }
-  return {segment:"box",progress:0};
-}
-
 function pitAbsoluteDistance(pit){
   const entry=finite(pit?.entryAbsoluteM,0);
-  const box=finite(pit?.boxAbsoluteM,entry);
-  const exit=finite(pit?.exitAbsoluteM,box);
-  const lane=phaseLaneProgress(pit);
-  if(lane.segment==="entry")return entry+(box-entry)*lane.progress;
-  if(lane.segment==="exit")return box+(exit-box)*lane.progress;
-  if(pit?.completed)return exit;
-  return box;
+  const exit=finite(pit?.exitAbsoluteM,entry);
+  const progress=pitLaneProgressForPhase(pit,{boxProgress:0.52});
+  if(progress==null)return entry;
+  return entry+(exit-entry)*progress;
 }
 
 function applyService(state,car,pit){
