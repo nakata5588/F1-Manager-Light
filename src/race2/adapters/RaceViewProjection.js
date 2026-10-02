@@ -98,6 +98,14 @@ export function projectRaceStateToRaceView(state){
     );
     const progress=lengthM>0?wrap01(distanceAlongLapM/lengthM):0;
     const retired=Boolean(car?.dnf||car?.status==="dnf"||row?.status==="dnf");
+    const retirementTrackside=retired&&car?.retirement?.trackside
+      ?structuredClone(car.retirement.trackside)
+      :null;
+    const parkedTrackside=Boolean(
+      retirementTrackside&&
+      retirementTrackside.status==="parked"&&
+      retirementTrackside.visible!==false
+    );
 
     return {
       position:finite(row?.position,index+1),
@@ -135,7 +143,10 @@ export function projectRaceStateToRaceView(state){
       visual_track_progress:progress,
       speed_kmh:finite(car?.speedKmh,0),
       speed_ms:finite(car?.speedMs,0),
-      lateral_offset_m:finite(car?.lateralOffsetM,0),
+      lateral_offset_m:parkedTrackside
+        ?finite(retirementTrackside?.lateralOffsetM,finite(car?.lateralOffsetM,0))
+        :finite(car?.lateralOffsetM,0),
+      retirement_trackside:retirementTrackside,
       current_pace:car?.resources?.paceMode??null,
       planned_stop_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
       pit_plan:car?.resources?.strategy?.pitPlan??null,
