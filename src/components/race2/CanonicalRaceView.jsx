@@ -270,7 +270,12 @@ function useCanonicalRaceViewMotion(canonicalCars,{
   const visualCarsRef=useRef(canonicalCars);
   const previousTickRef=useRef(canonicalTick);
   const previousCanonicalTimeRef=useRef(canonicalTimeMs);
+  const playbackSpeedRef=useRef(playbackSpeed);
   const frameRef=useRef(null);
+
+  useEffect(()=>{
+    playbackSpeedRef.current=playbackSpeed;
+  },[playbackSpeed]);
 
   useEffect(()=>{
     if(frameRef.current!=null){
@@ -299,7 +304,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     const durationMs=raceViewInterpolationDurationMs(
       previousCanonicalTime,
       canonicalTimeMs,
-      playbackSpeed
+      playbackSpeedRef.current
     );
     if(durationMs<=0){
       visualCarsRef.current=target;
@@ -339,7 +344,6 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     canonicalTick,
     canonicalTimeMs,
     playbackRunning,
-    playbackSpeed,
     trackLengthM,
   ]);
 
