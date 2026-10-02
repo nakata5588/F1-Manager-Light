@@ -320,6 +320,13 @@ test("dev-data bootstrap watches non-public constructor references and historica
 });
 
 
+test("generic technical state patches invalidate the cached car ranking at the Store boundary",async()=>{
+  const storeSource=await fs.readFile(new URL("../src/state/GameStore.js",import.meta.url),"utf8");
+  assert.match(storeSource,/carPerformanceSnapshotInvalidatedByPatch\(patch\)/);
+  assert.match(storeSource,/invalidateSnapshot\?\{carPerformanceSnapshot:null\}/);
+  assert.match(storeSource,/explicitSnapshot/);
+});
+
 test("daily advance paths share one canonical subsystem pipeline and fail closed",async()=>{
   const [storeSource,buttonSource]=await Promise.all([
     fs.readFile(new URL("../src/state/GameStore.js",import.meta.url),"utf8"),
