@@ -2144,10 +2144,10 @@ export default function RaceWeekend(){
                   const teammateLive=teammateId?liveRows.find((row)=>String(row?.driver_id??"")===teammateId):null;
                   const teammateGapMs=Number(teammateLive?.gap_to_previous_ms??teammateLive?.interval_ms);
                   const canYieldToTeammate=Boolean(
-                    !usesCanonicalRaceRuntime&&
                     teammateId&&liveDriver&&!liveDriver?.retired&&teammateLive&&!teammateLive?.retired&&
                     Number(teammateLive?.position)===Number(liveDriver?.position)+1&&
                     (!Number.isFinite(teammateGapMs)||teammateGapMs<=3500)&&
+                    !liveDriver?.team_order?.active&&
                     !pending.some((command)=>command?.type==="team_order")
                   );
                   const lastFeedback=!liveDriver?.retired?collectionRows(raceViewModel?.events).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
@@ -2160,11 +2160,13 @@ export default function RaceWeekend(){
                       <div className="text-[10px] text-sky-300">{usesCanonicalRaceRuntime
                         ?(Number.isFinite(Number(liveDriver?.planned_stop_lap))?`Planned stop L${liveDriver.planned_stop_lap}`:"No planned stop")
                         :(liveDriver?.pit_window?`${pitWindowLabel(liveDriver.pit_window)} · pit now ~P${liveDriver?.pit_rejoin_position??"—"}`:"No planned pit window")}</div>
+                      {usesCanonicalRaceRuntime&&liveDriver?.team_order?.active?<div className="mt-0.5 text-[10px] font-semibold text-violet-300">Team order active · letting {driverName(drivers,liveDriver.team_order.teammateDriverId)} through</div>:null}
                       {usesCanonicalRaceRuntime
                         ?<div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={pending.length?pending.map((command)=>String(command?.type||"order")).join(", "):"No queued orders"}><span className="text-slate-500">Queued orders:</span> {pending.length?pending.map((command)=>{
                           const type=String(command?.type||"order");
                           if(type==="pace")return "pace "+String(command?.payload?.paceMode||"balanced");
                           if(type==="pit")return "pit"+(command?.payload?.tyreId?" → "+tyreName(teamTyres,command.payload.tyreId):"");
+                          if(type==="team_order")return "let "+driverName(drivers,command?.payload?.teammateDriverId??command?.payload?.teammate_id)+" through";
                           return type.replaceAll("_"," ");
                         }).join(" · "):"—"}</div>
                         :<div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>}
@@ -2215,9 +2217,9 @@ export default function RaceWeekend(){
                               {hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
                               {hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
-                            {!usesCanonicalRaceRuntime&&canYieldToTeammate?<button
+                            {canYieldToTeammate?<button
                               type="button"
-                              title={"Team order: let "+driverName(drivers,teammateId)+" through next lap"}
+                              title={"Team order: let "+driverName(drivers,teammateId)+" through"}
                               onClick={()=>setLiveCommand({driverId:did,type:"team_order",teamOrder:"yield",teammateId})}
                               className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-500/20"
                             >Let {driverName(drivers,teammateId).split(" ").at(-1)} through</button>:null}
