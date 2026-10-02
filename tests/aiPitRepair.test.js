@@ -44,7 +44,7 @@ test("RW5.3B.2C repairs valuable damage opportunistically during an existing sto
   assert.ok(decision.decision_margin_s>0);
 });
 
-test("RW5.3B.2C neutralisation can turn a dedicated repair stop into good value",()=>{
+test("RW27 major front-wing damage can justify a dedicated green-flag repair stop",()=>{
   const damage=damageStateFromComponents({front_wing:90});
   const common={
     year:1980,
@@ -60,9 +60,12 @@ test("RW5.3B.2C neutralisation can turn a dedicated repair stop into good value"
   };
   const green=aiPitRepairDecision({...common,controlType:"GREEN"});
   const safetyCar=aiPitRepairDecision({...common,controlType:"SAFETY_CAR"});
-  assert.equal(green.should_repair,false);
+  assert.equal(green.should_repair,true);
+  assert.equal(green.dedicated_stop,true);
+  assert.ok(green.repair_components.includes("front_wing"));
   assert.equal(safetyCar.should_repair,true);
   assert.equal(safetyCar.dedicated_stop,true);
+  assert.ok(safetyCar.decision_margin_s>green.decision_margin_s);
   assert.ok(safetyCar.effective_pit_cost_s<green.effective_pit_cost_s);
 });
 

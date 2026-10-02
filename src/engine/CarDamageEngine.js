@@ -9,7 +9,7 @@ const clamp=(v,min=0,max=100)=>Math.max(min,Math.min(max,Number(v)||0));
 const COMPONENTS=["front_wing","floor","suspension","rear_wing","brakes","cooling"];
 
 const COMPONENT_EFFECTS={
-  front_wing:{aero:0.90,handling:0.30,braking:0.00,cooling:0.00,pace_s_at_100:0.90},
+  front_wing:{aero:0.90,handling:0.30,braking:0.00,cooling:0.00,pace_s_at_100:1.80},
   floor:{aero:1.00,handling:0.45,braking:0.00,cooling:0.00,pace_s_at_100:1.15},
   suspension:{aero:0.10,handling:1.00,braking:0.30,cooling:0.00,pace_s_at_100:0.95},
   rear_wing:{aero:0.80,handling:0.45,braking:0.00,cooling:0.00,pace_s_at_100:0.75},
