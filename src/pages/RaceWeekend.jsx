@@ -7,7 +7,7 @@ import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategy
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
-import { canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
+import { RACE_VIEW_PLAYBACK_SPEEDS, canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
 import { batchCanonicalRaceAttentionEvents, canonicalRaceFlagNotice, presentCanonicalRaceEvent } from "../race2/presentation/RaceEventPresenter.js";
 import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../race2/gateway/RaceWeekendRuntimeGateway.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
@@ -700,6 +700,7 @@ export default function RaceWeekend(){
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const playerEntrants=collectionRows(weekend?.entrants).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
   const playerDriverIds=playerEntrants.map((row)=>String(row?.driver_id||"")).filter(Boolean);
+  const playbackSpeeds=usesCanonicalRaceRuntime?RACE_VIEW_PLAYBACK_SPEEDS:RACE_PLAYBACK_SPEEDS;
   const selectedPlayerEntry=playerEntrants.find((row)=>String(row?.driver_id||"")===String(selectedLiveDriverId||""))||null;
   const practiceResults=collectionRows(weekend?.practice?.results);
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
@@ -1235,7 +1236,7 @@ export default function RaceWeekend(){
             {racePlaying?<Pause className="h-3.5 w-3.5 fill-current"/>:<Play className="h-3.5 w-3.5 fill-current"/>}
           </button>
           <div className="flex items-center rounded-md border border-white/10 bg-black/20 p-0.5">
-            {RACE_PLAYBACK_SPEEDS.map((speed)=><button
+            {playbackSpeeds.map((speed)=><button
               type="button"
               key={speed}
               onClick={()=>setRacePlaybackSpeed(speed)}
