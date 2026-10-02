@@ -86,3 +86,42 @@ export function normalisePitPhaseDurations(stop={}){
   }
   return phases;
 }
+
+
+export function pitLaneProgressForPhase(pitState={},{
+  boxProgress=0.52,
+}={}){
+  const box=Math.max(0,Math.min(1,finite(boxProgress,0.52)));
+  const phases=Array.isArray(pitState?.service?.phases)?pitState.service.phases:[];
+  const index=Math.max(0,Math.floor(finite(pitState?.phaseIndex,0)));
+  const elapsed=Math.max(0,finite(pitState?.phaseElapsedMs,0));
+  const phase=String(pitState?.phase||"");
+  const entryPhases=new Set(["pit_entry","pit_lane"]);
+  const exitPhases=new Set(["pit_exit","rejoin"]);
+
+  if(entryPhases.has(phase)){
+    const total=phases
+      .filter((row)=>entryPhases.has(String(row?.phase||"")))
+      .reduce((sum,row)=>sum+Math.max(0,finite(row?.duration_ms,0)),0);
+    const before=phases.slice(0,index)
+      .filter((row)=>entryPhases.has(String(row?.phase||"")))
+      .reduce((sum,row)=>sum+Math.max(0,finite(row?.duration_ms,0)),0);
+    const local=total>0?Math.max(0,Math.min(1,(before+elapsed)/total)):1;
+    return Number((box*local).toFixed(9));
+  }
+
+  if(exitPhases.has(phase)){
+    const total=phases
+      .filter((row)=>exitPhases.has(String(row?.phase||"")))
+      .reduce((sum,row)=>sum+Math.max(0,finite(row?.duration_ms,0)),0);
+    const before=phases.slice(0,index)
+      .filter((row)=>exitPhases.has(String(row?.phase||"")))
+      .reduce((sum,row)=>sum+Math.max(0,finite(row?.duration_ms,0)),0);
+    const local=total>0?Math.max(0,Math.min(1,(before+elapsed)/total)):1;
+    return Number((box+(1-box)*local).toFixed(9));
+  }
+
+  if(Boolean(pitState?.completed))return 1;
+  if(Boolean(pitState?.active))return box;
+  return null;
+}
