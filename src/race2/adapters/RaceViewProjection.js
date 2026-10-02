@@ -295,6 +295,9 @@ export function projectRaceStateToRaceView(state){
       traffic:raceViewTraffic(car),
       battle:car?.battle??null,
       battle_context:raceViewBattleContext(state,car,battleStarts),
+      team_order:car?.commands?.teamOrder
+        ?{...car.commands.teamOrder}
+        :null,
     };
   });
 
