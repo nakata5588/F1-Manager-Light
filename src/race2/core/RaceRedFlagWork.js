@@ -262,6 +262,18 @@ export function applyCanonicalRedFlagRestartStrategy(state,{
   const plan=text(pitPlan);
   if(plan&&PIT_PLANS.has(plan)&&plan!==text(strategy?.pitPlan)){
     strategy.pitPlan=plan;
+    if(plan==="no_stop"){
+      strategy.plannedStopLap=null;
+    }else if(plan==="one_stop"&&finite(strategy?.plannedStopLap,null)==null){
+      const limit=Math.max(1,Math.floor(finite(state?.session?.lapLimit,state?.track?.laps??1)));
+      const currentLap=Math.max(1,Math.floor(finite(car?.lap,1)));
+      if(limit>currentLap+1){
+        strategy.plannedStopLap=Math.min(
+          limit-1,
+          currentLap+Math.max(1,Math.ceil((limit-currentLap)/2))
+        );
+      }
+    }
     changed=true;
   }
 
