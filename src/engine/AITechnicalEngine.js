@@ -1594,6 +1594,17 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false,reviewNow=f
   }
 
   const planning=state?.planning||{};
+  const nextReview=str(planning?.next_review_date).slice(0,10)||today;
+  if(!force&&!reviewNow&&today<nextReview){
+    return {
+      action:"hold",
+      reason:"review_not_due",
+      team_id:str(teamId),
+      today,
+      next_review_date:nextReview,
+      review_interval_days:planningReviewIntervalDays(normalized,teamId),
+    };
+  }
   const technology=!force?technologyPlanningCandidate(normalized,teamId,state):null;
   const need=chooseNeed(normalized,teamId,state);
   const capacity=aiCurrentCarCapacity(normalized,teamId,state);
@@ -1636,7 +1647,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false,reviewNow=f
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
   const projects=seasonProjectsStarted(normalized,state);
   const reviewInterval=planningReviewIntervalDays(normalized,teamId);
-  const nextReview=str(planning?.next_review_date).slice(0,10)||today;
   const gapThreshold=planningGapThreshold(normalized,teamId);
   // Rival technology is an opportunity, not an automatic priority. If the
   // current car has a meaningful weakness, improve the existing package first.
@@ -1690,9 +1700,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false,reviewNow=f
     delivery_days:deliveryDays,
   };
 
-  if(!force&&!reviewNow&&today<nextReview){
-    return {...base,action:"hold",reason:"review_not_due"};
-  }
   if(!force&&remaining===0){
     return {...base,action:"hold",reason:"season_complete"};
   }
