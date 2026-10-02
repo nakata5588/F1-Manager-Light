@@ -57,6 +57,9 @@ export function canonicalRaceViewCars(view){
     pit_count:Math.max(0,finite(row?.pit_count,0)),
     retirement_reason:row?.retirement_reason??null,
     current_pace:row?.current_pace??null,
+    planned_stop_lap:finite(row?.planned_stop_lap,null),
+    pit_plan:row?.pit_plan??null,
+    next_tyre_id:row?.next_tyre_id??null,
   }));
 }
 
