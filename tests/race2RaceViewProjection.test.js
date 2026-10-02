@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
+import { projectCanonicalRaceTiming } from "../src/race2/core/RaceClassification.js";
 import {
   RACE_VIEW_PROJECTION_SOURCE,
   RACE_VIEW_PROJECTION_VERSION,
@@ -649,4 +650,26 @@ test("RW12A visual model preserves signed canonical grid distance for start-fini
   });
   assert.equal(cars[0].absolute_distance_m,-8);
   assert.equal(cars[0].track_progress,0.992);
+});
+
+
+test("RW13A Race View reads lap position delta from canonical car timing state",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  const target=state.cars[0];
+  state={
+    ...state,
+    cars:state.cars.map((car)=>car.carId===target.carId?{
+      ...car,
+      previousLapPosition:4,
+      lastLapPosition:2,
+      positionChangeLastLap:2,
+      lapPositionHistory:[{lap:3,position:2,previousPosition:4,change:2}],
+    }:car),
+  };
+  state={...state,...projectCanonicalRaceTiming(state)};
+  const view=projectRaceStateToRaceView(state);
+  const row=view.classification.find((candidate)=>candidate.car_id===target.carId);
+  assert.equal(row.previous_lap_position,4);
+  assert.equal(row.last_lap_position,2);
+  assert.equal(row.position_change_last_lap,2);
 });

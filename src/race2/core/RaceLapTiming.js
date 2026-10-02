@@ -67,6 +67,12 @@ function timingSeed(car,officialStartMs){
     lastLapDeltaMs:finite(car?.lastLapDeltaMs,null),
     bestLapMs:finite(car?.bestLapMs,null),
     bestLapNumber:finite(car?.bestLapNumber,null),
+    lapPositionHistory:Array.isArray(car?.lapPositionHistory)
+      ?car.lapPositionHistory.map((row)=>({...row}))
+      :[],
+    previousLapPosition:finite(car?.previousLapPosition,null),
+    lastLapPosition:finite(car?.lastLapPosition,finite(car?.gridPosition,null)),
+    positionChangeLastLap:finite(car?.positionChangeLastLap,0),
   };
 }
 
@@ -267,7 +273,7 @@ function sectorCrossingCandidates(state,nextCars,{stepMs=100,lapCandidates=[]}={
   return candidates;
 }
 
-export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
+export function applyCanonicalLapTiming(state,nextCars,{stepMs=100,positionByCar=null}={}){
   const cars=Array.isArray(nextCars)?nextCars:[];
   const previousById=new Map((state?.cars||[]).map((car)=>[String(car?.carId??""),car]));
   const officialStartMs=canonicalOfficialRaceTimeMs(state);
@@ -299,6 +305,10 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       lastLapDeltaMs,
       bestLapMs,
       bestLapNumber,
+      lapPositionHistory,
+      previousLapPosition,
+      lastLapPosition,
+      positionChangeLastLap,
     }=seed;
     let {
       sectorTimes,
@@ -352,6 +362,25 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       .sort((a,b)=>a.lapNumber-b.lapNumber);
 
     for(const crossing of crossings){
+      const carId=String(next?.carId??"");
+      if(!lapPositionHistory.some((row)=>Number(row?.lap)===crossing.lapNumber)){
+        const currentPosition=finite(
+          positionByCar instanceof Map?positionByCar.get(carId):positionByCar?.[carId],
+          null
+        );
+        if(currentPosition!=null){
+          const priorPosition=finite(lastLapPosition,finite(previous?.gridPosition,null));
+          previousLapPosition=priorPosition;
+          lastLapPosition=currentPosition;
+          positionChangeLastLap=priorPosition==null?0:priorPosition-currentPosition;
+          lapPositionHistory=[...lapPositionHistory,{
+            lap:crossing.lapNumber,
+            position:currentPosition,
+            previousPosition:priorPosition,
+            change:positionChangeLastLap,
+          }];
+        }
+      }
       if(lapTimes.some((row)=>Number(row?.lap)===crossing.lapNumber))continue;
       const completedAtMs=round(officialStartMs+crossing.resolvedOffsetMs,3);
       if(!lapTimingBaselineValid){
@@ -397,6 +426,10 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100}={}){
       bestLapMs,
       bestLapNumber,
       lapTimes,
+      lapPositionHistory,
+      previousLapPosition,
+      lastLapPosition,
+      positionChangeLastLap,
       sectorStartedAtMs,
       sectorTimingBaselineValid,
       sector1Ms,

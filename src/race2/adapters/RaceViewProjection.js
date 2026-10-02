@@ -117,6 +117,18 @@ export function projectRaceStateToRaceView(state){
       position_gain:finite(car?.gridPosition,null)==null
         ?0
         :finite(car?.gridPosition,0)-finite(row?.position,index+1),
+      previous_lap_position:finite(
+        row?.previousLapPosition,
+        finite(car?.previousLapPosition,null)
+      ),
+      last_lap_position:finite(
+        row?.lastLapPosition,
+        finite(car?.lastLapPosition,finite(car?.gridPosition,null))
+      ),
+      position_change_last_lap:finite(
+        row?.positionChangeLastLap,
+        finite(car?.positionChangeLastLap,0)
+      ),
       lap:finite(row?.lap,finite(car?.lap,null)),
       laps_completed:finite(row?.completedLaps,finite(car?.completedLaps,0)),
       sector:finite(row?.sector,finite(car?.sector,null)),

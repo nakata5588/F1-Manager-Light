@@ -272,3 +272,75 @@ test("RW10G migrated runtime skips one partial sector instead of inventing a fas
   assert.equal(migrated.sectorTimingBaselineValid,true);
   assert.ok(migrated.sectorStartedAtMs>=50_000&&migrated.sectorStartedAtMs<=51_000);
 });
+
+
+test("RW13A canonical lap timing records position gained or lost during each completed lap",()=>{
+  let state=startRaceState(createRaceState(input({laps:3,cars:2}),{stepMs:100}));
+  state={
+    ...state,
+    cars:state.cars.map((car)=>car.carId==="car_2"?{
+      ...car,
+      absoluteDistanceM:95,
+      distanceAlongLapM:95,
+      completedLaps:0,
+      lap:1,
+      sector:3,
+      gridPosition:2,
+      lastLapPosition:2,
+    }:car),
+  };
+  const previous=state.cars.find((car)=>car.carId==="car_2");
+  const firstCrossing={
+    ...previous,
+    absoluteDistanceM:105,
+    distanceAlongLapM:5,
+    completedLaps:1,
+    lap:2,
+    sector:1,
+  };
+  const [afterLapOne]=applyCanonicalLapTiming(state,[firstCrossing],{
+    stepMs:100,
+    positionByCar:new Map([["car_2",1]]),
+  });
+  assert.equal(afterLapOne.previousLapPosition,2);
+  assert.equal(afterLapOne.lastLapPosition,1);
+  assert.equal(afterLapOne.positionChangeLastLap,1);
+  assert.deepEqual(afterLapOne.lapPositionHistory,[{
+    lap:1,position:1,previousPosition:2,change:1,
+  }]);
+
+  const secondState={
+    ...state,
+    officialRaceTimeMs:100,
+    session:{
+      ...state.session,
+      clock:{...(state.session.clock||{}),officialElapsedMs:100},
+    },
+    cars:[{
+      ...afterLapOne,
+      absoluteDistanceM:195,
+      distanceAlongLapM:95,
+      completedLaps:1,
+      lap:2,
+      sector:3,
+    }],
+  };
+  const secondCrossing={
+    ...secondState.cars[0],
+    absoluteDistanceM:205,
+    distanceAlongLapM:5,
+    completedLaps:2,
+    lap:3,
+    sector:1,
+  };
+  const [afterLapTwo]=applyCanonicalLapTiming(secondState,[secondCrossing],{
+    stepMs:100,
+    positionByCar:new Map([["car_2",2]]),
+  });
+  assert.equal(afterLapTwo.previousLapPosition,1);
+  assert.equal(afterLapTwo.lastLapPosition,2);
+  assert.equal(afterLapTwo.positionChangeLastLap,-1);
+  assert.deepEqual(afterLapTwo.lapPositionHistory.at(-1),{
+    lap:2,position:2,previousPosition:1,change:-1,
+  });
+});
