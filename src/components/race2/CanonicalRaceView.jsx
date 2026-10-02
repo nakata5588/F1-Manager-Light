@@ -113,7 +113,7 @@ function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,
     transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
     onClick={onSelect}
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
-    style={{cursor:"pointer",opacity:retired?.62:1}}
+    style={{cursor:"pointer",opacity:retired?0.62:1}}
   >
     <title>{label}</title>
     {selected?<circle cx="0" cy="0" r={12*scale} fill="none" stroke="#fff" strokeWidth={1.7*scale} opacity=".9"/>:null}
