@@ -747,6 +747,7 @@ export const useGame = create((set, get) => ({
 
   currentSaveKey: null,
   raceWeekendAutosimActive: false,
+  raceWeekendPlaybackEpoch: 0,
 
   /* ==== UI Toaster ==== */
   uiToasts: [],
@@ -2090,16 +2091,26 @@ export const useGame = create((set, get) => ({
     return next?.raceWeekendState?.live_race||null;
   },
 
+  invalidateRaceWeekendPlaybackAdvance: () => {
+    set((state)=>({
+      raceWeekendPlaybackEpoch:Math.max(0,Number(state?.raceWeekendPlaybackEpoch)||0)+1,
+    }));
+  },
+
   advanceRaceWeekendElapsed: async (elapsedMs=0) => {
     const beforeImport=get().gameState;
     if(!beforeImport?.raceWeekendState)return null;
+    const playbackEpoch=Math.max(0,Number(get().raceWeekendPlaybackEpoch)||0);
 
     const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
 
-    // Autosim owns the canonical RaceState while it is running. A frame that
-    // was already queued before the user clicked Autosim may still reach this
-    // async boundary, so refuse the write after the import as well.
-    if(get().raceWeekendAutosimActive){
+    // Pause/speed changes invalidate any frame that was already waiting on this
+    // async boundary. Without this guard an x16 frame can still commit several
+    // metres after the user has pressed Pause.
+    if(
+      get().raceWeekendAutosimActive||
+      Math.max(0,Number(get().raceWeekendPlaybackEpoch)||0)!==playbackEpoch
+    ){
       return mod.raceWeekendCanonicalView(get().gameState);
     }
 
@@ -2111,6 +2122,9 @@ export const useGame = create((set, get) => ({
 
     const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
     const next=mod.advanceRaceWeekendElapsed(gs,{gp,elapsedMs});
+    if(Math.max(0,Number(get().raceWeekendPlaybackEpoch)||0)!==playbackEpoch){
+      return mod.raceWeekendCanonicalView(get().gameState);
+    }
     if(next!==gs){
       set({gameState:next});
       if(mod.raceWeekendCanonicalCheckpointDue(gs,next)){
