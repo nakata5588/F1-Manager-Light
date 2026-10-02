@@ -10,6 +10,7 @@ import {
   teamTechnologyUnlocked,
 } from "./carComponents.js";
 import { standardBuildQuote } from "./componentService.js";
+import { applyFinanceTransaction } from "./teamFinance.js";
 
 const str=(v)=>String(v??"");
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -156,30 +157,24 @@ export function startTechnologyAdoption(gs,teamId,slot,{origin="player"}={}){
   };
 
   if(tid===player){
-    const budget=num(gs?.team?.budget,gs?.finances?.balance);
+    const budget=num(gs?.finances?.balance,num(gs?.team?.budget,0));
     if(budget<quote.cost)return gs;
+    const paid=applyFinanceTransaction(gs,{
+      teamId:tid,
+      amount:-quote.cost,
+      category:"Technology R&D",
+      subtype:"technology_adoption",
+      desc:`${project.label} adoption programme`,
+      sig:`technology-adoption:${project.id}`,
+      id:`tx_${project.id}`,
+      source:"technology_project",
+      sourceId:project.id,
+      dateISO:today,
+    });
     return {
-      ...gs,
-      team:{...(gs?.team||{}),budget:budget-quote.cost},
-      finances:{
-        ...(gs?.finances||{}),
-        budget:budget-quote.cost,
-        balance:num(gs?.finances?.balance,budget)-quote.cost,
-        season_spend:num(gs?.finances?.season_spend,0)+quote.cost,
-      },
-      financeLog:[
-        ...(gs?.financeLog||[]),
-        {
-          id:`tx_${project.id}`,
-          dateISO:today,
-          type:"expense",
-          category:"Technology R&D",
-          amount:-quote.cost,
-          desc:`${project.label} adoption programme`,
-        },
-      ],
+      ...paid,
       development:{
-        ...(gs?.development||{}),
+        ...(paid?.development||{}),
         technologyProjects:[...technologyProjectsForTeam(gs,tid),project],
       },
       inbox:[
@@ -194,7 +189,7 @@ export function startTechnologyAdoption(gs,teamId,slot,{origin="player"}={}){
           body:`We have committed to a ${quote.days}-day technology adoption programme. Completing the research will unlock ${project.label} as a development area; it will not create a race-ready part automatically.`,
           actions:[{label:"Open R&D",route:"/Car?view=development&tab=research"}],
         },
-        ...(gs?.inbox||[]),
+        ...(paid?.inbox||[]),
       ].slice(0,300),
     };
   }
