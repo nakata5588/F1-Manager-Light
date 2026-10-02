@@ -27,6 +27,10 @@ import {
   raceViewPitBoxProgress,
   raceViewWeatherVisuals,
 } from "../src/race2/view/RaceViewPresentation.js";
+import {
+  pitBoxMixForPhase,
+  pitLaneMixForPhase,
+} from "../src/domain/racePitModel.js";
 
 function legacyState(){
   return {raceWeekendState:{engine_version:"legacy",phase:"race"}};
@@ -47,10 +51,10 @@ function canonicalState(){
 }
 
 test("RW8.14G exposes a bounded discrete playback-speed contract",()=>{
-  assert.deepEqual(RACE_VIEW_PLAYBACK_SPEEDS,[0.5,1,2,4,8]);
+  assert.deepEqual(RACE_VIEW_PLAYBACK_SPEEDS,[0.5,1,2,4,8,16]);
   assert.equal(canonicalRaceViewPlaybackSpeed(undefined),1);
   assert.equal(canonicalRaceViewPlaybackSpeed(1.8),2);
-  assert.equal(canonicalRaceViewPlaybackSpeed(99),8);
+  assert.equal(canonicalRaceViewPlaybackSpeed(99),16);
   assert.equal(canonicalRaceViewPlaybackSpeed(-4),0.5);
 });
 
@@ -258,18 +262,19 @@ test("RW12B weather visuals are derived only from canonical track-state indices"
   assert.equal(wet.wet,0.9);
   assert.equal(wet.visibility,0.4);
   assert.equal(wet.spray,0.75);
-  assert.ok(wet.rainOpacity>0.5);
-  assert.ok(wet.fogOpacity>0.4);
-  assert.ok(wet.wetTrackOpacity>0.5);
-  assert.ok(wet.sprayOpacity>0.3);
+  assert.ok(wet.rainOpacity>0.2);
+  assert.ok(wet.fogOpacity>0.3);
+  assert.ok(wet.wetTrackOpacity>0.45);
+  assert.ok(wet.sprayOpacity>0.05);
+  assert.ok(wet.sprayOpacity<=0.14);
 });
 
 
 test("RW12C pit boxes are distributed deterministically by team order",()=>{
   const teams=["T1","T2","T3"];
-  assert.equal(raceViewPitBoxProgress(teams,"T1"),0.3);
+  assert.equal(raceViewPitBoxProgress(teams,"T1"),0.2);
   assert.equal(raceViewPitBoxProgress(teams,"T2"),0.52);
-  assert.equal(raceViewPitBoxProgress(teams,"T3"),0.74);
+  assert.equal(raceViewPitBoxProgress(teams,"T3"),0.84);
   assert.equal(raceViewPitBoxProgress(["T1"],"T1"),0.52);
 });
 
@@ -323,4 +328,41 @@ test("RW12D cleared DNF snaps to its team pit box instead of animating across th
   assert.equal(frame.pit_lane_active,true);
   assert.equal(frame.pit_lane_progress,0.62);
   assert.equal(frame.pit_box_parked,true);
+});
+
+
+test("RW13D.1 pit entry and rejoin expose a continuous presentation mix",()=>{
+  assert.equal(pitLaneMixForPhase({
+    active:true,phase:"pit_entry",phaseElapsedMs:250,phaseTotalMs:1000,
+  }),0.25);
+  assert.equal(pitLaneMixForPhase({
+    active:true,phase:"pit_lane",phaseElapsedMs:10,phaseTotalMs:1000,
+  }),1);
+  assert.equal(pitLaneMixForPhase({
+    active:true,phase:"rejoin",phaseElapsedMs:250,phaseTotalMs:1000,
+  }),0.75);
+  assert.equal(pitLaneMixForPhase({
+    active:false,completed:true,phase:"completed",phaseElapsedMs:0,phaseTotalMs:0,
+  }),0);
+  assert.equal(pitBoxMixForPhase({active:true,phase:"pit_box"}),1);
+  assert.equal(pitBoxMixForPhase({active:true,phase:"pit_release"}),1);
+  assert.equal(pitBoxMixForPhase({active:true,phase:"pit_lane"}),0);
+});
+
+test("RW13D.1 interpolation blends pit-lane and pit-box pose state instead of snapping",()=>{
+  const frame=interpolateRaceViewCar(
+    {
+      id:"C1",absolute_distance_m:990,lateral_offset_m:0,
+      pit_lane_active:true,pit_lane_progress:0.9,pit_lane_mix:1,pit_box_mix:0,
+    },
+    {
+      id:"C1",absolute_distance_m:1000,lateral_offset_m:0,
+      pit_lane_active:false,pit_lane_progress:1,pit_lane_mix:0,pit_box_mix:0,
+    },
+    {alpha:0.5,trackLengthM:1000}
+  );
+  assert.equal(frame.pit_lane_active,true);
+  assert.equal(frame.pit_lane_progress,0.95);
+  assert.equal(frame.pit_lane_mix,0.5);
+  assert.equal(frame.pit_box_mix,0);
 });
