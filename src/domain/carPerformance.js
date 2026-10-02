@@ -182,3 +182,30 @@ export function carPerformanceRanking(gs){
     .sort((a,b)=>b.overall-a.overall||String(a.team_name).localeCompare(String(b.team_name)))
     .map((row,index)=>({...row,rank:index+1}));
 }
+
+export function currentCarPerformanceRanking(gs){
+  const snapshot=gs?.carPerformanceSnapshot;
+  if(
+    snapshot &&
+    Number(snapshot?.year)===Number(gs?.activeYear) &&
+    Array.isArray(snapshot?.ranking)
+  ){
+    return snapshot.ranking;
+  }
+  return carPerformanceRanking(gs);
+}
+
+export function refreshCarPerformanceSnapshot(gs,{reason="scheduled"}={}){
+  if(!gs)return gs;
+  const ranking=carPerformanceRanking(gs);
+  return {
+    ...gs,
+    carPerformanceSnapshot:{
+      year:Number(gs?.activeYear),
+      assessed_at:String(gs?.currentDateISO||"").slice(0,10)||null,
+      reason,
+      ranking,
+    },
+  };
+}
+
