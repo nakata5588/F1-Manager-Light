@@ -9,7 +9,7 @@ import { teamStaffStructure } from "@/domain/staffRoles.js";
 import { currentTeamBacker, currentTeamOwner } from "@/domain/teamStakeholders.js";
 import { driverCondition, fatigueStatus } from "@/domain/driverRating.js";
 import { driverOverallPresentation } from "@/domain/driverMarketEvaluation.js";
-import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
+import { currentCarPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
 import { currentBoardState } from "@/domain/boardState.js";
 import { teamReputation, teamReputationLabel } from "@/domain/teamReputation.js";
@@ -79,7 +79,7 @@ export default function Team(){
   const employment=playerPrincipal?managerEmploymentAssessment(gs):null;
   const technicalLead=staff.find((row)=>["technical_director","chief_engineer","chief_designer"].includes(row?.canonical_role))||null;
   const engineeringSupport=useMemo(()=>teamEngineeringSupport(gs,teamId),[gs,teamId]);
-  const ranking=useMemo(()=>carPerformanceRanking(gs),[gs]);
+  const ranking=useMemo(()=>currentCarPerformanceRanking(gs),[gs]);
   const myRank=ranking.find((row)=>String(row?.team_id)===teamId)||null;
   const raceDriver=slots.find((row)=>row.slot==="main"&&row.id);
   const carPerf=raceDriver?teamCarPerformance(gs,teamId,raceDriver.id):teamCarPerformance(gs,teamId,null);
