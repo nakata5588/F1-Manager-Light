@@ -76,6 +76,18 @@ function isWetGP(gp){
 const clampISO = (iso) => String(iso || "").slice(0, 10);
 const getTeamId = (t) => String(pick(t, ["team_id","id","name","team_name","short_name"], JSON.stringify(t)));
 
+function raceResultIdentity(gs,roundIndex,gp){
+  const year=Number(gs?.activeYear)||Number(gp?.year)||null;
+  const round=Number(roundIndex)+1;
+  const gpId=gp?.gp_id||gp?.id||gp?.track_id||`round_${round}`;
+  return {
+    year,
+    round,
+    gpId,
+    resultKey:`${year ?? "season"}_${round}_${gpId}`,
+  };
+}
+
 function getActivePointsTable(gs) {
   const rec = gs?.pointsSystem;
   if (Array.isArray(rec?.table) && rec.table.length) return rec.table.map(Number);
@@ -898,6 +910,11 @@ export async function runRaceWeekend(gs, {
   raceOverride=null,
   raceContextOverride=null,
 } = {}) {
+  const resultIdentity=raceResultIdentity(gs,roundIndex,gp);
+  if((Array.isArray(gs?.results)?gs.results:[]).some((result)=>String(result?.key||"")===resultIdentity.resultKey)){
+    return gs;
+  }
+
   const hasPersistentGrid=Array.isArray(startingGridOverride)&&startingGridOverride.length>0;
   let qualifyingSession=null;
   let raceEntryState=raceEntryOverride||null;
@@ -992,10 +1009,7 @@ export async function runRaceWeekend(gs, {
   const race=materializeOfficialRaceRows(rawRace,{raceControlPlan});
 
   const gpName = gp?.gp_name || gp?.name || `Round ${roundIndex+1}`;
-  const year = Number(gs.activeYear) || Number(gp?.year) || activeYear || null;
-  const round = Number(roundIndex) + 1;
-  const gpId = gp?.gp_id || gp?.id || gp?.track_id || `round_${round}`;
-  const resultKey = `${year ?? "season"}_${round}_${gpId}`;
+  const {year,round,gpId,resultKey}=resultIdentity;
   const isFinalRound=Array.isArray(gs?.calendar)&&gs.calendar.length>0
     ? round>=gs.calendar.length
     : false;
@@ -1162,6 +1176,8 @@ export async function runRaceWeekend(gs, {
 
   const resultEntry = {
     key: resultKey,
+    engine_version:String(gs?.raceWeekendState?.engine_version||"legacy"),
+    seed:gs?.raceWeekendState?.canonical_race_runtime?.state?.seed??getSaveSeed(gs),
     year,
     round,
     gp_id: gpId,
