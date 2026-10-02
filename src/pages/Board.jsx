@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useGame } from "@/state/GameStore";
 import { TeamLogo } from "@/components/entity/EntityVisuals.jsx";
-import { deriveBoardState } from "@/domain/boardState.js";
+import { currentBoardState } from "@/domain/boardState.js";
 import { gameplayRngFor } from "@/core/random.js";
 
 const DAY = 86_400_000;
@@ -145,7 +145,7 @@ export default function Board() {
   const currentBudget = Number(gameState?.team?.budget ?? gameState?.finances?.balance ?? 0);
 
   const storedBoard = useMemo(()=>normalizeBoard(gameState?.board || {}),[gameState?.board]);
-  const derivedBoard = useMemo(()=>deriveBoardState(gameState),[gameState]);
+  const derivedBoard = useMemo(()=>currentBoardState(gameState),[gameState]);
   const expectation = derivedBoard.expectation;
   const metrics = derivedBoard.metrics;
   const rewardProfile = useMemo(() => {

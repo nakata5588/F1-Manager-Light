@@ -327,13 +327,19 @@ test("daily advance paths share one canonical subsystem pipeline and fail closed
   ]);
   assert.match(storeSource,/async function applyDailyWorldSystems\(/);
   assert.equal((storeSource.match(/applyDailyWorldSystems\(updated\)/g)||[]).length,2);
+  assert.equal(storeSource.includes('import("@/engine/RuleEngine")'),false,"empty RuleEngine placeholder must not run every day");
   for(const moduleName of [
-    "RuleEngine","ProgressionEngine","EconomyEngine","MarketEngine",
+    "ProgressionEngine","EconomyEngine","MarketEngine",
     "NegotiationEngine","StaffNegotiationEngine","InboxEngine",
   ]){
     const token=`import("@/engine/${moduleName}")`;
     assert.equal(storeSource.split(token).length-1,1,moduleName+" daily import must have one canonical call site");
   }
+  assert.match(storeSource,/currentWorldCadence\(initialState\)/);
+  assert.match(storeSource,/advanceAITechnicalWorldDay\(next,/);
+  assert.match(storeSource,/economyTickDue\(updated\)/);
+  assert.match(storeSource,/processProgression:managerActive&&cadence\.postGrandPrix/);
+  assert.match(storeSource,/forceDriverMarket:driverContractsChanged/);
   assert.match(storeSource,/throw dailyPipelineFailure\("RaceWeekend state sync",e\)/);
   assert.match(buttonSource,/title: "Advance failed"/);
 });

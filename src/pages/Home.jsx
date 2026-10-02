@@ -12,8 +12,8 @@ import { driverCondition, fatigueStatus } from "../domain/driverRating.js";
 import { driverOverallPresentation } from "../domain/driverMarketEvaluation.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { upcomingManagementEvents, daysBetweenISO } from "../domain/managementEvents.js";
-import { deriveBoardState } from "../domain/boardState.js";
-import { carPerformanceRanking } from "../domain/carPerformance.js";
+import { currentBoardState } from "../domain/boardState.js";
+import { currentCarPerformanceRanking } from "../domain/carPerformance.js";
 import { normalizeNextSeasonCarProgramme } from "../domain/nextSeasonCar.js";
 
 const firstArray=(...candidates)=>candidates.find(Array.isArray)||[];
@@ -123,7 +123,7 @@ export default function Home(){
     const upcomingRaces=upcoming.filter((event)=>event.type==="GP").slice(0,4);
     const nextRace=upcomingRaces[0]||null;
 
-    const carRanking=carPerformanceRanking(gameState);
+    const carRanking=currentCarPerformanceRanking(gameState);
     const carPerformance=carRanking.find((row)=>String(row?.team_id??"")===teamId)||null;
     const development=gameState.development||{};
     const developmentProjects=(Array.isArray(development.projects)?development.projects:[])
@@ -190,7 +190,7 @@ export default function Home(){
     const sponsorIncome=sponsorRows.reduce((sum,row)=>
       sum+num(unwrap(row?.anual_income??row?.annual_income??row?.value_year),0),0
     );
-    const board=deriveBoardState(gameState);
+    const board=currentBoardState(gameState);
     const objectives=board.objectives||[];
     const lowComponents=[];
     for(const car of gameState.garage?.cars||[]){

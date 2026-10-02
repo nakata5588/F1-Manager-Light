@@ -122,3 +122,55 @@ export function deriveBoardState(gs){
     actions:Array.isArray(stored.actions)?stored.actions:[],
   };
 }
+
+function boardAssessmentSignature(gs){
+  const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const year=Number(gs?.activeYear);
+  const board=gs?.board&&typeof gs.board==="object"?gs.board:{};
+  const managerAttrs=gs?.manager?.attributes&&typeof gs.manager.attributes==="object"
+    ?gs.manager.attributes
+    :{};
+  return JSON.stringify({
+    teamId,
+    year,
+    reputation:board?.reputation??board?.rep??board?.board_reputation??null,
+    expectation:board?.expectation??board?.season_expectation??null,
+    managerAttrs,
+  });
+}
+
+export function currentBoardState(gs){
+  const snapshot=gs?.boardAssessment;
+  const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  const year=Number(gs?.activeYear);
+  if(
+    snapshot?.assessment &&
+    Number(snapshot?.year)===year &&
+    String(snapshot?.team_id??"")===teamId &&
+    String(snapshot?.last_race_key??"")===String(gs?.lastRace?.resultKey??"") &&
+    String(snapshot?.source_signature??"")===boardAssessmentSignature(gs)
+  ){
+    return snapshot.assessment;
+  }
+  return deriveBoardState(gs);
+}
+
+export function refreshBoardAssessment(gs,{reason="scheduled"}={}){
+  if(!gs)return gs;
+  const teamId=String(gs?.team?.team_id??gs?.team?.id??"");
+  if(!teamId)return gs;
+  const assessment=deriveBoardState(gs);
+  return {
+    ...gs,
+    boardAssessment:{
+      year:Number(gs?.activeYear),
+      team_id:teamId,
+      assessed_at:String(gs?.currentDateISO||"").slice(0,10)||null,
+      reason,
+      last_race_key:String(gs?.lastRace?.resultKey??""),
+      source_signature:boardAssessmentSignature(gs),
+      assessment,
+    },
+  };
+}
+

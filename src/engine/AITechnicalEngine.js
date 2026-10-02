@@ -81,7 +81,7 @@ function parseISO(value){
 }
 function addDaysISO(value,days){
   const d=parseISO(value);
-  d.setUTCDate(d.getUTCDate()+Math.max(0,Math.floor(Number(days)||0)));
+  d.setUTCDate(d.getUTCDate()+Math.trunc(Number(days)||0));
   return d.toISOString().slice(0,10);
 }
 function daysBetweenISO(from,to){
@@ -1343,13 +1343,13 @@ function persistAIScopedProgrammeState(state,scoped,strategyPlanning=null){
   };
 }
 
-function applyAIStrategyReview(gs,teamId,state,scoped){
+function applyAIStrategyReview(gs,teamId,state,scoped,{reviewNow=false}={}){
   const assessment=aiStrategyBaseDecision(gs,teamId,state);
   const today=str(gs?.currentDateISO).slice(0,10);
   const review=state?.strategy_planning||{};
   const sameSeason=Number(review?.season_year)===yearOf(gs);
   const nextReview=sameSeason?str(review?.next_review_date).slice(0,10):"";
-  const due=!nextReview||today>=nextReview;
+  const due=reviewNow||!nextReview||today>=nextReview;
   if(!due){
     return {scoped,strategyPlanning:review,assessment:{...assessment,review_due:false}};
   }
@@ -1473,7 +1473,7 @@ function maybeLaunchOrRebalanceAINextSeason(gs,teamId,state,scoped,assessment){
   return scoped;
 }
 
-export function processAITechnicalStrategy(gs,teamId,stateInput=null){
+export function processAITechnicalStrategy(gs,teamId,stateInput=null,{reviewNow=false}={}){
   const state=stateInput||aiTechnicalTeamState(gs,teamId);
   if(!state)return state;
   const today=str(gs?.currentDateISO).slice(0,10);
@@ -1499,7 +1499,7 @@ export function processAITechnicalStrategy(gs,teamId,stateInput=null){
     finance_log:Array.isArray(scoped?.financeLog)?scoped.financeLog:(state?.finance_log||[]),
   };
 
-  const review=applyAIStrategyReview(gs,teamId,caughtUpState,scoped);
+  const review=applyAIStrategyReview(gs,teamId,caughtUpState,scoped,{reviewNow});
   scoped=review.scoped;
   scoped=maybeLaunchOrRebalanceAINextSeason(gs,teamId,caughtUpState,scoped,review.assessment);
 
@@ -1585,7 +1585,7 @@ function planningDecisionRecord(today,action,reason,assessment){
   };
 }
 
-export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
+export function aiTechnicalPlanningAssessment(gs,teamId,{force=false,reviewNow=false}={}){
   const normalized=normalizeAITechnicalWorld(gs);
   const state=aiTechnicalTeamState(normalized,teamId);
   const today=str(normalized?.currentDateISO).slice(0,10);
@@ -1594,6 +1594,17 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   }
 
   const planning=state?.planning||{};
+  const nextReview=str(planning?.next_review_date).slice(0,10)||today;
+  if(!force&&!reviewNow&&today<nextReview){
+    return {
+      action:"hold",
+      reason:"review_not_due",
+      team_id:str(teamId),
+      today,
+      next_review_date:nextReview,
+      review_interval_days:planningReviewIntervalDays(normalized,teamId),
+    };
+  }
   const technology=!force?technologyPlanningCandidate(normalized,teamId,state):null;
   const need=chooseNeed(normalized,teamId,state);
   const capacity=aiCurrentCarCapacity(normalized,teamId,state);
@@ -1636,7 +1647,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
   const reserveFloor=planningReserveFloor(normalized,teamId,state);
   const projects=seasonProjectsStarted(normalized,state);
   const reviewInterval=planningReviewIntervalDays(normalized,teamId);
-  const nextReview=str(planning?.next_review_date).slice(0,10)||today;
   const gapThreshold=planningGapThreshold(normalized,teamId);
   // Rival technology is an opportunity, not an automatic priority. If the
   // current car has a meaningful weakness, improve the existing package first.
@@ -1690,9 +1700,6 @@ export function aiTechnicalPlanningAssessment(gs,teamId,{force=false}={}){
     delivery_days:deliveryDays,
   };
 
-  if(!force&&today<nextReview){
-    return {...base,action:"hold",reason:"review_not_due"};
-  }
   if(!force&&remaining===0){
     return {...base,action:"hold",reason:"season_complete"};
   }
@@ -1759,12 +1766,12 @@ function recordPlanningHold(state,assessment){
   };
 }
 
-export function planAITechnicalProject(gs,teamId,{force=false}={}){
+export function planAITechnicalProject(gs,teamId,{force=false,reviewNow=false}={}){
   let next=normalizeAITechnicalWorld(gs);
   let state=aiTechnicalTeamState(next,teamId);
   if(!state)return next;
 
-  const assessment=aiTechnicalPlanningAssessment(next,teamId,{force});
+  const assessment=aiTechnicalPlanningAssessment(next,teamId,{force,reviewNow});
   if(assessment.action==="adopt_technology"){
     const today=assessment.today;
     next=startTechnologyAdoption(next,teamId,assessment.technology.slot,{origin:"ai"});
@@ -2025,6 +2032,73 @@ function completeManufacturing(gs,teamId,state,today){
     garage:normalized.garage,
     development:normalized.development,
   };
+}
+
+export function advanceAITechnicalTeamDay(gs,teamId,{
+  runMaintenance=false,
+  reviewStrategy=false,
+  reviewPlanning=false,
+  normalizedWorld=false,
+}={}){
+  let next=normalizedWorld?gs:normalizeAITechnicalWorld(gs);
+  let state=aiTechnicalTeamState(next,teamId);
+  if(!state)return next;
+  const today=str(next?.currentDateISO).slice(0,10);
+  if(!today)return next;
+
+  // Workshop completion is date-driven and cheap to detect. Only wake the
+  // maintenance path when a job is actually due or around a Grand Prix.
+  const scopedBefore=normalizePhysicalPartState(scopedState(next,teamId,state));
+  const workshopDue=(scopedBefore?.garage?.serviceJobs||[]).some((job)=>
+    job?.status==="active"&&job?.finishes_at&&str(job.finishes_at).slice(0,10)<=today
+  );
+  if(workshopDue){
+    const serviced=processWorkshopJobs(scopedBefore);
+    state=persistScopedState(state,serviced);
+    next=replaceTeamState(next,teamId,state);
+  }
+
+  if(runMaintenance||workshopDue){
+    state=processAITechnicalMaintenance(next,teamId,aiTechnicalTeamState(next,teamId));
+    state=processAIReserveCar(next,teamId,state);
+    next=replaceTeamState(next,teamId,state);
+  }
+
+  state=aiTechnicalTeamState(next,teamId);
+  const completed=completeDesigns(next,teamId,state,today);
+  state=completed.state;
+  state=completeManufacturing(next,teamId,state,today);
+  state=queueManufacturing(next,teamId,state,today);
+  next=replaceTeamState(next,teamId,state);
+
+  if(reviewStrategy){
+    state=processAITechnicalStrategy(next,teamId,aiTechnicalTeamState(next,teamId),{reviewNow:true});
+    next=replaceTeamState(next,teamId,state);
+  }else{
+    state=aiTechnicalTeamState(next,teamId);
+    let scoped=normalizePhysicalPartState(scopedState(next,teamId,state));
+    scoped=advanceAITechnicalWorkToDate(scoped,teamId,today);
+    state=persistAIScopedProgrammeState(state,scoped,state?.strategy_planning||null);
+    next=replaceTeamState(next,teamId,state);
+  }
+
+  // Finishing a design frees technical capacity, so it is a genuine planning
+  // event even between the scheduled monthly/post-GP reviews.
+  if(reviewPlanning||completed.changed){
+    next=planAITechnicalProject(next,teamId,{reviewNow:true});
+  }
+  return next;
+}
+
+export function advanceAITechnicalWorldDay(gs,options={}){
+  let next=normalizeAITechnicalWorld(gs);
+  const player=str(next?.team?.team_id??next?.team?.id);
+  const ids=teamRows(next)
+    .map(teamIdOf)
+    .filter((teamId)=>teamId&&teamId!==player&&aiTechnicalTeamState(next,teamId))
+    .sort();
+  for(const teamId of ids)next=advanceAITechnicalTeamDay(next,teamId,{...options,normalizedWorld:true});
+  return next;
 }
 
 export function tickAITechnicalTeam(gs,teamId,{allowPlanning=true}={}){

@@ -5,7 +5,7 @@
 // data remains factual seed data, but once the Save World begins the player's
 // appointment occupies that role and any historical incumbent is released.
 
-import { deriveBoardState } from "./boardState.js";
+import { currentBoardState } from "./boardState.js";
 import { activeStaffContracts, teamIdOfContract } from "./liveContracts.js";
 import { managerDisplayName } from "./managerProfile.js";
 import { staffContractRole } from "./staffRoles.js";
@@ -114,7 +114,7 @@ export function managerEmploymentAssessment(gs){
     };
   }
 
-  const board=deriveBoardState(gs);
+  const board=currentBoardState(gs);
   const races=Math.max(0,Number(board?.metrics?.races||0));
   const totalRaces=Math.max(1,Number(board?.metrics?.totalRaces||1));
   const seasonProgress=clamp01(races/totalRaces);

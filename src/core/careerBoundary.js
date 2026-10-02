@@ -530,6 +530,12 @@ export function materializeNextCareerSeason(state,targetYearInput){
 
     finances,
     inbox,
+    // Derived snapshots are season-scoped. The new season keeps the closing
+    // cash as its opening balance but recomputes Board/car assessments under
+    // the new calendar, technical world and objectives.
+    boardAssessment:null,
+    carPerformanceSnapshot:null,
+    _worldCadence:null,
     _seasonFinishedAt:null,
     showSeasonSummary:false,
   };

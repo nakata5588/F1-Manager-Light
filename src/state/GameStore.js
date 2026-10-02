@@ -19,7 +19,7 @@ import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "@/do
 import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
 import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
-import { tickAITechnicalWorld } from "@/engine/AITechnicalEngine";
+import { advanceAITechnicalWorldDay } from "@/engine/AITechnicalEngine";
 import { syncGarageState } from "@/domain/garage";
 import { processTechnologyAdoption, processTechnologyDiscoveryNews } from "@/domain/technologyAdoption";
 import { DEFAULT_USER_SETTINGS, mergeUserSettings, readUserSettings, writeUserSettings } from "@/domain/userPreferences";
@@ -42,6 +42,9 @@ import {
 } from "@/domain/lowerSeriesEntries";
 import { activeLowerSeriesTeamsForYear } from "@/domain/lowerSeriesTeams";
 import { materializeMissingStartingRatings } from "@/domain/driverStartingRating";
+import { currentWorldCadence, stampWorldCadence } from "@/domain/worldCadence";
+import { refreshBoardAssessment } from "@/domain/boardState";
+import { refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -459,17 +462,38 @@ async function autosimUnemployedRaceForDay(state){
 
 async function applyDailyWorldSystems(initialState){
   let updated=initialState;
+  const cadence=currentWorldCadence(initialState);
+  let playerTechnicalStateChanged=false;
 
   updated=await runDailyStage("EventEngine daily tick",async()=>{
     const res=triggerDailyTick(updated);
     let next=res?.state||res?.patched||res||updated;
     const playerControlsTeam=!next?.manager||playerManagerIsActiveTeamPrincipal(next);
+
     if(playerControlsTeam)next=processScoutingTick(next);
     next=refreshDriverAvailability(next,next.currentDateISO);
-    if(playerControlsTeam)next=processWorkshopJobs(next);
-    if(playerControlsTeam)next=processPlayerTechnicalLifecycle(next);
-    if(playerControlsTeam)next=processTechnologyAdoption(next);
-    next=tickAITechnicalWorld(next);
+
+    if(playerControlsTeam){
+      let before=next;
+      next=processWorkshopJobs(next);
+      playerTechnicalStateChanged=playerTechnicalStateChanged||next!==before;
+
+      before=next;
+      next=processPlayerTechnicalLifecycle(next);
+      playerTechnicalStateChanged=playerTechnicalStateChanged||next!==before;
+
+      before=next;
+      next=processTechnologyAdoption(next);
+      playerTechnicalStateChanged=playerTechnicalStateChanged||next!==before;
+    }
+
+    const scheduledTechnicalReview=cadence.postGrandPrix||cadence.firstOfMonth;
+    next=advanceAITechnicalWorldDay(next,{
+      runMaintenance:cadence.postGrandPrix||cadence.preGrandPrix,
+      reviewStrategy:scheduledTechnicalReview,
+      reviewPlanning:scheduledTechnicalReview,
+    });
+
     if(playerControlsTeam)next=processTechnologyDiscoveryNews(next);
     const changes=res?.changes||res?.attrChanges||[];
     if(Array.isArray(changes)&&changes.length&&typeof applyAttrChangesDict==="function"){
@@ -478,11 +502,9 @@ async function applyDailyWorldSystems(initialState){
     return next;
   });
 
-  updated=await runDailyStage("RuleEngine",async()=>{
-    const mod=await import("@/engine/RuleEngine");
-    return typeof mod.applyRulesTick==="function"?(mod.applyRulesTick(updated)||updated):updated;
-  });
-
+  // Driver mental recovery, player training, Pit Crew work and technical
+  // research remain genuine daily progression. Permanent CA/PA/lifecycle
+  // progression is already gated to one run per month inside this engine.
   updated=await runDailyStage("ProgressionEngine",async()=>{
     const mod=await import("@/engine/ProgressionEngine");
     return typeof mod.applyProgressionTick==="function"?(mod.applyProgressionTick(updated)||updated):updated;
@@ -492,32 +514,93 @@ async function applyDailyWorldSystems(initialState){
     updated=advanceNextSeasonCarDay(updated);
     updated=await runDailyStage("EconomyEngine",async()=>{
       const mod=await import("@/engine/EconomyEngine");
+      if(typeof mod.economyTickDue==="function"&&!mod.economyTickDue(updated))return updated;
       return typeof mod.applyEconomyTick==="function"?(mod.applyEconomyTick(updated)||updated):updated;
     });
   }
 
-  updated=await runDailyStage("MarketEngine",async()=>{
-    const mod=await import("@/engine/MarketEngine");
-    return typeof mod.applyMarketTick==="function"?(mod.applyMarketTick(updated)||updated):updated;
-  });
+  // Resolve dated negotiations first. If a transfer/contract response changes
+  // the driver contract set, that event itself forces an immediate AI market
+  // review instead of waiting for the normal weekly cadence.
+  let driverContractsChanged=false;
   updated=await runDailyStage("NegotiationEngine",async()=>{
+    const beforeContracts=updated?.contracts;
     const mod=await import("@/engine/NegotiationEngine");
-    return typeof mod.processDriverNegotiations==="function"?(mod.processDriverNegotiations(updated)||updated):updated;
+    const nextState=typeof mod.processDriverNegotiations==="function"?(mod.processDriverNegotiations(updated)||updated):updated;
+    driverContractsChanged=nextState?.contracts!==beforeContracts;
+    return nextState;
   });
   updated=await runDailyStage("StaffNegotiationEngine",async()=>{
     const mod=await import("@/engine/StaffNegotiationEngine");
     return typeof mod.processStaffNegotiations==="function"?(mod.processStaffNegotiations(updated)||updated):updated;
   });
-  updated=await runDailyStage("ManagerCareerEngine",async()=>{
-    const mod=await import("@/engine/ManagerCareerEngine");
-    return typeof mod.processManagerCareerTick==="function"?(mod.processManagerCareerTick(updated)||updated):updated;
+
+  // Driver Market keeps its cheap daily news roll, while candidate eligibility,
+  // lineup upgrades and renewal decisions run weekly/monthly or after a real
+  // contract event that may have created a vacancy.
+  updated=await runDailyStage("MarketEngine",async()=>{
+    const mod=await import("@/engine/MarketEngine");
+    return typeof mod.applyMarketTick==="function"
+      ?(mod.applyMarketTick(updated,{forceDriverMarket:driverContractsChanged})||updated)
+      :updated;
   });
+
+  const boardReviewDue=Boolean(
+    updated?.team&&(
+      cadence.postGrandPrix||
+      cadence.firstOfMonth||
+      !updated?.boardAssessment
+    )
+  );
+  if(boardReviewDue){
+    updated=refreshBoardAssessment(updated,{
+      reason:cadence.postGrandPrix?"post_grand_prix":cadence.firstOfMonth?"month_start":"initial",
+    });
+  }
+
+  const managerActive=Boolean(updated?.manager&&playerManagerIsActiveTeamPrincipal(updated));
+  const managerReviewDue=Boolean(
+    updated?.manager&&(
+      !managerActive||
+      cadence.postGrandPrix||
+      cadence.firstOfMonth||
+      updated?.managerEmploymentState?.pending_dismissal
+    )
+  );
+  if(managerReviewDue){
+    updated=await runDailyStage("ManagerCareerEngine",async()=>{
+      const mod=await import("@/engine/ManagerCareerEngine");
+      return typeof mod.processManagerCareerTick==="function"
+        ?(mod.processManagerCareerTick(updated,{
+            processProgression:managerActive&&cadence.postGrandPrix,
+          })||updated)
+        :updated;
+    });
+  }
+
+  const carSnapshotDue=
+    !updated?.carPerformanceSnapshot||
+    cadence.preGrandPrix||
+    cadence.postGrandPrix||
+    playerTechnicalStateChanged;
+  if(carSnapshotDue){
+    updated=refreshCarPerformanceSnapshot(updated,{
+      reason:cadence.postGrandPrix
+        ?"post_grand_prix"
+        :cadence.preGrandPrix
+          ?"pre_grand_prix"
+          :playerTechnicalStateChanged
+            ?"technical_change"
+            :"initial",
+    });
+  }
+
   updated=await runDailyStage("InboxEngine",async()=>{
     const mod=await import("@/engine/InboxEngine");
     return typeof mod.syncInbox==="function"?(mod.syncInbox(updated)||updated):updated;
   });
 
-  return updated;
+  return stampWorldCadence(updated,cadence);
 }
 
 /* ======================= STORE ======================= */

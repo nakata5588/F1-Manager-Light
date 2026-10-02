@@ -94,26 +94,31 @@ function markRenewalDecision(gs,contract,year,decision){
   };
 }
 
-export function applyMarketTick(gs){
+export function applyMarketTick(gs,{forceDriverMarket=false}={}){
   let next={...gs};
-  const drivers=(gs.drivers||[]).filter((d)=>
-    !["hidden","deceased","retired"].includes(String(d?.status||"").toLowerCase())
-  );
-  const f1EligibleDrivers=drivers.filter((d)=>f1HireEligibility(gs,d,gs?.activeYear).eligible);
-  const teams=gs.teams||[];
-  if(!drivers.length||!teams.length)return applyStakeholderMarketTick(applyStaffMarketTick(next));
-
   const currentDate=String(gs?.currentDateISO||"").slice(0,10);
   const currentMonth=currentDate.slice(0,7);
   const marketRng=rngFor(gs,`market:${String(gs?.currentDateISO||currentMonth||"date")}`);
   const lastAICheck=String(gs?._lastAIDriverMarketCheckISO||"");
   const aiMarketCheckDue=Boolean(currentDate)&&(
+    forceDriverMarket ||
     !lastAICheck ||
     gs?._lastAIDriverMarketMonth!==currentMonth ||
     daysBetweenISO(lastAICheck,currentDate)>=7
   );
 
+  // Monthly markets own their own cheap cadence guards. Run them before the
+  // expensive driver-candidate evaluation so ordinary days stay lightweight.
+  next=applyStaffMarketTick(next);
+  next=applyStakeholderMarketTick(next);
+
   if(aiMarketCheckDue){
+    const drivers=(next.drivers||[]).filter((d)=>
+      !["hidden","deceased","retired"].includes(String(d?.status||"").toLowerCase())
+    );
+    const teams=next.teams||[];
+    const f1EligibleDrivers=drivers.filter((d)=>f1HireEligibility(next,d,next?.activeYear).eligible);
+    if(!drivers.length||!teams.length)return next;
     const userTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
     const messages=[];
 
@@ -304,14 +309,16 @@ export function applyMarketTick(gs){
     };
   }
 
-  // Staff employment and stakeholder markets have their own cadence and must
-  // not depend on whether a random paddock-news item happens to be generated.
-  next=applyStaffMarketTick(next);
-  next=applyStakeholderMarketTick(next);
-
   // Keep news meaningful instead of flooding the inbox with the same rumour.
   if(marketRng.next()>=0.045)return next;
 
+  // News needs only a cheap visible pool. F1 eligibility/ranking is reserved
+  // for the weekly (or explicitly forced) market review above.
+  const drivers=(next.drivers||[]).filter((d)=>
+    !["hidden","deceased","retired"].includes(String(d?.status||"").toLowerCase())
+  );
+  const teams=next.teams||[];
+  if(!drivers.length||!teams.length)return next;
   const driver=pickRandom(drivers,marketRng);
   const team=pickRandom(teams,marketRng);
   const driverName=driver?.display_name||driver?.name||"A driver";
