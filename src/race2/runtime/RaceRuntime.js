@@ -70,7 +70,6 @@ export function runCanonicalRaceRuntimeBatch(runtime,{steps=250}={}){
     accumulatorMs:0,
   };
 }
-
 export function queueCanonicalRaceRuntimeCommand(runtime,command){
   const runner=restoreCanonicalRaceRunner(runtime);
   runner.queueCommand(command);
@@ -181,7 +180,6 @@ export function runCanonicalRaceWeekendBatch(gs,{gp=null,stepMs=null,steps=250}=
     runCanonicalRaceRuntimeBatch(runtime,{steps})
   );
 }
-
 export function canonicalRaceWeekendView(gs){
   if(!isCanonicalRaceWeekend(gs))return null;
   return canonicalRaceView(gs?.raceWeekendState?.canonical_race_runtime);
