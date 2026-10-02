@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { syncGarageState } from "../src/domain/garage.js";
-import { teamCarPerformance } from "../src/domain/carPerformance.js";
+import { carPerformanceSnapshotInvalidatedByPatch, teamCarPerformance } from "../src/domain/carPerformance.js";
 import {
   activeDriverContract,
   contractAcceptanceChance,
@@ -89,6 +89,18 @@ test("garage creates two race cars and does not grant a free Reserve Car",()=>{
   assert.equal(garage.cars[1].driver_id,"D2");
   assert.equal(garage.reserveCarBuilt,false);
   assert.equal(garage.cars.some((car)=>car.kind==="reserve"),false);
+});
+
+test("car performance snapshot invalidation covers technical Save World mutations",()=>{
+  for(const key of ["garage","development","carStats","teamEngines","aiTechnicalWorld","team"]){
+    assert.equal(
+      carPerformanceSnapshotInvalidatedByPatch({[key]:{}}),
+      true,
+      key+" must invalidate the cached grid ranking"
+    );
+  }
+  assert.equal(carPerformanceSnapshotInvalidatedByPatch({inbox:[]}),false);
+  assert.equal(carPerformanceSnapshotInvalidatedByPatch({currentDateISO:"1980-02-01"}),false);
 });
 
 test("installed developed part improves the specific fitted car",()=>{
