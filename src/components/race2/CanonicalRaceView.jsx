@@ -146,7 +146,11 @@ function formatBattleDuration(value){
   return Number.isFinite(n)&&n>=0?`${(n/1000).toFixed(1)} s`:"—";
 }
 
-function battleStateLabel(state){
+function battleStateLabel(state,result=null){
+  const outcome=String(result||"");
+  if(["failed","defended"].includes(outcome))return "DEFENDED";
+  if(["completed","lost"].includes(outcome))return "PASS COMPLETE";
+  if(outcome==="contact")return "CONTACT";
   return {
     side_by_side:"SIDE BY SIDE",
     yielding:"CLEARING",
@@ -598,7 +602,7 @@ function CanonicalBattleOverlay({
         <g transform={`translate(${x} ${y})`}>
           <rect x={-29*scale} y={-5.4*scale} width={58*scale} height={10.8*scale} rx={4*scale} fill="#090d12" stroke={stroke} strokeWidth={.7*scale} opacity=".92"/>
           <text x="0" y={-0.7*scale} textAnchor="middle" fontSize={3.4*scale} fontWeight="900" fill={stroke}>{title}</text>
-          <text x="0" y={3.25*scale} textAnchor="middle" fontSize={2.7*scale} fontWeight="800" fill="#e2e8f0">{battleStateLabel(context.state)}{remaining!=="—"?` · ${remaining}`:""}{edgeLabel}</text>
+          <text x="0" y={3.25*scale} textAnchor="middle" fontSize={2.7*scale} fontWeight="800" fill="#e2e8f0">{battleStateLabel(context.state,context.result)}{remaining!=="—"?` · ${remaining}`:""}{edgeLabel}</text>
         </g>
       </g>;
     })}
@@ -840,7 +844,7 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
         </div>:null}
         {engagement?<div className={"mt-2 rounded-md border px-2 py-2 "+(activeBattleContext(engagement)?"border-amber-300/20 bg-amber-500/[0.08]":"border-sky-300/20 bg-sky-500/[0.07]")}>
           <div className={"text-[8px] font-black uppercase tracking-[0.12em] "+(activeBattleContext(engagement)?"text-amber-300":"text-sky-300")}>Battle telemetry</div>
-          <div className={"mt-0.5 text-[10px] font-semibold "+(activeBattleContext(engagement)?"text-amber-100":"text-sky-100")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state)}</div>
+          <div className={"mt-0.5 text-[10px] font-semibold "+(activeBattleContext(engagement)?"text-amber-100":"text-sky-100")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state,engagement.result)}</div>
           {battleOpponent?<div className="mt-0.5 text-[9px] text-slate-400">vs {shortName(drivers,battleOpponent.driver_id)} · {driverName(drivers,battleOpponent.driver_id)}</div>:null}
           <div className="mt-2 border-t border-white/[0.06] pt-1">
             {hasTelemetryNumber(engagement?.gap_m)?metric("Physical gap",formatBattleDistance(engagement.gap_m)):null}
