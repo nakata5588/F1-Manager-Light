@@ -231,6 +231,7 @@ export function canonicalRaceEventRequiresPause(event,{playerDriverIds=[]}={}){
   if(type==="damage")return text(payload?.source).toLowerCase()==="contact"||involvesPlayer;
   if(type==="pit_service_completed")return involvesPlayer||Boolean(payload?.crewError);
   if(type==="command_ignored")return involvesPlayer;
+  if(type==="team_order_refused")return involvesPlayer;
   return false;
 }
 
@@ -522,11 +523,48 @@ export function presentCanonicalRaceEvent(event,context={}){
         "normal"
       );
     }
+    if(command==="team_order"){
+      const teammate=driverName(context,payload?.teammateDriverId);
+      return presentation(
+        "Team radio",
+        `${driver} is told to let ${teammate} through`,
+        "command",
+        "important"
+      );
+    }
     return presentation(
       "Team radio",
       `${driver}: ${humanize(command||"command")} applied`,
       "command",
       "normal"
+    );
+  }
+
+  if(type==="team_order_refused"){
+    const teammate=driverName(context,payload?.teammateDriverId);
+    return presentation(
+      "Driver feedback",
+      `${driver} refuses the order to let ${teammate} through`,
+      "feedback",
+      "important"
+    );
+  }
+
+  if(type==="team_order_completed"){
+    return presentation(
+      "Team order",
+      second?`${first} lets ${second} through`:`${first} completes the team order`,
+      "command",
+      "normal"
+    );
+  }
+
+  if(type==="team_order_aborted"){
+    return presentation(
+      "Team order",
+      second?`Team order between ${first} and ${second} is aborted`:`${first}'s team order is aborted`,
+      "command",
+      "info"
     );
   }
 
