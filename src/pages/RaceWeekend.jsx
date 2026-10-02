@@ -765,7 +765,24 @@ export default function RaceWeekend(){
     }
     return [...byLap.entries()]
       .sort((a,b)=>b[0]-a[0])
-      .map(([lap,events])=>({lap,events}));
+      .map(([lap,events])=>{
+        const clusters=[];
+        for(const event of events){
+          const sector=Math.max(0,Number(event?.sector)||0);
+          const key=[
+            sector,
+            String(event?.display_icon_key||event?.type||"event"),
+            String(event?.display_label||raceEventLabel(event)),
+          ].join("|");
+          const previous=clusters.at(-1);
+          if(previous?.key===key){
+            previous.events.push(event);
+          }else{
+            clusters.push({key,sector,events:[event]});
+          }
+        }
+        return {lap,events,clusters};
+      });
   },[allRaceEvents]);
   const liveBestSectors=useMemo(()=>{
     const values=(key)=>liveRows.map((row)=>Number(row?.[key])).filter((value)=>Number.isFinite(value)&&value>0);
@@ -2088,7 +2105,7 @@ export default function RaceWeekend(){
               </div>:null}
             </div>
 
-            {selectedPlayerEntry?<div className="fixed bottom-3 left-1/2 z-50 w-[min(980px,calc(100vw-1.5rem))] -translate-x-1/2 rounded-xl border border-white/15 bg-[#0b0f16]/96 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+            {selectedPlayerEntry?<div className="absolute bottom-12 left-4 z-50 w-[min(980px,calc(100%-2rem))] rounded-xl border border-white/15 bg-[#0b0f16]/94 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:w-[min(980px,calc(100%-650px))]">
               <div className="grid gap-2">
                 {playerEntrants.filter((entry)=>String(entry?.driver_id||"")===String(selectedLiveDriverId||"")).map((entry)=>{
                   const did=String(entry.driver_id);
@@ -2222,36 +2239,52 @@ export default function RaceWeekend(){
                       <div className="text-[11px] font-black tracking-wide text-slate-200">{group.lap>0?`LAP ${group.lap}`:"PRE-RACE"}</div>
                       <div className="text-[9px] uppercase tracking-[0.12em] text-slate-600">{group.events.length} event{group.events.length===1?"":"s"}</div>
                     </div>
-                    <div className="divide-y divide-white/[0.06]">
-                      {group.events.map((event,index)=>{
-                        const did=String(event?.driver_id||"");
-                        const tid=String(event?.team_id??liveRows.find((row)=>String(row?.driver_id||"")===did)?.team_id??"");
-                        const tone=raceEventTone(event);
-                        const damageFacts=raceEventDamageFacts(event);
-                        const driver=did?driverObject(drivers,did):null;
-                        return <button
-                          type="button"
-                          key={event?.event_key||event?.id||`${group.lap}-${index}`}
-                          onClick={()=>openRaceEvent(event)}
-                          className={`grid w-full grid-cols-[42px_30px_minmax(0,1fr)] items-start gap-2 border-l-2 px-3 py-2.5 text-left transition hover:bg-white/[0.05] ${tone.border} ${tone.bg}`}
+                    <div className="grid gap-1.5 p-1.5">
+                      {group.clusters.map((cluster,clusterIndex)=>(
+                        <div
+                          key={cluster.key+"-"+clusterIndex}
+                          className="overflow-hidden rounded-md border border-white/[0.07] bg-black/[0.12]"
                         >
-                          <div className="pt-1 font-mono text-[9px] text-slate-500">{Number(event?.sector)>0?`S${event.sector}`:"—"}</div>
-                          <div className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/25 ${tone.icon}`}>
-                            {raceEventIcon(event,"h-4 w-4")}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.10em] text-slate-500">
-                              <span>{raceEventLabel(event)}</span>
-                              {did?<><DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-4 w-4" className="p-0 ring-white/10"/><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/><span className="normal-case tracking-normal text-slate-400">{driverName(drivers,did)}</span></>:null}
+                          {cluster.events.length>1?<div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.025] px-2.5 py-1.5">
+                            <div className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-[0.10em] text-slate-500">
+                              <span>{cluster.sector>0?`S${cluster.sector}`:"—"}</span>
+                              <span>{raceEventLabel(cluster.events[0])}</span>
                             </div>
-                            <div className="mt-0.5 text-[11px] leading-relaxed text-slate-200">{event?.display_text||liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</div>
-                            {damageFacts?<div className="mt-1 flex flex-wrap gap-1">
-                              {damageFacts.overall!=null?<span className="rounded border border-orange-400/20 bg-orange-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-200">Damage {damageFacts.overall}%</span>:null}
-                              {damageFacts.components.map((component)=><span key={component.key} className="rounded border border-white/10 bg-black/20 px-1.5 py-0.5 text-[8px] text-slate-400">{component.label}{component.pct==null?"":` ${component.pct}%`}</span>)}
-                            </div>:null}
+                            <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[8px] font-black text-slate-400">{cluster.events.length} events</span>
+                          </div>:null}
+                          <div className="divide-y divide-white/[0.05]">
+                            {cluster.events.map((event,index)=>{
+                              const did=String(event?.driver_id||"");
+                              const tid=String(event?.team_id??liveRows.find((row)=>String(row?.driver_id||"")===did)?.team_id??"");
+                              const tone=raceEventTone(event);
+                              const damageFacts=raceEventDamageFacts(event);
+                              const driver=did?driverObject(drivers,did):null;
+                              return <button
+                                type="button"
+                                key={event?.event_key||event?.id||`${group.lap}-${clusterIndex}-${index}`}
+                                onClick={()=>openRaceEvent(event)}
+                                className={`grid w-full grid-cols-[42px_30px_minmax(0,1fr)] items-start gap-2 border-l-2 px-3 py-2.5 text-left transition hover:bg-white/[0.05] ${tone.border} ${tone.bg}`}
+                              >
+                                <div className="pt-1 font-mono text-[9px] text-slate-500">{Number(event?.sector)>0?`S${event.sector}`:"—"}</div>
+                                <div className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/25 ${tone.icon}`}>
+                                  {raceEventIcon(event,"h-4 w-4")}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.10em] text-slate-500">
+                                    <span>{raceEventLabel(event)}</span>
+                                    {did?<><DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-4 w-4" className="p-0 ring-white/10"/><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/><span className="normal-case tracking-normal text-slate-400">{driverName(drivers,did)}</span></>:null}
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] leading-relaxed text-slate-200">{event?.display_text||liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</div>
+                                  {damageFacts?<div className="mt-1 flex flex-wrap gap-1">
+                                    {damageFacts.overall!=null?<span className="rounded border border-orange-400/20 bg-orange-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-200">Damage {damageFacts.overall}%</span>:null}
+                                    {damageFacts.components.map((component)=><span key={component.key} className="rounded border border-white/10 bg-black/20 px-1.5 py-0.5 text-[8px] text-slate-400">{component.label}{component.pct==null?"":` ${component.pct}%`}</span>)}
+                                  </div>:null}
+                                </div>
+                              </button>;
+                            })}
                           </div>
-                        </button>;
-                      })}
+                        </div>
+                      ))}
                     </div>
                   </section>
                 ))}
