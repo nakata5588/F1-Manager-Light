@@ -17,7 +17,7 @@ import { buildRaceClassification, projectCanonicalRaceTiming } from "./RaceClass
 import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs, terminalOfficialRaceTimeMs } from "./RaceLapTiming.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
-import { resolveRaceTeamOrders } from "./RaceTeamOrders.js";
+import { raceTeamOrderTrafficExclusions, resolveRaceTeamOrders } from "./RaceTeamOrders.js";
 import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { planCanonicalPitStrategies } from "./RacePitStrategy.js";
@@ -82,7 +82,9 @@ function advanceCar(state,car,stepMs){
 
   const dt=stepMs/1000;
   const dynamics=raceDynamicsForCar(state,car);
-  const trafficContext=raceTrafficContext(state,car);
+  const trafficContext=raceTrafficContext(state,car,{
+    excludedCarIds:raceTeamOrderTrafficExclusions(state,car),
+  });
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
   const freeTargetSpeedKmh=finite(dynamics?.targetSpeedKmh,null);
   const slipstreamBonusKmh=Math.max(
