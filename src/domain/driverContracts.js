@@ -20,6 +20,7 @@ import { applyTeammateRoleStatusChange } from "./driverTeammateDynamics.js";
 import { synchronizeTeamTeammateRelationships } from "./relationshipEvents.js";
 import { applyDriverReleaseRelationship, applyDriverRoleTeamRelationship } from "./driverTeamManagerDynamics.js";
 import { managerGameplayEffects } from "./managerProfile.js";
+import { applyFinanceTransaction } from "./teamFinance.js";
 
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number(n)||0));
 
@@ -218,33 +219,11 @@ export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}
     };
   });
 
-  const oldBalance=Number(gs?.finances?.balance??gs?.team?.budget??0);
-  const nextBalance=oldBalance-cost;
-  const financeLog=Array.isArray(gs?.financeLog)?gs.financeLog:[];
   const sig="driver-release:"+driverId+":"+today;
-  const tx=cost>0&&!financeLog.some((row)=>row?.sig===sig)
-    ? [{
-        id:"tx_"+sig,
-        dateISO:today,
-        type:"expense",
-        category:"Driver",
-        desc:"Contract termination — "+(contract.driver_name||driverId),
-        amount:-cost,
-        sig,
-      }]
-    : [];
 
   const next={
     ...gs,
     contracts:nextContracts,
-    team:{...(gs?.team||{}),budget:Number(gs?.team?.budget??oldBalance)-cost},
-    finances:{
-      ...(gs?.finances||{}),
-      balance:nextBalance,
-      budget:Number(gs?.finances?.budget??oldBalance)-cost,
-      season_spend:Number(gs?.finances?.season_spend||0)+cost,
-    },
-    financeLog:[...tx,...financeLog],
     driverNegotiations:(gs?.driverNegotiations||[]).map((negotiation)=>
       String(negotiation?.driver_id)===String(driverId) &&
       String(negotiation?.kind||"")==="renewal" &&
@@ -265,7 +244,19 @@ export function releaseDriverContract(gs,driverId,{reason="released_by_team"}={}
       team_id:userTeamId,
     },...(gs?.inbox||[])],
   };
-  return applyDriverReleaseRelationship(next,{
+  const paid=cost>0?applyFinanceTransaction(next,{
+    teamId:userTeamId,
+    amount:-Math.abs(cost),
+    category:"Driver",
+    subtype:"contract_termination",
+    desc:"Contract termination — "+(contract.driver_name||driverId),
+    sig,
+    id:"tx_"+sig,
+    source:"driver_contract",
+    sourceId:String(driverId),
+    dateISO:today,
+  }):next;
+  return applyDriverReleaseRelationship(paid,{
     driverId,
     teamId:userTeamId,
     reason:"Released by team",
