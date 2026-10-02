@@ -86,10 +86,10 @@ export function interpolateRaceViewCar(fromCar,toCar,{
     pitBoxMix=1;
     pitLaneActive=true;
   }else{
-    const fromPitProgress=Number.isFinite(Number(fromCar?.pit_lane_progress))
+    const fromPitProgress=fromCar?.pit_lane_progress!=null&&Number.isFinite(Number(fromCar.pit_lane_progress))
       ?Number(fromCar.pit_lane_progress)
       :targetPitActive?0:null;
-    const targetPitProgress=Number.isFinite(Number(toCar?.pit_lane_progress))
+    const targetPitProgress=toCar?.pit_lane_progress!=null&&Number.isFinite(Number(toCar.pit_lane_progress))
       ?Number(toCar.pit_lane_progress)
       :fromPitActive?1:null;
     pitLaneProgress=fromPitProgress==null&&targetPitProgress==null
