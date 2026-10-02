@@ -314,7 +314,7 @@ export default function CanonicalRaceView({
       const id=String(car?.team_id||"");
       if(id&&!ids.includes(id))ids.push(id);
     }
-    return ids;
+    return ids.sort((a,b)=>a.localeCompare(b));
   },[cars]);
   const motionTargets=useMemo(()=>cars.map((car)=>{
     const boxProgress=raceViewPitBoxProgress(teamIds,car?.team_id);
