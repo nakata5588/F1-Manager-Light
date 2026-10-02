@@ -633,7 +633,7 @@ function updateSponsorRelationships(next) {
   return next;
 }
 
-function awardRaceBonuses(next, race, gpName) {
+export function awardRaceBonuses(next, race, gpName) {
   const year = Number(next.activeYear);
   const teamId = getTeamId(next.team || {});
   const today = clampISO(next.currentDateISO);
