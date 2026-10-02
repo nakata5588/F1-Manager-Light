@@ -1151,10 +1151,10 @@ export default function RaceWeekend(){
   }
 
   const perform=async(fn)=>{
-    if(busy)return;
+    if(busy)return null;
     setBusy(true);
     try{
-      await fn();
+      return await fn();
     }catch(error){
       console.error("[RaceWeekend] action failed:",error);
       pushToast?.({
@@ -1163,6 +1163,7 @@ export default function RaceWeekend(){
         type:"error",
         ttl:4200,
       });
+      return null;
     }finally{
       setBusy(false);
     }
@@ -1179,6 +1180,20 @@ export default function RaceWeekend(){
     const nextWeekend=await runRace();
     if(String(nextWeekend?.phase||"")==="results")setActiveWindow("classification");
   });
+  const simulateCanonicalRaceToFinish=async()=>{
+    const resumeOnFailure=racePlaying;
+    setRacePlaying(false);
+    const result=await perform(async()=>{
+      // Give React one paint/frame to tear down the live frame loop before the
+      // atomic fast scheduler claims the canonical RaceState.
+      await new Promise((resolve)=>window.requestAnimationFrame(()=>resolve()));
+      const view=await autosimCanonicalRace();
+      if(!view)throw new Error("Canonical Autosim did not return a finished race view");
+      return view;
+    });
+    if(!result&&resumeOnFailure)setRacePlaying(true);
+    return result;
+  };
   const toggleRacePlayback=()=>{
     if(busy||String(raceViewModel?.status||"")!=="running")return;
     if(racePlaying){
@@ -1274,7 +1289,7 @@ export default function RaceWeekend(){
             <button
               type="button"
               disabled={busy}
-              onClick={()=>{setRacePlaying(false);perform(()=>autosimCanonicalRace());}}
+              onClick={simulateCanonicalRaceToFinish}
               className="rounded-md bg-slate-100 px-2.5 py-1.5 text-[9px] font-bold text-slate-950 hover:bg-white disabled:opacity-50"
               title="Run the same canonical race simulation to the finish without animation"
             >
@@ -1852,6 +1867,7 @@ export default function RaceWeekend(){
                 onSelectDriver={setSelectedLiveDriverId}
                 playbackRunning={racePlaying}
                 playbackSpeed={racePlaybackSpeed}
+                forecastMessage={liveTeamForecast?.message||""}
               />:<Track2DView
                 trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
                 year={weekend?.year||gs?.activeYear}
@@ -1884,15 +1900,6 @@ export default function RaceWeekend(){
               />}
               {activeControlNotice&&String(activeControlNotice.type)!=="GREEN"?<div className="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2">
                 <RaceFlagBanner notice={activeControlNotice}/>
-              </div>:null}
-              {usesCanonicalRaceRuntime?<div className="mt-2 grid gap-1.5 rounded-lg border border-white/10 bg-black/20 p-2 text-[9px] text-slate-400 md:grid-cols-[repeat(6,minmax(0,auto))_minmax(180px,1fr)] md:items-center">
-                <span><strong className="text-slate-200">Weather</strong> {weatherStateLabel(raceViewModel?.last_weather||"SUNNY")}</span>
-                <span><strong className="text-slate-200">Rain</strong> {Number.isFinite(Number(trackState?.rain_intensity))?Math.round(Number(trackState.rain_intensity)*100)+"%":"—"}</span>
-                <span><strong className="text-slate-200">Wet</strong> {Number.isFinite(Number(trackState?.track_wetness))?Math.round(Number(trackState.track_wetness)*100)+"%":"—"}</span>
-                <span><strong className="text-slate-200">Grip</strong> {Number.isFinite(Number(trackState?.grip_index))?Number(trackState.grip_index).toFixed(0)+"/100":"—"}</span>
-                <span><strong className="text-slate-200">Visibility</strong> {Number.isFinite(Number(trackState?.visibility_index))?Number(trackState.visibility_index).toFixed(0)+"%":"—"}</span>
-                <span><strong className="text-slate-200">Track</strong> {Number.isFinite(Number(trackState?.track_temp_c))?Number(trackState.track_temp_c).toFixed(1)+"°C":"—"}</span>
-                <span className="min-w-0 truncate text-sky-300/90" title={liveTeamForecast?.message||"Team forecast unavailable"}><strong className="text-sky-200">Team forecast:</strong> {liveTeamForecast?.message||"—"}</span>
               </div>:null}
               {usesCanonicalRaceRuntime&&String(raceViewModel?.current_control||"").toUpperCase()==="RED_FLAG"&&canonicalRedFlagLifecycle?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
                 <div className="flex min-w-0 items-start gap-2">
