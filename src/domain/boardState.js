@@ -147,6 +147,7 @@ export function currentBoardState(gs){
     snapshot?.assessment &&
     Number(snapshot?.year)===year &&
     String(snapshot?.team_id??"")===teamId &&
+    String(snapshot?.last_race_key??"")===String(gs?.lastRace?.resultKey??"") &&
     String(snapshot?.source_signature??"")===boardAssessmentSignature(gs)
   ){
     return snapshot.assessment;
@@ -166,6 +167,7 @@ export function refreshBoardAssessment(gs,{reason="scheduled"}={}){
       team_id:teamId,
       assessed_at:String(gs?.currentDateISO||"").slice(0,10)||null,
       reason,
+      last_race_key:String(gs?.lastRace?.resultKey??""),
       source_signature:boardAssessmentSignature(gs),
       assessment,
     },
