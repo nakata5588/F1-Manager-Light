@@ -99,7 +99,19 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
       speedMs:0,
       speedKmh:0,
       fuelKg:12.5,
-      retirement:{reason:"Engine failure"},
+      retirement:{
+        reason:"Engine failure",
+        trackside:{
+          status:"parked",
+          visible:true,
+          parkedAbsoluteM:first.absoluteDistanceM,
+          parkedDistanceAlongLapM:first.distanceAlongLapM,
+          lateralOffsetM:-5.25,
+          passTargets:[{carId:"C2",targetAbsoluteM:1000}],
+          pendingCarIds:["C2"],
+          clearedTo:"pit_box_pending_geometry",
+        },
+      },
       damage:{severity:"major"},
       pitState:{phase:"retired",active:false},
     }:car),
@@ -124,6 +136,9 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
   assert.equal(row.retirement_reason,"Engine failure");
   assert.equal(row.incident_lap,first.lap);
   assert.equal(row.incident_sector,first.sector);
+  assert.equal(row.retirement_trackside.status,"parked");
+  assert.equal(row.retirement_trackside.visible,true);
+  assert.equal(row.lateral_offset_m,-5.25);
   assert.equal(row.fuel_kg,12.5);
   assert.deepEqual(row.damage_state,{severity:"major"});
   assert.equal(view.pit_states[row.driver_id].active,false);
@@ -573,4 +588,45 @@ test("RW10G Race View projects official sector timing and lap deltas without rec
   assert.equal(row.last_lap_delta_ms,-834);
   assert.equal(row.best_lap_ms,79_666);
   assert.equal(row.best_lap_number,2);
+});
+
+
+test("RW11G cleared DNF remains in official classification but is marked hidden from the track presentation",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  const first=state.cars[0];
+  state={
+    ...state,
+    cars:state.cars.map((car)=>car.carId===first.carId?{
+      ...car,
+      dnf:true,
+      status:"dnf",
+      speedMs:0,
+      speedKmh:0,
+      retirement:{
+        reason:"Engine failure",
+        trackside:{
+          status:"cleared",
+          visible:false,
+          parkedAbsoluteM:240,
+          parkedDistanceAlongLapM:240,
+          lateralOffsetM:5.25,
+          passTargets:[],
+          pendingCarIds:[],
+          clearedAtTick:12,
+          clearedAtTimeMs:1200,
+          clearedTo:"pit_box_pending_geometry",
+        },
+      },
+    }:car),
+  };
+
+  const view=projectRaceStateToRaceView(state);
+  const row=view.classification.find((candidate)=>candidate.car_id===first.carId);
+  const visual=canonicalRaceViewCars(view).find((candidate)=>candidate.car_id===first.carId);
+
+  assert.ok(row,"DNF must remain part of the official classification");
+  assert.equal(row.retired,true);
+  assert.equal(row.retirement_trackside.status,"cleared");
+  assert.equal(row.retirement_trackside.visible,false);
+  assert.equal(visual.retirement_trackside.visible,false);
 });
