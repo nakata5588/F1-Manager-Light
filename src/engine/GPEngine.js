@@ -17,6 +17,7 @@ import { applyRacePerformanceEvaluation, driverPerformanceEntries } from "../dom
 import { applyRaceReputation } from "../domain/driverReputation.js";
 import { applyRaceTeamMorale } from "../domain/teamMorale.js";
 import { applyRaceTeamReputation } from "../domain/teamReputation.js";
+import { applyFinanceTransaction } from "../domain/teamFinance.js";
 import { applyAIRaceComponentWear } from "./AITechnicalEngine.js";
 import { applyRaceTeammateDynamics } from "../domain/driverTeammateDynamics.js";
 import { applyRaceDriverRivalries } from "../domain/driverRivalries.js";
@@ -632,12 +633,10 @@ function updateSponsorRelationships(next) {
   return next;
 }
 
-function awardRaceBonuses(next, race, gpName) {
+export function awardRaceBonuses(next, race, gpName) {
   const year = Number(next.activeYear);
   const teamId = getTeamId(next.team || {});
   const today = clampISO(next.currentDateISO);
-
-  const financeLog = Array.isArray(next.financeLog) ? next.financeLog.slice() : [];
 
   const driverRows = activeDriverContracts(next,{teamId});
 
@@ -717,11 +716,30 @@ function awardRaceBonuses(next, race, gpName) {
     }
   }
 
-  const sigs = new Set(financeLog.map(t => t.sig));
-  const fresh = [...txPilot, ...txSponsor].filter(t => !sigs.has(t.sig));
-  if (fresh.length) next.financeLog = [...fresh, ...financeLog];
+  let paid=next;
+  for(const tx of [...txPilot,...txSponsor]){
+    const subtype=String(tx.sig||"").startsWith("bonusDwin:")
+      ?"driver_win_bonus"
+      :String(tx.sig||"").startsWith("bonusDpod:")
+        ?"driver_podium_bonus"
+        :String(tx.sig||"").startsWith("bonusSwin:")
+          ?"sponsor_win_bonus"
+          :"sponsor_podium_bonus";
+    paid=applyFinanceTransaction(paid,{
+      teamId,
+      amount:tx.amount,
+      category:tx.category,
+      subtype,
+      desc:tx.desc,
+      sig:tx.sig,
+      id:tx.id,
+      source:"race_result",
+      sourceId:[year,today,gpName].join(":"),
+      dateISO:today,
+    });
+  }
 
-  return next;
+  return paid;
 }
 
 

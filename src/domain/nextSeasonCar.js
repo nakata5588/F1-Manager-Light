@@ -9,6 +9,7 @@ import { technicalDevelopmentCapacity } from "./developmentProject.js";
 import { nextSeasonRegulationImpact } from "./nextSeasonRegulations.js";
 import { nextSeasonKnowledgeCarryover, technicalKnowledgeSnapshot } from "./technicalKnowledge.js";
 import { buildNextSeasonTechnicalPackage, nextSeasonTechnicalPhilosophy } from "./nextSeasonTechnicalPackage.js";
+import { applyFinanceTransaction } from "./teamFinance.js";
 
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
 const num=(v,fb=0)=>{const n=Number(v);return Number.isFinite(n)?n:fb;};
@@ -151,24 +152,21 @@ function financeBalance(gs){
 
 function patchBudget(gs,amount,description){
   const value=Math.max(0,Math.round(num(amount,0)));
-  const oldTeamBudget=num(gs?.team?.budget,financeBalance(gs));
-  const oldBalance=financeBalance(gs);
   const date=dateOnly(gs?.currentDateISO);
-  const id=`next_car_${date||"date"}_${Math.abs(value)}`;
-  return {
-    ...gs,
-    team:{...(gs?.team||{}),budget:oldTeamBudget-value},
-    finances:{
-      ...(gs?.finances||{}),
-      budget:num(gs?.finances?.budget,oldTeamBudget)-value,
-      balance:oldBalance-value,
-      season_spend:num(gs?.finances?.season_spend,0)+value,
-    },
-    financeLog:[
-      ...(Array.isArray(gs?.financeLog)?gs.financeLog:[]),
-      {id,dateISO:date,type:"expense",category:"Next Season Car",amount:-value,desc:description},
-    ],
-  };
+  const teamId=str(gs?.team?.team_id??gs?.team?.id);
+  const sig=["next-season-car",teamId,date,value,description].join(":");
+  return applyFinanceTransaction(gs,{
+    teamId,
+    amount:-value,
+    category:"Next Season Car",
+    subtype:"programme_launch",
+    desc:description,
+    sig,
+    id:`next_car_${date||"date"}_${Math.abs(value)}`,
+    source:"next_season_car",
+    sourceId:str(activeYearOf(gs)+1),
+    dateISO:date,
+  });
 }
 
 export function nextSeasonEngineeringCapacity(gs,{teamId=null,engineeringSupport=50}={}){

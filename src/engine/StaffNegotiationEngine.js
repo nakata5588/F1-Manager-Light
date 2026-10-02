@@ -27,6 +27,7 @@ import {
 } from "../domain/staffPerformance.js";
 import { applyStaffTransferSettlement, canAffordStaffTransfer } from "../domain/staffTransfers.js";
 import { playerManagerIsActiveTeamPrincipal } from "../domain/managerEmployment.js";
+import { applyFinanceTransaction } from "../domain/teamFinance.js";
 
 const ACTIVE_STATUSES=new Set(["submitted","countered"]);
 const CLOSED_STATUSES=new Set(["accepted","rejected","withdrawn","signed_elsewhere"]);
@@ -243,30 +244,19 @@ function applyIncumbentRelease(gs,incumbent,negotiation){
     }:row),
   };
   if(buyerTeamId===playerTeamId&&cost>0){
-    const resolvedBudget=staffTeamBudget(next,buyerTeamId);
-    const oldBalance=Number.isFinite(resolvedBudget)?resolvedBudget:0;
     const sig="staff-release:"+incumbentId+":"+today;
-    const log=Array.isArray(next?.financeLog)?next.financeLog:[];
-    const tx=log.some((row)=>row?.sig===sig)?[]:[{
-      id:"tx_"+sig,
-      dateISO:today,
-      type:"expense",
+    next=applyFinanceTransaction(next,{
+      teamId:buyerTeamId,
+      amount:-Math.abs(cost),
       category:"Staff",
+      subtype:"contract_termination",
       desc:"Contract termination — "+staffNameFor(gs,incumbentId),
-      amount:-cost,
       sig,
-    }];
-    next={
-      ...next,
-      team:{...(next?.team||{}),budget:oldBalance-cost},
-      finances:{
-        ...(next?.finances||{}),
-        balance:oldBalance-cost,
-        budget:oldBalance-cost,
-        season_spend:Number(next?.finances?.season_spend||0)+cost,
-      },
-      financeLog:[...tx,...log],
-    };
+      id:"tx_"+sig,
+      source:"staff_contract",
+      sourceId:String(incumbentId),
+      dateISO:today,
+    });
   }
   return {state:next,cost};
 }
