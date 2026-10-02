@@ -279,6 +279,16 @@ test("RW14A slipstream contributes to target speed but never bypasses canonical 
   assert.ok(follower.traffic.slipstreamTargetBonusKmh>0);
   assert.ok(follower.targetSpeedKmh>follower.freeTargetSpeedKmh);
 
+  const isolated=patchCars(state,{
+    C1:{absoluteDistanceM:700,distanceAlongLapM:700,speedMs:70,speedKmh:252},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252},
+  });
+  const isolatedFollower=car(stepRaceState(isolated),"C2");
+  assert.ok(
+    follower.speedKmh>isolatedFollower.speedKmh,
+    "slipstream must create actual canonical speed gain, not telemetry only"
+  );
+
   let close=runningState({cars:2,stepMs:1000});
   close=patchCars(close,{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
