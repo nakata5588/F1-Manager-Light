@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   orientTrackGeometry,
   pointAtTrackProgress,
@@ -6,6 +6,11 @@ import {
   trackGeometryViewBox,
 } from "../../domain/trackLayout.js";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
+import {
+  interpolateRaceViewCars,
+  raceViewInterpolationAlpha,
+  raceViewInterpolationDurationMs,
+} from "../../race2/view/RaceViewInterpolation.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -101,6 +106,94 @@ function controlTone(control){
   return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200";
 }
 
+function useCanonicalRaceViewMotion(canonicalCars,{
+  trackLengthM,
+  canonicalTick,
+  canonicalTimeMs,
+  playbackRunning,
+  playbackSpeed,
+}){
+  const [visualCars,setVisualCars]=useState(canonicalCars);
+  const visualCarsRef=useRef(canonicalCars);
+  const previousTickRef=useRef(canonicalTick);
+  const previousCanonicalTimeRef=useRef(canonicalTimeMs);
+  const frameRef=useRef(null);
+
+  useEffect(()=>{
+    if(frameRef.current!=null){
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current=null;
+    }
+
+    const target=canonicalCars;
+    const previousTick=previousTickRef.current;
+    const previousCanonicalTime=previousCanonicalTimeRef.current;
+    previousTickRef.current=canonicalTick;
+    previousCanonicalTimeRef.current=canonicalTimeMs;
+
+    const reset=(
+      !playbackRunning||
+      previousTick==null||
+      canonicalTick<=previousTick||
+      !visualCarsRef.current?.length
+    );
+    if(reset){
+      visualCarsRef.current=target;
+      setVisualCars(target);
+      return undefined;
+    }
+
+    const durationMs=raceViewInterpolationDurationMs(
+      previousCanonicalTime,
+      canonicalTimeMs,
+      playbackSpeed
+    );
+    if(durationMs<=0){
+      visualCarsRef.current=target;
+      setVisualCars(target);
+      return undefined;
+    }
+
+    const from=visualCarsRef.current;
+    const startedAtMs=performance.now();
+    let cancelled=false;
+
+    const animate=(timestampMs)=>{
+      if(cancelled)return;
+      const alpha=raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs);
+      const next=interpolateRaceViewCars(from,target,{
+        alpha,
+        trackLengthM,
+      });
+      visualCarsRef.current=next;
+      setVisualCars(next);
+      if(alpha<1){
+        frameRef.current=window.requestAnimationFrame(animate);
+      }else{
+        frameRef.current=null;
+      }
+    };
+
+    frameRef.current=window.requestAnimationFrame(animate);
+    return ()=>{
+      cancelled=true;
+      if(frameRef.current!=null){
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current=null;
+      }
+    };
+  },[
+    canonicalTick,
+    canonicalTimeMs,
+    playbackRunning,
+    playbackSpeed,
+    trackLengthM,
+    canonicalCars,
+  ]);
+
+  return visualCars;
+}
+
 function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,scale=1,retired=false}){
   const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
   if(!pose)return null;
@@ -139,13 +232,20 @@ export default function CanonicalRaceView({
 }){
   const summary=useMemo(()=>canonicalRaceViewSummary(view),[view]);
   const cars=useMemo(()=>canonicalRaceViewCars(view),[view]);
+  const trackLengthM=Math.max(1,Number(view?.track_length_m)||1);
+  const visualCars=useCanonicalRaceViewMotion(cars,{
+    trackLengthM,
+    canonicalTick:summary.canonical_tick,
+    canonicalTimeMs:summary.canonical_time_ms,
+    playbackRunning,
+    playbackSpeed,
+  });
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const geometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
   const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.10,minPadding:28}),[geometry]);
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const closedPoints=points.length?[...points,points[0]]:[];
   const polyline=closedPoints.map((point)=>point.join(",")).join(" ");
-  const trackLengthM=Math.max(1,Number(view?.track_length_m)||1);
   const unitsPerMeter=trackPathLength(points)/trackLengthM;
   const markerScale=Math.max(.65,Math.min(1.35,Number(viewBox?.[2]||1000)/900));
   const selected=cars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
@@ -177,7 +277,7 @@ export default function CanonicalRaceView({
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="url(#rw9-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth=".65" strokeDasharray="2 13" opacity=".18"/>
-        {cars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=>{
+        {visualCars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=>{
           const color=teamColor(teamBrands,car.team_id,year);
           const label=shortName(drivers,car.driver_id);
           const title=`P${car.position} · ${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)} · ${formatSpeed(car.speed_kmh)}`;
