@@ -93,6 +93,10 @@ function clearBattlePair(cars,ids=[]){
 }
 
 function retireCar(car,state,{kind,reason,source=null}={}){
+  const side=deterministicUnit(
+    state,
+    `retirement-verge:${car?.carId??"car"}:${state?.tick??0}`
+  )<0.5?-1:1;
   return {
     ...clearBattle(car),
     dnf:true,
@@ -108,8 +112,124 @@ function retireCar(car,state,{kind,reason,source=null}={}){
       source:source??null,
       tick:Math.max(0,Math.floor(finite(state?.tick,0))),
       timeMs:Math.max(0,finite(state?.simulationTimeMs,0)),
+      trackside:{
+        status:"parked",
+        visible:true,
+        parkedAbsoluteM:round(finite(car?.absoluteDistanceM,0),6),
+        parkedDistanceAlongLapM:round(finite(car?.distanceAlongLapM,0),6),
+        parkedLap:finite(car?.lap,null),
+        parkedSector:finite(car?.sector,null),
+        lateralOffsetM:round(side*5.25,3),
+        passTargets:null,
+        pendingCarIds:null,
+        clearedAtTick:null,
+        clearedAtTimeMs:null,
+        clearedTo:"pit_box_pending_geometry",
+      },
     },
   };
+}
+
+function runningCar(car){
+  return Boolean(
+    car&&
+    !car?.dnf&&
+    car?.status!=="dnf"&&
+    car?.status!=="finished"
+  );
+}
+
+function nextPassAbsoluteM(state,car,trackDistanceM){
+  const length=Math.max(1,finite(state?.track?.lengthM,1));
+  const current=finite(car?.absoluteDistanceM,0);
+  const point=((finite(trackDistanceM,0)%length)+length)%length;
+  const cycle=Math.floor(current/length);
+  let target=cycle*length+point;
+  if(target<=current+0.25)target+=length;
+  return round(target,6);
+}
+
+function tracksideStateFor(state,cars,retired){
+  const existing=retired?.retirement?.trackside||{};
+  const parkedDistance=finite(
+    existing?.parkedDistanceAlongLapM,
+    retired?.distanceAlongLapM??0
+  );
+  const passTargets=Array.isArray(existing?.passTargets)
+    ?existing.passTargets.map((row)=>({
+      carId:text(row?.carId),
+      targetAbsoluteM:round(finite(row?.targetAbsoluteM,0),6),
+    })).filter((row)=>row.carId)
+    :(cars||[])
+      .filter((candidate)=>
+        text(candidate?.carId)!==text(retired?.carId)&&runningCar(candidate)
+      )
+      .map((candidate)=>({
+        carId:text(candidate?.carId),
+        targetAbsoluteM:nextPassAbsoluteM(state,candidate,parkedDistance),
+      }))
+      .sort((a,b)=>a.carId.localeCompare(b.carId));
+
+  const activeById=new Map(
+    (cars||[])
+      .filter(runningCar)
+      .map((candidate)=>[text(candidate?.carId),candidate])
+  );
+  const pending=passTargets.filter((target)=>{
+    const candidate=activeById.get(target.carId);
+    if(!candidate)return false;
+    return finite(candidate?.absoluteDistanceM,0)<finite(target?.targetAbsoluteM,0)-0.25;
+  });
+  const cleared=pending.length===0;
+
+  return {
+    ...existing,
+    status:cleared?"cleared":"parked",
+    visible:!cleared,
+    parkedAbsoluteM:round(
+      finite(existing?.parkedAbsoluteM,retired?.absoluteDistanceM??0),
+      6
+    ),
+    parkedDistanceAlongLapM:round(parkedDistance,6),
+    parkedLap:finite(existing?.parkedLap,retired?.lap??null),
+    parkedSector:finite(existing?.parkedSector,retired?.sector??null),
+    lateralOffsetM:finite(existing?.lateralOffsetM,5.25),
+    passTargets,
+    pendingCarIds:pending.map((row)=>row.carId),
+    clearedAtTick:cleared
+      ?finite(existing?.clearedAtTick,Math.max(0,Math.floor(finite(state?.tick,0)))+1)
+      :null,
+    clearedAtTimeMs:cleared
+      ?finite(existing?.clearedAtTimeMs,Math.max(0,finite(state?.simulationTimeMs,0)))
+      :null,
+    clearedTo:existing?.clearedTo??"pit_box_pending_geometry",
+  };
+}
+
+export function advanceRetirementTrackside(state,cars){
+  const source=Array.isArray(cars)?cars:[];
+  const events=[];
+  const next=source.map((car)=>{
+    if(!(car?.dnf||car?.status==="dnf")||!car?.retirement)return car;
+    const beforeStatus=text(car?.retirement?.trackside?.status);
+    const trackside=tracksideStateFor(state,source,car);
+    if(beforeStatus!=="cleared"&&trackside.status==="cleared"){
+      events.push(eventDescriptor("retirement_cleared",state,car,{
+        reason:car?.retirement?.reason??null,
+        parkedAbsoluteM:trackside.parkedAbsoluteM,
+        parkedDistanceAlongLapM:trackside.parkedDistanceAlongLapM,
+        clearedTo:trackside.clearedTo,
+      }));
+    }
+    return {
+      ...car,
+      retirement:{
+        ...car.retirement,
+        trackside,
+      },
+    };
+  });
+  return {cars:next,events};
 }
 
 function incidentRolls(state,key){

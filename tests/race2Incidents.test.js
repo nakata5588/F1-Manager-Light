@@ -5,6 +5,7 @@ import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
 import {
+  advanceRetirementTrackside,
   raceIncidentHazardProbability,
   resolveRaceIncidents,
 } from "../src/race2/core/RaceIncidents.js";
@@ -259,4 +260,151 @@ test("RW8.10 Live and Fast execute identical incidents, damage, DNF and events",
   assert.deepEqual(live.getState().events,fast.events);
   assert.deepEqual(live.getState().cars.map((row)=>row.damage),fast.cars.map((row)=>row.damage));
   assert.deepEqual(live.getState().cars.map((row)=>row.retirement),fast.cars.map((row)=>row.retirement));
+});
+
+
+test("RW11G retired car stays trackside until the last running car passes the retirement point",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:500,
+      distanceAlongLapM:500,
+      completedLaps:0,
+      lap:1,
+      sector:2,
+      speedMs:0,
+      speedKmh:0,
+      dnf:true,
+      status:"dnf",
+      retirement:{
+        kind:"mechanical",
+        reason:"Engine",
+        source:"test",
+        tick:10,
+        timeMs:1000,
+        trackside:{
+          status:"parked",
+          visible:true,
+          parkedAbsoluteM:500,
+          parkedDistanceAlongLapM:500,
+          parkedLap:1,
+          parkedSector:2,
+          lateralOffsetM:5.25,
+          passTargets:null,
+          pendingCarIds:null,
+          clearedAtTick:null,
+          clearedAtTimeMs:null,
+          clearedTo:"pit_box_pending_geometry",
+        },
+      },
+    },
+    C2:{
+      absoluteDistanceM:450,
+      distanceAlongLapM:450,
+      completedLaps:0,
+      lap:1,
+      sector:2,
+      speedMs:50,
+      speedKmh:180,
+      dnf:false,
+      status:"running",
+    },
+  });
+
+  const parked=advanceRetirementTrackside(state,state.cars);
+  const retired=car({cars:parked.cars},"C1");
+  assert.equal(retired.absoluteDistanceM,500);
+  assert.equal(retired.retirement.trackside.status,"parked");
+  assert.equal(retired.retirement.trackside.visible,true);
+  assert.deepEqual(retired.retirement.trackside.pendingCarIds,["C2"]);
+  assert.equal(retired.retirement.trackside.passTargets[0].targetAbsoluteM,500);
+  assert.equal(parked.events.length,0);
+
+  const progressed={
+    ...state,
+    tick:state.tick+1,
+    simulationTimeMs:state.simulationTimeMs+100,
+    cars:parked.cars.map((row)=>row.carId==="C2"?{
+      ...row,
+      absoluteDistanceM:510,
+      distanceAlongLapM:510,
+    }:row),
+  };
+  const cleared=advanceRetirementTrackside(progressed,progressed.cars);
+  const clearedCar=car({cars:cleared.cars},"C1");
+  assert.equal(clearedCar.absoluteDistanceM,500);
+  assert.equal(clearedCar.retirement.trackside.status,"cleared");
+  assert.equal(clearedCar.retirement.trackside.visible,false);
+  assert.deepEqual(clearedCar.retirement.trackside.pendingCarIds,[]);
+  assert.equal(cleared.events.length,1);
+  assert.equal(cleared.events[0].type,"retirement_cleared");
+});
+
+test("RW11G a car already beyond the DNF point must complete its next physical pass before clearance",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:500,
+      distanceAlongLapM:500,
+      dnf:true,
+      status:"dnf",
+      speedMs:0,
+      speedKmh:0,
+      retirement:{
+        kind:"accident",
+        reason:"Accident",
+        trackside:{
+          status:"parked",
+          visible:true,
+          parkedAbsoluteM:500,
+          parkedDistanceAlongLapM:500,
+          lateralOffsetM:-5.25,
+          passTargets:null,
+        },
+      },
+    },
+    C2:{
+      absoluteDistanceM:700,
+      distanceAlongLapM:700,
+      completedLaps:0,
+      lap:1,
+      dnf:false,
+      status:"running",
+    },
+  });
+
+  const parked=advanceRetirementTrackside(state,state.cars);
+  const trackside=car({cars:parked.cars},"C1").retirement.trackside;
+  assert.equal(trackside.status,"parked");
+  assert.equal(trackside.passTargets[0].targetAbsoluteM,1500);
+
+  const beforeNextPass={
+    ...state,
+    cars:parked.cars.map((row)=>row.carId==="C2"?{
+      ...row,
+      absoluteDistanceM:1499,
+      distanceAlongLapM:499,
+      completedLaps:1,
+      lap:2,
+    }:row),
+  };
+  assert.equal(
+    car({cars:advanceRetirementTrackside(beforeNextPass,beforeNextPass.cars).cars},"C1").retirement.trackside.status,
+    "parked"
+  );
+
+  const afterNextPass={
+    ...state,
+    cars:parked.cars.map((row)=>row.carId==="C2"?{
+      ...row,
+      absoluteDistanceM:1501,
+      distanceAlongLapM:501,
+      completedLaps:1,
+      lap:2,
+    }:row),
+  };
+  assert.equal(
+    car({cars:advanceRetirementTrackside(afterNextPass,afterNextPass.cars).cars},"C1").retirement.trackside.status,
+    "cleared"
+  );
 });
