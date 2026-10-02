@@ -298,3 +298,29 @@ test("RW12C RW12A interpolation keeps pit-lane travel continuous through entry a
   );
   assert.equal(rejoined.pit_lane_active,false);
 });
+
+
+test("RW12D cleared DNF snaps to its team pit box instead of animating across the circuit",()=>{
+  const from={
+    id:"C1",
+    car_id:"C1",
+    absolute_distance_m:500,
+    lateral_offset_m:5.25,
+    retired:true,
+    pit_lane_active:false,
+    pit_lane_progress:null,
+    pit_box_progress:0.62,
+  };
+  const to={
+    ...from,
+    pit_lane_active:true,
+    pit_lane_progress:0.62,
+    pit_box_progress:0.62,
+    pit_box_parked:true,
+    retirement_trackside:{status:"cleared",visible:false},
+  };
+  const frame=interpolateRaceViewCar(from,to,{alpha:0.05,trackLengthM:1000});
+  assert.equal(frame.pit_lane_active,true);
+  assert.equal(frame.pit_lane_progress,0.62);
+  assert.equal(frame.pit_box_parked,true);
+});
