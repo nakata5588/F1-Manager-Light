@@ -183,6 +183,24 @@ export function carPerformanceRanking(gs){
     .map((row,index)=>({...row,rank:index+1}));
 }
 
+export const CAR_PERFORMANCE_SNAPSHOT_MUTATION_KEYS=Object.freeze([
+  "garage",
+  "development",
+  "carStats",
+  "teamEngines",
+  "aiTechnicalWorld",
+  "dbCarStats",
+  "dbTeamEngines",
+  "team",
+]);
+
+export function carPerformanceSnapshotInvalidatedByPatch(patch){
+  if(!patch||typeof patch!=="object"||Array.isArray(patch))return false;
+  return CAR_PERFORMANCE_SNAPSHOT_MUTATION_KEYS.some((key)=>
+    Object.prototype.hasOwnProperty.call(patch,key)
+  );
+}
+
 export function currentCarPerformanceRanking(gs){
   const snapshot=gs?.carPerformanceSnapshot;
   if(
