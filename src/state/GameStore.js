@@ -44,7 +44,7 @@ import { activeLowerSeriesTeamsForYear } from "@/domain/lowerSeriesTeams";
 import { materializeMissingStartingRatings } from "@/domain/driverStartingRating";
 import { currentWorldCadence, stampWorldCadence } from "@/domain/worldCadence";
 import { refreshBoardAssessment } from "@/domain/boardState";
-import { refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
+import { carPerformanceSnapshotInvalidatedByPatch, refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -768,7 +768,18 @@ export const useGame = create((set, get) => ({
   },
   dismissToast: (id) => set((s) => ({ uiToasts: (s.uiToasts || []).filter((t) => t.id !== id) })),
 
-  setGameState: (partial) => set((s) => ({ gameState: { ...s.gameState, ...partial } })),
+  setGameState: (partial) => set((s) => {
+    const patch=partial&&typeof partial==="object"&&!Array.isArray(partial)?partial:{};
+    const explicitSnapshot=Object.prototype.hasOwnProperty.call(patch,"carPerformanceSnapshot");
+    const invalidateSnapshot=!explicitSnapshot&&carPerformanceSnapshotInvalidatedByPatch(patch);
+    return {
+      gameState:{
+        ...s.gameState,
+        ...patch,
+        ...(invalidateSnapshot?{carPerformanceSnapshot:null}:{}),
+      },
+    };
+  }),
 
   setVisualAssetOverride: (input) => set((s) => ({
     gameState: {
