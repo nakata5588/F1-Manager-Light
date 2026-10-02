@@ -13,7 +13,7 @@
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { normalizeRaceStepMs } from "./RaceState.js";
 import { raceAccelerationForTarget, raceDynamicsForCar } from "./RaceDynamics.js";
-import { projectCanonicalRaceTiming } from "./RaceClassification.js";
+import { buildRaceClassification, projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs, terminalOfficialRaceTimeMs } from "./RaceLapTiming.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
@@ -333,7 +333,18 @@ export function stepRaceState(state){
   };
   const resourceCars=advanceRaceResources(resourceState,incidents.cars,{stepMs});
   const retirementLifecycle=advanceRetirementTrackside(workingState,resourceCars);
-  const cars=applyCanonicalLapTiming(state,retirementLifecycle.cars,{stepMs});
+  const postPhysicsClassification=buildRaceClassification({
+    ...workingState,
+    cars:retirementLifecycle.cars,
+  });
+  const positionByCar=new Map(
+    postPhysicsClassification.map((row)=>[String(row?.carId??""),row?.position])
+  );
+  const cars=applyCanonicalLapTiming(
+    state,
+    retirementLifecycle.cars,
+    {stepMs,positionByCar}
+  );
   const rawEvents=[
     ...(commands.events||[]),
     ...(pits.events||[]),
