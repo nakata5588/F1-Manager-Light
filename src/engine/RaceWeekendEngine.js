@@ -556,6 +556,51 @@ export function completeQualifyingSession(gs,{gp}={}){
 export async function completeRaceSession(gs,{gp}={}){
   const weekend=gs?.raceWeekendState;
   if(!weekend||weekend.phase!=="race")return gs;
+
+  const targetGp=targetGpForWeekend(weekend,gp);
+  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
+  const expectedResultKey=String(
+    weekend?.race_result_key||
+    weekend?.key||
+    `${Number(gs?.activeYear)||Number(weekend?.year)||Number(targetGp?.year)||"season"}_${Number(weekend?.round)||Number(weekend?.roundIndex)+1}_${gpId(targetGp,weekend?.roundIndex)}`
+  );
+  const archivedResult=(Array.isArray(gs?.results)?gs.results:[]).find(
+    (result)=>String(result?.key||"")===expectedResultKey
+  );
+
+  // Recovery must win over stale live/runtime readiness. The tab-local
+  // session journal can be older than the rolling Continue snapshot while
+  // both still belong to the same career. If the official result is already
+  // archived, restore Results without replaying any race/post-race effects.
+  if(archivedResult){
+    const sessions=sessionWithPatch(weekend.sessions,"race",{
+      status:"completed",
+      completed_at:clampISO(archivedResult?.dateISO||gs?.currentDateISO),
+    });
+    return {
+      ...gs,
+      raceWeekendState:{
+        ...weekend,
+        sessions,
+        phase:"results",
+        active_session_id:"race",
+        practice:weekend.practice,
+        qualifying:weekend.qualifying,
+        startingGrid:weekend.startingGrid,
+        grid:startingGridRows,
+        race_strategy:{
+          ...(weekend.race_strategy||{}),
+          status:"completed",
+          race_summary:archivedResult?.raceStrategy||weekend?.race_strategy?.race_summary||null,
+        },
+        race_result_key:archivedResult.key,
+        race_completed_at:clampISO(archivedResult?.dateISO||gs?.currentDateISO),
+      },
+    };
+  }
+
+  if(!startingGridRows.length)return gs;
+
   const canonical=raceWeekendEngineVersion(weekend)===RACE_WEEKEND_ENGINES.RW2;
   const canonicalState=weekend?.canonical_race_runtime?.state||null;
   if(canonical){
@@ -563,10 +608,6 @@ export async function completeRaceSession(gs,{gp}={}){
   }else if(weekend.live_race&&!liveRaceReadyToFinalize(gs)){
     return gs;
   }
-
-  const targetGp=targetGpForWeekend(weekend,gp);
-  const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
-  if(!startingGridRows.length)return gs;
 
   const raceRows=canonical
     ?projectCanonicalRaceStateToOfficialRows(gs,canonicalState)
