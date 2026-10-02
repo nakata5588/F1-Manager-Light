@@ -9,6 +9,7 @@ import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
+import { canonicalRacePostRaceContext } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 
 function input({cars=1,refuellingAllowed=false,sameTeam=false,teamOrderProbability=1,teamOrderAtRisk=false}={}){
   const entries=Array.from({length:cars},(_,index)=>({
@@ -353,6 +354,14 @@ test("RW22 canonical team order is accepted only for the directly trailing team-
   assert.equal(car(completed,"C1").commands.teamOrder,undefined);
   assert.ok(completed.events.some((event)=>event.type==="command_applied"&&event.payload.commandType==="team_order"));
   assert.ok(completed.events.some((event)=>event.type==="team_order_completed"));
+
+  const postRace=canonicalRacePostRaceContext({
+    raceWeekendState:{race_strategy:{selections:{D1:{pace_mode:"balanced"}}}},
+  },completed);
+  const decision=postRace.summary.strategies.D1.strategy_decisions.at(-1);
+  assert.equal(decision.action,"team_order");
+  assert.equal(decision.order,"yield");
+  assert.equal(decision.teammate_id,"D2");
 });
 
 test("RW22 canonical team-order refusal is deterministic and leaves physical state unchanged",()=>{
