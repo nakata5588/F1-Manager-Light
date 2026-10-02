@@ -13,9 +13,10 @@ import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../ra
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
-import Track2DView from "../components/race/Track2DView.jsx";
 import CanonicalRaceView from "../components/race2/CanonicalRaceView.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Pause, Play, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
+
+const LegacyTrack2DView=React.lazy(()=>import("../components/race/Track2DView.jsx"));
 
 const STEPS=[
   ["practice","Practice"],
@@ -1868,7 +1869,8 @@ export default function RaceWeekend(){
                 playbackRunning={racePlaying}
                 playbackSpeed={racePlaybackSpeed}
                 forecastMessage={liveTeamForecast?.message||""}
-              />:<Track2DView
+              />:<React.Suspense fallback={<div className="flex min-h-[650px] items-center justify-center bg-[#101923] text-sm text-slate-500">Loading legacy race view…</div>}>
+                <LegacyTrack2DView
                 trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
                 year={weekend?.year||gs?.activeYear}
                 round={weekend?.round??null}
@@ -1897,7 +1899,8 @@ export default function RaceWeekend(){
                 busy={busy}
                 onRestartRace={()=>perform(restartLiveRace)}
                 onConfirmResults={finalizeLiveRace}
-              />}
+                />
+              </React.Suspense>}
               {activeControlNotice&&String(activeControlNotice.type)!=="GREEN"?<div className="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2">
                 <RaceFlagBanner notice={activeControlNotice}/>
               </div>:null}
