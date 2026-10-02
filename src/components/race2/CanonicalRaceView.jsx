@@ -382,6 +382,9 @@ function CanonicalCar({
     calibrated.targetLengthSvg*.62
   );
   const labelScale=Math.max(.5,Math.min(.78,Number(scale)||.65));
+  const battlePhase=String(car?.battle?.phase||"none");
+  const battleActive=battlePhase!=="none";
+  const battleRole=String(car?.battle?.role||"").toLowerCase()==="attacker"?"ATT":"DEF";
   return <g
     role="button"
     tabIndex="0"
@@ -394,6 +397,7 @@ function CanonicalCar({
   >
     <title>{label}</title>
     {selected?<circle cx="0" cy="0" r={haloRadius} fill="none" stroke="#f8fafc" strokeWidth={1.15*scale} opacity=".82"/>:null}
+    {battleActive?<circle cx="0" cy="0" r={haloRadius*1.28} fill="none" stroke="#fbbf24" strokeWidth={.85*scale} strokeDasharray={(2.2*scale)+" "+(1.7*scale)} opacity=".88"/>:null}
     <g transform={`scale(${spriteScale})`}>
       <RaceCarVisual
         year={year}
@@ -410,6 +414,10 @@ function CanonicalCar({
         historicalModel={palette?.model}
       />
     </g>
+    {battleActive?<g transform={`translate(0 ${6.8*labelScale}) rotate(${-pose.heading})`}>
+      <rect x={-3.6*labelScale} y={-1.8*labelScale} width={7.2*labelScale} height={3.6*labelScale} rx={1.8*labelScale} fill="#451a03" stroke="#fbbf24" strokeWidth={.45*labelScale} opacity=".90"/>
+      <text x="0" y={.9*labelScale} textAnchor="middle" fontSize={2.6*labelScale} fontWeight="900" fill="#fde68a">{battleRole}</text>
+    </g>:null}
     {showLabel?<g transform={`translate(0 ${-5.8*labelScale}) rotate(${-pose.heading})`}>
       <rect x={-4.8*labelScale} y={-2.1*labelScale} width={9.6*labelScale} height={4.2*labelScale} rx={2.1*labelScale} fill="#03060a" stroke={selected?"#f8fafc":"#475569"} strokeWidth={.5*labelScale} opacity=".82"/>
       <text x="0" y={1.05*labelScale} textAnchor="middle" fontSize={3.2*labelScale} fontWeight="900" fill="#f8fafc">{label}</text>
