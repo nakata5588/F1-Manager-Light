@@ -258,12 +258,20 @@ export function stepRaceState(state){
   // fast-forwards wall-clock conditions while cars remain stationary; movement
   // resumes only on the following canonical step.
   if(raceControlFreezesProgress(state)){
-    const workedState=applyAutomaticCanonicalRedFlagWork(state);
-    const suspension=advanceRedFlagSuspension(workedState);
-    const recoveredWeather=weatherAfterRedFlagRecovery(workedState?.weatherState,suspension.weatherRow);
+    // Race Control evaluates restart conditions first. If that evaluation
+    // produces a recovered weather row, AI suspension work must see those
+    // conditions before the lifecycle is locked into restart_pending.
+    const suspension=advanceRedFlagSuspension(state);
+    const recoveredWeather=weatherAfterRedFlagRecovery(state?.weatherState,suspension.weatherRow);
     const recoveredTrack=suspension.weatherRow
       ?trackStateFromWeatherRow(suspension.weatherRow)
-      :workedState?.trackState;
+      :state?.trackState;
+    const workWeatherState={
+      ...state,
+      weatherState:recoveredWeather,
+      trackState:recoveredTrack,
+    };
+    const workedState=applyAutomaticCanonicalRedFlagWork(workWeatherState);
     const frozenCars=neutralizeBattles(workedState.cars).map((car)=>
       car?.dnf||car?.status==="finished"
         ?car
