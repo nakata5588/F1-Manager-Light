@@ -12,6 +12,11 @@ import {
 import { pitBoxMixForPhase, pitLaneMixForPhase, pitLaneProgressForPhase } from "../../domain/racePitModel.js";
 import { TeamLogo } from "../entity/EntityVisuals.jsx";
 import RaceCarVisual from "../race/RaceCarVisual.jsx";
+import {
+  RACE_VIEW_ASPHALT_WIDTH_SVG,
+  RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+  raceCarPresentationScale,
+} from "../../domain/raceCarPresentation.js";
 import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
 import {
@@ -353,12 +358,22 @@ function useCanonicalRaceViewMotion(canonicalCars,{
 function CanonicalCar({
   car,geometry,unitsPerMeter,palette,label,selected,onSelect,onFollow,
   scale=1,retired=false,year,driverNumberValue=null,pitBoxOffset=0,pitBoxSide=1,
-  lod="overview",showLabel=false,
+  lod="overview",showLabel=false,trackWidthM=RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
 }){
   const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
   if(!pose)return null;
-  const spriteScale=(lod==="close"?.68:lod==="medium"?.58:.48)*scale;
-  const haloRadius=(lod==="close"?10.5:12.5)*scale;
+  const calibrated=raceCarPresentationScale({
+    year,
+    model:palette?.model,
+    trackWidthM,
+    asphaltWidthSvg:RACE_VIEW_ASPHALT_WIDTH_SVG,
+  });
+  const spriteScale=calibrated.scale;
+  const haloRadius=Math.max(
+    calibrated.targetWidthSvg*1.35,
+    calibrated.targetLengthSvg*.62
+  );
+  const labelScale=Math.max(.5,Math.min(.78,Number(scale)||.65));
   return <g
     role="button"
     tabIndex="0"
@@ -371,7 +386,7 @@ function CanonicalCar({
   >
     <title>{label}</title>
     {selected?<circle cx="0" cy="0" r={haloRadius} fill="none" stroke="#f8fafc" strokeWidth={1.15*scale} opacity=".82"/>:null}
-    <g transform={`scale(${spriteScale*.82} ${spriteScale})`}>
+    <g transform={`scale(${spriteScale})`}>
       <RaceCarVisual
         year={year}
         color={palette?.primary}
@@ -387,9 +402,9 @@ function CanonicalCar({
         historicalModel={palette?.model}
       />
     </g>
-    {showLabel?<g transform={`translate(0 ${-9.2*scale}) rotate(${-pose.heading})`}>
-      <rect x={-6.7*scale} y={-2.7*scale} width={13.4*scale} height={5.4*scale} rx={2.7*scale} fill="#03060a" stroke={selected?"#f8fafc":"#475569"} strokeWidth={.55*scale} opacity=".82"/>
-      <text x="0" y={1.25*scale} textAnchor="middle" fontSize={4.1*scale} fontWeight="900" fill="#f8fafc">{label}</text>
+    {showLabel?<g transform={`translate(0 ${-5.8*labelScale}) rotate(${-pose.heading})`}>
+      <rect x={-4.8*labelScale} y={-2.1*labelScale} width={9.6*labelScale} height={4.2*labelScale} rx={2.1*labelScale} fill="#03060a" stroke={selected?"#f8fafc":"#475569"} strokeWidth={.5*labelScale} opacity=".82"/>
+      <text x="0" y={1.05*labelScale} textAnchor="middle" fontSize={3.2*labelScale} fontWeight="900" fill="#f8fafc">{label}</text>
     </g>:null}
   </g>;
 }
@@ -604,6 +619,16 @@ export default function CanonicalRaceView({
     playbackSpeed,
   });
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
+  const presentationTrackWidthM=useMemo(()=>{
+    const value=Number(
+      resolved?.layout?.track_width_m
+      ??resolved?.geometry?.track_width_m
+      ??resolved?.track_width_m
+    );
+    return Number.isFinite(value)&&value>0
+      ?value
+      :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
+  },[resolved]);
   const geometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
   const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.06,minPadding:20}),[geometry]);
   const points=Array.isArray(geometry?.points)?geometry.points:[];
@@ -762,7 +787,7 @@ export default function CanonicalRaceView({
         />:null}
         <polyline points={polyline} fill="none" stroke="#111827" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG} strokeLinecap="round" strokeLinejoin="round"/>
         {pitLanePoints.length>1?<g pointerEvents="none">
           <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
           <polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"/>
@@ -833,6 +858,7 @@ export default function CanonicalRaceView({
             scale={markerScale}
             lod={trackLod}
             showLabel={String(car.driver_id)===String(selectedDriverId||"")||(cameraMode==="fit"&&String(car.team_id)===String(playerTeamId||""))}
+            trackWidthM={presentationTrackWidthM}
             retired={car.retired}
             year={year}
             driverNumberValue={driverNumber(drivers,car.driver_id)}
