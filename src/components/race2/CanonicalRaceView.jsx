@@ -706,7 +706,7 @@ export default function CanonicalRaceView({
   const switchToFollow=()=>{
     if(!selectedVisualPose)return;
     setCameraMode("follow");
-    setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
+    setCameraZoom((current)=>Math.max(4.2,clampRaceViewZoom(current)));
   };
   const switchToFree=()=>{
     setFreeCenter(cameraCenter);
