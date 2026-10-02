@@ -2105,7 +2105,7 @@ export default function RaceWeekend(){
               </div>:null}
             </div>
 
-            {selectedPlayerEntry?<div className="absolute bottom-12 left-4 z-50 w-[min(980px,calc(100%-2rem))] rounded-xl border border-white/15 bg-[#0b0f16]/94 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:w-[min(980px,calc(100%-650px))]">
+            {selectedPlayerEntry?<div className="absolute bottom-4 left-1/2 z-50 w-[min(760px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-white/15 bg-[#0b0f16]/92 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl">
               <div className="grid gap-2">
                 {playerEntrants.filter((entry)=>String(entry?.driver_id||"")===String(selectedLiveDriverId||"")).map((entry)=>{
                   const did=String(entry.driver_id);
