@@ -60,3 +60,22 @@ export function raceViewWeatherVisuals(trackState={}){
     grassDarkenOpacity:clamp(rain*0.12+wet*0.08,0,0.18),
   };
 }
+
+
+export function raceViewPitBoxProgress(teamIds,teamId,{
+  from=0.30,
+  to=0.74,
+}={}){
+  const unique=[];
+  for(const value of Array.isArray(teamIds)?teamIds:[]){
+    const id=String(value??"");
+    if(id&&!unique.includes(id))unique.push(id);
+  }
+  const target=String(teamId??"");
+  const index=unique.indexOf(target);
+  if(index<0)return 0.52;
+  if(unique.length<=1)return 0.52;
+  const start=clamp(finite(from,0.30),0.05,0.90);
+  const end=clamp(finite(to,0.74),start,0.95);
+  return Number((start+(end-start)*(index/(unique.length-1))).toFixed(9));
+}
