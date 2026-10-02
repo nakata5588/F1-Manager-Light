@@ -5,7 +5,7 @@ import {
   applyFinanceTransaction,
   applyTeamBudgetDelta,
 } from "../src/domain/teamFinance.js";
-import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
+import { applyEconomyTick, economyTickDue } from "../src/engine/EconomyEngine.js";
 import { awardRaceBonuses } from "../src/engine/GPEngine.js";
 
 function financeState(balance=1_000_000){
@@ -191,3 +191,32 @@ test("race bonuses settle through the canonical gateway and remain idempotent",(
   assert.equal(repeated.finances.season_spend,100_000);
   assert.equal(repeated.financeLog.length,first.financeLog.length);
 });
+
+test("EconomyEngine only wakes on financial event dates",()=>{
+  const normal={
+    ...financeState(),
+    currentDateISO:"1980-02-14",
+    sponsorsContracts:[],
+    staffContracts:[],
+    contracts:[],
+    teamBrands:[],
+    teamEngines:[],
+    rdProjectsActive:[],
+    financePending:[],
+    calendar:[{race_date:"1980-03-01"},{race_date:"1980-10-01"}],
+    currentRound:0,
+    standings:{drivers:[],teams:[]},
+  };
+  assert.equal(economyTickDue(normal),false);
+  assert.equal(economyTickDue({...normal,currentDateISO:"1980-03-01"}),true);
+
+  const sponsor={...normal,sponsorsContracts:[{
+    year:1980,team_id:"T1",sponsor_id:"SP1",start_date:"1980-02-20",cash_upfront:250_000,status:"active",
+  }]};
+  assert.equal(economyTickDue({...sponsor,currentDateISO:"1980-02-19"}),false);
+  assert.equal(economyTickDue({...sponsor,currentDateISO:"1980-02-20"}),true);
+
+  const queue={...normal,financePending:[{id:"part_1",type:"part",done:false}]};
+  assert.equal(economyTickDue(queue),true);
+});
+
