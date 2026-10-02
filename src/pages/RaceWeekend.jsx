@@ -201,10 +201,14 @@ function TyreCompoundIcon({compound,size=24,title=null,className=""}){
     <span className="relative z-10 rounded-full bg-[#11151b] px-0.5 text-center font-black leading-none" style={{fontSize:Math.max(6,Math.round(size*.23)),color:visual.ring}}>{visual.label}</span>
   </span>;
 }
+function formatTyreAge(age){
+  const n=Number(age);
+  return Number.isFinite(n)?Math.max(0,Math.floor(n)):"—";
+}
 function TyreCompoundBadge({compound,age=null,compact=false}){
   return <span className="inline-flex items-center gap-1.5">
     <TyreCompoundIcon compound={compound} size={compact?22:26}/>
-    <span className="font-bold">{compound||"—"}{age!=null?` ${age}L`:""}</span>
+    <span className="font-bold">{compound||"—"}{age!=null?` ${formatTyreAge(age)}L`:""}</span>
   </span>;
 }
 
@@ -2415,7 +2419,7 @@ export default function RaceWeekend(){
                         <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?"DNF":index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
                         <td className="px-2 py-1.5 text-center"><TyreCompoundBadge compound={compound} compact/></td>
-                        <td className="px-2 py-1.5 text-right">{row.tyre?.age_laps??"—"}L</td>
+                        <td className="px-2 py-1.5 text-right">{formatTyreAge(row.tyre?.age_laps)}L</td>
                         <td className="px-2 py-1.5 text-right"><span className={"rounded px-1.5 py-0.5 "+conditionTone(row.tyre?.condition)}>{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</span></td>
                         <td className="px-2 py-1.5 text-right">{row.pit_count??0}</td>
                         <td className="px-2 py-1.5 text-center"><span className={"rounded px-1.5 py-0.5 text-[9px] font-semibold "+paceTone(row.current_pace)}>{paceLabel(row.current_pace)}</span></td>
@@ -2438,7 +2442,7 @@ export default function RaceWeekend(){
                             <TyreCompoundBadge compound={compound} compact/>
                           </span>
                         </td>
-                        <td className="px-2 py-1.5 text-right">{row.tyre?.age_laps??"—"}L</td>
+                        <td className="px-2 py-1.5 text-right">{formatTyreAge(row.tyre?.age_laps)}L</td>
                         <td className="px-2 py-1.5 text-right">
                           <span className={"rounded px-1.5 py-1 font-semibold "+conditionTone(row.tyre?.condition)}>
                             {Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}
