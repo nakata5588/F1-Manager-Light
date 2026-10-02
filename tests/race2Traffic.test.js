@@ -5,8 +5,10 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   RACE_GRID_SLOT_SPACING_M,
+  RACE_SLIPSTREAM_MAX_BONUS_KMH,
   RACE_TRAFFIC_HARD_GAP_M,
   nearestTrafficAhead,
+  raceSlipstreamContext,
   raceTrafficContext,
 } from "../src/race2/core/RaceTraffic.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
@@ -244,4 +246,94 @@ test("RW8.5 Live and Fast share identical traffic-limited canonical state",()=>{
   const first=car(live.getState(),"C1");
   const second=car(live.getState(),"C2");
   assert.ok(first.absoluteDistanceM-second.absoluteDistanceM>=RACE_TRAFFIC_HARD_GAP_M-1e-6);
+});
+
+
+test("RW14A canonical slipstream gives a progressive straight-line tow inside physical range",()=>{
+  let state=runningState({cars:2});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:140,distanceAlongLapM:140,speedMs:70,speedKmh:252},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252},
+  });
+
+  const context=raceSlipstreamContext(state,car(state,"C2"));
+  assert.equal(context.aheadCarId,"C1");
+  assert.equal(context.gapM,40);
+  assert.equal(context.active,true);
+  assert.ok(context.rangeM>context.gapM);
+  assert.ok(context.strength>0&&context.strength<1);
+  assert.ok(context.targetBonusKmh>0);
+  assert.ok(context.targetBonusKmh<RACE_SLIPSTREAM_MAX_BONUS_KMH);
+});
+
+test("RW14A slipstream contributes to target speed but never bypasses canonical traffic spacing",()=>{
+  let state=runningState({cars:2});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:140,distanceAlongLapM:140,speedMs:70,speedKmh:252},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252},
+  });
+
+  const next=stepRaceState(state);
+  const follower=car(next,"C2");
+  assert.equal(follower.traffic.slipstreamActive,true);
+  assert.ok(follower.traffic.slipstreamTargetBonusKmh>0);
+  assert.ok(follower.targetSpeedKmh>follower.freeTargetSpeedKmh);
+
+  const isolated=patchCars(state,{
+    C1:{absoluteDistanceM:700,distanceAlongLapM:700,speedMs:70,speedKmh:252},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252},
+  });
+  const isolatedFollower=car(stepRaceState(isolated),"C2");
+  assert.ok(
+    follower.speedKmh>isolatedFollower.speedKmh,
+    "slipstream must create actual canonical speed gain, not telemetry only"
+  );
+
+  let close=runningState({cars:2,stepMs:1000});
+  close=patchCars(close,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:94,distanceAlongLapM:94,speedMs:90,speedKmh:324},
+  });
+  const closeNext=stepRaceState(close);
+  const leader=car(closeNext,"C1");
+  const closeFollower=car(closeNext,"C2");
+  assert.ok(leader.absoluteDistanceM-closeFollower.absoluteDistanceM>=RACE_TRAFFIC_HARD_GAP_M-1e-6);
+  assert.equal(closeFollower.traffic.hardLimited,true);
+});
+
+test("RW14A neutralised race control disables the aerodynamic tow",()=>{
+  let state=runningState({cars:2});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:140,distanceAlongLapM:140,speedMs:70,speedKmh:252},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252},
+  });
+  state={
+    ...state,
+    raceControlState:{
+      ...(state.raceControlState||{}),
+      mode:"VSC",
+    },
+  };
+
+  const context=raceSlipstreamContext(state,car(state,"C2"));
+  assert.equal(context.active,false);
+  assert.equal(context.targetBonusKmh,0);
+});
+
+test("RW14A Live and Fast retain identical slipstream telemetry and outcome",()=>{
+  let initial=runningState({cars:2});
+  initial=patchCars(initial,{
+    C1:{absoluteDistanceM:140,distanceAlongLapM:140,speedMs:70,speedKmh:252},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:70,speedKmh:252},
+  });
+
+  const fast=runFastRace(initial,{steps:80});
+  const live=createLiveRaceRunner(initial);
+  live.advanceElapsed(8000);
+
+  assert.deepEqual(live.getState(),fast);
+  assert.equal(
+    car(live.getState(),"C2").traffic.slipstreamTargetBonusKmh,
+    car(fast,"C2").traffic.slipstreamTargetBonusKmh
+  );
 });
