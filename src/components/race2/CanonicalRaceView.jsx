@@ -101,7 +101,7 @@ function controlTone(control){
   return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200";
 }
 
-function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,scale=1}){
+function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,scale=1,retired=false}){
   const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
   if(!pose)return null;
   const length=14*scale;
@@ -113,7 +113,7 @@ function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,
     transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
     onClick={onSelect}
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
-    style={{cursor:"pointer"}}
+    style={{cursor:"pointer",opacity:retired?.62:1}}
   >
     <title>{label}</title>
     {selected?<circle cx="0" cy="0" r={12*scale} fill="none" stroke="#fff" strokeWidth={1.7*scale} opacity=".9"/>:null}
@@ -177,7 +177,7 @@ export default function CanonicalRaceView({
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="url(#rw9-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth=".65" strokeDasharray="2 13" opacity=".18"/>
-        {cars.filter((car)=>!car.retired).map((car)=>{
+        {cars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=>{
           const color=teamColor(teamBrands,car.team_id,year);
           const label=shortName(drivers,car.driver_id);
           const title=`P${car.position} · ${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)} · ${formatSpeed(car.speed_kmh)}`;
@@ -192,6 +192,7 @@ export default function CanonicalRaceView({
             playbackRunning={playbackRunning}
             onSelect={()=>onSelectDriver?.(String(car.driver_id||""))}
             scale={markerScale}
+            retired={car.retired}
           />;
         })}
       </svg>:<div className="flex h-[430px] items-center justify-center text-sm text-slate-500">Track geometry unavailable.</div>}
