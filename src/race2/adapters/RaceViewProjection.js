@@ -13,6 +13,10 @@ const finite=(value,fallback=null)=>{
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
+const round=(value,digits=3)=>{
+  const parsed=finite(value,null);
+  return parsed==null?null:Number(parsed.toFixed(digits));
+};
 
 const text=(value)=>String(value??"");
 
@@ -101,15 +105,15 @@ function raceViewBattleContext(state,car,startEvents){
       started_gap_m:finite(payload?.gapM,null),
       attempt_probability_pct:finite(payload?.probability,null)==null
         ?null
-        :finite(payload?.probability,0)*100,
+        :round(finite(payload?.probability,0)*100,3),
       closing_potential_kmh:finite(payload?.closingPotentialMs,null)==null
         ?null
-        :finite(payload?.closingPotentialMs,0)*3.6,
+        :round(finite(payload?.closingPotentialMs,0)*3.6,3),
       attempt_range_m:finite(payload?.attemptRangeM,null),
       track_difficulty:finite(payload?.trackDifficulty,null),
       slipstream_active:Boolean(traffic.slipstream_active),
-      slipstream_strength_pct:finite(traffic.slipstream_strength,0)*100,
-      slipstream_bonus_kmh:finite(traffic.slipstream_bonus_kmh,0),
+      slipstream_strength_pct:round(finite(traffic.slipstream_strength,0)*100,3),
+      slipstream_bonus_kmh:round(finite(traffic.slipstream_bonus_kmh,0),3),
       gap_m:null,
     };
   }
@@ -121,8 +125,8 @@ function raceViewBattleContext(state,car,startEvents){
       opponent_car_id:traffic.slipstream_ahead_car_id,
       gap_m:traffic.gap_m,
       slipstream_active:true,
-      slipstream_strength_pct:finite(traffic.slipstream_strength,0)*100,
-      slipstream_bonus_kmh:finite(traffic.slipstream_bonus_kmh,0),
+      slipstream_strength_pct:round(finite(traffic.slipstream_strength,0)*100,3),
+      slipstream_bonus_kmh:round(finite(traffic.slipstream_bonus_kmh,0),3),
     };
   }
 
