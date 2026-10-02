@@ -2127,30 +2127,13 @@ export const useGame = create((set, get) => ({
     if(!mod.raceWeekendUsesCanonicalRuntime(base))return null;
 
     const gp=base?.calendar?.[Number(weekend.roundIndex)||0]||null;
-    const batchSteps=250;
     const maxSteps=1_000_000;
-    let simulated=base;
-    let steps=0;
 
-    while(
-      String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"&&
-      steps<maxSteps
-    ){
-      simulated=mod.autosimRaceWeekendBatch(simulated,{
-        gp,
-        steps:Math.min(batchSteps,maxSteps-steps),
-      });
-      steps+=batchSteps;
-
-      if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")==="finished")break;
-
-      // Yield a macrotask between deterministic canonical batches so React can
-      // paint the busy state and the browser can process input.
-      await new Promise((resolve)=>setTimeout(resolve,0));
-      if(get().gameState!==base){
-        throw new Error("Race Weekend state changed while canonical Autosim was running");
-      }
-    }
+    // Run the canonical fast scheduler atomically from the latest committed
+    // RaceState. The previous yielded batch loop allowed an already in-flight
+    // Race View frame to commit between batches, which correctly tripped the
+    // optimistic concurrency guard but left the user's race paused.
+    const simulated=mod.autosimRaceWeekendToEnd(base,{gp,maxSteps});
 
     if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"){
       throw new Error(`RW2 race did not finish within ${maxSteps} canonical steps`);
