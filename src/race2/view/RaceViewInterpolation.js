@@ -67,6 +67,25 @@ export function interpolateRaceViewCar(fromCar,toCar,{
     toCar?.lateral_offset_m,
     t
   );
+  const fromPitActive=Boolean(fromCar?.pit_lane_active);
+  const targetPitActive=Boolean(toCar?.pit_lane_active);
+  let pitLaneActive=targetPitActive;
+  let pitLaneProgress=toCar?.pit_lane_progress??null;
+  if(targetPitActive){
+    const fromPit=Number.isFinite(Number(fromCar?.pit_lane_progress))
+      ?Number(fromCar.pit_lane_progress)
+      :0;
+    const toPit=Number.isFinite(Number(toCar?.pit_lane_progress))
+      ?Number(toCar.pit_lane_progress)
+      :fromPit;
+    pitLaneProgress=interpolateNumber(fromPit,toPit,t);
+  }else if(fromPitActive&&t<1){
+    const fromPit=Number.isFinite(Number(fromCar?.pit_lane_progress))
+      ?Number(fromCar.pit_lane_progress)
+      :1;
+    pitLaneActive=true;
+    pitLaneProgress=interpolateNumber(fromPit,1,t);
+  }
 
   return {
     ...toCar,
@@ -76,6 +95,9 @@ export function interpolateRaceViewCar(fromCar,toCar,{
     distance_along_lap_m:distanceAlong,
     track_progress:progress,
     lateral_offset_m:lateralOffset,
+    pit_lane_active:pitLaneActive,
+    pit_lane_progress:pitLaneProgress,
+    pit_box_progress:toCar?.pit_box_progress??fromCar?.pit_box_progress??null,
   };
 }
 
