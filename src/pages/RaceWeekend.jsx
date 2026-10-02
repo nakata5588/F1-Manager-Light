@@ -667,6 +667,7 @@ export default function RaceWeekend(){
   const advanceLiveRaceSector=useGame((s)=>s.advanceRaceWeekendLiveRaceSector);
   const advanceLivePitClock=useGame((s)=>s.advanceRaceWeekendLivePitClock);
   const advanceCanonicalRaceElapsed=useGame((s)=>s.advanceRaceWeekendElapsed);
+  const invalidateCanonicalPlaybackAdvance=useGame((s)=>s.invalidateRaceWeekendPlaybackAdvance);
   const autosimCanonicalRace=useGame((s)=>s.autosimRaceWeekendRace);
   const setLiveCommand=useGame((s)=>s.setRaceWeekendLiveCommand);
   const cancelLiveCommand=useGame((s)=>s.cancelRaceWeekendLiveCommand);
@@ -839,6 +840,7 @@ export default function RaceWeekend(){
   const openRaceEvent=(event,{auto=false}={})=>{
     if(!event)return;
     if(racePlaying){
+      if(usesCanonicalRaceRuntime)invalidateCanonicalPlaybackAdvance();
       setRacePlaying(false);
       setRaceAutoPaused(true);
     }else if(!auto){
@@ -1183,6 +1185,7 @@ export default function RaceWeekend(){
   });
   const simulateCanonicalRaceToFinish=async()=>{
     const resumeOnFailure=racePlaying;
+    invalidateCanonicalPlaybackAdvance();
     setRacePlaying(false);
     const result=await perform(async()=>{
       // Give React one paint/frame to tear down the live frame loop before the
@@ -1198,6 +1201,7 @@ export default function RaceWeekend(){
   const toggleRacePlayback=()=>{
     if(busy||String(raceViewModel?.status||"")!=="running")return;
     if(racePlaying){
+      if(usesCanonicalRaceRuntime)invalidateCanonicalPlaybackAdvance();
       setRacePlaying(false);
       return;
     }
@@ -1217,6 +1221,16 @@ export default function RaceWeekend(){
       racePlaybackRemainingRatioRef.current=1;
       perform(()=>advanceLiveRaceSector(1));
     }
+  };
+  const changeRacePlaybackSpeed=(speed)=>{
+    if(
+      usesCanonicalRaceRuntime&&
+      racePlaying&&
+      Number(speed)!==Number(racePlaybackSpeed)
+    ){
+      invalidateCanonicalPlaybackAdvance();
+    }
+    setRacePlaybackSpeed(speed);
   };
 
   return <div className="min-h-[calc(100vh-2.5rem)] bg-[#080b11] p-2 md:p-3 text-slate-100 grid gap-2 content-start">
@@ -1272,7 +1286,7 @@ export default function RaceWeekend(){
             {playbackSpeeds.map((speed)=><button
               type="button"
               key={speed}
-              onClick={()=>setRacePlaybackSpeed(speed)}
+              onClick={()=>changeRacePlaybackSpeed(speed)}
               title={speed+"× playback speed"}
               className={"rounded px-1.5 py-1 text-[9px] font-bold transition "+(racePlaybackSpeed===speed?"bg-slate-100 text-slate-950":"text-slate-500 hover:bg-white/[0.08] hover:text-slate-200")}
             >{speed}×</button>)}
