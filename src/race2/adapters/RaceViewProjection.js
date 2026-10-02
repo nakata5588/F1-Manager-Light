@@ -66,6 +66,7 @@ function raceViewTrackState(state){
     track_wetness:finite(weather?.track_wetness,finite(track?.wetness,0)),
     grip_index:finite(weather?.grip_index,finite(track?.grip,100)),
     visibility_index:finite(weather?.visibility_index,finite(track?.visibility,100)),
+    spray_index:finite(weather?.spray_index,finite(track?.spray,0)),
     standing_water_index:finite(weather?.standing_water_index,finite(track?.standingWater,0)),
     air_temp_c:finite(weather?.air_temp_c,finite(track?.airTemp,null)),
     track_temp_c:finite(weather?.track_temp_c,finite(track?.trackTemp,null)),
