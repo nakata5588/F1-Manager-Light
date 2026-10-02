@@ -29,7 +29,7 @@ function input({cars=1,refuellingAllowed=false,sameTeam=false,teamOrderProbabili
     seed:"rw8.9-commands",
     year:2026,
     entries,
-    drivers:entries.map((entry)=>({
+    drivers:entries.map((entry,index)=>({
       driverId:entry.driverId,
       teamId:entry.teamId,
       performance:{
