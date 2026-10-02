@@ -852,6 +852,8 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
   const next=await completeRaceSession(gs,{gp});
   assert.equal(next.raceWeekendState.phase,"results");
   assert.equal(next.lastRace.strategySummary.source,CANONICAL_RACE_RESULT_SOURCE);
+  assert.equal(next.results[0].engine_version,"rw2");
+  assert.equal(next.results[0].seed,state.seed);
   assert.deepEqual(
     next.results[0].classification.map((row)=>row.driver_id),
     ordered,
@@ -873,6 +875,49 @@ test("RW8.14J finishes an RW2 race from canonical RaceState without a Legacy rac
   for(const row of next.results[0].classification.filter((row)=>row.driver_id!==fastestDriverId)){
     assert.equal(Boolean(row.fastest_lap),false);
   }
+});
+
+
+test("RW16 race finalization is idempotent when an archived result is resumed from stale race state",async()=>{
+  let raceState=finish1980Qualifying({seed:"rw16-idempotent-finalization",engineVersion:"legacy"});
+  raceState=syncRaceWeekendPhaseForDate({...raceState,currentDateISO:"1980-05-18"},"1980-05-18");
+  assert.equal(raceState.raceWeekendState.phase,"race");
+  const staleWeekend=structuredClone(raceState.raceWeekendState);
+
+  const finalized=await completeRaceSession(raceState,{gp});
+  const resultKey=finalized.raceWeekendState.race_result_key;
+  assert.ok(resultKey);
+  assert.equal(finalized.results.filter((row)=>row?.key===resultKey).length,1);
+
+  const snapshot={
+    results:structuredClone(finalized.results),
+    standings:structuredClone(finalized.standings),
+    inbox:structuredClone(finalized.inbox),
+    finances:structuredClone(finalized.finances),
+    financeLog:structuredClone(finalized.financeLog),
+    garage:structuredClone(finalized.garage),
+    driverAttributes:structuredClone(finalized.driverAttributes),
+  };
+  const stale={
+    ...finalized,
+    raceWeekendState:{
+      ...staleWeekend,
+      phase:"race",
+      active_session_id:"race",
+    },
+  };
+
+  const recovered=await completeRaceSession(stale,{gp});
+  assert.equal(recovered.raceWeekendState.phase,"results");
+  assert.equal(recovered.raceWeekendState.race_result_key,resultKey);
+  assert.equal(recovered.results.filter((row)=>row?.key===resultKey).length,1);
+  assert.deepEqual(recovered.results,snapshot.results);
+  assert.deepEqual(recovered.standings,snapshot.standings);
+  assert.deepEqual(recovered.inbox,snapshot.inbox);
+  assert.deepEqual(recovered.finances,snapshot.finances);
+  assert.deepEqual(recovered.financeLog,snapshot.financeLog);
+  assert.deepEqual(recovered.garage,snapshot.garage);
+  assert.deepEqual(recovered.driverAttributes,snapshot.driverAttributes);
 });
 
 
