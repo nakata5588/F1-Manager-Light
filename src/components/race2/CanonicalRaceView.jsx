@@ -4,24 +4,14 @@ import {
   pointAtTrackProgress,
   resolveTrackLayout,
   trackGeometryViewBox,
-  trackIntelligenceProfile,
-  trackPresentationGeometry,
 } from "../../domain/trackLayout.js";
 import {
-  buildPitLanePresentationGeometry,
   openPolylineHeadingDegrees,
   sampleOpenPolylinePoint,
-  simplifyTrackPresentationGeometry,
 } from "../../domain/trackSceneGeometry.js";
 import { pitBoxMixForPhase, pitLaneMixForPhase, pitLaneProgressForPhase } from "../../domain/racePitModel.js";
 import { TeamLogo } from "../entity/EntityVisuals.jsx";
 import RaceCarVisual from "../race/RaceCarVisual.jsx";
-import TrackSceneRenderer from "../race/TrackSceneRenderer.jsx";
-import {
-  followTrackViewBox,
-  trackLodForZoom,
-  trackMarkerScaleForViewBox,
-} from "../../domain/trackCamera.js";
 import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
 import {
@@ -377,7 +367,7 @@ function CanonicalCar({
   >
     <title>{label}</title>
     {selected?<circle cx="0" cy="0" r={haloRadius} fill="none" stroke="#f8fafc" strokeWidth={1.15*scale} opacity=".82"/>:null}
-    <g transform={`scale(${spriteScale})`}>
+    <g transform={`scale(${spriteScale*.82} ${spriteScale})`}>
       <RaceCarVisual
         year={year}
         color={palette?.primary}
@@ -607,47 +597,8 @@ export default function CanonicalRaceView({
     playbackSpeed,
   });
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
-  const layout=resolved?.layout||null;
-  const environment=resolved?.environment||null;
-  const intelligence=useMemo(()=>trackIntelligenceProfile(layout),[layout]);
-  const proceduralEnvironmentActive=Boolean(
-    environment?.runtime_mode==="f1track_procedural"&&environment?.procedural_environment
-  );
-  const calibratedGeometry=useMemo(
-    ()=>trackPresentationGeometry(resolved?.geometry||null,layout),
-    [resolved?.geometry,layout]
-  );
-  const smoothedGeometry=useMemo(()=>{
-    if(!proceduralEnvironmentActive)return calibratedGeometry;
-    const style=environment?.race_view_style||{};
-    return simplifyTrackPresentationGeometry(calibratedGeometry,{
-      tolerance:Number(style.presentation_tolerance||1.25),
-      pitTolerance:Number(style.pit_presentation_tolerance||.7),
-    });
-  },[calibratedGeometry,proceduralEnvironmentActive,environment?.race_view_style]);
-  const baseGeometry=useMemo(
-    ()=>proceduralEnvironmentActive?smoothedGeometry:orientTrackGeometry(smoothedGeometry),
-    [smoothedGeometry,proceduralEnvironmentActive]
-  );
-  const geometry=useMemo(()=>{
-    if(!proceduralEnvironmentActive)return baseGeometry;
-    const style=environment?.race_view_style||{};
-    return buildPitLanePresentationGeometry(baseGeometry,{
-      entryProgress:intelligence?.pit_entry_progress,
-      exitProgress:intelligence?.pit_exit_progress,
-      separation:Number(style.pit_visual_separation||0),
-      mergeFraction:Number(style.pit_merge_fraction||.14),
-      samples:Number(style.pit_visual_samples||72),
-      mergeSamples:Number(style.pit_merge_samples||12),
-    });
-  },[baseGeometry,proceduralEnvironmentActive,environment?.race_view_style,intelligence?.pit_entry_progress,intelligence?.pit_exit_progress]);
-  const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.055,minPadding:18}),[geometry]);
-  const sceneViewBox=useMemo(()=>
-    Array.isArray(environment?.view_box)&&environment.view_box.length===4
-      ?environment.view_box.map(Number)
-      :viewBox,
-    [environment?.view_box,viewBox]
-  );
+  const geometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
+  const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.06,minPadding:20}),[geometry]);
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const closedPoints=points.length?[...points,points[0]]:[];
   const polyline=closedPoints.map((point)=>point.join(",")).join(" ");
@@ -657,10 +608,12 @@ export default function CanonicalRaceView({
     :[];
   const pitPolyline=pitLanePoints.map((point)=>point.join(",")).join(" ");
   const unitsPerMeter=trackPathLength(points)/trackLengthM;
+  const markerScale=Math.max(.62,Math.min(1.2,Number(viewBox?.[2]||1000)/930));
   const pitBoxSide=useMemo(()=>pitBoxSideSign(geometry),[geometry]);
+  const pitBoxOffset=10*markerScale;
   const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisualPose=selectedVisual
-    ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset:10,pitBoxSide})
+    ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide})
     :null;
   const activePitTeamIds=new Set(
     visualCars
@@ -681,17 +634,12 @@ export default function CanonicalRaceView({
     :(freeCenter||baseCenter);
   const cameraBox=cameraMode==="fit"
     ?viewBox
-    :cameraMode==="follow"&&selectedVisualPose
-      ?followTrackViewBox(viewBox,selectedVisualPose,{
-        zoom:cameraZoom,
-        minWidth:180,
-        minHeight:135,
-        lookAheadRatio:.16,
-      })
-      :raceViewCameraViewBox(viewBox,{zoom:cameraZoom,center:cameraCenter});
-  const trackLod=trackLodForZoom(cameraMode==="fit"?1:cameraZoom);
-  const markerScale=trackMarkerScaleForViewBox(cameraBox,viewBox,{power:.68,min:.28,max:1});
-  const pitBoxOffset=10*markerScale;
+    :raceViewCameraViewBox(viewBox,{zoom:cameraZoom,center:cameraCenter});
+  const trackLod=cameraMode==="fit"
+    ?"overview"
+    :cameraZoom>=4.5
+      ?"close"
+      :"medium";
   const weatherVisuals=useMemo(()=>raceViewWeatherVisuals(view?.track_state||{}),[view?.track_state]);
   const rainPct=Math.round(weatherVisuals.rain*100);
   const wetPct=Math.round(weatherVisuals.wet*100);
@@ -706,7 +654,7 @@ export default function CanonicalRaceView({
   const switchToFollow=()=>{
     if(!selectedVisualPose)return;
     setCameraMode("follow");
-    setCameraZoom((current)=>Math.max(4.2,clampRaceViewZoom(current)));
+    setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
   };
   const switchToFree=()=>{
     setFreeCenter(cameraCenter);
@@ -784,32 +732,26 @@ export default function CanonicalRaceView({
         onPointerUp={endPointerDrag}
         onPointerCancel={endPointerDrag}
       >
-        {proceduralEnvironmentActive?<TrackSceneRenderer
-          geometry={geometry}
-          environment={environment?.procedural_environment}
-          style={environment?.race_view_style}
-          viewBox={sceneViewBox}
-          wetness={weatherVisuals.wet}
-          lod={trackLod}
-        />:<>
-          <defs>
-            <linearGradient id="rw15-asphalt" x1="0" x2="1">
-              <stop offset="0%" stopColor="#3b4148"/>
-              <stop offset="50%" stopColor="#20262d"/>
-              <stop offset="100%" stopColor="#394049"/>
-            </linearGradient>
-          </defs>
-          <rect x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]} fill="#354326"/>
-          <polyline points={polyline} fill="none" stroke="#182018" strokeWidth="26" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
-          <polyline points={polyline} fill="none" stroke="#e5e7eb" strokeWidth="19" strokeLinecap="round" strokeLinejoin="round"/>
-          <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round"/>
-        </>}
+        <defs>
+          <linearGradient id="rw15-asphalt" x1="0" x2="1">
+            <stop offset="0%" stopColor="#2d333b"/>
+            <stop offset="50%" stopColor="#151a20"/>
+            <stop offset="100%" stopColor="#30363d"/>
+          </linearGradient>
+        </defs>
+        <rect x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]} fill="#26371f"/>
+        {weatherVisuals.grassDarkenOpacity>0?<rect
+          x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]}
+          fill="#07111a" opacity={weatherVisuals.grassDarkenOpacity}
+          pointerEvents="none"
+        />:null}
+        <polyline points={polyline} fill="none" stroke="#111827" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
+        <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
         {pitLanePoints.length>1?<g pointerEvents="none">
-          {!proceduralEnvironmentActive?<>
-            <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
-            <polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"/>
-            <polyline points={pitPolyline} fill="none" stroke="#cbd5e1" strokeWidth=".8" strokeDasharray="3 8" opacity=".45"/>
-          </>:null}
+          <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
+          <polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points={pitPolyline} fill="none" stroke="#cbd5e1" strokeWidth=".8" strokeDasharray="3 8" opacity=".45"/>
           {teamIds.map((id,index)=>{
             const progress=raceViewPitBoxProgress(teamIds,id);
             const name=teamName(teams,id);
@@ -825,7 +767,7 @@ export default function CanonicalRaceView({
             />;
           })}
         </g>:null}
-        {!proceduralEnvironmentActive&&weatherVisuals.wetTrackOpacity>0?<polyline
+        {weatherVisuals.wetTrackOpacity>0?<polyline
           points={polyline}
           fill="none"
           stroke="#7dd3fc"
