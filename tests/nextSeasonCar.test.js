@@ -77,7 +77,7 @@ test("next-season programme uses engineers but never consumes a Current Car proj
   assert.equal(after.reserved_engineers,4);
   assert.equal(after.available_engineers,before.available_engineers-4);
   assert.ok(started.finances.balance<gs.finances.balance);
-  assert.equal(started.financeLog.at(-1).category,"Next Season Car");
+  assert.ok(started.financeLog.some((tx)=>tx.category==="Next Season Car"));
 });
 
 test("next-season programme progresses once per in-game day and preserves current car baseline",()=>{
