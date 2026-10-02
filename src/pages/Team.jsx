@@ -11,7 +11,7 @@ import { driverCondition, fatigueStatus } from "@/domain/driverRating.js";
 import { driverOverallPresentation } from "@/domain/driverMarketEvaluation.js";
 import { carPerformanceRanking, teamCarPerformance } from "@/domain/carPerformance.js";
 import { teamEngineeringSupport } from "@/engine/PracticeSetupEngine.js";
-import { deriveBoardState } from "@/domain/boardState.js";
+import { currentBoardState } from "@/domain/boardState.js";
 import { teamReputation, teamReputationLabel } from "@/domain/teamReputation.js";
 import { managerDisplayName } from "@/domain/managerProfile.js";
 import { managerEmploymentAssessment, playerManagerIsActiveTeamPrincipal } from "@/domain/managerEmployment.js";
@@ -106,7 +106,7 @@ export default function Team(){
     });
   const sponsorValue=sponsors.reduce((sum,row)=>sum+num(row?.annual_income??row?.anual_income,0),0);
   const balance=num(gs?.finances?.balance??team?.budget,0);
-  const boardState=deriveBoardState(gs);
+  const boardState=currentBoardState(gs);
   const boardConfidence=boardState?.confidence??null;
   const reputation=teamReputation(gs,teamId);
   const reputationState=gs?.teamReputationState?.[teamId]||null;
