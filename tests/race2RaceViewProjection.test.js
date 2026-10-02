@@ -630,3 +630,21 @@ test("RW11G cleared DNF remains in official classification but is marked hidden 
   assert.equal(row.retirement_trackside.visible,false);
   assert.equal(visual.retirement_trackside.visible,false);
 });
+
+
+test("RW12A visual model preserves signed canonical grid distance for start-finish interpolation",()=>{
+  const cars=canonicalRaceViewCars({
+    classification:[{
+      car_id:"C2",
+      driver_id:"D2",
+      team_id:"T2",
+      position:2,
+      visual_track_progress:0.992,
+      distance_along_lap_m:992,
+      absolute_distance_m:-8,
+      speed_kmh:0,
+    }],
+  });
+  assert.equal(cars[0].absolute_distance_m,-8);
+  assert.equal(cars[0].track_progress,0.992);
+});
