@@ -163,6 +163,9 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
         lap:4,
         sector:1,
         gap_to_leader_ms:0,
+        gap_to_previous_ms:null,
+        best_lap_ms:61234,
+        battle:{phase:"side_by_side",role:"attacker",opponentCarId:"C2"},
         visual_track_progress:0.4175,
         distance_along_lap_m:417.5,
         absolute_distance_m:3417.5,
@@ -176,6 +179,9 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
         lap:4,
         sector:3,
         gap_to_leader_ms:45000,
+        gap_to_previous_ms:1250,
+        best_lap_ms:62345,
+        battle:{phase:"side_by_side",role:"defender",opponentCarId:"C1"},
         visual_track_progress:0.4175,
         distance_along_lap_m:417.5,
         absolute_distance_m:3417.5,
@@ -189,6 +195,10 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
   assert.equal(cars[1].track_progress,0.4175);
   assert.equal(cars[0].distance_along_lap_m,417.5);
   assert.equal(cars[1].distance_along_lap_m,417.5);
+  assert.equal(cars[1].gap_to_previous_ms,1250);
+  assert.equal(cars[0].best_lap_ms,61234);
+  assert.equal(cars[0].battle.phase,"side_by_side");
+  assert.equal(cars[1].battle.role,"defender");
 });
 
 
