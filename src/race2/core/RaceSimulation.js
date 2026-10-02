@@ -19,6 +19,7 @@ import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js"
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { raceTeamOrderTrafficExclusions, resolveRaceTeamOrders } from "./RaceTeamOrders.js";
 import { advanceRaceResources } from "./RaceResources.js";
+import { applyAutomaticCanonicalRedFlagWork } from "./RaceRedFlagWork.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { planCanonicalPitStrategies } from "./RacePitStrategy.js";
 import { applyDueRaceCommands } from "./RaceCommands.js";
@@ -257,20 +258,21 @@ export function stepRaceState(state){
   // fast-forwards wall-clock conditions while cars remain stationary; movement
   // resumes only on the following canonical step.
   if(raceControlFreezesProgress(state)){
-    const suspension=advanceRedFlagSuspension(state);
-    const recoveredWeather=weatherAfterRedFlagRecovery(state?.weatherState,suspension.weatherRow);
+    const workedState=applyAutomaticCanonicalRedFlagWork(state);
+    const suspension=advanceRedFlagSuspension(workedState);
+    const recoveredWeather=weatherAfterRedFlagRecovery(workedState?.weatherState,suspension.weatherRow);
     const recoveredTrack=suspension.weatherRow
       ?trackStateFromWeatherRow(suspension.weatherRow)
-      :state?.trackState;
-    const frozenCars=neutralizeBattles(state.cars).map((car)=>
+      :workedState?.trackState;
+    const frozenCars=neutralizeBattles(workedState.cars).map((car)=>
       car?.dnf||car?.status==="finished"
         ?car
         :{...car,speedMs:0,speedKmh:0,accelerationMs2:0,targetSpeedKmh:0}
     );
-    const generatedEvents=sequencedEvents(state,suspension.events||[]);
-    const officialRaceTimeMs=canonicalOfficialRaceTimeMs(state);
+    const generatedEvents=sequencedEvents(workedState,suspension.events||[]);
+    const officialRaceTimeMs=canonicalOfficialRaceTimeMs(workedState);
     const next={
-      ...state,
+      ...workedState,
       tick:Math.max(0,Math.floor(finite(state?.tick,0)))+1,
       simulationTimeMs:Math.max(0,finite(state?.simulationTimeMs,0))+stepMs,
       officialRaceTimeMs,
@@ -288,8 +290,8 @@ export function stepRaceState(state){
       trackState:recoveredTrack,
       weatherState:recoveredWeather,
       raceControlState:suspension.raceControlState,
-      events:[...(state?.events||[]),...generatedEvents],
-      nextEventSequence:Math.max(1,Math.floor(finite(state?.nextEventSequence,1)))+generatedEvents.length,
+      events:[...(workedState?.events||[]),...generatedEvents],
+      nextEventSequence:Math.max(1,Math.floor(finite(workedState?.nextEventSequence,1)))+generatedEvents.length,
     };
     return {...next,...projectCanonicalRaceTiming(next)};
   }
