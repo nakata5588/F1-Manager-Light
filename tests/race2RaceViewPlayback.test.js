@@ -18,6 +18,7 @@ import {
   interpolateRaceViewCars,
   raceViewInterpolationAlpha,
   raceViewInterpolationDurationMs,
+  raceViewRetargetCanonicalDeltaMs,
   retimeRaceViewInterpolation,
   wrapRaceViewDistanceM,
 } from "../src/race2/view/RaceViewInterpolation.js";
@@ -137,6 +138,12 @@ test("RW12A derives wall-clock interpolation duration from canonical time and pl
   assert.equal(raceViewInterpolationDurationMs(1100,1100,1),0);
   assert.equal(raceViewInterpolationAlpha(1000,100,1050),0.5);
   assert.equal(raceViewInterpolationAlpha(1000,100,1200),1);
+});
+
+test("RW18 carries unfinished visual lag into the next canonical target",()=>{
+  assert.equal(raceViewRetargetCanonicalDeltaMs(300,1000,1200),500);
+  assert.equal(raceViewRetargetCanonicalDeltaMs(0,1000,1200),200);
+  assert.equal(raceViewRetargetCanonicalDeltaMs(300,1200,1100),300);
 });
 
 test("RW18 retimes an in-flight visual segment from its current progress without snapping",()=>{
