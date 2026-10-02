@@ -673,3 +673,42 @@ test("RW13A Race View reads lap position delta from canonical car timing state",
   assert.equal(row.last_lap_position,2);
   assert.equal(row.position_change_last_lap,2);
 });
+
+
+test("RW13B Control Tower model exposes only canonical classification metadata",()=>{
+  const rows=canonicalRaceViewCars({
+    classification:[{
+      car_id:"C1",
+      driver_id:"D1",
+      team_id:"T1",
+      position:3,
+      grid_position:7,
+      position_gain:4,
+      previous_lap_position:5,
+      last_lap_position:3,
+      position_change_last_lap:2,
+      visual_track_progress:0.4,
+      distance_along_lap_m:400,
+      absolute_distance_m:1400,
+      speed_kmh:210,
+      tyre:{compound:"Soft",condition:63},
+      damage_state:{overall_damage_pct:31,severity:"moderate"},
+      damage_severity:"moderate",
+      damaged_components:["front_wing"],
+      damage_pace_loss_s_per_lap:0.42,
+      pit_state:{active:true,phase:"pit_box"},
+      pit_count:1,
+    }],
+  });
+  assert.equal(rows[0].position,3);
+  assert.equal(rows[0].grid_position,7);
+  assert.equal(rows[0].position_gain,4);
+  assert.equal(rows[0].previous_lap_position,5);
+  assert.equal(rows[0].last_lap_position,3);
+  assert.equal(rows[0].position_change_last_lap,2);
+  assert.equal(rows[0].damage_severity,"moderate");
+  assert.deepEqual(rows[0].damaged_components,["front_wing"]);
+  assert.equal(rows[0].damage_pace_loss_s_per_lap,0.42);
+  assert.equal(rows[0].pit_state.phase,"pit_box");
+  assert.equal(rows[0].pit_count,1);
+});
