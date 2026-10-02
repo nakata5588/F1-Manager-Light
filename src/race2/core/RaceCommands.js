@@ -6,9 +6,11 @@
 // the existing dynamics/resources/pit/overtaking layers.
 
 import { RACE_COMMAND_TYPES } from "../contracts/raceContracts.js";
+import { hashSeed } from "../../core/random.js";
 import { RACE_PACE_MODES } from "../../domain/raceTyreModel.js";
 import { CAR_DAMAGE_COMPONENTS } from "../../engine/CarDamageEngine.js";
 import { nextReachablePitLap } from "./RacePitStrategy.js";
+import { RACE_TEAM_ORDER_MAX_DURATION_MS, RACE_TEAM_ORDER_YIELD_PACE_MULTIPLIER } from "./RaceTeamOrders.js";
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -20,6 +22,16 @@ const text=(value)=>String(value??"").trim();
 function carForDriver(state,driverId){
   const did=text(driverId);
   return (state?.cars||[]).find((car)=>text(car?.driverId)===did)??null;
+}
+
+function classificationForDriver(state,driverId){
+  const did=text(driverId);
+  return (state?.classification||[]).find((row)=>text(row?.driverId??row?.driver_id)===did)??null;
+}
+
+function deterministicUnit(state,key){
+  const seed=String(state?.seed??"rw2");
+  return hashSeed(`${seed}::rw22::${String(key)}`)/4294967296;
 }
 
 function tyreAvailable(car,tyreId){
@@ -87,6 +99,59 @@ function normalizedPayload(state,car,type,raw={}){
     };
   }
 
+  if(type===RACE_COMMAND_TYPES.TEAM_ORDER){
+    const order=text(payload?.teamOrder??payload?.team_order??payload?.order).toLowerCase();
+    const teammateDriverId=text(payload?.teammateId??payload?.teammate_id);
+    if(order!=="yield"||!teammateDriverId||teammateDriverId===text(car?.driverId))return null;
+
+    const teammate=carForDriver(state,teammateDriverId);
+    if(
+      !teammate||
+      teammate?.dnf||
+      teammate?.status==="dnf"||
+      teammate?.status==="finished"||
+      text(teammate?.teamId)!==text(car?.teamId)
+    )return null;
+
+    if(
+      String(car?.battle?.phase??"none")!=="none"||
+      String(teammate?.battle?.phase??"none")!=="none"||
+      car?.commands?.teamOrder?.active
+    )return null;
+
+    const currentRow=classificationForDriver(state,car?.driverId);
+    const teammateRow=classificationForDriver(state,teammateDriverId);
+    const currentPosition=finite(currentRow?.position,null);
+    const teammatePosition=finite(teammateRow?.position,null);
+    const intervalMs=finite(teammateRow?.intervalMs??teammateRow?.interval_ms,null);
+    if(
+      currentPosition==null||
+      teammatePosition==null||
+      teammatePosition!==currentPosition+1||
+      (intervalMs!=null&&intervalMs>3500)
+    )return null;
+
+    const compliance=car?.performance?.driver?.teamOrderCompliance||{};
+    const complianceMate=text(compliance?.teammateId??compliance?.teammate_id);
+    return {
+      order:"yield",
+      teammateDriverId,
+      teammateCarId:teammate?.carId??null,
+      relationshipCompliance:
+        complianceMate===teammateDriverId
+          ?Math.max(0,Math.min(1,finite(compliance?.probability,1)))
+          :1,
+      relationshipLabel:
+        complianceMate===teammateDriverId
+          ?text(compliance?.label)||null
+          :null,
+      relationshipAtRisk:
+        complianceMate===teammateDriverId
+          ?Boolean(compliance?.atRisk??compliance?.at_risk)
+          :false,
+    };
+  }
+
   return null;
 }
 
@@ -100,7 +165,11 @@ export function normalizeRaceCommand(state,raw={}){
   if(!teamId||teamId!==text(car?.teamId))return null;
 
   const type=text(raw?.type).toLowerCase();
-  if(![RACE_COMMAND_TYPES.PACE,RACE_COMMAND_TYPES.PIT].includes(type))return null;
+  if(![
+    RACE_COMMAND_TYPES.PACE,
+    RACE_COMMAND_TYPES.PIT,
+    RACE_COMMAND_TYPES.TEAM_ORDER,
+  ].includes(type))return null;
 
   const payload=normalizedPayload(state,car,type,raw);
   if(!payload)return null;
@@ -267,6 +336,69 @@ function applyPit(state,car,command){
   };
 }
 
+function applyTeamOrder(state,car,command){
+  const payload=command?.payload||{};
+  const teammate=carForDriver(state,payload?.teammateDriverId);
+  if(
+    String(payload?.order||"")!=="yield"||
+    !teammate||
+    teammate?.dnf||
+    teammate?.status==="dnf"||
+    teammate?.status==="finished"||
+    text(teammate?.teamId)!==text(car?.teamId)
+  )return null;
+
+  const probability=Math.max(0,Math.min(1,finite(payload?.relationshipCompliance,1)));
+  const atRisk=Boolean(payload?.relationshipAtRisk);
+  const roll=deterministicUnit(
+    state,
+    `team-order:${command?.id??command?.sequence}:${car?.carId}:${teammate?.carId}`
+  );
+  if(atRisk&&roll>probability){
+    return {
+      refused:true,
+      payload:{
+        order:"yield",
+        teammateDriverId:teammate?.driverId??null,
+        teammateCarId:teammate?.carId??null,
+        relationshipCompliance:probability,
+        relationshipLabel:payload?.relationshipLabel??null,
+        roll:Number(roll.toFixed(8)),
+      },
+    };
+  }
+
+  const now=Math.max(0,finite(state?.simulationTimeMs,0));
+  const expiresAtMs=now+RACE_TEAM_ORDER_MAX_DURATION_MS;
+  return {
+    car:{
+      ...car,
+      commands:{
+        ...(car?.commands||{}),
+        teamOrder:{
+          active:true,
+          order:"yield",
+          teammateDriverId:teammate?.driverId??null,
+          teammateCarId:teammate?.carId??null,
+          startedAtMs:now,
+          expiresAtMs,
+          yieldPaceMultiplier:RACE_TEAM_ORDER_YIELD_PACE_MULTIPLIER,
+          relationshipCompliance:probability,
+          relationshipLabel:payload?.relationshipLabel??null,
+        },
+      },
+    },
+    payload:{
+      order:"yield",
+      teammateDriverId:teammate?.driverId??null,
+      teammateCarId:teammate?.carId??null,
+      relationshipCompliance:probability,
+      relationshipLabel:payload?.relationshipLabel??null,
+      expiresAtMs,
+    },
+  };
+}
+
 export function applyDueRaceCommands(state){
   const queue=(state?.commandQueue||[])
     .map((row)=>({...row,payload:row?.payload?{...row.payload}:row?.payload}))
@@ -296,10 +428,22 @@ export function applyDueRaceCommands(state){
       ?applyPace(car,command)
       :command.type===RACE_COMMAND_TYPES.PIT
         ?applyPit(state,car,command)
-        :null;
+        :command.type===RACE_COMMAND_TYPES.TEAM_ORDER
+          ?applyTeamOrder({...state,cars},car,command)
+          :null;
 
     if(!applied){
       events.push(event("command_ignored",state,car,command,{reason:"not_applicable"}));
+      continue;
+    }
+
+    if(applied.refused){
+      const teammate=carForDriver({...state,cars},applied.payload?.teammateDriverId);
+      events.push({
+        ...event("team_order_refused",state,car,command,applied.payload),
+        carIds:[car?.carId,teammate?.carId].filter(Boolean),
+        driverIds:[car?.driverId,teammate?.driverId].filter(Boolean),
+      });
       continue;
     }
 
