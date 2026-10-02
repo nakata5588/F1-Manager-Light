@@ -452,13 +452,16 @@ export async function autosimUnemployedRaceIfDue(gs){
   };
 }
 
-export function processManagerCareerTick(gs,{forceDismiss=false}={}){
+export function processManagerCareerTick(gs,{
+  forceDismiss=false,
+  processProgression=true,
+}={}){
   if(!gs?.manager)return gs;
 
-  // Career progression consumes only already-archived official race results.
-  // Run it before employment decisions so the final GP of a tenure is credited
-  // even if the Board dismisses the manager on the same daily tick.
-  gs=applyManagerCareerProgression(gs);
+  // Career progression is result-driven. The daily scheduler only enables this
+  // after a newly archived official F1 result (or season-final review), while
+  // monthly Board/employment reviews can run without rescanning Results.
+  if(processProgression)gs=applyManagerCareerProgression(gs);
 
   if(!playerManagerIsActiveTeamPrincipal(gs)){
     return processManagerJobApplications(gs);
