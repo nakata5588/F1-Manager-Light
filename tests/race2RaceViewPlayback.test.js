@@ -20,6 +20,12 @@ import {
   raceViewInterpolationDurationMs,
   wrapRaceViewDistanceM,
 } from "../src/race2/view/RaceViewInterpolation.js";
+import {
+  clampRaceViewZoom,
+  raceViewBoxCenter,
+  raceViewCameraViewBox,
+  raceViewWeatherVisuals,
+} from "../src/race2/view/RaceViewPresentation.js";
 
 function legacyState(){
   return {raceWeekendState:{engine_version:"legacy",phase:"race"}};
@@ -212,4 +218,47 @@ test("RW12A visual interpolation keeps target ordering and only smooths pose fie
   assert.deepEqual(frame.map((row)=>row.position),[1,2]);
   assert.deepEqual(frame.map((row)=>row.absolute_distance_m),[120,125]);
   assert.deepEqual(frame.map((row)=>row.lateral_offset_m),[0.5,-0.5]);
+});
+
+
+test("RW12B camera viewBox keeps FIT geometry and zooms around a supplied center",()=>{
+  const base=[0,0,1000,500];
+  assert.deepEqual(raceViewBoxCenter(base),{x:500,y:250});
+  assert.deepEqual(raceViewCameraViewBox(base,{zoom:1,center:{x:500,y:250}}),base);
+  assert.deepEqual(
+    raceViewCameraViewBox(base,{zoom:2,center:{x:250,y:100}}),
+    [0,-25,500,250]
+  );
+  assert.equal(clampRaceViewZoom(99),6);
+  assert.equal(clampRaceViewZoom(0.1),1);
+});
+
+test("RW12B weather visuals are derived only from canonical track-state indices",()=>{
+  const dry=raceViewWeatherVisuals({
+    rain_intensity:0,
+    track_wetness:0,
+    visibility_index:100,
+    spray_index:0,
+    standing_water_index:0,
+  });
+  assert.equal(dry.rainOpacity,0);
+  assert.equal(dry.fogOpacity,0);
+  assert.equal(dry.wetTrackOpacity,0);
+  assert.equal(dry.sprayOpacity,0);
+
+  const wet=raceViewWeatherVisuals({
+    rain_intensity:0.8,
+    track_wetness:0.9,
+    visibility_index:40,
+    spray_index:0.75,
+    standing_water_index:70,
+  });
+  assert.equal(wet.rain,0.8);
+  assert.equal(wet.wet,0.9);
+  assert.equal(wet.visibility,0.4);
+  assert.equal(wet.spray,0.75);
+  assert.ok(wet.rainOpacity>0.5);
+  assert.ok(wet.fogOpacity>0.4);
+  assert.ok(wet.wetTrackOpacity>0.5);
+  assert.ok(wet.sprayOpacity>0.3);
 });
