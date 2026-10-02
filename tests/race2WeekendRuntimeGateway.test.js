@@ -41,9 +41,9 @@ test("RW8.14E leaves Legacy and pre-race states byte-for-byte untouched",()=>{
 });
 
 test("RW8.14G Race View playback scales elapsed time instead of sector stepping",()=>{
-  assert.deepEqual(RACE_VIEW_PLAYBACK_SPEEDS,[0.5,1,2,4,8]);
+  assert.deepEqual(RACE_VIEW_PLAYBACK_SPEEDS,[0.5,1,2,4,8,16]);
   assert.equal(canonicalRaceViewPlaybackSpeed(1.8),2);
-  assert.equal(canonicalRaceViewPlaybackSpeed(99),8);
+  assert.equal(canonicalRaceViewPlaybackSpeed(99),16);
   assert.equal(canonicalRaceViewElapsedMs(250,4),1000);
   assert.equal(canonicalRaceViewElapsedMs(250,0.5),125);
 });
