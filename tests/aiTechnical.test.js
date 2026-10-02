@@ -6,6 +6,7 @@ import {
   aiTechnicalStrategyAssessment,
   aiTechnicalTeamState,
   applyAIRaceComponentWear,
+  advanceAITechnicalWorldDay,
   normalizeAITechnicalWorld,
   planAITechnicalProject,
   processAITechnicalMaintenance,
@@ -268,6 +269,41 @@ test("AI fitted upgrades feed the shared Characteristics, Performance and Reliab
   assert.ok(reliability.components.some((row)=>row.design_id),"AI reliability should see the installed physical design");
   assert.notDeepEqual(afterCharacteristics.values,beforeCharacteristics.values);
   assert.notEqual(afterQualifying,beforeQualifying,"Race Weekend qualifying path should consume the AI car upgrade");
+});
+
+test("daily AI technical progress does not run strategic or development reviews",()=>{
+  const seeded=normalizeAITechnicalWorld(baseState());
+  const before=aiTechnicalTeamState(seeded,"RENAULT");
+  const next=advanceAITechnicalWorldDay({...seeded,currentDateISO:"1980-01-02"});
+  const after=aiTechnicalTeamState(next,"RENAULT");
+
+  assert.equal(after?.planning?.last_review_date,before?.planning?.last_review_date);
+  assert.equal(after?.strategy_planning?.last_review_date,before?.strategy_planning?.last_review_date);
+  assert.equal(after?.development?.lastResearchDate,"1980-01-02","daily research/progress still advances");
+});
+
+test("AI planning short-circuits before competitive analysis when review is not due",()=>{
+  let seeded=normalizeAITechnicalWorld(baseState());
+  const state=aiTechnicalTeamState(seeded,"RENAULT");
+  seeded={
+    ...seeded,
+    currentDateISO:"1980-01-10",
+    aiTechnicalWorld:{
+      ...seeded.aiTechnicalWorld,
+      teams:{
+        ...seeded.aiTechnicalWorld.teams,
+        RENAULT:{
+          ...state,
+          planning:{...(state?.planning||{}),next_review_date:"1980-02-01"},
+        },
+      },
+    },
+  };
+  const assessment=aiTechnicalPlanningAssessment(seeded,"RENAULT");
+  assert.equal(assessment.action,"hold");
+  assert.equal(assessment.reason,"review_not_due");
+  assert.equal("need" in assessment,false);
+  assert.equal("quote" in assessment,false);
 });
 
 test("AI technical world ticks deterministically and does not auto-develop on day one",()=>{
