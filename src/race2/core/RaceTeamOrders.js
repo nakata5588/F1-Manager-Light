@@ -77,6 +77,20 @@ export function raceTeamOrderPaceMultiplier(state,car){
   );
 }
 
+export function raceTeamOrderTrafficExclusions(state,car){
+  const carId=String(car?.carId??"");
+  if(!carId)return new Set();
+  const excluded=new Set();
+  for(const candidate of state?.cars||[]){
+    const order=activeOrder(candidate);
+    if(!order)continue;
+    if(String(order?.teammateCarId??"")!==carId)continue;
+    if(!activeTrackCar(candidate))continue;
+    excluded.add(String(candidate.carId));
+  }
+  return excluded;
+}
+
 export function resolveRaceTeamOrders(state,proposedCars,{stepMs=100}={}){
   let cars=(proposedCars||[]).map((car)=>({...car}));
   const events=[];
