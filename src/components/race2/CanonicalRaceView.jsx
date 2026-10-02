@@ -10,6 +10,7 @@ import {
   sampleOpenPolylinePoint,
 } from "../../domain/trackSceneGeometry.js";
 import { pitLaneProgressForPhase } from "../../domain/racePitModel.js";
+import { TeamLogo } from "../entity/EntityVisuals.jsx";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
 import {
   interpolateRaceViewCars,
@@ -80,6 +81,49 @@ function formatGap(ms,{leader=false}={}){
 function formatSpeed(value){
   const n=Number(value);
   return Number.isFinite(n)?`${Math.round(n)} km/h`:"—";
+}
+
+function positionDelta(value){
+  const n=Number(value)||0;
+  if(n>0)return {label:`▲${n}`,tone:"text-emerald-300"};
+  if(n<0)return {label:`▼${Math.abs(n)}`,tone:"text-rose-300"};
+  return {label:"—",tone:"text-slate-600"};
+}
+
+function tyreVisual(compound){
+  const key=String(compound||"").toLowerCase();
+  if(key.includes("inter"))return {label:"I",ring:"#39ff14"};
+  if(key.includes("wet"))return {label:"W",ring:"#18a8ff"};
+  if(key.includes("option")||key.includes("soft"))return {label:"S",ring:"#ff3030"};
+  if(key.includes("medium"))return {label:"M",ring:"#ffd800"};
+  if(key.includes("prime")||key.includes("hard"))return {label:"H",ring:"#f5f7fa"};
+  const cMatch=key.match(/(?:^|\b)c([1-5])(?:\b|$)/);
+  if(cMatch){
+    const number=Number(cMatch[1]);
+    return {label:`C${number}`,ring:number<=2?"#f5f7fa":number===3?"#ffd800":"#ff3030"};
+  }
+  return {label:"T",ring:"#94a3b8"};
+}
+
+function ControlTowerTyre({tyre}){
+  const visual=tyreVisual(tyre?.compound);
+  const condition=Number(tyre?.condition);
+  return <span
+    title={`${tyre?.compound||"Tyre"}${Number.isFinite(condition)?` · ${Math.round(condition)}%`:""}`}
+    className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#05070b]"
+    style={{border:`2px solid ${visual.ring}`}}
+  >
+    <span className="text-[7px] font-black leading-none" style={{color:visual.ring}}>{visual.label}</span>
+  </span>;
+}
+
+function damageLabel(car){
+  const state=car?.damage_state||{};
+  const pct=Number(state?.overall_damage_pct);
+  if(!car?.damaged_components?.length&&!Number.isFinite(pct))return null;
+  return Number.isFinite(pct)
+    ?`DMG ${Math.round(pct)}%`
+    :"DMG";
 }
 
 function trackPathLength(points=[]){
@@ -439,7 +483,7 @@ export default function CanonicalRaceView({
     if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
   };
 
-  return <div className="grid overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[minmax(0,1fr)_290px]">
+  return <div className="grid overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[minmax(0,1fr)_370px]">
     <div className="relative min-h-[560px] overflow-hidden bg-[#101923]">
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
         <span className="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200">Canonical Race View</span>
@@ -575,31 +619,87 @@ export default function CanonicalRaceView({
     </div>
 
     <aside className="border-t border-white/10 bg-[#0b1017] lg:border-l lg:border-t-0">
-      <div className="border-b border-white/10 px-3 py-2">
-        <div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">Official classification</div>
-        <div className="mt-0.5 text-[10px] text-slate-600">Read directly from canonical RaceState</div>
+      <div className="border-b border-white/10 bg-[#070b10] px-2.5 py-2">
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">Control Tower</div>
+            <div className="mt-0.5 text-[9px] text-slate-600">Official canonical classification</div>
+          </div>
+          <div className="text-[9px] font-mono text-slate-500">L{summary.lap}/{summary.total_laps??"—"}</div>
+        </div>
+        <div className="mt-2 grid grid-cols-[24px_30px_minmax(0,1fr)_28px_66px_30px] items-center gap-1.5 px-1 text-[7px] font-black uppercase tracking-[0.12em] text-slate-600">
+          <span className="text-right">P</span>
+          <span className="text-center">Δ</span>
+          <span>Driver</span>
+          <span className="text-center">Team</span>
+          <span className="text-right">Gap</span>
+          <span className="text-center">Tyre</span>
+        </div>
       </div>
       <div className="max-h-[610px] overflow-y-auto">
         {cars.map((car,index)=>{
           const mine=String(car.team_id)===String(playerTeamId||"");
           const active=String(car.driver_id)===String(selectedDriverId||"");
+          const delta=positionDelta(car.position_change_last_lap);
+          const damage=damageLabel(car);
+          const pitActive=Boolean(car?.pit_state?.active);
+          const clearedDnf=Boolean(car?.retired&&car?.retirement_trackside?.status==="cleared");
+          const statusText=car.retired
+            ?(clearedDnf?"DNF · BOX":"DNF")
+            :pitActive
+              ?`PIT · ${String(car?.pit_state?.phase||car?.pit_state?.status||"service").replaceAll("_"," ")}`
+              :damage;
           return <button
             type="button"
             key={car.id}
             onClick={()=>onSelectDriver?.(String(car.driver_id||""))}
-            className={"grid w-full grid-cols-[30px_minmax(0,1fr)_72px] items-center gap-2 border-b border-white/[0.055] px-2.5 py-2 text-left transition "+(active?"bg-white/[0.09]":mine?"bg-cyan-500/[0.045] hover:bg-white/[0.06]":"hover:bg-white/[0.045]")}
+            className={"group w-full border-b border-white/[0.055] px-2 py-1.5 text-left transition "+(
+              active
+                ?"bg-cyan-400/[0.11] ring-1 ring-inset ring-cyan-300/20"
+                :mine
+                  ?"bg-cyan-500/[0.04] hover:bg-white/[0.06]"
+                  :"hover:bg-white/[0.045]"
+            )}
           >
-            <span className="text-right text-xs font-black text-slate-100">{car.position}</span>
-            <span className="min-w-0">
-              <span className="block truncate text-[11px] font-semibold text-slate-200">{driverName(drivers,car.driver_id)}</span>
-              <span className="block truncate text-[9px] text-slate-500">{car.retired
-                ?(car?.retirement_trackside?.status==="cleared"?"DNF · PIT BOX":car.status)
-                :car?.pit_state?.active
-                  ?`PIT · ${String(car.pit_state.phase||car.pit_state.status||"service").replaceAll("_"," ")}`
-                  :`${formatSpeed(car.speed_kmh)} · ${car.tyre?.compound||"—"} ${Number.isFinite(Number(car.tyre?.condition))?Math.round(Number(car.tyre.condition))+"%":""}`
-              }</span>
+            <span className="grid grid-cols-[24px_30px_minmax(0,1fr)_28px_66px_30px] items-center gap-1.5">
+              <span className={"text-right text-[12px] font-black "+(car.retired?"text-slate-500":"text-slate-100")}>{car.position}</span>
+              <span className={"text-center text-[9px] font-black "+delta.tone}>{delta.label}</span>
+              <span className="min-w-0">
+                <span className={"block truncate text-[10px] font-black uppercase tracking-[0.06em] "+(car.retired?"text-slate-500":"text-slate-200")}>
+                  {shortName(drivers,car.driver_id)}
+                </span>
+                <span className="block truncate text-[8px] text-slate-600">{driverName(drivers,car.driver_id)}</span>
+              </span>
+              <span className="flex justify-center">
+                <TeamLogo
+                  teamId={String(car.team_id||"")}
+                  name={teamName(teams,car.team_id)}
+                  size="h-5 w-5"
+                  className="shrink-0 p-0"
+                />
+              </span>
+              <span className={"text-right font-mono text-[9px] "+(index===0?"font-black text-emerald-300":"text-slate-400")}>
+                {formatGap(car.gap_to_leader_ms,{leader:index===0})}
+              </span>
+              <span className="flex justify-center">
+                <ControlTowerTyre tyre={car.tyre}/>
+              </span>
             </span>
-            <span className="text-right text-[10px] font-mono text-slate-400">{formatGap(car.gap_to_leader_ms,{leader:index===0})}</span>
+            <span className="mt-0.5 grid grid-cols-[54px_minmax(0,1fr)_auto] items-center gap-1.5 pl-[55px] text-[7px] uppercase tracking-[0.08em]">
+              <span className="text-slate-600">{Number.isFinite(Number(car?.tyre?.condition))?`${Math.round(Number(car.tyre.condition))}%`:"—"}</span>
+              <span className={"truncate "+(
+                car.retired
+                  ?"text-rose-300/80"
+                  :pitActive
+                    ?"text-sky-300"
+                    :damage
+                      ?"text-amber-300"
+                      :"text-slate-600"
+              )}>
+                {statusText||`${formatSpeed(car.speed_kmh)} · ${String(car.current_pace||"balanced")}`}
+              </span>
+              {mine?<span className="rounded bg-cyan-400/10 px-1 py-0.5 font-black text-cyan-300">TEAM</span>:null}
+            </span>
           </button>;
         })}
       </div>
