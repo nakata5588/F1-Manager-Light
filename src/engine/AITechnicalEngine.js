@@ -81,7 +81,7 @@ function parseISO(value){
 }
 function addDaysISO(value,days){
   const d=parseISO(value);
-  d.setUTCDate(d.getUTCDate()+Math.max(0,Math.floor(Number(days)||0)));
+  d.setUTCDate(d.getUTCDate()+Math.trunc(Number(days)||0));
   return d.toISOString().slice(0,10);
 }
 function daysBetweenISO(from,to){
