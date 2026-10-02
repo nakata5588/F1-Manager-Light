@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TRACK_LAYOUT_ASSETS } from "../src/data/trackLayoutAssets.js";
 import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
-import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
+import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackPresentationSplineEligible, trackRuntimeGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 import { buildPitLanePresentationGeometry, deterministicTrackScatter, offsetTrackPolyline, sampleOpenPolylinePoint, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
 import { clampTrackViewBox, dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
 
@@ -57,6 +57,20 @@ test("RW6 supplied 1980 calendar has a 2D asset and derived geometry for every r
     assert.ok(resolved.geometry,`${trackId} must expose display geometry`);
     assert.ok(resolved.geometry.points.length>=48,`${trackId} geometry must be dense enough for animation`);
   }
+});
+
+test("RW19 canonical Race View shares TrackModel geometry selection and only smooths verified sources",()=>{
+  const argentina=resolveTrackLayout({trackId:"tr_0018",year:1980});
+  const argentinaRuntime=trackRuntimeGeometry(argentina);
+  assert.equal(argentinaRuntime.source,"f1track_functional");
+  assert.equal(argentinaRuntime.geometry.quality,"historical_verified");
+  assert.equal(trackPresentationSplineEligible(argentina,argentinaRuntime),true);
+
+  const longBeach=resolveTrackLayout({trackId:"tr_0088",year:1980});
+  const longBeachRuntime=trackRuntimeGeometry(longBeach);
+  assert.equal(longBeachRuntime.source,"track_layout_geometry");
+  assert.equal(longBeachRuntime.geometry.quality,"derived_provisional");
+  assert.equal(trackPresentationSplineEligible(longBeach,longBeachRuntime),false);
 });
 
 test("RW6 known later Hockenheim artwork is explicitly a future fallback in 1980",()=>{
