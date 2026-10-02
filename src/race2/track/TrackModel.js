@@ -3,7 +3,7 @@
 // Race physics use metres. Display geometry is only a deterministic mapping
 // from physical distance to an on-screen pose.
 
-import { resolveTrackLayout, trackIntelligenceProfile } from "../../domain/trackLayout.js";
+import { resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
 
 export const TRACK_MODEL_SCHEMA_VERSION=2;
@@ -74,18 +74,6 @@ function firstPositive(...values){
   }
   return null;
 }
-
-function geometryForResolution(resolved){
-  const functional=resolved?.track_package?.functional;
-  if(Array.isArray(functional?.points)&&functional.points.length>=3){
-    return {geometry:functional,source:"f1track_functional"};
-  }
-  if(Array.isArray(resolved?.geometry?.points)&&resolved.geometry.points.length>=3){
-    return {geometry:resolved.geometry,source:"track_layout_geometry"};
-  }
-  return {geometry:null,source:"none"};
-}
-
 function clonePoints(points){
   return (Array.isArray(points)?points:[])
     .filter((point)=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1])))
@@ -256,7 +244,7 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
   const resolved=resolveTrackLayout({trackId:id,year:y});
   const layout=resolved?.layout??null;
   const trackPackage=resolved?.track_package??null;
-  const {geometry,source:geometrySource}=geometryForResolution(resolved);
+  const {geometry,source:geometrySource}=trackRuntimeGeometry(resolved);
 
   const lengthKm=firstPositive(
     metadata?.lap_length_km,
