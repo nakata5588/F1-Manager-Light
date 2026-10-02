@@ -18,6 +18,7 @@ import {
   interpolateRaceViewCars,
   raceViewInterpolationAlpha,
   raceViewInterpolationDurationMs,
+  retimeRaceViewInterpolation,
   wrapRaceViewDistanceM,
 } from "../src/race2/view/RaceViewInterpolation.js";
 import {
@@ -129,13 +130,37 @@ test("RW8.14J frame clock exposes elapsed sampling for the Zustand dispatch boun
 
 test("RW12A derives wall-clock interpolation duration from canonical time and playback speed",()=>{
   assert.equal(raceViewInterpolationDurationMs(1000,1100,1),100);
-  assert.equal(raceViewInterpolationDurationMs(1000,1100,4),25);
-  assert.equal(raceViewInterpolationDurationMs(1000,1100,8),24);
-  assert.equal(raceViewInterpolationDurationMs(1000,1100,16),24);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,4),30);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,8),40);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,16),40);
   assert.equal(raceViewInterpolationDurationMs(1000,1100,0.5),200);
   assert.equal(raceViewInterpolationDurationMs(1100,1100,1),0);
   assert.equal(raceViewInterpolationAlpha(1000,100,1050),0.5);
   assert.equal(raceViewInterpolationAlpha(1000,100,1200),1);
+});
+
+test("RW18 retimes an in-flight visual segment from its current progress without snapping",()=>{
+  const slowed=retimeRaceViewInterpolation({
+    startedAtMs:1000,
+    durationMs:40,
+    canonicalDeltaMs:400,
+    timestampMs:1020,
+    playbackSpeed:1,
+  });
+  assert.equal(slowed.alpha,0.5);
+  assert.equal(slowed.remainingCanonicalMs,200);
+  assert.equal(slowed.durationMs,200);
+
+  const accelerated=retimeRaceViewInterpolation({
+    startedAtMs:1000,
+    durationMs:200,
+    canonicalDeltaMs:200,
+    timestampMs:1050,
+    playbackSpeed:16,
+  });
+  assert.equal(accelerated.alpha,0.25);
+  assert.equal(accelerated.remainingCanonicalMs,150);
+  assert.equal(accelerated.durationMs,40);
 });
 
 test("RW12A interpolates absolute distance through lap wrap without moving backwards",()=>{
