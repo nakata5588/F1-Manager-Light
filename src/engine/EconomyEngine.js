@@ -2,6 +2,7 @@
 
 import { isDriverContract } from "../domain/contractRoles.js";
 import { contractActiveForYear, preferLiveRows } from "../domain/liveContracts.js";
+import { applyFinanceTransaction } from "../domain/teamFinance.js";
 
 // =================== helpers de datas ===================
 const clampISO = (iso) => String(iso || "").slice(0, 10);
@@ -97,35 +98,11 @@ function findSponsorContracts(gs, year, teamId) {
 }
 
 // =================== ledger + flags ===================
-function pushTxn(gs, { id, sig, dateISO, type, category, desc, amount }) {
-  const amt = N(amount, 0);
-  const tx = {
-    id: id || `tx_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-    sig: sig || null, // para dedupe, quando aplicável
-    dateISO: clampISO(dateISO),
-    type: amt >= 0 ? "income" : "expense",
-    category: category || (amt >= 0 ? "Income" : "Expense"),
-    desc: desc || "",
-    amount: amt,
-  };
-  const financeLog = Array.isArray(gs.financeLog) ? gs.financeLog.slice() : [];
-  // evita duplicar por sig
-  if (tx.sig && financeLog.some((t) => t.sig === tx.sig)) return gs;
-
-  financeLog.unshift(tx);
-
-  // ajusta snapshot de orçamento (se existir)
-  const team = { ...(gs.team || {}) };
-  if (Number.isFinite(N(team.budget, NaN))) {
-    team.budget = N(team.budget, 0) + amt;
-  }
-
-  const finances = { ...(gs.finances || {}) };
-  finances.season_spend = N(finances.season_spend, 0) + (amt < 0 ? Math.abs(amt) : 0);
-  finances.season_income = N(finances.season_income, 0) + (amt > 0 ? amt : 0);
-  finances.balance = N(finances.balance, 0) + amt;
-
-  return { ...gs, financeLog, team, finances };
+function recordFinanceTransaction(gs, tx) {
+  return applyFinanceTransaction(gs, {
+    ...tx,
+    teamId: getTeamId(gs.team || {}),
+  });
 }
 
 function flagWasSet(gs, key) {
@@ -189,7 +166,7 @@ function processSponsorsUpfront(gs) {
 
     const upfront = N(pick(sp, ["cash_upfront", "upfront", "signing_fee"], 0), 0);
     if (upfront > 0 && clampISO(gs.currentDateISO) >= startDate) {
-      next = pushTxn(next, {
+      next = recordFinanceTransaction(next, {
         dateISO: clampISO(gs.currentDateISO),
         type: "income",
         category: "Sponsor - Upfront",
@@ -238,7 +215,7 @@ function processMonthEnd(gs) {
         amount: Math.round(Math.abs(monthly)),
         sig: `spM:${prevKey}:${teamId}:${sponsorId}`,
       };
-      next = pushTxn(next, tx);
+      next = recordFinanceTransaction(next, tx);
       freshTx.push({ ...tx, type: "income" });
     }
   }
@@ -262,7 +239,7 @@ function processMonthEnd(gs) {
       amount: -Math.abs(monthly),
       sig: `salS:${prevKey}:${teamId}:${cid}`,
     };
-    next = pushTxn(next, tx);
+    next = recordFinanceTransaction(next, tx);
     freshTx.push({ ...tx, type: "expense" });
   }
 
@@ -284,7 +261,7 @@ function processMonthEnd(gs) {
       amount: -Math.abs(monthly),
       sig: `salD:${prevKey}:${teamId}:${did}`,
     };
-    next = pushTxn(next, tx);
+    next = recordFinanceTransaction(next, tx);
     freshTx.push({ ...tx, type: "expense" });
   }
 
@@ -301,7 +278,7 @@ function processMonthEnd(gs) {
       amount: -Math.abs(maintMonthly),
       sig: `maint:${prevKey}:${teamId}`,
     };
-    next = pushTxn(next, tx);
+    next = recordFinanceTransaction(next, tx);
     freshTx.push({ ...tx, type: "expense" });
   }
 
@@ -319,7 +296,7 @@ function processMonthEnd(gs) {
       amount: -Math.abs(monthly),
       sig: `rd:${prevKey}:${teamId}:${pid}`,
     };
-    next = pushTxn(next, tx);
+    next = recordFinanceTransaction(next, tx);
     freshTx.push({ ...tx, type: "expense" });
   }
 
@@ -346,7 +323,7 @@ function processOperationalQueues(gs) {
       const engineRow = findTeamEngineRow(gs, y, teamId);
       const cost = N(pick(engineRow, ["supply_cost", "chassis_cost", "car_supply_cost"], 0), 0);
       if (cost > 0) {
-        next = pushTxn(next, {
+        next = recordFinanceTransaction(next, {
           dateISO: clampISO(gs.currentDateISO),
           type: "expense",
           category: "New Car",
@@ -367,7 +344,7 @@ function processOperationalQueues(gs) {
       const diff = N(it.costDifferential ?? it.diff ?? 0, 0);
       const amount = N(it.amount, (base * diff) || 0);
       if (amount > 0) {
-        next = pushTxn(next, {
+        next = recordFinanceTransaction(next, {
           dateISO: clampISO(gs.currentDateISO),
           type: "expense",
           category: `Part - ${String(it.partKey || "component").toUpperCase()}`,
@@ -411,7 +388,7 @@ function processSeasonBonuses(gs) {
   let next = gs;
   const bonus = N(pick(rec, ["bonus_championship", "championship_bonus"], 0), 0);
   if (bonus > 0) {
-    next = pushTxn(next, {
+    next = recordFinanceTransaction(next, {
       dateISO: clampISO(gs.currentDateISO),
       type: "expense",
       category: "Driver Bonus - Championship",
