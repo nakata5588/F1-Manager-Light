@@ -198,6 +198,9 @@ export function projectRaceStateToRaceView(state){
     canonical_tick:Math.max(0,Math.floor(finite(state?.tick,0))),
     canonical_time_ms:Math.max(0,finite(state?.simulationTimeMs,0)),
     track_length_m:lengthM,
+    pit_lane:state?.track?.pitLane
+      ?structuredClone(state.track.pitLane)
+      :null,
     status:state?.status??"ready",
     current_lap:finite(leader?.lap,1),
     current_sector:finite(leader?.sector,1),
