@@ -28,8 +28,12 @@ export function raceViewInterpolationDurationMs(
   const delta=Math.max(0,next-previous);
   if(delta<=0)return 0;
   const speed=Math.max(0.05,finite(playbackSpeed,1));
-  const minimumDurationMs=speed>=8?40:speed>=4?30:24;
-  return clamp(delta/speed,minimumDurationMs,250);
+  // The visual duration must follow the requested playback rate. A fixed
+  // 40 ms floor at 8x/16x made new canonical targets arrive before the
+  // previous visual segment could finish, creating a permanent catch-up tail.
+  // One browser frame is enough as a floor; long delayed snapshots are allowed
+  // to reconcile gradually rather than being squeezed into a visible jump.
+  return clamp(delta/speed,12,500);
 }
 
 export function raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs){
@@ -65,10 +69,15 @@ export function raceViewRetargetCanonicalDeltaMs(
   previousCanonicalTimeMs,
   nextCanonicalTimeMs
 ){
-  const carried=Math.max(0,finite(previousRemainingCanonicalMs,0));
+  // The interrupted visual pose is already sampled before a new target is
+  // installed. Carrying the unfinished canonical duration as well double-counts
+  // that lag and makes the renderer chase an ever-growing backlog at 8x/16x.
+  // Retarget from the sampled visual pose using only the new authoritative
+  // snapshot delta. The first argument remains for call-site compatibility.
+  void previousRemainingCanonicalMs;
   const previous=finite(previousCanonicalTimeMs,0);
   const next=finite(nextCanonicalTimeMs,previous);
-  return carried+Math.max(0,next-previous);
+  return Math.max(0,next-previous);
 }
 
 function interpolateNumber(from,to,alpha){
