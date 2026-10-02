@@ -23,6 +23,7 @@ import {
   interpolateRaceViewCars,
   raceViewInterpolationAlpha,
   raceViewInterpolationDurationMs,
+  retimeRaceViewInterpolation,
 } from "../../race2/view/RaceViewInterpolation.js";
 import {
   clampRaceViewZoom,
@@ -283,12 +284,8 @@ function useCanonicalRaceViewMotion(canonicalCars,{
   const visualCarsRef=useRef(canonicalCars);
   const previousTickRef=useRef(canonicalTick);
   const previousCanonicalTimeRef=useRef(canonicalTimeMs);
-  const playbackSpeedRef=useRef(playbackSpeed);
   const frameRef=useRef(null);
-
-  useEffect(()=>{
-    playbackSpeedRef.current=playbackSpeed;
-  },[playbackSpeed]);
+  const interpolationRef=useRef(null);
 
   useEffect(()=>{
     if(frameRef.current!=null){
@@ -309,30 +306,47 @@ function useCanonicalRaceViewMotion(canonicalCars,{
       !visualCarsRef.current?.length
     );
     if(reset){
+      interpolationRef.current=null;
       visualCarsRef.current=target;
       setVisualCars(target);
       return undefined;
     }
 
+    const canonicalDeltaMs=Math.max(0,Number(canonicalTimeMs)-Number(previousCanonicalTime||0));
     const durationMs=raceViewInterpolationDurationMs(
       previousCanonicalTime,
       canonicalTimeMs,
-      playbackSpeedRef.current
+      playbackSpeed
     );
     if(durationMs<=0){
+      interpolationRef.current=null;
       visualCarsRef.current=target;
       setVisualCars(target);
       return undefined;
     }
 
-    const from=visualCarsRef.current;
-    const startedAtMs=performance.now();
+    interpolationRef.current={
+      from:visualCarsRef.current,
+      target,
+      startedAtMs:performance.now(),
+      durationMs,
+      canonicalDeltaMs,
+    };
     let cancelled=false;
 
     const animate=(timestampMs)=>{
       if(cancelled)return;
-      const alpha=raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs);
-      const next=interpolateRaceViewCars(from,target,{
+      const segment=interpolationRef.current;
+      if(!segment){
+        frameRef.current=null;
+        return;
+      }
+      const alpha=raceViewInterpolationAlpha(
+        segment.startedAtMs,
+        segment.durationMs,
+        timestampMs
+      );
+      const next=interpolateRaceViewCars(segment.from,segment.target,{
         alpha,
         trackLengthM,
       });
@@ -341,6 +355,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
       if(alpha<1){
         frameRef.current=window.requestAnimationFrame(animate);
       }else{
+        interpolationRef.current=null;
         frameRef.current=null;
       }
     };
@@ -359,6 +374,36 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     playbackRunning,
     trackLengthM,
   ]);
+
+  useEffect(()=>{
+    if(!playbackRunning)return;
+    const segment=interpolationRef.current;
+    if(!segment)return;
+
+    const now=performance.now();
+    const retimed=retimeRaceViewInterpolation({
+      startedAtMs:segment.startedAtMs,
+      durationMs:segment.durationMs,
+      canonicalDeltaMs:segment.canonicalDeltaMs,
+      timestampMs:now,
+      playbackSpeed,
+    });
+    if(retimed.alpha>=1||retimed.durationMs<=0)return;
+
+    const current=interpolateRaceViewCars(segment.from,segment.target,{
+      alpha:retimed.alpha,
+      trackLengthM,
+    });
+    visualCarsRef.current=current;
+    setVisualCars(current);
+    interpolationRef.current={
+      from:current,
+      target:segment.target,
+      startedAtMs:now,
+      durationMs:retimed.durationMs,
+      canonicalDeltaMs:retimed.remainingCanonicalMs,
+    };
+  },[playbackSpeed,playbackRunning,trackLengthM]);
 
   return visualCars;
 }
