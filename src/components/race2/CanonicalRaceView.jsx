@@ -332,28 +332,26 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     const previousCanonicalTime=previousCanonicalTimeRef.current;
     const now=performance.now();
     let from=visualCarsRef.current;
-    let carriedCanonicalMs=0;
 
-    // If a newer canonical snapshot interrupts an interpolation before its
-    // visual pose reaches the previous target, carry that unfinished canonical
-    // distance forward. Otherwise high-speed playback can accumulate visual
-    // lag that is accidentally discarded when the next target arrives.
+    // Sample the exact current visual pose before retargeting. Do not also
+    // carry the unfinished canonical duration: the sampled pose already
+    // contains that lag. Carrying both caused a growing catch-up queue and
+    // visible forward corrections, especially at 8x/16x and after slowing down.
     const interrupted=interpolationRef.current;
     if(playbackRunning&&interrupted){
-      const carry=retimeRaceViewInterpolation({
+      const sampled=retimeRaceViewInterpolation({
         startedAtMs:interrupted.startedAtMs,
         durationMs:interrupted.durationMs,
         canonicalDeltaMs:interrupted.canonicalDeltaMs,
         timestampMs:now,
         playbackSpeed,
       });
-      if(carry.alpha<1){
+      if(sampled.alpha<1){
         from=interpolateRaceViewCars(interrupted.from,interrupted.target,{
-          alpha:carry.alpha,
+          alpha:sampled.alpha,
           trackLengthM,
         });
         visualCarsRef.current=from;
-        carriedCanonicalMs=carry.remainingCanonicalMs;
       }
     }
 
@@ -374,7 +372,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     }
 
     const canonicalDeltaMs=raceViewRetargetCanonicalDeltaMs(
-      carriedCanonicalMs,
+      0,
       previousCanonicalTime,
       canonicalTimeMs
     );
