@@ -147,6 +147,122 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
   assert.equal(view.pit_states[row.driver_id].active,false);
 });
 
+test("RW20 Race View exposes canonical battle telemetry without recomputing the battle in UI",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  const attemptId="rw20-attempt";
+  state={
+    ...state,
+    simulationTimeMs:2400,
+    events:[
+      ...(state.events||[]),
+      {
+        type:"overtake_started",
+        tick:10,
+        timeMs:1000,
+        carIds:["C2","C1"],
+        driverIds:["D2","D1"],
+        payload:{
+          attemptId,
+          gapM:9.5,
+          probability:.72,
+          side:1,
+          durationMs:5000,
+          closingPotentialMs:4.25,
+          attemptRangeM:22,
+          trackDifficulty:44,
+        },
+      },
+    ],
+    cars:state.cars.map((car)=>{
+      if(car.carId==="C2")return {
+        ...car,
+        traffic:{
+          ...(car.traffic||{}),
+          slipstreamActive:true,
+          slipstreamAheadCarId:"C1",
+          slipstreamStrength:.65,
+          slipstreamTargetBonusKmh:5.4,
+        },
+        battle:{
+          ...(car.battle||{}),
+          phase:"side_by_side",
+          opponentCarId:"C1",
+          role:"attacker",
+          side:1,
+          attemptId,
+          startedAtMs:1000,
+          expiresAtMs:6000,
+          contactRiskPct:.42,
+          result:null,
+        },
+      };
+      if(car.carId==="C1")return {
+        ...car,
+        battle:{
+          ...(car.battle||{}),
+          phase:"side_by_side",
+          opponentCarId:"C2",
+          role:"defender",
+          side:-1,
+          attemptId,
+          startedAtMs:1000,
+          expiresAtMs:6000,
+          contactRiskPct:.42,
+          result:null,
+        },
+      };
+      return car;
+    }),
+  };
+
+  const before=JSON.parse(JSON.stringify(state));
+  const view=projectRaceStateToRaceView(state);
+  assert.deepEqual(state,before);
+
+  const attacker=view.classification.find((row)=>row.car_id==="C2");
+  assert.equal(attacker.battle_context.state,"side_by_side");
+  assert.equal(attacker.battle_context.role,"attacker");
+  assert.equal(attacker.battle_context.opponent_car_id,"C1");
+  assert.equal(attacker.battle_context.started_gap_m,9.5);
+  assert.equal(attacker.battle_context.attempt_probability_pct,72);
+  assert.equal(attacker.battle_context.closing_potential_kmh,15.3);
+  assert.equal(attacker.battle_context.elapsed_ms,1400);
+  assert.equal(attacker.battle_context.remaining_ms,3600);
+  assert.equal(attacker.battle_context.slipstream_strength_pct,65);
+  assert.equal(attacker.battle_context.slipstream_bonus_kmh,5.4);
+});
+
+test("RW20 Race View surfaces canonical slipstream pressure before side-by-side begins",()=>{
+  let state=startRaceState(createRaceState(input(),{stepMs:100}));
+  state={
+    ...state,
+    cars:state.cars.map((car)=>car.carId==="C2"?{
+      ...car,
+      traffic:{
+        ...(car.traffic||{}),
+        aheadCarId:"C1",
+        gapM:14.2,
+        limited:true,
+        hardLimited:false,
+        slipstreamActive:true,
+        slipstreamAheadCarId:"C1",
+        slipstreamRangeM:61,
+        slipstreamStrength:.58,
+        slipstreamTargetBonusKmh:4.7,
+      },
+    }:car),
+  };
+
+  const view=projectRaceStateToRaceView(state);
+  const attacker=view.classification.find((row)=>row.car_id==="C2");
+  assert.equal(attacker.battle_context.state,"slipstream");
+  assert.equal(attacker.battle_context.opponent_car_id,"C1");
+  assert.equal(attacker.battle_context.gap_m,14.2);
+  assert.equal(attacker.battle_context.slipstream_strength_pct,58);
+  assert.equal(attacker.battle_context.slipstream_bonus_kmh,4.7);
+  assert.equal(attacker.traffic.ahead_car_id,"C1");
+});
+
 test("RW8.14A rejects missing canonical state explicitly",()=>{
   assert.throws(()=>projectRaceStateToRaceView(null),/RaceState is required/);
 });
@@ -166,6 +282,8 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
         gap_to_previous_ms:null,
         best_lap_ms:61234,
         battle:{phase:"side_by_side",role:"attacker",opponentCarId:"C2"},
+        battle_context:{state:"side_by_side",role:"attacker",opponent_car_id:"C2",remaining_ms:900},
+        traffic:{gap_m:4.2,slipstream_active:false},
         visual_track_progress:0.4175,
         distance_along_lap_m:417.5,
         absolute_distance_m:3417.5,
@@ -182,6 +300,8 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
         gap_to_previous_ms:1250,
         best_lap_ms:62345,
         battle:{phase:"side_by_side",role:"defender",opponentCarId:"C1"},
+        battle_context:{state:"side_by_side",role:"defender",opponent_car_id:"C1",remaining_ms:900},
+        traffic:{gap_m:4.2,slipstream_active:false},
         visual_track_progress:0.4175,
         distance_along_lap_m:417.5,
         absolute_distance_m:3417.5,
@@ -199,6 +319,8 @@ test("RW9 canonical visual model ignores sector/gap reconstruction",()=>{
   assert.equal(cars[0].best_lap_ms,61234);
   assert.equal(cars[0].battle.phase,"side_by_side");
   assert.equal(cars[1].battle.role,"defender");
+  assert.equal(cars[0].battle_context.remaining_ms,900);
+  assert.equal(cars[0].traffic.gap_m,4.2);
 });
 
 

@@ -136,6 +136,33 @@ function formatLapTime(value){
   return `${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
 }
 
+function formatBattleDistance(value){
+  const n=Number(value);
+  return Number.isFinite(n)?`${n.toFixed(n<10?1:0)} m`:"—";
+}
+
+function formatBattleDuration(value){
+  const n=Number(value);
+  return Number.isFinite(n)&&n>=0?`${(n/1000).toFixed(1)} s`:"—";
+}
+
+function battleStateLabel(state){
+  return {
+    side_by_side:"SIDE BY SIDE",
+    yielding:"CLEARING",
+    slipstream:"TOW",
+    pressure:"PRESSURE",
+  }[String(state||"")]||String(state||"—").replaceAll("_"," ").toUpperCase();
+}
+
+function activeBattleContext(context){
+  return ["side_by_side","yielding"].includes(String(context?.state||""));
+}
+
+function hasTelemetryNumber(value){
+  return value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value));
+}
+
 function positionDelta(value){
   const n=Number(value)||0;
   if(n>0)return {label:`▲${n}`,tone:"text-emerald-300"};
@@ -465,9 +492,10 @@ function CanonicalCar({
     calibrated.targetLengthSvg*.62
   );
   const labelScale=Math.max(.5,Math.min(.78,Number(scale)||.65));
-  const battlePhase=String(car?.battle?.phase||"none");
-  const battleActive=battlePhase!=="none";
-  const battleRole=String(car?.battle?.role||"").toLowerCase()==="attacker"?"ATT":"DEF";
+  const engagement=car?.battle_context||null;
+  const battleActive=activeBattleContext(engagement);
+  const towActive=String(engagement?.state||"")==="slipstream";
+  const battleRole=String(engagement?.role||"").toLowerCase()==="attacker"?"ATT":"DEF";
   return <g
     role="button"
     tabIndex="0"
@@ -501,6 +529,10 @@ function CanonicalCar({
       <rect x={-3.6*labelScale} y={-1.8*labelScale} width={7.2*labelScale} height={3.6*labelScale} rx={1.8*labelScale} fill="#451a03" stroke="#fbbf24" strokeWidth={.45*labelScale} opacity=".90"/>
       <text x="0" y={.9*labelScale} textAnchor="middle" fontSize={2.6*labelScale} fontWeight="900" fill="#fde68a">{battleRole}</text>
     </g>:null}
+    {towActive&&(selected||showLabel)?<g transform={`translate(0 ${6.8*labelScale}) rotate(${-pose.heading})`}>
+      <rect x={-4.2*labelScale} y={-1.8*labelScale} width={8.4*labelScale} height={3.6*labelScale} rx={1.8*labelScale} fill="#082f49" stroke="#38bdf8" strokeWidth={.45*labelScale} opacity=".88"/>
+      <text x="0" y={.9*labelScale} textAnchor="middle" fontSize={2.45*labelScale} fontWeight="900" fill="#bae6fd">TOW</text>
+    </g>:null}
     {showLabel?<g transform={`translate(0 ${-5.8*labelScale}) rotate(${-pose.heading})`}>
       <rect x={-4.8*labelScale} y={-2.1*labelScale} width={9.6*labelScale} height={4.2*labelScale} rx={2.1*labelScale} fill="#03060a" stroke={selected?"#f8fafc":"#475569"} strokeWidth={.5*labelScale} opacity=".82"/>
       <text x="0" y={1.05*labelScale} textAnchor="middle" fontSize={3.2*labelScale} fontWeight="900" fill="#f8fafc">{label}</text>
@@ -519,6 +551,55 @@ function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1,pitBoxOffs
   >
     <ellipse cx={-11*scale} cy="0" rx={13*scale} ry={4.2*scale} fill="#dbeafe" opacity=".24"/>
     <ellipse cx={-20*scale} cy="0" rx={18*scale} ry={6.2*scale} fill="#e0f2fe" opacity=".13"/>
+  </g>;
+}
+
+function CanonicalBattleOverlay({
+  cars,
+  geometry,
+  unitsPerMeter,
+  drivers,
+  scale=1,
+  pitBoxOffset=0,
+  pitBoxSide=1,
+}){
+  const byId=new Map((cars||[]).map((car)=>[String(car?.car_id||car?.id||""),car]));
+  const attackers=(cars||[]).filter((car)=>
+    activeBattleContext(car?.battle_context)&&
+    String(car?.battle_context?.role||"")==="attacker"&&
+    car?.battle_context?.opponent_car_id
+  );
+  if(!attackers.length)return null;
+
+  return <g pointerEvents="none">
+    {attackers.map((attacker)=>{
+      const context=attacker.battle_context;
+      const defender=byId.get(String(context.opponent_car_id||""));
+      if(!defender)return null;
+      const a=visualCarPose(attacker,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
+      const d=visualCarPose(defender,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
+      if(!a||!d)return null;
+      const x=(a.x+d.x)/2;
+      const y=(a.y+d.y)/2-(10*scale);
+      const clearing=String(context.state)==="yielding";
+      const stroke=clearing?"#fb923c":"#fbbf24";
+      const title=`${shortName(drivers,attacker.driver_id)} ↔ ${shortName(drivers,defender.driver_id)}`;
+      const remaining=formatBattleDuration(context?.remaining_ms);
+      return <g key={String(context?.attempt_id||`${attacker.id}_${defender.id}`)}>
+        <line
+          x1={a.x} y1={a.y} x2={d.x} y2={d.y}
+          stroke={stroke}
+          strokeWidth={1.15*scale}
+          strokeDasharray={`${3*scale} ${2*scale}`}
+          opacity=".72"
+        />
+        <g transform={`translate(${x} ${y})`}>
+          <rect x={-29*scale} y={-5.4*scale} width={58*scale} height={10.8*scale} rx={4*scale} fill="#090d12" stroke={stroke} strokeWidth={.7*scale} opacity=".92"/>
+          <text x="0" y={-0.7*scale} textAnchor="middle" fontSize={3.4*scale} fontWeight="900" fill={stroke}>{title}</text>
+          <text x="0" y={3.25*scale} textAnchor="middle" fontSize={2.7*scale} fontWeight="800" fill="#e2e8f0">{battleStateLabel(context.state)}{remaining!=="—"?` · ${remaining}`:""}</text>
+        </g>
+      </g>;
+    })}
   </g>;
 }
 
@@ -579,6 +660,7 @@ function CanonicalMiniMap({
         const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
         if(!pose)return null;
         const selected=String(car.driver_id)===String(selectedDriverId||"");
+        const battleNow=activeBattleContext(car?.battle_context);
         const radius=selected?9.4:7.2;
         return <g key={`mini_${car.id}`} opacity={car.retired?0.58:0.98}>
           <circle
@@ -589,6 +671,7 @@ function CanonicalMiniMap({
             stroke={selected?"#fff":"#020617"}
             strokeWidth={selected?2.4:1.3}
           />
+          {battleNow?<circle cx={pose.x} cy={pose.y} r={radius+4.2} fill="none" stroke="#fbbf24" strokeWidth="2" opacity=".92"/>:null}
           <text
             x={pose.x}
             y={pose.y+1.9}
@@ -637,6 +720,14 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
         const active=String(car.driver_id)===String(selectedDriverId||"");
         const delta=positionDelta(car.position_change_last_lap);
         const pitActive=Boolean(car?.pit_state?.active);
+        const engagementState=String(car?.battle_context?.state||"");
+        const battleNow=activeBattleContext(car?.battle_context);
+        const towNow=engagementState==="slipstream";
+        const engagementEdge=battleNow
+          ?" border-l-2 border-l-amber-400/70"
+          :towNow
+            ?" border-l-2 border-l-sky-400/50"
+            :"";
         const statusGap=car.retired
           ?"DNF"
           :pitActive
@@ -652,8 +743,12 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
               ?"bg-cyan-300/[0.14]"
               :mine
                 ?"bg-cyan-400/[0.045] hover:bg-white/[0.055]"
-                :"hover:bg-white/[0.045]"
-          )}
+                :battleNow
+                  ?"bg-amber-400/[0.035] hover:bg-amber-300/[0.06]"
+                  :towNow
+                    ?"bg-sky-400/[0.025] hover:bg-sky-300/[0.05]"
+                    :"hover:bg-white/[0.045]"
+          )+engagementEdge}
         >
           <span className={`text-right text-[11px] font-black ${car.retired?"text-slate-500":"text-slate-100"}`}>{car.position}</span>
           <span className={`text-center text-[7px] font-black ${delta.tone}`}>{delta.label==="—"?"":delta.label.replace("▲","↑").replace("▼","↓")}</span>
@@ -676,9 +771,9 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
     .filter((car)=>Number.isFinite(Number(car?.best_lap_ms))&&Number(car.best_lap_ms)>0)
     .slice()
     .sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
-  const battle=selected?.battle;
-  const battleOpponent=battle?.opponentCarId
-    ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(battle.opponentCarId))
+  const engagement=selected?.battle_context||null;
+  const battleOpponent=engagement?.opponent_car_id
+    ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(engagement.opponent_car_id))
     :null;
   const pct=(value)=>Number.isFinite(Number(value))?`${Math.round(Number(value)*100)}%`:"—";
   const metric=(label,value)=><div className="flex items-center justify-between gap-2 border-b border-white/[0.05] py-1.5 last:border-b-0"><span className="text-[9px] uppercase tracking-[0.08em] text-slate-500">{label}</span><strong className="text-right text-[10px] font-semibold text-slate-200">{value}</strong></div>;
@@ -722,10 +817,21 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
         {metric("Tyre temp",Number.isFinite(Number(selected?.tyre?.temperature_c))?`${Math.round(Number(selected.tyre.temperature_c))}°C`:"—")}
         {metric("Damage",selected?.damaged_components?.length?String(selected.damage_severity||"damage").toUpperCase():"CLEAR")}
         {metric("Best lap",formatLapTime(selected?.best_lap_ms))}
-        {battle&&String(battle.phase||"none")!=="none"?<div className="mt-2 rounded-md border border-amber-300/20 bg-amber-500/[0.08] px-2 py-2">
-          <div className="text-[8px] font-black uppercase tracking-[0.12em] text-amber-300">Battle</div>
-          <div className="mt-0.5 text-[10px] font-semibold text-amber-100">{String(battle.role||"car").toUpperCase()} · {String(battle.phase||"active").replaceAll("_"," ")}</div>
-          {battleOpponent?<div className="mt-0.5 text-[9px] text-amber-200/70">vs {shortName(drivers,battleOpponent.driver_id)}</div>:null}
+        {engagement?<div className={"mt-2 rounded-md border px-2 py-2 "+(activeBattleContext(engagement)?"border-amber-300/20 bg-amber-500/[0.08]":"border-sky-300/20 bg-sky-500/[0.07]")}>
+          <div className={"text-[8px] font-black uppercase tracking-[0.12em] "+(activeBattleContext(engagement)?"text-amber-300":"text-sky-300")}>Battle telemetry</div>
+          <div className={"mt-0.5 text-[10px] font-semibold "+(activeBattleContext(engagement)?"text-amber-100":"text-sky-100")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state)}</div>
+          {battleOpponent?<div className="mt-0.5 text-[9px] text-slate-400">vs {shortName(drivers,battleOpponent.driver_id)} · {driverName(drivers,battleOpponent.driver_id)}</div>:null}
+          <div className="mt-2 border-t border-white/[0.06] pt-1">
+            {hasTelemetryNumber(engagement?.gap_m)?metric("Physical gap",formatBattleDistance(engagement.gap_m)):null}
+            {hasTelemetryNumber(engagement?.started_gap_m)?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
+            {hasTelemetryNumber(engagement?.attempt_probability_pct)?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
+            {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
+            {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
+            {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
+            {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
+            {hasTelemetryNumber(engagement?.slipstream_bonus_kmh)&&Number(engagement.slipstream_bonus_kmh)>0?metric("Tow bonus",`+${Number(engagement.slipstream_bonus_kmh).toFixed(1)} km/h`):null}
+            {engagement?.result?metric("Outcome",String(engagement.result).replaceAll("_"," ").toUpperCase()):null}
+          </div>
         </div>:null}
       </>:<div className="text-[10px] leading-relaxed text-slate-500">Select a driver from the timing tower or track to show live KPIs.</div>}
     </div>
@@ -1005,6 +1111,15 @@ export default function CanonicalRaceView({
           opacity={weatherVisuals.wetTrackOpacity*.45}
           pointerEvents="none"
         />:null}
+        <CanonicalBattleOverlay
+          cars={visualCars}
+          geometry={geometry}
+          unitsPerMeter={unitsPerMeter}
+          drivers={drivers}
+          scale={markerScale}
+          pitBoxOffset={pitBoxOffset}
+          pitBoxSide={pitBoxSide}
+        />
         {visualCars.filter((car)=>
           !car.retired||
           car.retirement_trackside?.visible!==false||

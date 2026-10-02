@@ -13,6 +13,10 @@ const finite=(value,fallback=null)=>{
   const parsed=Number(value);
   return Number.isFinite(parsed)?parsed:fallback;
 };
+const round=(value,digits=3)=>{
+  const parsed=finite(value,null);
+  return parsed==null?null:Number(parsed.toFixed(digits));
+};
 
 const text=(value)=>String(value??"");
 
@@ -44,6 +48,101 @@ function raceViewPitState(car){
     ...pit,
     active:Boolean(pit?.active),
   };
+}
+
+function raceViewTraffic(car){
+  const traffic=car?.traffic&&typeof car.traffic==="object"?car.traffic:{};
+  return {
+    ahead_car_id:traffic?.aheadCarId??null,
+    gap_m:finite(traffic?.gapM,null),
+    hard_gap_m:finite(traffic?.hardGapM,null),
+    desired_gap_m:finite(traffic?.desiredGapM,null),
+    follow_range_m:finite(traffic?.followRangeM,null),
+    limited:Boolean(traffic?.limited),
+    hard_limited:Boolean(traffic?.hardLimited),
+    slipstream_active:Boolean(traffic?.slipstreamActive),
+    slipstream_ahead_car_id:traffic?.slipstreamAheadCarId??null,
+    slipstream_range_m:finite(traffic?.slipstreamRangeM,null),
+    slipstream_strength:finite(traffic?.slipstreamStrength,0),
+    slipstream_bonus_kmh:finite(traffic?.slipstreamTargetBonusKmh,0),
+  };
+}
+
+function overtakeStartEvents(state){
+  const starts=new Map();
+  for(const event of state?.events||[]){
+    if(String(event?.type||"")!=="overtake_started")continue;
+    const attemptId=text(event?.payload?.attemptId);
+    if(attemptId)starts.set(attemptId,event);
+  }
+  return starts;
+}
+
+function raceViewBattleContext(state,car,startEvents){
+  const battle=car?.battle&&typeof car.battle==="object"?car.battle:{};
+  const phase=String(battle?.phase||"none");
+  const traffic=raceViewTraffic(car);
+  const now=Math.max(0,finite(state?.simulationTimeMs,0));
+
+  if(phase!=="none"){
+    const attemptId=text(battle?.attemptId);
+    const started=attemptId?startEvents.get(attemptId):null;
+    const payload=started?.payload||{};
+    const startedAtMs=finite(battle?.startedAtMs,null);
+    const expiresAtMs=finite(battle?.expiresAtMs,null);
+    return {
+      state:phase,
+      role:battle?.role??null,
+      opponent_car_id:battle?.opponentCarId??null,
+      side:finite(battle?.side,0),
+      attempt_id:battle?.attemptId??null,
+      result:battle?.result??null,
+      started_at_ms:startedAtMs,
+      elapsed_ms:startedAtMs==null?null:Math.max(0,now-startedAtMs),
+      expires_at_ms:expiresAtMs,
+      remaining_ms:expiresAtMs==null?null:Math.max(0,expiresAtMs-now),
+      contact_risk_pct:finite(battle?.contactRiskPct,null),
+      started_gap_m:finite(payload?.gapM,null),
+      attempt_probability_pct:finite(payload?.probability,null)==null
+        ?null
+        :round(finite(payload?.probability,0)*100,3),
+      closing_potential_kmh:finite(payload?.closingPotentialMs,null)==null
+        ?null
+        :round(finite(payload?.closingPotentialMs,0)*3.6,3),
+      attempt_range_m:finite(payload?.attemptRangeM,null),
+      track_difficulty:finite(payload?.trackDifficulty,null),
+      slipstream_active:Boolean(traffic.slipstream_active),
+      slipstream_strength_pct:round(finite(traffic.slipstream_strength,0)*100,3),
+      slipstream_bonus_kmh:round(finite(traffic.slipstream_bonus_kmh,0),3),
+      gap_m:null,
+    };
+  }
+
+  if(traffic.slipstream_active&&traffic.slipstream_ahead_car_id){
+    return {
+      state:"slipstream",
+      role:"attacker",
+      opponent_car_id:traffic.slipstream_ahead_car_id,
+      gap_m:traffic.gap_m,
+      slipstream_active:true,
+      slipstream_strength_pct:round(finite(traffic.slipstream_strength,0)*100,3),
+      slipstream_bonus_kmh:round(finite(traffic.slipstream_bonus_kmh,0),3),
+    };
+  }
+
+  if((traffic.limited||traffic.hard_limited)&&traffic.ahead_car_id){
+    return {
+      state:"pressure",
+      role:"attacker",
+      opponent_car_id:traffic.ahead_car_id,
+      gap_m:traffic.gap_m,
+      slipstream_active:false,
+      slipstream_strength_pct:0,
+      slipstream_bonus_kmh:0,
+    };
+  }
+
+  return null;
 }
 
 function damageComponents(damage){
@@ -91,6 +190,7 @@ export function projectRaceStateToRaceView(state){
 
   const lengthM=Math.max(0,finite(state?.track?.lengthM,0));
   const cars=canonicalCarMap(state);
+  const battleStarts=overtakeStartEvents(state);
   const classification=(state?.classification||[]).map((row,index)=>{
     const car=cars.get(text(row?.carId))||{};
     const distanceAlongLapM=Math.max(
@@ -192,7 +292,9 @@ export function projectRaceStateToRaceView(state){
       pit_state:raceViewPitState(car),
       pit_count:(Array.isArray(car?.pitState?.history)?car.pitState.history.length:0)+
         (car?.pitState?.active&&!car?.pitState?.completed?1:0),
+      traffic:raceViewTraffic(car),
       battle:car?.battle??null,
+      battle_context:raceViewBattleContext(state,car,battleStarts),
     };
   });
 
