@@ -615,11 +615,18 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
   return {cars,events,bypassPairs};
 }
 
-function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
+function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPairs=null}={}){
   let cars=[...(proposedCars||[])];
   const events=[];
   const bypassPairs=new Set(existingBypass||[]);
+  const blocked=blockedPairs instanceof Set?blockedPairs:new Set(blockedPairs||[]);
   const occupied=new Set();
+
+  for(const pair of blocked){
+    for(const carId of String(pair||"").split("|")){
+      if(carId)occupied.add(carId);
+    }
+  }
 
   for(const car of cars){
     if(car?.battle?.phase&&car.battle.phase!=="none"){
@@ -704,10 +711,10 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100}={}){
   return {cars,events,bypassPairs};
 }
 
-export function resolveRaceOvertaking(state,proposedCars,{stepMs=100}={}){
+export function resolveRaceOvertaking(state,proposedCars,{stepMs=100,blockedPairs=null}={}){
   const yieldingCars=resolveYieldingBattles(state,proposedCars);
   const existing=resolveExistingBattles(state,yieldingCars,{stepMs});
-  const started=startNewBattles(state,existing.cars,existing.bypassPairs,{stepMs});
+  const started=startNewBattles(state,existing.cars,existing.bypassPairs,{stepMs,blockedPairs});
   return {
     cars:started.cars,
     events:[...existing.events,...started.events],
