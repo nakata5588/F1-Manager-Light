@@ -28,7 +28,8 @@ export function raceViewInterpolationDurationMs(
   const delta=Math.max(0,next-previous);
   if(delta<=0)return 0;
   const speed=Math.max(0.05,finite(playbackSpeed,1));
-  return clamp(delta/speed,24,250);
+  const minimumDurationMs=speed>=8?40:speed>=4?30:24;
+  return clamp(delta/speed,minimumDurationMs,250);
 }
 
 export function raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs){
@@ -39,6 +40,24 @@ export function raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs){
     0,
     1
   );
+}
+
+export function retimeRaceViewInterpolation({
+  startedAtMs=0,
+  durationMs=0,
+  canonicalDeltaMs=0,
+  timestampMs=0,
+  playbackSpeed=1,
+}={}){
+  const alpha=raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs);
+  const remainingCanonicalMs=Math.max(0,finite(canonicalDeltaMs,0)*(1-alpha));
+  return {
+    alpha,
+    remainingCanonicalMs,
+    durationMs:remainingCanonicalMs>0
+      ?raceViewInterpolationDurationMs(0,remainingCanonicalMs,playbackSpeed)
+      :0,
+  };
 }
 
 function interpolateNumber(from,to,alpha){
