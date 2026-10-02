@@ -377,6 +377,54 @@ test("RW23 canonical Red Flag work changes tyres, repairs damage and strategy wi
   assert.equal(red.events.filter((event)=>event.type==="red_flag_work").length,3);
 });
 
+test("RW23 restart pit-plan changes keep the physical scheduled stop coherent",()=>{
+  const started=startRaceState(createRaceState(input({year:1980})));
+  const prepared={
+    ...started,
+    cars:started.cars.map((car)=>({
+      ...car,
+      lap:1,
+      resources:{
+        ...car.resources,
+        strategy:{
+          ...car.resources.strategy,
+          aiControlled:false,
+          pitPlan:"one_stop",
+          plannedStopLap:3,
+        },
+      },
+    })),
+  };
+  const activated=enforceRaceControlAssessment(
+    prepared,
+    assessment(prepared,{mode:"RED_FLAG",source:"incident",referenceLap:1}),
+    prepared.cars
+  );
+  let red={
+    ...prepared,
+    raceControlState:activated.raceControlState,
+    session:{...prepared.session,raceControl:activated.raceControlState},
+  };
+
+  red=applyCanonicalRedFlagRestartStrategy(red,{
+    driverId:"D1",
+    teamId:"T1",
+    pitPlan:"no_stop",
+  });
+  assert.equal(red.cars[0].resources.strategy.pitPlan,"no_stop");
+  assert.equal(red.cars[0].resources.strategy.plannedStopLap,null);
+
+  red=applyCanonicalRedFlagRestartStrategy(red,{
+    driverId:"D1",
+    teamId:"T1",
+    pitPlan:"one_stop",
+  });
+  assert.equal(red.cars[0].resources.strategy.pitPlan,"one_stop");
+  assert.ok(Number.isFinite(Number(red.cars[0].resources.strategy.plannedStopLap)));
+  assert.ok(red.cars[0].resources.strategy.plannedStopLap>red.cars[0].lap);
+  assert.ok(red.cars[0].resources.strategy.plannedStopLap<red.session.lapLimit);
+});
+
 test("RW23 canonical Red Flag work rejects other teams and closed work windows",()=>{
   const started=startRaceState(createRaceState(input({year:1980})));
   const car={
@@ -461,6 +509,63 @@ test("RW23 AI Red Flag service uses the same canonical work functions and is ide
   const again=applyAutomaticCanonicalRedFlagWork(worked);
   assert.equal(again.cars[0].tyre.tyre_id,"wet_a");
   assert.equal(again.cars[0].tyre.stint_number,worked.cars[0].tyre.stint_number);
+});
+
+test("RW23 AI chooses its final restart tyre from recovered Red Flag conditions",()=>{
+  const storm=weatherRow(1,{
+    state:"STORM",
+    wetness:.95,
+    rain:1,
+    grip:24,
+    standingWater:92,
+    visibility:28,
+    spray:.96,
+    raceability:12,
+    hazard:88,
+  });
+  const started=startRaceState(createRaceState(input({
+    year:2026,
+    timeline:[storm,{...storm,lap:2},{...storm,lap:3}],
+  })));
+  const prepared={
+    ...started,
+    cars:started.cars.map((car)=>({
+      ...car,
+      tyre:{
+        ...car.tyre,
+        tyre_id:"wet_a",
+        compound:"Wet A",
+        category:"wet",
+        condition:80,
+      },
+      resources:{
+        ...car.resources,
+        strategy:{...car.resources.strategy,aiControlled:true},
+        availableTyres:[
+          {tyre_id:"dry_a",compound_name:"Dry A",category:"dry",grip_index:78,wear_rate:.018,warmup_time_s:2.5},
+          {tyre_id:"int_a",compound_name:"Intermediate A",category:"intermediate",grip_index:75,wear_rate:.020,warmup_time_s:2.8},
+          {tyre_id:"wet_a",compound_name:"Wet A",category:"wet",grip_index:72,wear_rate:.022,warmup_time_s:3},
+        ],
+      },
+    })),
+  };
+  const activated=enforceRaceControlAssessment(
+    prepared,
+    assessment(prepared,{mode:"RED_FLAG",source:"weather",referenceLap:1}),
+    prepared.cars
+  );
+  const red={
+    ...prepared,
+    raceControlState:activated.raceControlState,
+    session:{...prepared.session,raceControl:activated.raceControlState},
+  };
+
+  const next=stepRaceState(red);
+  assert.equal(next.raceControlState.redFlagLifecycle.phase,"restart_pending");
+  assert.equal(next.weatherState.current.restart_recovery_generated,true);
+  assert.equal(next.weatherState.track_wetness,0.24);
+  assert.equal(next.cars[0].tyre.category,"intermediate");
+  assert.equal(next.cars[0].tyre.tyre_id,"int_a");
 });
 
 test("RW8.11B Red Flag freezes race distance and resumes through the shared restart lifecycle",()=>{
