@@ -29,7 +29,7 @@ export function canonicalRaceViewCars(view){
     retired:Boolean(row?.retired),
     track_progress:wrapCanonicalTrackProgress(row?.visual_track_progress),
     distance_along_lap_m:Math.max(0,finite(row?.distance_along_lap_m,0)),
-    absolute_distance_m:Math.max(0,finite(row?.absolute_distance_m,0)),
+    absolute_distance_m:finite(row?.absolute_distance_m,0),
     speed_kmh:Math.max(0,finite(row?.speed_kmh,0)),
     lateral_offset_m:finite(row?.lateral_offset_m,0),
     retirement_trackside:row?.retirement_trackside??null,
