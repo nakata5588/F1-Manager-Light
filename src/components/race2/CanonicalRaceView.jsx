@@ -583,6 +583,10 @@ function CanonicalBattleOverlay({
       const stroke=clearing?"#fb923c":"#fbbf24";
       const title=`${shortName(drivers,attacker.driver_id)} ↔ ${shortName(drivers,defender.driver_id)}`;
       const remaining=formatBattleDuration(context?.remaining_ms);
+      const edge=Number(context?.performance_edge);
+      const edgeLabel=Number.isFinite(edge)&&Math.abs(edge)>=1
+        ?` · ${edge>=0?"ATT":"DEF"} EDGE +${Math.abs(edge).toFixed(0)}`
+        :"";
       return <g key={String(context?.attempt_id||`${attacker.id}_${defender.id}`)}>
         <line
           x1={a.x} y1={a.y} x2={d.x} y2={d.y}
@@ -594,7 +598,7 @@ function CanonicalBattleOverlay({
         <g transform={`translate(${x} ${y})`}>
           <rect x={-29*scale} y={-5.4*scale} width={58*scale} height={10.8*scale} rx={4*scale} fill="#090d12" stroke={stroke} strokeWidth={.7*scale} opacity=".92"/>
           <text x="0" y={-0.7*scale} textAnchor="middle" fontSize={3.4*scale} fontWeight="900" fill={stroke}>{title}</text>
-          <text x="0" y={3.25*scale} textAnchor="middle" fontSize={2.7*scale} fontWeight="800" fill="#e2e8f0">{battleStateLabel(context.state)}{remaining!=="—"?` · ${remaining}`:""}</text>
+          <text x="0" y={3.25*scale} textAnchor="middle" fontSize={2.7*scale} fontWeight="800" fill="#e2e8f0">{battleStateLabel(context.state)}{remaining!=="—"?` · ${remaining}`:""}{edgeLabel}</text>
         </g>
       </g>;
     })}
@@ -770,6 +774,8 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
     .slice()
     .sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
   const engagement=selected?.battle_context||null;
+  const pitHistory=Array.isArray(selected?.pit_state?.history)?selected.pit_state.history:[];
+  const latestPit=pitHistory.length?pitHistory[pitHistory.length-1]:null;
   const battleOpponent=engagement?.opponent_car_id
     ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(engagement.opponent_car_id))
     :null;
@@ -815,6 +821,19 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
         {metric("Tyre temp",Number.isFinite(Number(selected?.tyre?.temperature_c))?`${Math.round(Number(selected.tyre.temperature_c))}°C`:"—")}
         {metric("Damage",selected?.damaged_components?.length?String(selected.damage_severity||"damage").toUpperCase():"CLEAR")}
         {metric("Best lap",formatLapTime(selected?.best_lap_ms))}
+        {latestPit?<div className="mt-2 rounded-md border border-cyan-300/15 bg-cyan-500/[0.045] px-2 py-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-300/80">Last pit stop</div>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <strong className="text-[10px] text-cyan-100">L{latestPit?.lap??"—"} · Stop {latestPit?.stopSequence??pitHistory.length}</strong>
+            <span className="font-mono text-[9px] text-amber-200">{Number.isFinite(Number(latestPit?.lossMs))?`${(Number(latestPit.lossMs)/1000).toFixed(1)}s loss`:"—"}</span>
+          </div>
+          <div className="mt-1 border-t border-white/[0.06] pt-1">
+            {metric("Stationary",Number.isFinite(Number(latestPit?.stationaryMs))?`${(Number(latestPit.stationaryMs)/1000).toFixed(1)}s`:"—")}
+            {Number(latestPit?.queueDelayMs)>0?metric(latestPit?.doubleStack?"Double-stack":"Queue",`+${(Number(latestPit.queueDelayMs)/1000).toFixed(1)}s`):null}
+            {latestPit?.tyreChanged?metric("Tyres","Changed"):null}
+            {Array.isArray(latestPit?.repairedComponents)&&latestPit.repairedComponents.length?metric("Repairs",latestPit.repairedComponents.map((part)=>String(part).replaceAll("_"," ")).join(", ")):null}
+          </div>
+        </div>:null}
         {engagement?<div className={"mt-2 rounded-md border px-2 py-2 "+(activeBattleContext(engagement)?"border-amber-300/20 bg-amber-500/[0.08]":"border-sky-300/20 bg-sky-500/[0.07]")}>
           <div className={"text-[8px] font-black uppercase tracking-[0.12em] "+(activeBattleContext(engagement)?"text-amber-300":"text-sky-300")}>Battle telemetry</div>
           <div className={"mt-0.5 text-[10px] font-semibold "+(activeBattleContext(engagement)?"text-amber-100":"text-sky-100")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state)}</div>
@@ -824,6 +843,7 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
             {hasTelemetryNumber(engagement?.started_gap_m)?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
             {hasTelemetryNumber(engagement?.attempt_probability_pct)?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
             {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
+            {hasTelemetryNumber(engagement?.performance_edge)?metric("Car + driver edge",`${String(engagement?.role)==="defender"?Number(engagement.performance_edge)*-1:Number(engagement.performance_edge)>=0?"+":""}${String(engagement?.role)==="defender"?Math.abs(Number(engagement.performance_edge)).toFixed(0):Number(engagement.performance_edge).toFixed(0)} pts`):null}
             {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
             {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
             {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
