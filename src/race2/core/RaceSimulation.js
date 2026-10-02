@@ -17,6 +17,7 @@ import { buildRaceClassification, projectCanonicalRaceTiming } from "./RaceClass
 import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs, terminalOfficialRaceTimeMs } from "./RaceLapTiming.js";
 import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
+import { resolveRaceTeamOrders } from "./RaceTeamOrders.js";
 import { advanceRaceResources } from "./RaceResources.js";
 import { advanceRacePitStops } from "./RacePitStops.js";
 import { planCanonicalPitStrategies } from "./RacePitStrategy.js";
@@ -300,7 +301,8 @@ export function stepRaceState(state){
   };
   const proposedCars=(workingState.cars||[]).map((car)=>advanceCar(workingState,car,stepMs));
   const pits=advanceRacePitStops(workingState,proposedCars,{stepMs});
-  const postPitById=new Map((pits.cars||[]).map((car)=>[car?.carId,car]));
+  const teamOrders=resolveRaceTeamOrders(workingState,pits.cars,{stepMs});
+  const postPitById=new Map((teamOrders.cars||[]).map((car)=>[car?.carId,car]));
   const interactionCars=(workingState.cars||[]).map((previous)=>{
     const postPit=postPitById.get(previous?.carId)??previous;
     const wasTrack=String(previous?.pitState?.status??"track")==="track";
@@ -316,11 +318,18 @@ export function stepRaceState(state){
     pitLaneState:pits.pitLaneState,
   };
   const overtaking=raceControlOvertakingAllowed(interactionState)
-    ?resolveRaceOvertaking(interactionState,pits.cars,{stepMs})
-    :{cars:neutralizeBattles(pits.cars),events:[],bypassPairs:new Set()};
+    ?resolveRaceOvertaking(interactionState,teamOrders.cars,{
+      stepMs,
+      blockedPairs:teamOrders.bypassPairs,
+    })
+    :{cars:neutralizeBattles(teamOrders.cars),events:[],bypassPairs:new Set()};
+  const bypassPairs=new Set([
+    ...teamOrders.bypassPairs,
+    ...overtaking.bypassPairs,
+  ]);
   const spacedCars=enforceRaceTrafficSpacing(interactionState,overtaking.cars,{
     stepMs,
-    bypassPairs:overtaking.bypassPairs,
+    bypassPairs,
   });
   const incidents=resolveRaceIncidents(workingState,spacedCars,overtaking.events,{stepMs});
   const conditions=advanceRaceConditions(
@@ -363,6 +372,7 @@ export function stepRaceState(state){
   const rawEvents=[
     ...(commands.events||[]),
     ...(pits.events||[]),
+    ...(teamOrders.events||[]),
     ...(overtaking.events||[]),
     ...(incidents.events||[]),
     ...(retirementLifecycle.events||[]),
