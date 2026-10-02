@@ -31,10 +31,11 @@ test("RW19 presentation spline keeps the closed path continuous through source v
     points:[[0,0],[100,0],[100,100],[0,100]],
     pit_lane_points:[[10,10],[50,10],[90,10]],
   };
-  const line=buildClosedRacingLine(source.points,{samplesPerSegment:8});
+  const line=buildClosedRacingLine(source.points,{samplesPerSegment:8,parameterization:"centripetal"});
   const geometry=racingLineGeometry(source,line);
 
   assert.equal(geometry.racing_line_v3,true);
+  assert.equal(line.parameterization,"centripetal");
   assert.equal(geometry.points.length,32);
   assert.deepEqual(geometry.pit_lane_points,source.pit_lane_points);
 
