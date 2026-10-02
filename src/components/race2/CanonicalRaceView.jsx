@@ -142,10 +142,10 @@ function ControlTowerTyre({tyre}){
   const condition=Number(tyre?.condition);
   return <span
     title={`${tyre?.compound||"Tyre"}${Number.isFinite(condition)?` · ${Math.round(condition)}%`:""}`}
-    className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#05070b]"
+    className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#05070b]"
     style={{border:`2px solid ${visual.ring}`}}
   >
-    <span className="text-[7px] font-black leading-none" style={{color:visual.ring}}>{visual.label}</span>
+    <span className="text-[6px] font-black leading-none" style={{color:visual.ring}}>{visual.label}</span>
   </span>;
 }
 
@@ -486,32 +486,38 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
   teams,
   summary,
 }){
-  return <aside className="pointer-events-auto absolute left-3 top-14 z-30 hidden w-[310px] overflow-hidden rounded-lg border border-white/15 bg-[#05080d]/90 shadow-2xl backdrop-blur-md lg:block">
-    <div className="border-b border-white/10 bg-black/55 px-3 py-2">
-      <div className="flex items-center justify-between">
+  return <aside className="hidden h-full min-h-0 overflow-hidden border-r border-white/10 bg-[#070b10] lg:flex lg:flex-col">
+    <div className="shrink-0 border-b border-white/10 bg-black/45 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
         <div className="text-[11px] font-black uppercase italic tracking-[0.14em] text-slate-100">Race</div>
-        <div className="font-mono text-[9px] font-bold text-slate-300">LAP {summary.lap}/{summary.total_laps??"—"}</div>
+        <div className="font-mono text-[10px] font-bold text-slate-200">LAP {summary.lap}/{summary.total_laps??"—"}</div>
       </div>
-      <div className="mt-1 text-[7px] font-bold uppercase tracking-[0.14em] text-slate-600">Official classification</div>
+      <div className="mt-1 grid grid-cols-[23px_18px_24px_minmax(0,1fr)_58px_22px] items-center gap-1 text-[6px] font-black uppercase tracking-[0.10em] text-slate-600">
+        <span className="text-right">P</span>
+        <span></span>
+        <span></span>
+        <span>Drv</span>
+        <span className="text-right">Gap</span>
+        <span></span>
+      </div>
     </div>
-    <div className="max-h-[570px] overflow-y-auto">
+    <div className="min-h-0 flex-1 overflow-y-auto">
       {(cars||[]).map((car,index)=>{
         const mine=String(car.team_id)===String(playerTeamId||"");
         const active=String(car.driver_id)===String(selectedDriverId||"");
         const delta=positionDelta(car.position_change_last_lap);
-        const damage=damageLabel(car);
         const pitActive=Boolean(car?.pit_state?.active);
-        const clearedDnf=Boolean(car?.retired&&car?.retirement_trackside?.status==="cleared");
-        const status=car.retired
-          ?(clearedDnf?"DNF · BOX":"DNF")
+        const statusGap=car.retired
+          ?"DNF"
           :pitActive
             ?"PIT"
-            :damage;
+            :formatGap(car.gap_to_leader_ms,{leader:index===0});
         return <button
           type="button"
           key={car.id}
+          title={`${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)}`}
           onClick={()=>onSelectDriver?.(String(car.driver_id||""))}
-          className={"grid w-full grid-cols-[22px_20px_26px_minmax(0,1fr)_58px_24px] items-center gap-1 border-b border-white/[0.05] px-2 py-[5px] text-left transition "+(
+          className={"grid min-h-[27px] w-full grid-cols-[23px_18px_24px_minmax(0,1fr)_58px_22px] items-center gap-1 border-b border-white/[0.05] px-2 py-1 text-left transition "+(
             active
               ?"bg-cyan-300/[0.14]"
               :mine
@@ -522,11 +528,8 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
           <span className={`text-right text-[11px] font-black ${car.retired?"text-slate-500":"text-slate-100"}`}>{car.position}</span>
           <span className={`text-center text-[7px] font-black ${delta.tone}`}>{delta.label==="—"?"":delta.label.replace("▲","↑").replace("▼","↓")}</span>
           <span className="flex justify-center"><TeamLogo teamId={String(car.team_id||"")} name={teamName(teams,car.team_id)} size="h-4 w-4" className="shrink-0 p-0"/></span>
-          <span className="min-w-0">
-            <span className={`block truncate text-[10px] font-black uppercase tracking-[0.06em] ${car.retired?"text-slate-500":"text-slate-100"}`}>{shortName(drivers,car.driver_id)}</span>
-            {status?<span className={`block truncate text-[6px] font-bold uppercase tracking-[0.08em] ${car.retired?"text-rose-300":pitActive?"text-sky-300":"text-amber-300"}`}>{status}</span>:null}
-          </span>
-          <span className={`text-right font-mono text-[9px] ${index===0?"font-black text-emerald-300":"text-slate-300"}`}>{formatGap(car.gap_to_leader_ms,{leader:index===0})}</span>
+          <span className={`truncate text-[10px] font-black uppercase tracking-[0.06em] ${car.retired?"text-slate-500":"text-slate-100"}`}>{shortName(drivers,car.driver_id)}</span>
+          <span className={`text-right font-mono text-[9px] ${car.retired?"font-bold text-rose-300":pitActive?"font-bold text-sky-300":index===0?"font-black text-emerald-300":"text-slate-300"}`}>{statusGap}</span>
           <span className="flex justify-center"><ControlTowerTyre tyre={car.tyre}/></span>
         </button>;
       })}
@@ -700,10 +703,18 @@ export default function CanonicalRaceView({
     if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
   };
 
-  return <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#080d13]">
-    <div className="relative min-h-[600px] overflow-hidden bg-[#101923]">
+  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[330px_minmax(0,1fr)]">
+    <ControlTowerPanel
+      cars={cars}
+      playerTeamId={playerTeamId}
+      selectedDriverId={selectedDriverId}
+      onSelectDriver={onSelectDriver}
+      drivers={drivers}
+      teams={teams}
+      summary={summary}
+    />
+    <div className="relative min-h-0 overflow-hidden bg-[#101923]">
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
-        <span className="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200">Canonical Race View</span>
         <span className={"rounded border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] "+controlTone(summary.control)}>{summary.control.replaceAll("_"," ")}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-300">Lap {summary.lap}/{summary.total_laps??"—"}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-400">{playbackRunning?`${playbackSpeed}× live`:"paused"}</span>
@@ -722,7 +733,7 @@ export default function CanonicalRaceView({
 
       {points.length>1?<svg
         ref={svgRef}
-        className={"h-[600px] w-full select-none md:h-[720px] "+(cameraMode==="free"?"cursor-grab active:cursor-grabbing":"cursor-default")}
+        className={"h-full w-full select-none "+(cameraMode==="free"?"cursor-grab active:cursor-grabbing":"cursor-default")}
         viewBox={cameraBox.join(" ")}
         preserveAspectRatio="xMidYMid meet"
         aria-label="Canonical race track"
@@ -825,7 +836,7 @@ export default function CanonicalRaceView({
             pitBoxSide={pitBoxSide}
           />;
         })}
-      </svg>:<div className="flex h-[600px] items-center justify-center text-sm text-slate-500 md:h-[720px]">Track geometry unavailable.</div>}
+      </svg>:<div className="flex h-full items-center justify-center text-sm text-slate-500">Track geometry unavailable.</div>}
       <CanonicalMiniMap
         geometry={geometry}
         viewBox={viewBox}
@@ -851,19 +862,6 @@ export default function CanonicalRaceView({
         style={{opacity:weatherVisuals.fogOpacity*.48}}
       />:null}
 
-      <ControlTowerPanel
-        cars={cars}
-        playerTeamId={playerTeamId}
-        selectedDriverId={selectedDriverId}
-        onSelectDriver={onSelectDriver}
-        drivers={drivers}
-        teams={teams}
-        summary={summary}
-      />
-
-      <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded border border-white/10 bg-black/45 px-2.5 py-1.5 text-[9px] text-slate-400">
-        Tick {summary.canonical_tick} · {(summary.canonical_time_ms/1000).toFixed(1)}s · {summary.weather.replaceAll("_"," ")}
-      </div>
     </div>
 
   </div>;
