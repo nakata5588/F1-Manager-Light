@@ -5,9 +5,13 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
   advanceRaceResources,
+  canonicalProjectedTyreWearPerLap,
   canonicalTyreTemperatureTargetC,
   fuelBurnKgPerKmForYear,
+  raceAirTempC,
   raceResourcePerformance,
+  raceTrackTempC,
+  tyreEnvironmentalWearMultiplier,
   tyreThermalStressMultiplier,
 } from "../src/race2/core/RaceResources.js";
 import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
@@ -481,4 +485,129 @@ test("RW8.7 Live and Fast expose identical tyre fuel and temperature state",()=>
 test("RW8.7 fuel burn model is era-aware and trends down toward modern efficiency",()=>{
   assert.ok(fuelBurnKgPerKmForYear(1986)>fuelBurnKgPerKmForYear(1992));
   assert.ok(fuelBurnKgPerKmForYear(1998)>fuelBurnKgPerKmForYear(2026));
+});
+
+
+test("RW14B canonical environment resolves air and track temperature independently",()=>{
+  const state=runningState();
+  const adjusted={
+    ...state,
+    trackState:{...(state.trackState||{}),trackTemp:41},
+    weatherState:{...(state.weatherState||{}),air_temp_c:17,track_temp_c:41},
+  };
+
+  assert.equal(raceAirTempC(adjusted),17);
+  assert.equal(raceTrackTempC(adjusted),41);
+});
+
+test("RW14B warmer air raises tyre target under the same track and physical load",()=>{
+  const base=runningState();
+  const physical={
+    ...car(base),
+    speedMs:230/3.6,
+    speedKmh:230,
+    accelerationMs2:0,
+    effectiveCornerSeverity:0.25,
+  };
+  const cool={
+    ...base,
+    trackState:{...(base.trackState||{}),trackTemp:35},
+    weatherState:{...(base.weatherState||{}),air_temp_c:10,track_temp_c:35},
+  };
+  const hot={
+    ...base,
+    trackState:{...(base.trackState||{}),trackTemp:35},
+    weatherState:{...(base.weatherState||{}),air_temp_c:35,track_temp_c:35},
+  };
+
+  const coolTarget=canonicalTyreTemperatureTargetC(cool,physical);
+  const hotTarget=canonicalTyreTemperatureTargetC(hot,physical);
+  assert.ok(hotTarget>coolTarget+2);
+});
+
+test("RW14B hot air and track increase canonical tyre degradation at equal tyre state",()=>{
+  const base=runningState({paceMode:"balanced"});
+  const row={
+    ...car(base),
+    tyre:{
+      ...car(base).tyre,
+      temperature_c:car(base).tyre.optimal_temperature_c,
+    },
+  };
+  const mild={
+    ...base,
+    trackState:{...(base.trackState||{}),trackTemp:30},
+    weatherState:{...(base.weatherState||{}),air_temp_c:20,track_temp_c:30},
+  };
+  const hot={
+    ...base,
+    trackState:{...(base.trackState||{}),trackTemp:52},
+    weatherState:{...(base.weatherState||{}),air_temp_c:36,track_temp_c:52},
+  };
+
+  const mildEnvironment=tyreEnvironmentalWearMultiplier(mild);
+  const hotEnvironment=tyreEnvironmentalWearMultiplier(hot);
+  const mildWear=canonicalProjectedTyreWearPerLap(mild,row);
+  const hotWear=canonicalProjectedTyreWearPerLap(hot,row);
+
+  assert.ok(hotEnvironment>mildEnvironment);
+  assert.ok(hotWear>mildWear);
+  assert.ok(hotEnvironment<=1.18);
+});
+
+test("RW14B actual distance wear stores environmental multiplier and responds to hot conditions",()=>{
+  const base=runningState();
+  const previous=car(base);
+  const moved={
+    ...previous,
+    absoluteDistanceM:previous.absoluteDistanceM+5000,
+    distanceAlongLapM:0,
+    speedMs:220/3.6,
+    speedKmh:220,
+  };
+  const mild={
+    ...base,
+    trackState:{...(base.trackState||{}),trackTemp:30},
+    weatherState:{...(base.weatherState||{}),air_temp_c:20,track_temp_c:30},
+  };
+  const hot={
+    ...base,
+    trackState:{...(base.trackState||{}),trackTemp:50},
+    weatherState:{...(base.weatherState||{}),air_temp_c:35,track_temp_c:50},
+  };
+
+  const [mildNext]=advanceRaceResources(mild,[moved],{stepMs:100});
+  const [hotNext]=advanceRaceResources(hot,[moved],{stepMs:100});
+
+  assert.ok(hotNext.tyre.environmental_wear_multiplier>mildNext.tyre.environmental_wear_multiplier);
+  assert.ok(hotNext.tyre.wear_per_lap_pct>mildNext.tyre.wear_per_lap_pct);
+  assert.ok(hotNext.tyre.condition<mildNext.tyre.condition);
+});
+
+test("RW14B Live and Fast keep identical environment-sensitive tyre evolution",()=>{
+  const initial=runningState({cars:2,paceMode:"balanced"});
+  const environment={
+    ...initial,
+    trackState:{...(initial.trackState||{}),trackTemp:48},
+    weatherState:{...(initial.weatherState||{}),air_temp_c:33,track_temp_c:48},
+  };
+  const fast=runFastRace(environment,{steps:250});
+  const live=createLiveRaceRunner(environment);
+  live.advanceElapsed(25000);
+
+  assert.deepEqual(live.getState(),fast);
+  assert.deepEqual(
+    live.getState().cars.map((row)=>({
+      carId:row.carId,
+      condition:row.tyre.condition,
+      temperature:row.tyre.temperature_c,
+      environment:row.tyre.environmental_wear_multiplier,
+    })),
+    fast.cars.map((row)=>({
+      carId:row.carId,
+      condition:row.tyre.condition,
+      temperature:row.tyre.temperature_c,
+      environment:row.tyre.environmental_wear_multiplier,
+    }))
+  );
 });
