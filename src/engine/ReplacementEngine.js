@@ -3,6 +3,7 @@ import { buildRaceEntryState, driverAvailabilityForRace } from "../domain/raceEn
 import { activeDriverContract, driverIdOf, expectedDriverSalary } from "../domain/driverContracts.js";
 import { compareDriverMarketValue, driverMarketEvaluation } from "../domain/driverMarketEvaluation.js";
 import { f1HireEligibility } from "../domain/driverEligibility.js";
+import { applyFinanceTransaction } from "../domain/teamFinance.js";
 
 const pick=(o,keys,fb=undefined)=>{
   for(const k of keys){
@@ -34,34 +35,18 @@ function deductPlayerFee(gs,assignment){
   if(String(assignment.team_id)!==userTeamId)return gs;
 
   const fee=Number(assignment.fee||0);
-  const oldBudget=Number(gs?.team?.budget??gs?.finances?.balance??0);
-  const nextBudget=oldBudget-fee;
-  const sig="temp-driver:"+assignment.id;
-  const log=Array.isArray(gs?.financeLog)?gs.financeLog:[];
-  if(log.some((tx)=>tx?.sig===sig))return gs;
-
-  return {
-    ...gs,
-    team:{...(gs?.team||{}),budget:nextBudget},
-    finances:{
-      ...(gs?.finances||{}),
-      budget:nextBudget,
-      balance:Number(gs?.finances?.balance??oldBudget)-fee,
-      season_spend:Number(gs?.finances?.season_spend||0)+fee,
-    },
-    financeLog:[
-      {
-        id:"tx_"+assignment.id,
-        dateISO:gs?.currentDateISO,
-        type:"expense",
-        category:"Driver",
-        desc:"Emergency replacement — "+assignment.driver_name,
-        amount:-fee,
-        sig,
-      },
-      ...log,
-    ],
-  };
+  return applyFinanceTransaction(gs,{
+    teamId:userTeamId,
+    amount:-Math.abs(fee),
+    category:"Driver",
+    subtype:"temporary_replacement",
+    desc:"Emergency replacement — "+assignment.driver_name,
+    sig:"temp-driver:"+assignment.id,
+    id:"tx_"+assignment.id,
+    source:"temporary_driver_assignment",
+    sourceId:String(assignment.id),
+    dateISO:gs?.currentDateISO,
+  });
 }
 
 export function eligibleEmergencyDrivers(gs,gp,{excludeIds=[]}={}){
