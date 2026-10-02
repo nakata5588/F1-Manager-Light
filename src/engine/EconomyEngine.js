@@ -403,6 +403,37 @@ function processSeasonBonuses(gs) {
 }
 
 // =================== API pública ===================
+export function economyTickDue(state) {
+  const gs=state||{};
+  const today=clampISO(gs.currentDateISO);
+  if(!today)return false;
+
+  // Monthly payroll/sponsors/facilities are intentionally event-driven.
+  if(isFirstOfMonth(today))return true;
+
+  const y=gs.activeYear||1980;
+  const teamId=getTeamId(gs.team||{});
+  if(teamId){
+    const sponsorDue=findSponsorContracts(gs,y,teamId).some((sp)=>{
+      const startDate=String(pick(sp,["start_date","since","date_start"],`${y}-01-01`)).slice(0,10);
+      const sig=`sp_upfront:${y}:${teamId}:${String(pick(sp,["sponsor_id","id","name"],"X"))}`;
+      const upfront=N(pick(sp,["cash_upfront","upfront","signing_fee"],0),0);
+      return upfront>0&&!flagWasSet(gs,sig)&&today>=startDate;
+    });
+    if(sponsorDue)return true;
+  }
+
+  if((Array.isArray(gs.financePending)?gs.financePending:[]).some((item)=>item&&!item.done))return true;
+
+  const lastIdx=Math.max(0,(gs.calendar?.length||1)-1);
+  const seasonOver=
+    (gs.currentRound||0)>=lastIdx&&
+    gs.standings&&
+    Array.isArray(gs.standings.drivers)&&
+    gs.standings.drivers.length;
+  return Boolean(seasonOver&&!flagWasSet(gs,`season_bonus_${y}`));
+}
+
 export function applyEconomyTick(state) {
   let gs = { ...(state || {}) };
 
