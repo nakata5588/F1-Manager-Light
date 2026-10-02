@@ -327,8 +327,9 @@ test("daily advance paths share one canonical subsystem pipeline and fail closed
   ]);
   assert.match(storeSource,/async function applyDailyWorldSystems\(/);
   assert.equal((storeSource.match(/applyDailyWorldSystems\(updated\)/g)||[]).length,2);
+  assert.equal(storeSource.includes('import("@/engine/RuleEngine")'),false,"empty RuleEngine placeholder must not run every day");
   for(const moduleName of [
-    "RuleEngine","ProgressionEngine","EconomyEngine","MarketEngine",
+    "ProgressionEngine","EconomyEngine","MarketEngine",
     "NegotiationEngine","StaffNegotiationEngine","InboxEngine",
   ]){
     const token=`import("@/engine/${moduleName}")`;
