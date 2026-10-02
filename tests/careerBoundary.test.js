@@ -333,3 +333,36 @@ test("career boundary completes and archives the outgoing Lower Series season be
   assert.equal(next.lowerSeriesWorld.events.length,8);
   assert.deepEqual(next.lowerSeriesWorld.results,[]);
 });
+
+test("season rollover carries closing cash forward while resetting season finance KPIs",()=>{
+  const state=fixture();
+  state.finances={
+    balance:1_234_567,
+    budget:1_234_567,
+    season_spend:450_000,
+    season_income:900_000,
+    season_net:450_000,
+  };
+  state.team={...state.team,budget:1_234_567};
+  state.financeLog=[
+    {id:"1980_income",dateISO:"1980-06-01",amount:900_000},
+    {id:"1980_spend",dateISO:"1980-07-01",amount:-450_000},
+  ];
+  state.boardAssessment={year:1980,assessment:{confidence:0.7}};
+  state.carPerformanceSnapshot={year:1980,ranking:[{team_id:"T1",rank:1}]};
+  state._worldCadence={official_race_count:1};
+
+  const next=materializeNextCareerSeason(state,1981);
+
+  assert.equal(next.finances.balance,1_234_567);
+  assert.equal(next.finances.budget,1_234_567);
+  assert.equal(next.finances.opening_balance,1_234_567);
+  assert.equal(next.finances.season_spend,0);
+  assert.equal(next.finances.season_income,0);
+  assert.equal(next.finances.season_net,0);
+  assert.equal(next.financeLog.length,2,"prior-season ledger remains available for history");
+  assert.equal(next.boardAssessment,null);
+  assert.equal(next.carPerformanceSnapshot,null);
+  assert.equal(next._worldCadence,null);
+});
+
