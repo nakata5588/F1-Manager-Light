@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { raceControlRulesForYear } from "../src/engine/RaceControlEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { raceStepMs, startRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
@@ -127,4 +128,59 @@ test("RW9C Live stepping and Fast-to-end converge on the same final RaceState",(
 
   assert.ok(guard<5000,"live canonical runner must finish inside the same guard");
   assert.deepEqual(live.getState(),fast);
+});
+
+
+test("RW11F Live runner yields immediately when a canonical Red Flag is activated",()=>{
+  const extreme={
+    lap:1,
+    state:"STORM",
+    rain_intensity:1,
+    rain_band:"HEAVY",
+    track_wetness:0.95,
+    wetness_delta:0,
+    rubber_level:0,
+    grip_index:24,
+    air_temp_c:15,
+    track_temp_c:17,
+    spray_index:0.96,
+    spray_band:"HEAVY",
+    visibility_index:28,
+    visibility_band:"VERY_POOR",
+    standing_water_index:92,
+    standing_water_band:"HEAVY",
+    raceability_index:12,
+    raceability_hazard_index:88,
+    raceability_band:"CRITICAL",
+    raceability_factors:{},
+    raceability_dominant_factors:["standing_water","visibility"],
+  };
+  const source={
+    ...input({laps:3}),
+    year:2026,
+    rules:{race:{refuelling_allowed:false}},
+    raceControl:{rules:raceControlRulesForYear(2026)},
+    weather:{state:"STORM",timeline:[extreme,{...extreme,lap:2},{...extreme,lap:3}]},
+    track:{
+      ...input({laps:3}).track,
+      year:2026,
+      traits:{tyreWear:50},
+      startFinish:{progress:0,distanceM:0},
+      sectors:[
+        {id:"sector_1",sector:1,startM:0,endM:333,lengthM:333},
+        {id:"sector_2",sector:2,startM:333,endM:666,lengthM:333},
+        {id:"sector_3",sector:3,startM:666,endM:1000,lengthM:334},
+      ],
+      speedProfile:{source:"neutral",detailed:false,sampleSpacingM:1000,windowM:null,samples:[{distanceM:0,severity:0}]},
+    },
+  };
+  const initial=startRaceState(createRaceState(source,{stepMs:100}));
+  const live=createLiveRaceRunner(initial);
+
+  live.advanceElapsed(1000);
+
+  assert.equal(live.getState().tick,1);
+  assert.equal(live.getState().raceControlState.mode,"RED_FLAG");
+  assert.equal(live.getState().raceControlState.redFlagLifecycle.phase,"suspended");
+  assert.equal(live.getAccumulatorMs(),0);
 });

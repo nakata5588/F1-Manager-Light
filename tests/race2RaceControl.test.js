@@ -318,10 +318,18 @@ test("RW8.11B Red Flag freezes race distance and resumes through the shared rest
   assert.equal(frozen.cars[0].absoluteDistanceM,200);
   assert.equal(frozen.cars[0].speedKmh,0);
   assert.equal(frozen.tick,red.tick+1);
-  assert.equal(frozen.raceControlState.redFlagLifecycle.phase,"resumed");
-  assert.equal(frozen.raceControlState.mode,"GREEN");
-  assert.equal(raceControlFreezesProgress(frozen),false);
+  assert.equal(frozen.raceControlState.redFlagLifecycle.phase,"restart_pending");
+  assert.equal(frozen.raceControlState.mode,"RED_FLAG");
+  assert.equal(raceControlFreezesProgress(frozen),true);
+  assert.ok(frozen.events.some((event)=>event.type==="red_flag_restart_ready"));
 
-  const resumed=stepRaceState(frozen);
+  const restart=stepRaceState(frozen);
+  assert.equal(restart.cars[0].absoluteDistanceM,200);
+  assert.equal(restart.cars[0].speedKmh,0);
+  assert.equal(restart.raceControlState.redFlagLifecycle.phase,"resumed");
+  assert.equal(restart.raceControlState.mode,"GREEN");
+  assert.equal(raceControlFreezesProgress(restart),false);
+
+  const resumed=stepRaceState(restart);
   assert.ok(resumed.cars[0].absoluteDistanceM>200);
 });
