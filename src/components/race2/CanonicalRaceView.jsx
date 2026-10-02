@@ -776,6 +776,10 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
   const engagement=selected?.battle_context||null;
   const pitHistory=Array.isArray(selected?.pit_state?.history)?selected.pit_state.history:[];
   const latestPit=pitHistory.length?pitHistory[pitHistory.length-1]:null;
+  const rawBattleEdge=Number(engagement?.performance_edge);
+  const selectedBattleEdge=Number.isFinite(rawBattleEdge)
+    ?(String(engagement?.role||"")==="defender"?-rawBattleEdge:rawBattleEdge)
+    :null;
   const battleOpponent=engagement?.opponent_car_id
     ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(engagement.opponent_car_id))
     :null;
@@ -843,7 +847,7 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
             {hasTelemetryNumber(engagement?.started_gap_m)?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
             {hasTelemetryNumber(engagement?.attempt_probability_pct)?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
             {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
-            {hasTelemetryNumber(engagement?.performance_edge)?metric("Car + driver edge",`${String(engagement?.role)==="defender"?Number(engagement.performance_edge)*-1:Number(engagement.performance_edge)>=0?"+":""}${String(engagement?.role)==="defender"?Math.abs(Number(engagement.performance_edge)).toFixed(0):Number(engagement.performance_edge).toFixed(0)} pts`):null}
+            {selectedBattleEdge!=null?metric("Car + driver edge",`${selectedBattleEdge>=0?"+":""}${selectedBattleEdge.toFixed(0)} pts`):null}
             {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
             {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
             {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
