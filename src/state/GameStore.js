@@ -746,6 +746,7 @@ export const useGame = create((set, get) => ({
   },
 
   currentSaveKey: null,
+  raceWeekendAutosimActive: false,
 
   /* ==== UI Toaster ==== */
   uiToasts: [],
@@ -2095,6 +2096,13 @@ export const useGame = create((set, get) => ({
 
     const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
 
+    // Autosim owns the canonical RaceState while it is running. A frame that
+    // was already queued before the user clicked Autosim may still reach this
+    // async boundary, so refuse the write after the import as well.
+    if(get().raceWeekendAutosimActive){
+      return mod.raceWeekendCanonicalView(get().gameState);
+    }
+
     // The import yields to the event loop. Re-read GameState so overlapping UI
     // ticks cannot advance an RW2 runtime from a stale snapshot.
     const gs=get().gameState;
@@ -2113,38 +2121,61 @@ export const useGame = create((set, get) => ({
   },
 
   autosimRaceWeekendRace: async () => {
+    if(get().raceWeekendAutosimActive)return null;
     const beforeImport=get().gameState;
     if(!beforeImport?.raceWeekendState)return null;
 
-    const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    // Coordination token: live Race View frames may continue to be scheduled
+    // while the fast runner yields, but they are not allowed to mutate the
+    // canonical RaceState until Autosim releases ownership.
+    set({raceWeekendAutosimActive:true});
+    try{
+      const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
 
-    // Re-read after the async module boundary, then keep this exact GameState
-    // as the optimistic-concurrency base for the whole fast simulation. We do
-    // not overwrite any external state change that occurs while Autosim yields.
-    const base=get().gameState;
-    const weekend=base?.raceWeekendState;
-    if(!weekend)return null;
-    if(!mod.raceWeekendUsesCanonicalRuntime(base))return null;
+      const base=get().gameState;
+      const weekend=base?.raceWeekendState;
+      if(!weekend)return null;
+      if(!mod.raceWeekendUsesCanonicalRuntime(base))return null;
 
-    const gp=base?.calendar?.[Number(weekend.roundIndex)||0]||null;
-    const maxSteps=1_000_000;
+      const gp=base?.calendar?.[Number(weekend.roundIndex)||0]||null;
+      const batchSteps=250;
+      const maxSteps=1_000_000;
+      let simulated=base;
+      let steps=0;
 
-    // Run the canonical fast scheduler atomically from the latest committed
-    // RaceState. The previous yielded batch loop allowed an already in-flight
-    // Race View frame to commit between batches, which correctly tripped the
-    // optimistic concurrency guard but left the user's race paused.
-    const simulated=mod.autosimRaceWeekendToEnd(base,{gp,maxSteps});
+      while(
+        String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"&&
+        steps<maxSteps
+      ){
+        simulated=mod.autosimRaceWeekendBatch(simulated,{
+          gp,
+          steps:Math.min(batchSteps,maxSteps-steps),
+        });
+        steps+=batchSteps;
 
-    if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"){
-      throw new Error(`RW2 race did not finish within ${maxSteps} canonical steps`);
+        if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")==="finished")break;
+
+        // Keep the browser responsive without giving live playback ownership
+        // of the RaceState. advanceRaceWeekendElapsed observes the lock above.
+        await new Promise((resolve)=>setTimeout(resolve,0));
+        if(get().gameState!==base){
+          throw new Error("Race Weekend state changed while canonical Autosim was running");
+        }
+      }
+
+      if(String(simulated?.raceWeekendState?.canonical_race_runtime?.state?.status||"")!=="finished"){
+        throw new Error(`RW2 race did not finish within ${maxSteps} canonical steps`);
+      }
+      if(get().gameState!==base){
+        throw new Error("Race Weekend state changed before canonical Autosim could commit");
+      }
+
+      set({gameState:simulated});
+      checkpointRaceWeekendState(simulated);
+      return mod.raceWeekendCanonicalView(simulated);
+    }finally{
+      set({raceWeekendAutosimActive:false});
     }
-    if(get().gameState!==base){
-      throw new Error("Race Weekend state changed before canonical Autosim could commit");
-    }
-
-    set({gameState:simulated});
-    checkpointRaceWeekendState(simulated);
-    return mod.raceWeekendCanonicalView(simulated);
   },
 
   advanceRaceWeekendLivePitClock: async (deltaMs=250) => {
