@@ -719,6 +719,11 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
         const engagementState=String(car?.battle_context?.state||"");
         const battleNow=activeBattleContext(car?.battle_context);
         const towNow=engagementState==="slipstream";
+        const engagementEdge=battleNow
+          ?" border-l-2 border-l-amber-400/70"
+          :towNow
+            ?" border-l-2 border-l-sky-400/50"
+            :"";
         const statusGap=car.retired
           ?"DNF"
           :pitActive
@@ -735,11 +740,11 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
               :mine
                 ?"bg-cyan-400/[0.045] hover:bg-white/[0.055]"
                 :battleNow
-                  ?"border-l-2 border-l-amber-400/70 bg-amber-400/[0.035] hover:bg-amber-300/[0.06]"
+                  ?"bg-amber-400/[0.035] hover:bg-amber-300/[0.06]"
                   :towNow
-                    ?"border-l-2 border-l-sky-400/50 bg-sky-400/[0.025] hover:bg-sky-300/[0.05]"
+                    ?"bg-sky-400/[0.025] hover:bg-sky-300/[0.05]"
                     :"hover:bg-white/[0.045]"
-          )}
+          )+engagementEdge}
         >
           <span className={`text-right text-[11px] font-black ${car.retired?"text-slate-500":"text-slate-100"}`}>{car.position}</span>
           <span className={`text-center text-[7px] font-black ${delta.tone}`}>{delta.label==="—"?"":delta.label.replace("▲","↑").replace("▼","↓")}</span>
@@ -815,8 +820,8 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
           <div className="mt-2 border-t border-white/[0.06] pt-1">
             {Number.isFinite(Number(engagement?.gap_m))?metric("Physical gap",formatBattleDistance(engagement.gap_m)):null}
             {Number.isFinite(Number(engagement?.started_gap_m))?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
-            {Number.isFinite(Number(engagement?.attempt_probability_pct))?metric("Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
-            {Number.isFinite(Number(engagement?.closing_potential_kmh))?metric("Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
+            {Number.isFinite(Number(engagement?.attempt_probability_pct))?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
+            {Number.isFinite(Number(engagement?.closing_potential_kmh))?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
             {Number.isFinite(Number(engagement?.remaining_ms))?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
             {Number.isFinite(Number(engagement?.contact_risk_pct))?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
             {Number.isFinite(Number(engagement?.slipstream_strength_pct))&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
