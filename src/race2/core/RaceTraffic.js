@@ -7,6 +7,7 @@
 // Overtaking is deliberately out of scope for this phase.
 
 import {
+  trackCornerSeverityAtDistance,
   trackForwardGapM,
   trackSectorAtDistance,
   wrapTrackDistanceM,
@@ -14,6 +15,8 @@ import {
 
 export const RACE_GRID_SLOT_SPACING_M=8;
 export const RACE_TRAFFIC_HARD_GAP_M=6;
+export const RACE_SLIPSTREAM_MAX_BONUS_KMH=9;
+export const RACE_SLIPSTREAM_MIN_SPEED_KMH=100;
 
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -110,6 +113,65 @@ export function desiredTrafficGapM(car){
   );
 }
 
+export function raceSlipstreamContext(state,car,{nearest=null}={}){
+  const candidate=nearest??nearestTrafficAhead(state,car,{ignoreBattleOpponent:false});
+  if(!candidate?.car){
+    return {
+      active:false,
+      aheadCarId:null,
+      gapM:null,
+      rangeM:null,
+      strength:0,
+      targetBonusKmh:0,
+    };
+  }
+
+  const mode=String(state?.raceControlState?.mode??state?.session?.raceControl?.mode??"GREEN").toUpperCase();
+  if(["RED_FLAG","SAFETY_CAR","VSC"].includes(mode)){
+    return {
+      active:false,
+      aheadCarId:candidate.car?.carId??null,
+      gapM:round(candidate.gapM,6),
+      rangeM:null,
+      strength:0,
+      targetBonusKmh:0,
+    };
+  }
+
+  const speedKmh=Math.max(0,finite(car?.speedKmh,finite(car?.speedMs,0)*3.6));
+  const gapM=Math.max(0,finite(candidate?.gapM,Infinity));
+  const rangeM=clamp((speedKmh/3.6)*1.05,32,82);
+  const severity=clamp(
+    trackCornerSeverityAtDistance(state?.track,finite(car?.distanceAlongLapM,0)),
+    0,
+    1
+  );
+  const straightFactor=clamp(1-severity*1.35,0,1);
+  const speedFactor=clamp(
+    (speedKmh-RACE_SLIPSTREAM_MIN_SPEED_KMH)/140,
+    0,
+    1
+  );
+  const proximity=gapM>=rangeM
+    ?0
+    :clamp(
+      1-((gapM-RACE_TRAFFIC_HARD_GAP_M)/Math.max(1,rangeM-RACE_TRAFFIC_HARD_GAP_M)),
+      0,
+      1
+    );
+  const strength=clamp(proximity*speedFactor*straightFactor,0,1);
+  const targetBonusKmh=RACE_SLIPSTREAM_MAX_BONUS_KMH*strength;
+
+  return {
+    active:targetBonusKmh>=0.25,
+    aheadCarId:candidate.car?.carId??null,
+    gapM:round(gapM,6),
+    rangeM:round(rangeM,6),
+    strength:round(strength,6),
+    targetBonusKmh:round(targetBonusKmh,6),
+  };
+}
+
 export function raceTrafficContext(
   state,
   car,
@@ -126,6 +188,7 @@ export function raceTrafficContext(
       desiredGapM,
       followRangeM:null,
       speedCeilingMs:null,
+      slipstream:raceSlipstreamContext(state,car,{nearest:null}),
     };
   }
 
@@ -154,6 +217,7 @@ export function raceTrafficContext(
     desiredGapM,
     followRangeM:round(followRangeM,6),
     speedCeilingMs:speedCeilingMs==null?null:round(speedCeilingMs,6),
+    slipstream:raceSlipstreamContext(state,car,{nearest}),
   };
 }
 
@@ -328,6 +392,11 @@ export function enforceRaceTrafficSpacing(
         desiredGapM:context.desiredGapM,
         followRangeM:context.followRangeM,
         targetSpeedKmh:previousTraffic?.targetSpeedKmh??null,
+        slipstreamActive:Boolean(context?.slipstream?.active),
+        slipstreamAheadCarId:context?.slipstream?.aheadCarId??null,
+        slipstreamRangeM:context?.slipstream?.rangeM??null,
+        slipstreamStrength:context?.slipstream?.strength??0,
+        slipstreamTargetBonusKmh:context?.slipstream?.targetBonusKmh??0,
         limited:Boolean(previousTraffic?.limited),
         hardLimited:Boolean(previousTraffic?.hardLimited),
       },
@@ -343,6 +412,11 @@ export function initialTrafficState(){
     desiredGapM:RACE_TRAFFIC_HARD_GAP_M,
     followRangeM:null,
     targetSpeedKmh:null,
+    slipstreamActive:false,
+    slipstreamAheadCarId:null,
+    slipstreamRangeM:null,
+    slipstreamStrength:0,
+    slipstreamTargetBonusKmh:0,
     limited:false,
     hardLimited:false,
   };
