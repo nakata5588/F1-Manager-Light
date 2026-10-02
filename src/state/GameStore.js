@@ -2243,29 +2243,83 @@ export const useGame = create((set, get) => ({
   },
 
   setRaceWeekendRedFlagTyre: async (command={}) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.applyRaceWeekendCanonicalRedFlagWork(gs,{
+        gp,
+        work:{type:"tyre",...command},
+      });
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.setRedFlagTyreWork(gs,command);
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
   repairRaceWeekendRedFlagDamage: async (command={}) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.applyRaceWeekendCanonicalRedFlagWork(gs,{
+        gp,
+        work:{type:"repair",...command},
+      });
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.setRedFlagDamageRepair(gs,command);
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
   setRaceWeekendRedFlagStrategy: async (command={}) => {
-    const gs=get().gameState;
+    const runtimeMod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
+    let gs=get().gameState;
+    if(runtimeMod.raceWeekendUsesCanonicalRuntime(gs)){
+      const weekend=gs?.raceWeekendState;
+      const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
+      const next=runtimeMod.applyRaceWeekendCanonicalRedFlagWork(gs,{
+        gp,
+        work:{type:"strategy",...command},
+      });
+      if(next!==gs){
+        set({gameState:next});
+        checkpointRaceWeekendState(next);
+      }
+      return runtimeMod.raceWeekendCanonicalView(next);
+    }
+
     const mod=await import("@/engine/RaceWeekendEngine");
+    gs=get().gameState;
     const next=mod.setRedFlagRestartStrategy(gs,command);
-    set({gameState:next});
-    checkpointRaceWeekendState(next);
+    if(next!==gs){
+      set({gameState:next});
+      checkpointRaceWeekendState(next);
+    }
     return next?.raceWeekendState?.live_race||null;
   },
 
