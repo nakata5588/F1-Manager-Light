@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
+import { projectCanonicalRaceTiming } from "../src/race2/core/RaceClassification.js";
 import {
   RACE_VIEW_PROJECTION_SOURCE,
   RACE_VIEW_PROJECTION_VERSION,
