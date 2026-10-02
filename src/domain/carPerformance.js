@@ -188,6 +188,7 @@ export function currentCarPerformanceRanking(gs){
   if(
     snapshot &&
     Number(snapshot?.year)===Number(gs?.activeYear) &&
+    String(snapshot?.last_race_key??"")===String(gs?.lastRace?.resultKey??"") &&
     Array.isArray(snapshot?.ranking)
   ){
     return snapshot.ranking;
@@ -204,6 +205,7 @@ export function refreshCarPerformanceSnapshot(gs,{reason="scheduled"}={}){
       year:Number(gs?.activeYear),
       assessed_at:String(gs?.currentDateISO||"").slice(0,10)||null,
       reason,
+      last_race_key:String(gs?.lastRace?.resultKey??""),
       ranking,
     },
   };
