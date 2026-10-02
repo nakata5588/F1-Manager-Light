@@ -45,6 +45,7 @@ import { materializeMissingStartingRatings } from "@/domain/driverStartingRating
 import { currentWorldCadence, stampWorldCadence } from "@/domain/worldCadence";
 import { refreshBoardAssessment } from "@/domain/boardState";
 import { refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
+import { nextRacePlaybackEpoch, racePlaybackAdvanceAllowed } from "@/race2/runtime/RacePlaybackGate.js";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -2093,24 +2094,25 @@ export const useGame = create((set, get) => ({
 
   invalidateRaceWeekendPlaybackAdvance: () => {
     set((state)=>({
-      raceWeekendPlaybackEpoch:Math.max(0,Number(state?.raceWeekendPlaybackEpoch)||0)+1,
+      raceWeekendPlaybackEpoch:nextRacePlaybackEpoch(state?.raceWeekendPlaybackEpoch),
     }));
   },
 
   advanceRaceWeekendElapsed: async (elapsedMs=0) => {
     const beforeImport=get().gameState;
     if(!beforeImport?.raceWeekendState)return null;
-    const playbackEpoch=Math.max(0,Number(get().raceWeekendPlaybackEpoch)||0);
+    const playbackEpoch=get().raceWeekendPlaybackEpoch;
 
     const mod=await import("@/race2/gateway/RaceWeekendRuntimeGateway.js");
 
     // Pause/speed changes invalidate any frame that was already waiting on this
     // async boundary. Without this guard an x16 frame can still commit several
     // metres after the user has pressed Pause.
-    if(
-      get().raceWeekendAutosimActive||
-      Math.max(0,Number(get().raceWeekendPlaybackEpoch)||0)!==playbackEpoch
-    ){
+    if(!racePlaybackAdvanceAllowed(
+      playbackEpoch,
+      get().raceWeekendPlaybackEpoch,
+      {autosimActive:get().raceWeekendAutosimActive}
+    )){
       return mod.raceWeekendCanonicalView(get().gameState);
     }
 
@@ -2122,7 +2124,10 @@ export const useGame = create((set, get) => ({
 
     const gp=gs?.calendar?.[Number(weekend.roundIndex)||0]||null;
     const next=mod.advanceRaceWeekendElapsed(gs,{gp,elapsedMs});
-    if(Math.max(0,Number(get().raceWeekendPlaybackEpoch)||0)!==playbackEpoch){
+    if(!racePlaybackAdvanceAllowed(
+      playbackEpoch,
+      get().raceWeekendPlaybackEpoch
+    )){
       return mod.raceWeekendCanonicalView(get().gameState);
     }
     if(next!==gs){
