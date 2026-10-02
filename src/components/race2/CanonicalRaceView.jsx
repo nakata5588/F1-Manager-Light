@@ -4,6 +4,8 @@ import {
   pointAtTrackProgress,
   resolveTrackLayout,
   trackGeometryViewBox,
+  trackPresentationSplineEligible,
+  trackRuntimeGeometry,
 } from "../../domain/trackLayout.js";
 import {
   openPolylineHeadingDegrees,
@@ -804,13 +806,17 @@ export default function CanonicalRaceView({
       ?value
       :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
   },[resolved]);
-  const sourceGeometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
+  const runtimeGeometry=useMemo(()=>trackRuntimeGeometry(resolved),[resolved]);
+  const sourceGeometry=useMemo(
+    ()=>orientTrackGeometry(runtimeGeometry?.geometry||null),
+    [runtimeGeometry]
+  );
   const presentationLine=useMemo(()=>{
     const sourcePoints=Array.isArray(sourceGeometry?.points)?sourceGeometry.points:[];
-    return sourcePoints.length>=3
-      ?buildClosedRacingLine(sourcePoints,{samplesPerSegment:8})
+    return sourcePoints.length>=3&&trackPresentationSplineEligible(resolved,runtimeGeometry)
+      ?buildClosedRacingLine(sourcePoints,{samplesPerSegment:8,parameterization:"centripetal"})
       :null;
-  },[sourceGeometry]);
+  },[resolved,runtimeGeometry,sourceGeometry]);
   const geometry=useMemo(()=>
     presentationLine?.points?.length
       ?racingLineGeometry(sourceGeometry,presentationLine)
