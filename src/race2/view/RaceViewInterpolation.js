@@ -70,28 +70,38 @@ export function interpolateRaceViewCar(fromCar,toCar,{
   const fromPitActive=Boolean(fromCar?.pit_lane_active);
   const targetPitActive=Boolean(toCar?.pit_lane_active);
   const targetPitBoxParked=Boolean(toCar?.pit_box_parked);
-  let pitLaneActive=targetPitActive;
-  let pitLaneProgress=toCar?.pit_lane_progress??null;
-  if(targetPitBoxParked){
-    pitLaneActive=true;
-    pitLaneProgress=Number.isFinite(Number(toCar?.pit_box_progress))
-      ?Number(toCar.pit_box_progress)
-      :Number(toCar?.pit_lane_progress??0.52);
-  }else if(targetPitActive){
-    const fromPit=Number.isFinite(Number(fromCar?.pit_lane_progress))
-      ?Number(fromCar.pit_lane_progress)
+  const fromPitProgress=Number.isFinite(Number(fromCar?.pit_lane_progress))
+    ?Number(fromCar.pit_lane_progress)
+    :targetPitActive?0:null;
+  const targetPitProgress=Number.isFinite(Number(toCar?.pit_lane_progress))
+    ?Number(toCar.pit_lane_progress)
+    :fromPitActive?1:null;
+  const pitLaneProgress=fromPitProgress==null&&targetPitProgress==null
+    ?null
+    :interpolateNumber(
+      fromPitProgress??targetPitProgress??0,
+      targetPitProgress??fromPitProgress??0,
+      t
+    );
+  const fromPitMix=Number.isFinite(Number(fromCar?.pit_lane_mix))
+    ?Number(fromCar.pit_lane_mix)
+    :(fromPitActive?1:0);
+  const targetPitMix=targetPitBoxParked
+    ?1
+    :Number.isFinite(Number(toCar?.pit_lane_mix))
+      ?Number(toCar.pit_lane_mix)
+      :(targetPitActive?1:0);
+  const pitLaneMix=interpolateNumber(fromPitMix,targetPitMix,t);
+  const fromBoxMix=Number.isFinite(Number(fromCar?.pit_box_mix))
+    ?Number(fromCar.pit_box_mix)
+    :(fromCar?.pit_box_parked?1:0);
+  const targetBoxMix=targetPitBoxParked
+    ?1
+    :Number.isFinite(Number(toCar?.pit_box_mix))
+      ?Number(toCar.pit_box_mix)
       :0;
-    const toPit=Number.isFinite(Number(toCar?.pit_lane_progress))
-      ?Number(toCar.pit_lane_progress)
-      :fromPit;
-    pitLaneProgress=interpolateNumber(fromPit,toPit,t);
-  }else if(fromPitActive&&t<1){
-    const fromPit=Number.isFinite(Number(fromCar?.pit_lane_progress))
-      ?Number(fromCar.pit_lane_progress)
-      :1;
-    pitLaneActive=true;
-    pitLaneProgress=interpolateNumber(fromPit,1,t);
-  }
+  const pitBoxMix=interpolateNumber(fromBoxMix,targetBoxMix,t);
+  const pitLaneActive=targetPitBoxParked||pitLaneMix>0.001||(targetPitActive&&t<1);
 
   return {
     ...toCar,
@@ -103,6 +113,8 @@ export function interpolateRaceViewCar(fromCar,toCar,{
     lateral_offset_m:lateralOffset,
     pit_lane_active:pitLaneActive,
     pit_lane_progress:pitLaneProgress,
+    pit_lane_mix:pitLaneMix,
+    pit_box_mix:pitBoxMix,
     pit_box_progress:toCar?.pit_box_progress??fromCar?.pit_box_progress??null,
   };
 }
