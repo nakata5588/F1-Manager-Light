@@ -1948,6 +1948,93 @@ export default function RaceWeekend(){
                     })}
                   </div>
                 </div>:null}
+                <div className="mt-2 rounded-md border border-red-300/15 bg-red-950/20 px-2.5 py-2">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-red-100/65">
+                    <div>
+                      <span className="font-bold uppercase tracking-[0.10em] text-red-100">Red Flag work</span>
+                      <span className="ml-2">Tyres, accident repairs and restart strategy are applied directly to canonical RaceState.</span>
+                    </div>
+                    <span>{(canonicalRedFlagLifecycle?.work_log||[]).length} action{(canonicalRedFlagLifecycle?.work_log||[]).length===1?"":"s"}</span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {playerEntrants.map((entry)=>{
+                      const did=String(entry?.driver_id||"");
+                      const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
+                      if(!liveDriver)return null;
+                      const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
+                      const strategy=raceStrategy?.selections?.[did]||{};
+                      const workLocked=canonicalRedFlagLifecycle?.phase!=="suspended"||canonicalRedFlagLifecycle?.work_locked===true;
+                      const damageComponents=liveDriver?.damage_state?.damaged_components||[];
+                      const damagePace=Number(liveDriver?.damage_state?.pace_loss_s_per_lap||0);
+                      const canRepair=Boolean(
+                        damageComponents.length&&
+                        canonicalRedFlagLifecycle?.work_policy?.genuine_accident_repair!==false
+                      );
+                      return <div key={did} className="rounded-md border border-red-300/15 bg-black/20 p-2">
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-[10px] font-semibold text-red-50">{driverName(drivers,did)}</div>
+                            <div className="text-[9px] text-red-100/45">Current: {liveDriver?.tyre?.compound||"—"} · {Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</div>
+                            {damageComponents.length?<div className="mt-0.5 truncate text-[9px] text-amber-200/80">Damage: {damageComponents.map((item)=>String(item).replaceAll("_"," ")).join(", ")}{damagePace>0?` · +${damagePace.toFixed(2)}s/lap`:""}</div>:null}
+                          </div>
+                          {canRepair?<button
+                            type="button"
+                            title="Repair accident damage during Red Flag"
+                            disabled={busy||workLocked||Boolean(liveDriver?.retired)}
+                            onClick={()=>perform(()=>repairRedFlagDamage({driverId:did}))}
+                            className="shrink-0 rounded-md border border-amber-300/25 bg-amber-500/10 px-2 py-1.5 text-[8px] font-bold uppercase tracking-[0.08em] text-amber-100 hover:bg-amber-500/20 disabled:opacity-40"
+                          >Repair</button>:null}
+                        </div>
+                        <div className="grid gap-1.5 sm:grid-cols-2">
+                          <label className="grid gap-0.5">
+                            <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-red-100/45">Restart tyre</span>
+                            <select
+                              disabled={busy||workLocked||Boolean(liveDriver?.retired)||canonicalRedFlagLifecycle?.work_policy?.tyre_change===false}
+                              className="rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
+                              value={liveDriver?.tyre?.tyre_id||""}
+                              onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
+                            >
+                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                            </select>
+                          </label>
+                          <label className="grid gap-0.5">
+                            <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-red-100/45">Restart pace</span>
+                            <select
+                              disabled={busy||workLocked||Boolean(liveDriver?.retired)}
+                              className="rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
+                              value={liveDriver?.current_pace||strategy?.pace_mode||"balanced"}
+                              onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,paceMode:e.target.value}))}
+                            >
+                              {Object.values(RACE_PACE_MODES).map((mode)=><option key={mode.id} value={mode.id}>{mode.label}</option>)}
+                            </select>
+                          </label>
+                          <label className="grid gap-0.5">
+                            <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-red-100/45">Pit plan</span>
+                            <select
+                              disabled={busy||workLocked||Boolean(liveDriver?.retired)}
+                              className="rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
+                              value={liveDriver?.pit_plan||strategy?.pit_plan||"adaptive"}
+                              onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,pitPlan:e.target.value}))}
+                            >
+                              {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
+                            </select>
+                          </label>
+                          <label className="grid gap-0.5">
+                            <span className="text-[8px] font-bold uppercase tracking-[0.08em] text-red-100/45">Next tyre</span>
+                            <select
+                              disabled={busy||workLocked||Boolean(liveDriver?.retired)}
+                              className="rounded-md border border-red-300/20 bg-[#16090b] px-2 py-1.5 text-[10px] text-red-50 disabled:opacity-40"
+                              value={liveDriver?.next_tyre_id||strategy?.next_tyre_id||teamTyres[0]?.tyre_id||""}
+                              onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,nextTyreId:e.target.value}))}
+                            >
+                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                      </div>;
+                    })}
+                  </div>
+                </div>
               </div>:null}
               {!usesCanonicalRaceRuntime&&liveRace?.status==="red_flag"?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
