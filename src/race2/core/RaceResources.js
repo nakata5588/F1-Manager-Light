@@ -29,6 +29,27 @@ function paceModeOf(car){
   return RACE_PACE_MODES[id]?id:"balanced";
 }
 
+export function raceAirTempC(stateLike){
+  const explicit=finite(
+    stateLike?.trackState?.airTemp
+    ??stateLike?.weatherState?.air_temp_c
+    ??stateLike?.weatherState?.environment?.air_temp_c
+    ??stateLike?.weather?.air_temp_c
+    ??stateLike?.weather?.environment?.air_temp_c
+    ??stateLike?.weatherState?.avg_temp_c
+    ??stateLike?.weather?.avg_temp_c,
+    null
+  );
+  if(explicit!=null)return explicit;
+  const track=finite(
+    stateLike?.trackState?.trackTemp
+    ??stateLike?.weatherState?.track_temp_c
+    ??stateLike?.weather?.track_temp_c,
+    null
+  );
+  return track==null?22:track-8;
+}
+
 export function raceTrackTempC(stateLike){
   const explicit=finite(
     stateLike?.trackState?.trackTemp
@@ -39,14 +60,7 @@ export function raceTrackTempC(stateLike){
     null
   );
   if(explicit!=null)return explicit;
-  const air=finite(
-    stateLike?.weatherState?.air_temp_c
-    ??stateLike?.weatherState?.avg_temp_c
-    ??stateLike?.weather?.air_temp_c
-    ??stateLike?.weather?.avg_temp_c,
-    22
-  );
-  return air+8;
+  return raceAirTempC(stateLike)+8;
 }
 
 function tyreOptionsFor(inputCar,year){
@@ -80,6 +94,7 @@ export function freshRaceTyre(option,{
     temperature_trend_c_per_s:0,
     optimal_temperature_c:round(optimum,3),
     thermal_stress_multiplier:1,
+    environmental_wear_multiplier:1,
     age_distance_m:0,
     age_laps:0,
     stint_number:Math.max(1,Math.round(finite(stintNumber,1))),
@@ -217,6 +232,7 @@ export function canonicalTyreTemperatureTargetC(state,car){
   const tyre=car?.tyre||{};
   const optimum=finite(tyre?.optimal_temperature_c,optimalTyreTemperatureC(tyre));
   const trackTemp=raceTrackTempC(state);
+  const airTemp=raceAirTempC(state);
   const speedKmh=Math.max(0,finite(car?.speedKmh,finite(car?.speedMs,0)*3.6));
   const acceleration=finite(car?.accelerationMs2,0);
   const cornerSeverity=clamp(finite(car?.effectiveCornerSeverity,0),0,1);
@@ -226,7 +242,8 @@ export function canonicalTyreTemperatureTargetC(state,car){
   // A stationary tyre should cool toward the circuit rather than magically
   // heating to its optimum. Normal race speed supplies the baseline carcass
   // energy; braking, traction and lateral load then create the useful peaks.
-  const restingTarget=clamp(trackTemp+14,30,Math.max(30,optimum-8));
+  const airBias=clamp((airTemp-22)*0.15,-3,3.5);
+  const restingTarget=clamp(trackTemp+14+airBias,30,Math.max(30,optimum-8));
   const motionFraction=clamp(speedKmh/180,0,1);
   const baseTarget=restingTarget+(optimum-restingTarget)*motionFraction;
   const cornerHeat=cornerSeverity*clamp(speedKmh/220,0,1.25)*8;
@@ -234,6 +251,7 @@ export function canonicalTyreTemperatureTargetC(state,car){
   const tractionHeat=clamp(acceleration/12,0,1)*4;
   const battleHeat=car?.battle?.phase==="side_by_side"?2.5:0;
   const straightCooling=clamp((speedKmh-210)/140,0,1)*(1-cornerSeverity)*8;
+  const ambientAirCooling=clamp((22-airTemp)*0.12,-2.5,3.5)*clamp(speedKmh/220,0,1);
 
   const wetness=raceTrackWetness(state);
   const category=String(tyre?.category||"dry").toLowerCase();
@@ -248,6 +266,7 @@ export function canonicalTyreTemperatureTargetC(state,car){
       tractionHeat+
       battleHeat-
       straightCooling-
+      ambientAirCooling-
       wetCooling,
     Math.max(20,trackTemp+4),
     optimum+26
@@ -272,6 +291,23 @@ function tyreTrackWearMultiplier(state){
   return 0.62+(wear/100)*0.72;
 }
 
+export function tyreEnvironmentalWearMultiplier(state){
+  const trackTemp=raceTrackTempC(state);
+  const airTemp=raceAirTempC(state);
+
+  const hotTrack=Math.max(0,trackTemp-34)*0.0045;
+  const hotAir=Math.max(0,airTemp-26)*0.0018;
+  const coolTrackRelief=Math.min(0.04,Math.max(0,30-trackTemp)*0.0015);
+  const coldTrackStress=Math.max(0,14-trackTemp)*0.0025;
+  const coldAirStress=Math.max(0,6-airTemp)*0.0015;
+
+  return clamp(
+    1+hotTrack+hotAir-coolTrackRelief+coldTrackStress+coldAirStress,
+    0.94,
+    1.18
+  );
+}
+
 export function canonicalProjectedTyreWearPerLap(state,car){
   const tyre=car?.tyre||{};
   if(!tyre?.tyre_id)return 0;
@@ -283,7 +319,9 @@ export function canonicalProjectedTyreWearPerLap(state,car){
     trackWearMult:tyreTrackWearMultiplier(state),
     paceMode:paceModeOf(car),
     wearDriverMult:tyreWearDriverMultiplier(car),
-    hotWearMult:tyreThermalStressMultiplier(tyre,temperature),
+    hotWearMult:
+      tyreThermalStressMultiplier(tyre,temperature)*
+      tyreEnvironmentalWearMultiplier(state),
   });
 }
 
@@ -300,6 +338,7 @@ function updateTyre(state,previous,next,deltaM,stepMs){
   const nextTemp=currentTemp+(targetTemp-currentTemp)*alpha;
   const temperatureTrend=(nextTemp-currentTemp)/dt;
   const thermalStress=tyreThermalStressMultiplier(tyre,nextTemp);
+  const environmentalWear=tyreEnvironmentalWearMultiplier(state);
 
   const wearPerLap=canonicalProjectedTyreWearPerLap(state,{
     ...previous,
@@ -319,6 +358,7 @@ function updateTyre(state,previous,next,deltaM,stepMs){
     temperature_target_c:round(targetTemp,6),
     temperature_trend_c_per_s:round(temperatureTrend,6),
     thermal_stress_multiplier:round(thermalStress,6),
+    environmental_wear_multiplier:round(environmentalWear,6),
     age_distance_m:round(ageDistance,6),
     age_laps:round(ageDistance/lengthM,6),
     wear_per_lap_pct:round(wearPerLap,6),
