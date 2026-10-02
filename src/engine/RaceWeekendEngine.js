@@ -568,6 +568,41 @@ export async function completeRaceSession(gs,{gp}={}){
   const startingGridRows=weekend?.startingGrid?.rows||weekend?.grid||[];
   if(!startingGridRows.length)return gs;
 
+  const expectedResultKey=String(
+    weekend?.race_result_key||
+    weekend?.key||
+    `${Number(gs?.activeYear)||Number(weekend?.year)||Number(targetGp?.year)||"season"}_${Number(weekend?.round)||Number(weekend?.roundIndex)+1}_${gpId(targetGp,weekend?.roundIndex)}`
+  );
+  const archivedResult=(Array.isArray(gs?.results)?gs.results:[]).find(
+    (result)=>String(result?.key||"")===expectedResultKey
+  );
+  if(archivedResult){
+    const sessions=sessionWithPatch(weekend.sessions,"race",{
+      status:"completed",
+      completed_at:clampISO(archivedResult?.dateISO||gs?.currentDateISO),
+    });
+    return {
+      ...gs,
+      raceWeekendState:{
+        ...weekend,
+        sessions,
+        phase:"results",
+        active_session_id:"race",
+        practice:weekend.practice,
+        qualifying:weekend.qualifying,
+        startingGrid:weekend.startingGrid,
+        grid:startingGridRows,
+        race_strategy:{
+          ...(weekend.race_strategy||{}),
+          status:"completed",
+          race_summary:archivedResult?.raceStrategy||weekend?.race_strategy?.race_summary||null,
+        },
+        race_result_key:archivedResult.key,
+        race_completed_at:clampISO(archivedResult?.dateISO||gs?.currentDateISO),
+      },
+    };
+  }
+
   const raceRows=canonical
     ?projectCanonicalRaceStateToOfficialRows(gs,canonicalState)
     :(weekend.live_race?finalizedLiveRaceRows(gs):null);
