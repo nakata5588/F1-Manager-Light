@@ -13,6 +13,13 @@ import {
   createCanonicalRaceViewFrameClock,
   raceViewFrameElapsedMs,
 } from "../src/race2/runtime/RaceViewPlayback.js";
+import {
+  interpolateRaceViewCar,
+  interpolateRaceViewCars,
+  raceViewInterpolationAlpha,
+  raceViewInterpolationDurationMs,
+  wrapRaceViewDistanceM,
+} from "../src/race2/view/RaceViewInterpolation.js";
 
 function legacyState(){
   return {raceWeekendState:{engine_version:"legacy",phase:"race"}};
@@ -106,4 +113,103 @@ test("RW8.14J frame clock exposes elapsed sampling for the Zustand dispatch boun
   clock.reset();
   assert.equal(clock.sampleElapsedMs(9000),0);
   assert.equal(clock.sampleElapsedMs(9250),250);
+});
+
+
+test("RW12A derives wall-clock interpolation duration from canonical time and playback speed",()=>{
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,1),100);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,4),25);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,0.5),200);
+  assert.equal(raceViewInterpolationDurationMs(1100,1100,1),0);
+  assert.equal(raceViewInterpolationAlpha(1000,100,1050),0.5);
+  assert.equal(raceViewInterpolationAlpha(1000,100,1200),1);
+});
+
+test("RW12A interpolates absolute distance through lap wrap without moving backwards",()=>{
+  const from={
+    id:"C1",
+    car_id:"C1",
+    absolute_distance_m:990,
+    distance_along_lap_m:990,
+    track_progress:0.99,
+    lateral_offset_m:0,
+    position:1,
+  };
+  const to={
+    ...from,
+    absolute_distance_m:1010,
+    distance_along_lap_m:10,
+    track_progress:0.01,
+  };
+  const halfway=interpolateRaceViewCar(from,to,{alpha:0.5,trackLengthM:1000});
+  assert.equal(halfway.absolute_distance_m,1000);
+  assert.equal(halfway.distance_along_lap_m,0);
+  assert.equal(halfway.track_progress,0);
+  assert.equal(wrapRaceViewDistanceM(1005,1000),5);
+});
+
+test("RW12A preserves signed grid distance and crosses start-finish continuously",()=>{
+  const from={
+    id:"C2",
+    car_id:"C2",
+    absolute_distance_m:-8,
+    distance_along_lap_m:992,
+    track_progress:0.992,
+    lateral_offset_m:0,
+  };
+  const to={
+    ...from,
+    absolute_distance_m:8,
+    distance_along_lap_m:8,
+    track_progress:0.008,
+  };
+  const halfway=interpolateRaceViewCar(from,to,{alpha:0.5,trackLengthM:1000});
+  assert.equal(halfway.absolute_distance_m,0);
+  assert.equal(halfway.distance_along_lap_m,0);
+  assert.equal(halfway.track_progress,0);
+});
+
+test("RW12A interpolates verge movement for a newly retired car without changing canonical metadata",()=>{
+  const from={
+    id:"C1",
+    car_id:"C1",
+    absolute_distance_m:450,
+    distance_along_lap_m:450,
+    track_progress:0.45,
+    lateral_offset_m:0,
+    retired:false,
+    status:"RUNNING",
+  };
+  const to={
+    ...from,
+    absolute_distance_m:500,
+    distance_along_lap_m:500,
+    track_progress:0.5,
+    lateral_offset_m:5.25,
+    retired:true,
+    status:"DNF",
+    retirement_trackside:{status:"parked",visible:true},
+  };
+  const halfway=interpolateRaceViewCar(from,to,{alpha:0.5,trackLengthM:1000});
+  assert.equal(halfway.absolute_distance_m,475);
+  assert.equal(halfway.lateral_offset_m,2.625);
+  assert.equal(halfway.retired,true);
+  assert.equal(halfway.status,"DNF");
+  assert.equal(halfway.retirement_trackside.status,"parked");
+});
+
+test("RW12A visual interpolation keeps target ordering and only smooths pose fields",()=>{
+  const from=[
+    {id:"C1",car_id:"C1",absolute_distance_m:100,track_progress:0.1,lateral_offset_m:0,position:2},
+    {id:"C2",car_id:"C2",absolute_distance_m:120,track_progress:0.12,lateral_offset_m:0,position:1},
+  ];
+  const to=[
+    {id:"C1",car_id:"C1",absolute_distance_m:140,track_progress:0.14,lateral_offset_m:1,position:1},
+    {id:"C2",car_id:"C2",absolute_distance_m:130,track_progress:0.13,lateral_offset_m:-1,position:2},
+  ];
+  const frame=interpolateRaceViewCars(from,to,{alpha:0.5,trackLengthM:1000});
+  assert.deepEqual(frame.map((row)=>row.car_id),["C1","C2"]);
+  assert.deepEqual(frame.map((row)=>row.position),[1,2]);
+  assert.deepEqual(frame.map((row)=>row.absolute_distance_m),[120,125]);
+  assert.deepEqual(frame.map((row)=>row.lateral_offset_m),[0.5,-0.5]);
 });
