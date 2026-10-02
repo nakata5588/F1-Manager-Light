@@ -22,6 +22,7 @@ import { f1HireEligibility } from "../domain/driverEligibility.js";
 import { canAffordTransfer, driverBuyoutQuote } from "../domain/driverTransfers.js";
 import { applyAcceptedContractRelationship, applyFailedRenewalRelationship } from "../domain/driverTeamManagerDynamics.js";
 import { driverContractDecision } from "../domain/driverDecisionModel.js";
+import { applyFinanceTransaction } from "../domain/teamFinance.js";
 import { prepareAiLineupUpgradeSigning, prepareAiRoleSigning, rebalanceAiDriverLineup, reconcileAiDriverRoleUniqueness } from "../domain/aiDriverLineup.js";
 
 const ACTIVE_NEGOTIATION_STATUSES=new Set(["submitted","countered"]);
@@ -729,51 +730,34 @@ function applyTransferSettlement(gs,negotiation,currentContract){
 
   if(!fee)return next;
 
-  const log=Array.isArray(next?.financeLog)?next.financeLog:[];
   if(buyerTeamId===userTeamId){
-    const balance=Number(next?.finances?.balance??next?.team?.budget??0);
     const sig="driver-buyout-expense:"+negotiation.id;
-    next={
-      ...next,
-      team:{...(next?.team||{}),budget:Number(next?.team?.budget??balance)-fee},
-      finances:{
-        ...(next?.finances||{}),
-        balance:balance-fee,
-        budget:Number(next?.finances?.budget??balance)-fee,
-        season_spend:Number(next?.finances?.season_spend||0)+fee,
-      },
-      financeLog:log.some((tx)=>tx?.sig===sig)?log:[{
-        id:"tx_"+sig,
-        dateISO:today,
-        type:"expense",
-        category:"Driver Transfer",
-        desc:"Buyout — "+negotiation.driver_name,
-        amount:-fee,
-        sig,
-      },...log],
-    };
+    next=applyFinanceTransaction(next,{
+      teamId:userTeamId,
+      amount:-Math.abs(fee),
+      category:"Driver Transfer",
+      subtype:"buyout_paid",
+      desc:"Buyout — "+negotiation.driver_name,
+      sig,
+      id:"tx_"+sig,
+      source:"driver_transfer",
+      sourceId:String(negotiation.id),
+      dateISO:today,
+    });
   }else if(sellerTeamId===userTeamId){
-    const balance=Number(next?.finances?.balance??next?.team?.budget??0);
     const sig="driver-buyout-income:"+negotiation.id;
-    next={
-      ...next,
-      team:{...(next?.team||{}),budget:Number(next?.team?.budget??balance)+fee},
-      finances:{
-        ...(next?.finances||{}),
-        balance:balance+fee,
-        budget:Number(next?.finances?.budget??balance)+fee,
-        season_income:Number(next?.finances?.season_income||0)+fee,
-      },
-      financeLog:log.some((tx)=>tx?.sig===sig)?log:[{
-        id:"tx_"+sig,
-        dateISO:today,
-        type:"income",
-        category:"Driver Transfer",
-        desc:"Buyout received — "+negotiation.driver_name,
-        amount:fee,
-        sig,
-      },...log],
-    };
+    next=applyFinanceTransaction(next,{
+      teamId:userTeamId,
+      amount:Math.abs(fee),
+      category:"Driver Transfer",
+      subtype:"buyout_received",
+      desc:"Buyout received — "+negotiation.driver_name,
+      sig,
+      id:"tx_"+sig,
+      source:"driver_transfer",
+      sourceId:String(negotiation.id),
+      dateISO:today,
+    });
   }
 
   return next;
