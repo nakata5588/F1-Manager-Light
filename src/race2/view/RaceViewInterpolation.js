@@ -28,7 +28,7 @@ export function raceViewInterpolationDurationMs(
   const delta=Math.max(0,next-previous);
   if(delta<=0)return 0;
   const speed=Math.max(0.05,finite(playbackSpeed,1));
-  return clamp(delta/speed,8,250);
+  return clamp(delta/speed,24,250);
 }
 
 export function raceViewInterpolationAlpha(startedAtMs,durationMs,timestampMs){
