@@ -142,10 +142,10 @@ function ControlTowerTyre({tyre}){
   const condition=Number(tyre?.condition);
   return <span
     title={`${tyre?.compound||"Tyre"}${Number.isFinite(condition)?` · ${Math.round(condition)}%`:""}`}
-    className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#05070b]"
+    className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#05070b]"
     style={{border:`2px solid ${visual.ring}`}}
   >
-    <span className="text-[7px] font-black leading-none" style={{color:visual.ring}}>{visual.label}</span>
+    <span className="text-[6px] font-black leading-none" style={{color:visual.ring}}>{visual.label}</span>
   </span>;
 }
 
@@ -270,7 +270,12 @@ function useCanonicalRaceViewMotion(canonicalCars,{
   const visualCarsRef=useRef(canonicalCars);
   const previousTickRef=useRef(canonicalTick);
   const previousCanonicalTimeRef=useRef(canonicalTimeMs);
+  const playbackSpeedRef=useRef(playbackSpeed);
   const frameRef=useRef(null);
+
+  useEffect(()=>{
+    playbackSpeedRef.current=playbackSpeed;
+  },[playbackSpeed]);
 
   useEffect(()=>{
     if(frameRef.current!=null){
@@ -299,7 +304,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     const durationMs=raceViewInterpolationDurationMs(
       previousCanonicalTime,
       canonicalTimeMs,
-      playbackSpeed
+      playbackSpeedRef.current
     );
     if(durationMs<=0){
       visualCarsRef.current=target;
@@ -339,7 +344,6 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     canonicalTick,
     canonicalTimeMs,
     playbackRunning,
-    playbackSpeed,
     trackLengthM,
   ]);
 
@@ -349,10 +353,12 @@ function useCanonicalRaceViewMotion(canonicalCars,{
 function CanonicalCar({
   car,geometry,unitsPerMeter,palette,label,selected,onSelect,onFollow,
   scale=1,retired=false,year,driverNumberValue=null,pitBoxOffset=0,pitBoxSide=1,
+  lod="overview",showLabel=false,
 }){
   const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
   if(!pose)return null;
-  const spriteScale=.48*scale;
+  const spriteScale=(lod==="close"?.68:lod==="medium"?.58:.48)*scale;
+  const haloRadius=(lod==="close"?10.5:12.5)*scale;
   return <g
     role="button"
     tabIndex="0"
@@ -364,8 +370,8 @@ function CanonicalCar({
     style={{cursor:"pointer",opacity:retired?0.72:1}}
   >
     <title>{label}</title>
-    {selected?<circle cx="0" cy="0" r={13*scale} fill="none" stroke="#fff" strokeWidth={1.4*scale} opacity=".8"/>:null}
-    <g transform={`scale(${spriteScale})`}>
+    {selected?<circle cx="0" cy="0" r={haloRadius} fill="none" stroke="#f8fafc" strokeWidth={1.15*scale} opacity=".82"/>:null}
+    <g transform={`scale(${spriteScale*.82} ${spriteScale})`}>
       <RaceCarVisual
         year={year}
         color={palette?.primary}
@@ -373,7 +379,7 @@ function CanonicalCar({
         accent={palette?.accent}
         selected={selected}
         retired={retired}
-        lod={selected?"medium":"overview"}
+        lod={selected&&lod!=="overview"?"close":lod}
         damageState={car?.damage_state}
         driverNumber={driverNumberValue}
         sponsorLabel={palette?.sponsor}
@@ -381,10 +387,10 @@ function CanonicalCar({
         historicalModel={palette?.model}
       />
     </g>
-    <g transform={`translate(0 ${-10.5*scale}) rotate(${-pose.heading})`}>
-      <rect x={-8.3*scale} y={-3.2*scale} width={16.6*scale} height={6.4*scale} rx={3.2*scale} fill="#020617" stroke={selected?"#fff":"#334155"} strokeWidth={.8*scale} opacity=".88"/>
-      <text x="0" y={1.5*scale} textAnchor="middle" fontSize={5*scale} fontWeight="900" fill="#fff">{label}</text>
-    </g>
+    {showLabel?<g transform={`translate(0 ${-9.2*scale}) rotate(${-pose.heading})`}>
+      <rect x={-6.7*scale} y={-2.7*scale} width={13.4*scale} height={5.4*scale} rx={2.7*scale} fill="#03060a" stroke={selected?"#f8fafc":"#475569"} strokeWidth={.55*scale} opacity=".82"/>
+      <text x="0" y={1.25*scale} textAnchor="middle" fontSize={4.1*scale} fontWeight="900" fill="#f8fafc">{label}</text>
+    </g>:null}
   </g>;
 }
 
@@ -403,32 +409,29 @@ function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1,pitBoxOffs
 }
 
 function PitBoxMarker({geometry,progress,color,label,scale=1,active=false,sideSign=1}){
-  const pose=pitLanePose(geometry,progress,{lateralOffset:11*scale,sideSign});
+  const pose=pitLanePose(geometry,progress,{lateralOffset:10*scale,sideSign});
   if(!pose)return null;
+  const width=(active?11:6.5)*scale;
+  const height=(active?5.5:2.6)*scale;
   return <g
     pointerEvents="none"
     transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
-    opacity={active?0.96:0.58}
+    opacity={active?0.94:0.18}
   >
     <rect
-      x={-7*scale}
-      y={-3.8*scale}
-      width={14*scale}
-      height={7.6*scale}
-      rx={1.5*scale}
-      fill="#0b1017"
+      x={-width/2}
+      y={-height/2}
+      width={width}
+      height={height}
+      rx={1.1*scale}
+      fill={active?"#070b10":"#111827"}
       stroke={color}
-      strokeWidth={active?1.8*scale:1*scale}
+      strokeWidth={active?1.35*scale:.7*scale}
     />
-    <line x1={-5.2*scale} y1={-2.1*scale} x2={5.2*scale} y2={-2.1*scale} stroke={color} strokeWidth={1.1*scale}/>
-    <text
-      x="0"
-      y={2.2*scale}
-      textAnchor="middle"
-      fontSize={4.2*scale}
-      fontWeight="900"
-      fill="#f8fafc"
-    >{label}</text>
+    {active?<>
+      <line x1={-4*scale} y1={-1.45*scale} x2={4*scale} y2={-1.45*scale} stroke={color} strokeWidth={.9*scale}/>
+      <text x="0" y={1.7*scale} textAnchor="middle" fontSize={3.5*scale} fontWeight="900" fill="#f8fafc">{label}</text>
+    </>:null}
   </g>;
 }
 
@@ -487,103 +490,55 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
   teams,
   summary,
 }){
-  const selected=(cars||[]).find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
-  return <aside className="border-t border-white/10 bg-[#0b1017] lg:border-l lg:border-t-0">
-      <div className="border-b border-white/10 bg-[#070b10] px-2.5 py-2">
-        <div className="flex items-end justify-between gap-2">
-          <div>
-            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-300">Control Tower</div>
-            <div className="mt-0.5 text-[9px] text-slate-600">Official canonical classification</div>
-          </div>
-          <div className="text-[9px] font-mono text-slate-500">L{summary.lap}/{summary.total_laps??"—"}</div>
-        </div>
-        <div className="mt-2 grid grid-cols-[24px_30px_minmax(0,1fr)_28px_66px_30px] items-center gap-1.5 px-1 text-[7px] font-black uppercase tracking-[0.12em] text-slate-600">
-          <span className="text-right">P</span>
-          <span className="text-center">Δ</span>
-          <span>Driver</span>
-          <span className="text-center">Team</span>
-          <span className="text-right">Gap</span>
-          <span className="text-center">Tyre</span>
-        </div>
+  return <aside className="hidden h-full min-h-0 overflow-hidden border-r border-white/10 bg-[#070b10] lg:flex lg:flex-col">
+    <div className="shrink-0 border-b border-white/10 bg-black/45 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-black uppercase italic tracking-[0.14em] text-slate-100">Race</div>
+        <div className="font-mono text-[10px] font-bold text-slate-200">LAP {summary.lap}/{summary.total_laps??"—"}</div>
       </div>
-      <div className="max-h-[610px] overflow-y-auto">
-        {cars.map((car,index)=>{
-          const mine=String(car.team_id)===String(playerTeamId||"");
-          const active=String(car.driver_id)===String(selectedDriverId||"");
-          const delta=positionDelta(car.position_change_last_lap);
-          const damage=damageLabel(car);
-          const pitActive=Boolean(car?.pit_state?.active);
-          const clearedDnf=Boolean(car?.retired&&car?.retirement_trackside?.status==="cleared");
-          const statusText=car.retired
-            ?(clearedDnf?"DNF · BOX":"DNF")
-            :pitActive
-              ?`PIT · ${String(car?.pit_state?.phase||car?.pit_state?.status||"service").replaceAll("_"," ")}`
-              :damage;
-          return <button
-            type="button"
-            key={car.id}
-            onClick={()=>onSelectDriver?.(String(car.driver_id||""))}
-            className={"group w-full border-b border-white/[0.055] px-2 py-1.5 text-left transition "+(
-              active
-                ?"bg-cyan-400/[0.11] ring-1 ring-inset ring-cyan-300/20"
-                :mine
-                  ?"bg-cyan-500/[0.04] hover:bg-white/[0.06]"
-                  :"hover:bg-white/[0.045]"
-            )}
-          >
-            <span className="grid grid-cols-[24px_30px_minmax(0,1fr)_28px_66px_30px] items-center gap-1.5">
-              <span className={"text-right text-[12px] font-black "+(car.retired?"text-slate-500":"text-slate-100")}>{car.position}</span>
-              <span className={"text-center text-[9px] font-black "+delta.tone}>{delta.label}</span>
-              <span className="min-w-0">
-                <span className={"block truncate text-[10px] font-black uppercase tracking-[0.06em] "+(car.retired?"text-slate-500":"text-slate-200")}>
-                  {shortName(drivers,car.driver_id)}
-                </span>
-                <span className="block truncate text-[8px] text-slate-600">{driverName(drivers,car.driver_id)}</span>
-              </span>
-              <span className="flex justify-center">
-                <TeamLogo
-                  teamId={String(car.team_id||"")}
-                  name={teamName(teams,car.team_id)}
-                  size="h-5 w-5"
-                  className="shrink-0 p-0"
-                />
-              </span>
-              <span className={"text-right font-mono text-[9px] "+(index===0?"font-black text-emerald-300":"text-slate-400")}>
-                {formatGap(car.gap_to_leader_ms,{leader:index===0})}
-              </span>
-              <span className="flex justify-center">
-                <ControlTowerTyre tyre={car.tyre}/>
-              </span>
-            </span>
-            <span className="mt-0.5 grid grid-cols-[54px_minmax(0,1fr)_auto] items-center gap-1.5 pl-[55px] text-[7px] uppercase tracking-[0.08em]">
-              <span className="text-slate-600">{Number.isFinite(Number(car?.tyre?.condition))?`${Math.round(Number(car.tyre.condition))}%`:"—"}</span>
-              <span className={"truncate "+(
-                car.retired
-                  ?"text-rose-300/80"
-                  :pitActive
-                    ?"text-sky-300"
-                    :damage
-                      ?"text-amber-300"
-                      :"text-slate-600"
-              )}>
-                {statusText||`${formatSpeed(car.speed_kmh)} · ${String(car.current_pace||"balanced")}`}
-              </span>
-              {mine?<span className="rounded bg-cyan-400/10 px-1 py-0.5 font-black text-cyan-300">TEAM</span>:null}
-            </span>
-          </button>;
-        })}
+      <div className="mt-1 grid grid-cols-[23px_18px_24px_minmax(0,1fr)_58px_22px] items-center gap-1 text-[6px] font-black uppercase tracking-[0.10em] text-slate-600">
+        <span className="text-right">P</span>
+        <span></span>
+        <span></span>
+        <span>Drv</span>
+        <span className="text-right">Gap</span>
+        <span></span>
       </div>
-      {selected?<div className="border-t border-white/10 p-3">
-        <div className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Selected car</div>
-        <div className="mt-1 text-sm font-semibold text-slate-100">{driverName(drivers,selected.driver_id)}</div>
-        <div className="mt-2 grid grid-cols-2 gap-1.5 text-[9px]">
-          <div className="rounded bg-white/[0.04] px-2 py-1.5 text-slate-400">Speed <span className="float-right font-semibold text-slate-200">{formatSpeed(selected.speed_kmh)}</span></div>
-          <div className="rounded bg-white/[0.04] px-2 py-1.5 text-slate-400">Pace <span className="float-right font-semibold text-slate-200">{String(selected.current_pace||"—")}</span></div>
-          <div className="rounded bg-white/[0.04] px-2 py-1.5 text-slate-400">Tyre <span className="float-right font-semibold text-slate-200">{selected.tyre?.compound||"—"}</span></div>
-          <div className="rounded bg-white/[0.04] px-2 py-1.5 text-slate-400">Fuel <span className="float-right font-semibold text-slate-200">{Number.isFinite(Number(selected.fuel_kg))?Number(selected.fuel_kg).toFixed(1)+" kg":"—"}</span></div>
-        </div>
-      </div>:null}
-    </aside>;
+    </div>
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {(cars||[]).map((car,index)=>{
+        const mine=String(car.team_id)===String(playerTeamId||"");
+        const active=String(car.driver_id)===String(selectedDriverId||"");
+        const delta=positionDelta(car.position_change_last_lap);
+        const pitActive=Boolean(car?.pit_state?.active);
+        const statusGap=car.retired
+          ?"DNF"
+          :pitActive
+            ?"PIT"
+            :formatGap(car.gap_to_leader_ms,{leader:index===0});
+        return <button
+          type="button"
+          key={car.id}
+          title={`${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)}`}
+          onClick={()=>onSelectDriver?.(String(car.driver_id||""))}
+          className={"grid min-h-[27px] w-full grid-cols-[23px_18px_24px_minmax(0,1fr)_58px_22px] items-center gap-1 border-b border-white/[0.05] px-2 py-1 text-left transition "+(
+            active
+              ?"bg-cyan-300/[0.14]"
+              :mine
+                ?"bg-cyan-400/[0.045] hover:bg-white/[0.055]"
+                :"hover:bg-white/[0.045]"
+          )}
+        >
+          <span className={`text-right text-[11px] font-black ${car.retired?"text-slate-500":"text-slate-100"}`}>{car.position}</span>
+          <span className={`text-center text-[7px] font-black ${delta.tone}`}>{delta.label==="—"?"":delta.label.replace("▲","↑").replace("▼","↓")}</span>
+          <span className="flex justify-center"><TeamLogo teamId={String(car.team_id||"")} name={teamName(teams,car.team_id)} size="h-4 w-4" className="shrink-0 p-0"/></span>
+          <span className={`truncate text-[10px] font-black uppercase tracking-[0.06em] ${car.retired?"text-slate-500":"text-slate-100"}`}>{shortName(drivers,car.driver_id)}</span>
+          <span className={`text-right font-mono text-[9px] ${car.retired?"font-bold text-rose-300":pitActive?"font-bold text-sky-300":index===0?"font-black text-emerald-300":"text-slate-300"}`}>{statusGap}</span>
+          <span className="flex justify-center"><ControlTowerTyre tyre={car.tyre}/></span>
+        </button>;
+      })}
+    </div>
+  </aside>;
 });
 
 export default function CanonicalRaceView({
@@ -650,7 +605,7 @@ export default function CanonicalRaceView({
   });
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const geometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
-  const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.10,minPadding:28}),[geometry]);
+  const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.06,minPadding:20}),[geometry]);
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const closedPoints=points.length?[...points,points[0]]:[];
   const polyline=closedPoints.map((point)=>point.join(",")).join(" ");
@@ -660,9 +615,9 @@ export default function CanonicalRaceView({
     :[];
   const pitPolyline=pitLanePoints.map((point)=>point.join(",")).join(" ");
   const unitsPerMeter=trackPathLength(points)/trackLengthM;
-  const markerScale=Math.max(.65,Math.min(1.35,Number(viewBox?.[2]||1000)/900));
+  const markerScale=Math.max(.62,Math.min(1.2,Number(viewBox?.[2]||1000)/930));
   const pitBoxSide=useMemo(()=>pitBoxSideSign(geometry),[geometry]);
-  const pitBoxOffset=11*markerScale;
+  const pitBoxOffset=10*markerScale;
   const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisualPose=selectedVisual
     ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide})
@@ -687,6 +642,11 @@ export default function CanonicalRaceView({
   const cameraBox=cameraMode==="fit"
     ?viewBox
     :raceViewCameraViewBox(viewBox,{zoom:cameraZoom,center:cameraCenter});
+  const trackLod=cameraMode==="fit"
+    ?"overview"
+    :cameraZoom>=4.5
+      ?"close"
+      :"medium";
   const weatherVisuals=useMemo(()=>raceViewWeatherVisuals(view?.track_state||{}),[view?.track_state]);
   const rainPct=Math.round(weatherVisuals.rain*100);
   const wetPct=Math.round(weatherVisuals.wet*100);
@@ -747,10 +707,18 @@ export default function CanonicalRaceView({
     if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
   };
 
-  return <div className="grid overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[minmax(0,1fr)_400px]">
-    <div className="relative min-h-[560px] overflow-hidden bg-[#101923]">
+  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[330px_minmax(0,1fr)]">
+    <ControlTowerPanel
+      cars={cars}
+      playerTeamId={playerTeamId}
+      selectedDriverId={selectedDriverId}
+      onSelectDriver={onSelectDriver}
+      drivers={drivers}
+      teams={teams}
+      summary={summary}
+    />
+    <div className="relative min-h-0 overflow-hidden bg-[#101923]">
       <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
-        <span className="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200">Canonical Race View</span>
         <span className={"rounded border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] "+controlTone(summary.control)}>{summary.control.replaceAll("_"," ")}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-300">Lap {summary.lap}/{summary.total_laps??"—"}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-400">{playbackRunning?`${playbackSpeed}× live`:"paused"}</span>
@@ -769,7 +737,7 @@ export default function CanonicalRaceView({
 
       {points.length>1?<svg
         ref={svgRef}
-        className={"h-[560px] w-full select-none md:h-[680px] "+(cameraMode==="free"?"cursor-grab active:cursor-grabbing":"cursor-default")}
+        className={"h-full w-full select-none "+(cameraMode==="free"?"cursor-grab active:cursor-grabbing":"cursor-default")}
         viewBox={cameraBox.join(" ")}
         preserveAspectRatio="xMidYMid meet"
         aria-label="Canonical race track"
@@ -780,7 +748,7 @@ export default function CanonicalRaceView({
         onPointerCancel={endPointerDrag}
       >
         <defs>
-          <linearGradient id="rw9-asphalt" x1="0" x2="1">
+          <linearGradient id="rw15-asphalt" x1="0" x2="1">
             <stop offset="0%" stopColor="#2d333b"/>
             <stop offset="50%" stopColor="#151a20"/>
             <stop offset="100%" stopColor="#30363d"/>
@@ -794,7 +762,7 @@ export default function CanonicalRaceView({
         />:null}
         <polyline points={polyline} fill="none" stroke="#111827" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points={polyline} fill="none" stroke="url(#rw9-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
         {pitLanePoints.length>1?<g pointerEvents="none">
           <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
           <polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"/>
@@ -821,10 +789,9 @@ export default function CanonicalRaceView({
           strokeWidth="12"
           strokeLinecap="round"
           strokeLinejoin="round"
-          opacity={weatherVisuals.wetTrackOpacity}
+          opacity={weatherVisuals.wetTrackOpacity*.45}
           pointerEvents="none"
         />:null}
-        <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth=".65" strokeDasharray="2 13" opacity=".18"/>
         {visualCars.filter((car)=>
           !car.retired||
           car.retirement_trackside?.visible!==false||
@@ -834,7 +801,7 @@ export default function CanonicalRaceView({
           car={car}
           geometry={geometry}
           unitsPerMeter={unitsPerMeter}
-          opacity={weatherVisuals.sprayOpacity}
+          opacity={cameraMode==="follow"&&weatherVisuals.spray>=0.65?Math.min(.12,weatherVisuals.sprayOpacity*.28):0}
           scale={markerScale}
           pitBoxOffset={pitBoxOffset}
           pitBoxSide={pitBoxSide}
@@ -864,6 +831,8 @@ export default function CanonicalRaceView({
               setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
             }}
             scale={markerScale}
+            lod={trackLod}
+            showLabel={String(car.driver_id)===String(selectedDriverId||"")||(cameraMode==="fit"&&String(car.team_id)===String(playerTeamId||""))}
             retired={car.retired}
             year={year}
             driverNumberValue={driverNumber(drivers,car.driver_id)}
@@ -871,7 +840,7 @@ export default function CanonicalRaceView({
             pitBoxSide={pitBoxSide}
           />;
         })}
-      </svg>:<div className="flex h-[560px] items-center justify-center text-sm text-slate-500 md:h-[680px]">Track geometry unavailable.</div>}
+      </svg>:<div className="flex h-full items-center justify-center text-sm text-slate-500">Track geometry unavailable.</div>}
       <CanonicalMiniMap
         geometry={geometry}
         viewBox={viewBox}
@@ -886,30 +855,18 @@ export default function CanonicalRaceView({
       {weatherVisuals.rainOpacity>0?<div
         className="pointer-events-none absolute inset-0 z-10"
         style={{
-          opacity:weatherVisuals.rainOpacity,
+          opacity:weatherVisuals.rainOpacity*.32,
           backgroundImage:"linear-gradient(112deg, transparent 0 47%, rgba(186,230,253,.52) 48% 50%, transparent 51% 100%), linear-gradient(112deg, transparent 0 47%, rgba(224,242,254,.30) 48% 49%, transparent 50% 100%)",
-          backgroundSize:"28px 74px, 43px 96px",
+          backgroundSize:"38px 112px, 61px 146px",
           backgroundPosition:"0 0, 13px 21px",
         }}
       />:null}
       {weatherVisuals.fogOpacity>0?<div
         className="pointer-events-none absolute inset-0 z-10 bg-slate-300"
-        style={{opacity:weatherVisuals.fogOpacity}}
+        style={{opacity:weatherVisuals.fogOpacity*.48}}
       />:null}
 
-      <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded border border-white/10 bg-black/45 px-2.5 py-1.5 text-[9px] text-slate-400">
-        Tick {summary.canonical_tick} · {(summary.canonical_time_ms/1000).toFixed(1)}s · {summary.weather.replaceAll("_"," ")}
-      </div>
     </div>
 
-    <ControlTowerPanel
-      cars={cars}
-      playerTeamId={playerTeamId}
-      selectedDriverId={selectedDriverId}
-      onSelectDriver={onSelectDriver}
-      drivers={drivers}
-      teams={teams}
-      summary={summary}
-    />
   </div>;
 }

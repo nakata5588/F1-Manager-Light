@@ -130,6 +130,8 @@ test("RW8.14J frame clock exposes elapsed sampling for the Zustand dispatch boun
 test("RW12A derives wall-clock interpolation duration from canonical time and playback speed",()=>{
   assert.equal(raceViewInterpolationDurationMs(1000,1100,1),100);
   assert.equal(raceViewInterpolationDurationMs(1000,1100,4),25);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,8),24);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,16),24);
   assert.equal(raceViewInterpolationDurationMs(1000,1100,0.5),200);
   assert.equal(raceViewInterpolationDurationMs(1100,1100,1),0);
   assert.equal(raceViewInterpolationAlpha(1000,100,1050),0.5);
