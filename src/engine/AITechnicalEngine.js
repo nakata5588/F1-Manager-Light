@@ -2038,8 +2038,9 @@ export function advanceAITechnicalTeamDay(gs,teamId,{
   runMaintenance=false,
   reviewStrategy=false,
   reviewPlanning=false,
+  normalizedWorld=false,
 }={}){
-  let next=normalizeAITechnicalWorld(gs);
+  let next=normalizedWorld?gs:normalizeAITechnicalWorld(gs);
   let state=aiTechnicalTeamState(next,teamId);
   if(!state)return next;
   const today=str(next?.currentDateISO).slice(0,10);
@@ -2096,7 +2097,7 @@ export function advanceAITechnicalWorldDay(gs,options={}){
     .map(teamIdOf)
     .filter((teamId)=>teamId&&teamId!==player&&aiTechnicalTeamState(next,teamId))
     .sort();
-  for(const teamId of ids)next=advanceAITechnicalTeamDay(next,teamId,options);
+  for(const teamId of ids)next=advanceAITechnicalTeamDay(next,teamId,{...options,normalizedWorld:true});
   return next;
 }
 
