@@ -60,6 +60,17 @@ export function retimeRaceViewInterpolation({
   };
 }
 
+export function raceViewRetargetCanonicalDeltaMs(
+  previousRemainingCanonicalMs,
+  previousCanonicalTimeMs,
+  nextCanonicalTimeMs
+){
+  const carried=Math.max(0,finite(previousRemainingCanonicalMs,0));
+  const previous=finite(previousCanonicalTimeMs,0);
+  const next=finite(nextCanonicalTimeMs,previous);
+  return carried+Math.max(0,next-previous);
+}
+
 function interpolateNumber(from,to,alpha){
   const a=finite(from,finite(to,0));
   const b=finite(to,a);
