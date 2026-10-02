@@ -53,18 +53,19 @@ export function raceViewWeatherVisuals(trackState={}){
     visibility,
     spray,
     standing,
-    rainOpacity:clamp(rain*0.72,0,0.72),
-    fogOpacity:clamp((1-visibility)*0.72,0,0.65),
-    wetTrackOpacity:clamp(wet*0.52+standing*0.24,0,0.62),
-    sprayOpacity:clamp(spray*0.48,0,0.48),
-    grassDarkenOpacity:clamp(rain*0.12+wet*0.08,0,0.18),
+    // Keep weather legible without turning the map into a striped overlay.
+    rainOpacity:clamp(rain*0.34,0,0.30),
+    fogOpacity:clamp((1-visibility)*0.52,0,0.46),
+    wetTrackOpacity:clamp(wet*0.46+standing*0.18,0,0.52),
+    sprayOpacity:spray<=0.45?0:clamp((spray-0.45)*0.26,0,0.14),
+    grassDarkenOpacity:clamp(rain*0.09+wet*0.06,0,0.13),
   };
 }
 
 
 export function raceViewPitBoxProgress(teamIds,teamId,{
-  from=0.30,
-  to=0.74,
+  from=0.18,
+  to=0.82,
 }={}){
   const unique=[];
   for(const value of Array.isArray(teamIds)?teamIds:[]){
@@ -75,7 +76,7 @@ export function raceViewPitBoxProgress(teamIds,teamId,{
   const index=unique.indexOf(target);
   if(index<0)return 0.52;
   if(unique.length<=1)return 0.52;
-  const start=clamp(finite(from,0.30),0.05,0.90);
-  const end=clamp(finite(to,0.74),start,0.95);
+  const start=clamp(finite(from,0.18),0.05,0.90);
+  const end=clamp(finite(to,0.82),start,0.95);
   return Number((start+(end-start)*(index/(unique.length-1))).toFixed(9));
 }
