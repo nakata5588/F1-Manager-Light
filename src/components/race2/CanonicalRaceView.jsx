@@ -660,7 +660,7 @@ export default function CanonicalRaceView({
   const pitBoxSide=useMemo(()=>pitBoxSideSign(geometry),[geometry]);
   const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisualPose=selectedVisual
-    ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide})
+    ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset:10,pitBoxSide})
     :null;
   const activePitTeamIds=new Set(
     visualCars
