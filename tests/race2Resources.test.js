@@ -492,7 +492,7 @@ test("RW14B canonical environment resolves air and track temperature independent
   const state=runningState();
   const adjusted={
     ...state,
-    trackState:{...(state.trackState||{}),trackTemp:41},
+    trackState:{...(state.trackState||{}),airTemp:17,trackTemp:41},
     weatherState:{...(state.weatherState||{}),air_temp_c:17,track_temp_c:41},
   };
 
@@ -511,12 +511,12 @@ test("RW14B warmer air raises tyre target under the same track and physical load
   };
   const cool={
     ...base,
-    trackState:{...(base.trackState||{}),trackTemp:35},
+    trackState:{...(base.trackState||{}),airTemp:10,trackTemp:35},
     weatherState:{...(base.weatherState||{}),air_temp_c:10,track_temp_c:35},
   };
   const hot={
     ...base,
-    trackState:{...(base.trackState||{}),trackTemp:35},
+    trackState:{...(base.trackState||{}),airTemp:35,trackTemp:35},
     weatherState:{...(base.weatherState||{}),air_temp_c:35,track_temp_c:35},
   };
 
@@ -536,12 +536,12 @@ test("RW14B hot air and track increase canonical tyre degradation at equal tyre 
   };
   const mild={
     ...base,
-    trackState:{...(base.trackState||{}),trackTemp:30},
+    trackState:{...(base.trackState||{}),airTemp:20,trackTemp:30},
     weatherState:{...(base.weatherState||{}),air_temp_c:20,track_temp_c:30},
   };
   const hot={
     ...base,
-    trackState:{...(base.trackState||{}),trackTemp:52},
+    trackState:{...(base.trackState||{}),airTemp:36,trackTemp:52},
     weatherState:{...(base.weatherState||{}),air_temp_c:36,track_temp_c:52},
   };
 
@@ -572,7 +572,7 @@ test("RW14B actual distance wear stores environmental multiplier and responds to
   };
   const hot={
     ...base,
-    trackState:{...(base.trackState||{}),trackTemp:50},
+    trackState:{...(base.trackState||{}),airTemp:35,trackTemp:50},
     weatherState:{...(base.weatherState||{}),air_temp_c:35,track_temp_c:50},
   };
 
@@ -588,7 +588,7 @@ test("RW14B Live and Fast keep identical environment-sensitive tyre evolution",(
   const initial=runningState({cars:2,paceMode:"balanced"});
   const environment={
     ...initial,
-    trackState:{...(initial.trackState||{}),trackTemp:48},
+    trackState:{...(initial.trackState||{}),airTemp:33,trackTemp:48},
     weatherState:{...(initial.weatherState||{}),air_temp_c:33,track_temp_c:48},
   };
   const fast=runFastRace(environment,{steps:250});
