@@ -84,20 +84,27 @@ function advanceCar(state,car,stepMs){
   const trafficContext=raceTrafficContext(state,car);
   const speedMs=Math.max(0,finite(car?.speedMs,finite(car?.speedKmh,0)/3.6));
   const freeTargetSpeedKmh=finite(dynamics?.targetSpeedKmh,null);
+  const slipstreamBonusKmh=Math.max(
+    0,
+    finite(trafficContext?.slipstream?.targetBonusKmh,0)
+  );
+  const assistedTargetSpeedKmh=freeTargetSpeedKmh==null
+    ?null
+    :freeTargetSpeedKmh+slipstreamBonusKmh;
   const trafficTargetSpeedKmh=trafficContext?.speedCeilingMs==null
     ?null
     :Math.max(0,trafficContext.speedCeilingMs*3.6);
   const trafficLimited=trafficTargetSpeedKmh!=null&&(
-    freeTargetSpeedKmh!=null
-      ?trafficTargetSpeedKmh<freeTargetSpeedKmh-0.01
+    assistedTargetSpeedKmh!=null
+      ?trafficTargetSpeedKmh<assistedTargetSpeedKmh-0.01
       :trafficTargetSpeedKmh<speedMs*3.6-0.01
   );
   const effectiveTargetSpeedKmh=trafficLimited
     ?Math.max(0,Math.min(
       trafficTargetSpeedKmh,
-      freeTargetSpeedKmh??trafficTargetSpeedKmh
+      assistedTargetSpeedKmh??trafficTargetSpeedKmh
     ))
-    :freeTargetSpeedKmh;
+    :assistedTargetSpeedKmh;
   const acceleration=Math.max(-100,Math.min(100,finite(
     trafficLimited
       ?raceAccelerationForTarget(state,car,effectiveTargetSpeedKmh)
@@ -162,6 +169,11 @@ function advanceCar(state,car,stepMs){
       desiredGapM:trafficContext?.desiredGapM??null,
       followRangeM:trafficContext?.followRangeM??null,
       targetSpeedKmh:trafficLimited?Number(trafficTargetSpeedKmh.toFixed(6)):null,
+      slipstreamActive:Boolean(trafficContext?.slipstream?.active),
+      slipstreamAheadCarId:trafficContext?.slipstream?.aheadCarId??null,
+      slipstreamRangeM:trafficContext?.slipstream?.rangeM??null,
+      slipstreamStrength:Number(finite(trafficContext?.slipstream?.strength,0).toFixed(6)),
+      slipstreamTargetBonusKmh:Number(slipstreamBonusKmh.toFixed(6)),
       limited:trafficLimited,
       hardLimited:false,
     },
