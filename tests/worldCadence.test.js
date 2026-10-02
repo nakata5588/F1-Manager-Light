@@ -56,14 +56,15 @@ test("world cadence stamp makes the same official result a one-shot event",()=>{
   assert.equal(stamped._worldCadence.official_race_count,1);
 });
 
-test("existing saves do not treat already-processed manager results as a fresh GP",()=>{
+test("legacy saves perform one catch-up GP review and then stamp it",()=>{
   const gs=state({
     currentDateISO:"1980-06-01",
     results:[
       {year:1980,round:1,key:"1980:1"},
       {year:1980,round:2,key:"1980:2"},
     ],
-    manager:{development:{processed_result_keys:["1980:1","1980:2"]}},
   });
-  assert.equal(currentWorldCadence(gs).postGrandPrix,false);
+  const due=currentWorldCadence(gs);
+  assert.equal(due.postGrandPrix,true);
+  assert.equal(currentWorldCadence(stampWorldCadence(gs,due)).postGrandPrix,false);
 });
