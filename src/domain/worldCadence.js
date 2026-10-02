@@ -24,12 +24,6 @@ function daysBetween(fromISO,toISO){
   if(!Number.isFinite(a)||!Number.isFinite(b))return Infinity;
   return Math.round((b-a)/86_400_000);
 }
-function processedManagerResultCount(gs){
-  return Array.isArray(gs?.manager?.development?.processed_result_keys)
-    ?gs.manager.development.processed_result_keys.length
-    :0;
-}
-
 export function activeSeasonOfficialRaceCount(gs){
   const year=Number(gs?.activeYear);
   return (Array.isArray(gs?.results)?gs.results:[])
@@ -44,12 +38,10 @@ export function currentWorldCadence(gs){
   const activeRaceCount=activeSeasonOfficialRaceCount(gs);
   const stored=gs?._worldCadence&&typeof gs._worldCadence==="object"?gs._worldCadence:{};
 
-  let baselineRaceCount=Number(stored?.official_race_count);
-  if(!Number.isFinite(baselineRaceCount)){
-    // Existing saves already record manager progression per official result.
-    // This avoids treating an old season history as a brand-new post-GP event.
-    baselineRaceCount=Math.min(activeRaceCount,processedManagerResultCount(gs));
-  }
+  const storedRaceCount=Number(stored?.official_race_count);
+  // Older saves have no cadence marker. Treat their active-season Results as
+  // one catch-up post-GP event, then stamp the count so it cannot repeat.
+  const baselineRaceCount=Number.isFinite(storedRaceCount)?storedRaceCount:0;
   const postGrandPrix=activeRaceCount>baselineRaceCount;
 
   const roundIndex=Math.max(0,Number(gs?.currentRound||0));
