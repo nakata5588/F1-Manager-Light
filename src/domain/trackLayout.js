@@ -103,6 +103,28 @@ function resolved(layout,resolution,requestedYear){
   };
 }
 
+export function trackRuntimeGeometry(resolvedTrack){
+  const functional=resolvedTrack?.track_package?.functional;
+  if(Array.isArray(functional?.points)&&functional.points.length>=3){
+    return {geometry:functional,source:"f1track_functional"};
+  }
+  const geometry=resolvedTrack?.geometry;
+  if(Array.isArray(geometry?.points)&&geometry.points.length>=3){
+    return {geometry,source:"track_layout_geometry"};
+  }
+  return {geometry:null,source:"none"};
+}
+
+export function trackPresentationSplineEligible(resolvedTrack,runtimeGeometry=null){
+  const runtime=runtimeGeometry||trackRuntimeGeometry(resolvedTrack);
+  const quality=String(
+    runtime?.geometry?.quality
+    ??resolvedTrack?.layout?.geometry_status
+    ??""
+  );
+  return Boolean(runtime?.geometry)&&/verified/i.test(quality);
+}
+
 export function trackLayoutResolutionLabel(resolution){
   return {
     exact:"Historical layout",
