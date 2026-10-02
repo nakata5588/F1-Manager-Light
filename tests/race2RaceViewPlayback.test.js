@@ -5,6 +5,12 @@ import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState } from "../src/race2/core/RaceSimulation.js";
 
 import {
+  nextRacePlaybackEpoch,
+  normalizeRacePlaybackEpoch,
+  racePlaybackAdvanceAllowed,
+} from "../src/race2/runtime/RacePlaybackGate.js";
+
+import {
   RACE_VIEW_PLAYBACK_SPEEDS,
   advanceCanonicalRaceViewFrame,
   advanceCanonicalRaceViewTimestamp,
@@ -51,6 +57,25 @@ function canonicalState(){
   const runtime={version:1,source:"rw8.14b_race_runtime",state:startRaceState(createRaceState(input,{stepMs:100})),accumulatorMs:0};
   return {activeYear:2004,raceWeekendState:{engine_version:"rw2",phase:"race",canonical_race_runtime:runtime}};
 }
+
+test("RW26 playback epoch invalidates stale in-flight canonical frames",()=>{
+  const started=normalizeRacePlaybackEpoch(4);
+  assert.equal(racePlaybackAdvanceAllowed(started,4),true);
+
+  const paused=nextRacePlaybackEpoch(started);
+  assert.equal(paused,5);
+  assert.equal(
+    racePlaybackAdvanceAllowed(started,paused),
+    false,
+    "a frame started before Pause cannot commit afterwards"
+  );
+  assert.equal(
+    racePlaybackAdvanceAllowed(paused,paused,{autosimActive:true}),
+    false,
+    "Autosim ownership also blocks live-frame commits"
+  );
+  assert.equal(racePlaybackAdvanceAllowed(paused,paused),true);
+});
 
 test("RW8.14G exposes a bounded discrete playback-speed contract",()=>{
   assert.deepEqual(RACE_VIEW_PLAYBACK_SPEEDS,[0.5,1,2,4,8,16]);
