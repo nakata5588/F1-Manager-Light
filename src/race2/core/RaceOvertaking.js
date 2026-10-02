@@ -330,11 +330,11 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null,cl
     1
   );
   const closingBonus=clamp(closingSpeed/25,-0.08,0.16);
-  const attributeBonus=clamp(((attack-defense)/100)*0.42,-0.32,0.32);
+  const attributeBonus=clamp(((attack-defense)/100)*0.62,-0.38,0.38);
   const cornerPenalty=cornerSeverity*0.22;
 
   const baseProbability=clamp(
-    0.34+gapFactor*0.14+closingBonus+attributeBonus-cornerPenalty,
+    0.43+gapFactor*0.14+closingBonus+attributeBonus-cornerPenalty,
     0.04,
     0.94
   );
