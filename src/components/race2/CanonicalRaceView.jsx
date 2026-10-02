@@ -27,6 +27,10 @@ import {
   retimeRaceViewInterpolation,
 } from "../../race2/view/RaceViewInterpolation.js";
 import {
+  buildClosedRacingLine,
+  racingLineGeometry,
+} from "../../domain/raceSplineV3.js";
+import {
   clampRaceViewZoom,
   raceViewBoxCenter,
   raceViewCameraViewBox,
@@ -800,7 +804,18 @@ export default function CanonicalRaceView({
       ?value
       :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
   },[resolved]);
-  const geometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
+  const sourceGeometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
+  const presentationLine=useMemo(()=>{
+    const sourcePoints=Array.isArray(sourceGeometry?.points)?sourceGeometry.points:[];
+    return sourcePoints.length>=3
+      ?buildClosedRacingLine(sourcePoints,{samplesPerSegment:8})
+      :null;
+  },[sourceGeometry]);
+  const geometry=useMemo(()=>
+    presentationLine?.points?.length
+      ?racingLineGeometry(sourceGeometry,presentationLine)
+      :sourceGeometry
+  ,[sourceGeometry,presentationLine]);
   const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.06,minPadding:20}),[geometry]);
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const closedPoints=points.length?[...points,points[0]]:[];
