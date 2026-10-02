@@ -1,5 +1,5 @@
 // src/domain/teamFinance.js
-// Shared read-side budget resolution for player and AI teams.
+// Canonical finance gateway plus shared budget resolution for player and AI teams.
 
 import { collectionRows } from "./liveContracts.js";
 
@@ -25,6 +25,67 @@ export function teamBudgetAvailable(gs,teamId){
   return Number.isFinite(direct)?direct:NaN;
 }
 
+export function applyFinanceTransaction(gs,{
+  teamId,
+  amount,
+  category="Team Finance",
+  subtype=null,
+  desc="Budget adjustment",
+  description=null,
+  sig=null,
+  source=null,
+  sourceId=null,
+  dateISO=null,
+  id=null,
+}={}){
+  if(!gs)return gs;
+  const tid=text(teamId);
+  const delta=Number(amount)||0;
+  if(!tid||delta===0)return gs;
+
+  const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
+  if(tid!==playerTeamId)return gs;
+
+  const log=Array.isArray(gs?.financeLog)?gs.financeLog:[];
+  const txSig=sig?text(sig):null;
+  if(txSig&&log.some((row)=>row?.sig===txSig))return gs;
+
+  const oldBalance=teamBudgetAvailable(gs,tid);
+  const balance=Number.isFinite(oldBalance)?oldBalance:0;
+  const nextBalance=balance+delta;
+  const date=text(dateISO??gs?.currentDateISO).slice(0,10);
+  const seasonIncome=num(gs?.finances?.season_income,0)+(delta>0?delta:0);
+  const seasonSpend=num(gs?.finances?.season_spend,0)+(delta<0?Math.abs(delta):0);
+  const txId=text(id)||(txSig?`tx_${txSig}`:`tx_${tid}_${date}_${log.length+1}`);
+  const tx={
+    id:txId,
+    sig:txSig,
+    teamId:tid,
+    season:num(gs?.activeYear,NaN),
+    dateISO:date,
+    type:delta>=0?"income":"expense",
+    category,
+    subtype,
+    desc:description??desc,
+    amount:delta,
+    source,
+    sourceId,
+  };
+
+  return {
+    ...gs,
+    team:{...(gs?.team||{}),budget:nextBalance},
+    finances:{
+      ...(gs?.finances||{}),
+      balance:nextBalance,
+      budget:nextBalance,
+      season_spend:seasonSpend,
+      season_income:seasonIncome,
+      season_net:seasonIncome-seasonSpend,
+    },
+    financeLog:[tx,...log],
+  };
+}
 
 export function applyTeamBudgetDelta(gs,teamId,amount,{
   category="Team Finance",
@@ -37,33 +98,13 @@ export function applyTeamBudgetDelta(gs,teamId,amount,{
   if(!tid||delta===0)return gs;
   const playerTeamId=text(gs?.team?.team_id??gs?.team?.id);
   if(tid===playerTeamId){
-    const resolved=teamBudgetAvailable(gs,tid);
-    const oldBalance=Number.isFinite(resolved)?resolved:0;
-    const nextBalance=oldBalance+delta;
-    const date=text(gs?.currentDateISO).slice(0,10);
-    const log=Array.isArray(gs?.financeLog)?gs.financeLog:[];
-    const txSig=sig||["team-budget",category,date,tid,delta].join(":");
-    const tx=log.some((row)=>row?.sig===txSig)?[]:[{
-      id:"tx_"+txSig,
-      dateISO:date,
-      type:delta>=0?"income":"expense",
+    return applyFinanceTransaction(gs,{
+      teamId:tid,
+      amount:delta,
       category,
       desc,
-      amount:delta,
-      sig:txSig,
-    }];
-    return {
-      ...gs,
-      team:{...(gs?.team||{}),budget:nextBalance},
-      finances:{
-        ...(gs?.finances||{}),
-        balance:nextBalance,
-        budget:nextBalance,
-        season_spend:Number(gs?.finances?.season_spend||0)+(delta<0?Math.abs(delta):0),
-        season_income:Number(gs?.finances?.season_income||0)+(delta>0?delta:0),
-      },
-      financeLog:[...tx,...log],
-    };
+      sig,
+    });
   }
 
   let next=gs;
