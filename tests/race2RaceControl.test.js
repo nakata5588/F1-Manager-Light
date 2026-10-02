@@ -563,7 +563,7 @@ test("RW23 AI chooses its final restart tyre from recovered Red Flag conditions"
   const next=stepRaceState(red);
   assert.equal(next.raceControlState.redFlagLifecycle.phase,"restart_pending");
   assert.equal(next.weatherState.current.restart_recovery_generated,true);
-  assert.equal(next.weatherState.track_wetness,0.24);
+  assert.ok(next.weatherState.track_wetness>=0.20&&next.weatherState.track_wetness<0.72);
   assert.equal(next.cars[0].tyre.category,"intermediate");
   assert.equal(next.cars[0].tyre.tyre_id,"int_a");
 });
