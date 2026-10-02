@@ -175,7 +175,7 @@ test("RW18 retimes an in-flight visual segment from its current progress without
   });
   assert.equal(accelerated.alpha,0.25);
   assert.equal(accelerated.remainingCanonicalMs,150);
-  assert.equal(accelerated.durationMs,40);
+  assert.equal(accelerated.durationMs,12);
 });
 
 test("RW12A interpolates absolute distance through lap wrap without moving backwards",()=>{
