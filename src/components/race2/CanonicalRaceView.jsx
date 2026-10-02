@@ -120,6 +120,14 @@ function formatSpeed(value){
   return Number.isFinite(n)?`${Math.round(n)} km/h`:"—";
 }
 
+function formatLapTime(value){
+  const n=Number(value);
+  if(!Number.isFinite(n)||n<=0)return "—";
+  const minutes=Math.floor(n/60000);
+  const seconds=(n-minutes*60000)/1000;
+  return `${minutes}:${seconds.toFixed(3).padStart(6,"0")}`;
+}
+
 function positionDelta(value){
   const n=Number(value)||0;
   if(n>0)return {label:`▲${n}`,tone:"text-emerald-300"};
@@ -456,6 +464,7 @@ function CanonicalMiniMap({
   cars,
   unitsPerMeter,
   teamBrands,
+  drivers,
   year,
   selectedDriverId,
   pitBoxOffset,
@@ -466,30 +475,41 @@ function CanonicalMiniMap({
   const polyline=[...points,points[0]].map((point)=>point.join(",")).join(" ");
   const pitPoints=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
   const pitPolyline=pitPoints.map((point)=>point.join(",")).join(" ");
-  return <div className="pointer-events-none absolute bottom-12 right-3 z-20 w-[210px] rounded-lg border border-white/15 bg-[#05080d]/88 p-2 shadow-xl backdrop-blur">
-    <div className="mb-1 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[320px] rounded-xl border border-white/10 bg-[#05080d]/42 p-2.5 shadow-xl backdrop-blur-[2px]">
+    <div className="mb-1 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-300/80">
       <span>Mini-map</span>
-      <span>Full circuit</span>
+      <span className="text-slate-500">Live field</span>
     </div>
-    <svg viewBox={viewBox.join(" ")} className="h-[118px] w-full" preserveAspectRatio="xMidYMid meet" aria-label="Race mini-map">
-      <rect x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]} fill="#111923"/>
-      <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"/>
-      {pitPoints.length>1?<polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>:null}
+    <svg viewBox={viewBox.join(" ")} className="h-[172px] w-full" preserveAspectRatio="xMidYMid meet" aria-label="Race mini-map">
+      <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" opacity=".68"/>
+      <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" opacity=".82"/>
+      {pitPoints.length>1?<polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" opacity=".8"/>:null}
       {cars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false||car.pit_box_parked).map((car)=>{
         const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
         if(!pose)return null;
         const selected=String(car.driver_id)===String(selectedDriverId||"");
-        return <circle
-          key={`mini_${car.id}`}
-          cx={pose.x}
-          cy={pose.y}
-          r={selected?5.2:3.1}
-          fill={teamColor(teamBrands,car.team_id,year)}
-          stroke={selected?"#fff":"#020617"}
-          strokeWidth={selected?2:1}
-          opacity={car.retired?0.65:0.95}
-        />;
+        const radius=selected?9.4:7.2;
+        return <g key={`mini_${car.id}`} opacity={car.retired?0.58:0.98}>
+          <circle
+            cx={pose.x}
+            cy={pose.y}
+            r={radius}
+            fill={teamColor(teamBrands,car.team_id,year)}
+            stroke={selected?"#fff":"#020617"}
+            strokeWidth={selected?2.4:1.3}
+          />
+          <text
+            x={pose.x}
+            y={pose.y+1.9}
+            textAnchor="middle"
+            fontSize={selected?5.8:5.1}
+            fontWeight="900"
+            fill="#fff"
+            stroke="#020617"
+            strokeWidth=".9"
+            paintOrder="stroke"
+          >{shortName(drivers,car.driver_id)}</text>
+        </g>;
       })}
     </svg>
   </div>;
@@ -511,7 +531,7 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
         <div className="text-[11px] font-black uppercase italic tracking-[0.14em] text-slate-100">Race</div>
         <div className="font-mono text-[10px] font-bold text-slate-200">LAP {summary.lap}/{summary.total_laps??"—"}</div>
       </div>
-      <div className="mt-1 grid grid-cols-[23px_18px_24px_minmax(0,1fr)_58px_22px] items-center gap-1 text-[6px] font-black uppercase tracking-[0.10em] text-slate-600">
+      <div className="mt-1 grid grid-cols-[23px_18px_24px_minmax(0,1fr)_62px_24px] items-center gap-1 text-[7px] font-black uppercase tracking-[0.10em] text-slate-600">
         <span className="text-right">P</span>
         <span></span>
         <span></span>
@@ -536,7 +556,7 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
           key={car.id}
           title={`${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)}`}
           onClick={()=>onSelectDriver?.(String(car.driver_id||""))}
-          className={"grid min-h-[27px] w-full grid-cols-[23px_18px_24px_minmax(0,1fr)_58px_22px] items-center gap-1 border-b border-white/[0.05] px-2 py-1 text-left transition "+(
+          className={"grid min-h-[27px] w-full grid-cols-[23px_18px_24px_minmax(0,1fr)_62px_24px] items-center gap-1 border-b border-white/[0.05] px-2 py-1 text-left transition "+(
             active
               ?"bg-cyan-300/[0.14]"
               :mine
@@ -547,11 +567,72 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
           <span className={`text-right text-[11px] font-black ${car.retired?"text-slate-500":"text-slate-100"}`}>{car.position}</span>
           <span className={`text-center text-[7px] font-black ${delta.tone}`}>{delta.label==="—"?"":delta.label.replace("▲","↑").replace("▼","↓")}</span>
           <span className="flex justify-center"><TeamLogo teamId={String(car.team_id||"")} name={teamName(teams,car.team_id)} size="h-4 w-4" className="shrink-0 p-0"/></span>
-          <span className={`truncate text-[10px] font-black uppercase tracking-[0.06em] ${car.retired?"text-slate-500":"text-slate-100"}`}>{shortName(drivers,car.driver_id)}</span>
-          <span className={`text-right font-mono text-[9px] ${car.retired?"font-bold text-rose-300":pitActive?"font-bold text-sky-300":index===0?"font-black text-emerald-300":"text-slate-300"}`}>{statusGap}</span>
+          <span className={`truncate text-[11px] font-black uppercase tracking-[0.055em] ${car.retired?"text-slate-500":"text-slate-100"}`}>{shortName(drivers,car.driver_id)}</span>
+          <span className={`text-right font-mono text-[10px] ${car.retired?"font-bold text-rose-300":pitActive?"font-bold text-sky-300":index===0?"font-black text-emerald-300":"text-slate-300"}`}>{statusGap}</span>
           <span className="flex justify-center"><ControlTowerTyre tyre={car.tyre}/></span>
         </button>;
       })}
+    </div>
+  </aside>;
+});
+
+const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedDriverId}){
+  const track=view?.track_state||{};
+  const selectedIndex=(cars||[]).findIndex((car)=>String(car?.driver_id||"")===String(selectedDriverId||""));
+  const selected=selectedIndex>=0?cars[selectedIndex]:null;
+  const behind=selectedIndex>=0?(cars[selectedIndex+1]||null):null;
+  const fastest=(cars||[])
+    .filter((car)=>Number.isFinite(Number(car?.best_lap_ms))&&Number(car.best_lap_ms)>0)
+    .slice()
+    .sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
+  const battle=selected?.battle;
+  const battleOpponent=battle?.opponentCarId
+    ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(battle.opponentCarId))
+    :null;
+  const pct=(value)=>Number.isFinite(Number(value))?`${Math.round(Number(value)*100)}%`:"—";
+  const metric=(label,value)=><div className="flex items-center justify-between gap-2 border-b border-white/[0.05] py-1.5 last:border-b-0"><span className="text-[9px] uppercase tracking-[0.08em] text-slate-500">{label}</span><strong className="text-right text-[10px] font-semibold text-slate-200">{value}</strong></div>;
+  return <aside className="hidden h-full min-h-0 overflow-y-auto border-l border-white/10 bg-[#070b10] lg:flex lg:flex-col">
+    <div className="border-b border-white/10 bg-black/35 px-3 py-2.5">
+      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-200">Race conditions</div>
+      <div className="mt-1 text-[9px] text-slate-500">{String(view?.last_weather||"—").replaceAll("_"," ")}</div>
+    </div>
+    <div className="px-3 py-2">
+      {metric("Rain",pct(track?.rain_intensity))}
+      {metric("Wet",pct(track?.track_wetness))}
+      {metric("Grip",Number.isFinite(Number(track?.grip_index))?`${Math.round(Number(track.grip_index))}/100`:"—")}
+      {metric("Visibility",Number.isFinite(Number(track?.visibility_index))?`${Math.round(Number(track.visibility_index))}%`:"—")}
+      {metric("Track",Number.isFinite(Number(track?.track_temp_c))?`${Number(track.track_temp_c).toFixed(1)}°C`:"—")}
+      {metric("Air",Number.isFinite(Number(track?.air_temp_c))?`${Number(track.air_temp_c).toFixed(1)}°C`:"—")}
+    </div>
+    <div className="border-y border-white/10 bg-black/25 px-3 py-2">
+      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Fastest lap</div>
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <strong className="truncate text-[11px] text-fuchsia-200">{fastest?shortName(drivers,fastest.driver_id):"—"}</strong>
+        <span className="font-mono text-[10px] text-slate-300">{formatLapTime(fastest?.best_lap_ms)}</span>
+      </div>
+    </div>
+    <div className="min-h-0 flex-1 px-3 py-2.5">
+      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-200">Selected driver</div>
+      {selected?<>
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div>
+            <div className="text-[12px] font-black text-white">{shortName(drivers,selected.driver_id)} · P{selected.position}</div>
+            <div className="text-[9px] text-slate-500">{driverName(drivers,selected.driver_id)}</div>
+          </div>
+          <span className="rounded bg-white/[0.05] px-2 py-1 text-[9px] font-mono text-slate-200">{formatSpeed(selected.speed_kmh)}</span>
+        </div>
+        {metric("Ahead",selected.position===1?"LEAD":formatGap(selected.gap_to_previous_ms))}
+        {metric("Behind",behind?formatGap(behind.gap_to_previous_ms):"—")}
+        {metric("Tyre",`${selected?.tyre?.compound||"—"} · ${Number.isFinite(Number(selected?.tyre?.condition))?Math.round(Number(selected.tyre.condition))+"%":"—"}`)}
+        {metric("Tyre temp",Number.isFinite(Number(selected?.tyre?.temperature_c))?`${Math.round(Number(selected.tyre.temperature_c))}°C`:"—")}
+        {metric("Damage",selected?.damaged_components?.length?String(selected.damage_severity||"damage").toUpperCase():"CLEAR")}
+        {metric("Best lap",formatLapTime(selected?.best_lap_ms))}
+        {battle&&String(battle.phase||"none")!=="none"?<div className="mt-2 rounded-md border border-amber-300/20 bg-amber-500/[0.08] px-2 py-2">
+          <div className="text-[8px] font-black uppercase tracking-[0.12em] text-amber-300">Battle</div>
+          <div className="mt-0.5 text-[10px] font-semibold text-amber-100">{String(battle.role||"car").toUpperCase()} · {String(battle.phase||"active").replaceAll("_"," ")}</div>
+          {battleOpponent?<div className="mt-0.5 text-[9px] text-amber-200/70">vs {shortName(drivers,battleOpponent.driver_id)}</div>:null}
+        </div>:null}
+      </>:<div className="text-[10px] leading-relaxed text-slate-500">Select a driver from the timing tower or track to show live KPIs.</div>}
     </div>
   </aside>;
 });
@@ -732,7 +813,7 @@ export default function CanonicalRaceView({
     if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
   };
 
-  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[330px_minmax(0,1fr)]">
+  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[342px_minmax(0,1fr)_250px]">
     <ControlTowerPanel
       cars={cars}
       playerTeamId={playerTeamId}
@@ -747,7 +828,7 @@ export default function CanonicalRaceView({
         <span className={"rounded border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] "+controlTone(summary.control)}>{summary.control.replaceAll("_"," ")}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-300">Lap {summary.lap}/{summary.total_laps??"—"}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-400">{playbackRunning?`${playbackSpeed}× live`:"paused"}</span>
-        <span className="rounded border border-sky-400/20 bg-sky-500/10 px-2 py-1 text-[9px] font-semibold text-sky-100">Rain {rainPct}% · Wet {wetPct}% · Vis {visibilityPct}% · Spray {sprayPct}%</span>
+        <span className="rounded border border-sky-400/20 bg-sky-500/10 px-2 py-1 text-[9px] font-semibold text-sky-100">{String(view?.last_weather||"—").replaceAll("_"," ")}</span>
       </div>
       <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-lg border border-white/10 bg-black/55 p-1 shadow-lg backdrop-blur">
         {["fit","follow","free"].map((mode)=><button
@@ -873,6 +954,7 @@ export default function CanonicalRaceView({
         cars={visualCars}
         unitsPerMeter={unitsPerMeter}
         teamBrands={teamBrands}
+        drivers={drivers}
         year={year}
         selectedDriverId={selectedDriverId}
         pitBoxOffset={pitBoxOffset}
@@ -893,6 +975,12 @@ export default function CanonicalRaceView({
       />:null}
 
     </div>
+    <RaceInfoRail
+      view={view}
+      cars={cars}
+      drivers={drivers}
+      selectedDriverId={selectedDriverId}
+    />
 
   </div>;
 }
