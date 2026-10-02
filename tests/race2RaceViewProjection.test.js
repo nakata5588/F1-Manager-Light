@@ -131,6 +131,7 @@ test("RW8.14A keeps retirement, resources and Race Control as projections of can
   assert.equal(view.last_weather,state.weatherState.state);
   assert.equal(view.track_state.track_wetness,state.weatherState.track_wetness);
   assert.equal(view.track_state.grip_index,state.weatherState.grip_index);
+  assert.equal(view.track_state.spray_index,state.weatherState.spray_index);
   assert.equal(row.retired,true);
   assert.equal(row.status,"DNF");
   assert.equal(row.retirement_reason,"Engine failure");

@@ -11,6 +11,12 @@ import {
   raceViewInterpolationAlpha,
   raceViewInterpolationDurationMs,
 } from "../../race2/view/RaceViewInterpolation.js";
+import {
+  clampRaceViewZoom,
+  raceViewBoxCenter,
+  raceViewCameraViewBox,
+  raceViewWeatherVisuals,
+} from "../../race2/view/RaceViewPresentation.js";
 
 function scalar(value){
   if(value&&typeof value==="object"&&Object.hasOwn(value,"result"))return value.result;
@@ -193,7 +199,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
   return visualCars;
 }
 
-function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,scale=1,retired=false}){
+function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,onFollow,scale=1,retired=false}){
   const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
   if(!pose)return null;
   const length=14*scale;
@@ -204,6 +210,7 @@ function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,
     aria-label={label}
     transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
     onClick={onSelect}
+    onDoubleClick={(event)=>{event.preventDefault();event.stopPropagation();onFollow?.();}}
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
     style={{cursor:"pointer",opacity:retired?0.62:1}}
   >
@@ -213,6 +220,20 @@ function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,
     <path d={`M ${length*.30} 0 L ${length*.05} ${-width*.42} L ${length*.05} ${width*.42} Z`} fill={color} stroke="#020617" strokeWidth={1*scale}/>
     <line x1={-length*.38} y1={-width*.72} x2={-length*.38} y2={width*.72} stroke="#111827" strokeWidth={2*scale}/>
     <text x="0" y={-width*.95} transform={`rotate(${-pose.heading})`} textAnchor="middle" fontSize={5.5*scale} fontWeight="900" fill="#fff" stroke="#020617" strokeWidth=".7" paintOrder="stroke">{label}</text>
+  </g>;
+}
+
+function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1}){
+  if(opacity<=0||car?.retired)return null;
+  const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
+  if(!pose)return null;
+  return <g
+    pointerEvents="none"
+    transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
+    opacity={opacity}
+  >
+    <ellipse cx={-11*scale} cy="0" rx={13*scale} ry={4.2*scale} fill="#dbeafe" opacity=".24"/>
+    <ellipse cx={-20*scale} cy="0" rx={18*scale} ry={6.2*scale} fill="#e0f2fe" opacity=".13"/>
   </g>;
 }
 
@@ -248,21 +269,116 @@ export default function CanonicalRaceView({
   const unitsPerMeter=trackPathLength(points)/trackLengthM;
   const markerScale=Math.max(.65,Math.min(1.35,Number(viewBox?.[2]||1000)/900));
   const selected=cars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
+  const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
+  const selectedVisualPose=selectedVisual
+    ?carPose(geometry,selectedVisual.track_progress,selectedVisual.lateral_offset_m,unitsPerMeter)
+    :null;
+  const [cameraMode,setCameraMode]=useState("fit");
+  const [cameraZoom,setCameraZoom]=useState(1);
+  const [freeCenter,setFreeCenter]=useState(null);
+  const svgRef=useRef(null);
+  const dragRef=useRef(null);
+  const baseCenter=useMemo(()=>raceViewBoxCenter(viewBox),[viewBox]);
+  const followCenter=selectedVisualPose
+    ?{x:selectedVisualPose.x,y:selectedVisualPose.y}
+    :baseCenter;
+  const cameraCenter=cameraMode==="follow"
+    ?followCenter
+    :(freeCenter||baseCenter);
+  const cameraBox=cameraMode==="fit"
+    ?viewBox
+    :raceViewCameraViewBox(viewBox,{zoom:cameraZoom,center:cameraCenter});
+  const weatherVisuals=useMemo(()=>raceViewWeatherVisuals(view?.track_state||{}),[view?.track_state]);
+  const rainPct=Math.round(weatherVisuals.rain*100);
+  const wetPct=Math.round(weatherVisuals.wet*100);
+  const visibilityPct=Math.round(weatherVisuals.visibility*100);
+  const sprayPct=Math.round(weatherVisuals.spray*100);
+
+  const switchToFit=()=>{
+    setCameraMode("fit");
+    setCameraZoom(1);
+    setFreeCenter(null);
+  };
+  const switchToFollow=()=>{
+    if(!selectedVisualPose)return;
+    setCameraMode("follow");
+    setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
+  };
+  const switchToFree=()=>{
+    setFreeCenter(cameraCenter);
+    setCameraMode("free");
+    setCameraZoom((current)=>Math.max(1.15,clampRaceViewZoom(current)));
+  };
+  const onWheel=(event)=>{
+    event.preventDefault();
+    const factor=event.deltaY<0?1.18:(1/1.18);
+    setCameraZoom((current)=>clampRaceViewZoom(current*factor));
+    if(cameraMode==="fit"){
+      setFreeCenter(baseCenter);
+      setCameraMode("free");
+    }
+  };
+  const onPointerDown=(event)=>{
+    if(event.button!==0)return;
+    const svg=svgRef.current;
+    if(!svg)return;
+    const rect=svg.getBoundingClientRect();
+    if(!rect.width||!rect.height)return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current={
+      pointerId:event.pointerId,
+      clientX:event.clientX,
+      clientY:event.clientY,
+      center:{...cameraCenter},
+      unitsPerPixelX:cameraBox[2]/rect.width,
+      unitsPerPixelY:cameraBox[3]/rect.height,
+    };
+    setFreeCenter({...cameraCenter});
+    setCameraMode("free");
+  };
+  const onPointerMove=(event)=>{
+    const drag=dragRef.current;
+    if(!drag||drag.pointerId!==event.pointerId)return;
+    setFreeCenter({
+      x:drag.center.x-(event.clientX-drag.clientX)*drag.unitsPerPixelX,
+      y:drag.center.y-(event.clientY-drag.clientY)*drag.unitsPerPixelY,
+    });
+  };
+  const endPointerDrag=(event)=>{
+    if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
+  };
 
   return <div className="grid overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[minmax(0,1fr)_290px]">
-    <div className="relative min-h-[430px] overflow-hidden bg-[#101923]">
-      <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
+    <div className="relative min-h-[560px] overflow-hidden bg-[#101923]">
+      <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
         <span className="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200">Canonical Race View</span>
         <span className={"rounded border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] "+controlTone(summary.control)}>{summary.control.replaceAll("_"," ")}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-300">Lap {summary.lap}/{summary.total_laps??"—"}</span>
         <span className="rounded border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-semibold text-slate-400">{playbackRunning?`${playbackSpeed}× live`:"paused"}</span>
+        <span className="rounded border border-sky-400/20 bg-sky-500/10 px-2 py-1 text-[9px] font-semibold text-sky-100">Rain {rainPct}% · Wet {wetPct}% · Vis {visibilityPct}% · Spray {sprayPct}%</span>
+      </div>
+      <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-lg border border-white/10 bg-black/55 p-1 shadow-lg backdrop-blur">
+        {["fit","follow","free"].map((mode)=><button
+          key={mode}
+          type="button"
+          disabled={mode==="follow"&&!selectedVisual}
+          onClick={()=>mode==="fit"?switchToFit():mode==="follow"?switchToFollow():switchToFree()}
+          className={"rounded px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] transition "+(cameraMode===mode?"bg-cyan-400 text-slate-950":"text-slate-300 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35")}
+        >{mode}</button>)}
+        <span className="min-w-[40px] px-1 text-center text-[9px] font-mono text-slate-400">{cameraZoom.toFixed(1)}×</span>
       </div>
 
       {points.length>1?<svg
-        className="h-[430px] w-full md:h-[540px]"
-        viewBox={viewBox.join(" ")}
+        ref={svgRef}
+        className={"h-[560px] w-full select-none md:h-[680px] "+(cameraMode==="free"?"cursor-grab active:cursor-grabbing":"cursor-default")}
+        viewBox={cameraBox.join(" ")}
         preserveAspectRatio="xMidYMid meet"
         aria-label="Canonical race track"
+        onWheel={onWheel}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endPointerDrag}
+        onPointerCancel={endPointerDrag}
       >
         <defs>
           <linearGradient id="rw9-asphalt" x1="0" x2="1">
@@ -272,10 +388,33 @@ export default function CanonicalRaceView({
           </linearGradient>
         </defs>
         <rect x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]} fill="#26371f"/>
+        {weatherVisuals.grassDarkenOpacity>0?<rect
+          x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]}
+          fill="#07111a" opacity={weatherVisuals.grassDarkenOpacity}
+          pointerEvents="none"
+        />:null}
         <polyline points={polyline} fill="none" stroke="#111827" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="url(#rw9-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
+        {weatherVisuals.wetTrackOpacity>0?<polyline
+          points={polyline}
+          fill="none"
+          stroke="#7dd3fc"
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={weatherVisuals.wetTrackOpacity}
+          pointerEvents="none"
+        />:null}
         <polyline points={polyline} fill="none" stroke="#f8fafc" strokeWidth=".65" strokeDasharray="2 13" opacity=".18"/>
+        {visualCars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=><CanonicalSpray
+          key={`spray_${car.id}`}
+          car={car}
+          geometry={geometry}
+          unitsPerMeter={unitsPerMeter}
+          opacity={weatherVisuals.sprayOpacity}
+          scale={markerScale}
+        />)}
         {visualCars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false).map((car)=>{
           const color=teamColor(teamBrands,car.team_id,year);
           const label=shortName(drivers,car.driver_id);
@@ -290,13 +429,30 @@ export default function CanonicalRaceView({
             selected={String(car.driver_id)===String(selectedDriverId||"")}
             playbackRunning={playbackRunning}
             onSelect={()=>onSelectDriver?.(String(car.driver_id||""))}
+            onFollow={()=>{
+              onSelectDriver?.(String(car.driver_id||""));
+              setCameraMode("follow");
+              setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
+            }}
             scale={markerScale}
             retired={car.retired}
           />;
         })}
-      </svg>:<div className="flex h-[430px] items-center justify-center text-sm text-slate-500">Track geometry unavailable.</div>}
+      </svg>:<div className="flex h-[560px] items-center justify-center text-sm text-slate-500 md:h-[680px]">Track geometry unavailable.</div>}
+      {weatherVisuals.rainOpacity>0?<div
+        className="pointer-events-none absolute inset-0 z-10"
+        style={{
+          opacity:weatherVisuals.rainOpacity,
+          backgroundImage:"repeating-linear-gradient(112deg, transparent 0 13px, rgba(186,230,253,.55) 13px 14px, transparent 14px 25px)",
+          backgroundSize:"42px 42px",
+        }}
+      />:null}
+      {weatherVisuals.fogOpacity>0?<div
+        className="pointer-events-none absolute inset-0 z-10 bg-slate-300"
+        style={{opacity:weatherVisuals.fogOpacity}}
+      />:null}
 
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded border border-white/10 bg-black/45 px-2.5 py-1.5 text-[9px] text-slate-400">
+      <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded border border-white/10 bg-black/45 px-2.5 py-1.5 text-[9px] text-slate-400">
         Tick {summary.canonical_tick} · {(summary.canonical_time_ms/1000).toFixed(1)}s · {summary.weather.replaceAll("_"," ")}
       </div>
     </div>
@@ -306,7 +462,7 @@ export default function CanonicalRaceView({
         <div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">Official classification</div>
         <div className="mt-0.5 text-[10px] text-slate-600">Read directly from canonical RaceState</div>
       </div>
-      <div className="max-h-[470px] overflow-y-auto">
+      <div className="max-h-[610px] overflow-y-auto">
         {cars.map((car,index)=>{
           const mine=String(car.team_id)===String(playerTeamId||"");
           const active=String(car.driver_id)===String(selectedDriverId||"");
