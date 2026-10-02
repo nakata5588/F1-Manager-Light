@@ -902,8 +902,15 @@ test("RW16 race finalization is idempotent when an archived result is resumed fr
     ...finalized,
     raceWeekendState:{
       ...staleWeekend,
+      engine_version:"legacy",
       phase:"race",
       active_session_id:"race",
+      live_race:{
+        status:"running",
+        current_lap:1,
+        current_sector:1,
+        total_laps:76,
+      },
     },
   };
 
@@ -918,6 +925,28 @@ test("RW16 race finalization is idempotent when an archived result is resumed fr
   assert.deepEqual(recovered.financeLog,snapshot.financeLog);
   assert.deepEqual(recovered.garage,snapshot.garage);
   assert.deepEqual(recovered.driverAttributes,snapshot.driverAttributes);
+
+  const staleCanonical={
+    ...finalized,
+    raceWeekendState:{
+      ...staleWeekend,
+      engine_version:"rw2",
+      phase:"race",
+      active_session_id:"race",
+      live_race:null,
+      canonical_race_runtime:{
+        state:{status:"running"},
+        accumulatorMs:0,
+      },
+    },
+  };
+  const recoveredCanonical=await completeRaceSession(staleCanonical,{gp});
+  assert.equal(recoveredCanonical.raceWeekendState.phase,"results");
+  assert.equal(recoveredCanonical.raceWeekendState.race_result_key,resultKey);
+  assert.deepEqual(recoveredCanonical.results,snapshot.results);
+  assert.deepEqual(recoveredCanonical.standings,snapshot.standings);
+  assert.deepEqual(recoveredCanonical.finances,snapshot.finances);
+  assert.deepEqual(recoveredCanonical.garage,snapshot.garage);
 });
 
 
