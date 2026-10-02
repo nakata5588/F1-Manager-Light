@@ -4,6 +4,7 @@ import { teamCarPerformance } from "../../domain/carPerformance.js";
 import { conditionModifierBreakdown, raceDriverScore } from "../../domain/driverPerformance.js";
 import { driverDerivedRating, driverMistakePropensity } from "../../domain/driverDerivedRatings.js";
 import { driverPerformanceEntries } from "../../domain/driverForm.js";
+import { teamOrderComplianceProfile } from "../../domain/driverRelationshipConsequences.js";
 import { managerGameplayEffects } from "../../domain/managerProfile.js";
 import { tyresForTeam } from "../../domain/raceTyreModel.js";
 import { carReliabilityProfile } from "../../domain/carReliability.js";
@@ -59,14 +60,25 @@ function normalizedDrivers(gs,entries){
   const driversById=new Map((gs?.drivers||[]).map((row)=>[idOf(row),row]));
   const ratingsById=new Map((gs?.driverRatings||[]).map((row)=>[idOf(row),row]));
   const teamByDriver=new Map(entries.filter((entry)=>entry.driverId).map((entry)=>[entry.driverId,entry.teamId]));
+  const driversByTeam=new Map();
+  for(const entry of entries){
+    if(!entry?.driverId||!entry?.teamId)continue;
+    if(!driversByTeam.has(entry.teamId))driversByTeam.set(entry.teamId,[]);
+    driversByTeam.get(entry.teamId).push(entry.driverId);
+  }
   return [...new Set(entries.map((entry)=>entry.driverId).filter(Boolean))]
     .sort((a,b)=>a.localeCompare(b))
     .map((driverId)=>{
       const rating=ratingsById.get(driverId)||{};
       const condition=conditionModifierBreakdown(gs,driverId);
+      const teamId=teamByDriver.get(driverId)||teamIdOf(driversById.get(driverId))||null;
+      const teammateId=(driversByTeam.get(teamId)||[]).find((id)=>id!==driverId)||null;
+      const teamOrderCompliance=teammateId
+        ?teamOrderComplianceProfile(gs,driverId,teammateId,{teamId})
+        :null;
       return {
         driverId,
-        teamId:teamByDriver.get(driverId)||teamIdOf(driversById.get(driverId))||null,
+        teamId,
         profile:cloneRaceContractValue(driversById.get(driverId)||{}),
         ratings:cloneRaceContractValue(rating),
         condition:cloneRaceContractValue(gs?.driverAttributes?.[driverId]||{}),
@@ -80,6 +92,13 @@ function normalizedDrivers(gs,entries){
           raceIntelligence:finite(rating?.race_intelligence,60),
           aggression:finite(rating?.aggression??rating?.agression,null),
           tyreManagement:finite(rating?.tire_management,60),
+          teamOrderCompliance:teamOrderCompliance?cloneRaceContractValue({
+            teammateId,
+            probability:finite(teamOrderCompliance?.probability,1),
+            label:teamOrderCompliance?.label??null,
+            atRisk:Boolean(teamOrderCompliance?.at_risk),
+            reasons:teamOrderCompliance?.reasons??[],
+          }):null,
         },
       };
     });

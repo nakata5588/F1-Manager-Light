@@ -9,11 +9,12 @@ import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
+import { canonicalRacePostRaceContext } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 
-function input({cars=1,refuellingAllowed=false}={}){
+function input({cars=1,refuellingAllowed=false,sameTeam=false,teamOrderProbability=1,teamOrderAtRisk=false}={}){
   const entries=Array.from({length:cars},(_,index)=>({
     driverId:`D${index+1}`,
-    teamId:`T${index+1}`,
+    teamId:sameTeam?"T1":`T${index+1}`,
     carId:`C${index+1}`,
     status:"confirmed",
   }));
@@ -28,7 +29,7 @@ function input({cars=1,refuellingAllowed=false}={}){
     seed:"rw8.9-commands",
     year:2026,
     entries,
-    drivers:entries.map((entry)=>({
+    drivers:entries.map((entry,index)=>({
       driverId:entry.driverId,
       teamId:entry.teamId,
       performance:{
@@ -38,6 +39,13 @@ function input({cars=1,refuellingAllowed=false}={}){
         mistakePropensity:15,
         aggression:45,
         tyreManagement:70,
+        teamOrderCompliance:sameTeam&&cars>1?{
+          teammateId:`D${index===0?2:1}`,
+          probability:teamOrderProbability,
+          label:teamOrderAtRisk?"Fragile":"Reliable",
+          atRisk:teamOrderAtRisk,
+          reasons:[],
+        }:null,
       },
     })),
     cars:entries.map((entry)=>({
@@ -317,6 +325,94 @@ test("RW8.9 Live and Fast execute the same queued command through the same core"
   assert.deepEqual(live.getState(),fast);
 });
 
+
+test("RW22 canonical team order is accepted only for the directly trailing team-mate and completes physically",()=>{
+  let state=runningState({cars:2,sameTeam:true});
+  state=queueRaceCommand(state,{
+    driverId:"D1",
+    type:"team_order",
+    teamOrder:"yield",
+    teammateId:"D2",
+    effectiveAtTick:0,
+  });
+  assert.equal(state.commandQueue.length,1);
+  assert.equal(state.commandQueue[0].type,"team_order");
+  assert.equal(state.commandQueue[0].payload.teammateDriverId,"D2");
+
+  const beforeDistance=car(state,"C1").absoluteDistanceM;
+  state=stepRaceState(state);
+  assert.equal(car(state,"C1").commands.teamOrder.active,true);
+  assert.equal(car(state,"C1").commands.teamOrder.teammateDriverId,"D2");
+  assert.ok(car(state,"C1").absoluteDistanceM>=beforeDistance);
+
+  const completed=runUntil(
+    state,
+    (candidate)=>candidate.events.some((event)=>event.type==="team_order_completed"),
+    {maxSteps:1200}
+  );
+  assert.ok(car(completed,"C2").absoluteDistanceM>car(completed,"C1").absoluteDistanceM);
+  assert.equal(car(completed,"C1").commands.teamOrder,undefined);
+  assert.ok(completed.events.some((event)=>event.type==="command_applied"&&event.payload.commandType==="team_order"));
+  assert.ok(completed.events.some((event)=>event.type==="team_order_completed"));
+
+  const postRace=canonicalRacePostRaceContext({
+    raceWeekendState:{race_strategy:{selections:{D1:{pace_mode:"balanced"}}}},
+  },completed);
+  const decision=postRace.summary.strategies.D1.strategy_decisions.at(-1);
+  assert.equal(decision.action,"team_order");
+  assert.equal(decision.order,"yield");
+  assert.equal(decision.teammate_id,"D2");
+});
+
+test("RW22 canonical team-order refusal is deterministic and leaves physical state unchanged",()=>{
+  let state=runningState({
+    cars:2,
+    sameTeam:true,
+    teamOrderProbability:0,
+    teamOrderAtRisk:true,
+  });
+  state=queueRaceCommand(state,{
+    driverId:"D1",
+    type:"team_order",
+    teamOrder:"yield",
+    teammateId:"D2",
+    effectiveAtTick:0,
+  });
+  const before=car(state,"C1").absoluteDistanceM;
+  state=stepRaceState(state);
+  assert.equal(car(state,"C1").commands.teamOrder,undefined);
+  assert.ok(state.events.some((event)=>event.type==="team_order_refused"));
+  assert.ok(car(state,"C1").absoluteDistanceM>=before);
+});
+
+test("RW22 rejects a team order to a non-team-mate",()=>{
+  const state=runningState({cars:2,sameTeam:false});
+  const next=queueRaceCommand(state,{
+    driverId:"D1",
+    type:"team_order",
+    teamOrder:"yield",
+    teammateId:"D2",
+  });
+  assert.equal(next,state);
+});
+
+test("RW22 Live and Fast execute an accepted team order through the same canonical core",()=>{
+  const initial=runningState({cars:2,sameTeam:true});
+  const command={
+    driverId:"D1",
+    type:"team_order",
+    teamOrder:"yield",
+    teammateId:"D2",
+    effectiveAtTick:0,
+  };
+
+  const fast=runFastRace(queueRaceCommand(initial,command),{steps:240});
+  const live=createLiveRaceRunner(initial);
+  live.queueCommand(command);
+  for(let index=0;index<240;index+=1)live.step();
+
+  assert.deepEqual(live.getState(),fast);
+});
 
 test("RW10E repair-only pit command uses shared damage repair truth without changing tyres",()=>{
   let state=atDistance(runningState(),898);

@@ -72,6 +72,38 @@ function wetRace(state,snapshot){
   return wetness>0.08||/RAIN|WET|STORM/.test(name);
 }
 
+function canonicalStrategySummaries(strategy,state){
+  const source=strategy?.selections&&typeof strategy.selections==="object"
+    ?structuredClone(strategy.selections)
+    :{};
+  for(const event of state?.events||[]){
+    if(String(event?.type||"")!=="command_applied")continue;
+    const payload=event?.payload||{};
+    if(String(payload?.commandType||"")!=="team_order")continue;
+    if(String(payload?.order||"")!=="yield")continue;
+    const driverId=text(event?.driverIds?.[0]);
+    const teammateId=text(payload?.teammateDriverId);
+    if(!driverId||!teammateId)continue;
+    const row=source[driverId]&&typeof source[driverId]==="object"
+      ?{...source[driverId]}
+      :{};
+    const decisions=Array.isArray(row?.strategy_decisions)
+      ?row.strategy_decisions.map((decision)=>({...decision}))
+      :[];
+    decisions.push({
+      action:"team_order",
+      order:"yield",
+      teammate_id:teammateId,
+      source:CANONICAL_RACE_RESULT_SOURCE,
+      tick:finite(event?.tick,null),
+      time_ms:finite(event?.timeMs,null),
+      relationship_compliance:finite(payload?.relationshipCompliance,null),
+    });
+    source[driverId]={...row,strategy_decisions:decisions};
+  }
+  return source;
+}
+
 export function projectCanonicalRaceStateToOfficialRows(gs,state){
   if(!state||typeof state!=="object")throw new TypeError("Finished canonical RaceState is required");
   if(String(state?.status||"")!=="finished")throw new TypeError("Canonical RaceState must be finished before result projection");
@@ -183,7 +215,7 @@ export function canonicalRacePostRaceContext(gs,state){
       rules,
       weather,
       track,
-      strategies:strategy?.selections||{},
+      strategies:canonicalStrategySummaries(strategy,state),
       race_control:raceControl,
     },
   };
