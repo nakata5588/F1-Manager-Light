@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildClosedRacingLine,
+  racingLineGeometry,
   racingLinePoseAtProgress,
 } from "../src/domain/raceSplineV3.js";
 import {
@@ -22,6 +23,31 @@ test("Track 3.0A racing line is closed, dense and arc-length addressable",()=>{
   assert.ok(Math.abs(a.x-b.x)<1e-6);
   assert.ok(Math.abs(a.y-b.y)<1e-6);
   assert.ok(Number.isFinite(a.heading));
+});
+
+test("RW19 presentation spline keeps the closed path continuous through source vertices",()=>{
+  const source={
+    view_box:[0,0,100,100],
+    points:[[0,0],[100,0],[100,100],[0,100]],
+    pit_lane_points:[[10,10],[50,10],[90,10]],
+  };
+  const line=buildClosedRacingLine(source.points,{samplesPerSegment:8,parameterization:"centripetal"});
+  const geometry=racingLineGeometry(source,line);
+
+  assert.equal(geometry.racing_line_v3,true);
+  assert.equal(line.parameterization,"centripetal");
+  assert.equal(geometry.points.length,32);
+  assert.deepEqual(geometry.pit_lane_points,source.pit_lane_points);
+
+  const before=racingLinePoseAtProgress(line,.249);
+  const after=racingLinePoseAtProgress(line,.251);
+  const delta=Math.abs((((after.heading-before.heading)+540)%360)-180);
+  assert.ok(delta<15,`heading should turn smoothly across a source vertex, got ${delta}`);
+
+  const end=racingLinePoseAtProgress(line,.999);
+  const start=racingLinePoseAtProgress(line,.001);
+  const seamDelta=Math.abs((((start.heading-end.heading)+540)%360)-180);
+  assert.ok(seamDelta<15,`start/finish heading should stay continuous, got ${seamDelta}`);
 });
 
 test("Track 3.0A world targets unwrap forward across start finish",()=>{

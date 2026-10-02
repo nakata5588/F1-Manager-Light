@@ -19,7 +19,41 @@ function catmullRom(p0,p1,p2,p3,t){
   return [x,y];
 }
 
-export function buildClosedRacingLine(input,{samplesPerSegment=8}={}){
+function centripetalInterval(a,b){
+  return Math.max(1e-6,Math.sqrt(Math.hypot(b[0]-a[0],b[1]-a[1])));
+}
+
+function interpolateParametric(a,b,ta,tb,t){
+  const span=Math.max(1e-9,tb-ta);
+  const left=(tb-t)/span;
+  const right=(t-ta)/span;
+  return [
+    a[0]*left+b[0]*right,
+    a[1]*left+b[1]*right,
+  ];
+}
+
+function catmullRomCentripetal(p0,p1,p2,p3,u){
+  const t0=0;
+  const t1=t0+centripetalInterval(p0,p1);
+  const t2=t1+centripetalInterval(p1,p2);
+  const t3=t2+centripetalInterval(p2,p3);
+  if(t2-t1<=1e-9){
+    return [
+      p1[0]+(p2[0]-p1[0])*u,
+      p1[1]+(p2[1]-p1[1])*u,
+    ];
+  }
+  const t=t1+(t2-t1)*Math.max(0,Math.min(1,Number(u)||0));
+  const a1=interpolateParametric(p0,p1,t0,t1,t);
+  const a2=interpolateParametric(p1,p2,t1,t2,t);
+  const a3=interpolateParametric(p2,p3,t2,t3,t);
+  const b1=interpolateParametric(a1,a2,t0,t2,t);
+  const b2=interpolateParametric(a2,a3,t1,t3,t);
+  return interpolateParametric(b1,b2,t1,t2,t);
+}
+
+export function buildClosedRacingLine(input,{samplesPerSegment=8,parameterization="uniform"}={}){
   const points=(Array.isArray(input)?input:[]).map(finitePoint).filter(Boolean);
   if(points.length<3)return {points,total_length:0,cumulative:[0],source_count:points.length,samples_per_segment:0};
   const samples=Math.max(3,Math.min(24,Math.round(Number(samplesPerSegment)||8)));
@@ -31,7 +65,11 @@ export function buildClosedRacingLine(input,{samplesPerSegment=8}={}){
     const p3=points[(index+2)%points.length];
     for(let step=0;step<samples;step+=1){
       const t=step/samples;
-      out.push(catmullRom(p0,p1,p2,p3,t));
+      out.push(
+        String(parameterization).toLowerCase()==="centripetal"
+          ?catmullRomCentripetal(p0,p1,p2,p3,t)
+          :catmullRom(p0,p1,p2,p3,t)
+      );
     }
   }
 
@@ -49,6 +87,7 @@ export function buildClosedRacingLine(input,{samplesPerSegment=8}={}){
     cumulative,
     source_count:points.length,
     samples_per_segment:samples,
+    parameterization:String(parameterization).toLowerCase()==="centripetal"?"centripetal":"uniform",
   };
 }
 

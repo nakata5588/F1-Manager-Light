@@ -4,6 +4,8 @@ import {
   pointAtTrackProgress,
   resolveTrackLayout,
   trackGeometryViewBox,
+  trackPresentationSplineEligible,
+  trackRuntimeGeometry,
 } from "../../domain/trackLayout.js";
 import {
   openPolylineHeadingDegrees,
@@ -26,6 +28,10 @@ import {
   raceViewRetargetCanonicalDeltaMs,
   retimeRaceViewInterpolation,
 } from "../../race2/view/RaceViewInterpolation.js";
+import {
+  buildClosedRacingLine,
+  racingLineGeometry,
+} from "../../domain/raceSplineV3.js";
 import {
   clampRaceViewZoom,
   raceViewBoxCenter,
@@ -800,7 +806,22 @@ export default function CanonicalRaceView({
       ?value
       :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
   },[resolved]);
-  const geometry=useMemo(()=>orientTrackGeometry(resolved?.geometry||null),[resolved?.geometry]);
+  const runtimeGeometry=useMemo(()=>trackRuntimeGeometry(resolved),[resolved]);
+  const sourceGeometry=useMemo(
+    ()=>orientTrackGeometry(runtimeGeometry?.geometry||null),
+    [runtimeGeometry]
+  );
+  const presentationLine=useMemo(()=>{
+    const sourcePoints=Array.isArray(sourceGeometry?.points)?sourceGeometry.points:[];
+    return sourcePoints.length>=3&&trackPresentationSplineEligible(resolved,runtimeGeometry)
+      ?buildClosedRacingLine(sourcePoints,{samplesPerSegment:8,parameterization:"centripetal"})
+      :null;
+  },[resolved,runtimeGeometry,sourceGeometry]);
+  const geometry=useMemo(()=>
+    presentationLine?.points?.length
+      ?racingLineGeometry(sourceGeometry,presentationLine)
+      :sourceGeometry
+  ,[sourceGeometry,presentationLine]);
   const viewBox=useMemo(()=>trackGeometryViewBox(geometry,{paddingRatio:.06,minPadding:20}),[geometry]);
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const closedPoints=points.length?[...points,points[0]]:[];
