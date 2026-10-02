@@ -351,6 +351,12 @@ test("RW23 canonical Red Flag work changes tyres, repairs damage and strategy wi
   red=applyCanonicalRedFlagDamageRepair(red,{driverId:"D1",teamId:"T1"});
   assert.ok(red.cars[0].damage.pace_loss_s_per_lap<beforeRepair);
   assert.equal(red.cars[0].absoluteDistanceM,distance);
+  const afterRepair=red;
+  assert.equal(
+    applyCanonicalRedFlagDamageRepair(red,{driverId:"D1",teamId:"T1"}),
+    afterRepair,
+    "damage repair is single-use per Red Flag sequence"
+  );
 
   red=applyCanonicalRedFlagRestartStrategy(red,{
     driverId:"D1",
