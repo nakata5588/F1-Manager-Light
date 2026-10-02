@@ -105,10 +105,13 @@ function advanceCar(state,car,stepMs){
       assistedTargetSpeedKmh??trafficTargetSpeedKmh
     ))
     :assistedTargetSpeedKmh;
+  const assistedAcceleration=(
+    trafficLimited||slipstreamBonusKmh>0
+  )
+    ?raceAccelerationForTarget(state,car,effectiveTargetSpeedKmh)
+    :dynamics?.accelerationMs2;
   const acceleration=Math.max(-100,Math.min(100,finite(
-    trafficLimited
-      ?raceAccelerationForTarget(state,car,effectiveTargetSpeedKmh)
-      :dynamics?.accelerationMs2,
+    assistedAcceleration,
     finite(car?.accelerationMs2,0)
   )));
   const unconstrainedNextSpeed=speedMs+acceleration*dt;
