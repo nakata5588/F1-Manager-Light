@@ -61,6 +61,22 @@ test("RW5.3A component damage produces explicit performance effects",()=>{
   assert.equal(state.can_continue,true);
 });
 
+test("RW27 front-wing damage is a stronger pace consequence than equivalent floor damage",()=>{
+  const wing=damageStateFromComponents({front_wing:60});
+  const floor=damageStateFromComponents({floor:60});
+  assert.ok(wing.pace_loss_s_per_lap>=1.08);
+  assert.ok(wing.pace_loss_s_per_lap>floor.pace_loss_s_per_lap);
+});
+
+test("RW27 repeated front-wing contacts keep escalating damage and pace loss",()=>{
+  const hit=damageStateFromComponents({front_wing:30});
+  const twice=mergeDamageStates([hit,hit]);
+  const threeTimes=mergeDamageStates([twice,hit]);
+  assert.ok(twice.components.front_wing.damage_pct>hit.components.front_wing.damage_pct);
+  assert.ok(threeTimes.components.front_wing.damage_pct>twice.components.front_wing.damage_pct);
+  assert.ok(threeTimes.pace_loss_s_per_lap>twice.pace_loss_s_per_lap);
+});
+
 test("RW5.3A incident damage can be survivable or terminal from the same physical model",()=>{
   const survivable=damageFromIncident({
     kind:"collision",
