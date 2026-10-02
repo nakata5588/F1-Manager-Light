@@ -188,7 +188,6 @@ function useCanonicalRaceViewMotion(canonicalCars,{
     playbackRunning,
     playbackSpeed,
     trackLengthM,
-    canonicalCars,
   ]);
 
   return visualCars;
