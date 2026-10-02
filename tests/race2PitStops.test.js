@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { normalisePitPhaseDurations } from "../src/domain/racePitModel.js";
+import { normalisePitPhaseDurations, pitLaneProgressForPhase } from "../src/domain/racePitModel.js";
 import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createLivePitState } from "../src/engine/LivePitStopEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
@@ -799,4 +799,32 @@ test("RW11E AI no-stop plan reacts immediately to a canonical wet-weather crosso
   assert.equal(planned.resources.strategy.nextTyreId,"inter");
   assert.equal(planned.resources.strategy.autoPitReason,"weather");
   assert.equal(planned.resources.strategy.plannedStopLap,4);
+});
+
+
+test("RW12C shared pit phase progress maps entry, box and exit onto one pit-lane axis",()=>{
+  const phases=[
+    {phase:"pit_entry",duration_ms:1000},
+    {phase:"pit_lane",duration_ms:1000},
+    {phase:"pit_queue",duration_ms:500},
+    {phase:"pit_box",duration_ms:2000},
+    {phase:"pit_release",duration_ms:500},
+    {phase:"pit_exit",duration_ms:1000},
+    {phase:"rejoin",duration_ms:1000},
+  ];
+  assert.equal(pitLaneProgressForPhase({
+    active:true,phase:"pit_entry",phaseIndex:0,phaseElapsedMs:500,service:{phases},
+  },{boxProgress:0.6}),0.15);
+  assert.equal(pitLaneProgressForPhase({
+    active:true,phase:"pit_lane",phaseIndex:1,phaseElapsedMs:1000,service:{phases},
+  },{boxProgress:0.6}),0.6);
+  assert.equal(pitLaneProgressForPhase({
+    active:true,phase:"pit_box",phaseIndex:3,phaseElapsedMs:800,service:{phases},
+  },{boxProgress:0.6}),0.6);
+  assert.equal(pitLaneProgressForPhase({
+    active:true,phase:"pit_exit",phaseIndex:5,phaseElapsedMs:1000,service:{phases},
+  },{boxProgress:0.6}),0.8);
+  assert.equal(pitLaneProgressForPhase({
+    active:false,completed:true,phase:"completed",service:{phases},
+  },{boxProgress:0.6}),1);
 });

@@ -24,6 +24,7 @@ import {
   clampRaceViewZoom,
   raceViewBoxCenter,
   raceViewCameraViewBox,
+  raceViewPitBoxProgress,
   raceViewWeatherVisuals,
 } from "../src/race2/view/RaceViewPresentation.js";
 
@@ -261,4 +262,39 @@ test("RW12B weather visuals are derived only from canonical track-state indices"
   assert.ok(wet.fogOpacity>0.4);
   assert.ok(wet.wetTrackOpacity>0.5);
   assert.ok(wet.sprayOpacity>0.3);
+});
+
+
+test("RW12C pit boxes are distributed deterministically by team order",()=>{
+  const teams=["T1","T2","T3"];
+  assert.equal(raceViewPitBoxProgress(teams,"T1"),0.3);
+  assert.equal(raceViewPitBoxProgress(teams,"T2"),0.52);
+  assert.equal(raceViewPitBoxProgress(teams,"T3"),0.74);
+  assert.equal(raceViewPitBoxProgress(["T1"],"T1"),0.52);
+});
+
+test("RW12C RW12A interpolation keeps pit-lane travel continuous through entry and exit",()=>{
+  const track={trackLengthM:1000};
+  const entry=interpolateRaceViewCar(
+    {id:"C1",absolute_distance_m:900,lateral_offset_m:0,pit_lane_active:false,pit_lane_progress:null},
+    {id:"C1",absolute_distance_m:910,lateral_offset_m:0,pit_lane_active:true,pit_lane_progress:0.2,pit_box_progress:0.52},
+    {alpha:0.5,...track}
+  );
+  assert.equal(entry.pit_lane_active,true);
+  assert.equal(entry.pit_lane_progress,0.1);
+
+  const exit=interpolateRaceViewCar(
+    {id:"C1",absolute_distance_m:1090,lateral_offset_m:0,pit_lane_active:true,pit_lane_progress:0.9,pit_box_progress:0.52},
+    {id:"C1",absolute_distance_m:1100,lateral_offset_m:0,pit_lane_active:false,pit_lane_progress:null,pit_box_progress:0.52},
+    {alpha:0.5,...track}
+  );
+  assert.equal(exit.pit_lane_active,true);
+  assert.equal(exit.pit_lane_progress,0.95);
+
+  const rejoined=interpolateRaceViewCar(
+    {id:"C1",absolute_distance_m:1090,lateral_offset_m:0,pit_lane_active:true,pit_lane_progress:0.9,pit_box_progress:0.52},
+    {id:"C1",absolute_distance_m:1100,lateral_offset_m:0,pit_lane_active:false,pit_lane_progress:null,pit_box_progress:0.52},
+    {alpha:1,...track}
+  );
+  assert.equal(rejoined.pit_lane_active,false);
 });

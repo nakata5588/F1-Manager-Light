@@ -5,6 +5,11 @@ import {
   resolveTrackLayout,
   trackGeometryViewBox,
 } from "../../domain/trackLayout.js";
+import {
+  openPolylineHeadingDegrees,
+  sampleOpenPolylinePoint,
+} from "../../domain/trackSceneGeometry.js";
+import { pitLaneProgressForPhase } from "../../domain/racePitModel.js";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
 import {
   interpolateRaceViewCars,
@@ -15,6 +20,7 @@ import {
   clampRaceViewZoom,
   raceViewBoxCenter,
   raceViewCameraViewBox,
+  raceViewPitBoxProgress,
   raceViewWeatherVisuals,
 } from "../../race2/view/RaceViewPresentation.js";
 
@@ -103,6 +109,25 @@ function carPose(geometry,progress,lateralOffsetM,unitsPerMeter){
     y:center.y+(dx/length)*lateral,
     heading,
   };
+}
+
+function pitLanePose(geometry,progress){
+  const points=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
+  if(points.length<2||!Number.isFinite(Number(progress)))return null;
+  const point=sampleOpenPolylinePoint(points,Math.max(0,Math.min(1,Number(progress))));
+  if(!point)return null;
+  return {
+    ...point,
+    heading:openPolylineHeadingDegrees(points,Math.max(0,Math.min(1,Number(progress))))||0,
+  };
+}
+
+function visualCarPose(car,geometry,unitsPerMeter){
+  if(car?.pit_lane_active){
+    const pit=pitLanePose(geometry,car?.pit_lane_progress);
+    if(pit)return pit;
+  }
+  return carPose(geometry,car?.track_progress,car?.lateral_offset_m,unitsPerMeter);
 }
 
 function controlTone(control){
@@ -200,7 +225,7 @@ function useCanonicalRaceViewMotion(canonicalCars,{
 }
 
 function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,onFollow,scale=1,retired=false}){
-  const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
+  const pose=visualCarPose(car,geometry,unitsPerMeter);
   if(!pose)return null;
   const length=14*scale;
   const width=7*scale;
@@ -225,7 +250,7 @@ function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,
 
 function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1}){
   if(opacity<=0||car?.retired)return null;
-  const pose=carPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
+  const pose=visualCarPose(car,geometry,unitsPerMeter);
   if(!pose)return null;
   return <g
     pointerEvents="none"
@@ -234,6 +259,36 @@ function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1}){
   >
     <ellipse cx={-11*scale} cy="0" rx={13*scale} ry={4.2*scale} fill="#dbeafe" opacity=".24"/>
     <ellipse cx={-20*scale} cy="0" rx={18*scale} ry={6.2*scale} fill="#e0f2fe" opacity=".13"/>
+  </g>;
+}
+
+function PitBoxMarker({geometry,progress,color,label,scale=1,active=false}){
+  const pose=pitLanePose(geometry,progress);
+  if(!pose)return null;
+  return <g
+    pointerEvents="none"
+    transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
+    opacity={active?0.96:0.58}
+  >
+    <rect
+      x={-10*scale}
+      y={-4.5*scale}
+      width={20*scale}
+      height={9*scale}
+      rx={1.5*scale}
+      fill="#0b1017"
+      stroke={color}
+      strokeWidth={active?1.8*scale:1*scale}
+    />
+    <line x1={-7*scale} y1={-2.4*scale} x2={7*scale} y2={-2.4*scale} stroke={color} strokeWidth={1.1*scale}/>
+    <text
+      x="0"
+      y={2.2*scale}
+      textAnchor="middle"
+      fontSize={4.2*scale}
+      fontWeight="900"
+      fill="#f8fafc"
+    >{label}</text>
   </g>;
 }
 
@@ -253,7 +308,27 @@ export default function CanonicalRaceView({
   const summary=useMemo(()=>canonicalRaceViewSummary(view),[view]);
   const cars=useMemo(()=>canonicalRaceViewCars(view),[view]);
   const trackLengthM=Math.max(1,Number(view?.track_length_m)||1);
-  const visualCars=useCanonicalRaceViewMotion(cars,{
+  const teamIds=useMemo(()=>{
+    const ids=[];
+    for(const car of cars){
+      const id=String(car?.team_id||"");
+      if(id&&!ids.includes(id))ids.push(id);
+    }
+    return ids.sort((a,b)=>a.localeCompare(b));
+  },[cars]);
+  const motionTargets=useMemo(()=>cars.map((car)=>{
+    const boxProgress=raceViewPitBoxProgress(teamIds,car?.team_id);
+    const active=Boolean(car?.pit_state?.active);
+    return {
+      ...car,
+      pit_lane_active:active,
+      pit_lane_progress:active
+        ?pitLaneProgressForPhase(car.pit_state,{boxProgress})
+        :null,
+      pit_box_progress:boxProgress,
+    };
+  }),[cars,teamIds]);
+  const visualCars=useCanonicalRaceViewMotion(motionTargets,{
     trackLengthM,
     canonicalTick:summary.canonical_tick,
     canonicalTimeMs:summary.canonical_time_ms,
@@ -266,13 +341,21 @@ export default function CanonicalRaceView({
   const points=Array.isArray(geometry?.points)?geometry.points:[];
   const closedPoints=points.length?[...points,points[0]]:[];
   const polyline=closedPoints.map((point)=>point.join(",")).join(" ");
+  const pitLaneAvailable=Boolean(view?.pit_lane?.available);
+  const pitLanePoints=pitLaneAvailable&&Array.isArray(geometry?.pit_lane_points)
+    ?geometry.pit_lane_points
+    :[];
+  const pitPolyline=pitLanePoints.map((point)=>point.join(",")).join(" ");
   const unitsPerMeter=trackPathLength(points)/trackLengthM;
   const markerScale=Math.max(.65,Math.min(1.35,Number(viewBox?.[2]||1000)/900));
   const selected=cars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisualPose=selectedVisual
-    ?carPose(geometry,selectedVisual.track_progress,selectedVisual.lateral_offset_m,unitsPerMeter)
+    ?visualCarPose(selectedVisual,geometry,unitsPerMeter)
     :null;
+  const activePitTeamIds=new Set(
+    visualCars.filter((car)=>car?.pit_lane_active).map((car)=>String(car?.team_id||""))
+  );
   const [cameraMode,setCameraMode]=useState("fit");
   const [cameraZoom,setCameraZoom]=useState(1);
   const [freeCenter,setFreeCenter]=useState(null);
@@ -396,6 +479,24 @@ export default function CanonicalRaceView({
         <polyline points={polyline} fill="none" stroke="#111827" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="url(#rw9-asphalt)" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round"/>
+        {pitLanePoints.length>1?<g pointerEvents="none">
+          <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
+          <polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points={pitPolyline} fill="none" stroke="#cbd5e1" strokeWidth=".8" strokeDasharray="3 8" opacity=".45"/>
+          {teamIds.map((id,index)=>{
+            const progress=raceViewPitBoxProgress(teamIds,id);
+            const name=teamName(teams,id);
+            return <PitBoxMarker
+              key={`pit_box_${id}`}
+              geometry={geometry}
+              progress={progress}
+              color={teamColor(teamBrands,id,year)}
+              label={(name||String(index+1)).slice(0,3).toUpperCase()}
+              scale={markerScale}
+              active={activePitTeamIds.has(id)}
+            />;
+          })}
+        </g>:null}
         {weatherVisuals.wetTrackOpacity>0?<polyline
           points={polyline}
           fill="none"
@@ -475,7 +576,12 @@ export default function CanonicalRaceView({
             <span className="text-right text-xs font-black text-slate-100">{car.position}</span>
             <span className="min-w-0">
               <span className="block truncate text-[11px] font-semibold text-slate-200">{driverName(drivers,car.driver_id)}</span>
-              <span className="block truncate text-[9px] text-slate-500">{car.retired?car.status:`${formatSpeed(car.speed_kmh)} · ${car.tyre?.compound||"—"} ${Number.isFinite(Number(car.tyre?.condition))?Math.round(Number(car.tyre.condition))+"%":""}`}</span>
+              <span className="block truncate text-[9px] text-slate-500">{car.retired
+                ?car.status
+                :car?.pit_state?.active
+                  ?`PIT · ${String(car.pit_state.phase||car.pit_state.status||"service").replaceAll("_"," ")}`
+                  :`${formatSpeed(car.speed_kmh)} · ${car.tyre?.compound||"—"} ${Number.isFinite(Number(car.tyre?.condition))?Math.round(Number(car.tyre.condition))+"%":""}`
+              }</span>
             </span>
             <span className="text-right text-[10px] font-mono text-slate-400">{formatGap(car.gap_to_leader_ms,{leader:index===0})}</span>
           </button>;

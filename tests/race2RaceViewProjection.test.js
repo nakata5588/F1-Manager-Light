@@ -64,6 +64,7 @@ test("RW8.14A projects canonical RaceState into a Race View read model without r
   assert.equal(view.projection_version,RACE_VIEW_PROJECTION_VERSION);
   assert.equal(view.canonical_tick,state.tick);
   assert.equal(view.track_length_m,state.track.lengthM);
+  assert.deepEqual(view.pit_lane,state.track.pitLane??null);
   assert.equal(view.classification.length,state.classification.length);
 
   for(let index=0;index<state.classification.length;index+=1){
