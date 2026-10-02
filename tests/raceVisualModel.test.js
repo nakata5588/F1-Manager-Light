@@ -31,6 +31,13 @@ import {
   historicalRaceCarGeometryFamiliesForYear,
   historicalRaceCarGeometryModelsForYear,
 } from "../src/domain/raceCarGeometry.js";
+import {
+  RACE_VIEW_ASPHALT_WIDTH_SVG,
+  RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+  raceCarNativeFootprint,
+  raceCarNominalWidthM,
+  raceCarPresentationScale,
+} from "../src/domain/raceCarPresentation.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
   const fast={driver_id:"fast",sector_2_ms:29000};
@@ -674,4 +681,54 @@ test("Cars 4.1B resolves combined season labels safely and leaves other years un
   assert.equal(historicalRaceCarGeometry({year:1980,model:"81/81B"}).model,"81");
   assert.equal(historicalRaceCarGeometry({year:1980,model:"M29/M30"}).model,"M29");
   assert.equal(historicalRaceCarGeometry({year:1981,model:"FW07B"}),null);
+});
+
+
+test("RW15B calibrates 1980 car width to roughly one fifth of nominal track width",()=>{
+  const result=raceCarPresentationScale({
+    year:1980,
+    model:"FW07",
+    trackWidthM:RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+    asphaltWidthSvg:RACE_VIEW_ASPHALT_WIDTH_SVG,
+  });
+
+  assert.equal(raceCarNominalWidthM(1980),2.1);
+  assert.ok(result.widthRatio>=0.20&&result.widthRatio<=0.22);
+  assert.ok(result.targetWidthSvg>=2.8&&result.targetWidthSvg<=3.1);
+  assert.ok(result.targetLengthSvg>=5&&result.targetLengthSvg<=6.5);
+  assert.ok(result.scale<0.2);
+});
+
+test("RW15B historical geometry drives model-specific native footprint without changing target physical width",()=>{
+  const narrow=raceCarPresentationScale({year:1980,model:"BT49"});
+  const wide=raceCarPresentationScale({year:1980,model:"312T5"});
+
+  assert.notEqual(raceCarNativeFootprint({year:1980,model:"BT49"}).nativeWidth,raceCarNativeFootprint({year:1980,model:"312T5"}).nativeWidth);
+  assert.equal(narrow.targetWidthSvg,wide.targetWidthSvg);
+  assert.notEqual(narrow.scale,wide.scale);
+});
+
+test("RW15B track-width override scales the same car physically rather than by zoom LOD",()=>{
+  const narrowTrack=raceCarPresentationScale({year:1980,model:"FW07",trackWidthM:8});
+  const wideTrack=raceCarPresentationScale({year:1980,model:"FW07",trackWidthM:14});
+
+  assert.ok(narrowTrack.scale>wideTrack.scale);
+  assert.ok(narrowTrack.targetWidthSvg>wideTrack.targetWidthSvg);
+  assert.equal(narrowTrack.carWidthM,wideTrack.carWidthM);
+});
+
+test("RW15B generic era calibration stays bounded and future-compatible",()=>{
+  const old=raceCarPresentationScale({year:1955});
+  const modern=raceCarPresentationScale({year:2024});
+  const nextGen=raceCarPresentationScale({year:2026});
+
+  assert.equal(old.source,"generic_sprite");
+  assert.equal(modern.source,"generic_sprite");
+  assert.equal(nextGen.source,"generic_sprite");
+  assert.equal(raceCarNominalWidthM(2024),2.0);
+  assert.equal(raceCarNominalWidthM(2026),1.9);
+  for(const row of [old,modern,nextGen]){
+    assert.ok(row.scale>0.08&&row.scale<0.3);
+    assert.ok(row.widthRatio>0.1&&row.widthRatio<0.3);
+  }
 });
