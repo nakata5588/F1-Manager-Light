@@ -84,11 +84,21 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   const currentClosing=currentAttacker-currentDefender;
   const attackerFree=finite(attacker?.freeTargetSpeedKmh,null);
   const defenderFree=finite(defender?.freeTargetSpeedKmh,null);
+  const attackerSlipstreamBonus=Math.max(
+    0,
+    finite(attacker?.traffic?.slipstreamTargetBonusKmh,0)
+  );
+  const defenderSlipstreamBonus=Math.max(
+    0,
+    finite(defender?.traffic?.slipstreamTargetBonusKmh,0)
+  );
+  const attackerAssisted=attackerFree==null?null:attackerFree+attackerSlipstreamBonus;
+  const defenderAssisted=defenderFree==null?null:defenderFree+defenderSlipstreamBonus;
   const hasFreeTelemetry=
-    attackerFree!=null&&attackerFree>0&&
-    defenderFree!=null&&defenderFree>0;
+    attackerAssisted!=null&&attackerAssisted>0&&
+    defenderAssisted!=null&&defenderAssisted>0;
   const freeClosing=hasFreeTelemetry
-    ?(attackerFree-defenderFree)/3.6
+    ?(attackerAssisted-defenderAssisted)/3.6
     :null;
   const performanceDelta=
     overtakingPerformancePotential(attacker,{attacker:true})-
