@@ -94,6 +94,7 @@ export function freshRaceTyre(option,{
     temperature_trend_c_per_s:0,
     optimal_temperature_c:round(optimum,3),
     thermal_stress_multiplier:1,
+    environmental_wear_multiplier:1,
     age_distance_m:0,
     age_laps:0,
     stint_number:Math.max(1,Math.round(finite(stintNumber,1))),
