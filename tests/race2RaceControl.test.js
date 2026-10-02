@@ -2,10 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { raceControlRulesForYear } from "../src/engine/RaceControlEngine.js";
+import { damageStateFromComponents } from "../src/engine/CarDamageEngine.js";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { raceTargetSpeedProfile } from "../src/race2/core/RaceDynamics.js";
 import { advanceRaceConditions } from "../src/race2/core/RaceConditions.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
+import {
+  applyAutomaticCanonicalRedFlagWork,
+  applyCanonicalRedFlagDamageRepair,
+  applyCanonicalRedFlagRestartStrategy,
+  applyCanonicalRedFlagTyreChange,
+  canonicalRedFlagWorkWindowOpen,
+} from "../src/race2/core/RaceRedFlagWork.js";
 import {
   enforceRaceControlAssessment,
   neutralizeBattles,
@@ -278,6 +286,175 @@ test("RW8.11B non-green control cancels active side-by-side battle state",()=>{
   assert.equal(cleared[0].lateralOffsetM,0);
   assert.equal(cleared[0].battle.phase,"none");
   assert.equal(cleared[0].battle.opponentCarId,null);
+});
+
+test("RW23 canonical Red Flag work changes tyres, repairs damage and strategy without moving the car",()=>{
+  const started=startRaceState(createRaceState(input({year:1980})));
+  const prepared={
+    ...started,
+    cars:started.cars.map((car)=>({
+      ...car,
+      absoluteDistanceM:420,
+      distanceAlongLapM:420,
+      damage:damageStateFromComponents({
+        front_wing:60,
+        floor:30,
+      },{source:"test"}),
+      resources:{
+        ...car.resources,
+        aiControlled:false,
+        strategy:{
+          ...car.resources.strategy,
+          aiControlled:false,
+          pitPlan:"no_stop",
+          plannedStopLap:null,
+        },
+        availableTyres:[
+          {tyre_id:"dry_a",compound_name:"Dry A",category:"dry",grip_index:78,wear_rate:.018,warmup_time_s:2.5},
+          {tyre_id:"wet_a",compound_name:"Wet A",category:"wet",grip_index:70,wear_rate:.022,warmup_time_s:3},
+        ],
+      },
+      tyre:{
+        ...car.tyre,
+        tyre_id:"dry_a",
+        compound:"Dry A",
+        category:"dry",
+        condition:44,
+        stint_number:1,
+      },
+    })),
+  };
+  const activated=enforceRaceControlAssessment(
+    prepared,
+    assessment(prepared,{mode:"RED_FLAG",source:"incident",referenceLap:1}),
+    prepared.cars
+  );
+  let red={
+    ...prepared,
+    raceControlState:activated.raceControlState,
+    session:{...prepared.session,raceControl:activated.raceControlState},
+  };
+  assert.equal(canonicalRedFlagWorkWindowOpen(red),true);
+  const distance=red.cars[0].absoluteDistanceM;
+
+  red=applyCanonicalRedFlagTyreChange(red,{
+    driverId:"D1",
+    teamId:"T1",
+    tyreId:"wet_a",
+  });
+  assert.equal(red.cars[0].absoluteDistanceM,distance);
+  assert.equal(red.cars[0].tyre.tyre_id,"wet_a");
+  assert.equal(red.cars[0].tyre.condition,100);
+  assert.equal(red.cars[0].tyre.stint_number,2);
+
+  const beforeRepair=red.cars[0].damage.pace_loss_s_per_lap;
+  red=applyCanonicalRedFlagDamageRepair(red,{driverId:"D1",teamId:"T1"});
+  assert.ok(red.cars[0].damage.pace_loss_s_per_lap<beforeRepair);
+  assert.equal(red.cars[0].absoluteDistanceM,distance);
+
+  red=applyCanonicalRedFlagRestartStrategy(red,{
+    driverId:"D1",
+    teamId:"T1",
+    paceMode:"attack",
+    pitPlan:"one_stop",
+    nextTyreId:"dry_a",
+    plannedStopLap:3,
+  });
+  assert.equal(red.cars[0].resources.paceMode,"attack");
+  assert.equal(red.cars[0].resources.strategy.pitPlan,"one_stop");
+  assert.equal(red.cars[0].resources.strategy.nextTyreId,"dry_a");
+  assert.equal(red.cars[0].resources.strategy.plannedStopLap,3);
+  assert.equal(red.cars[0].absoluteDistanceM,distance);
+
+  const workTypes=red.raceControlState.redFlagLifecycle.work_log.map((row)=>row.type);
+  assert.deepEqual(workTypes.sort(),["damage_repair","restart_strategy","tyre_change"]);
+  assert.equal(red.events.filter((event)=>event.type==="red_flag_work").length,3);
+});
+
+test("RW23 canonical Red Flag work rejects other teams and closed work windows",()=>{
+  const started=startRaceState(createRaceState(input({year:1980})));
+  const car={
+    ...started.cars[0],
+    resources:{
+      ...started.cars[0].resources,
+      availableTyres:[
+        {tyre_id:"dry_a",compound_name:"Dry A",category:"dry",grip_index:78,wear_rate:.018,warmup_time_s:2.5},
+      ],
+    },
+  };
+  const source={...started,cars:[car]};
+  const activated=enforceRaceControlAssessment(
+    source,
+    assessment(source,{mode:"RED_FLAG",source:"incident",referenceLap:1}),
+    source.cars
+  );
+  const red={
+    ...source,
+    raceControlState:activated.raceControlState,
+    session:{...source.session,raceControl:activated.raceControlState},
+  };
+
+  assert.equal(
+    applyCanonicalRedFlagTyreChange(red,{driverId:"D1",teamId:"OTHER",tyreId:"dry_a"}),
+    red
+  );
+  const locked={
+    ...red,
+    raceControlState:{
+      ...red.raceControlState,
+      redFlagLifecycle:{
+        ...red.raceControlState.redFlagLifecycle,
+        work_locked:true,
+      },
+    },
+  };
+  assert.equal(canonicalRedFlagWorkWindowOpen(locked),false);
+  assert.equal(
+    applyCanonicalRedFlagRestartStrategy(locked,{driverId:"D1",teamId:"T1",paceMode:"attack"}),
+    locked
+  );
+});
+
+test("RW23 AI Red Flag service uses the same canonical work functions and is idempotent once conditions match",()=>{
+  const wet=weatherRow(1,{state:"HEAVY_RAIN",wetness:.9,rain:.9,grip:35});
+  const started=startRaceState(createRaceState(input({year:2026,timeline:[wet,wet,wet]})));
+  const car={
+    ...started.cars[0],
+    damage:damageStateFromComponents({front_wing:45},{source:"test"}),
+    tyre:{
+      ...started.cars[0].tyre,
+      tyre_id:"dry_a",
+      compound:"Dry A",
+      category:"dry",
+      condition:45,
+    },
+    resources:{
+      ...started.cars[0].resources,
+      strategy:{...started.cars[0].resources.strategy,aiControlled:true},
+      availableTyres:[
+        {tyre_id:"dry_a",compound_name:"Dry A",category:"dry",grip_index:78,wear_rate:.018,warmup_time_s:2.5},
+        {tyre_id:"wet_a",compound_name:"Wet A",category:"wet",grip_index:72,wear_rate:.020,warmup_time_s:3},
+      ],
+    },
+  };
+  const source={...started,cars:[car]};
+  const activated=enforceRaceControlAssessment(
+    source,
+    assessment(source,{mode:"RED_FLAG",source:"weather",referenceLap:1}),
+    source.cars
+  );
+  const red={
+    ...source,
+    raceControlState:activated.raceControlState,
+    session:{...source.session,raceControl:activated.raceControlState},
+  };
+
+  const worked=applyAutomaticCanonicalRedFlagWork(red);
+  assert.equal(worked.cars[0].tyre.category,"wet");
+  assert.ok(worked.cars[0].damage.pace_loss_s_per_lap<red.cars[0].damage.pace_loss_s_per_lap);
+  const again=applyAutomaticCanonicalRedFlagWork(worked);
+  assert.equal(again.cars[0].tyre.tyre_id,"wet_a");
+  assert.equal(again.cars[0].tyre.stint_number,worked.cars[0].tyre.stint_number);
 });
 
 test("RW8.11B Red Flag freezes race distance and resumes through the shared restart lifecycle",()=>{
