@@ -9,8 +9,10 @@ import {
   openPolylineHeadingDegrees,
   sampleOpenPolylinePoint,
 } from "../../domain/trackSceneGeometry.js";
-import { pitLaneProgressForPhase } from "../../domain/racePitModel.js";
+import { pitBoxMixForPhase, pitLaneMixForPhase, pitLaneProgressForPhase } from "../../domain/racePitModel.js";
 import { TeamLogo } from "../entity/EntityVisuals.jsx";
+import RaceCarVisual from "../race/RaceCarVisual.jsx";
+import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
 import {
   interpolateRaceViewCars,
@@ -44,6 +46,11 @@ function shortName(drivers,id){
   return (parts.at(-1)||name||"?").slice(0,3).toUpperCase();
 }
 
+function driverNumber(drivers,id){
+  const row=(drivers||[]).find((driver)=>driverId(driver)===String(id));
+  return row?.race_number??row?.driver_number??row?.number??null;
+}
+
 function teamName(teams,id){
   const row=(teams||[]).find((team)=>teamId(team)===String(id));
   return row?.team_name||row?.name||String(id||"—");
@@ -69,6 +76,31 @@ function teamColor(teamBrands,teamIdValue,year){
     return brand?.primary_color||brand?.primary||brand?.color||hashColor(id);
   }
   return hashColor(id);
+}
+
+function teamVisualPalette(teamBrands,teamIdValue,year,name=""){
+  const id=String(teamIdValue||"");
+  const rows=(teamBrands||[]).filter((row)=>String(scalar(row?.team_id??row?.id)??"")===id);
+  const target=Number(year);
+  const brand=rows.find((row)=>Number(row?.year)===target)
+    ||rows
+      .filter((row)=>Number.isFinite(Number(row?.year))&&Number(row.year)<=target)
+      .sort((a,b)=>Number(b.year)-Number(a.year))[0]
+    ||rows[0]
+    ||{};
+  const historical=historicalRaceCarLivery({
+    year,
+    teamId:id,
+    teamName:name||brand?.team_name||brand?.team_official_name,
+  });
+  return {
+    primary:historical?.primary||brand?.primary_color||brand?.primary||brand?.color||hashColor(id),
+    secondary:historical?.secondary||brand?.secondary_color||"#e2e8f0",
+    accent:historical?.accent||brand?.accent_color||brand?.secondary_color||"#cbd5e1",
+    sponsor:historical?.sponsor||brand?.short_name||null,
+    pattern:historical?.pattern||null,
+    model:historical?.model||null,
+  };
 }
 
 function formatGap(ms,{leader=false}={}){
@@ -155,23 +187,69 @@ function carPose(geometry,progress,lateralOffsetM,unitsPerMeter){
   };
 }
 
-function pitLanePose(geometry,progress){
+function blendHeadingDegrees(from,to,mix){
+  const delta=((Number(to)-Number(from)+540)%360)-180;
+  return Number(from)+delta*Math.max(0,Math.min(1,Number(mix)||0));
+}
+
+function pitLanePose(geometry,progress,{lateralOffset=0,sideSign=1}={}){
   const points=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
   if(points.length<2||!Number.isFinite(Number(progress)))return null;
-  const point=sampleOpenPolylinePoint(points,Math.max(0,Math.min(1,Number(progress))));
+  const normalized=Math.max(0,Math.min(1,Number(progress)));
+  const point=sampleOpenPolylinePoint(points,normalized);
   if(!point)return null;
+  const heading=openPolylineHeadingDegrees(points,normalized)||0;
+  const radians=heading*Math.PI/180;
+  const normal={x:-Math.sin(radians),y:Math.cos(radians)};
+  const offset=Number(lateralOffset)||0;
+  const sign=Number(sideSign)<0?-1:1;
   return {
-    ...point,
-    heading:openPolylineHeadingDegrees(points,Math.max(0,Math.min(1,Number(progress))))||0,
+    x:point.x+normal.x*offset*sign,
+    y:point.y+normal.y*offset*sign,
+    heading,
   };
 }
 
-function visualCarPose(car,geometry,unitsPerMeter){
-  if(car?.pit_lane_active){
-    const pit=pitLanePose(geometry,car?.pit_lane_progress);
-    if(pit)return pit;
+function pitBoxSideSign(geometry){
+  const pit=pitLanePose(geometry,0.52);
+  const trackPoints=Array.isArray(geometry?.points)?geometry.points:[];
+  if(!pit||!trackPoints.length)return 1;
+  let nearest=null;
+  let nearestDistance=Infinity;
+  for(const point of trackPoints){
+    const x=Number(point?.[0]);
+    const y=Number(point?.[1]);
+    if(!Number.isFinite(x)||!Number.isFinite(y))continue;
+    const distance=Math.hypot(pit.x-x,pit.y-y);
+    if(distance<nearestDistance){
+      nearestDistance=distance;
+      nearest={x,y};
+    }
   }
-  return carPose(geometry,car?.track_progress,car?.lateral_offset_m,unitsPerMeter);
+  if(!nearest)return 1;
+  const radians=pit.heading*Math.PI/180;
+  const normal={x:-Math.sin(radians),y:Math.cos(radians)};
+  const away={x:pit.x-nearest.x,y:pit.y-nearest.y};
+  return normal.x*away.x+normal.y*away.y>=0?1:-1;
+}
+
+function visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset=0,pitBoxSide=1}={}){
+  const track=carPose(geometry,car?.track_progress,car?.lateral_offset_m,unitsPerMeter);
+  if(!track)return null;
+  const pitProgress=Number(car?.pit_lane_progress);
+  const pitMix=Math.max(0,Math.min(1,Number(car?.pit_lane_mix)||0));
+  if(!Number.isFinite(pitProgress)||pitMix<=0)return track;
+  const boxMix=Math.max(0,Math.min(1,Number(car?.pit_box_mix)||0));
+  const pit=pitLanePose(geometry,pitProgress,{
+    lateralOffset:pitBoxOffset*boxMix,
+    sideSign:pitBoxSide,
+  });
+  if(!pit)return track;
+  return {
+    x:track.x+(pit.x-track.x)*pitMix,
+    y:track.y+(pit.y-track.y)*pitMix,
+    heading:blendHeadingDegrees(track.heading,pit.heading,pitMix),
+  };
 }
 
 function controlTone(control){
@@ -268,11 +346,13 @@ function useCanonicalRaceViewMotion(canonicalCars,{
   return visualCars;
 }
 
-function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,onFollow,scale=1,retired=false}){
-  const pose=visualCarPose(car,geometry,unitsPerMeter);
+function CanonicalCar({
+  car,geometry,unitsPerMeter,palette,label,selected,onSelect,onFollow,
+  scale=1,retired=false,year,driverNumberValue=null,pitBoxOffset=0,pitBoxSide=1,
+}){
+  const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
   if(!pose)return null;
-  const length=14*scale;
-  const width=7*scale;
+  const spriteScale=.48*scale;
   return <g
     role="button"
     tabIndex="0"
@@ -281,20 +361,36 @@ function CanonicalCar({car,geometry,unitsPerMeter,color,label,selected,onSelect,
     onClick={onSelect}
     onDoubleClick={(event)=>{event.preventDefault();event.stopPropagation();onFollow?.();}}
     onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
-    style={{cursor:"pointer",opacity:retired?0.62:1}}
+    style={{cursor:"pointer",opacity:retired?0.72:1}}
   >
     <title>{label}</title>
-    {selected?<circle cx="0" cy="0" r={12*scale} fill="none" stroke="#fff" strokeWidth={1.7*scale} opacity=".9"/>:null}
-    <rect x={-length*.48} y={-width*.50} width={length*.78} height={width} rx={2.2*scale} fill={color} stroke="#020617" strokeWidth={1.2*scale}/>
-    <path d={`M ${length*.30} 0 L ${length*.05} ${-width*.42} L ${length*.05} ${width*.42} Z`} fill={color} stroke="#020617" strokeWidth={1*scale}/>
-    <line x1={-length*.38} y1={-width*.72} x2={-length*.38} y2={width*.72} stroke="#111827" strokeWidth={2*scale}/>
-    <text x="0" y={-width*.95} transform={`rotate(${-pose.heading})`} textAnchor="middle" fontSize={5.5*scale} fontWeight="900" fill="#fff" stroke="#020617" strokeWidth=".7" paintOrder="stroke">{label}</text>
+    {selected?<circle cx="0" cy="0" r={13*scale} fill="none" stroke="#fff" strokeWidth={1.4*scale} opacity=".8"/>:null}
+    <g transform={`scale(${spriteScale})`}>
+      <RaceCarVisual
+        year={year}
+        color={palette?.primary}
+        secondary={palette?.secondary}
+        accent={palette?.accent}
+        selected={selected}
+        retired={retired}
+        lod={selected?"medium":"overview"}
+        damageState={car?.damage_state}
+        driverNumber={driverNumberValue}
+        sponsorLabel={palette?.sponsor}
+        liveryPattern={palette?.pattern}
+        historicalModel={palette?.model}
+      />
+    </g>
+    <g transform={`translate(0 ${-10.5*scale}) rotate(${-pose.heading})`}>
+      <rect x={-8.3*scale} y={-3.2*scale} width={16.6*scale} height={6.4*scale} rx={3.2*scale} fill="#020617" stroke={selected?"#fff":"#334155"} strokeWidth={.8*scale} opacity=".88"/>
+      <text x="0" y={1.5*scale} textAnchor="middle" fontSize={5*scale} fontWeight="900" fill="#fff">{label}</text>
+    </g>
   </g>;
 }
 
-function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1}){
+function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1,pitBoxOffset=0,pitBoxSide=1}){
   if(opacity<=0||car?.retired)return null;
-  const pose=visualCarPose(car,geometry,unitsPerMeter);
+  const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
   if(!pose)return null;
   return <g
     pointerEvents="none"
@@ -306,8 +402,8 @@ function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1}){
   </g>;
 }
 
-function PitBoxMarker({geometry,progress,color,label,scale=1,active=false}){
-  const pose=pitLanePose(geometry,progress);
+function PitBoxMarker({geometry,progress,color,label,scale=1,active=false,sideSign=1}){
+  const pose=pitLanePose(geometry,progress,{lateralOffset:11*scale,sideSign});
   if(!pose)return null;
   return <g
     pointerEvents="none"
@@ -315,16 +411,16 @@ function PitBoxMarker({geometry,progress,color,label,scale=1,active=false}){
     opacity={active?0.96:0.58}
   >
     <rect
-      x={-10*scale}
-      y={-4.5*scale}
-      width={20*scale}
-      height={9*scale}
+      x={-7*scale}
+      y={-3.8*scale}
+      width={14*scale}
+      height={7.6*scale}
       rx={1.5*scale}
       fill="#0b1017"
       stroke={color}
       strokeWidth={active?1.8*scale:1*scale}
     />
-    <line x1={-7*scale} y1={-2.4*scale} x2={7*scale} y2={-2.4*scale} stroke={color} strokeWidth={1.1*scale}/>
+    <line x1={-5.2*scale} y1={-2.1*scale} x2={5.2*scale} y2={-2.1*scale} stroke={color} strokeWidth={1.1*scale}/>
     <text
       x="0"
       y={2.2*scale}
@@ -334,6 +430,51 @@ function PitBoxMarker({geometry,progress,color,label,scale=1,active=false}){
       fill="#f8fafc"
     >{label}</text>
   </g>;
+}
+
+function CanonicalMiniMap({
+  geometry,
+  viewBox,
+  cars,
+  unitsPerMeter,
+  teamBrands,
+  year,
+  selectedDriverId,
+  pitBoxOffset,
+  pitBoxSide,
+}){
+  const points=Array.isArray(geometry?.points)?geometry.points:[];
+  if(points.length<2)return null;
+  const polyline=[...points,points[0]].map((point)=>point.join(",")).join(" ");
+  const pitPoints=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
+  const pitPolyline=pitPoints.map((point)=>point.join(",")).join(" ");
+  return <div className="pointer-events-none absolute bottom-12 right-3 z-20 w-[210px] rounded-lg border border-white/15 bg-[#05080d]/88 p-2 shadow-xl backdrop-blur">
+    <div className="mb-1 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+      <span>Mini-map</span>
+      <span>Full circuit</span>
+    </div>
+    <svg viewBox={viewBox.join(" ")} className="h-[118px] w-full" preserveAspectRatio="xMidYMid meet" aria-label="Race mini-map">
+      <rect x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]} fill="#111923"/>
+      <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pitPoints.length>1?<polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>:null}
+      {cars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false||car.pit_box_parked).map((car)=>{
+        const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
+        if(!pose)return null;
+        const selected=String(car.driver_id)===String(selectedDriverId||"");
+        return <circle
+          key={`mini_${car.id}`}
+          cx={pose.x}
+          cy={pose.y}
+          r={selected?5.2:3.1}
+          fill={teamColor(teamBrands,car.team_id,year)}
+          stroke={selected?"#fff":"#020617"}
+          strokeWidth={selected?2:1}
+          opacity={car.retired?0.65:0.95}
+        />;
+      })}
+    </svg>
+  </div>;
 }
 
 export default function CanonicalRaceView({
@@ -366,6 +507,7 @@ export default function CanonicalRaceView({
     const retirementCleared=Boolean(
       car?.retired&&car?.retirement_trackside?.status==="cleared"
     );
+    const completedPit=Boolean(car?.pit_state?.completed);
     return {
       ...car,
       pit_lane_active:active||retirementCleared,
@@ -373,7 +515,19 @@ export default function CanonicalRaceView({
         ?boxProgress
         :active
           ?pitLaneProgressForPhase(car.pit_state,{boxProgress})
-          :null,
+          :completedPit
+            ?1
+            :null,
+      pit_lane_mix:retirementCleared
+        ?1
+        :active
+          ?pitLaneMixForPhase(car.pit_state)
+          :0,
+      pit_box_mix:retirementCleared
+        ?1
+        :active
+          ?pitBoxMixForPhase(car.pit_state)
+          :0,
       pit_box_progress:boxProgress,
       pit_box_parked:retirementCleared,
     };
@@ -398,10 +552,12 @@ export default function CanonicalRaceView({
   const pitPolyline=pitLanePoints.map((point)=>point.join(",")).join(" ");
   const unitsPerMeter=trackPathLength(points)/trackLengthM;
   const markerScale=Math.max(.65,Math.min(1.35,Number(viewBox?.[2]||1000)/900));
+  const pitBoxSide=useMemo(()=>pitBoxSideSign(geometry),[geometry]);
+  const pitBoxOffset=11*markerScale;
   const selected=cars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisualPose=selectedVisual
-    ?visualCarPose(selectedVisual,geometry,unitsPerMeter)
+    ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide})
     :null;
   const activePitTeamIds=new Set(
     visualCars
@@ -546,6 +702,7 @@ export default function CanonicalRaceView({
               label={(name||String(index+1)).slice(0,3).toUpperCase()}
               scale={markerScale}
               active={activePitTeamIds.has(id)}
+              sideSign={pitBoxSide}
             />;
           })}
         </g>:null}
@@ -571,21 +728,24 @@ export default function CanonicalRaceView({
           unitsPerMeter={unitsPerMeter}
           opacity={weatherVisuals.sprayOpacity}
           scale={markerScale}
+          pitBoxOffset={pitBoxOffset}
+          pitBoxSide={pitBoxSide}
         />)}
         {visualCars.filter((car)=>
           !car.retired||
           car.retirement_trackside?.visible!==false||
           (car.pit_box_parked&&pitLanePoints.length>1)
         ).map((car)=>{
-          const color=teamColor(teamBrands,car.team_id,year);
+          const teamLabel=teamName(teams,car.team_id);
+          const palette=teamVisualPalette(teamBrands,car.team_id,year,teamLabel);
           const label=shortName(drivers,car.driver_id);
-          const title=`P${car.position} · ${driverName(drivers,car.driver_id)} · ${teamName(teams,car.team_id)} · ${formatSpeed(car.speed_kmh)}`;
+          const title=`P${car.position} · ${driverName(drivers,car.driver_id)} · ${teamLabel} · ${formatSpeed(car.speed_kmh)}`;
           return <CanonicalCar
             key={car.id}
             car={car}
             geometry={geometry}
             unitsPerMeter={unitsPerMeter}
-            color={color}
+            palette={palette}
             label={label}
             selected={String(car.driver_id)===String(selectedDriverId||"")}
             playbackRunning={playbackRunning}
@@ -597,15 +757,31 @@ export default function CanonicalRaceView({
             }}
             scale={markerScale}
             retired={car.retired}
+            year={year}
+            driverNumberValue={driverNumber(drivers,car.driver_id)}
+            pitBoxOffset={pitBoxOffset}
+            pitBoxSide={pitBoxSide}
           />;
         })}
       </svg>:<div className="flex h-[560px] items-center justify-center text-sm text-slate-500 md:h-[680px]">Track geometry unavailable.</div>}
+      <CanonicalMiniMap
+        geometry={geometry}
+        viewBox={viewBox}
+        cars={visualCars}
+        unitsPerMeter={unitsPerMeter}
+        teamBrands={teamBrands}
+        year={year}
+        selectedDriverId={selectedDriverId}
+        pitBoxOffset={pitBoxOffset}
+        pitBoxSide={pitBoxSide}
+      />
       {weatherVisuals.rainOpacity>0?<div
         className="pointer-events-none absolute inset-0 z-10"
         style={{
           opacity:weatherVisuals.rainOpacity,
-          backgroundImage:"repeating-linear-gradient(112deg, transparent 0 13px, rgba(186,230,253,.55) 13px 14px, transparent 14px 25px)",
-          backgroundSize:"42px 42px",
+          backgroundImage:"linear-gradient(112deg, transparent 0 47%, rgba(186,230,253,.52) 48% 50%, transparent 51% 100%), linear-gradient(112deg, transparent 0 47%, rgba(224,242,254,.30) 48% 49%, transparent 50% 100%)",
+          backgroundSize:"28px 74px, 43px 96px",
+          backgroundPosition:"0 0, 13px 21px",
         }}
       />:null}
       {weatherVisuals.fogOpacity>0?<div

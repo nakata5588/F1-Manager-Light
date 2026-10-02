@@ -88,6 +88,35 @@ export function normalisePitPhaseDurations(stop={}){
 }
 
 
+export function pitPhaseProgress(pitState={}){
+  const elapsed=Math.max(0,finite(pitState?.phaseElapsedMs,0));
+  const total=Math.max(
+    0,
+    finite(
+      pitState?.phaseTotalMs,
+      pitState?.service?.phases?.[Math.max(0,Math.floor(finite(pitState?.phaseIndex,0)))]?.duration_ms??0
+    )
+  );
+  if(total<=0)return pitState?.active?1:0;
+  return Math.max(0,Math.min(1,elapsed/total));
+}
+
+export function pitLaneMixForPhase(pitState={}){
+  const phase=String(pitState?.phase||"");
+  const local=pitPhaseProgress(pitState);
+  if(phase==="pit_entry")return Number(local.toFixed(9));
+  if(["pit_lane","pit_queue","pit_box","pit_release","pit_exit"].includes(phase))return 1;
+  if(phase==="rejoin")return Number((1-local).toFixed(9));
+  if(Boolean(pitState?.completed))return 0;
+  return Boolean(pitState?.active)?1:0;
+}
+
+export function pitBoxMixForPhase(pitState={}){
+  const phase=String(pitState?.phase||"");
+  if(["pit_box","pit_release"].includes(phase))return 1;
+  return 0;
+}
+
 export function pitLaneProgressForPhase(pitState={},{
   boxProgress=0.52,
 }={}){

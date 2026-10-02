@@ -14,7 +14,7 @@ const finite=(value,fallback=0)=>{
   return Number.isFinite(parsed)?parsed:fallback;
 };
 
-export const RACE_VIEW_PLAYBACK_SPEEDS=Object.freeze([0.5,1,2,4,8]);
+export const RACE_VIEW_PLAYBACK_SPEEDS=Object.freeze([0.5,1,2,4,8,16]);
 
 export function canonicalRaceViewPlaybackSpeed(value){
   const requested=finite(value,1);

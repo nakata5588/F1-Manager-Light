@@ -7,7 +7,7 @@ import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategy
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
-import { canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
+import { RACE_VIEW_PLAYBACK_SPEEDS, canonicalRaceViewElapsedMs, createCanonicalRaceViewFrameClock } from "../race2/runtime/RaceViewPlayback.js";
 import { batchCanonicalRaceAttentionEvents, canonicalRaceFlagNotice, presentCanonicalRaceEvent } from "../race2/presentation/RaceEventPresenter.js";
 import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../race2/gateway/RaceWeekendRuntimeGateway.js";
 import { driverFormSnapshot } from "../domain/driverForm.js";
@@ -201,10 +201,14 @@ function TyreCompoundIcon({compound,size=24,title=null,className=""}){
     <span className="relative z-10 rounded-full bg-[#11151b] px-0.5 text-center font-black leading-none" style={{fontSize:Math.max(6,Math.round(size*.23)),color:visual.ring}}>{visual.label}</span>
   </span>;
 }
+function formatTyreAge(age){
+  const n=Number(age);
+  return Number.isFinite(n)?Math.max(0,Math.floor(n)):"—";
+}
 function TyreCompoundBadge({compound,age=null,compact=false}){
   return <span className="inline-flex items-center gap-1.5">
     <TyreCompoundIcon compound={compound} size={compact?22:26}/>
-    <span className="font-bold">{compound||"—"}{age!=null?` ${age}L`:""}</span>
+    <span className="font-bold">{compound||"—"}{age!=null?` ${formatTyreAge(age)}L`:""}</span>
   </span>;
 }
 
@@ -696,6 +700,7 @@ export default function RaceWeekend(){
   const playerTeamId=String(gs?.team?.team_id??gs?.team?.id??"");
   const playerEntrants=collectionRows(weekend?.entrants).filter((row)=>String(row?.team_id??"")===playerTeamId&&row?.driver_id);
   const playerDriverIds=playerEntrants.map((row)=>String(row?.driver_id||"")).filter(Boolean);
+  const playbackSpeeds=usesCanonicalRaceRuntime?RACE_VIEW_PLAYBACK_SPEEDS:RACE_PLAYBACK_SPEEDS;
   const selectedPlayerEntry=playerEntrants.find((row)=>String(row?.driver_id||"")===String(selectedLiveDriverId||""))||null;
   const practiceResults=collectionRows(weekend?.practice?.results);
   const playerPracticeResults=practiceResults.filter((row)=>String(row?.team_id??"")===playerTeamId);
@@ -1231,7 +1236,7 @@ export default function RaceWeekend(){
             {racePlaying?<Pause className="h-3.5 w-3.5 fill-current"/>:<Play className="h-3.5 w-3.5 fill-current"/>}
           </button>
           <div className="flex items-center rounded-md border border-white/10 bg-black/20 p-0.5">
-            {RACE_PLAYBACK_SPEEDS.map((speed)=><button
+            {playbackSpeeds.map((speed)=><button
               type="button"
               key={speed}
               onClick={()=>setRacePlaybackSpeed(speed)}
@@ -2415,7 +2420,7 @@ export default function RaceWeekend(){
                         <td className="px-2 py-1.5 text-right font-mono text-slate-400">{row.retired?"DNF":index===0?"—":formatInterval(row.gap_to_leader_ms)}</td>
                         <td className={"px-2 py-1.5 text-right font-mono "+lapDeltaTone(row.last_lap_delta_ms)}>{signedLapDelta(row.last_lap_delta_ms)}</td>
                         <td className="px-2 py-1.5 text-center"><TyreCompoundBadge compound={compound} compact/></td>
-                        <td className="px-2 py-1.5 text-right">{row.tyre?.age_laps??"—"}L</td>
+                        <td className="px-2 py-1.5 text-right">{formatTyreAge(row.tyre?.age_laps)}L</td>
                         <td className="px-2 py-1.5 text-right"><span className={"rounded px-1.5 py-0.5 "+conditionTone(row.tyre?.condition)}>{Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}</span></td>
                         <td className="px-2 py-1.5 text-right">{row.pit_count??0}</td>
                         <td className="px-2 py-1.5 text-center"><span className={"rounded px-1.5 py-0.5 text-[9px] font-semibold "+paceTone(row.current_pace)}>{paceLabel(row.current_pace)}</span></td>
@@ -2438,7 +2443,7 @@ export default function RaceWeekend(){
                             <TyreCompoundBadge compound={compound} compact/>
                           </span>
                         </td>
-                        <td className="px-2 py-1.5 text-right">{row.tyre?.age_laps??"—"}L</td>
+                        <td className="px-2 py-1.5 text-right">{formatTyreAge(row.tyre?.age_laps)}L</td>
                         <td className="px-2 py-1.5 text-right">
                           <span className={"rounded px-1.5 py-1 font-semibold "+conditionTone(row.tyre?.condition)}>
                             {Number.isFinite(Number(row.tyre?.condition))?Number(row.tyre.condition).toFixed(0)+"%":"—"}
