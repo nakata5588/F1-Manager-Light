@@ -2250,7 +2250,7 @@ export const useGame = create((set, get) => ({
       const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
       const next=runtimeMod.applyRaceWeekendCanonicalRedFlagWork(gs,{
         gp,
-        work:{type:"tyre",...command},
+        work:{...command,type:"tyre"},
       });
       if(next!==gs){
         set({gameState:next});
@@ -2277,7 +2277,7 @@ export const useGame = create((set, get) => ({
       const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
       const next=runtimeMod.applyRaceWeekendCanonicalRedFlagWork(gs,{
         gp,
-        work:{type:"repair",...command},
+        work:{...command,type:"repair"},
       });
       if(next!==gs){
         set({gameState:next});
@@ -2304,7 +2304,7 @@ export const useGame = create((set, get) => ({
       const gp=gs?.calendar?.[Number(weekend?.roundIndex)||0]||null;
       const next=runtimeMod.applyRaceWeekendCanonicalRedFlagWork(gs,{
         gp,
-        work:{type:"strategy",...command},
+        work:{...command,type:"strategy"},
       });
       if(next!==gs){
         set({gameState:next});
