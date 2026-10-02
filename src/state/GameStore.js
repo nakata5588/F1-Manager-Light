@@ -519,19 +519,30 @@ async function applyDailyWorldSystems(initialState){
     });
   }
 
-  // Driver Market keeps its cheap daily news roll, but candidate eligibility,
-  // lineup upgrades and contract decisions are now weekly/month-boundary work.
-  updated=await runDailyStage("MarketEngine",async()=>{
-    const mod=await import("@/engine/MarketEngine");
-    return typeof mod.applyMarketTick==="function"?(mod.applyMarketTick(updated)||updated):updated;
-  });
+  // Resolve dated negotiations first. If a transfer/contract response changes
+  // the driver contract set, that event itself forces an immediate AI market
+  // review instead of waiting for the normal weekly cadence.
+  let driverContractsChanged=false;
   updated=await runDailyStage("NegotiationEngine",async()=>{
+    const beforeContracts=updated?.contracts;
     const mod=await import("@/engine/NegotiationEngine");
-    return typeof mod.processDriverNegotiations==="function"?(mod.processDriverNegotiations(updated)||updated):updated;
+    const nextState=typeof mod.processDriverNegotiations==="function"?(mod.processDriverNegotiations(updated)||updated):updated;
+    driverContractsChanged=nextState?.contracts!==beforeContracts;
+    return nextState;
   });
   updated=await runDailyStage("StaffNegotiationEngine",async()=>{
     const mod=await import("@/engine/StaffNegotiationEngine");
     return typeof mod.processStaffNegotiations==="function"?(mod.processStaffNegotiations(updated)||updated):updated;
+  });
+
+  // Driver Market keeps its cheap daily news roll, while candidate eligibility,
+  // lineup upgrades and renewal decisions run weekly/monthly or after a real
+  // contract event that may have created a vacancy.
+  updated=await runDailyStage("MarketEngine",async()=>{
+    const mod=await import("@/engine/MarketEngine");
+    return typeof mod.applyMarketTick==="function"
+      ?(mod.applyMarketTick(updated,{forceDriverMarket:driverContractsChanged})||updated)
+      :updated;
   });
 
   const boardReviewDue=Boolean(
