@@ -126,8 +126,13 @@ export function resolveRaceTeamOrders(state,proposedCars,{stepMs=100}={}){
     const clearance=
       finite(teammate?.absoluteDistanceM,0)-
       finite(yielding?.absoluteDistanceM,0);
+    const pairKey=raceTrafficPairKey(yielding,teammate);
 
     if(clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9){
+      // Preserve the physically completed pass for this step. Traffic spacing
+      // still references the pre-step road order and would otherwise pull the
+      // receiving car back behind before the next canonical tick observes it.
+      bypassPairs.add(pairKey);
       yielding=clearOrder(yielding);
       teammate={...teammate,lateralOffsetM:0};
       cars=setCar(setCar(cars,yielding),teammate);
@@ -150,7 +155,6 @@ export function resolveRaceTeamOrders(state,proposedCars,{stepMs=100}={}){
       continue;
     }
 
-    const pairKey=raceTrafficPairKey(yielding,teammate);
     bypassPairs.add(pairKey);
 
     const closeEnough=Math.abs(clearance)<=Math.max(30,RACE_TRAFFIC_HARD_GAP_M*5);
