@@ -9,6 +9,11 @@ import { RACE_WEEKEND_ENGINES } from "../contracts/raceContracts.js";
 import { createLiveRaceRunner, runFastRace } from "../core/RaceRunner.js";
 import { createRaceState } from "../core/RaceState.js";
 import { startRaceState } from "../core/RaceSimulation.js";
+import {
+  applyCanonicalRedFlagDamageRepair,
+  applyCanonicalRedFlagRestartStrategy,
+  applyCanonicalRedFlagTyreChange,
+} from "../core/RaceRedFlagWork.js";
 import { raceWeekendEngineVersion } from "../gateway/RaceWeekendGateway.js";
 
 export const RACE_RUNTIME_VERSION=1;
@@ -82,6 +87,23 @@ export function cancelCanonicalRaceRuntimeCommand(runtime,criteria={}){
   return serializedRunner(runner);
 }
 
+export function applyCanonicalRaceRuntimeRedFlagWork(runtime,work={}){
+  if(!runtime?.state)throw new TypeError("Canonical race runtime state is required");
+  const kind=String(work?.type||"");
+  const nextState=kind==="tyre"
+    ?applyCanonicalRedFlagTyreChange(runtime.state,work)
+    :kind==="repair"
+      ?applyCanonicalRedFlagDamageRepair(runtime.state,work)
+      :kind==="strategy"
+        ?applyCanonicalRedFlagRestartStrategy(runtime.state,work)
+        :runtime.state;
+  if(nextState===runtime.state)return runtime;
+  return {
+    ...runtime,
+    state:nextState,
+  };
+}
+
 export function canonicalRaceRuntimeNeedsCheckpoint(previousRuntime,nextRuntime,{intervalMs=RACE_RUNTIME_CHECKPOINT_INTERVAL_MS}={}){
   if(!nextRuntime?.state)return false;
   if(!previousRuntime?.state)return true;
@@ -145,6 +167,23 @@ export function cancelCanonicalRaceWeekendCommand(gs,{gp=null,criteria={},stepMs
   const runtime=ready?.raceWeekendState?.canonical_race_runtime;
   if(!runtime)return ready;
   return attachCanonicalRaceRuntime(ready,cancelCanonicalRaceRuntimeCommand(runtime,criteria));
+}
+
+export function applyCanonicalRaceWeekendRedFlagWork(gs,{gp=null,work=null,stepMs=null}={}){
+  if(!isCanonicalRaceWeekend(gs))return gs;
+  const ready=ensureCanonicalRaceRuntime(gs,{gp,stepMs});
+  const runtime=ready?.raceWeekendState?.canonical_race_runtime;
+  if(!runtime||!work)return ready;
+  const teamId=String(
+    work?.teamId
+    ??ready?.team?.team_id
+    ??ready?.team?.id
+    ??""
+  );
+  return attachCanonicalRaceRuntime(
+    ready,
+    applyCanonicalRaceRuntimeRedFlagWork(runtime,{...work,teamId})
+  );
 }
 
 export function canonicalRaceWeekendNeedsCheckpoint(previousGs,nextGs,options={}){

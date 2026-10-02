@@ -12,6 +12,7 @@ import {
 } from "../contracts/raceContracts.js";
 import {
   advanceCanonicalRaceWeekendElapsed,
+  applyCanonicalRaceWeekendRedFlagWork,
   cancelCanonicalRaceWeekendCommand,
   canonicalRaceWeekendNeedsCheckpoint,
   canonicalRaceWeekendView,
@@ -54,6 +55,11 @@ export function queueRaceWeekendCanonicalCommand(gs,{gp=null,command=null}={}){
 export function cancelRaceWeekendCanonicalCommand(gs,{gp=null,criteria={}}={}){
   if(!raceWeekendUsesCanonicalRuntime(gs))return gs;
   return cancelCanonicalRaceWeekendCommand(gs,{gp,criteria});
+}
+
+export function applyRaceWeekendCanonicalRedFlagWork(gs,{gp=null,work=null}={}){
+  if(!raceWeekendUsesCanonicalRuntime(gs))return gs;
+  return applyCanonicalRaceWeekendRedFlagWork(gs,{gp,work});
 }
 
 export function raceWeekendCanonicalCheckpointDue(previousGs,nextGs,options={}){

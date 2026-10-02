@@ -496,6 +496,42 @@ export function presentCanonicalRaceEvent(event,context={}){
     );
   }
 
+  if(type==="red_flag_work"){
+    const workType=text(payload?.workType).toLowerCase();
+    if(workType==="tyre_change"){
+      const compound=tyreName(context,payload?.tyreToId)||text(payload?.tyreTo)||"new";
+      return presentation(
+        "Red Flag work",
+        `${driver} changes to ${compound} tyres during the suspension`,
+        "pit",
+        "normal"
+      );
+    }
+    if(workType==="damage_repair"){
+      const components=rows(payload?.repairedComponents)
+        .map((component)=>text(component).replaceAll("_"," "))
+        .filter(Boolean);
+      return presentation(
+        "Red Flag work",
+        `${driver} has ${components.length?components.join(", "):"accident damage"} repaired during the suspension`,
+        "damage",
+        "normal"
+      );
+    }
+    if(workType==="restart_strategy"){
+      const details=[
+        payload?.paceMode?`pace ${humanize(payload.paceMode).toLowerCase()}`:null,
+        payload?.pitPlan?`plan ${humanize(payload.pitPlan).toLowerCase()}`:null,
+      ].filter(Boolean);
+      return presentation(
+        "Restart strategy",
+        `${driver}${details.length?`: ${details.join(" · ")}`:" strategy updated"}`,
+        "command",
+        "info"
+      );
+    }
+  }
+
   if(type==="command_applied"){
     const command=text(payload?.commandType).toLowerCase();
     if(command==="pace"){

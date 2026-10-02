@@ -263,6 +263,7 @@ export function projectRaceStateToRaceView(state){
       current_pace:car?.resources?.paceMode??null,
       planned_stop_lap:finite(car?.resources?.strategy?.plannedStopLap,null),
       pit_plan:car?.resources?.strategy?.pitPlan??null,
+      next_tyre_id:car?.resources?.strategy?.nextTyreId??null,
       pit_window:car?.resources?.strategy?.forecast?.pit_window
         ?{...car.resources.strategy.forecast.pit_window}
         :finite(car?.resources?.strategy?.plannedStopLap,null)==null

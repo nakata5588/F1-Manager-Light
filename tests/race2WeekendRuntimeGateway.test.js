@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CANONICAL_RACE_ENGINE_VERSION,
   advanceRaceWeekendElapsed,
+  applyRaceWeekendCanonicalRedFlagWork,
   autosimRaceWeekendBatch,
   cancelRaceWeekendCanonicalCommand,
   queueRaceWeekendCanonicalCommand,
@@ -61,5 +62,6 @@ test("RW8.14J command and checkpoint gateways refuse Legacy ownership",()=>{
   const legacy=state("legacy","race");
   assert.equal(queueRaceWeekendCanonicalCommand(legacy,{command:{type:"pace",driverId:"D1",paceMode:"attack"}}),legacy);
   assert.equal(cancelRaceWeekendCanonicalCommand(legacy,{criteria:{driverId:"D1"}}),legacy);
+  assert.equal(applyRaceWeekendCanonicalRedFlagWork(legacy,{work:{type:"tyre",driverId:"D1",tyreId:"x"}}),legacy);
   assert.equal(raceWeekendCanonicalCheckpointDue(legacy,legacy),false);
 });
