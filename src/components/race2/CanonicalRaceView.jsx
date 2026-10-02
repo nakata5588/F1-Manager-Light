@@ -576,7 +576,7 @@ const ControlTowerPanel=React.memo(function ControlTowerPanel({
   </aside>;
 });
 
-const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedDriverId}){
+const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedDriverId,forecastMessage=""}){
   const track=view?.track_state||{};
   const selectedIndex=(cars||[]).findIndex((car)=>String(car?.driver_id||"")===String(selectedDriverId||""));
   const selected=selectedIndex>=0?cars[selectedIndex]:null;
@@ -604,6 +604,10 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
       {metric("Track",Number.isFinite(Number(track?.track_temp_c))?`${Number(track.track_temp_c).toFixed(1)}°C`:"—")}
       {metric("Air",Number.isFinite(Number(track?.air_temp_c))?`${Number(track.air_temp_c).toFixed(1)}°C`:"—")}
     </div>
+    {forecastMessage?<div className="border-t border-white/10 bg-sky-500/[0.04] px-3 py-2">
+      <div className="text-[8px] font-black uppercase tracking-[0.12em] text-sky-300/70">Team forecast</div>
+      <div className="mt-1 text-[9px] leading-relaxed text-sky-100/80">{forecastMessage}</div>
+    </div>:null}
     <div className="border-y border-white/10 bg-black/25 px-3 py-2">
       <div className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">Fastest lap</div>
       <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -649,6 +653,7 @@ export default function CanonicalRaceView({
   onSelectDriver,
   playbackRunning=false,
   playbackSpeed=1,
+  forecastMessage="",
 }){
   const summary=useMemo(()=>canonicalRaceViewSummary(view),[view]);
   const cars=useMemo(()=>canonicalRaceViewCars(view),[view]);
@@ -754,10 +759,6 @@ export default function CanonicalRaceView({
       ?"close"
       :"medium";
   const weatherVisuals=useMemo(()=>raceViewWeatherVisuals(view?.track_state||{}),[view?.track_state]);
-  const rainPct=Math.round(weatherVisuals.rain*100);
-  const wetPct=Math.round(weatherVisuals.wet*100);
-  const visibilityPct=Math.round(weatherVisuals.visibility*100);
-  const sprayPct=Math.round(weatherVisuals.spray*100);
 
   const switchToFit=()=>{
     setCameraMode("fit");
@@ -980,6 +981,7 @@ export default function CanonicalRaceView({
       cars={cars}
       drivers={drivers}
       selectedDriverId={selectedDriverId}
+      forecastMessage={forecastMessage}
     />
 
   </div>;
