@@ -6,6 +6,7 @@ import {
   applyTeamBudgetDelta,
 } from "../src/domain/teamFinance.js";
 import { applyEconomyTick } from "../src/engine/EconomyEngine.js";
+import { awardRaceBonuses } from "../src/engine/GPEngine.js";
 
 function financeState(balance=1_000_000){
   return {
@@ -153,4 +154,40 @@ test("EconomyEngine routes monthly cashflow through the canonical gateway",()=>{
   const repeated=applyEconomyTick(gs);
   assert.equal(repeated.finances.balance,1_120_000);
   assert.equal(repeated.financeLog.length,1);
+});
+
+
+test("race bonuses settle through the canonical gateway and remain idempotent",()=>{
+  const gs={
+    ...financeState(),
+    drivers:[
+      {driver_id:"D1",display_name:"Driver One",team_id:"T1"},
+      {driver_id:"D2",display_name:"Driver Two",team_id:"T1"},
+    ],
+    contracts:[
+      {year:1980,team_id:"T1",driver_id:"D1",role:"Driver",bonus_win:100_000,bonus_podium:50_000,status:"active"},
+      {year:1980,team_id:"T1",driver_id:"D2",role:"Driver",status:"active"},
+    ],
+    sponsorsContracts:[
+      {year:1980,team_id:"T1",sponsor_id:"SP1",sponsor_name:"Acme",bonus_win:250_000,bonus_podium:80_000,status:"active"},
+    ],
+  };
+  const race=[
+    {driver:{driver_id:"D1"},pos:1},
+    {driver:{driver_id:"D2"},pos:5},
+  ];
+
+  const first=awardRaceBonuses(gs,race,"Test GP");
+  assert.equal(first.finances.balance,1_150_000);
+  assert.equal(first.finances.season_income,250_000);
+  assert.equal(first.finances.season_spend,100_000);
+  assert.equal(first.finances.season_net,150_000);
+  assert.equal(first.financeLog.filter((tx)=>String(tx.sig||"").startsWith("bonusDwin:")).length,1);
+  assert.equal(first.financeLog.filter((tx)=>String(tx.sig||"").startsWith("bonusSwin:")).length,1);
+
+  const repeated=awardRaceBonuses(first,race,"Test GP");
+  assert.equal(repeated.finances.balance,1_150_000);
+  assert.equal(repeated.finances.season_income,250_000);
+  assert.equal(repeated.finances.season_spend,100_000);
+  assert.equal(repeated.financeLog.length,first.financeLog.length);
 });
