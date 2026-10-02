@@ -421,12 +421,28 @@ export function presentCanonicalRaceEvent(event,context={}){
   if(type==="damage"){
     const severity=text(payload?.severity);
     const source=text(payload?.source);
+    const damage=payload?.damage&&typeof payload.damage==="object"?payload.damage:{};
+    const components=rows(damage?.damaged_components)
+      .map((component)=>{
+        const id=text(component);
+        const pct=finite(damage?.components?.[id]?.damage_pct,null);
+        return id
+          ?`${id.replaceAll("_"," ")}${pct==null?"":` ${Math.round(pct)}%`}`
+          :null;
+      })
+      .filter(Boolean);
+    const overall=finite(damage?.overall_damage_pct,null);
     const detail=severity?`${humanize(severity).toLowerCase()} damage`:"damage";
+    const facts=[
+      overall==null?null:`${Math.round(overall)}% overall`,
+      components.length?components.join(", "):null,
+    ].filter(Boolean);
+    const base=source==="contact"
+      ?`${driver} suffers ${detail} after contact`
+      :`${driver} suffers ${detail}`;
     return presentation(
       "Car damage",
-      source==="contact"
-        ?`${driver} suffers ${detail} after contact`
-        :`${driver} suffers ${detail}`,
+      facts.length?`${base} — ${facts.join(" · ")}`:base,
       "damage",
       "important"
     );

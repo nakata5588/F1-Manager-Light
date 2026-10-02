@@ -228,6 +228,36 @@ test("RW10B canonical event presenter resolves driver and tyre facts without wri
   assert.equal(source.display_text,undefined);
 });
 
+test("RW13C damage presenter includes canonical overall and component percentages",()=>{
+  const context={
+    drivers:[{driver_id:"D1",display_name:"Mario Andretti"}],
+  };
+  const event={
+    type:"damage",
+    driverIds:["D1"],
+    payload:{
+      source:"contact",
+      severity:"major",
+      damage:{
+        overall_damage_pct:41.6,
+        damaged_components:["front_wing","floor"],
+        components:{
+          front_wing:{damage_pct:52.4},
+          floor:{damage_pct:28.1},
+        },
+      },
+    },
+  };
+  const presented=presentCanonicalRaceEvent(event,context);
+  assert.equal(presented.label,"Car damage");
+  assert.equal(presented.iconKey,"damage");
+  assert.equal(presented.priority,"important");
+  assert.equal(
+    presented.text,
+    "Mario Andretti suffers major damage after contact — 42% overall · front wing 52%, floor 28%"
+  );
+});
+
 test("RW10B canonical event presenter covers incidents, retirements and battles with human messages",()=>{
   const context={
     drivers:[

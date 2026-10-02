@@ -370,6 +370,55 @@ function raceEventLabel(event){
   if(event?.type==="driver_feedback")return "Driver feedback";
   return String(event?.type||"Event").replaceAll("_"," ");
 }
+function raceEventTone(event){
+  const icon=String(event?.display_icon_key||"");
+  const priority=String(event?.display_priority||"");
+  if(priority==="critical"||["retirement","failure"].includes(icon)){
+    return {border:"border-red-400/20",icon:"text-red-300",bg:"bg-red-500/[0.035]"};
+  }
+  if(icon==="damage"||icon==="incident"){
+    return {border:"border-orange-400/20",icon:"text-orange-300",bg:"bg-orange-500/[0.03]"};
+  }
+  if(icon==="race_control"){
+    return {border:"border-amber-400/20",icon:"text-amber-300",bg:"bg-amber-500/[0.03]"};
+  }
+  if(icon==="pit"){
+    return {border:"border-cyan-400/20",icon:"text-cyan-300",bg:"bg-cyan-500/[0.025]"};
+  }
+  if(icon==="battle"){
+    return {border:"border-emerald-400/15",icon:"text-emerald-300",bg:"bg-emerald-500/[0.02]"};
+  }
+  if(icon==="weather"){
+    return {border:"border-sky-400/20",icon:"text-sky-300",bg:"bg-sky-500/[0.03]"};
+  }
+  if(icon==="command"||icon==="feedback"){
+    return {border:"border-violet-400/20",icon:"text-violet-300",bg:"bg-violet-500/[0.025]"};
+  }
+  return {border:"border-white/10",icon:"text-slate-400",bg:"bg-transparent"};
+}
+
+function raceEventDamageFacts(event){
+  const damage=event?.payload?.damage;
+  if(!damage||typeof damage!=="object")return null;
+  const overall=Number(damage?.overall_damage_pct);
+  const components=Array.isArray(damage?.damaged_components)
+    ?damage.damaged_components
+    :[];
+  if(!Number.isFinite(overall)&&!components.length)return null;
+  return {
+    overall:Number.isFinite(overall)?Math.round(overall):null,
+    components:components.map((component)=>{
+      const key=String(component||"");
+      const pct=Number(damage?.components?.[key]?.damage_pct);
+      return {
+        key,
+        label:key.replaceAll("_"," "),
+        pct:Number.isFinite(pct)?Math.round(pct):null,
+      };
+    }),
+  };
+}
+
 function raceEventIcon(event,className="h-5 w-5"){
   const common={className};
   const presented=String(event?.display_icon_key||"");
@@ -2172,20 +2221,29 @@ export default function RaceWeekend(){
                       {group.events.map((event,index)=>{
                         const did=String(event?.driver_id||"");
                         const tid=String(event?.team_id??liveRows.find((row)=>String(row?.driver_id||"")===did)?.team_id??"");
+                        const tone=raceEventTone(event);
+                        const damageFacts=raceEventDamageFacts(event);
+                        const driver=did?driverObject(drivers,did):null;
                         return <button
                           type="button"
                           key={event?.event_key||event?.id||`${group.lap}-${index}`}
                           onClick={()=>openRaceEvent(event)}
-                          className="grid w-full grid-cols-[48px_24px_minmax(0,1fr)] items-start gap-2 px-3 py-2.5 text-left hover:bg-white/[0.045]"
+                          className={`grid w-full grid-cols-[42px_30px_minmax(0,1fr)] items-start gap-2 border-l-2 px-3 py-2.5 text-left transition hover:bg-white/[0.05] ${tone.border} ${tone.bg}`}
                         >
-                          <div className="font-mono text-[9px] text-slate-500">{Number(event?.sector)>0?`S${event.sector}`:"—"}</div>
-                          <div className="mt-0.5 text-sky-300">{raceEventIcon(event,"h-4 w-4")}</div>
+                          <div className="pt-1 font-mono text-[9px] text-slate-500">{Number(event?.sector)>0?`S${event.sector}`:"—"}</div>
+                          <div className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/25 ${tone.icon}`}>
+                            {raceEventIcon(event,"h-4 w-4")}
+                          </div>
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5 text-[9px] uppercase tracking-[0.10em] text-slate-500">
                               <span>{raceEventLabel(event)}</span>
-                              {did?<><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/><span className="normal-case tracking-normal text-slate-400">{driverName(drivers,did)}</span></>:null}
+                              {did?<><DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-4 w-4" className="p-0 ring-white/10"/><TeamLogo teamId={tid} name={teamName(teams,tid)} size="h-3.5 w-3.5" className="p-0"/><span className="normal-case tracking-normal text-slate-400">{driverName(drivers,did)}</span></>:null}
                             </div>
                             <div className="mt-0.5 text-[11px] leading-relaxed text-slate-200">{event?.display_text||liveEventText(event,drivers,gs?.tyres||gs?.dbTyres||[])}</div>
+                            {damageFacts?<div className="mt-1 flex flex-wrap gap-1">
+                              {damageFacts.overall!=null?<span className="rounded border border-orange-400/20 bg-orange-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-orange-200">Damage {damageFacts.overall}%</span>:null}
+                              {damageFacts.components.map((component)=><span key={component.key} className="rounded border border-white/10 bg-black/20 px-1.5 py-0.5 text-[8px] text-slate-400">{component.label}{component.pct==null?"":` ${component.pct}%`}</span>)}
+                            </div>:null}
                           </div>
                         </button>;
                       })}
