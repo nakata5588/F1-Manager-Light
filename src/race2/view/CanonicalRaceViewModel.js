@@ -46,6 +46,7 @@ export function canonicalRaceViewCars(view){
     traffic:row?.traffic??null,
     battle:row?.battle??null,
     battle_context:row?.battle_context??null,
+    team_order:row?.team_order??null,
     tyre:row?.tyre??null,
     fuel_kg:finite(row?.fuel_kg,null),
     damage_state:row?.damage_state??null,
