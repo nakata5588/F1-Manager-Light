@@ -335,6 +335,11 @@ test("daily advance paths share one canonical subsystem pipeline and fail closed
     const token=`import("@/engine/${moduleName}")`;
     assert.equal(storeSource.split(token).length-1,1,moduleName+" daily import must have one canonical call site");
   }
+  assert.match(storeSource,/currentWorldCadence\(initialState\)/);
+  assert.match(storeSource,/advanceAITechnicalWorldDay\(next,/);
+  assert.match(storeSource,/economyTickDue\(updated\)/);
+  assert.match(storeSource,/processProgression:managerActive&&cadence\.postGrandPrix/);
+  assert.match(storeSource,/forceDriverMarket:driverContractsChanged/);
   assert.match(storeSource,/throw dailyPipelineFailure\("RaceWeekend state sync",e\)/);
   assert.match(buttonSource,/title: "Advance failed"/);
 });
