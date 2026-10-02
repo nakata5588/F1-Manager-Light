@@ -75,6 +75,15 @@ function workLog(state){
     :[];
 }
 
+function hasWork(state,driverId,type){
+  const sequence=workSequence(state);
+  return workLog(state).some((row)=>
+    text(row?.driver_id)===text(driverId)&&
+    text(row?.type)===text(type)&&
+    Number(row?.red_flag_sequence)===sequence
+  );
+}
+
 function replaceLifecycle(state,nextLog){
   return {
     ...state,
@@ -192,6 +201,7 @@ export function applyCanonicalRedFlagDamageRepair(state,{
   const car=ownedActiveCar(state,{driverId,teamId});
   const lifecycle=lifecycleFor(state);
   if(!car||lifecycle?.work_policy?.genuine_accident_repair!==true)return state;
+  if(hasWork(state,car?.driverId,"damage_repair"))return state;
   if(!(car?.damage?.damaged_components||[]).length)return state;
 
   const before=structuredClone(car.damage);
