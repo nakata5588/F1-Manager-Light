@@ -159,6 +159,10 @@ function activeBattleContext(context){
   return ["side_by_side","yielding"].includes(String(context?.state||""));
 }
 
+function hasTelemetryNumber(value){
+  return value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value));
+}
+
 function positionDelta(value){
   const n=Number(value)||0;
   if(n>0)return {label:`▲${n}`,tone:"text-emerald-300"};
@@ -818,14 +822,14 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
           <div className={"mt-0.5 text-[10px] font-semibold "+(activeBattleContext(engagement)?"text-amber-100":"text-sky-100")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state)}</div>
           {battleOpponent?<div className="mt-0.5 text-[9px] text-slate-400">vs {shortName(drivers,battleOpponent.driver_id)} · {driverName(drivers,battleOpponent.driver_id)}</div>:null}
           <div className="mt-2 border-t border-white/[0.06] pt-1">
-            {Number.isFinite(Number(engagement?.gap_m))?metric("Physical gap",formatBattleDistance(engagement.gap_m)):null}
-            {Number.isFinite(Number(engagement?.started_gap_m))?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
-            {Number.isFinite(Number(engagement?.attempt_probability_pct))?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
-            {Number.isFinite(Number(engagement?.closing_potential_kmh))?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
-            {Number.isFinite(Number(engagement?.remaining_ms))?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
-            {Number.isFinite(Number(engagement?.contact_risk_pct))?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
-            {Number.isFinite(Number(engagement?.slipstream_strength_pct))&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
-            {Number.isFinite(Number(engagement?.slipstream_bonus_kmh))&&Number(engagement.slipstream_bonus_kmh)>0?metric("Tow bonus",`+${Number(engagement.slipstream_bonus_kmh).toFixed(1)} km/h`):null}
+            {hasTelemetryNumber(engagement?.gap_m)?metric("Physical gap",formatBattleDistance(engagement.gap_m)):null}
+            {hasTelemetryNumber(engagement?.started_gap_m)?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
+            {hasTelemetryNumber(engagement?.attempt_probability_pct)?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
+            {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
+            {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
+            {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
+            {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
+            {hasTelemetryNumber(engagement?.slipstream_bonus_kmh)&&Number(engagement.slipstream_bonus_kmh)>0?metric("Tow bonus",`+${Number(engagement.slipstream_bonus_kmh).toFixed(1)} km/h`):null}
             {engagement?.result?metric("Outcome",String(engagement.result).replaceAll("_"," ").toUpperCase()):null}
           </div>
         </div>:null}
