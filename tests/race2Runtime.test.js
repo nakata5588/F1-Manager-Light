@@ -11,6 +11,7 @@ import {
   queueCanonicalRaceWeekendCommand,
   restoreCanonicalRaceRunner,
   runCanonicalRaceWeekendBatch,
+  runCanonicalRaceWeekendToEnd,
 } from "../src/race2/runtime/RaceRuntime.js";
 import { RACE_VIEW_PROJECTION_SOURCE } from "../src/race2/adapters/RaceViewProjection.js";
 import { createLiveRaceRunner } from "../src/race2/core/RaceRunner.js";
@@ -184,4 +185,16 @@ test("RW9C canonical Autosim batches converge without mutating their input",()=>
   assert.equal(next.raceWeekendState.engine_version,"rw2");
   assert.equal(initial.raceWeekendState.canonical_race_runtime.state.status,"running");
   assert.equal(next.raceWeekendState.canonical_race_runtime.accumulatorMs,0);
+});
+
+
+test("RW17 atomic canonical Autosim reaches the finish without mutating its input",()=>{
+  const initial=gameState({runtimeSnapshot:runtime()});
+  const next=runCanonicalRaceWeekendToEnd(initial,{maxSteps:500000});
+  const state=next.raceWeekendState.canonical_race_runtime.state;
+
+  assert.equal(state.status,"finished");
+  assert.ok(state.cars.every((car)=>car.dnf||car.status==="finished"));
+  assert.equal(next.raceWeekendState.canonical_race_runtime.accumulatorMs,0);
+  assert.equal(initial.raceWeekendState.canonical_race_runtime.state.status,"running");
 });
