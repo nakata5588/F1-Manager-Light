@@ -9,6 +9,8 @@ import {
   battleContactProbability,
   initialBattleState,
   overtakeAttemptProbability,
+  raceBattlePaceMultiplier,
+  raceBattlePerformanceMatchup,
   resolveRaceOvertaking,
 } from "../src/race2/core/RaceOvertaking.js";
 import { RACE_TRAFFIC_HARD_GAP_M } from "../src/race2/core/RaceTraffic.js";
@@ -199,6 +201,42 @@ test("RW8.6 overtaking probability uses canonical attacker/defender performance"
   assert.ok(strong>weak);
   assert.ok(strong>0.70);
   assert.ok(weak<0.40);
+});
+
+test("RW25 driver and car strength materially bias an active side-by-side battle",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      performance:{
+        car:{race:60,power:60,chassis:62},
+        driver:{raceScore:62,overtaking:50,defending:58,mistakePropensity:20,aggression:40},
+      },
+    },
+    C2:{
+      absoluteDistanceM:99,distanceAlongLapM:99,speedMs:45,speedKmh:162,
+      performance:{
+        car:{race:94,power:96,chassis:92},
+        driver:{raceScore:95,overtaking:97,defending:88,mistakePropensity:15,aggression:70},
+      },
+    },
+  });
+  state=manualBattle(state,{expiresAtMs:8000});
+
+  const matchup=raceBattlePerformanceMatchup(car(state,"C2"),car(state,"C1"));
+  assert.ok(matchup.edge>25);
+  assert.ok(raceBattlePaceMultiplier(state,car(state,"C2"))>1.03);
+  assert.ok(raceBattlePaceMultiplier(state,car(state,"C1"))<0.97);
+
+  let next=state;
+  for(let index=0;index<80&&!next.events.some((event)=>event.type==="overtake_completed");index+=1){
+    next=stepRaceState(next);
+  }
+  assert.ok(
+    next.events.some((event)=>event.type==="overtake_completed"),
+    "stronger driver/car combination should convert a neutral-speed duel into a physical pass"
+  );
+  assert.equal(next.classification[0].carId,"C2");
 });
 
 test("RW8.6 a deterministic close-range attempt enters canonical side-by-side state",()=>{

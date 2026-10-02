@@ -77,6 +77,58 @@ function overtakingPerformancePotential(car,{attacker=false}={}){
   );
 }
 
+function battleAttackScore(car){
+  const driver=driverPerformance(car);
+  const machine=carPerformance(car);
+  return (
+    score(driver?.overtaking,70)*0.42+
+    score(driver?.raceScore,70)*0.18+
+    score(machine?.race,70)*0.18+
+    score(machine?.power,70)*0.22
+  );
+}
+
+function battleDefenseScore(car){
+  const driver=driverPerformance(car);
+  const machine=carPerformance(car);
+  return (
+    score(driver?.defending,70)*0.42+
+    score(driver?.raceScore,70)*0.18+
+    score(machine?.race,70)*0.18+
+    score(machine?.chassis,70)*0.22
+  );
+}
+
+export function raceBattlePerformanceMatchup(attacker,defender){
+  const attackerScore=battleAttackScore(attacker);
+  const defenderScore=battleDefenseScore(defender);
+  return {
+    attackerScore:round(attackerScore,3),
+    defenderScore:round(defenderScore,3),
+    edge:round(attackerScore-defenderScore,3),
+  };
+}
+
+export function raceBattlePaceMultiplier(state,car){
+  const battle=car?.battle||{};
+  if(String(battle?.phase||"none")!=="side_by_side")return 1;
+  const opponent=carById(state?.cars,battle?.opponentCarId);
+  if(!opponent)return 1;
+
+  const attacker=String(battle?.role||"")==="attacker"?car:opponent;
+  const defender=String(battle?.role||"")==="attacker"?opponent:car;
+  const matchup=raceBattlePerformanceMatchup(attacker,defender);
+  const ownEdge=String(battle?.role||"")==="attacker"
+    ?matchup.edge
+    :-matchup.edge;
+
+  // Side-by-side pace is deliberately influenced much more strongly by the
+  // driver/car matchup than the initial visual implementation was. Normal
+  // tyre, damage, weather and track dynamics still apply outside this narrow
+  // duel multiplier.
+  return round(clamp(1+ownEdge*0.0012,0.94,1.06),6);
+}
+
 function overtakeClosingPotentialMs(state,attacker,defender){
   void state;
   const currentAttacker=Math.max(0,finite(attacker?.speedMs,finite(attacker?.speedKmh,0)/3.6));
@@ -269,28 +321,20 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null,cl
   );
   const physicalGap=Math.max(0,finite(gapM,RACE_OVERTAKE_ATTEMPT_RANGE_M));
 
-  const attack=
-    overtaking*0.50+
-    attackerDriverRace*0.15+
-    attackerRace*0.20+
-    attackerPower*0.15;
-  const defense=
-    defending*0.55+
-    defenderDriverRace*0.15+
-    defenderRace*0.20+
-    score(carPerformance(defender)?.chassis,70)*0.10;
+  const attack=battleAttackScore(attacker);
+  const defense=battleDefenseScore(defender);
 
   const gapFactor=clamp(
     (RACE_OVERTAKE_ATTEMPT_RANGE_M-physicalGap)/RACE_OVERTAKE_ATTEMPT_RANGE_M,
     0,
     1
   );
-  const closingBonus=clamp(closingSpeed/20,-0.15,0.25);
-  const scoreDelta=(attack-defense)/110;
-  const cornerPenalty=cornerSeverity*0.30;
+  const closingBonus=clamp(closingSpeed/25,-0.08,0.16);
+  const attributeBonus=clamp(((attack-defense)/100)*0.62,-0.38,0.38);
+  const cornerPenalty=cornerSeverity*0.22;
 
   const baseProbability=clamp(
-    0.34+gapFactor*0.20+closingBonus+scoreDelta-cornerPenalty,
+    0.43+gapFactor*0.14+closingBonus+attributeBonus-cornerPenalty,
     0.04,
     0.94
   );
@@ -692,6 +736,7 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
     cars=setCar(setCar(cars,attacker),defender);
     occupied.add(String(attacker?.carId??""));
     occupied.add(String(defender?.carId??""));
+    const matchup=raceBattlePerformanceMatchup(previousAttacker,opportunity.defender);
     events.push(eventDescriptor("overtake_started",state,attacker,defender,{
       attemptId,
       gapM:round(opportunity.gapM,6),
@@ -702,6 +747,9 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       closingPotentialMs:round(opportunity.closingPotentialMs,6),
       attemptRangeM:round(opportunity.attemptRangeM,6),
       trackDifficulty:round(opportunity.trackDifficulty,3),
+      attackerScore:matchup.attackerScore,
+      defenderScore:matchup.defenderScore,
+      performanceEdge:matchup.edge,
     }));
 
     // The first battle tick keeps RW8.5's longitudinal hard gap. From the

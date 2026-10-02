@@ -10,6 +10,7 @@ import {
 } from "../track/TrackModel.js";
 import { raceResourcePerformance } from "./RaceResources.js";
 import { raceTeamOrderPaceMultiplier } from "./RaceTeamOrders.js";
+import { raceBattlePaceMultiplier } from "./RaceOvertaking.js";
 import { raceControlPaceMultiplier } from "./RaceControlLifecycle.js";
 
 const finite=(value,fallback=0)=>{
@@ -105,13 +106,15 @@ export function raceTargetSpeedProfile(state,car){
   const damageMultiplier=damagePaceMultiplier(state,car,rawTargetSpeedKmh);
   const controlPaceMultiplier=raceControlPaceMultiplier(state?.raceControlState?.mode);
   const teamOrderPaceMultiplier=raceTeamOrderPaceMultiplier(state,car);
+  const battlePaceMultiplier=raceBattlePaceMultiplier(state,car);
   const targetSpeedKmh=Math.max(
     45,
     rawTargetSpeedKmh*
       finite(resourcePerformance?.paceMultiplier,1)*
       damageMultiplier*
       controlPaceMultiplier*
-      teamOrderPaceMultiplier
+      teamOrderPaceMultiplier*
+      battlePaceMultiplier
   );
 
   return {
@@ -122,6 +125,7 @@ export function raceTargetSpeedProfile(state,car){
     damagePaceMultiplier:round(damageMultiplier,6),
     raceControlPaceMultiplier:round(controlPaceMultiplier,6),
     teamOrderPaceMultiplier:round(teamOrderPaceMultiplier,6),
+    battlePaceMultiplier:round(battlePaceMultiplier,6),
     cornerSeverity:round(currentSeverity,4),
     effectiveCornerSeverity:round(effectiveSeverity,4),
     lookaheadM:round(lookaheadM,3),
