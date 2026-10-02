@@ -2112,7 +2112,7 @@ export default function RaceWeekend(){
               </div>:null}
             </div>
 
-            {selectedPlayerEntry?<div className="absolute bottom-4 left-1/2 z-50 w-[min(760px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-white/15 bg-[#0b0f16]/92 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:left-[346px] lg:right-4 lg:w-auto lg:translate-x-0">
+            {selectedPlayerEntry?<div className="absolute bottom-3 left-1/2 z-50 w-[min(900px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-white/15 bg-[#0b0f16]/92 p-1.5 shadow-[0_-10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:left-[358px] lg:right-[266px] lg:w-auto lg:translate-x-0">
               <div className="grid gap-2">
                 {playerEntrants.filter((entry)=>String(entry?.driver_id||"")===String(selectedLiveDriverId||"")).map((entry)=>{
                   const did=String(entry.driver_id);
@@ -2122,6 +2122,14 @@ export default function RaceWeekend(){
                     ?collectionRows(raceViewModel?.pending_commands).filter((row)=>String(row?.driverId??row?.driver_id??"")===did)
                     :(raceStrategy?.live_commands?.[did]||[]);
                   const liveDriver=liveRows.find((row)=>String(row.driver_id)===did);
+                  const liveIndex=liveRows.findIndex((row)=>String(row?.driver_id||"")===did);
+                  const behindLive=liveIndex>=0?liveRows[liveIndex+1]||null:null;
+                  const intervalText=(value)=>{
+                    const n=Number(value);
+                    return Number.isFinite(n)&&n>=0?`+${(n/1000).toFixed(3)}`:"—";
+                  };
+                  const aheadGap=Number(liveDriver?.position)===1?"LEAD":intervalText(liveDriver?.gap_to_previous_ms??liveDriver?.interval_ms);
+                  const behindGap=behindLive?intervalText(behindLive?.gap_to_previous_ms??behindLive?.interval_ms):"—";
                   const damagedComponents=Array.isArray(liveDriver?.damage_state?.damaged_components)?liveDriver.damage_state.damaged_components:[];
                   const hasRepairableDamage=damagedComponents.length>0;
                   const hasFrontWingDamage=damagedComponents.includes("front_wing");
@@ -2143,11 +2151,11 @@ export default function RaceWeekend(){
                     !pending.some((command)=>command?.type==="team_order")
                   );
                   const lastFeedback=!liveDriver?.retired?collectionRows(raceViewModel?.events).slice().reverse().find((event)=>event?.type==="driver_feedback"&&String(event?.driver_id||"")===did)||null:null;
-                  return <div className={"relative grid min-h-[104px] grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5 overflow-hidden rounded-lg border p-2 pr-9 lg:grid-cols-[auto_minmax(185px,.9fr)_minmax(0,2fr)] "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
+                  return <div className={"relative flex min-h-[60px] items-center gap-2 overflow-x-auto rounded-lg border p-1.5 pr-9 "+(liveDriver?.retired?"border-red-900/70 bg-red-950/80":"border-white/10 bg-[#171d27]")} key={did}>
                     <button type="button" onClick={()=>setSelectedLiveDriverId("")} title="Close driver controls" className="absolute right-2 top-2 rounded border border-white/10 bg-black/25 p-1 text-slate-500 hover:bg-white/[0.08] hover:text-slate-200"><X className="h-3.5 w-3.5"/></button>
-                    <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-11 w-11" className="self-center ring-white/10"/>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{driverName(drivers,did)}</div>
+                    <DriverPortrait driver={driver||{display_name:driverName(drivers,did)}} size="h-9 w-9" className="shrink-0 self-center ring-white/10"/>
+                    <div className="min-w-[155px] max-w-[220px] shrink-0">
+                      <div className="truncate text-[11px] font-semibold">{driverName(drivers,did)}</div>
                       <div className="text-[10px] text-slate-500">P{liveDriver?.position??"—"} · Δ lap {positionDelta(liveDriver?.position_change_last_lap)} · grid {positionDelta(liveDriver?.position_gain)}</div>
                       <div className="text-[10px] text-sky-300">{usesCanonicalRaceRuntime
                         ?(Number.isFinite(Number(liveDriver?.planned_stop_lap))?`Planned stop L${liveDriver.planned_stop_lap}`:"No planned stop")
@@ -2162,20 +2170,21 @@ export default function RaceWeekend(){
                         :<div className="mt-1 truncate text-[10px] leading-snug text-cyan-300/90" title={liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}><span className="text-slate-500">Last feedback:</span> {liveDriver?.retired?"No further feedback after retirement.":lastFeedback?liveEventText(lastFeedback,drivers,gs?.tyres||gs?.dbTyres||[]):"—"}</div>}
                     </div>
 
-                    <div className="col-span-2 grid min-w-0 gap-1.5 lg:col-span-1">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px]">
+                    <div className="flex min-w-max flex-1 items-center justify-end gap-2">
+                      <div className="flex min-w-max flex-nowrap items-center gap-1 text-[9px]">
                         <span title="Tyre / age" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-bold "+tyreTone(compound)}><TyreCompoundBadge compound={compound} age={liveDriver?.tyre?.age_laps??0} compact/></span>
                         <span title="Tyre condition" className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+conditionTone(liveDriver?.tyre?.condition)}><Activity className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.condition))?Number(liveDriver.tyre.condition).toFixed(0)+"%":"—"}</span>
                         <span title="Tyre temperature" className={"inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 "+temperatureTone(liveDriver?.tyre?.temperature_c)}><Thermometer className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.tyre?.temperature_c))?Number(liveDriver.tyre.temperature_c).toFixed(0)+"°":"—"}</span>
-                        <span title="Pit stops" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 text-slate-300"><Wrench className="h-3 w-3"/>{liveDriver?.pit_count??0}</span>
-                        {damagedComponents.length?<span
-                          title={damagedComponents.map((component)=>String(component).replaceAll("_"," ")).join(", ")}
-                          className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-1 font-semibold text-rose-300"
-                        ><Wrench className="h-3 w-3"/>DMG · {String(liveDriver?.damage_severity||liveDriver?.damage_state?.severity||"minor").toUpperCase()}</span>:null}
-                        <span title="Best lap" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300"><Timer className="h-3 w-3"/>{formatLapTime(liveDriver?.best_lap_ms)}</span>
+                        <span title="Current speed" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-200"><Gauge className="h-3 w-3"/>{Number.isFinite(Number(liveDriver?.speed_kmh))?Math.round(Number(liveDriver.speed_kmh))+" km/h":"—"}</span>
+                        <span title="Gap to car ahead" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300">↑ {aheadGap}</span>
+                        <span title="Gap to car behind" className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-2 py-1 font-mono text-slate-300">↓ {behindGap}</span>
+                        <span
+                          title={damagedComponents.length?damagedComponents.map((component)=>String(component).replaceAll("_"," ")).join(", "):"Car clear"}
+                          className={"inline-flex items-center gap-1 rounded px-2 py-1 font-semibold "+(damagedComponents.length?"bg-rose-500/10 text-rose-300":"bg-emerald-500/10 text-emerald-300")}
+                        ><Wrench className="h-3 w-3"/>{damagedComponents.length?"DMG · "+String(liveDriver?.damage_severity||liveDriver?.damage_state?.severity||"minor").toUpperCase():"CLEAR"}</span>
                       </div>
 
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/5 pt-1.5">
+                      <div className="flex min-w-max flex-nowrap items-center gap-1.5 border-l border-white/10 pl-2">
                         {liveDriver?.retired
                           ?<span className="rounded border border-red-700/40 bg-red-900/60 px-3 py-2 text-[10px] font-bold text-red-200">DNF · CONTROLS LOCKED</span>
                           :<>
