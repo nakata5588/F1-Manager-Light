@@ -64,8 +64,8 @@ export function raceViewWeatherVisuals(trackState={}){
 
 
 export function raceViewPitBoxProgress(teamIds,teamId,{
-  from=0.18,
-  to=0.82,
+  from=0.20,
+  to=0.84,
 }={}){
   const unique=[];
   for(const value of Array.isArray(teamIds)?teamIds:[]){
@@ -76,7 +76,7 @@ export function raceViewPitBoxProgress(teamIds,teamId,{
   const index=unique.indexOf(target);
   if(index<0)return 0.52;
   if(unique.length<=1)return 0.52;
-  const start=clamp(finite(from,0.18),0.05,0.90);
-  const end=clamp(finite(to,0.82),start,0.95);
+  const start=clamp(finite(from,0.20),0.05,0.90);
+  const end=clamp(finite(to,0.84),start,0.95);
   return Number((start+(end-start)*(index/(unique.length-1))).toFixed(9));
 }
