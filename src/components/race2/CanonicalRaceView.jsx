@@ -432,6 +432,51 @@ function PitBoxMarker({geometry,progress,color,label,scale=1,active=false,sideSi
   </g>;
 }
 
+function CanonicalMiniMap({
+  geometry,
+  viewBox,
+  cars,
+  unitsPerMeter,
+  teamBrands,
+  year,
+  selectedDriverId,
+  pitBoxOffset,
+  pitBoxSide,
+}){
+  const points=Array.isArray(geometry?.points)?geometry.points:[];
+  if(points.length<2)return null;
+  const polyline=[...points,points[0]].map((point)=>point.join(",")).join(" ");
+  const pitPoints=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
+  const pitPolyline=pitPoints.map((point)=>point.join(",")).join(" ");
+  return <div className="pointer-events-none absolute bottom-12 right-3 z-20 w-[210px] rounded-lg border border-white/15 bg-[#05080d]/88 p-2 shadow-xl backdrop-blur">
+    <div className="mb-1 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+      <span>Mini-map</span>
+      <span>Full circuit</span>
+    </div>
+    <svg viewBox={viewBox.join(" ")} className="h-[118px] w-full" preserveAspectRatio="xMidYMid meet" aria-label="Race mini-map">
+      <rect x={viewBox[0]} y={viewBox[1]} width={viewBox[2]} height={viewBox[3]} fill="#111923"/>
+      <polyline points={polyline} fill="none" stroke="#475569" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"/>
+      {pitPoints.length>1?<polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>:null}
+      {cars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false||car.pit_box_parked).map((car)=>{
+        const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
+        if(!pose)return null;
+        const selected=String(car.driver_id)===String(selectedDriverId||"");
+        return <circle
+          key={`mini_${car.id}`}
+          cx={pose.x}
+          cy={pose.y}
+          r={selected?5.2:3.1}
+          fill={teamColor(teamBrands,car.team_id,year)}
+          stroke={selected?"#fff":"#020617"}
+          strokeWidth={selected?2:1}
+          opacity={car.retired?.65:.95}
+        />;
+      })}
+    </svg>
+  </div>;
+}
+
 export default function CanonicalRaceView({
   view,
   trackId,
@@ -719,12 +764,24 @@ export default function CanonicalRaceView({
           />;
         })}
       </svg>:<div className="flex h-[560px] items-center justify-center text-sm text-slate-500 md:h-[680px]">Track geometry unavailable.</div>}
+      <CanonicalMiniMap
+        geometry={geometry}
+        viewBox={viewBox}
+        cars={visualCars}
+        unitsPerMeter={unitsPerMeter}
+        teamBrands={teamBrands}
+        year={year}
+        selectedDriverId={selectedDriverId}
+        pitBoxOffset={pitBoxOffset}
+        pitBoxSide={pitBoxSide}
+      />
       {weatherVisuals.rainOpacity>0?<div
         className="pointer-events-none absolute inset-0 z-10"
         style={{
           opacity:weatherVisuals.rainOpacity,
-          backgroundImage:"repeating-linear-gradient(112deg, transparent 0 13px, rgba(186,230,253,.55) 13px 14px, transparent 14px 25px)",
-          backgroundSize:"42px 42px",
+          backgroundImage:"linear-gradient(112deg, transparent 0 47%, rgba(186,230,253,.52) 48% 50%, transparent 51% 100%), linear-gradient(112deg, transparent 0 47%, rgba(224,242,254,.30) 48% 49%, transparent 50% 100%)",
+          backgroundSize:"28px 74px, 43px 96px",
+          backgroundPosition:"0 0, 13px 21px",
         }}
       />:null}
       {weatherVisuals.fogOpacity>0?<div
