@@ -90,7 +90,18 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
     ["tr_0030",["generic_fallback",null,"derived_provisional"]],
     ["tr_0090",["generic_fallback",null,"derived_provisional"]],
   ]);
-  assert.equal(expected.size,14);
+  const calendar=JSON.parse(fs.readFileSync(path.join(root,"public/data/calendar.json"),"utf8"));
+  const calendarTrackIds=[...new Set(
+    calendar
+      .filter((row)=>Number(row.year)===1980)
+      .map((row)=>String(row?.track_id?.result??row?.track_id??""))
+      .filter(Boolean)
+  )].sort();
+  assert.deepEqual(
+    [...expected.keys()].sort(),
+    calendarTrackIds,
+    "provenance baseline must track the actual 1980 championship calendar"
+  );
   for(const [trackId,[resolution,sourceYear,quality]] of expected){
     const resolved=resolveTrackLayout({trackId,year:1980});
     assert.equal(resolved.resolution,resolution,trackId);
@@ -100,11 +111,12 @@ test("Track 3.0 1980 layout provenance baseline is explicit for every championsh
 });
 
 test("Track 3.0 flags the three known anachronistic 1980 future-layout fallbacks",()=>{
-  const futureFallbacks=TRACK_LAYOUT_ASSETS
-    .map((layout)=>resolveTrackLayout({trackId:layout.track_id,year:1980}))
+  const futureFallbacks=[...new Set(TRACK_LAYOUT_ASSETS.map((layout)=>layout.track_id))]
+    .map((trackId)=>resolveTrackLayout({trackId,year:1980}))
     .filter((resolved)=>resolved.resolution==="future_fallback")
-    .map((resolved)=>[resolved.layout.track_id,resolved.source_year]);
-  assert.deepEqual(futureFallbacks,[["tr_0067",2016],["tr_0088",2000],["tr_0041",2002]]);
+    .map((resolved)=>[resolved.layout.track_id,resolved.source_year])
+    .sort(([a],[b])=>a.localeCompare(b));
+  assert.deepEqual(futureFallbacks,[["tr_0041",2002],["tr_0067",2016],["tr_0088",2000]]);
 });
 
 test("RW6 known later Hockenheim artwork is explicitly a future fallback in 1980",()=>{
