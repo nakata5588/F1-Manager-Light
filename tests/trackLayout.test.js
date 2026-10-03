@@ -73,6 +73,40 @@ test("RW19 canonical Race View shares TrackModel geometry selection and only smo
   assert.equal(trackPresentationSplineEligible(longBeach,longBeachRuntime),false);
 });
 
+test("Track 3.0 1980 layout provenance baseline is explicit for every championship venue",()=>{
+  const expected=new Map([
+    ["tr_0018",["exact",1980,"historical_verified"]],
+    ["tr_0028",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0067",["future_fallback",2016,"derived_provisional"]],
+    ["tr_0088",["future_fallback",2000,"derived_provisional"]],
+    ["tr_0026",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0056",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0035",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0081",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0041",["future_fallback",2002,"derived_provisional"]],
+    ["tr_0022",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0058",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0047",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0030",["generic_fallback",null,"derived_provisional"]],
+    ["tr_0090",["generic_fallback",null,"derived_provisional"]],
+  ]);
+  assert.equal(expected.size,14);
+  for(const [trackId,[resolution,sourceYear,quality]] of expected){
+    const resolved=resolveTrackLayout({trackId,year:1980});
+    assert.equal(resolved.resolution,resolution,trackId);
+    assert.equal(resolved.source_year,sourceYear,trackId);
+    assert.equal(resolved.geometry?.quality,quality,trackId);
+  }
+});
+
+test("Track 3.0 flags the three known anachronistic 1980 future-layout fallbacks",()=>{
+  const futureFallbacks=TRACK_LAYOUT_ASSETS
+    .map((layout)=>resolveTrackLayout({trackId:layout.track_id,year:1980}))
+    .filter((resolved)=>resolved.resolution==="future_fallback")
+    .map((resolved)=>[resolved.layout.track_id,resolved.source_year]);
+  assert.deepEqual(futureFallbacks,[["tr_0067",2016],["tr_0088",2000],["tr_0041",2002]]);
+});
+
 test("RW6 known later Hockenheim artwork is explicitly a future fallback in 1980",()=>{
   const resolved=resolveTrackLayout({trackId:"tr_0041",year:1980});
   assert.equal(resolved.resolution,"future_fallback");
