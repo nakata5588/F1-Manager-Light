@@ -4,9 +4,12 @@ import assert from "node:assert/strict";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
+  RACE_GRID_LATERAL_OFFSET_M,
+  RACE_GRID_MERGE_DISTANCE_M,
   RACE_GRID_SLOT_SPACING_M,
   RACE_SLIPSTREAM_MAX_BONUS_KMH,
   RACE_TRAFFIC_HARD_GAP_M,
+  gridLaunchLateralOffsetM,
   nearestTrafficAhead,
   raceSlipstreamContext,
   raceTrafficContext,
@@ -90,7 +93,7 @@ function car(state,id){
   return state.cars.find((row)=>row.carId===id);
 }
 
-test("RW8.5 grid positions start as canonical physical distance, not overlapping zeroes",()=>{
+test("RW28 grid positions start as a staggered two-column physical grid",()=>{
   const state=createRaceState(input({cars:4}));
   assert.deepEqual(
     state.cars.map((row)=>row.absoluteDistanceM),
@@ -100,10 +103,39 @@ test("RW8.5 grid positions start as canonical physical distance, not overlapping
     state.cars.map((row)=>row.gridStartOffsetM),
     [0,-8,-16,-24]
   );
+  assert.deepEqual(
+    state.cars.map((row)=>row.lateralOffsetM),
+    [
+      RACE_GRID_LATERAL_OFFSET_M,
+      -RACE_GRID_LATERAL_OFFSET_M,
+      RACE_GRID_LATERAL_OFFSET_M,
+      -RACE_GRID_LATERAL_OFFSET_M,
+    ]
+  );
   assert.equal(RACE_GRID_SLOT_SPACING_M,8);
   assert.equal(state.cars[1].distanceAlongLapM,992);
   assert.deepEqual(state.classification.map((row)=>row.carId),["C1","C2","C3","C4"]);
   assert.deepEqual(state.classification.map((row)=>row.gapToLeaderM),[0,8,16,24]);
+});
+
+test("RW28 launch lanes merge progressively into the racing line",()=>{
+  const state=createRaceState(input({cars:2}));
+  const pole=state.cars[0];
+  assert.equal(gridLaunchLateralOffsetM(pole,pole.gridStartOffsetM),RACE_GRID_LATERAL_OFFSET_M);
+  assert.equal(
+    gridLaunchLateralOffsetM(
+      pole,
+      pole.gridStartOffsetM+RACE_GRID_MERGE_DISTANCE_M/2
+    ),
+    RACE_GRID_LATERAL_OFFSET_M/2
+  );
+  assert.equal(
+    gridLaunchLateralOffsetM(
+      pole,
+      pole.gridStartOffsetM+RACE_GRID_MERGE_DISTANCE_M
+    ),
+    0
+  );
 });
 
 test("RW8.5 traffic uses the nearest physical car ahead, even when it is a backmarker",()=>{

@@ -158,12 +158,13 @@ function manualBattle(state,{
   };
 }
 
-test("RW8.6 RaceState starts with explicit neutral battle state",()=>{
+test("RW28 RaceState starts battle-neutral while preserving physical grid lanes",()=>{
   const state=createRaceState(input());
   for(const row of state.cars){
     assert.equal(row.battle.phase,"none");
     assert.equal(row.battle.opponentCarId,null);
-    assert.equal(row.lateralOffsetM,0);
+    assert.equal(row.lateralOffsetM,row.gridLaneOffsetM);
+    assert.notEqual(row.lateralOffsetM,0);
   }
 });
 
@@ -201,6 +202,88 @@ test("RW8.6 overtaking probability uses canonical attacker/defender performance"
   assert.ok(strong>weak);
   assert.ok(strong>0.70);
   assert.ok(weak<0.40);
+});
+
+test("RW28 overtaking, defending and race intelligence dominate equal-car battle odds",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      performance:{
+        car:{race:80,power:80,chassis:80},
+        driver:{
+          raceScore:80,overtaking:50,defending:55,raceIntelligence:60,
+          mistakePropensity:15,aggression:55,
+        },
+      },
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:50,speedKmh:180,
+      performance:{
+        car:{race:80,power:80,chassis:80},
+        driver:{
+          raceScore:80,overtaking:95,defending:50,raceIntelligence:92,
+          mistakePropensity:15,aggression:55,
+        },
+      },
+    },
+  });
+  const eliteAttack=overtakeAttemptProbability(
+    state,
+    car(state,"C2"),
+    car(state,"C1"),
+    {gapM:10,closingSpeedMs:5,towStrength:0}
+  );
+
+  const reversed=patchCars(state,{
+    C1:{
+      performance:{
+        car:{race:80,power:80,chassis:80},
+        driver:{
+          raceScore:80,overtaking:50,defending:95,raceIntelligence:92,
+          mistakePropensity:15,aggression:55,
+        },
+      },
+    },
+    C2:{
+      performance:{
+        car:{race:80,power:80,chassis:80},
+        driver:{
+          raceScore:80,overtaking:55,defending:50,raceIntelligence:60,
+          mistakePropensity:15,aggression:55,
+        },
+      },
+    },
+  });
+  const ordinaryAttack=overtakeAttemptProbability(
+    reversed,
+    car(reversed,"C2"),
+    car(reversed,"C1"),
+    {gapM:10,closingSpeedMs:5,towStrength:0}
+  );
+
+  assert.ok(eliteAttack>ordinaryAttack+0.12);
+});
+
+test("RW28 an active tow materially increases the chance of converting approach into battle",()=>{
+  let state=runningState();
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:130,distanceAlongLapM:130,speedMs:60,speedKmh:216,effectiveCornerSeverity:0},
+    C2:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:60,speedKmh:216,effectiveCornerSeverity:0},
+  });
+  const withoutTow=overtakeAttemptProbability(
+    state,
+    car(state,"C2"),
+    car(state,"C1"),
+    {gapM:18,closingSpeedMs:1.2,towStrength:0}
+  );
+  const withTow=overtakeAttemptProbability(
+    state,
+    car(state,"C2"),
+    car(state,"C1"),
+    {gapM:18,closingSpeedMs:1.2,towStrength:1}
+  );
+  assert.ok(withTow>withoutTow+0.10);
 });
 
 test("RW25 driver and car strength materially bias an active side-by-side battle",()=>{
