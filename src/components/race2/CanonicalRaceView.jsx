@@ -639,6 +639,8 @@ function PitBoxMarker({geometry,progress,color,label,scale=1,active=false,sideSi
 function CanonicalMiniMap({
   geometry,
   viewBox,
+  cameraBox,
+  cameraMode,
   cars,
   unitsPerMeter,
   teamBrands,
@@ -653,21 +655,35 @@ function CanonicalMiniMap({
   const polyline=[...points,points[0]].map((point)=>point.join(",")).join(" ");
   const pitPoints=Array.isArray(geometry?.pit_lane_points)?geometry.pit_lane_points:[];
   const pitPolyline=pitPoints.map((point)=>point.join(",")).join(" ");
-  return <div className="pointer-events-none absolute bottom-3 right-3 z-20 w-[320px] rounded-xl border border-white/10 bg-[#05080d]/42 p-2.5 shadow-xl backdrop-blur-[2px]">
-    <div className="mb-1 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-300/80">
+  const cameraViewport=Array.isArray(cameraBox)&&cameraBox.length===4?cameraBox:null;
+  return <div className="pointer-events-none absolute bottom-4 right-4 z-20 w-[360px] rounded-xl border border-white/15 bg-[#05080d]/36 p-3 shadow-xl backdrop-blur-[2px]">
+    <div className="mb-1.5 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-300/80">
       <span>Mini-map</span>
-      <span className="text-slate-500">Live field</span>
+      <span className="text-slate-500">{cameraMode==="fit"?"Full circuit":cameraMode==="follow"?"Follow camera":"Free camera"}</span>
     </div>
-    <svg viewBox={viewBox.join(" ")} className="h-[172px] w-full" preserveAspectRatio="xMidYMid meet" aria-label="Race mini-map">
-      <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" opacity=".68"/>
-      <polyline points={polyline} fill="none" stroke="#cbd5e1" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" opacity=".82"/>
-      {pitPoints.length>1?<polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" opacity=".8"/>:null}
+    <svg viewBox={viewBox.join(" ")} className="h-[205px] w-full" preserveAspectRatio="xMidYMid meet" aria-label="Race mini-map">
+      <polyline points={polyline} fill="none" stroke="#020617" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
+      <polyline points={polyline} fill="none" stroke="#e2e8f0" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" opacity=".88"/>
+      {pitPoints.length>1?<polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" opacity=".84"/>:null}
+      {cameraMode!=="fit"&&cameraViewport?<rect
+        x={cameraViewport[0]}
+        y={cameraViewport[1]}
+        width={cameraViewport[2]}
+        height={cameraViewport[3]}
+        rx="3"
+        fill="#22d3ee"
+        fillOpacity=".055"
+        stroke="#22d3ee"
+        strokeWidth="2.1"
+        strokeDasharray="6 5"
+        opacity=".9"
+      />:null}
       {cars.filter((car)=>!car.retired||car.retirement_trackside?.visible!==false||car.pit_box_parked).map((car)=>{
         const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
         if(!pose)return null;
         const selected=String(car.driver_id)===String(selectedDriverId||"");
         const battleNow=activeBattleContext(car?.battle_context);
-        const radius=selected?9.4:7.2;
+        const radius=selected?10.5:8;
         return <g key={`mini_${car.id}`} opacity={car.retired?0.58:0.98}>
           <circle
             cx={pose.x}
@@ -682,7 +698,7 @@ function CanonicalMiniMap({
             x={pose.x}
             y={pose.y+1.9}
             textAnchor="middle"
-            fontSize={selected?5.8:5.1}
+            fontSize={selected?6.2:5.5}
             fontWeight="900"
             fill="#fff"
             stroke="#020617"
@@ -991,9 +1007,12 @@ export default function CanonicalRaceView({
   const cameraBox=cameraMode==="fit"
     ?viewBox
     :raceViewCameraViewBox(viewBox,{zoom:cameraZoom,center:cameraCenter});
+  const effectiveCameraCenter=cameraMode==="fit"
+    ?baseCenter
+    :raceViewBoxCenter(cameraBox);
   const trackLod=cameraMode==="fit"
     ?"overview"
-    :cameraZoom>=4.5
+    :cameraZoom>=4
       ?"close"
       :"medium";
   const weatherVisuals=useMemo(()=>raceViewWeatherVisuals(view?.track_state||{}),[view?.track_state]);
@@ -1006,10 +1025,10 @@ export default function CanonicalRaceView({
   const switchToFollow=()=>{
     if(!selectedVisualPose)return;
     setCameraMode("follow");
-    setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
+    setCameraZoom((current)=>Math.max(3.2,clampRaceViewZoom(current)));
   };
   const switchToFree=()=>{
-    setFreeCenter(cameraCenter);
+    setFreeCenter(effectiveCameraCenter);
     setCameraMode("free");
     setCameraZoom((current)=>Math.max(1.15,clampRaceViewZoom(current)));
   };
@@ -1033,20 +1052,25 @@ export default function CanonicalRaceView({
       pointerId:event.pointerId,
       clientX:event.clientX,
       clientY:event.clientY,
-      center:{...cameraCenter},
+      center:{...effectiveCameraCenter},
       unitsPerPixelX:cameraBox[2]/rect.width,
       unitsPerPixelY:cameraBox[3]/rect.height,
     };
-    setFreeCenter({...cameraCenter});
+    setFreeCenter({...effectiveCameraCenter});
     setCameraMode("free");
   };
   const onPointerMove=(event)=>{
     const drag=dragRef.current;
     if(!drag||drag.pointerId!==event.pointerId)return;
-    setFreeCenter({
+    const requestedCenter={
       x:drag.center.x-(event.clientX-drag.clientX)*drag.unitsPerPixelX,
       y:drag.center.y-(event.clientY-drag.clientY)*drag.unitsPerPixelY,
+    };
+    const boundedBox=raceViewCameraViewBox(viewBox,{
+      zoom:cameraZoom,
+      center:requestedCenter,
     });
+    setFreeCenter(raceViewBoxCenter(boundedBox));
   };
   const endPointerDrag=(event)=>{
     if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
@@ -1182,7 +1206,7 @@ export default function CanonicalRaceView({
             onFollow={()=>{
               onSelectDriver?.(String(car.driver_id||""));
               setCameraMode("follow");
-              setCameraZoom((current)=>Math.max(2.2,clampRaceViewZoom(current)));
+              setCameraZoom((current)=>Math.max(3.2,clampRaceViewZoom(current)));
             }}
             scale={markerScale}
             lod={trackLod}
@@ -1199,6 +1223,8 @@ export default function CanonicalRaceView({
       <CanonicalMiniMap
         geometry={geometry}
         viewBox={viewBox}
+        cameraBox={cameraBox}
+        cameraMode={cameraMode}
         cars={visualCars}
         unitsPerMeter={unitsPerMeter}
         teamBrands={teamBrands}
