@@ -265,6 +265,91 @@ test("RW28 overtaking, defending and race intelligence dominate equal-car battle
   assert.ok(eliteAttack>ordinaryAttack+0.12);
 });
 
+test("RW30 driver racecraft has four times the combined battle influence of an equivalent car edge",()=>{
+  const baseline=runningState();
+  const driverLed=patchCars(baseline,{
+    C1:{
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+    C2:{
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:90,overtaking:95,defending:70,raceIntelligence:90,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+  const carLed=patchCars(baseline,{
+    C1:{
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+    C2:{
+      performance:{
+        car:{race:90,power:95,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+
+  const driverMatch=raceBattlePerformanceMatchup(car(driverLed,"C2"),car(driverLed,"C1"));
+  const carMatch=raceBattlePerformanceMatchup(car(carLed,"C2"),car(carLed,"C1"));
+
+  assert.ok(driverMatch.driverEdge>20);
+  assert.equal(driverMatch.carEdge,0);
+  assert.equal(carMatch.driverEdge,0);
+  assert.ok(carMatch.carEdge>20);
+  assert.ok(driverMatch.edge>carMatch.edge*3.5);
+});
+
+test("RW30 racecraft can create a battle window even when free-speed telemetry is equal",()=>{
+  let strong=runningState();
+  strong=patchCars(strong,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,
+      freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:45,speedKmh:162,
+      freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:92,overtaking:97,defending:70,raceIntelligence:92,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+
+  let started=false;
+  for(let bucket=0;bucket<80&&!started;bucket+=1){
+    const candidate={...strong,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
+    started=resolved.events.some((event)=>event.type==="overtake_started");
+  }
+  assert.equal(started,true);
+
+  const neutral=patchCars(strong,{
+    C2:{
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+  for(let bucket=0;bucket<20;bucket+=1){
+    const candidate={...neutral,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
+    assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
+});
+
 test("RW28 an active tow materially increases the chance of converting approach into battle",()=>{
   let state=runningState();
   state=patchCars(state,{
