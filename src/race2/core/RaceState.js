@@ -4,7 +4,11 @@
 import { cloneRaceContractValue } from "../contracts/raceContracts.js";
 import { trackSectorAtDistance, wrapTrackDistanceM } from "../track/TrackModel.js";
 import { projectCanonicalRaceTiming } from "./RaceClassification.js";
-import { initialGridAbsoluteDistanceM, initialTrafficState } from "./RaceTraffic.js";
+import {
+  initialGridAbsoluteDistanceM,
+  initialGridLateralOffsetM,
+  initialTrafficState,
+} from "./RaceTraffic.js";
 import { initialBattleState } from "./RaceOvertaking.js";
 import { initialRaceResources } from "./RaceResources.js";
 import { initialRacePitState } from "./RacePitStops.js";
@@ -78,6 +82,9 @@ function initialCarState(input,row,index){
   const gridPosition=gridPositionOf(row,index);
   const resourceState=initialRaceResources(input,car||{},driver||{});
   const absoluteDistanceM=initialGridAbsoluteDistanceM(gridPosition);
+  const gridLaneOffsetM=initialGridLateralOffsetM(gridPosition,{
+    poleSide:input?.track?.grid?.poleSide??input?.track?.grid?.pole_side??1,
+  });
   const distanceAlongLapM=wrapTrackDistanceM(input.track,absoluteDistanceM)??0;
   const sector=trackSectorAtDistance(input.track,distanceAlongLapM)??1;
   return {
@@ -86,6 +93,7 @@ function initialCarState(input,row,index){
     teamId,
     gridPosition,
     gridStartOffsetM:absoluteDistanceM,
+    gridLaneOffsetM,
     lap:1,
     completedLaps:0,
     sector,
@@ -104,7 +112,7 @@ function initialCarState(input,row,index){
       driver:cloneRaceContractValue(driver?.performance??null),
     },
     reliability:cloneRaceContractValue(car?.reliability??null),
-    lateralOffsetM:0,
+    lateralOffsetM:gridLaneOffsetM,
     zoneId:`sector_${sector}`,
     zoneType:"sector",
     elapsedMs:0,
