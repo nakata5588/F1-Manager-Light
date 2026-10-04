@@ -20,6 +20,7 @@ import {
   RACE_VIEW_ASPHALT_WIDTH_SVG,
   RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
   raceCarPresentationScale,
+  raceViewLateralUnitsPerMeter,
 } from "../../domain/raceCarPresentation.js";
 import { historicalRaceCarLivery } from "../../domain/raceCarLiveries.js";
 import { canonicalRaceViewCars, canonicalRaceViewSummary } from "../../race2/view/CanonicalRaceViewModel.js";
@@ -1016,25 +1017,31 @@ export default function CanonicalRaceView({
       :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
   },[resolved]);
   const runtimeGeometry=useMemo(()=>trackRuntimeGeometry(resolved),[resolved]);
-  const presentationSourceGeometry=useMemo(()=>{
-    const raw=runtimeGeometry?.geometry||null;
+  const orientedRuntimeGeometry=useMemo(
+    ()=>orientTrackGeometry(runtimeGeometry?.geometry||null),
+    [runtimeGeometry]
+  );
+  const sourceGeometry=useMemo(()=>{
+    const raw=orientedRuntimeGeometry;
     if(!raw||!trackPresentationSplineEligible(resolved,runtimeGeometry))return raw;
     const style=resolved?.environment?.race_view_style||{};
     return simplifyTrackPresentationGeometry(raw,{
       tolerance:Number(style?.presentation_tolerance||1.25),
       pitTolerance:Number(style?.pit_presentation_tolerance||.7),
     });
-  },[resolved,runtimeGeometry]);
-  const sourceGeometry=useMemo(
-    ()=>orientTrackGeometry(presentationSourceGeometry),
-    [presentationSourceGeometry]
-  );
+  },[resolved,runtimeGeometry,orientedRuntimeGeometry]);
   const presentationLine=useMemo(()=>{
     const sourcePoints=Array.isArray(sourceGeometry?.points)?sourceGeometry.points:[];
+    const rawPoints=Array.isArray(orientedRuntimeGeometry?.points)?orientedRuntimeGeometry.points:[];
     return sourcePoints.length>=3&&trackPresentationSplineEligible(resolved,runtimeGeometry)
-      ?buildClosedRacingLine(sourcePoints,{samplesPerSegment:8,parameterization:"centripetal"})
+      ?buildClosedRacingLine(sourcePoints,{
+        samplesPerSegment:8,
+        parameterization:"centripetal",
+        preserveStraights:true,
+        straightSourcePoints:rawPoints,
+      })
       :null;
-  },[resolved,runtimeGeometry,sourceGeometry]);
+  },[resolved,runtimeGeometry,sourceGeometry,orientedRuntimeGeometry]);
   const geometry=useMemo(()=>
     presentationLine?.points?.length
       ?racingLineGeometry(sourceGeometry,presentationLine)
@@ -1049,7 +1056,10 @@ export default function CanonicalRaceView({
     ?geometry.pit_lane_points
     :[];
   const pitPolyline=pitLanePoints.map((point)=>point.join(",")).join(" ");
-  const unitsPerMeter=trackPathLength(points)/trackLengthM;
+  const unitsPerMeter=raceViewLateralUnitsPerMeter({
+    trackWidthM:presentationTrackWidthM,
+    asphaltWidthSvg:RACE_VIEW_ASPHALT_WIDTH_SVG,
+  });
   const markerScale=Math.max(.62,Math.min(1.2,Number(viewBox?.[2]||1000)/930));
   const pitBoxSide=useMemo(()=>pitBoxSideSign(geometry),[geometry]);
   const pitBoxOffset=10*markerScale;
@@ -1234,8 +1244,8 @@ export default function CanonicalRaceView({
           fill="#07111a" opacity={weatherVisuals.grassDarkenOpacity}
           pointerEvents="none"
         />:null}
-        <polyline points={polyline} fill="none" stroke="#111827" strokeWidth="24" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
-        <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={polyline} fill="none" stroke="#111827" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG+9} strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
+        <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG+3} strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG} strokeLinecap="round" strokeLinejoin="round"/>
         {pitLanePoints.length>1?<g pointerEvents="none">
           <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
@@ -1260,7 +1270,7 @@ export default function CanonicalRaceView({
           points={polyline}
           fill="none"
           stroke="#7dd3fc"
-          strokeWidth="12"
+          strokeWidth={Math.max(1,RACE_VIEW_ASPHALT_WIDTH_SVG-2)}
           strokeLinecap="round"
           strokeLinejoin="round"
           opacity={weatherVisuals.wetTrackOpacity*.45}

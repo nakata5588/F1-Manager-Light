@@ -8,6 +8,7 @@ import { TRACK_LAYOUT_GEOMETRY } from "../src/data/trackLayoutGeometry.js";
 import { calibrateTrackGeometry, focusTrackViewBox, orientTrackGeometry, pointAtTrackProgress, raceEventTrackProgress, resolveTrackLayout, trackEnvironmentProfile, trackGeometryViewBox, trackIntelligenceProfile, trackMarkerSegment, trackMiniMapGeometry, trackPresentationGeometry, trackPresentationSplineEligible, trackRuntimeGeometry, trackSectorPolylinePoints, visualTrackProgress } from "../src/domain/trackLayout.js";
 import { buildPitLanePresentationGeometry, deterministicTrackScatter, offsetTrackPolyline, sampleOpenPolylinePoint, simplifyClosedPolyline, simplifyTrackPresentationGeometry, trackHeadingDegrees, trackRibbonPolygon } from "../src/domain/trackSceneGeometry.js";
 import { clampTrackViewBox, dampTrackViewBox, followTrackViewBox, panTrackViewBox, trackCameraZoomFactor, trackFollowZoomFromWheel, trackLodForZoom, trackMarkerScaleForViewBox, zoomTrackViewBox } from "../src/domain/trackCamera.js";
+import { buildClosedRacingLine } from "../src/domain/raceSplineV3.js";
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,"..");
@@ -449,6 +450,30 @@ test("Track 2.3 Argentina presentation reduces noisy anchors without changing th
   assert.equal(resolved.geometry.points.length,280,"authoritative geometry must stay unchanged");
 });
 
+
+test("RW31 spline preserves traced straight runs instead of bowing them through Catmull-Rom",()=>{
+  const raw=[
+    [0,0],[20,.08],[40,-.06],[60,.05],[80,-.04],[100,0],
+    [112,12],[110,32],[100,44],
+    [80,44],[60,44],[40,44],[20,44],[0,44],
+    [-12,32],[-12,12],
+  ];
+  const simplified=[
+    [0,0],[100,0],[112,12],[110,32],[100,44],[0,44],[-12,32],[-12,12],
+  ];
+  const line=buildClosedRacingLine(simplified,{
+    samplesPerSegment:8,
+    parameterization:"centripetal",
+    preserveStraights:true,
+    straightSourcePoints:raw,
+  });
+  assert.ok(line.straight_segment_count>=2);
+  const firstSegment=line.points.slice(0,8);
+  assert.ok(firstSegment.every((point)=>Math.abs(point[1])<1e-9));
+  const lowerStart=4*8;
+  const lowerSegment=line.points.slice(lowerStart,lowerStart+8);
+  assert.ok(lowerSegment.every((point)=>Math.abs(point[1]-44)<1e-9));
+});
 
 test("Track 2.5 wheel zoom preserves follow semantics by changing zoom only",()=>{
   assert.ok(trackFollowZoomFromWheel(5,-100)>5);

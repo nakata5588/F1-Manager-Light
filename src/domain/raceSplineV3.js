@@ -10,6 +10,77 @@ function wrap01(value){
   const number=Number(value)||0;
   return ((number%1)+1)%1;
 }
+function pointKey(point){
+  return `${Number(point?.[0]||0).toFixed(6)}:${Number(point?.[1]||0).toFixed(6)}`;
+}
+
+function angleDeltaDegrees(a,b){
+  return Math.abs((((Number(a)-Number(b))+540)%360)-180);
+}
+
+function pointSegmentDistance(point,a,b){
+  const dx=b[0]-a[0];
+  const dy=b[1]-a[1];
+  const lengthSq=dx*dx+dy*dy;
+  if(lengthSq<=1e-12)return Math.hypot(point[0]-a[0],point[1]-a[1]);
+  const t=Math.max(0,Math.min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/lengthSq));
+  const px=a[0]+dx*t;
+  const py=a[1]+dy*t;
+  return Math.hypot(point[0]-px,point[1]-py);
+}
+
+function forwardSourcePath(sourcePoints,startPoint,endPoint){
+  const source=(Array.isArray(sourcePoints)?sourcePoints:[]).map(finitePoint).filter(Boolean);
+  if(source.length<2)return [];
+  const startKey=pointKey(startPoint);
+  const endKey=pointKey(endPoint);
+  const startIndex=source.findIndex((point)=>pointKey(point)===startKey);
+  const endIndex=source.findIndex((point)=>pointKey(point)===endKey);
+  if(startIndex<0||endIndex<0)return [];
+  const out=[source[startIndex]];
+  let index=startIndex;
+  let guard=0;
+  while(index!==endIndex&&guard<=source.length){
+    index=(index+1)%source.length;
+    out.push(source[index]);
+    guard+=1;
+  }
+  return index===endIndex?out:[];
+}
+
+function sourcePathIsStraight(sourcePath,{
+  angleToleranceDeg=5,
+  deviationRatio=.008,
+  maxDeviation=1.15,
+  minSamples=4,
+  minLength=45,
+}={}){
+  const points=(Array.isArray(sourcePath)?sourcePath:[]).map(finitePoint).filter(Boolean);
+  if(points.length<Math.max(3,Number(minSamples)||4))return false;
+  const first=points[0];
+  const last=points.at(-1);
+  const chordDx=last[0]-first[0];
+  const chordDy=last[1]-first[1];
+  const chordLength=Math.hypot(chordDx,chordDy);
+  if(chordLength<Math.max(1,Number(minLength)||45))return false;
+  const chordHeading=Math.atan2(chordDy,chordDx)*(180/Math.PI);
+  const allowedDeviation=Math.min(
+    Math.max(0.2,Number(maxDeviation)||1.15),
+    Math.max(0.2,chordLength*Math.max(0,Number(deviationRatio)||.008))
+  );
+  for(let index=0;index<points.length-1;index+=1){
+    const a=points[index];
+    const b=points[index+1];
+    const dx=b[0]-a[0];
+    const dy=b[1]-a[1];
+    if(Math.hypot(dx,dy)<=1e-9)continue;
+    const heading=Math.atan2(dy,dx)*(180/Math.PI);
+    if(angleDeltaDegrees(heading,chordHeading)>Math.max(1,Number(angleToleranceDeg)||5)){
+      return false;
+    }
+  }
+  return points.every((point)=>pointSegmentDistance(point,first,last)<=allowedDeviation);
+}
 
 function catmullRom(p0,p1,p2,p3,t){
   const tt=t*t;
@@ -53,22 +124,49 @@ function catmullRomCentripetal(p0,p1,p2,p3,u){
   return interpolateParametric(b1,b2,t1,t2,t);
 }
 
-export function buildClosedRacingLine(input,{samplesPerSegment=8,parameterization="uniform"}={}){
+export function buildClosedRacingLine(input,{
+  samplesPerSegment=8,
+  parameterization="uniform",
+  preserveStraights=false,
+  straightSourcePoints=null,
+  straightAngleToleranceDeg=5,
+  straightDeviationRatio=.008,
+  straightMaxDeviation=1.15,
+  straightMinSamples=4,
+  straightMinLength=45,
+}={}){
   const points=(Array.isArray(input)?input:[]).map(finitePoint).filter(Boolean);
   if(points.length<3)return {points,total_length:0,cumulative:[0],source_count:points.length,samples_per_segment:0};
   const samples=Math.max(3,Math.min(24,Math.round(Number(samplesPerSegment)||8)));
   const out=[];
+  let straightSegmentCount=0;
   for(let index=0;index<points.length;index+=1){
     const p0=points[(index-1+points.length)%points.length];
     const p1=points[index];
     const p2=points[(index+1)%points.length];
     const p3=points[(index+2)%points.length];
+    const sourcePath=preserveStraights
+      ?forwardSourcePath(straightSourcePoints,p1,p2)
+      :[];
+    const preserveSegment=preserveStraights&&sourcePathIsStraight(sourcePath,{
+      angleToleranceDeg:straightAngleToleranceDeg,
+      deviationRatio:straightDeviationRatio,
+      maxDeviation:straightMaxDeviation,
+      minSamples:straightMinSamples,
+      minLength:straightMinLength,
+    });
+    if(preserveSegment)straightSegmentCount+=1;
     for(let step=0;step<samples;step+=1){
       const t=step/samples;
       out.push(
-        String(parameterization).toLowerCase()==="centripetal"
-          ?catmullRomCentripetal(p0,p1,p2,p3,t)
-          :catmullRom(p0,p1,p2,p3,t)
+        preserveSegment
+          ?[
+            p1[0]+(p2[0]-p1[0])*t,
+            p1[1]+(p2[1]-p1[1])*t,
+          ]
+          :String(parameterization).toLowerCase()==="centripetal"
+            ?catmullRomCentripetal(p0,p1,p2,p3,t)
+            :catmullRom(p0,p1,p2,p3,t)
       );
     }
   }
@@ -88,6 +186,8 @@ export function buildClosedRacingLine(input,{samplesPerSegment=8,parameterizatio
     source_count:points.length,
     samples_per_segment:samples,
     parameterization:String(parameterization).toLowerCase()==="centripetal"?"centripetal":"uniform",
+    straight_segment_count:straightSegmentCount,
+    straight_preservation:Boolean(preserveStraights),
   };
 }
 

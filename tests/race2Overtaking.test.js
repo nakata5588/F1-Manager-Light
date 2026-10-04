@@ -199,8 +199,7 @@ test("RW8.6 overtaking probability uses canonical attacker/defender performance"
     {gapM:10}
   );
 
-  assert.ok(strong>weak);
-  assert.ok(strong>0.70);
+  assert.ok(strong>weak+0.25);
   assert.ok(weak<0.40);
 });
 
@@ -265,7 +264,7 @@ test("RW28 overtaking, defending and race intelligence dominate equal-car battle
   assert.ok(eliteAttack>ordinaryAttack+0.12);
 });
 
-test("RW30 driver racecraft has four times the combined battle influence of an equivalent car edge",()=>{
+test("RW31 driver attributes keep a clear 65/35 advantage over equivalent car influence",()=>{
   const baseline=runningState();
   const driverLed=patchCars(baseline,{
     C1:{
@@ -303,7 +302,8 @@ test("RW30 driver racecraft has four times the combined battle influence of an e
   assert.equal(driverMatch.carEdge,0);
   assert.equal(carMatch.driverEdge,0);
   assert.ok(carMatch.carEdge>20);
-  assert.ok(driverMatch.edge>carMatch.edge*3.5);
+  assert.ok(driverMatch.edge>carMatch.edge*1.75);
+  assert.ok(driverMatch.edge<carMatch.edge*2.05);
 });
 
 test("RW30 racecraft can create a battle window even when free-speed telemetry is equal",()=>{

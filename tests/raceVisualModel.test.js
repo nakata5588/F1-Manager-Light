@@ -37,6 +37,7 @@ import {
   raceCarNativeFootprint,
   raceCarNominalWidthM,
   raceCarPresentationScale,
+  raceViewLateralUnitsPerMeter,
 } from "../src/domain/raceCarPresentation.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
@@ -684,7 +685,7 @@ test("Cars 4.1B resolves combined season labels safely and leaves other years un
 });
 
 
-test("RW15B calibrates 1980 car width to roughly one fifth of nominal track width",()=>{
+test("RW31 widens the nominal race surface while preserving approved 1980 car size",()=>{
   const result=raceCarPresentationScale({
     year:1980,
     model:"FW07",
@@ -693,10 +694,26 @@ test("RW15B calibrates 1980 car width to roughly one fifth of nominal track widt
   });
 
   assert.equal(raceCarNominalWidthM(1980),2.1);
-  assert.ok(result.widthRatio>=0.20&&result.widthRatio<=0.22);
+  assert.ok(result.widthRatio>=0.16&&result.widthRatio<=0.18);
   assert.ok(result.targetWidthSvg>=2.8&&result.targetWidthSvg<=3.1);
   assert.ok(result.targetLengthSvg>=5&&result.targetLengthSvg<=6.5);
   assert.ok(result.scale<0.2);
+});
+
+test("RW31 canonical lateral battle spacing uses rendered track width rather than lap-length scale",()=>{
+  const scale=raceCarPresentationScale({
+    year:1980,
+    model:"FW07",
+    trackWidthM:RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+    asphaltWidthSvg:RACE_VIEW_ASPHALT_WIDTH_SVG,
+  });
+  const lateralUnits=raceViewLateralUnitsPerMeter({
+    trackWidthM:RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+    asphaltWidthSvg:RACE_VIEW_ASPHALT_WIDTH_SVG,
+  });
+  const centreSeparation=2*1.85*lateralUnits;
+  assert.ok(centreSeparation>scale.targetWidthSvg);
+  assert.ok(centreSeparation<RACE_VIEW_ASPHALT_WIDTH_SVG*.45);
 });
 
 test("RW15B historical geometry drives model-specific native footprint without changing target physical width",()=>{
