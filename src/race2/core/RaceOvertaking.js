@@ -106,11 +106,11 @@ function carDefenseScore(car){
 }
 
 function battleAttackScore(car){
-  return driverAttackScore(car)*0.80+carAttackScore(car)*0.20;
+  return driverAttackScore(car)*0.65+carAttackScore(car)*0.35;
 }
 
 function battleDefenseScore(car){
-  return driverDefenseScore(car)*0.80+carDefenseScore(car)*0.20;
+  return driverDefenseScore(car)*0.65+carDefenseScore(car)*0.35;
 }
 
 function overtakingPerformancePotential(car,{attacker=false}={}){
