@@ -293,15 +293,23 @@ test("RW12A visual interpolation keeps target ordering and only smooths pose fie
 });
 
 
-test("RW12B camera viewBox keeps FIT geometry and zooms around a supplied center",()=>{
+test("RW29 camera viewBox stays inside track bounds at every zoom",()=>{
   const base=[0,0,1000,500];
   assert.deepEqual(raceViewBoxCenter(base),{x:500,y:250});
   assert.deepEqual(raceViewCameraViewBox(base,{zoom:1,center:{x:500,y:250}}),base);
   assert.deepEqual(
     raceViewCameraViewBox(base,{zoom:2,center:{x:250,y:100}}),
-    [0,-25,500,250]
+    [0,0,500,250]
   );
-  assert.equal(clampRaceViewZoom(99),6);
+  assert.deepEqual(
+    raceViewCameraViewBox(base,{zoom:2,center:{x:990,y:490}}),
+    [500,250,500,250]
+  );
+  assert.deepEqual(
+    raceViewCameraViewBox(base,{zoom:4,center:{x:500,y:250}}),
+    [375,187.5,250,125]
+  );
+  assert.equal(clampRaceViewZoom(99),8);
   assert.equal(clampRaceViewZoom(0.1),1);
 });
 
