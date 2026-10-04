@@ -170,6 +170,12 @@ test("RW20 Race View exposes canonical battle telemetry without recomputing the 
           closingPotentialMs:4.25,
           attemptRangeM:22,
           trackDifficulty:44,
+          attackerDriverScore:94,
+          defenderDriverScore:68,
+          driverEdge:26,
+          attackerCarScore:81.5,
+          defenderCarScore:65.5,
+          carEdge:16,
           attackerScore:91.5,
           defenderScore:67.5,
           performanceEdge:24,
@@ -235,6 +241,12 @@ test("RW20 Race View exposes canonical battle telemetry without recomputing the 
   assert.equal(attacker.battle_context.remaining_ms,3600);
   assert.equal(attacker.battle_context.slipstream_strength_pct,72);
   assert.equal(attacker.battle_context.slipstream_bonus_kmh,6.3);
+  assert.equal(attacker.battle_context.attacker_driver_score,94);
+  assert.equal(attacker.battle_context.defender_driver_score,68);
+  assert.equal(attacker.battle_context.driver_edge,26);
+  assert.equal(attacker.battle_context.attacker_car_score,81.5);
+  assert.equal(attacker.battle_context.defender_car_score,65.5);
+  assert.equal(attacker.battle_context.car_edge,16);
   assert.equal(attacker.battle_context.attacker_score,91.5);
   assert.equal(attacker.battle_context.defender_score,67.5);
   assert.equal(attacker.battle_context.performance_edge,24);
