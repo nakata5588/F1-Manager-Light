@@ -212,7 +212,7 @@ test("RW28 overtaking, defending and race intelligence dominate equal-car battle
       performance:{
         car:{race:80,power:80,chassis:80},
         driver:{
-          raceScore:80,overtaking:50,defending:95,raceIntelligence:92,
+          raceScore:80,overtaking:50,defending:55,raceIntelligence:60,
           mistakePropensity:15,aggression:55,
         },
       },
@@ -240,7 +240,7 @@ test("RW28 overtaking, defending and race intelligence dominate equal-car battle
       performance:{
         car:{race:80,power:80,chassis:80},
         driver:{
-          raceScore:80,overtaking:50,defending:55,raceIntelligence:60,
+          raceScore:80,overtaking:50,defending:95,raceIntelligence:92,
           mistakePropensity:15,aggression:55,
         },
       },
