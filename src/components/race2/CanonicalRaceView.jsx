@@ -10,7 +10,9 @@ import {
 import {
   openPolylineHeadingDegrees,
   sampleOpenPolylinePoint,
+  simplifyTrackPresentationGeometry,
 } from "../../domain/trackSceneGeometry.js";
+import { dampTrackViewBox } from "../../domain/trackCamera.js";
 import { pitBoxMixForPhase, pitLaneMixForPhase, pitLaneProgressForPhase } from "../../domain/racePitModel.js";
 import { TeamLogo } from "../entity/EntityVisuals.jsx";
 import RaceCarVisual from "../race/RaceCarVisual.jsx";
@@ -475,9 +477,62 @@ function useCanonicalRaceViewMotion(canonicalCars,{
   return visualCars;
 }
 
+function useDampedRaceViewCameraBox(targetBox,{
+  enabled=false,
+  playbackSpeed=1,
+}={}){
+  const normalized=Array.isArray(targetBox)&&targetBox.length===4
+    ?targetBox.map(Number)
+    :[0,0,1000,1000];
+  const targetRef=useRef(normalized);
+  const currentRef=useRef(normalized);
+  const speedRef=useRef(playbackSpeed);
+  const [display,setDisplay]=useState(normalized);
+  const displayRef=useRef(normalized);
+  const targetKey=normalized.map((value)=>Number(value).toFixed(3)).join(":");
+
+  targetRef.current=normalized;
+  speedRef.current=playbackSpeed;
+
+  useEffect(()=>{
+    if(enabled)return;
+    currentRef.current=normalized;
+    displayRef.current=normalized;
+    setDisplay(normalized);
+  },[enabled,targetKey]);
+
+  useEffect(()=>{
+    if(!enabled)return undefined;
+    let frame=null;
+    let previous=performance.now();
+    const tick=(now)=>{
+      const speed=Math.max(1,Number(speedRef.current)||1);
+      const timeConstantMs=speed>=16?112:speed>=8?92:68;
+      const next=dampTrackViewBox(
+        currentRef.current,
+        targetRef.current,
+        Math.max(0,now-previous),
+        {timeConstantMs,snap:.012}
+      );
+      previous=now;
+      currentRef.current=next;
+      const changed=next.some((value,index)=>Math.abs(value-displayRef.current[index])>.0005);
+      if(changed){
+        displayRef.current=next;
+        setDisplay(next);
+      }
+      frame=window.requestAnimationFrame(tick);
+    };
+    frame=window.requestAnimationFrame(tick);
+    return ()=>{if(frame!=null)window.cancelAnimationFrame(frame);};
+  },[enabled]);
+
+  return enabled?display:normalized;
+}
+
 function CanonicalCar({
   car,geometry,unitsPerMeter,palette,label,selected,onSelect,onFollow,
-  scale=1,retired=false,year,driverNumberValue=null,pitBoxOffset=0,pitBoxSide=1,
+  scale=1,annotationScale=scale,retired=false,year,driverNumberValue=null,pitBoxOffset=0,pitBoxSide=1,
   lod="overview",showLabel=false,trackWidthM=RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
 }){
   const pose=visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
@@ -493,7 +548,7 @@ function CanonicalCar({
     calibrated.targetWidthSvg*1.35,
     calibrated.targetLengthSvg*.62
   );
-  const labelScale=Math.max(.5,Math.min(.78,Number(scale)||.65));
+  const labelScale=Math.max(.055,Math.min(.78,Number(annotationScale)||Number(scale)||.65));
   const engagement=car?.battle_context||null;
   const battleActive=activeBattleContext(engagement);
   const towActive=String(engagement?.state||"")==="slipstream";
@@ -796,10 +851,14 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
   const engagement=selected?.battle_context||null;
   const pitHistory=Array.isArray(selected?.pit_state?.history)?selected.pit_state.history:[];
   const latestPit=pitHistory.length?pitHistory[pitHistory.length-1]:null;
-  const rawBattleEdge=Number(engagement?.performance_edge);
-  const selectedBattleEdge=Number.isFinite(rawBattleEdge)
-    ?(String(engagement?.role||"")==="defender"?-rawBattleEdge:rawBattleEdge)
-    :null;
+  const signedEdge=(value)=>{
+    const raw=Number(value);
+    if(!Number.isFinite(raw))return null;
+    return String(engagement?.role||"")==="defender"?-raw:raw;
+  };
+  const selectedDriverEdge=signedEdge(engagement?.driver_edge);
+  const selectedCarEdge=signedEdge(engagement?.car_edge);
+  const selectedBattleEdge=signedEdge(engagement?.performance_edge);
   const battleOpponent=engagement?.opponent_car_id
     ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(engagement.opponent_car_id))
     :null;
@@ -867,7 +926,9 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
             {hasTelemetryNumber(engagement?.started_gap_m)?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
             {hasTelemetryNumber(engagement?.attempt_probability_pct)?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
             {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
-            {selectedBattleEdge!=null?metric("Car + driver edge",`${selectedBattleEdge>=0?"+":""}${selectedBattleEdge.toFixed(0)} pts`):null}
+            {selectedDriverEdge!=null?metric("Driver edge",`${selectedDriverEdge>=0?"+":""}${selectedDriverEdge.toFixed(0)} pts`):null}
+            {selectedCarEdge!=null?metric("Car edge",`${selectedCarEdge>=0?"+":""}${selectedCarEdge.toFixed(0)} pts`):null}
+            {selectedBattleEdge!=null?metric("Combined edge",`${selectedBattleEdge>=0?"+":""}${selectedBattleEdge.toFixed(0)} pts`):null}
             {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
             {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
             {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
@@ -955,9 +1016,18 @@ export default function CanonicalRaceView({
       :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
   },[resolved]);
   const runtimeGeometry=useMemo(()=>trackRuntimeGeometry(resolved),[resolved]);
+  const presentationSourceGeometry=useMemo(()=>{
+    const raw=runtimeGeometry?.geometry||null;
+    if(!raw||!trackPresentationSplineEligible(resolved,runtimeGeometry))return raw;
+    const style=resolved?.environment?.race_view_style||{};
+    return simplifyTrackPresentationGeometry(raw,{
+      tolerance:Number(style?.presentation_tolerance||1.25),
+      pitTolerance:Number(style?.pit_presentation_tolerance||.7),
+    });
+  },[resolved,runtimeGeometry]);
   const sourceGeometry=useMemo(
-    ()=>orientTrackGeometry(runtimeGeometry?.geometry||null),
-    [runtimeGeometry]
+    ()=>orientTrackGeometry(presentationSourceGeometry),
+    [presentationSourceGeometry]
   );
   const presentationLine=useMemo(()=>{
     const sourcePoints=Array.isArray(sourceGeometry?.points)?sourceGeometry.points:[];
@@ -983,6 +1053,36 @@ export default function CanonicalRaceView({
   const markerScale=Math.max(.62,Math.min(1.2,Number(viewBox?.[2]||1000)/930));
   const pitBoxSide=useMemo(()=>pitBoxSideSign(geometry),[geometry]);
   const pitBoxOffset=10*markerScale;
+  const fitLabelDriverIds=useMemo(()=>{
+    const xRadius=Math.max(16,Number(viewBox?.[2]||1000)*.032);
+    const yRadius=Math.max(12,Number(viewBox?.[3]||600)*.038);
+    const candidates=(visualCars||[]).map((car,index)=>({
+      car,
+      index,
+      pose:visualCarPose(car,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide}),
+      selected:String(car?.driver_id||"")===String(selectedDriverId||""),
+      mine:String(car?.team_id||"")===String(playerTeamId||""),
+    })).filter((entry)=>entry.pose).sort((a,b)=>
+      Number(b.selected)-Number(a.selected)
+      ||Number(b.mine)-Number(a.mine)
+      ||a.index-b.index
+    );
+    const accepted=[];
+    const ids=new Set();
+    for(const entry of candidates){
+      const overlaps=accepted.some((other)=>
+        Math.abs(entry.pose.x-other.pose.x)<xRadius
+        &&Math.abs(entry.pose.y-other.pose.y)<yRadius
+      );
+      if(overlaps&&!entry.selected)continue;
+      accepted.push(entry);
+      ids.add(String(entry.car?.driver_id||""));
+    }
+    return ids;
+  },[
+    visualCars,geometry,unitsPerMeter,pitBoxOffset,pitBoxSide,viewBox,
+    selectedDriverId,playerTeamId,
+  ]);
   const selectedVisual=visualCars.find((car)=>String(car.driver_id)===String(selectedDriverId||""))||null;
   const selectedVisualPose=selectedVisual
     ?visualCarPose(selectedVisual,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide})
@@ -1004,12 +1104,17 @@ export default function CanonicalRaceView({
   const cameraCenter=cameraMode==="follow"
     ?followCenter
     :(freeCenter||baseCenter);
-  const cameraBox=cameraMode==="fit"
+  const targetCameraBox=cameraMode==="fit"
     ?viewBox
     :raceViewCameraViewBox(viewBox,{zoom:cameraZoom,center:cameraCenter});
+  const cameraBox=useDampedRaceViewCameraBox(targetCameraBox,{
+    enabled:cameraMode==="follow"&&playbackRunning,
+    playbackSpeed,
+  });
   const effectiveCameraCenter=cameraMode==="fit"
     ?baseCenter
     :raceViewBoxCenter(cameraBox);
+  const annotationScale=markerScale/Math.max(1,cameraMode==="fit"?1:cameraZoom);
   const trackLod=cameraMode==="fit"
     ?"overview"
     :cameraZoom>=4
@@ -1166,7 +1271,7 @@ export default function CanonicalRaceView({
           geometry={geometry}
           unitsPerMeter={unitsPerMeter}
           drivers={drivers}
-          scale={markerScale}
+          scale={annotationScale}
           pitBoxOffset={pitBoxOffset}
           pitBoxSide={pitBoxSide}
         />
@@ -1209,8 +1314,9 @@ export default function CanonicalRaceView({
               setCameraZoom((current)=>Math.max(3.2,clampRaceViewZoom(current)));
             }}
             scale={markerScale}
+            annotationScale={annotationScale}
             lod={trackLod}
-            showLabel={String(car.driver_id)===String(selectedDriverId||"")||(cameraMode==="fit"&&String(car.team_id)===String(playerTeamId||""))}
+            showLabel={String(car.driver_id)===String(selectedDriverId||"")||(cameraMode==="fit"&&fitLabelDriverIds.has(String(car.driver_id||"")))}
             trackWidthM={presentationTrackWidthM}
             retired={car.retired}
             year={year}

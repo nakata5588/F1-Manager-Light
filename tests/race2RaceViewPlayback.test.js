@@ -157,8 +157,8 @@ test("RW8.14J frame clock exposes elapsed sampling for the Zustand dispatch boun
 test("RW12A derives wall-clock interpolation duration from canonical time and playback speed",()=>{
   assert.equal(raceViewInterpolationDurationMs(1000,1100,1),100);
   assert.equal(raceViewInterpolationDurationMs(1000,1100,4),25);
-  assert.equal(raceViewInterpolationDurationMs(1000,1100,8),12.5);
-  assert.equal(raceViewInterpolationDurationMs(1000,1100,16),12);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,8),24);
+  assert.equal(raceViewInterpolationDurationMs(1000,1100,16),24);
   assert.equal(raceViewInterpolationDurationMs(1000,1100,0.5),200);
   assert.equal(raceViewInterpolationDurationMs(1100,1100,1),0);
   assert.equal(raceViewInterpolationAlpha(1000,100,1050),0.5);
@@ -174,7 +174,7 @@ test("RW21 retargets from the sampled visual pose without carrying stale canonic
 test("RW21 high-speed retargeting stays tied to playback time instead of a 40 ms artificial floor",()=>{
   const oneStepAt16x=raceViewInterpolationDurationMs(1000,1100,16);
   const fourStepsAt16x=raceViewInterpolationDurationMs(1000,1400,16);
-  assert.equal(oneStepAt16x,12);
+  assert.equal(oneStepAt16x,24);
   assert.equal(fourStepsAt16x,25);
   assert.ok(fourStepsAt16x<40);
 });
@@ -200,7 +200,7 @@ test("RW18 retimes an in-flight visual segment from its current progress without
   });
   assert.equal(accelerated.alpha,0.25);
   assert.equal(accelerated.remainingCanonicalMs,150);
-  assert.equal(accelerated.durationMs,12);
+  assert.equal(accelerated.durationMs,24);
 });
 
 test("RW12A interpolates absolute distance through lap wrap without moving backwards",()=>{

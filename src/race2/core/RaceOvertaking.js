@@ -71,28 +71,46 @@ function driverRaceIntelligence(car){
   return score(driver?.raceIntelligence,score(driver?.raceScore,70));
 }
 
-function battleAttackScore(car){
+function driverAttackScore(car){
   const driver=driverPerformance(car);
-  const machine=carPerformance(car);
   return (
-    score(driver?.overtaking,70)*0.45+
-    driverRaceIntelligence(car)*0.20+
-    score(driver?.raceScore,70)*0.10+
-    score(machine?.power,70)*0.15+
-    score(machine?.race,70)*0.10
+    score(driver?.overtaking,70)*0.60+
+    driverRaceIntelligence(car)*0.25+
+    score(driver?.raceScore,70)*0.15
   );
 }
 
-function battleDefenseScore(car){
+function driverDefenseScore(car){
   const driver=driverPerformance(car);
+  return (
+    score(driver?.defending,70)*0.60+
+    driverRaceIntelligence(car)*0.25+
+    score(driver?.raceScore,70)*0.15
+  );
+}
+
+function carAttackScore(car){
   const machine=carPerformance(car);
   return (
-    score(driver?.defending,70)*0.45+
-    driverRaceIntelligence(car)*0.20+
-    score(driver?.raceScore,70)*0.10+
-    score(machine?.chassis,70)*0.15+
-    score(machine?.race,70)*0.10
+    score(machine?.power,70)*0.60+
+    score(machine?.race,70)*0.40
   );
+}
+
+function carDefenseScore(car){
+  const machine=carPerformance(car);
+  return (
+    score(machine?.chassis,70)*0.60+
+    score(machine?.race,70)*0.40
+  );
+}
+
+function battleAttackScore(car){
+  return driverAttackScore(car)*0.80+carAttackScore(car)*0.20;
+}
+
+function battleDefenseScore(car){
+  return driverDefenseScore(car)*0.80+carDefenseScore(car)*0.20;
 }
 
 function overtakingPerformancePotential(car,{attacker=false}={}){
@@ -100,9 +118,19 @@ function overtakingPerformancePotential(car,{attacker=false}={}){
 }
 
 export function raceBattlePerformanceMatchup(attacker,defender){
+  const attackerDriverScore=driverAttackScore(attacker);
+  const defenderDriverScore=driverDefenseScore(defender);
+  const attackerCarScore=carAttackScore(attacker);
+  const defenderCarScore=carDefenseScore(defender);
   const attackerScore=battleAttackScore(attacker);
   const defenderScore=battleDefenseScore(defender);
   return {
+    attackerDriverScore:round(attackerDriverScore,3),
+    defenderDriverScore:round(defenderDriverScore,3),
+    driverEdge:round(attackerDriverScore-defenderDriverScore,3),
+    attackerCarScore:round(attackerCarScore,3),
+    defenderCarScore:round(defenderCarScore,3),
+    carEdge:round(attackerCarScore-defenderCarScore,3),
     attackerScore:round(attackerScore,3),
     defenderScore:round(defenderScore,3),
     edge:round(attackerScore-defenderScore,3),
@@ -158,7 +186,8 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   const performanceClosing=performanceDelta*0.070;
   return Math.max(
     currentClosing,
-    freeClosing==null?performanceClosing:freeClosing
+    freeClosing==null?Number.NEGATIVE_INFINITY:freeClosing,
+    performanceClosing
   );
 }
 
@@ -761,6 +790,12 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       closingPotentialMs:round(opportunity.closingPotentialMs,6),
       attemptRangeM:round(opportunity.attemptRangeM,6),
       trackDifficulty:round(opportunity.trackDifficulty,3),
+      attackerDriverScore:matchup.attackerDriverScore,
+      defenderDriverScore:matchup.defenderDriverScore,
+      driverEdge:matchup.driverEdge,
+      attackerCarScore:matchup.attackerCarScore,
+      defenderCarScore:matchup.defenderCarScore,
+      carEdge:matchup.carEdge,
       attackerScore:matchup.attackerScore,
       defenderScore:matchup.defenderScore,
       performanceEdge:matchup.edge,
