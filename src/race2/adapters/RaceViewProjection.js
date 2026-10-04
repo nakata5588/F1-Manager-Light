@@ -88,6 +88,8 @@ function raceViewBattleContext(state,car,startEvents){
     const attemptId=text(battle?.attemptId);
     const started=attemptId?startEvents.get(attemptId):null;
     const payload=started?.payload||{};
+    const entryTowStrength=Math.max(0,finite(payload?.towStrength,0));
+    const entryTowBonusKmh=Math.max(0,finite(payload?.towBonusKmh,0));
     const startedAtMs=finite(battle?.startedAtMs,null);
     const expiresAtMs=finite(battle?.expiresAtMs,null);
     return {
@@ -114,9 +116,17 @@ function raceViewBattleContext(state,car,startEvents){
       attacker_score:finite(payload?.attackerScore,null),
       defender_score:finite(payload?.defenderScore,null),
       performance_edge:finite(payload?.performanceEdge,null),
-      slipstream_active:Boolean(traffic.slipstream_active),
-      slipstream_strength_pct:round(finite(traffic.slipstream_strength,0)*100,3),
-      slipstream_bonus_kmh:round(finite(traffic.slipstream_bonus_kmh,0),3),
+      slipstream_active:Boolean(traffic.slipstream_active)||entryTowStrength>0,
+      slipstream_strength_pct:round(
+        Math.max(finite(traffic.slipstream_strength,0),entryTowStrength)*100,
+        3
+      ),
+      slipstream_bonus_kmh:round(
+        Math.max(finite(traffic.slipstream_bonus_kmh,0),entryTowBonusKmh),
+        3
+      ),
+      entry_tow_strength_pct:round(entryTowStrength*100,3),
+      entry_tow_bonus_kmh:round(entryTowBonusKmh,3),
       gap_m:null,
     };
   }
