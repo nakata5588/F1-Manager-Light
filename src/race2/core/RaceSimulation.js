@@ -15,7 +15,11 @@ import { normalizeRaceStepMs } from "./RaceState.js";
 import { raceAccelerationForTarget, raceDynamicsForCar } from "./RaceDynamics.js";
 import { buildRaceClassification, projectCanonicalRaceTiming } from "./RaceClassification.js";
 import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs, terminalOfficialRaceTimeMs } from "./RaceLapTiming.js";
-import { enforceRaceTrafficSpacing, raceTrafficContext } from "./RaceTraffic.js";
+import {
+  enforceRaceTrafficSpacing,
+  gridLaunchLateralOffsetM,
+  raceTrafficContext,
+} from "./RaceTraffic.js";
 import { resolveRaceOvertaking } from "./RaceOvertaking.js";
 import { raceTeamOrderTrafficExclusions, resolveRaceTeamOrders } from "./RaceTeamOrders.js";
 import { advanceRaceResources } from "./RaceResources.js";
@@ -151,6 +155,11 @@ function advanceCar(state,car,stepMs){
     ?3
     :(trackSectorAtDistance(state.track,distanceAlongLapM)??1);
 
+  const battlePhase=String(car?.battle?.phase||"none");
+  const lateralOffsetM=battlePhase==="none"
+    ?gridLaunchLateralOffsetM(car,nextAbsolute)
+    :finite(car?.lateralOffsetM,0);
+
   return {
     ...car,
     lap,
@@ -158,6 +167,7 @@ function advanceCar(state,car,stepMs){
     sector,
     distanceAlongLapM:Number(distanceAlongLapM.toFixed(6)),
     absoluteDistanceM:nextAbsolute,
+    lateralOffsetM:Number(finite(lateralOffsetM,0).toFixed(6)),
     speedMs:Number(nextSpeedMs.toFixed(6)),
     speedKmh:Number((nextSpeedMs*3.6).toFixed(6)),
     accelerationMs2:Number(acceleration.toFixed(6)),
