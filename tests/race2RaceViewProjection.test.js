@@ -173,6 +173,8 @@ test("RW20 Race View exposes canonical battle telemetry without recomputing the 
           attackerScore:91.5,
           defenderScore:67.5,
           performanceEdge:24,
+          towStrength:.72,
+          towBonusKmh:6.3,
         },
       },
     ],
@@ -236,6 +238,8 @@ test("RW20 Race View exposes canonical battle telemetry without recomputing the 
   assert.equal(attacker.battle_context.attacker_score,91.5);
   assert.equal(attacker.battle_context.defender_score,67.5);
   assert.equal(attacker.battle_context.performance_edge,24);
+  assert.equal(attacker.battle_context.entry_tow_strength_pct,72);
+  assert.equal(attacker.battle_context.entry_tow_bonus_kmh,6.3);
 });
 
 test("RW20 Race View surfaces canonical slipstream pressure before side-by-side begins",()=>{
