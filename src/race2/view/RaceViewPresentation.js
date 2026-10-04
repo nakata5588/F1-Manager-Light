@@ -11,7 +11,7 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 export const RACE_VIEW_CAMERA_MODES=Object.freeze(["fit","follow","free"]);
 
 export function clampRaceViewZoom(value){
-  return clamp(finite(value,1),1,6);
+  return clamp(finite(value,1),1,8);
 }
 
 export function raceViewBoxCenter(viewBox=[0,0,1,1]){
@@ -28,13 +28,17 @@ export function raceViewCameraViewBox(baseViewBox=[0,0,1,1],{
   const height=Math.max(1,rawHeight);
   const z=clampRaceViewZoom(zoom);
   const fallback=raceViewBoxCenter([x,y,width,height]);
-  const cx=finite(center?.x,fallback.x);
-  const cy=finite(center?.y,fallback.y);
+  const requestedX=finite(center?.x,fallback.x);
+  const requestedY=finite(center?.y,fallback.y);
   const nextWidth=width/z;
   const nextHeight=height/z;
+  const halfWidth=nextWidth/2;
+  const halfHeight=nextHeight/2;
+  const cx=clamp(requestedX,x+halfWidth,x+width-halfWidth);
+  const cy=clamp(requestedY,y+halfHeight,y+height-halfHeight);
   return [
-    cx-nextWidth/2,
-    cy-nextHeight/2,
+    cx-halfWidth,
+    cy-halfHeight,
     nextWidth,
     nextHeight,
   ];
