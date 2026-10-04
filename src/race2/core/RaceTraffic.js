@@ -14,6 +14,8 @@ import {
 } from "../track/TrackModel.js";
 
 export const RACE_GRID_SLOT_SPACING_M=8;
+export const RACE_GRID_LATERAL_OFFSET_M=1.75;
+export const RACE_GRID_MERGE_DISTANCE_M=160;
 export const RACE_TRAFFIC_HARD_GAP_M=6;
 export const RACE_SLIPSTREAM_MAX_BONUS_KMH=9;
 export const RACE_SLIPSTREAM_MIN_SPEED_KMH=100;
@@ -33,6 +35,25 @@ export function initialGridAbsoluteDistanceM(gridPosition){
   const position=Math.max(1,Math.round(finite(gridPosition,1)));
   if(position===1)return 0;
   return -((position-1)*RACE_GRID_SLOT_SPACING_M);
+}
+
+export function initialGridLateralOffsetM(gridPosition,{poleSide=1}={}){
+  const position=Math.max(1,Math.round(finite(gridPosition,1)));
+  const sign=(position%2===1?1:-1)*(finite(poleSide,1)<0?-1:1);
+  return round(sign*RACE_GRID_LATERAL_OFFSET_M,6);
+}
+
+export function gridLaunchLateralOffsetM(car,absoluteDistanceM){
+  const start=finite(car?.gridStartOffsetM,0);
+  const initial=finite(car?.gridLaneOffsetM,0);
+  if(Math.abs(initial)<1e-9)return 0;
+  const travelled=Math.max(0,finite(absoluteDistanceM,start)-start);
+  const remaining=clamp(
+    1-(travelled/Math.max(1,RACE_GRID_MERGE_DISTANCE_M)),
+    0,
+    1
+  );
+  return round(initial*remaining,6);
 }
 
 function isTrackTrafficCar(car){
