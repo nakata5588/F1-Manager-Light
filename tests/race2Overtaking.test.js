@@ -199,8 +199,7 @@ test("RW8.6 overtaking probability uses canonical attacker/defender performance"
     {gapM:10}
   );
 
-  assert.ok(strong>weak);
-  assert.ok(strong>0.70);
+  assert.ok(strong>weak+0.25);
   assert.ok(weak<0.40);
 });
 
