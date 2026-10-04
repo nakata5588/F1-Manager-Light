@@ -7,8 +7,12 @@
 
 import { historicalRaceCarGeometry } from "./raceCarGeometry.js";
 
-export const RACE_VIEW_ASPHALT_WIDTH_SVG=14;
-export const RACE_VIEW_NOMINAL_TRACK_WIDTH_M=10;
+// RW31: the previous 14 SVG / 10 m fallback made the usable asphalt look
+// narrower than the already-approved car scale once kerbs/margins were drawn.
+// Widen both presentation asphalt and nominal physical track together so the
+// car footprint remains almost unchanged while two-car battles read naturally.
+export const RACE_VIEW_ASPHALT_WIDTH_SVG=16;
+export const RACE_VIEW_NOMINAL_TRACK_WIDTH_M=11.5;
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 
