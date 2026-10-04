@@ -12,10 +12,11 @@ import {
   RACE_TRAFFIC_HARD_GAP_M,
   desiredTrafficGapM,
   nearestTrafficAhead,
+  raceSlipstreamContext,
   raceTrafficPairKey,
 } from "./RaceTraffic.js";
 
-export const RACE_BATTLE_LATERAL_OFFSET_M=1.4;
+export const RACE_BATTLE_LATERAL_OFFSET_M=1.85;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
 export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
 export const RACE_BATTLE_DURATION_MS=3500;
@@ -65,26 +66,20 @@ function overtakingRangeFactor(state){
   return clamp(1.08-overtakingDifficulty(state)*0.0035,0.72,1.08);
 }
 
-function overtakingPerformancePotential(car,{attacker=false}={}){
+function driverRaceIntelligence(car){
   const driver=driverPerformance(car);
-  const machine=carPerformance(car);
-  return (
-    score(machine?.race,70)*0.38+
-    score(machine?.power,70)*0.24+
-    score(machine?.chassis,70)*0.12+
-    score(driver?.raceScore,70)*0.16+
-    score(attacker?driver?.overtaking:driver?.defending,70)*0.10
-  );
+  return score(driver?.raceIntelligence,score(driver?.raceScore,70));
 }
 
 function battleAttackScore(car){
   const driver=driverPerformance(car);
   const machine=carPerformance(car);
   return (
-    score(driver?.overtaking,70)*0.42+
-    score(driver?.raceScore,70)*0.18+
-    score(machine?.race,70)*0.18+
-    score(machine?.power,70)*0.22
+    score(driver?.overtaking,70)*0.45+
+    driverRaceIntelligence(car)*0.20+
+    score(driver?.raceScore,70)*0.10+
+    score(machine?.power,70)*0.15+
+    score(machine?.race,70)*0.10
   );
 }
 
@@ -92,11 +87,16 @@ function battleDefenseScore(car){
   const driver=driverPerformance(car);
   const machine=carPerformance(car);
   return (
-    score(driver?.defending,70)*0.42+
-    score(driver?.raceScore,70)*0.18+
-    score(machine?.race,70)*0.18+
-    score(machine?.chassis,70)*0.22
+    score(driver?.defending,70)*0.45+
+    driverRaceIntelligence(car)*0.20+
+    score(driver?.raceScore,70)*0.10+
+    score(machine?.chassis,70)*0.15+
+    score(machine?.race,70)*0.10
   );
+}
+
+function overtakingPerformancePotential(car,{attacker=false}={}){
+  return attacker?battleAttackScore(car):battleDefenseScore(car);
 }
 
 export function raceBattlePerformanceMatchup(attacker,defender){
@@ -126,7 +126,7 @@ export function raceBattlePaceMultiplier(state,car){
   // driver/car matchup than the initial visual implementation was. Normal
   // tyre, damage, weather and track dynamics still apply outside this narrow
   // duel multiplier.
-  return round(clamp(1+ownEdge*0.0012,0.94,1.06),6);
+  return round(clamp(1+ownEdge*0.0022,0.90,1.10),6);
 }
 
 function overtakeClosingPotentialMs(state,attacker,defender){
@@ -155,7 +155,7 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   const performanceDelta=
     overtakingPerformancePotential(attacker,{attacker:true})-
     overtakingPerformancePotential(defender,{attacker:false});
-  const performanceClosing=performanceDelta*0.085;
+  const performanceClosing=performanceDelta*0.070;
   return Math.max(
     currentClosing,
     freeClosing==null?performanceClosing:freeClosing
@@ -300,7 +300,11 @@ export function initialBattleState(){
   };
 }
 
-export function overtakeAttemptProbability(state,attacker,defender,{gapM=null,closingSpeedMs=null}={}){
+export function overtakeAttemptProbability(state,attacker,defender,{
+  gapM=null,
+  closingSpeedMs=null,
+  towStrength=null,
+}={}){
   const overtaking=score(driverPerformance(attacker)?.overtaking,null);
   const defending=score(driverPerformance(defender)?.defending,null);
   if(overtaking==null||defending==null)return 0;
@@ -329,12 +333,18 @@ export function overtakeAttemptProbability(state,attacker,defender,{gapM=null,cl
     0,
     1
   );
-  const closingBonus=clamp(closingSpeed/25,-0.08,0.16);
-  const attributeBonus=clamp(((attack-defense)/100)*0.62,-0.38,0.38);
+  const closingBonus=clamp(closingSpeed/25,-0.08,0.14);
+  const attributeBonus=clamp(((attack-defense)/100)*0.78,-0.42,0.42);
+  const activeTowStrength=clamp(
+    towStrength==null?attacker?.traffic?.slipstreamStrength:towStrength,
+    0,
+    1
+  );
+  const towBonus=activeTowStrength*0.18;
   const cornerPenalty=cornerSeverity*0.22;
 
   const baseProbability=clamp(
-    0.43+gapFactor*0.14+closingBonus+attributeBonus-cornerPenalty,
+    0.39+gapFactor*0.12+closingBonus+attributeBonus+towBonus-cornerPenalty,
     0.04,
     0.94
   );
@@ -382,6 +392,7 @@ function attemptOpportunity(state,attacker,occupied){
   if(occupied.has(String(defender?.carId??"")))return null;
 
   const gapM=Math.max(0,finite(nearest?.gapM,Infinity));
+  const towContext=raceSlipstreamContext(state,attacker,{nearest});
   const baseAttemptRange=Math.max(
     RACE_OVERTAKE_ATTEMPT_RANGE_M,
     finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)+8
@@ -405,6 +416,7 @@ function attemptOpportunity(state,attacker,occupied){
   const probability=overtakeAttemptProbability(state,attacker,defender,{
     gapM,
     closingSpeedMs:closingPotentialMs,
+    towStrength:towContext?.strength??0,
   });
   if(probability<=0)return null;
 
@@ -423,6 +435,8 @@ function attemptOpportunity(state,attacker,occupied){
     closingPotentialMs,
     attemptRangeM:attemptRange,
     trackDifficulty:overtakingDifficulty(state),
+    towStrength:finite(towContext?.strength,0),
+    towBonusKmh:finite(towContext?.targetBonusKmh,0),
   };
 }
 
@@ -750,6 +764,8 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       attackerScore:matchup.attackerScore,
       defenderScore:matchup.defenderScore,
       performanceEdge:matchup.edge,
+      towStrength:round(opportunity.towStrength,6),
+      towBonusKmh:round(opportunity.towBonusKmh,6),
     }));
 
     // The first battle tick keeps RW8.5's longitudinal hard gap. From the
