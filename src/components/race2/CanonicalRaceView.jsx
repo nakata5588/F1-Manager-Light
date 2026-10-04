@@ -488,6 +488,7 @@ function useDampedRaceViewCameraBox(targetBox,{
   const currentRef=useRef(normalized);
   const speedRef=useRef(playbackSpeed);
   const [display,setDisplay]=useState(normalized);
+  const displayRef=useRef(normalized);
   const targetKey=normalized.map((value)=>Number(value).toFixed(3)).join(":");
 
   targetRef.current=normalized;
@@ -496,6 +497,7 @@ function useDampedRaceViewCameraBox(targetBox,{
   useEffect(()=>{
     if(enabled)return;
     currentRef.current=normalized;
+    displayRef.current=normalized;
     setDisplay(normalized);
   },[enabled,targetKey]);
 
@@ -514,7 +516,11 @@ function useDampedRaceViewCameraBox(targetBox,{
       );
       previous=now;
       currentRef.current=next;
-      setDisplay(next);
+      const changed=next.some((value,index)=>Math.abs(value-displayRef.current[index])>.0005);
+      if(changed){
+        displayRef.current=next;
+        setDisplay(next);
+      }
       frame=window.requestAnimationFrame(tick);
     };
     frame=window.requestAnimationFrame(tick);
