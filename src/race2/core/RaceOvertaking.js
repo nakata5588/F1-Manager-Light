@@ -485,21 +485,6 @@ function attemptOpportunity(state,attacker,occupied){
   );
   const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
   const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
-  if(closingPotentialMs<0.75)return null;
-  // Traffic deliberately holds a following car near desiredTrafficGapM.
-  // The battle gate must therefore allow the canonical overtake model to take
-  // ownership from that staging gap; otherwise traffic can permanently prevent
-  // a faster car from ever entering side-by-side state.
-  const followingLaunchRange=Math.max(
-    RACE_TRAFFIC_HARD_GAP_M,
-    finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)
-  )+2;
-  const physicallyReachableRange=Math.max(
-    followingLaunchRange,
-    closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)
-  );
-  const attemptRange=Math.min(trackAttemptRange,physicallyReachableRange);
-  if(gapM>attemptRange)return null;
 
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
@@ -514,6 +499,33 @@ function attemptOpportunity(state,attacker,occupied){
   });
   const probability=finite(factors?.probability,0);
   if(probability<=0)return null;
+
+  // A committed attacker does not need a huge instantaneous speed delta before
+  // being allowed to try. Strategy and tow lower the launch threshold, while
+  // the subsequent side-by-side simulation still decides whether the pass
+  // physically succeeds or fails.
+  const minimumClosingPotentialMs=clamp(
+    0.55-Math.max(0,finite(factors?.strategyEdge,0))*0.25-
+      Math.max(0,finite(towContext?.strength,0))*0.15,
+    0.18,
+    0.55
+  );
+  if(closingPotentialMs<minimumClosingPotentialMs)return null;
+
+  // Traffic deliberately holds a following car near desiredTrafficGapM.
+  // The battle gate must therefore allow the canonical overtake model to take
+  // ownership from that staging gap; otherwise traffic can permanently prevent
+  // a faster car from ever entering side-by-side state.
+  const followingLaunchRange=Math.max(
+    RACE_TRAFFIC_HARD_GAP_M,
+    finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)
+  )+2;
+  const physicallyReachableRange=Math.max(
+    followingLaunchRange,
+    closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)
+  );
+  const attemptRange=Math.min(trackAttemptRange,physicallyReachableRange);
+  if(gapM>attemptRange)return null;
 
   const bucket=Math.floor(Math.max(0,finite(state?.simulationTimeMs,0))/1000);
   const roll=deterministicUnit(
