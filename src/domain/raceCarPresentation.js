@@ -75,6 +75,28 @@ export function raceCarNativeFootprint({year,model}={}){
   };
 }
 
+export function raceViewLongitudinalUnitsPerMeter({
+  trackLengthM=null,
+  visualTrackLengthSvg=null,
+}={}){
+  const physicalLength=Number(trackLengthM);
+  const visualLength=Number(visualTrackLengthSvg);
+  if(Number.isFinite(physicalLength)&&physicalLength>0&&Number.isFinite(visualLength)&&visualLength>0){
+    return Number((visualLength/physicalLength).toFixed(6));
+  }
+  return Number((RACE_VIEW_ASPHALT_WIDTH_SVG/RACE_VIEW_NOMINAL_TRACK_WIDTH_M).toFixed(6));
+}
+
+export function raceViewPhysicalAsphaltWidthSvg({
+  trackWidthM=RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+  trackLengthM=null,
+  visualTrackLengthSvg=null,
+}={}){
+  const physicalTrackWidth=clamp(trackWidthM,7,18);
+  const units=raceViewLongitudinalUnitsPerMeter({trackLengthM,visualTrackLengthSvg});
+  return Number((physicalTrackWidth*units).toFixed(6));
+}
+
 export function raceViewLateralUnitsPerMeter({
   trackWidthM=RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
   asphaltWidthSvg=RACE_VIEW_ASPHALT_WIDTH_SVG,
@@ -119,19 +141,17 @@ export function raceCarPresentationTransform({
 }={}){
   const footprint=raceCarNativeFootprint({year,model});
   const lateralUnits=raceViewLateralUnitsPerMeter({trackWidthM,asphaltWidthSvg});
-  const physicalLength=Math.max(1,Number(trackLengthM)||0);
-  const visualLength=Math.max(1,Number(visualTrackLengthSvg)||0);
-  const longitudinalUnits=physicalLength>0&&visualLength>0
-    ?visualLength/physicalLength
-    :lateralUnits;
+  const longitudinalUnits=raceViewLongitudinalUnitsPerMeter({
+    trackLengthM,
+    visualTrackLengthSvg,
+  });
   const widthM=raceCarNominalWidthM(year);
   const lengthM=raceCarNominalLengthM(year);
   const longitudinalScale=(longitudinalUnits*lengthM)/footprint.nativeLength;
   const lateralLimitScale=(lateralUnits*widthM)/footprint.nativeWidth;
-  // Preserve the car's own aspect ratio. The track stroke can deliberately be
-  // wider than physical scale for readability, so using it as the car scale
-  // makes cars too large longitudinally and creates false visual overlaps.
-  // Use the stricter physical mapping as a uniform scale.
+  // Preserve the car's own aspect ratio and keep longitudinal/lateral scale
+  // compatible with the same physical world used by the canonical track.
+  // Camera zoom, not an inflated sprite, provides readability.
   const scale=Math.max(0.000001,Math.min(longitudinalScale,lateralLimitScale));
   return {
     scaleX:Number(scale.toFixed(6)),
