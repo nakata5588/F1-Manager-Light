@@ -294,6 +294,14 @@ function contactSeverityScore(state,a,b,event){
   return clamp(0.16+relative*0.34+corner*0.28+jitter,0.08,0.92);
 }
 
+function contactDamageProbability(severityScore){
+  const severity=clamp(severityScore,0,1);
+  // Most wheel-to-wheel touches do not produce meaningful persistent damage.
+  // Probability rises with impact severity instead of treating every contact
+  // as a guaranteed damage event.
+  return clamp(0.03+Math.max(0,severity-0.08)*0.82,0.03,0.72);
+}
+
 function applyContactEvents(state,cars,sourceEvents){
   let next=[...(cars||[])];
   const events=[];
@@ -315,12 +323,19 @@ function applyContactEvents(state,cars,sourceEvents){
         `contact-side:${sourceEvent?.payload?.attemptId??state?.tick}:${id}`
       )*0.24;
       const severityScore=clamp(baseSeverity*variation,0.06,0.96);
+      const damageProbability=contactDamageProbability(severityScore);
+      const damageRoll=deterministicUnit(
+        state,
+        `contact-damage:${sourceEvent?.payload?.attemptId??state?.tick}:${id}`
+      );
+      if(damageRoll>=damageProbability)continue;
+
       const consequence=applyDamage(current,state,{
         kind:"collision",
         severityScore,
         source:"contact",
         key:`contact:${sourceEvent?.payload?.attemptId??state?.tick}:${id}`,
-        speedRetention:0.58-severityScore*0.22,
+        speedRetention:0.88-severityScore*0.32,
       });
       next=replaceCar(next,consequence.car);
       if(!consequence.damage)continue;
@@ -330,6 +345,8 @@ function applyContactEvents(state,cars,sourceEvents){
         sourceAttemptId:sourceEvent?.payload?.attemptId??null,
         severity:severityLabel(severityScore),
         severityScore:round(severityScore,4),
+        damageProbability:round(damageProbability,6),
+        damageRoll:round(damageRoll,6),
         damage:consequence.damage,
       }));
       if(consequence.retired){
