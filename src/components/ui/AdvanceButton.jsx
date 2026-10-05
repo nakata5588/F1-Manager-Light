@@ -30,7 +30,6 @@ export default function AdvanceButton({
     setBusy(true);
     try {
       const res = await advanceOneDayUntilBreak(); // suporta sync/async
-      console.log("[Advance] OK:", res);
       if (res?.breakReason === "race_weekend") navigate("/RaceWeekend");
       onDone?.(res);
     } catch (err) {
