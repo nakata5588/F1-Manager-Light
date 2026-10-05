@@ -845,14 +845,19 @@ test("RW12A visual model preserves signed canonical grid distance for start-fini
       driver_id:"D2",
       team_id:"T2",
       position:2,
-      visual_track_progress:0.992,
-      distance_along_lap_m:992,
-      absolute_distance_m:-8,
+      grid_position:2,
+      grid_start_offset_m:-10,
+      grid_lane_offset_m:-2,
+      visual_track_progress:0.99,
+      distance_along_lap_m:990,
+      absolute_distance_m:-10,
       speed_kmh:0,
     }],
   });
-  assert.equal(cars[0].absolute_distance_m,-8);
-  assert.equal(cars[0].track_progress,0.992);
+  assert.equal(cars[0].absolute_distance_m,-10);
+  assert.equal(cars[0].track_progress,0.99);
+  assert.equal(cars[0].grid_start_offset_m,-10);
+  assert.equal(cars[0].grid_lane_offset_m,-2);
 });
 
 
@@ -905,6 +910,8 @@ test("RW13B Control Tower model exposes only canonical classification metadata",
   });
   assert.equal(rows[0].position,3);
   assert.equal(rows[0].grid_position,7);
+  assert.equal(rows[0].grid_start_offset_m,null);
+  assert.equal(rows[0].grid_lane_offset_m,null);
   assert.equal(rows[0].position_gain,4);
   assert.equal(rows[0].previous_lap_position,5);
   assert.equal(rows[0].last_lap_position,3);
