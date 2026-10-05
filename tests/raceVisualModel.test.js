@@ -702,7 +702,7 @@ test("RW31 widens the nominal race surface while preserving approved 1980 car si
   assert.ok(result.scale<0.2);
 });
 
-test("RW35 car presentation separates longitudinal and lateral physical scale",()=>{
+test("RW35 car presentation preserves aspect ratio and obeys longitudinal physical scale",()=>{
   const footprint=raceCarNativeFootprint({year:1980,model:"FW07"});
   const transform=raceCarPresentationTransform({
     year:1980,
@@ -710,15 +710,17 @@ test("RW35 car presentation separates longitudinal and lateral physical scale",(
     trackWidthM:12.5,
     asphaltWidthSvg:32,
     trackLengthM:5968,
-    visualTrackLengthSvg:1420,
+    visualTrackLengthSvg:4513.489,
   });
   const renderedWidth=footprint.nativeWidth*transform.scaleY;
   const renderedLength=footprint.nativeLength*transform.scaleX;
+  const expectedLength=(4513.489/5968)*raceCarNominalLengthM(1980);
+  const maximumWidth=(32/12.5)*raceCarNominalWidthM(1980);
   assert.equal(raceCarNominalWidthM(1980),2.1);
   assert.equal(raceCarNominalLengthM(1980),4.45);
-  assert.ok(Math.abs(renderedWidth-(32/12.5)*2.1)<0.01);
-  assert.ok(Math.abs(renderedLength-(1420/5968)*4.45)<0.01);
-  assert.ok(renderedLength<renderedWidth);
+  assert.equal(transform.scaleX,transform.scaleY);
+  assert.ok(Math.abs(renderedLength-expectedLength)<0.01);
+  assert.ok(renderedWidth<maximumWidth);
 });
 
 test("RW31 canonical lateral battle spacing uses rendered track width rather than lap-length scale",()=>{
