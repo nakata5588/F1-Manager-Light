@@ -397,6 +397,25 @@ test("RW35 local yellow blocks only battles in the affected sector",()=>{
   assert.equal(started,true);
 });
 
+test("RW35 an active battle is neutralized when it enters the local-yellow sector",()=>{
+  let state=runningState({seed:"rw35-local-yellow-active"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:430,distanceAlongLapM:430,sector:2,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:429,distanceAlongLapM:429,sector:2,speedMs:46,speedKmh:165.6},
+  });
+  state=manualBattle(state,{expiresAtMs:8000});
+
+  const resolved=resolveRaceOvertaking(state,state.cars,{
+    stepMs:100,
+    blockedSectors:[2],
+  });
+  assert.equal(car({cars:resolved.cars},"C1").battle.phase,"none");
+  assert.equal(car({cars:resolved.cars},"C2").battle.phase,"none");
+  const aborted=resolved.events.find((event)=>event.type==="overtake_aborted");
+  assert.equal(aborted?.payload?.reason,"local_yellow");
+  assert.deepEqual(aborted?.payload?.restrictedSectors,[2]);
+});
+
 test("RW32 attack versus conserve materially changes an otherwise equal overtake opportunity",()=>{
   let state=runningState();
   const equalPerformance={
