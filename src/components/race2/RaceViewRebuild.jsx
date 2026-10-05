@@ -7,8 +7,9 @@ import {pitLaneMixForPhase,pitLaneProgressForPhase} from "../../domain/racePitMo
 import {raceViewPitBoxProgress} from "../../race2/view/RaceViewPresentation.js";
 import {TeamLogo} from "../entity/EntityVisuals.jsx";
 
-const UNDERCUT_ASPHALT_WIDTH=32;
-const FOLLOW_ZOOM=6.4;
+const FOLLOW_ZOOM=9;
+const MIN_FOLLOW_ZOOM=2.5;
+const MAX_FOLLOW_ZOOM=16;
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const finite=(value,fallback=0)=>{
@@ -383,13 +384,23 @@ const InfoRail=React.memo(function InfoRail({view,cars,drivers,selectedDriverId,
 });
 
 function StartingGrid({cars,geometry,trackLengthM,unitsPerMeter}){
+  const slotLength=Math.max(2.8,5*unitsPerMeter);
+  const slotWidth=Math.max(1.2,2.2*unitsPerMeter);
   return <g pointerEvents="none" opacity=".52">
     {(cars||[]).filter((car)=>Number.isFinite(Number(car?.grid_start_offset_m))&&Number.isFinite(Number(car?.grid_lane_offset_m))).map((car)=>{
       const progress=wrap(Number(car.grid_start_offset_m),trackLengthM)/trackLengthM;
       const pose=sampleCarPose(geometry,progress,Number(car.grid_lane_offset_m),unitsPerMeter,trackLengthM);
       if(!pose)return null;
       return <g key={`grid_${car.car_id||car.driver_id}`} transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}>
-        <rect x="-4.4" y="-2.0" width="8.8" height="4" fill="none" stroke="#f8fafc" strokeWidth=".55"/>
+        <rect
+          x={-slotLength/2}
+          y={-slotWidth/2}
+          width={slotLength}
+          height={slotWidth}
+          fill="none"
+          stroke="#f8fafc"
+          strokeWidth={Math.max(.22,unitsPerMeter*.28)}
+        />
       </g>;
     })}
   </g>;
@@ -422,9 +433,19 @@ function UndercutTrackViewport({
   const [zoom,setZoom]=useState(FOLLOW_ZOOM);
   const selected=visualCars.find((car)=>String(car?.driver_id||"")===String(selectedDriverId||""))||null;
   const physicalWidthM=Math.max(7,finite(view?.track_width?.physicalWidthM,12.5));
+  const longitudinalUnitsPerMeter=geometry?.total_length>0
+    ?geometry.total_length/Math.max(1,trackLengthM)
+    :null;
+  // Keep road width, car size and longitudinal gaps in the same world scale.
+  // Camera zoom provides readability; the road stroke no longer inflates the
+  // physical world independently from the canonical lap distance.
+  const asphaltWidthSvg=Math.max(
+    2,
+    physicalWidthM*(longitudinalUnitsPerMeter||1.4)
+  );
   const unitsPerMeter=raceViewLateralUnitsPerMeter({
     trackWidthM:physicalWidthM,
-    asphaltWidthSvg:UNDERCUT_ASPHALT_WIDTH,
+    asphaltWidthSvg,
   });
   const selectedPose=selected&&geometry
     ?sampleCarPose(geometry,selected.track_progress,selected.lateral_offset_m,unitsPerMeter,trackLengthM)
@@ -446,7 +467,12 @@ function UndercutTrackViewport({
     :selectedPose;
   const cameraBox=cameraMode==="follow"&&cameraTarget
     ?viewBoxAround(baseViewBox,cameraTarget,zoom)
-    :baseViewBox;
+    :cameraMode==="free"
+      ?viewBoxAround(baseViewBox,{
+        x:baseViewBox[0]+baseViewBox[2]/2,
+        y:baseViewBox[1]+baseViewBox[3]/2,
+      },zoom)
+      :baseViewBox;
   const points=geometry?.points||[];
   const polyline=points.length?[...points,points[0]].map((point)=>point.join(",")).join(" "):"";
   const pitLanePoints=Array.isArray(view?.pit_lane?.points)?view.pit_lane.points:[];
@@ -459,8 +485,28 @@ function UndercutTrackViewport({
     onSelectDriver?.(String(driverIdValue||""));
     setCameraMode("follow");
   };
+  const changeZoom=(factor)=>{
+    setZoom((value)=>clamp(
+      value*Math.max(.5,Math.min(2,finite(factor,1))),
+      MIN_FOLLOW_ZOOM,
+      MAX_FOLLOW_ZOOM
+    ));
+  };
+  const handleTrackWheel=(event)=>{
+    event.preventDefault();
+    event.stopPropagation();
+    const delta=finite(event.deltaY,0);
+    if(Math.abs(delta)<.01)return;
+    const factor=delta<0?1.14:(1/1.14);
+    if(selected)setCameraMode("follow");
+    else if(cameraMode==="fit")setCameraMode("free");
+    changeZoom(factor);
+  };
 
-  return <div className="relative min-h-0 overflow-hidden bg-[#759b3b]">
+  return <div
+    className="relative min-h-0 overflow-hidden bg-[#759b3b]"
+    onWheel={handleTrackWheel}
+  >
     <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
       <span className="rounded border border-emerald-400/30 bg-black/45 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-200">{String(view?.current_control||"GREEN").replaceAll("_"," ")}</span>
       <span className="rounded border border-white/10 bg-black/45 px-2 py-1 text-[9px] font-semibold text-slate-200">Lap {finite(view?.current_lap,1)}/{view?.total_laps??"—"}</span>
@@ -470,8 +516,8 @@ function UndercutTrackViewport({
     <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded border border-white/15 bg-black/60 p-1">
       <button type="button" onClick={()=>setCameraMode("fit")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="fit"?"bg-white text-black":"text-slate-300")}>FIT</button>
       <button type="button" disabled={!selected} onClick={()=>setCameraMode("follow")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="follow"?"bg-cyan-300 text-black":"text-slate-300 disabled:opacity-30")}>FOLLOW</button>
-      <button type="button" disabled={cameraMode!=="follow"} onClick={()=>setZoom((value)=>clamp(value/1.18,4.2,9.5))} className="rounded px-2 py-1 text-[10px] font-black text-slate-300 disabled:opacity-30">−</button>
-      <button type="button" disabled={cameraMode!=="follow"} onClick={()=>setZoom((value)=>clamp(value*1.18,4.2,9.5))} className="rounded px-2 py-1 text-[10px] font-black text-slate-300 disabled:opacity-30">+</button>
+      <button type="button" onClick={()=>{if(cameraMode==="fit")setCameraMode(selected?"follow":"free");changeZoom(1/1.14);}} className="rounded px-2 py-1 text-[10px] font-black text-slate-300">−</button>
+      <button type="button" onClick={()=>{if(cameraMode==="fit")setCameraMode(selected?"follow":"free");changeZoom(1.14);}} className="rounded px-2 py-1 text-[10px] font-black text-slate-300">+</button>
     </div>
     {String(view?.current_control||"GREEN").toUpperCase()!=="GREEN"?<div className={
       "pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded border px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-lg "+
@@ -482,13 +528,13 @@ function UndercutTrackViewport({
 
     {geometry?<svg className="h-full w-full" viewBox={cameraBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Undercut-inspired race track">
       <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill={wetness>0.05?"#647f38":"#759b3b"}/>
-      <polyline points={polyline} fill="none" stroke="#25292d" strokeWidth={UNDERCUT_ASPHALT_WIDTH+5.5} strokeLinecap="round" strokeLinejoin="round" opacity=".7"/>
-      <polyline points={polyline} fill="none" stroke="#f5f5f4" strokeWidth={UNDERCUT_ASPHALT_WIDTH+2.5} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={polyline} fill="none" stroke={wetness>0.08?"#42474c":"#55585d"} strokeWidth={UNDERCUT_ASPHALT_WIDTH} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={polyline} fill="none" stroke="#686b70" strokeWidth=".75" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
+      <polyline points={polyline} fill="none" stroke="#25292d" strokeWidth={asphaltWidthSvg*1.17} strokeLinecap="round" strokeLinejoin="round" opacity=".7"/>
+      <polyline points={polyline} fill="none" stroke="#f5f5f4" strokeWidth={asphaltWidthSvg*1.08} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={polyline} fill="none" stroke={wetness>0.08?"#42474c":"#55585d"} strokeWidth={asphaltWidthSvg} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={polyline} fill="none" stroke="#686b70" strokeWidth={Math.max(.25,asphaltWidthSvg*.023)} strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
       {view?.pit_lane?.available&&pitLanePoints.length>1?<g pointerEvents="none">
-        <polyline points={pitPolyline} fill="none" stroke="#202428" strokeWidth={Math.max(11,UNDERCUT_ASPHALT_WIDTH*.48)} strokeLinecap="round" strokeLinejoin="round" opacity=".9"/>
-        <polyline points={pitPolyline} fill="none" stroke="#686b70" strokeWidth={Math.max(8,UNDERCUT_ASPHALT_WIDTH*.34)} strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={pitPolyline} fill="none" stroke="#202428" strokeWidth={asphaltWidthSvg*.80} strokeLinecap="round" strokeLinejoin="round" opacity=".9"/>
+        <polyline points={pitPolyline} fill="none" stroke="#686b70" strokeWidth={asphaltWidthSvg*.62} strokeLinecap="round" strokeLinejoin="round"/>
       </g>:null}
       <StartingGrid cars={cars} geometry={geometry} trackLengthM={trackLengthM} unitsPerMeter={unitsPerMeter}/>
       {visualCars.filter((car)=>!car?.retired||car?.retirement_trackside?.visible!==false).map((car)=>{
@@ -520,7 +566,7 @@ function UndercutTrackViewport({
           year,
           model:palette.model,
           trackWidthM:physicalWidthM,
-          asphaltWidthSvg:UNDERCUT_ASPHALT_WIDTH,
+          asphaltWidthSvg,
           trackLengthM,
           visualTrackLengthSvg:geometry?.total_length,
         });
@@ -537,7 +583,7 @@ function UndercutTrackViewport({
           onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();selectAndFollow(car.driver_id);}}}
           style={{cursor:"pointer"}}
         >
-          {active?<circle r={Math.max(6.2,Math.max(renderedCarLength,renderedCarWidth)*.82)} fill="rgba(255,255,255,.06)" stroke="#fff" strokeWidth="1.05"/>:null}
+          {active?<circle r={Math.max(2.6,renderedCarLength*.92)} fill="rgba(255,255,255,.06)" stroke="#fff" strokeWidth={Math.max(.45,renderedCarWidth*.24)}/>:null}
           {wetness>.18&&finite(car.speed_kmh,0)>90&&!pitActive?<g pointerEvents="none" opacity={clamp((wetness-.18)*.42,0,.22)}>
             {(()=>{
               const v=angleVector(pose.heading);
