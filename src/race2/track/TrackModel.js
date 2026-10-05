@@ -5,8 +5,9 @@
 
 import { resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
+import { simplifyClosedPolyline } from "../../domain/trackSceneGeometry.js";
 
-export const TRACK_MODEL_SCHEMA_VERSION=3;
+export const TRACK_MODEL_SCHEMA_VERSION=2;
 
 export const TRACK_CONTEXT_TYPES=Object.freeze({
   STRAIGHT:"STRAIGHT",
@@ -318,8 +319,9 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
   }));
 
   const sourcePoints=clonePoints(geometry?.points);
-  const racingLine=sourcePoints.length>=3
-    ?buildClosedRacingLine(sourcePoints,{
+  const canonicalAnchors=sourcePoints.length>=3?simplifyClosedPolyline(sourcePoints,1.25):sourcePoints;
+  const racingLine=canonicalAnchors.length>=3
+    ?buildClosedRacingLine(canonicalAnchors,{
       samplesPerSegment,
       parameterization:"centripetal",
       preserveStraights:true,
