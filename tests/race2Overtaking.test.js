@@ -11,6 +11,7 @@ import {
   overtakeAttemptProbability,
   raceBattlePaceMultiplier,
   raceBattlePerformanceMatchup,
+  raceOvertakeOpportunityFactors,
   resolveRaceOvertaking,
 } from "../src/race2/core/RaceOvertaking.js";
 import { RACE_TRAFFIC_HARD_GAP_M } from "../src/race2/core/RaceTraffic.js";
@@ -348,6 +349,99 @@ test("RW30 racecraft can create a battle window even when free-speed telemetry i
     const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
     assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
   }
+});
+
+test("RW32 attack versus conserve materially changes an otherwise equal overtake opportunity",()=>{
+  let state=runningState();
+  const equalPerformance={
+    car:{race:80,power:80,chassis:80},
+    driver:{
+      raceScore:80,overtaking:80,defending:80,raceIntelligence:80,
+      mistakePropensity:15,aggression:55,
+    },
+  };
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:50,speedKmh:180,
+      effectiveCornerSeverity:0,
+      performance:equalPerformance,
+      resources:{...car(state,"C1").resources,paceMode:"conserve"},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:51,speedKmh:183.6,
+      effectiveCornerSeverity:0,
+      performance:equalPerformance,
+      resources:{...car(state,"C2").resources,paceMode:"attack"},
+    },
+  });
+  const attack=car(state,"C2");
+  const conserve=car(state,"C1");
+  const attacking=raceOvertakeOpportunityFactors(state,attack,conserve,{
+    gapM:10,closingSpeedMs:1,towStrength:0,
+  });
+  const reversed=raceOvertakeOpportunityFactors(
+    state,
+    {...attack,resources:{...attack.resources,paceMode:"conserve"}},
+    {...conserve,resources:{...conserve.resources,paceMode:"attack"}},
+    {gapM:10,closingSpeedMs:1,towStrength:0}
+  );
+
+  assert.equal(attacking.attackerPace,"attack");
+  assert.equal(attacking.defenderPace,"conserve");
+  assert.equal(attacking.strategyEdge,1);
+  assert.ok(attacking.contributions.strategy>0.13);
+  assert.ok(reversed.contributions.strategy<-0.13);
+  assert.ok(attacking.probability>reversed.probability+0.20);
+});
+
+test("RW32 tyre grip and temperature state materially change the overtake opportunity",()=>{
+  let state=runningState();
+  const baseAttacker=car(state,"C2");
+  const defender=car(state,"C1");
+  const fresh=raceOvertakeOpportunityFactors(state,baseAttacker,defender,{
+    gapM:10,closingSpeedMs:1,towStrength:0,
+  });
+  const compromised={
+    ...baseAttacker,
+    tyre:{
+      ...baseAttacker.tyre,
+      grip_multiplier:.78,
+      grip_index:58,
+      temperature_c:130,
+      optimal_temperature_c:90,
+    },
+  };
+  const worn=raceOvertakeOpportunityFactors(state,compromised,defender,{
+    gapM:10,closingSpeedMs:1,towStrength:0,
+  });
+
+  assert.ok(worn.attackerTyreGrip<fresh.attackerTyreGrip);
+  assert.ok(worn.tyreGripEdge<fresh.tyreGripEdge);
+  assert.ok(worn.probability<fresh.probability-0.04);
+});
+
+test("RW32 local track phase rewards straights and penalizes committed corners",()=>{
+  let state=runningState();
+  const attacker=car(state,"C2");
+  const defender=car(state,"C1");
+  const straight=raceOvertakeOpportunityFactors(
+    state,
+    {...attacker,effectiveCornerSeverity:0.05},
+    {...defender,effectiveCornerSeverity:0.05},
+    {gapM:10,closingSpeedMs:1,towStrength:0}
+  );
+  const corner=raceOvertakeOpportunityFactors(
+    state,
+    {...attacker,effectiveCornerSeverity:0.60},
+    {...defender,effectiveCornerSeverity:0.60},
+    {gapM:10,closingSpeedMs:1,towStrength:0}
+  );
+
+  assert.equal(straight.trackPhase,"straight");
+  assert.equal(corner.trackPhase,"corner");
+  assert.ok(straight.contributions.track>0);
+  assert.ok(corner.contributions.track<0);
+  assert.ok(straight.probability>corner.probability+0.07);
 });
 
 test("RW28 an active tow materially increases the chance of converting approach into battle",()=>{
