@@ -122,6 +122,17 @@ function raceViewBattleContext(state,car,startEvents){
       attacker_score:finite(payload?.attackerScore,null),
       defender_score:finite(payload?.defenderScore,null),
       performance_edge:finite(payload?.performanceEdge,null),
+      attacker_pace_mode:text(payload?.attackerPaceMode)||null,
+      defender_pace_mode:text(payload?.defenderPaceMode)||null,
+      strategy_edge:finite(payload?.strategyEdge,null),
+      attacker_tyre_grip:finite(payload?.attackerTyreGrip,null),
+      defender_tyre_grip:finite(payload?.defenderTyreGrip,null),
+      tyre_grip_edge:finite(payload?.tyreGripEdge,null),
+      track_phase:text(payload?.trackPhase)||null,
+      corner_severity:finite(payload?.cornerSeverity,null),
+      opportunity_contributions:payload?.opportunityContributions&&typeof payload.opportunityContributions==="object"
+        ?{...payload.opportunityContributions}
+        :null,
       slipstream_active:Boolean(traffic.slipstream_active)||entryTowStrength>0,
       slipstream_strength_pct:round(
         Math.max(finite(traffic.slipstream_strength,0),entryTowStrength)*100,

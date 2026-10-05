@@ -158,7 +158,7 @@ test("RW8.5 traffic uses the nearest physical car ahead, even when it is a backm
   assert.equal(afterRetirement.gapM,970);
 });
 
-test("RW8.5 close following limits target speed before hard spacing is reached",()=>{
+test("RW32 close following matches leader speed without being pushed back to desired gap",()=>{
   let state=runningState({cars:2});
   state=patchCars(state,{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
@@ -169,7 +169,7 @@ test("RW8.5 close following limits target speed before hard spacing is reached",
   assert.equal(context.aheadCarId,"C1");
   assert.equal(context.gapM,10);
   assert.ok(context.desiredGapM>RACE_TRAFFIC_HARD_GAP_M);
-  assert.ok(context.speedCeilingMs<40);
+  assert.equal(context.speedCeilingMs,40);
 
   const next=stepRaceState(state);
   const follower=car(next,"C2");
@@ -177,6 +177,18 @@ test("RW8.5 close following limits target speed before hard spacing is reached",
   assert.equal(follower.traffic.limited,true);
   assert.ok(follower.targetSpeedKmh<252);
   assert.ok(follower.speedKmh<252);
+});
+
+test("RW32 desired gap is soft but hard gap still applies recovery braking",()=>{
+  let state=runningState({cars:2});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144},
+    C2:{absoluteDistanceM:95,distanceAlongLapM:95,speedMs:50,speedKmh:180},
+  });
+
+  const context=raceTrafficContext(state,car(state,"C2"));
+  assert.ok(context.gapM<RACE_TRAFFIC_HARD_GAP_M);
+  assert.ok(context.speedCeilingMs<40);
 });
 
 test("RW8.5 hard spacing prevents a faster follower from passing or overlapping",()=>{

@@ -226,8 +226,15 @@ export function raceTrafficContext(
 
   if(!launchFree&&gapM<=followRangeM){
     const gapError=gapM-desiredGapM;
-    const responseTimeS=gapError>=0?0.9:0.35;
-    const closingAllowance=gapError/responseTimeS;
+    // desiredGapM is a soft following target, not a command to fall away from
+    // the car ahead. Between desired and hard gap, match the leader rather
+    // than braking below its speed; this lets the overtake layer take over
+    // when the follower has genuine free-pace / strategy advantage.
+    const closingAllowance=gapError>=0
+      ?gapError/0.9
+      :gapM>RACE_TRAFFIC_HARD_GAP_M
+        ?0
+        :gapError/0.35;
     speedCeilingMs=Math.max(0,aheadSpeedMs+closingAllowance);
   }
 
