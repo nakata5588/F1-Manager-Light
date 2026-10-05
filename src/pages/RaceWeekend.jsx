@@ -13,7 +13,7 @@ import { raceWeekendCanonicalView, raceWeekendUsesCanonicalRuntime } from "../ra
 import { driverFormSnapshot } from "../domain/driverForm.js";
 import { raceWeekendCanFinalizeLiveRace, raceWindowForWeekend } from "../domain/raceWeekendResume.js";
 import { DriverPortrait, TeamLogo } from "../components/entity/EntityVisuals.jsx";
-import CanonicalRaceView from "../components/race2/CanonicalRaceView.jsx";
+import RaceViewRebuild from "../components/race2/RaceViewRebuild.jsx";
 import { Activity, Car, Cloud, CloudLightning, CloudRain, CloudSun, CircleDot, Droplets, Flag, Gauge, Pause, Play, Sun, Thermometer, Timer, Wind, Wrench, X } from "lucide-react";
 
 const LegacyTrack2DView=React.lazy(()=>import("../components/race/Track2DView.jsx"));
@@ -1870,7 +1870,7 @@ export default function RaceWeekend(){
         {activeWindow==="live"&&weekend.phase==="race"&&raceViewModel&&(
           <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#11161f] text-slate-100 shadow-xl">
             <div className="border-b border-white/10 bg-[#0b1017] p-2 md:p-3">
-              {usesCanonicalRaceRuntime?<CanonicalRaceView
+              {usesCanonicalRaceRuntime?<RaceViewRebuild
                 view={canonicalRaceView}
                 trackId={weekend?.track_id||raceStrategy?.track_snapshot?.track_id}
                 year={weekend?.year||gs?.activeYear}
