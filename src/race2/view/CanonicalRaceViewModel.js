@@ -24,6 +24,8 @@ export function canonicalRaceViewCars(view){
     team_id:row?.team_id??null,
     position:finite(row?.position,index+1),
     grid_position:finite(row?.grid_position,null),
+    grid_start_offset_m:finite(row?.grid_start_offset_m,null),
+    grid_lane_offset_m:finite(row?.grid_lane_offset_m,null),
     position_gain:finite(row?.position_gain,0),
     previous_lap_position:finite(row?.previous_lap_position,null),
     last_lap_position:finite(row?.last_lap_position,null),
