@@ -394,6 +394,50 @@ test("RW32 attack versus conserve materially changes an otherwise equal overtake
   assert.ok(attacking.probability>reversed.probability+0.20);
 });
 
+test("RW32 attack follower can open a canonical battle against an equivalent conserving leader",()=>{
+  let state=runningState({seed:"rw32-attack-conserve",laps:4});
+  const equalPerformance={
+    car:{race:82,power:82,chassis:82},
+    driver:{
+      raceScore:82,overtaking:82,defending:82,raceIntelligence:82,
+      mistakePropensity:15,aggression:55,
+    },
+  };
+  state=patchCars(state,{
+    C1:{
+      teamId:"T1",
+      absoluteDistanceM:120,
+      distanceAlongLapM:120,
+      speedMs:52,
+      speedKmh:187.2,
+      effectiveCornerSeverity:0,
+      performance:equalPerformance,
+      resources:{...car(state,"C1").resources,paceMode:"conserve"},
+    },
+    C2:{
+      teamId:"T1",
+      absoluteDistanceM:111,
+      distanceAlongLapM:111,
+      speedMs:52,
+      speedKmh:187.2,
+      effectiveCornerSeverity:0,
+      performance:equalPerformance,
+      resources:{...car(state,"C2").resources,paceMode:"attack"},
+    },
+  });
+
+  let next=state;
+  for(let index=0;index<140&&!next.events.some((event)=>event.type==="overtake_started");index+=1){
+    next=stepRaceState(next);
+  }
+
+  const started=next.events.find((event)=>event.type==="overtake_started");
+  assert.ok(started,"attack follower should create a canonical battle window against conserving equal machinery");
+  assert.equal(started.payload.attackerPaceMode,"attack");
+  assert.equal(started.payload.defenderPaceMode,"conserve");
+  assert.ok(started.payload.strategyEdge>0);
+});
+
 test("RW32 tyre grip and temperature state materially change the overtake opportunity",()=>{
   let state=runningState();
   const baseAttacker=car(state,"C2");
