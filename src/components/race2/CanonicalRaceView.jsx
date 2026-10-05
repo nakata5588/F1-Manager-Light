@@ -1022,14 +1022,15 @@ export default function CanonicalRaceView({
   const resolved=useMemo(()=>resolveTrackLayout({trackId,year}),[trackId,year]);
   const presentationTrackWidthM=useMemo(()=>{
     const value=Number(
-      resolved?.layout?.track_width_m
+      view?.track_width?.physicalWidthM
+      ??resolved?.layout?.track_width_m
       ??resolved?.geometry?.track_width_m
       ??resolved?.track_width_m
     );
     return Number.isFinite(value)&&value>0
       ?value
       :RACE_VIEW_NOMINAL_TRACK_WIDTH_M;
-  },[resolved]);
+  },[resolved,view?.track_width?.physicalWidthM]);
   const runtimeGeometry=useMemo(()=>trackRuntimeGeometry(resolved),[resolved]);
   const orientedRuntimeGeometry=useMemo(
     ()=>orientTrackGeometry(runtimeGeometry?.geometry||null),
@@ -1044,7 +1045,19 @@ export default function CanonicalRaceView({
       pitTolerance:Number(style?.pit_presentation_tolerance||.7),
     });
   },[resolved,runtimeGeometry,orientedRuntimeGeometry]);
+  const canonicalVisualLine=useMemo(()=>{
+    const canonical=view?.track_geometry;
+    const points=Array.isArray(canonical?.points)?canonical.points:[];
+    if(points.length<3)return null;
+    return buildClosedRacingLine(points,{
+      samplesPerSegment:3,
+      parameterization:"centripetal",
+      preserveStraights:true,
+      straightSourcePoints:points,
+    });
+  },[view?.track_geometry]);
   const presentationLine=useMemo(()=>{
+    if(canonicalVisualLine?.points?.length)return canonicalVisualLine;
     const sourcePoints=Array.isArray(sourceGeometry?.points)?sourceGeometry.points:[];
     const rawPoints=Array.isArray(orientedRuntimeGeometry?.points)?orientedRuntimeGeometry.points:[];
     return sourcePoints.length>=3&&trackPresentationSplineEligible(resolved,runtimeGeometry)
@@ -1055,7 +1068,7 @@ export default function CanonicalRaceView({
         straightSourcePoints:rawPoints,
       })
       :null;
-  },[resolved,runtimeGeometry,sourceGeometry,orientedRuntimeGeometry]);
+  },[canonicalVisualLine,resolved,runtimeGeometry,sourceGeometry,orientedRuntimeGeometry]);
   const geometry=useMemo(()=>
     presentationLine?.points?.length
       ?racingLineGeometry(sourceGeometry,presentationLine)
