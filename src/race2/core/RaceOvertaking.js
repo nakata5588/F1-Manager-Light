@@ -20,6 +20,7 @@ import {
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.85;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
 export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
+export const RACE_BATTLE_CONTACT_PROXIMITY_M=2.6;
 export const RACE_BATTLE_DURATION_MS=3500;
 export const RACE_BATTLE_MAX_DURATION_MS=12000;
 export const RACE_BATTLE_EXTENSION_MS=1800;
@@ -453,22 +454,33 @@ export function overtakeAttemptProbability(state,attacker,defender,options={}){
 }
 
 export function battleContactProbability(state,attacker,defender,{stepMs=100}={}){
+  void state;
   const mistakeA=score(driverPerformance(attacker)?.mistakePropensity,35);
   const mistakeD=score(driverPerformance(defender)?.mistakePropensity,35);
   const aggressionA=score(driverPerformance(attacker)?.aggression,50);
   const aggressionD=score(driverPerformance(defender)?.aggression,50);
+  const intelligenceA=driverRaceIntelligence(attacker);
+  const intelligenceD=driverRaceIntelligence(defender);
   const cornerSeverity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
     clamp(defender?.effectiveCornerSeverity,0,1)
   );
 
-  const mistakeRisk=((mistakeA+mistakeD)/200)*0.012;
+  // Drivers generally avoid touching. Contact is an exceptional failure of
+  // racecraft, not a normal outcome of every side-by-side battle.
+  const mistakeRisk=((mistakeA+mistakeD)/200)*0.0045;
   const aggressionRisk=(
     Math.max(0,aggressionA-65)+
     Math.max(0,aggressionD-65)
-  )/70*0.010;
-  const cornerRisk=cornerSeverity*0.012;
-  const perSecond=clamp(0.0015+mistakeRisk+aggressionRisk+cornerRisk,0.001,0.055);
+  )/70*0.0035;
+  const cornerRisk=cornerSeverity*0.0040;
+  const intelligence=(intelligenceA+intelligenceD)/2;
+  const avoidanceFactor=clamp(1.15-intelligence*0.0065,0.45,1.05);
+  const perSecond=clamp(
+    (0.00025+mistakeRisk+aggressionRisk+cornerRisk)*avoidanceFactor,
+    0.00008,
+    0.018
+  );
   const dt=Math.max(0.01,finite(stepMs,100)/1000);
   return round(1-Math.pow(1-perSecond,dt),8);
 }
@@ -668,9 +680,13 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
       continue;
     }
 
-    const contactProbability=battleContactProbability(state,previousAttacker,previousDefender,{stepMs});
+    const clearance=physicalClearanceM(state,attacker,defender);
+    const contactProximityM=Math.abs(clearance);
+    const contactProbability=contactProximityM<=RACE_BATTLE_CONTACT_PROXIMITY_M
+      ?battleContactProbability(state,previousAttacker,previousDefender,{stepMs})
+      :0;
     const contactRoll=deterministicUnit(state,`contact:${attemptId}:${state?.tick}`);
-    if(contactRoll<contactProbability){
+    if(contactProbability>0&&contactRoll<contactProbability){
       attacker=withYieldingBattle(attacker,{
         opponentCarId:defender?.carId,
         role:"attacker",
@@ -692,11 +708,11 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
         responsibility:"racing_incident",
         probability:contactProbability,
         roll:round(contactRoll,8),
+        physicalClearanceM:round(clearance,6),
+        contactProximityM:round(contactProximityM,6),
       }));
       continue;
     }
-
-    const clearance=physicalClearanceM(state,attacker,defender);
 
     if(clearance>=RACE_OVERTAKE_DECISIVE_CLEARANCE_M-1e-9){
       const fullyClear=clearance>=RACE_TRAFFIC_HARD_GAP_M-1e-9;
