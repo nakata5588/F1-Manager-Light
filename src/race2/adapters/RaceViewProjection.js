@@ -8,6 +8,27 @@
 export const RACE_VIEW_PROJECTION_VERSION=1;
 export const RACE_VIEW_PROJECTION_SOURCE="rw8.14_race_view_projection";
 
+const trackGeometryProjectionCache=new WeakMap();
+
+function projectTrackGeometry(track){
+  const line=track?.racingLine;
+  if(!line||typeof line!=="object")return null;
+  const cached=trackGeometryProjectionCache.get(line);
+  if(cached)return cached;
+  const projected=Object.freeze({
+    source:"canonical_track_model",
+    points:structuredClone(line.points??[]),
+    cumulative:structuredClone(line.cumulative??[]),
+    total_length:Number(line.total_length)||0,
+    source_count:Number(line.source_count)||0,
+    samples_per_segment:Number(line.samples_per_segment)||0,
+    parameterization:line.parameterization??null,
+    straight_preservation:Boolean(line.straight_preservation),
+  });
+  trackGeometryProjectionCache.set(line,projected);
+  return projected;
+}
+
 const finite=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
   const parsed=Number(value);
@@ -244,6 +265,8 @@ export function projectRaceStateToRaceView(state){
       team_id:row?.teamId??car?.teamId??null,
       car_id:row?.carId??car?.carId??null,
       grid_position:finite(car?.gridPosition,null),
+      grid_start_offset_m:finite(car?.gridStartOffsetM,null),
+      grid_lane_offset_m:finite(car?.gridLaneOffsetM,null),
       position_gain:finite(car?.gridPosition,null)==null
         ?0
         :finite(car?.gridPosition,0)-finite(row?.position,index+1),
@@ -346,18 +369,7 @@ export function projectRaceStateToRaceView(state){
     canonical_tick:Math.max(0,Math.floor(finite(state?.tick,0))),
     canonical_time_ms:Math.max(0,finite(state?.simulationTimeMs,0)),
     track_length_m:lengthM,
-    track_geometry:state?.track?.racingLine
-      ?{
-        source:"canonical_track_model",
-        points:structuredClone(state.track.racingLine.points??[]),
-        cumulative:structuredClone(state.track.racingLine.cumulative??[]),
-        total_length:finite(state.track.racingLine.total_length,0),
-        source_count:finite(state.track.racingLine.source_count,0),
-        samples_per_segment:finite(state.track.racingLine.samples_per_segment,0),
-        parameterization:state.track.racingLine.parameterization??null,
-        straight_preservation:Boolean(state.track.racingLine.straight_preservation),
-      }
-      :null,
+    track_geometry:projectTrackGeometry(state?.track),
     track_width:state?.track?.width?structuredClone(state.track.width):null,
     pit_lane:state?.track?.pitLane
       ?structuredClone(state.track.pitLane)

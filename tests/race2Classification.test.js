@@ -165,8 +165,8 @@ test("RW8.4 RaceState initializes and starts with canonical grid classification"
   const ready=createRaceState(input({cars:2}));
   assert.deepEqual(ready.classification.map((row)=>row.carId),["C1","C2"]);
   assert.ok(ready.classification.every((row)=>row.status==="ready"));
-  assert.deepEqual(ready.classification.map((row)=>row.absoluteDistanceM),[0,-8]);
-  assert.equal(ready.classification[1].gapToLeaderM,8);
+  assert.deepEqual(ready.classification.map((row)=>row.absoluteDistanceM),[0,-10]);
+  assert.equal(ready.classification[1].gapToLeaderM,10);
 
   const started=startRaceState(ready);
   assert.deepEqual(started.classification.map((row)=>row.carId),["C1","C2"]);

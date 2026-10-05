@@ -97,11 +97,11 @@ test("RW28 grid positions start as a staggered two-column physical grid",()=>{
   const state=createRaceState(input({cars:4}));
   assert.deepEqual(
     state.cars.map((row)=>row.absoluteDistanceM),
-    [0,-8,-16,-24]
+    [0,-10,-20,-30]
   );
   assert.deepEqual(
     state.cars.map((row)=>row.gridStartOffsetM),
-    [0,-8,-16,-24]
+    [0,-10,-20,-30]
   );
   assert.deepEqual(
     state.cars.map((row)=>row.lateralOffsetM),
@@ -112,10 +112,10 @@ test("RW28 grid positions start as a staggered two-column physical grid",()=>{
       -RACE_GRID_LATERAL_OFFSET_M,
     ]
   );
-  assert.equal(RACE_GRID_SLOT_SPACING_M,8);
-  assert.equal(state.cars[1].distanceAlongLapM,992);
+  assert.equal(RACE_GRID_SLOT_SPACING_M,10);
+  assert.equal(state.cars[1].distanceAlongLapM,990);
   assert.deepEqual(state.classification.map((row)=>row.carId),["C1","C2","C3","C4"]);
-  assert.deepEqual(state.classification.map((row)=>row.gapToLeaderM),[0,8,16,24]);
+  assert.deepEqual(state.classification.map((row)=>row.gapToLeaderM),[0,10,20,30]);
 });
 
 test("RW28 launch lanes merge progressively into the racing line",()=>{
