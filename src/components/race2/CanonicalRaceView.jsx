@@ -860,6 +860,16 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
   const selectedDriverEdge=signedEdge(engagement?.driver_edge);
   const selectedCarEdge=signedEdge(engagement?.car_edge);
   const selectedBattleEdge=signedEdge(engagement?.performance_edge);
+  const selectedStrategyEdge=signedEdge(engagement?.strategy_edge);
+  const selectedTyreGripEdge=signedEdge(engagement?.tyre_grip_edge);
+  const signedContribution=(key)=>{
+    const raw=Number(engagement?.opportunity_contributions?.[key]);
+    if(!Number.isFinite(raw))return null;
+    return String(engagement?.role||"")==="defender"?-raw:raw;
+  };
+  const selectedStrategyContribution=signedContribution("strategy");
+  const selectedTyreContribution=signedContribution("tyre");
+  const selectedTrackContribution=signedContribution("track");
   const battleOpponent=engagement?.opponent_car_id
     ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(engagement.opponent_car_id))
     :null;
@@ -930,6 +940,11 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
             {selectedDriverEdge!=null?metric("Driver edge",`${selectedDriverEdge>=0?"+":""}${selectedDriverEdge.toFixed(0)} pts`):null}
             {selectedCarEdge!=null?metric("Car edge",`${selectedCarEdge>=0?"+":""}${selectedCarEdge.toFixed(0)} pts`):null}
             {selectedBattleEdge!=null?metric("Combined edge",`${selectedBattleEdge>=0?"+":""}${selectedBattleEdge.toFixed(0)} pts`):null}
+            {engagement?.attacker_pace_mode&&engagement?.defender_pace_mode?metric("Pace modes",`${String(engagement.attacker_pace_mode).toUpperCase()} vs ${String(engagement.defender_pace_mode).toUpperCase()}`):null}
+            {selectedStrategyContribution!=null?metric("Strategy effect",`${selectedStrategyContribution>=0?"+":""}${(selectedStrategyContribution*100).toFixed(0)} pp`):null}
+            {selectedTyreGripEdge!=null?metric("Tyre grip edge",`${selectedTyreGripEdge>=0?"+":""}${(selectedTyreGripEdge*100).toFixed(1)}%`):null}
+            {selectedTyreContribution!=null?metric("Tyre effect",`${selectedTyreContribution>=0?"+":""}${(selectedTyreContribution*100).toFixed(0)} pp`):null}
+            {engagement?.track_phase?metric("Track window",`${String(engagement.track_phase).replaceAll("_"," ").toUpperCase()}${selectedTrackContribution!=null?` · ${selectedTrackContribution>=0?"+":""}${(selectedTrackContribution*100).toFixed(0)} pp`:""}`):null}
             {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
             {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
             {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
