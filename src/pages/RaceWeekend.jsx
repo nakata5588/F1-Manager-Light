@@ -1921,7 +1921,11 @@ export default function RaceWeekend(){
                 onConfirmResults={finalizeLiveRace}
                 />
               </React.Suspense>}
-              {activeControlNotice&&String(activeControlNotice.type)!=="GREEN"?<div className="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2">
+              {activeControlNotice&&(
+                usesCanonicalRaceRuntime
+                  ?["VSC","SAFETY_CAR","RED_FLAG","CHEQUERED"].includes(String(activeControlNotice.type||"").toUpperCase())
+                  :String(activeControlNotice.type)!=="GREEN"
+              )?<div className="pointer-events-none absolute left-1/2 top-5 z-30 -translate-x-1/2">
                 <RaceFlagBanner notice={activeControlNotice}/>
               </div>:null}
               {usesCanonicalRaceRuntime&&String(raceViewModel?.current_control||"").toUpperCase()==="RED_FLAG"&&canonicalRedFlagLifecycle?<div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/70 px-3 py-2 shadow-lg">
