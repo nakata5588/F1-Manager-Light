@@ -1010,8 +1010,11 @@ export default function RaceWeekend(){
     const key=String(important?.event_key||[important?.type,important?.lap,important?.sector,important?.driver_id,important?.message].join(":"));
     if(!key||lastAutoPopupKey.current===key)return;
     lastAutoPopupKey.current=key;
+    // High-speed playback should stay visually continuous. Important events
+    // remain in the Race Feed and can still be opened manually.
+    if(Number(racePlaybackSpeed)>=8)return;
     openRaceEvent(important,{auto:true});
-  },[usesCanonicalRaceRuntime,liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|")]);
+  },[usesCanonicalRaceRuntime,liveRace?.events?.length,liveRace?.current_lap,liveRace?.current_sector,playerTeamId,playerDriverIds.join("|"),racePlaybackSpeed]);
 
   useEffect(()=>{
     if(!usesCanonicalRaceRuntime){
@@ -1036,8 +1039,11 @@ export default function RaceWeekend(){
     const key=String(important?.event_key||important?.id||important?.key||important?.sequence||"");
     if(!key||lastAutoPopupKey.current===key)return;
     lastAutoPopupKey.current=key;
+    // At x8/x16 an automatic modal pause makes the camera appear to teleport.
+    // Keep the event canonical but surface it through Race Feed instead.
+    if(Number(racePlaybackSpeed)>=8)return;
     openRaceEvent(important,{auto:true});
-  },[usesCanonicalRaceRuntime,allRaceEvents.length,playerDriverIds.join("|")]);
+  },[usesCanonicalRaceRuntime,allRaceEvents.length,playerDriverIds.join("|"),racePlaybackSpeed]);
 
   useEffect(()=>{
     const shortcutActive=()=>(
