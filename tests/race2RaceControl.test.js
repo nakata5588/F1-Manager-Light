@@ -17,6 +17,7 @@ import {
 import {
   enforceRaceControlAssessment,
   neutralizeBattles,
+  raceControlBlockedOvertakeSectors,
   raceControlFreezesProgress,
   raceControlOvertakingAllowed,
   raceControlPaceMultiplier,
@@ -187,6 +188,26 @@ test("RW8.11B VSC and Safety Car use shared canonical pace restrictions",()=>{
   assert.equal(raceControlOvertakingAllowed(green),true);
   assert.equal(raceControlOvertakingAllowed(vsc),false);
   assert.equal(raceControlOvertakingAllowed(safetyCar),false);
+});
+
+test("RW35 local yellow only blocks overtaking in its restricted sector",()=>{
+  const base=startRaceState(createRaceState(input({year:1980})));
+  const localYellow={
+    ...base,
+    raceControlState:{
+      ...base.raceControlState,
+      mode:"LOCAL_YELLOW",
+      restrictedSectors:[2],
+    },
+  };
+  assert.equal(raceControlOvertakingAllowed(localYellow),true);
+  assert.deepEqual(raceControlBlockedOvertakeSectors(localYellow),[2]);
+
+  const green={
+    ...base,
+    raceControlState:{...base.raceControlState,mode:"GREEN",restrictedSectors:[2]},
+  };
+  assert.deepEqual(raceControlBlockedOvertakeSectors(green),[]);
 });
 
 test("RW8.11B neutralisation lasts its full lap duration before returning GREEN",()=>{
