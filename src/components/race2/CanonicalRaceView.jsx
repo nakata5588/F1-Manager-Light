@@ -860,7 +860,6 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
   const selectedDriverEdge=signedEdge(engagement?.driver_edge);
   const selectedCarEdge=signedEdge(engagement?.car_edge);
   const selectedBattleEdge=signedEdge(engagement?.performance_edge);
-  const selectedStrategyEdge=signedEdge(engagement?.strategy_edge);
   const selectedTyreGripEdge=signedEdge(engagement?.tyre_grip_edge);
   const signedContribution=(key)=>{
     const raw=Number(engagement?.opportunity_contributions?.[key]);
