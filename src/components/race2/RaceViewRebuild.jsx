@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useRef,useState}from "react";
 import {pointAtTrackProgress,trackGeometryViewBox} from "../../domain/trackLayout.js";
 import RaceCarVisual from "../race/RaceCarVisual.jsx";
 import {historicalRaceCarLivery} from "../../domain/raceCarLiveries.js";
-import {raceCarPresentationTransform,raceViewLateralUnitsPerMeter} from "../../domain/raceCarPresentation.js";
+import {raceCarPresentationTransform,raceViewLateralUnitsPerMeter,raceViewPhysicalAsphaltWidthSvg} from "../../domain/raceCarPresentation.js";
 import {pitLaneMixForPhase,pitLaneProgressForPhase} from "../../domain/racePitModel.js";
 import {raceViewPitBoxProgress} from "../../race2/view/RaceViewPresentation.js";
 import {TeamLogo} from "../entity/EntityVisuals.jsx";
@@ -433,16 +433,14 @@ function UndercutTrackViewport({
   const [zoom,setZoom]=useState(FOLLOW_ZOOM);
   const selected=visualCars.find((car)=>String(car?.driver_id||"")===String(selectedDriverId||""))||null;
   const physicalWidthM=Math.max(7,finite(view?.track_width?.physicalWidthM,12.5));
-  const longitudinalUnitsPerMeter=geometry?.total_length>0
-    ?geometry.total_length/Math.max(1,trackLengthM)
-    :null;
   // Keep road width, car size and longitudinal gaps in the same world scale.
   // Camera zoom provides readability; the road stroke no longer inflates the
   // physical world independently from the canonical lap distance.
-  const asphaltWidthSvg=Math.max(
-    2,
-    physicalWidthM*(longitudinalUnitsPerMeter||1.4)
-  );
+  const asphaltWidthSvg=raceViewPhysicalAsphaltWidthSvg({
+    trackWidthM:physicalWidthM,
+    trackLengthM,
+    visualTrackLengthSvg:geometry?.total_length,
+  });
   const unitsPerMeter=raceViewLateralUnitsPerMeter({
     trackWidthM:physicalWidthM,
     asphaltWidthSvg,
@@ -572,7 +570,6 @@ function UndercutTrackViewport({
         });
         const renderedCarLength=Math.max(1,calibrated.nativeLength*calibrated.scaleX);
         const renderedCarWidth=Math.max(1,calibrated.nativeWidth*calibrated.scaleY);
-        const battleNow=battleActive(car?.battle_context);
         return <g
           key={String(car?.car_id||car?.driver_id)}
           role="button"
