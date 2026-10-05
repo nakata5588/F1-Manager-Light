@@ -109,7 +109,6 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
     saveGame,
     currentSaveKey,
     getTeamLogoCandidates,
-    advanceOneDayUntilBreak,
     pushToast,
   } = useGame();
 
@@ -321,8 +320,6 @@ export default function Header({ pageTitle = "F1 History Manager" }) {
       });
       return false;
     }
-    const label = res?.meta?.name ? `${successPrefix}: ${res.meta.name}` : `${successPrefix}.`;
-    toastMini(label);
     pushToast?.({ title: successPrefix, description: res?.meta?.name || "", type: "success", ttl: 2200 });
     return true;
   };
@@ -677,8 +674,4 @@ function fileSafePart(value) {
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "save";
-}
-function toastMini(msg) {
-  // eslint-disable-next-line no-console
-  console.log("[SAVE]", msg);
 }
