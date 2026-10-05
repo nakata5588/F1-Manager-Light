@@ -207,7 +207,11 @@ test("high-risk crash events carry medical concern into the observed Race Feed",
   assert.ok(gs&&incident,"expected a deterministic high-risk crash seed");
   gs=advanceTo(gs,Number(incident.lap));
   const event=(gs.raceWeekendState.live_race.events||[])
-    .find((row)=>String(row?.driver_id)===String(incident.driver_id)&&Number(row?.lap)===Number(incident.lap));
+    .find((row)=>
+      String(row?.driver_id)===String(incident.driver_id)&&
+      Number(row?.lap)===Number(incident.lap)&&
+      String(row?.event_key||"").startsWith("incident:")
+    );
   assert.ok(event);
   assert.equal(event.medical_concern,true);
   assert.ok(Number(event.injury_probability)>0);
