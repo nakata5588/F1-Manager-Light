@@ -130,10 +130,14 @@ function incidentMedicalStatus(gs,incident){
     incident_severity:incident?.severity,
     incident_severity_score:incident?.severity_score,
   },{year:Number(gs?.activeYear)});
-  const severity=String(probabilities?.incidentSeverity||incident?.severity||"medium").toLowerCase();
+  const explicitSeverity=String(incident?.severity||"medium").toLowerCase();
+  const derivedSeverity=String(probabilities?.incidentSeverity||explicitSeverity).toLowerCase();
   const injuryProbability=Number(probabilities?.injuryProbability||0);
   return {
-    medicalConcern:["high","critical"].includes(severity)||injuryProbability>=0.08,
+    medicalConcern:
+      ["high","critical"].includes(explicitSeverity)||
+      ["high","critical"].includes(derivedSeverity)||
+      injuryProbability>=0.08,
     injuryProbability:Number(injuryProbability.toFixed(4)),
   };
 }
