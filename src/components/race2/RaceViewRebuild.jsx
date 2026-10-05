@@ -10,6 +10,7 @@ import {TeamLogo} from "../entity/EntityVisuals.jsx";
 const FOLLOW_ZOOM=9;
 const MIN_FOLLOW_ZOOM=2.5;
 const MAX_FOLLOW_ZOOM=16;
+const CAR_VISUAL_SCALE=0.90;
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const finite=(value,fallback=0)=>{
@@ -529,7 +530,7 @@ function UndercutTrackViewport({
       <button type="button" onClick={()=>{if(cameraMode==="fit")setCameraMode(selected?"follow":"free");changeZoom(1/1.14);}} className="rounded px-2 py-1 text-[10px] font-black text-slate-300">−</button>
       <button type="button" onClick={()=>{if(cameraMode==="fit")setCameraMode(selected?"follow":"free");changeZoom(1.14);}} className="rounded px-2 py-1 text-[10px] font-black text-slate-300">+</button>
     </div>
-    {controlMode!=="GREEN"?<div className={
+    {["VSC","SAFETY_CAR","RED_FLAG"].includes(controlMode)?<div className={
       "pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded border px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-lg "+
       (controlMode==="RED_FLAG"
         ?"border-rose-200/40 bg-rose-700/90 text-white"
@@ -580,8 +581,8 @@ function UndercutTrackViewport({
           trackLengthM,
           visualTrackLengthSvg:geometry?.total_length,
         });
-        const renderedCarLength=Math.max(1,calibrated.nativeLength*calibrated.scaleX);
-        const renderedCarWidth=Math.max(1,calibrated.nativeWidth*calibrated.scaleY);
+        const renderedCarLength=Math.max(1,calibrated.nativeLength*calibrated.scaleX*CAR_VISUAL_SCALE);
+        const renderedCarWidth=Math.max(1,calibrated.nativeWidth*calibrated.scaleY*CAR_VISUAL_SCALE);
         return <g
           key={String(car?.car_id||car?.driver_id)}
           role="button"
@@ -593,18 +594,11 @@ function UndercutTrackViewport({
           style={{cursor:"pointer"}}
         >
           {active?<circle r={Math.max(2.6,renderedCarLength*.92)} fill="rgba(255,255,255,.06)" stroke="#fff" strokeWidth={Math.max(.45,renderedCarWidth*.24)}/>:null}
-          {wetness>.18&&finite(car.speed_kmh,0)>90&&!pitActive?<g pointerEvents="none" opacity={clamp((wetness-.18)*.42,0,.22)}>
-            {(()=>{
-              const v=angleVector(pose.heading);
-              const tail=8+clamp(finite(car.speed_kmh,0)/18,4,15);
-              return <line x1={-v.x*3} y1={-v.y*3} x2={-v.x*tail} y2={-v.y*tail} stroke="#e0f2fe" strokeWidth="2.3" strokeLinecap="round"/>;
-            })()}
-          </g>:null}
           {car?.team_order?.active?<g pointerEvents="none" transform="translate(0 -8)">
             <rect x="-7.5" y="-2.4" width="15" height="4.8" rx="1.6" fill="#082f49" stroke="#67e8f9" strokeWidth=".45"/>
             <text x="0" y=".9" textAnchor="middle" fontSize="2.5" fontWeight="900" fill="#cffafe">TEAM</text>
           </g>:null}
-          <g transform={`scale(${calibrated.scaleX} ${calibrated.scaleY})`}>
+          <g transform={`scale(${calibrated.scaleX*CAR_VISUAL_SCALE} ${calibrated.scaleY*CAR_VISUAL_SCALE})`}>
             <RaceCarVisual
               year={year}
               color={palette.primary}
