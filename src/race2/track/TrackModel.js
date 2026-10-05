@@ -6,7 +6,16 @@
 import { resolveTrackLayout, trackIntelligenceProfile, trackRuntimeGeometry } from "../../domain/trackLayout.js";
 import { buildClosedRacingLine, racingLinePoseAtDistance } from "../../domain/raceSplineV3.js";
 
-export const TRACK_MODEL_SCHEMA_VERSION=2;
+export const TRACK_MODEL_SCHEMA_VERSION=3;
+
+export const TRACK_CONTEXT_TYPES=Object.freeze({
+  STRAIGHT:"STRAIGHT",
+  BRAKING_ZONE:"BRAKING_ZONE",
+  SLOW_CORNER:"SLOW_CORNER",
+  MEDIUM_CORNER:"MEDIUM_CORNER",
+  FAST_CORNER:"FAST_CORNER",
+  CORNER_EXIT:"CORNER_EXIT",
+});
 
 const text=(value)=>String(value??"");
 const finite=(value,fallback=null)=>{
@@ -170,6 +179,42 @@ export function trackCornerSeverityAtDistance(model,distanceAlongLapM){
   return a+(b-a)*t;
 }
 
+export function trackContextAtDistance(model,distanceAlongLapM){
+  const distance=wrapTrackDistanceM(model,distanceAlongLapM);
+  if(distance==null)return null;
+  const severity=trackCornerSeverityAtDistance(model,distance);
+  const length=positive(model?.lengthM,0);
+  const probeM=Math.max(24,Math.min(70,length>0?length/120:45));
+  const before=trackCornerSeverityAtDistance(model,distance-probeM);
+  const ahead=trackCornerSeverityAtDistance(model,distance+probeM);
+  const rise=ahead-severity;
+  const fall=severity-ahead;
+  let type=TRACK_CONTEXT_TYPES.MEDIUM_CORNER;
+  if(severity<=0.12&&ahead<=0.20)type=TRACK_CONTEXT_TYPES.STRAIGHT;
+  else if(severity<=0.30&&rise>=0.10)type=TRACK_CONTEXT_TYPES.BRAKING_ZONE;
+  else if(severity>=0.70)type=TRACK_CONTEXT_TYPES.SLOW_CORNER;
+  else if(severity>=0.42)type=TRACK_CONTEXT_TYPES.MEDIUM_CORNER;
+  else if(severity>=0.18)type=TRACK_CONTEXT_TYPES.FAST_CORNER;
+  else if(before>=0.28&&fall>=0.08)type=TRACK_CONTEXT_TYPES.CORNER_EXIT;
+  else type=TRACK_CONTEXT_TYPES.STRAIGHT;
+
+  const widthM=positive(model?.width?.usableRaceWidthM,positive(model?.width?.physicalWidthM,null));
+  const straightness=clamp(1-severity,0,1);
+  const brakingBoost=type===TRACK_CONTEXT_TYPES.BRAKING_ZONE?0.22:0;
+  const overtakingOpportunity=clamp(straightness*0.72+brakingBoost,0,1);
+  const slipstreamSuitability=clamp(type===TRACK_CONTEXT_TYPES.STRAIGHT?0.9-severity*0.5:straightness*0.42,0,1);
+  return {
+    distanceM:Number(distance.toFixed(3)),
+    type,
+    severity:Number(severity.toFixed(4)),
+    curvature:Number(severity.toFixed(4)),
+    widthM,
+    overtakingOpportunity:Number(overtakingOpportunity.toFixed(4)),
+    slipstreamSuitability:Number(slipstreamSuitability.toFixed(4)),
+    speedReference:Number(clamp(1-severity*0.72,0.2,1).toFixed(4)),
+  };
+}
+
 export function trackCornerSeverityAhead(model,distanceAlongLapM,lookaheadM,{samples=5}={}){
   const distance=Math.max(0,Number(lookaheadM)||0);
   const count=Math.max(1,Math.min(12,Math.round(Number(samples)||5)));
@@ -274,7 +319,12 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
 
   const sourcePoints=clonePoints(geometry?.points);
   const racingLine=sourcePoints.length>=3
-    ?buildClosedRacingLine(sourcePoints,{samplesPerSegment})
+    ?buildClosedRacingLine(sourcePoints,{
+      samplesPerSegment,
+      parameterization:"centripetal",
+      preserveStraights:true,
+      straightSourcePoints:sourcePoints,
+    })
     :null;
   const racingLineContract=racingLine?{
     points:racingLine.points.map((point)=>[Number(point[0]),Number(point[1])]),
@@ -282,6 +332,9 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
     total_length:Number(racingLine.total_length),
     source_count:Number(racingLine.source_count),
     samples_per_segment:Number(racingLine.samples_per_segment),
+    parameterization:racingLine.parameterization??null,
+    straight_segment_count:Number(racingLine.straight_segment_count)||0,
+    straight_preservation:Boolean(racingLine.straight_preservation),
   }:null;
   const geometryContract={
     source:geometrySource,
@@ -310,6 +363,17 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
   const pitEntryM=pitEntryProgress==null?null:trackDistanceAtProgress({lengthM,startFinish:{progress:startFinishProgress}},pitEntryProgress);
   const pitExitM=pitExitProgress==null?null:trackDistanceAtProgress({lengthM,startFinish:{progress:startFinishProgress}},pitExitProgress);
 
+  const widthPhysicalM=firstPositive(
+    layout?.track_width_m,
+    trackPackage?.track_width_m,
+    metadata?.track_width_m,
+    core?.track_width_m,
+    12.5
+  );
+  const widthSource=firstPositive(layout?.track_width_m,trackPackage?.track_width_m,metadata?.track_width_m,core?.track_width_m)!=null
+    ?"track_data"
+    :"era_default_estimate";
+
   const laps=positive(
     metadata?.laps,
     positive(trackSnapshot?.laps,positive(gp?.laps,null))
@@ -336,6 +400,11 @@ export function buildTrackModel(gs,{gp=null,trackId=null,year=null,trackSnapshot
     startFinish,
     sectors,
     speedProfile,
+    width:{
+      physicalWidthM:Number(widthPhysicalM.toFixed(3)),
+      usableRaceWidthM:Number((widthPhysicalM*0.9).toFixed(3)),
+      source:widthSource,
+    },
     pitLane:{
       available:Boolean(pitPoints.length>=2&&pitEntryM!=null&&pitExitM!=null),
       entryProgress:pitEntryProgress==null?null:wrap01(pitEntryProgress),
