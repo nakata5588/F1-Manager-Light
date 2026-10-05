@@ -13,9 +13,9 @@ import {
   wrapTrackDistanceM,
 } from "../track/TrackModel.js";
 
-export const RACE_GRID_SLOT_SPACING_M=8;
-export const RACE_GRID_LATERAL_OFFSET_M=1.75;
-export const RACE_GRID_MERGE_DISTANCE_M=160;
+export const RACE_GRID_SLOT_SPACING_M=10;
+export const RACE_GRID_LATERAL_OFFSET_M=2;
+export const RACE_GRID_MERGE_DISTANCE_M=220;
 export const RACE_TRAFFIC_HARD_GAP_M=6;
 export const RACE_SLIPSTREAM_MAX_BONUS_KMH=9;
 export const RACE_SLIPSTREAM_MIN_SPEED_KMH=100;
