@@ -27,6 +27,18 @@ export function raceCarNominalWidthM(yearInput){
   return 1.9;
 }
 
+export function raceCarNominalLengthM(yearInput){
+  const year=Number(yearInput);
+  if(!Number.isFinite(year))return 4.8;
+  if(year<=1967)return 4.0;
+  if(year<=1982)return 4.45;
+  if(year<=1992)return 4.55;
+  if(year<=2008)return 4.65;
+  if(year<=2016)return 5.05;
+  if(year<=2021)return 5.55;
+  return 5.45;
+}
+
 export function raceCarNativeFootprint({year,model}={}){
   const geometry=historicalRaceCarGeometry({year,model});
   if(geometry){
@@ -91,6 +103,36 @@ export function raceCarPresentationScale({
     targetWidthSvg:Number(targetWidthSvg.toFixed(6)),
     targetLengthSvg:Number((footprint.nativeLength*scale).toFixed(6)),
     widthRatio:Number((carWidth/physicalTrackWidth).toFixed(6)),
+    nativeWidth:footprint.nativeWidth,
+    nativeLength:footprint.nativeLength,
+    source:footprint.source,
+  };
+}
+
+export function raceCarPresentationTransform({
+  year,
+  model,
+  trackWidthM=RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
+  asphaltWidthSvg=RACE_VIEW_ASPHALT_WIDTH_SVG,
+  trackLengthM=null,
+  visualTrackLengthSvg=null,
+}={}){
+  const footprint=raceCarNativeFootprint({year,model});
+  const lateralUnits=raceViewLateralUnitsPerMeter({trackWidthM,asphaltWidthSvg});
+  const physicalLength=Math.max(1,Number(trackLengthM)||0);
+  const visualLength=Math.max(1,Number(visualTrackLengthSvg)||0);
+  const longitudinalUnits=physicalLength>0&&visualLength>0
+    ?visualLength/physicalLength
+    :lateralUnits;
+  const widthM=raceCarNominalWidthM(year);
+  const lengthM=raceCarNominalLengthM(year);
+  return {
+    scaleX:Number(((longitudinalUnits*lengthM)/footprint.nativeLength).toFixed(6)),
+    scaleY:Number(((lateralUnits*widthM)/footprint.nativeWidth).toFixed(6)),
+    carWidthM:widthM,
+    carLengthM:lengthM,
+    lateralUnitsPerMeter:Number(lateralUnits.toFixed(6)),
+    longitudinalUnitsPerMeter:Number(longitudinalUnits.toFixed(6)),
     nativeWidth:footprint.nativeWidth,
     nativeLength:footprint.nativeLength,
     source:footprint.source,
