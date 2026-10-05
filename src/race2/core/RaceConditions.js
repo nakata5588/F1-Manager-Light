@@ -295,6 +295,7 @@ function initialRaceControlState(input){
     activatedTick:null,
     activatedReferenceLap:null,
     minimumReleaseLap:null,
+    restrictedSectors:[],
     sequence:0,
     redFlagLifecycle:null,
   };
@@ -347,6 +348,31 @@ function strongestDecision(decisions=[]){
     .slice()
     .sort((a,b)=>controlRank(b.action)-controlRank(a.action))[0]
     ??{action:"GREEN",source:null,assessment:null,event:null};
+}
+
+function localYellowSectorsForDecision(state,decision,cars=[]){
+  if(text(decision?.action).toUpperCase()!=="LOCAL_YELLOW")return [];
+  const ids=new Set((decision?.event?.carIds||[]).map(text).filter(Boolean));
+  const sectors=[];
+  for(const car of cars||[]){
+    if(ids.size&&!ids.has(text(car?.carId)))continue;
+    const sector=Math.round(finite(car?.sector,null));
+    if(sector>=1&&sector<=3&&!sectors.includes(sector))sectors.push(sector);
+  }
+  const eventSector=Math.round(finite(
+    decision?.event?.payload?.sector
+      ??decision?.event?.payload?.incidentSector,
+    null
+  ));
+  if(eventSector>=1&&eventSector<=3&&!sectors.includes(eventSector))sectors.push(eventSector);
+  const previous=text(state?.raceControlState?.mode).toUpperCase()==="LOCAL_YELLOW"
+    ?(state?.raceControlState?.restrictedSectors||[])
+    :[];
+  for(const value of previous){
+    const sector=Math.round(finite(value,null));
+    if(sector>=1&&sector<=3&&!sectors.includes(sector))sectors.push(sector);
+  }
+  return sectors.sort((a,b)=>a-b);
 }
 
 function decisionEvent(state,decision,referenceLap){
@@ -410,6 +436,7 @@ export function advanceRaceConditions(state,cars,sourceEvents=[]){
   }
 
   const chosen=strongestDecision(decisions);
+  const localYellowSectors=localYellowSectorsForDecision(state,chosen,cars);
   const previousMode=text(state?.raceControlState?.recommendedMode||"GREEN").toUpperCase();
   const nextMode=text(chosen?.action||"GREEN").toUpperCase();
   const changed=nextMode!==previousMode;
@@ -428,6 +455,7 @@ export function advanceRaceConditions(state,cars,sourceEvents=[]){
       mode:text(state?.raceControlState?.mode||"GREEN").toUpperCase(),
       recommendedMode:nextMode,
       source:nextMode==="GREEN"?null:chosen?.source??null,
+      ...(nextMode==="LOCAL_YELLOW"?{restrictedSectors:localYellowSectors}:{}),
       referenceLap,
       assessment:chosen?.assessment??null,
       updatedTick:Math.max(0,Math.floor(finite(state?.tick,0))),
