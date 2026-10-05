@@ -7,8 +7,9 @@ import {pitLaneMixForPhase,pitLaneProgressForPhase} from "../../domain/racePitMo
 import {raceViewPitBoxProgress} from "../../race2/view/RaceViewPresentation.js";
 import {TeamLogo} from "../entity/EntityVisuals.jsx";
 
-const UNDERCUT_ASPHALT_WIDTH=28;
-const FOLLOW_ZOOM=6.1;
+const UNDERCUT_ASPHALT_WIDTH=32;
+const FOLLOW_ZOOM=6.4;
+const CAR_READABILITY_SCALE=1.16;
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number(value)||0));
 const finite=(value,fallback=0)=>{
@@ -262,6 +263,56 @@ function sampleCarPose(geometry,progress,lateralOffsetM,unitsPerMeter,trackLengt
   };
 }
 
+function angleVector(deg){
+  const rad=finite(deg,0)*Math.PI/180;
+  return {x:Math.cos(rad),y:Math.sin(rad)};
+}
+
+function PitBoxes({pitLanePoints,teamIds}){
+  if(!Array.isArray(pitLanePoints)||pitLanePoints.length<2)return null;
+  return <g pointerEvents="none" opacity=".52">
+    {(teamIds||[]).map((id,index)=>{
+      const progress=raceViewPitBoxProgress(teamIds,id);
+      const pose=pointAtOpenPolylineProgress(pitLanePoints,progress);
+      if(!pose)return null;
+      return <g key={`pit_box_${id}`} transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}>
+        <rect x="-5.2" y="-2.25" width="10.4" height="4.5" fill="rgba(2,6,23,.16)" stroke="#d1d5db" strokeWidth=".48"/>
+        <line x1="-5.2" y1="0" x2="5.2" y2="0" stroke="#f8fafc" strokeWidth=".32" opacity=".65"/>
+        <text x="0" y="-3.1" textAnchor="middle" fontSize="2.3" fontWeight="900" fill="#e5e7eb">{index+1}</text>
+      </g>;
+    })}
+  </g>;
+}
+
+function BattleOverlay({cars,geometry,trackLengthM,unitsPerMeter,drivers}){
+  const byId=new Map((cars||[]).map((car)=>[String(car?.car_id||car?.id||""),car]));
+  const seen=new Set();
+  const overlays=[];
+  for(const car of cars||[]){
+    const context=car?.battle_context;
+    if(!battleActive(context))continue;
+    const opponent=byId.get(String(context?.opponent_car_id||""));
+    if(!opponent)continue;
+    const key=String(context?.attempt_id||[car?.car_id,opponent?.car_id].sort().join("::"));
+    if(seen.has(key))continue;
+    seen.add(key);
+    const a=sampleCarPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter,trackLengthM);
+    const b=sampleCarPose(geometry,opponent.track_progress,opponent.lateral_offset_m,unitsPerMeter,trackLengthM);
+    if(!a||!b)continue;
+    const x=(a.x+b.x)/2;
+    const y=(a.y+b.y)/2;
+    overlays.push(<g key={key} pointerEvents="none">
+      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#fbbf24" strokeWidth=".75" strokeDasharray="2.4 1.7" opacity=".72"/>
+      <g transform={`translate(${x} ${y-8})`}>
+        <rect x="-19" y="-4.2" width="38" height="8.4" rx="2.4" fill="#090d12" stroke="#fbbf24" strokeWidth=".5" opacity=".94"/>
+        <text x="0" y="-0.4" textAnchor="middle" fontSize="2.7" fontWeight="900" fill="#f8fafc">{shortName(drivers,car.driver_id)} ↔ {shortName(drivers,opponent.driver_id)}</text>
+        <text x="0" y="2.8" textAnchor="middle" fontSize="2.15" fontWeight="800" fill="#fbbf24">{Number.isFinite(Number(context?.attempt_probability_pct))?`${Math.round(Number(context.attempt_probability_pct))}%`:"BATTLE"}</text>
+      </g>
+    </g>);
+  }
+  return <g>{overlays}</g>;
+}
+
 function viewBoxAround(base,center,zoom){
   const [x,y,width,height]=base;
   const z=Math.max(1,finite(zoom,1));
@@ -421,8 +472,23 @@ function UndercutTrackViewport({
   const selectedPose=selected&&geometry
     ?sampleCarPose(geometry,selected.track_progress,selected.lateral_offset_m,unitsPerMeter,trackLengthM)
     :null;
-  const cameraBox=cameraMode==="follow"&&selectedPose
-    ?viewBoxAround(baseViewBox,selectedPose,zoom)
+  const selectedLookAheadPose=selected&&geometry
+    ?sampleCarPose(
+      geometry,
+      wrap(selected.track_progress+(clamp(finite(selected.speed_kmh,0)*.18,28,92)/trackLengthM),1),
+      selected.lateral_offset_m,
+      unitsPerMeter,
+      trackLengthM
+    )
+    :null;
+  const cameraTarget=selectedPose&&selectedLookAheadPose
+    ?{
+      x:selectedPose.x+(selectedLookAheadPose.x-selectedPose.x)*.34,
+      y:selectedPose.y+(selectedLookAheadPose.y-selectedPose.y)*.34,
+    }
+    :selectedPose;
+  const cameraBox=cameraMode==="follow"&&cameraTarget
+    ?viewBoxAround(baseViewBox,cameraTarget,zoom)
     :baseViewBox;
   const points=geometry?.points||[];
   const polyline=points.length?[...points,points[0]].map((point)=>point.join(",")).join(" "):"";
@@ -447,9 +513,15 @@ function UndercutTrackViewport({
     <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded border border-white/15 bg-black/60 p-1">
       <button type="button" onClick={()=>setCameraMode("fit")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="fit"?"bg-white text-black":"text-slate-300")}>FIT</button>
       <button type="button" disabled={!selected} onClick={()=>setCameraMode("follow")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="follow"?"bg-cyan-300 text-black":"text-slate-300 disabled:opacity-30")}>FOLLOW</button>
-      <button type="button" disabled={cameraMode!=="follow"} onClick={()=>setZoom((value)=>clamp(value/1.18,3.8,9))} className="rounded px-2 py-1 text-[10px] font-black text-slate-300 disabled:opacity-30">−</button>
-      <button type="button" disabled={cameraMode!=="follow"} onClick={()=>setZoom((value)=>clamp(value*1.18,3.8,9))} className="rounded px-2 py-1 text-[10px] font-black text-slate-300 disabled:opacity-30">+</button>
+      <button type="button" disabled={cameraMode!=="follow"} onClick={()=>setZoom((value)=>clamp(value/1.18,4.2,9.5))} className="rounded px-2 py-1 text-[10px] font-black text-slate-300 disabled:opacity-30">−</button>
+      <button type="button" disabled={cameraMode!=="follow"} onClick={()=>setZoom((value)=>clamp(value*1.18,4.2,9.5))} className="rounded px-2 py-1 text-[10px] font-black text-slate-300 disabled:opacity-30">+</button>
     </div>
+    {String(view?.current_control||"GREEN").toUpperCase()!=="GREEN"?<div className={
+      "pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded border px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-lg "+
+      (String(view?.current_control||"").toUpperCase()==="RED_FLAG"
+        ?"border-rose-200/40 bg-rose-700/90 text-white"
+        :"border-amber-200/40 bg-amber-500/90 text-black")
+    }>{String(view?.current_control||"").replaceAll("_"," ")}</div>:null}
 
     {geometry?<svg className="h-full w-full" viewBox={cameraBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Undercut-inspired race track">
       <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill={wetness>0.05?"#647f38":"#759b3b"}/>
@@ -460,6 +532,7 @@ function UndercutTrackViewport({
       {view?.pit_lane?.available&&pitLanePoints.length>1?<g pointerEvents="none">
         <polyline points={pitPolyline} fill="none" stroke="#202428" strokeWidth={Math.max(11,UNDERCUT_ASPHALT_WIDTH*.48)} strokeLinecap="round" strokeLinejoin="round" opacity=".9"/>
         <polyline points={pitPolyline} fill="none" stroke="#686b70" strokeWidth={Math.max(8,UNDERCUT_ASPHALT_WIDTH*.34)} strokeLinecap="round" strokeLinejoin="round"/>
+        <PitBoxes pitLanePoints={pitLanePoints} teamIds={teamIds}/>
       </g>:null}
       <StartingGrid cars={cars} geometry={geometry} trackLengthM={trackLengthM} unitsPerMeter={unitsPerMeter}/>
       {visualCars.filter((car)=>!car?.retired||car?.retirement_trackside?.visible!==false).map((car)=>{
@@ -506,7 +579,18 @@ function UndercutTrackViewport({
         >
           {active?<circle r={Math.max(7.2,calibrated.targetLengthSvg*.68)} fill="rgba(255,255,255,.06)" stroke="#fff" strokeWidth="1.15"/>:null}
           {battleNow?<circle r={Math.max(8.5,calibrated.targetLengthSvg*.78)} fill="none" stroke="#fbbf24" strokeWidth=".8" strokeDasharray="2.4 1.7"/>:null}
-          <g transform={`scale(${calibrated.scale})`}>
+          {wetness>.18&&finite(car.speed_kmh,0)>90&&!pitActive?<g pointerEvents="none" opacity={clamp((wetness-.18)*.42,0,.22)}>
+            {(()=>{
+              const v=angleVector(pose.heading);
+              const tail=8+clamp(finite(car.speed_kmh,0)/18,4,15);
+              return <line x1={-v.x*3} y1={-v.y*3} x2={-v.x*tail} y2={-v.y*tail} stroke="#e0f2fe" strokeWidth="2.3" strokeLinecap="round"/>;
+            })()}
+          </g>:null}
+          {car?.team_order?.active?<g pointerEvents="none" transform="translate(0 -8)">
+            <rect x="-7.5" y="-2.4" width="15" height="4.8" rx="1.6" fill="#082f49" stroke="#67e8f9" strokeWidth=".45"/>
+            <text x="0" y=".9" textAnchor="middle" fontSize="2.5" fontWeight="900" fill="#cffafe">TEAM</text>
+          </g>:null}
+          <g transform={`scale(${calibrated.scale*CAR_READABILITY_SCALE})`}>
             <RaceCarVisual
               year={year}
               color={palette.primary}
@@ -525,6 +609,13 @@ function UndercutTrackViewport({
           </g>
         </g>;
       })}
+      <BattleOverlay
+        cars={visualCars}
+        geometry={geometry}
+        trackLengthM={trackLengthM}
+        unitsPerMeter={unitsPerMeter}
+        drivers={drivers}
+      />
     </svg>:<div className="flex h-full items-center justify-center bg-[#182018] text-sm text-slate-500">Canonical track geometry unavailable.</div>}
   </div>;
 }
