@@ -427,11 +427,31 @@ test("RW32 attack follower can open a canonical battle against an equivalent con
   });
 
   let next=state;
+  const snapshots=[];
   for(let index=0;index<140&&!next.events.some((event)=>event.type==="overtake_started");index+=1){
     next=stepRaceState(next);
+    if(index<5||index%20===19){
+      const leader=car(next,"C1");
+      const follower=car(next,"C2");
+      snapshots.push({
+        step:index+1,
+        timeMs:next.simulationTimeMs,
+        leaderPace:leader?.resources?.paceMode,
+        followerPace:follower?.resources?.paceMode,
+        leaderFree:leader?.freeTargetSpeedKmh,
+        followerFree:follower?.freeTargetSpeedKmh,
+        leaderSpeed:leader?.speedKmh,
+        followerSpeed:follower?.speedKmh,
+        gap:follower?.traffic?.gapM,
+        tow:follower?.traffic?.slipstreamStrength,
+        corner:follower?.effectiveCornerSeverity,
+        battle:follower?.battle?.phase,
+      });
+    }
   }
 
   const started=next.events.find((event)=>event.type==="overtake_started");
+  if(!started)console.error("RW32 attack/conserve diagnostic",JSON.stringify(snapshots));
   assert.ok(started,"attack follower should create a canonical battle window against conserving equal machinery");
   assert.equal(started.payload.attackerPaceMode,"attack");
   assert.equal(started.payload.defenderPaceMode,"conserve");
