@@ -66,6 +66,17 @@ test("RW8.14A projects canonical RaceState into a Race View read model without r
   assert.equal(view.canonical_tick,state.tick);
   assert.equal(view.track_length_m,state.track.lengthM);
   assert.deepEqual(view.pit_lane,state.track.pitLane??null);
+  assert.deepEqual(view.track_geometry,state.track.racingLine?{
+    source:"canonical_track_model",
+    points:state.track.racingLine.points??[],
+    cumulative:state.track.racingLine.cumulative??[],
+    total_length:Number(state.track.racingLine.total_length)||0,
+    source_count:Number(state.track.racingLine.source_count)||0,
+    samples_per_segment:Number(state.track.racingLine.samples_per_segment)||0,
+    parameterization:state.track.racingLine.parameterization??null,
+    straight_preservation:Boolean(state.track.racingLine.straight_preservation),
+  }:null);
+  assert.deepEqual(view.track_width,state.track.width??null);
   assert.equal(view.classification.length,state.classification.length);
 
   for(let index=0;index<state.classification.length;index+=1){
