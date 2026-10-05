@@ -3,6 +3,8 @@ import {pointAtTrackProgress,trackGeometryViewBox} from "../../domain/trackLayou
 import RaceCarVisual from "../race/RaceCarVisual.jsx";
 import {historicalRaceCarLivery} from "../../domain/raceCarLiveries.js";
 import {raceCarPresentationScale,raceViewLateralUnitsPerMeter} from "../../domain/raceCarPresentation.js";
+import {pitLaneMixForPhase,pitLaneProgressForPhase} from "../../domain/racePitModel.js";
+import {raceViewPitBoxProgress} from "../../race2/view/RaceViewPresentation.js";
 import {TeamLogo} from "../entity/EntityVisuals.jsx";
 
 const UNDERCUT_ASPHALT_WIDTH=28;
@@ -215,6 +217,33 @@ function useContinuousCars(view,{playbackRunning=false,playbackSpeed=1}={}){
   return display;
 }
 
+function pointAtOpenPolylineProgress(points,progress){
+  const valid=(Array.isArray(points)?points:[]).filter((point)=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1])));
+  if(valid.length<2)return null;
+  const lengths=[];
+  let total=0;
+  for(let index=0;index<valid.length-1;index+=1){
+    const a=valid[index],b=valid[index+1];
+    const length=Math.hypot(Number(b[0])-Number(a[0]),Number(b[1])-Number(a[1]));
+    lengths.push({a,b,start:total,length});
+    total+=length;
+  }
+  if(total<=0)return {x:Number(valid[0][0]),y:Number(valid[0][1]),heading:0};
+  const target=clamp(progress,0,1)*total;
+  let segment=lengths.at(-1);
+  for(const candidate of lengths){
+    if(target<=candidate.start+candidate.length){segment=candidate;break;}
+  }
+  const local=segment.length>0?clamp((target-segment.start)/segment.length,0,1):0;
+  const ax=Number(segment.a[0]),ay=Number(segment.a[1]);
+  const bx=Number(segment.b[0]),by=Number(segment.b[1]);
+  return {
+    x:ax+(bx-ax)*local,
+    y:ay+(by-ay)*local,
+    heading:Math.atan2(by-ay,bx-ax)*180/Math.PI,
+  };
+}
+
 function sampleCarPose(geometry,progress,lateralOffsetM,unitsPerMeter,trackLengthM){
   const center=pointAtTrackProgress(geometry,progress);
   const tangentDistanceM=18;
@@ -292,6 +321,9 @@ const InfoRail=React.memo(function InfoRail({view,cars,drivers,selectedDriverId,
   const fastest=(cars||[]).filter((car)=>Number(car?.best_lap_ms)>0).slice().sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
   const engagement=selected?.battle_context||null;
   const track=view?.track_state||{};
+  const pendingCommand=(view?.pending_commands||[])
+    .find((command)=>String(command?.driverId??command?.driver_id??"")===String(selectedDriverId||""));
+  const teamOrder=selected?.team_order?.active?selected.team_order:null;
   const metric=(label,value)=><div className="flex items-center justify-between gap-2 border-b border-white/[0.05] py-1.5 last:border-b-0"><span className="text-[9px] uppercase tracking-[0.08em] text-slate-500">{label}</span><strong className="text-right text-[10px] font-semibold text-slate-200">{value}</strong></div>;
 
   return <aside className="hidden h-full min-h-0 overflow-y-auto border-l border-white/10 bg-[#070b10] lg:flex lg:flex-col">
@@ -328,6 +360,10 @@ const InfoRail=React.memo(function InfoRail({view,cars,drivers,selectedDriverId,
         {metric("Tyre",`${selected?.tyre?.compound||"—"} · ${Number.isFinite(Number(selected?.tyre?.condition))?Math.round(Number(selected.tyre.condition))+"%":"—"}`)}
         {metric("Fuel",Number.isFinite(Number(selected?.fuel_kg))?`${Number(selected.fuel_kg).toFixed(1)} kg`:"—")}
         {metric("Pace",String(selected?.current_pace||"—").toUpperCase())}
+        {selected?.pit_state?.active?metric("Pit",String(selected.pit_state.phase||"active").replaceAll("_"," ").toUpperCase()):null}
+        {teamOrder?metric("Team order",String(teamOrder.order||"yield").toUpperCase()):null}
+        {pendingCommand?metric("Pending",String(pendingCommand.type||"command").toUpperCase()):null}
+        {selected?.retired?metric("DNF",String(selected.retirement_reason||"retired").replaceAll("_"," ").toUpperCase()):null}
         {engagement&&String(engagement.state||"")!=="none"?<div className={"mt-3 rounded-md border px-2 py-2 "+(battleActive(engagement)?"border-amber-300/30 bg-amber-500/[0.09]":"border-sky-300/20 bg-sky-500/[0.07]")}>
           <div className={"text-[8px] font-black uppercase tracking-[0.12em] "+(battleActive(engagement)?"text-amber-300":"text-sky-300")}>Battle telemetry</div>
           <div className="mt-1 text-[11px] font-black text-white">{String(engagement.role||"car").toUpperCase()} · {String(engagement.state||"").replaceAll("_"," ").toUpperCase()}</div>
@@ -357,6 +393,14 @@ function StartingGrid({cars,geometry,trackLengthM,unitsPerMeter}){
 function UndercutTrackViewport({
   view,cars,trackLengthM,drivers,teams,teamBrands,selectedDriverId,onSelectDriver,year,playbackRunning,playbackSpeed,
 }){
+  const teamIds=useMemo(()=>{
+    const unique=[];
+    for(const car of cars||[]){
+      const id=String(car?.team_id||"");
+      if(id&&!unique.includes(id))unique.push(id);
+    }
+    return unique.sort((a,b)=>a.localeCompare(b));
+  },[cars]);
   const geometry=useMemo(()=>{
     const points=Array.isArray(view?.track_geometry?.points)?view.track_geometry.points:[];
     return points.length>=3?{points}:null;
@@ -382,6 +426,11 @@ function UndercutTrackViewport({
     :baseViewBox;
   const points=geometry?.points||[];
   const polyline=points.length?[...points,points[0]].map((point)=>point.join(",")).join(" "):"";
+  const pitLanePoints=Array.isArray(view?.pit_lane?.points)?view.pit_lane.points:[];
+  const pitPolyline=pitLanePoints.map((point)=>point.join(",")).join(" ");
+  const trackState=view?.track_state||{};
+  const wetness=clamp(trackState?.track_wetness,0,1);
+  const rain=clamp(trackState?.rain_intensity,0,1);
 
   const selectAndFollow=(driverIdValue)=>{
     onSelectDriver?.(String(driverIdValue||""));
@@ -393,6 +442,7 @@ function UndercutTrackViewport({
       <span className="rounded border border-emerald-400/30 bg-black/45 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-200">{String(view?.current_control||"GREEN").replaceAll("_"," ")}</span>
       <span className="rounded border border-white/10 bg-black/45 px-2 py-1 text-[9px] font-semibold text-slate-200">Lap {finite(view?.current_lap,1)}/{view?.total_laps??"—"}</span>
       <span className="rounded border border-white/10 bg-black/45 px-2 py-1 text-[9px] font-semibold text-slate-300">{playbackRunning?`${playbackSpeed}× live`:"paused"}</span>
+      {rain>0.02?<span className="rounded border border-sky-300/20 bg-black/45 px-2 py-1 text-[9px] font-semibold text-sky-100">RAIN {Math.round(rain*100)}%</span>:null}
     </div>
     <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded border border-white/15 bg-black/60 p-1">
       <button type="button" onClick={()=>setCameraMode("fit")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="fit"?"bg-white text-black":"text-slate-300")}>FIT</button>
@@ -402,15 +452,38 @@ function UndercutTrackViewport({
     </div>
 
     {geometry?<svg className="h-full w-full" viewBox={cameraBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Undercut-inspired race track">
-      <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill="#759b3b"/>
+      <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill={wetness>0.05?"#647f38":"#759b3b"}/>
       <polyline points={polyline} fill="none" stroke="#25292d" strokeWidth={UNDERCUT_ASPHALT_WIDTH+5.5} strokeLinecap="round" strokeLinejoin="round" opacity=".7"/>
       <polyline points={polyline} fill="none" stroke="#f5f5f4" strokeWidth={UNDERCUT_ASPHALT_WIDTH+2.5} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={polyline} fill="none" stroke="#55585d" strokeWidth={UNDERCUT_ASPHALT_WIDTH} strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points={polyline} fill="none" stroke={wetness>0.08?"#42474c":"#55585d"} strokeWidth={UNDERCUT_ASPHALT_WIDTH} strokeLinecap="round" strokeLinejoin="round"/>
       <polyline points={polyline} fill="none" stroke="#686b70" strokeWidth=".75" strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
+      {view?.pit_lane?.available&&pitLanePoints.length>1?<g pointerEvents="none">
+        <polyline points={pitPolyline} fill="none" stroke="#202428" strokeWidth={Math.max(11,UNDERCUT_ASPHALT_WIDTH*.48)} strokeLinecap="round" strokeLinejoin="round" opacity=".9"/>
+        <polyline points={pitPolyline} fill="none" stroke="#686b70" strokeWidth={Math.max(8,UNDERCUT_ASPHALT_WIDTH*.34)} strokeLinecap="round" strokeLinejoin="round"/>
+      </g>:null}
       <StartingGrid cars={cars} geometry={geometry} trackLengthM={trackLengthM} unitsPerMeter={unitsPerMeter}/>
-      {visualCars.filter((car)=>!car?.retired).map((car)=>{
-        const pose=sampleCarPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter,trackLengthM);
-        if(!pose)return null;
+      {visualCars.filter((car)=>!car?.retired||car?.retirement_trackside?.visible!==false).map((car)=>{
+        const trackPose=sampleCarPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter,trackLengthM);
+        if(!trackPose)return null;
+        let pose=trackPose;
+        const pitActive=Boolean(car?.pit_state?.active)&&view?.pit_lane?.available&&pitLanePoints.length>1;
+        if(pitActive){
+          const boxProgress=raceViewPitBoxProgress(teamIds,car?.team_id);
+          const laneProgress=pitLaneProgressForPhase(car.pit_state,{boxProgress});
+          const mix=pitLaneMixForPhase(car.pit_state);
+          const pitPose=laneProgress==null?null:pointAtOpenPolylineProgress(pitLanePoints,laneProgress);
+          if(pitPose){
+            const headingA=trackPose.heading*Math.PI/180;
+            const headingB=pitPose.heading*Math.PI/180;
+            const vx=(1-mix)*Math.cos(headingA)+mix*Math.cos(headingB);
+            const vy=(1-mix)*Math.sin(headingA)+mix*Math.sin(headingB);
+            pose={
+              x:trackPose.x+(pitPose.x-trackPose.x)*mix,
+              y:trackPose.y+(pitPose.y-trackPose.y)*mix,
+              heading:Math.atan2(vy,vx)*180/Math.PI,
+            };
+          }
+        }
         const active=String(car?.driver_id||"")===String(selectedDriverId||"");
         const teamLabel=teamName(teams,car.team_id);
         const palette=teamVisualPalette(teamBrands,car.team_id,year,teamLabel);
@@ -441,6 +514,7 @@ function UndercutTrackViewport({
               accent={palette.accent}
               selected={active}
               retired={car.retired}
+              
               lod={cameraMode==="follow"?"close":"medium"}
               damageState={car.damage_state}
               driverNumber={driverNumber(drivers,car.driver_id)}
