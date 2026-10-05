@@ -34,7 +34,7 @@ export const RACE_WEEKEND_CONTRACT_FIELDS=Object.freeze({
     "rngState","result",
   ]),
   CarState:Object.freeze([
-    "carId","driverId","teamId","gridPosition","gridStartOffsetM","lap","completedLaps","sector",
+    "carId","driverId","teamId","gridPosition","gridStartOffsetM","gridLaneOffsetM","lap","completedLaps","sector",
     "distanceAlongLapM","absoluteDistanceM","speedMs","speedKmh","accelerationMs2",
     "targetSpeedKmh","freeTargetSpeedKmh","cornerSeverity","effectiveCornerSeverity","dynamicsLookaheadM",
     "performance","reliability","lateralOffsetM","zoneId","zoneType","elapsedMs","finishTimeMs","status","tyre","fuelKg",
