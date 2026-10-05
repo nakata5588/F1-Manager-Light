@@ -482,6 +482,15 @@ function UndercutTrackViewport({
       MAX_FOLLOW_ZOOM
     ));
   };
+  const controlMode=String(view?.current_control||"GREEN").toUpperCase();
+  const localYellowSectors=controlMode==="LOCAL_YELLOW"
+    ?(view?.race_control_state?.restrictedSectors||[])
+      .map((value)=>Math.round(finite(value,0)))
+      .filter((value)=>value>=1&&value<=3)
+    :[];
+  const controlLabel=controlMode==="LOCAL_YELLOW"&&localYellowSectors.length
+    ?`LOCAL YELLOW · S${localYellowSectors.join("/")}`
+    :controlMode.replaceAll("_"," ");
   const hasSelected=Boolean(selected);
   useEffect(()=>{
     const node=viewportRef.current;
@@ -509,7 +518,7 @@ function UndercutTrackViewport({
     className="relative min-h-0 overflow-hidden bg-[#759b3b]"
   >
     <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
-      <span className="rounded border border-emerald-400/30 bg-black/45 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-200">{String(view?.current_control||"GREEN").replaceAll("_"," ")}</span>
+      <span className="rounded border border-emerald-400/30 bg-black/45 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-200">{controlLabel}</span>
       <span className="rounded border border-white/10 bg-black/45 px-2 py-1 text-[9px] font-semibold text-slate-200">Lap {finite(view?.current_lap,1)}/{view?.total_laps??"—"}</span>
       <span className="rounded border border-white/10 bg-black/45 px-2 py-1 text-[9px] font-semibold text-slate-300">{playbackRunning?`${playbackSpeed}× live`:"paused"}</span>
       {rain>0.02?<span className="rounded border border-sky-300/20 bg-black/45 px-2 py-1 text-[9px] font-semibold text-sky-100">RAIN {Math.round(rain*100)}%</span>:null}
@@ -520,12 +529,12 @@ function UndercutTrackViewport({
       <button type="button" onClick={()=>{if(cameraMode==="fit")setCameraMode(selected?"follow":"free");changeZoom(1/1.14);}} className="rounded px-2 py-1 text-[10px] font-black text-slate-300">−</button>
       <button type="button" onClick={()=>{if(cameraMode==="fit")setCameraMode(selected?"follow":"free");changeZoom(1.14);}} className="rounded px-2 py-1 text-[10px] font-black text-slate-300">+</button>
     </div>
-    {String(view?.current_control||"GREEN").toUpperCase()!=="GREEN"?<div className={
+    {controlMode!=="GREEN"?<div className={
       "pointer-events-none absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded border px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-lg "+
-      (String(view?.current_control||"").toUpperCase()==="RED_FLAG"
+      (controlMode==="RED_FLAG"
         ?"border-rose-200/40 bg-rose-700/90 text-white"
         :"border-amber-200/40 bg-amber-500/90 text-black")
-    }>{String(view?.current_control||"").replaceAll("_"," ")}</div>:null}
+    }>{controlLabel}</div>:null}
 
     {geometry?<svg className="h-full w-full" viewBox={cameraBox.join(" ")} preserveAspectRatio="xMidYMid meet" aria-label="Undercut-inspired race track">
       <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill={wetness>0.05?"#647f38":"#759b3b"}/>
