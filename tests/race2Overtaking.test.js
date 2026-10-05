@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createRaceState } from "../src/race2/core/RaceState.js";
 import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import {
+  RACE_BATTLE_CONTACT_PROXIMITY_M,
   RACE_BATTLE_LATERAL_OFFSET_M,
   RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
@@ -895,6 +896,29 @@ test("RW8.6 contact generation stays pure and leaves consequences to RW8.10",()=
   assert.equal(car(contactState,"C1").damage,null);
   assert.equal(car(contactState,"C2").damage,null);
   assert.equal(car(contactState,"C2").battle.phase,"yielding");
+});
+
+test("RW35 contact cannot be generated while battle cars are physically far apart",()=>{
+  for(let index=0;index<240;index+=1){
+    let state=runningState({seed:`far-contact-${index}`,stepMs:1000});
+    state=patchCars(state,{
+      C1:{
+        absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,
+        effectiveCornerSeverity:1,
+        performance:{car:null,driver:{mistakePropensity:100,aggression:100,raceIntelligence:10}},
+      },
+      C2:{
+        absoluteDistanceM:100-(RACE_BATTLE_CONTACT_PROXIMITY_M+4),
+        distanceAlongLapM:100-(RACE_BATTLE_CONTACT_PROXIMITY_M+4),
+        speedMs:40,speedKmh:144,
+        effectiveCornerSeverity:1,
+        performance:{car:null,driver:{mistakePropensity:100,aggression:100,raceIntelligence:10}},
+      },
+    });
+    state=manualBattle(state,{expiresAtMs:8000});
+    const resolved=resolveRaceOvertaking(state,state.cars,{stepMs:1000});
+    assert.ok(!resolved.events.some((event)=>event.type==="contact"));
+  }
 });
 
 test("RW8.6 Live and Fast keep identical battles, events and classification",()=>{
