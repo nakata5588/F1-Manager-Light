@@ -210,6 +210,33 @@ test("RW35 local yellow only blocks overtaking in its restricted sector",()=>{
   assert.deepEqual(raceControlBlockedOvertakeSectors(green),[]);
 });
 
+test("RW35 repeated local-yellow incidents extend silently instead of spamming notices",()=>{
+  const base=startRaceState(createRaceState(input({year:1980})));
+  const prepared={
+    ...base,
+    raceControlState:{...base.raceControlState,restrictedSectors:[1]},
+  };
+  const first=enforceRaceControlAssessment(
+    prepared,
+    assessment(prepared,{mode:"LOCAL_YELLOW",source:"incident",referenceLap:1}),
+    prepared.cars
+  );
+  assert.equal(first.raceControlState.mode,"LOCAL_YELLOW");
+  const active={...base,raceControlState:first.raceControlState};
+  const extended=enforceRaceControlAssessment(
+    active,
+    assessment(active,{
+      mode:"LOCAL_YELLOW",
+      source:"incident",
+      referenceLap:first.raceControlState.minimumReleaseLap,
+    }),
+    active.cars
+  );
+  assert.equal(extended.raceControlState.mode,"LOCAL_YELLOW");
+  assert.ok(extended.raceControlState.minimumReleaseLap>first.raceControlState.minimumReleaseLap);
+  assert.deepEqual(extended.events,[]);
+});
+
 test("RW8.11B neutralisation lasts its full lap duration before returning GREEN",()=>{
   const base=startRaceState(createRaceState(input({year:2015})));
   const activated=enforceRaceControlAssessment(
