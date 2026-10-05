@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  TRACK_CONTEXT_TYPES,
   TRACK_MODEL_SCHEMA_VERSION,
   buildTrackModel,
+  trackContextAtDistance,
   trackDistanceAtProgress,
   trackForwardGapM,
   trackPoseAtDistance,
@@ -49,6 +51,12 @@ test("RW8.1 builds a metre-based model from the verified F1Track functional geom
   assert.equal(model.resolution.exact,true);
   assert.ok(model.geometry.sourcePointCount>200);
   assert.ok(model.racingLine.points.length>model.geometry.sourcePointCount);
+  assert.equal(model.racingLine.parameterization,"centripetal");
+  assert.equal(model.racingLine.straight_preservation,true);
+  assert.ok(model.racingLine.straight_segment_count>0);
+  assert.equal(model.width.physicalWidthM,12.5);
+  assert.equal(model.width.usableRaceWidthM,11.25);
+  assert.equal(model.width.source,"era_default_estimate");
   assert.equal(model.sectors.length,3);
   assert.equal(model.sectors[2].endM,5968);
   assert.equal(model.pitLane.available,true);
@@ -67,6 +75,27 @@ test("RW8.3B corner severity comes only from verified functional geometry",()=>{
   });
   const severities=model.speedProfile.samples.map((row)=>row.severity);
   assert.ok(Math.max(...severities)>Math.min(...severities));
+});
+
+test("Track 4.0 derives semantic gameplay context from the canonical model",()=>{
+  const model=buildTrackModel(argentinaState(),{
+    gp:{track_id:"tr_0018",gp_name:"Argentine Grand Prix",year:1980},
+  });
+  const contexts=model.speedProfile.samples.map((row)=>trackContextAtDistance(model,row.distanceM));
+  const types=new Set(contexts.map((row)=>row.type));
+
+  assert.ok(types.has(TRACK_CONTEXT_TYPES.STRAIGHT));
+  assert.ok(
+    types.has(TRACK_CONTEXT_TYPES.FAST_CORNER)
+    ||types.has(TRACK_CONTEXT_TYPES.MEDIUM_CORNER)
+    ||types.has(TRACK_CONTEXT_TYPES.SLOW_CORNER)
+  );
+  for(const context of contexts){
+    assert.ok(context.overtakingOpportunity>=0&&context.overtakingOpportunity<=1);
+    assert.ok(context.slipstreamSuitability>=0&&context.slipstreamSuitability<=1);
+    assert.ok(context.speedReference>=0.2&&context.speedReference<=1);
+    assert.equal(context.widthM,11.25);
+  }
 });
 
 test("RW8.3B historical fallback geometry never drives race physics",()=>{
