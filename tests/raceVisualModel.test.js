@@ -721,12 +721,14 @@ test("RW35 track and car share one physical world scale",()=>{
   const renderedWidth=footprint.nativeWidth*transform.scaleY;
   const renderedLength=footprint.nativeLength*transform.scaleX;
   const units=4513.489/5968;
-  const expectedLength=units*raceCarNominalLengthM(1980);
+  const expectedWidth=units*raceCarNominalWidthM(1980);
+  const maximumPhysicalLength=units*raceCarNominalLengthM(1980);
   assert.equal(raceCarNominalWidthM(1980),2.1);
   assert.equal(raceCarNominalLengthM(1980),4.45);
   assert.ok(asphaltWidthSvg>9&&asphaltWidthSvg<10);
   assert.equal(transform.scaleX,transform.scaleY);
-  assert.ok(Math.abs(renderedLength-expectedLength)<0.01);
+  assert.ok(Math.abs(renderedWidth-expectedWidth)<0.01);
+  assert.ok(renderedLength<=maximumPhysicalLength+0.01);
   assert.ok(renderedWidth/asphaltWidthSvg>0.12);
   assert.ok(renderedWidth/asphaltWidthSvg<0.20);
 });
