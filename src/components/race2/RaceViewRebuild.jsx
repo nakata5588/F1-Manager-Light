@@ -296,6 +296,7 @@ const ControlTower=React.memo(function ControlTower({
         const active=String(car.driver_id)===String(selectedDriverId||"");
         const delta=positionDelta(car.position_change_last_lap);
         const pitActive=Boolean(car?.pit_state?.active);
+        const battleNow=battleActive(car?.battle_context);
         const status=car.retired?"DNF":pitActive?"PIT":formatGap(car.gap_to_leader_ms,{leader:index===0});
         return <button
           type="button"
