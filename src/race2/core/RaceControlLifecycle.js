@@ -215,7 +215,11 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
           mode:recommended,
           minimumReleaseLap:extendedRelease,
         },
-        events:changed?[eventDescriptor("race_control_extended",state,{
+        // Repeated local-yellow incidents may legitimately extend the same
+        // sector restriction, but should not spam the player with a fresh
+        // "yellow extended" message every time. Global neutralisations still
+        // announce extensions.
+        events:changed&&recommended!=="LOCAL_YELLOW"?[eventDescriptor("race_control_extended",state,{
           mode:recommended,
           source:"incident",
           referenceLap,
