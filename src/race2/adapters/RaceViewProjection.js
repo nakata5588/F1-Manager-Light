@@ -346,6 +346,19 @@ export function projectRaceStateToRaceView(state){
     canonical_tick:Math.max(0,Math.floor(finite(state?.tick,0))),
     canonical_time_ms:Math.max(0,finite(state?.simulationTimeMs,0)),
     track_length_m:lengthM,
+    track_geometry:state?.track?.racingLine
+      ?{
+        source:"canonical_track_model",
+        points:structuredClone(state.track.racingLine.points??[]),
+        cumulative:structuredClone(state.track.racingLine.cumulative??[]),
+        total_length:finite(state.track.racingLine.total_length,0),
+        source_count:finite(state.track.racingLine.source_count,0),
+        samples_per_segment:finite(state.track.racingLine.samples_per_segment,0),
+        parameterization:state.track.racingLine.parameterization??null,
+        straight_preservation:Boolean(state.track.racingLine.straight_preservation),
+      }
+      :null,
+    track_width:state?.track?.width?structuredClone(state.track.width):null,
     pit_lane:state?.track?.pitLane
       ?structuredClone(state.track.pitLane)
       :null,
