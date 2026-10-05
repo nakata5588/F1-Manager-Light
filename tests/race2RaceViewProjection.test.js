@@ -179,6 +179,15 @@ test("RW20 Race View exposes canonical battle telemetry without recomputing the 
           attackerScore:91.5,
           defenderScore:67.5,
           performanceEdge:24,
+          attackerPaceMode:"attack",
+          defenderPaceMode:"conserve",
+          strategyEdge:1,
+          attackerTyreGrip:.99,
+          defenderTyreGrip:.91,
+          tyreGripEdge:.08,
+          trackPhase:"straight",
+          cornerSeverity:.08,
+          opportunityContributions:{strategy:.14,tyre:.066667,track:.08},
           towStrength:.72,
           towBonusKmh:6.3,
         },
@@ -250,6 +259,16 @@ test("RW20 Race View exposes canonical battle telemetry without recomputing the 
   assert.equal(attacker.battle_context.attacker_score,91.5);
   assert.equal(attacker.battle_context.defender_score,67.5);
   assert.equal(attacker.battle_context.performance_edge,24);
+  assert.equal(attacker.battle_context.attacker_pace_mode,"attack");
+  assert.equal(attacker.battle_context.defender_pace_mode,"conserve");
+  assert.equal(attacker.battle_context.strategy_edge,1);
+  assert.equal(attacker.battle_context.attacker_tyre_grip,.99);
+  assert.equal(attacker.battle_context.defender_tyre_grip,.91);
+  assert.equal(attacker.battle_context.tyre_grip_edge,.08);
+  assert.equal(attacker.battle_context.track_phase,"straight");
+  assert.equal(attacker.battle_context.corner_severity,.08);
+  assert.equal(attacker.battle_context.opportunity_contributions.strategy,.14);
+  assert.equal(attacker.battle_context.opportunity_contributions.track,.08);
   assert.equal(attacker.battle_context.entry_tow_strength_pct,72);
   assert.equal(attacker.battle_context.entry_tow_bonus_kmh,6.3);
 });
