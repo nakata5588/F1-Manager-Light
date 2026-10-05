@@ -296,7 +296,6 @@ const ControlTower=React.memo(function ControlTower({
         const active=String(car.driver_id)===String(selectedDriverId||"");
         const delta=positionDelta(car.position_change_last_lap);
         const pitActive=Boolean(car?.pit_state?.active);
-        const battleNow=battleActive(car?.battle_context);
         const status=car.retired?"DNF":pitActive?"PIT":formatGap(car.gap_to_leader_ms,{leader:index===0});
         return <button
           type="button"
@@ -538,7 +537,6 @@ function UndercutTrackViewport({
           style={{cursor:"pointer"}}
         >
           {active?<circle r={Math.max(6.2,Math.max(renderedCarLength,renderedCarWidth)*.82)} fill="rgba(255,255,255,.06)" stroke="#fff" strokeWidth="1.05"/>:null}
-          {battleNow?<circle r={Math.max(7.2,Math.max(renderedCarLength,renderedCarWidth)*.96)} fill="none" stroke="#fbbf24" strokeWidth=".6" opacity=".72"/>:null}
           {wetness>.18&&finite(car.speed_kmh,0)>90&&!pitActive?<g pointerEvents="none" opacity={clamp((wetness-.18)*.42,0,.22)}>
             {(()=>{
               const v=angleVector(pose.heading);
