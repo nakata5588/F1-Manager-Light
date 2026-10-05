@@ -417,6 +417,45 @@ test("RW35 an active battle is neutralized when it enters the local-yellow secto
   assert.deepEqual(aborted?.payload?.restrictedSectors,[2]);
 });
 
+test("RW35 battle launch waits for the physical attack gap instead of moving out from far back",()=>{
+  let state=runningState({seed:"rw35-attack-gap"});
+  const strongPerformance={
+    car:{race:92,power:95,chassis:90},
+    driver:{
+      raceScore:94,overtaking:97,defending:80,raceIntelligence:94,
+      mistakePropensity:12,aggression:68,
+    },
+  };
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:120,distanceAlongLapM:120,sector:1,
+      speedMs:50,speedKmh:180,freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+    },
+    C2:{
+      absoluteDistanceM:102,distanceAlongLapM:102,sector:1,
+      speedMs:52,speedKmh:187.2,freeTargetSpeedKmh:195,effectiveCornerSeverity:0,
+      performance:strongPerformance,
+    },
+  });
+
+  for(let bucket=0;bucket<80;bucket+=1){
+    const candidate={...state,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
+    assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
+
+  const close=patchCars(state,{
+    C2:{absoluteDistanceM:109,distanceAlongLapM:109},
+  });
+  let started=false;
+  for(let bucket=0;bucket<80&&!started;bucket+=1){
+    const candidate={...close,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{stepMs:100});
+    started=resolved.events.some((event)=>event.type==="overtake_started");
+  }
+  assert.equal(started,true);
+});
+
 test("RW32 attack versus conserve materially changes an otherwise equal overtake opportunity",()=>{
   let state=runningState();
   const equalPerformance={
