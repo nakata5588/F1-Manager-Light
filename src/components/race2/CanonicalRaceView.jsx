@@ -559,9 +559,19 @@ function CanonicalCar({
     tabIndex="0"
     aria-label={label}
     transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
-    onClick={onSelect}
-    onDoubleClick={(event)=>{event.preventDefault();event.stopPropagation();onFollow?.();}}
-    onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();onSelect?.();}}}
+    onPointerDown={(event)=>event.stopPropagation()}
+    onClick={(event)=>{
+      event.preventDefault();
+      event.stopPropagation();
+      (onFollow||onSelect)?.();
+    }}
+    onDoubleClick={(event)=>{event.preventDefault();event.stopPropagation();(onFollow||onSelect)?.();}}
+    onKeyDown={(event)=>{
+      if(event.key==="Enter"||event.key===" "){
+        event.preventDefault();
+        (onFollow||onSelect)?.();
+      }
+    }}
     style={{cursor:"pointer",opacity:retired?0.72:1}}
   >
     <title>{label}</title>
@@ -612,6 +622,75 @@ function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1,pitBoxOffs
   </g>;
 }
 
+function CanonicalStartingGrid({
+  cars,
+  geometry,
+  trackLengthM,
+  unitsPerMeter,
+}){
+  const points=Array.isArray(geometry?.points)?geometry.points:[];
+  const lengthM=Math.max(1,Number(trackLengthM)||1);
+  if(points.length<2)return null;
+  const longitudinalUnitsPerMeter=trackPathLength(points)/lengthM;
+  const slotLength=Math.max(2.8,longitudinalUnitsPerMeter*5.8);
+  const slotWidth=Math.max(2.4,Number(unitsPerMeter||0)*2.8);
+  const startPose=carPose(geometry,0,0,unitsPerMeter);
+  const slots=(cars||[])
+    .filter((car)=>Number.isFinite(Number(car?.grid_start_offset_m))&&Number.isFinite(Number(car?.grid_lane_offset_m)))
+    .slice()
+    .sort((a,b)=>Number(a?.grid_position||999)-Number(b?.grid_position||999));
+
+  return <g pointerEvents="none" opacity=".58">
+    {startPose?<g transform={`translate(${startPose.x} ${startPose.y}) rotate(${startPose.heading})`}>
+      <line
+        x1="0" y1={-RACE_VIEW_ASPHALT_WIDTH_SVG/2}
+        x2="0" y2={RACE_VIEW_ASPHALT_WIDTH_SVG/2}
+        stroke="#f8fafc"
+        strokeWidth=".9"
+        opacity=".9"
+      />
+      <line
+        x1={-.9} y1={-RACE_VIEW_ASPHALT_WIDTH_SVG/2}
+        x2={-.9} y2={RACE_VIEW_ASPHALT_WIDTH_SVG/2}
+        stroke="#020617"
+        strokeWidth=".65"
+        strokeDasharray="1.4 1.4"
+        opacity=".8"
+      />
+    </g>:null}
+    {slots.map((car)=>{
+      const offset=Number(car.grid_start_offset_m);
+      const progress=((offset%lengthM)+lengthM)%lengthM/lengthM;
+      const pose=carPose(geometry,progress,Number(car.grid_lane_offset_m),unitsPerMeter);
+      if(!pose)return null;
+      return <g
+        key={`grid_slot_${car.car_id||car.id||car.grid_position}`}
+        transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
+      >
+        <rect
+          x={-slotLength*.58}
+          y={-slotWidth/2}
+          width={slotLength}
+          height={slotWidth}
+          fill="none"
+          stroke="#f8fafc"
+          strokeWidth=".55"
+          opacity=".62"
+        />
+        <line
+          x1={slotLength*.42}
+          y1={-slotWidth/2}
+          x2={slotLength*.42}
+          y2={slotWidth/2}
+          stroke="#f8fafc"
+          strokeWidth=".85"
+          opacity=".78"
+        />
+      </g>;
+    })}
+  </g>;
+}
+
 function CanonicalBattleOverlay({
   cars,
   geometry,
@@ -638,27 +717,25 @@ function CanonicalBattleOverlay({
       const d=visualCarPose(defender,geometry,unitsPerMeter,{pitBoxOffset,pitBoxSide});
       if(!a||!d)return null;
       const x=(a.x+d.x)/2;
-      const y=(a.y+d.y)/2-(10*scale);
+      const y=(a.y+d.y)/2-(13*scale);
       const clearing=String(context.state)==="yielding";
       const stroke=clearing?"#fb923c":"#fbbf24";
-      const title=`${shortName(drivers,attacker.driver_id)} ↔ ${shortName(drivers,defender.driver_id)}`;
+      const title=`${shortName(drivers,attacker.driver_id)}  ↔  ${shortName(drivers,defender.driver_id)}`;
       const remaining=formatBattleDuration(context?.remaining_ms);
-      const edge=Number(context?.performance_edge);
-      const edgeLabel=Number.isFinite(edge)&&Math.abs(edge)>=1
-        ?` · ${edge>=0?"ATT":"DEF"} EDGE +${Math.abs(edge).toFixed(0)}`
-        :"";
+      const chance=Number(context?.attempt_probability_pct);
+      const chanceLabel=Number.isFinite(chance)?` · ${Math.round(chance)}%`:"";
       return <g key={String(context?.attempt_id||`${attacker.id}_${defender.id}`)}>
         <line
           x1={a.x} y1={a.y} x2={d.x} y2={d.y}
           stroke={stroke}
-          strokeWidth={1.15*scale}
-          strokeDasharray={`${3*scale} ${2*scale}`}
-          opacity=".72"
+          strokeWidth={1.3*scale}
+          strokeDasharray={`${3.4*scale} ${2.2*scale}`}
+          opacity=".82"
         />
         <g transform={`translate(${x} ${y})`}>
-          <rect x={-29*scale} y={-5.4*scale} width={58*scale} height={10.8*scale} rx={4*scale} fill="#090d12" stroke={stroke} strokeWidth={.7*scale} opacity=".92"/>
-          <text x="0" y={-0.7*scale} textAnchor="middle" fontSize={3.4*scale} fontWeight="900" fill={stroke}>{title}</text>
-          <text x="0" y={3.25*scale} textAnchor="middle" fontSize={2.7*scale} fontWeight="800" fill="#e2e8f0">{battleStateLabel(context.state,context.result)}{remaining!=="—"?` · ${remaining}`:""}{edgeLabel}</text>
+          <rect x={-39*scale} y={-7.1*scale} width={78*scale} height={14.2*scale} rx={4.4*scale} fill="#070a0f" stroke={stroke} strokeWidth={.95*scale} opacity=".96"/>
+          <text x="0" y={-1.25*scale} textAnchor="middle" fontSize={4.25*scale} fontWeight="900" fill="#f8fafc">{title}</text>
+          <text x="0" y={4.05*scale} textAnchor="middle" fontSize={3.25*scale} fontWeight="900" fill={stroke}>{battleStateLabel(context.state,context.result)}{chanceLabel}{remaining!=="—"?` · ${remaining}`:""}</text>
         </g>
       </g>;
     })}
@@ -1218,7 +1295,7 @@ export default function CanonicalRaceView({
     if(dragRef.current?.pointerId===event.pointerId)dragRef.current=null;
   };
 
-  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[342px_minmax(0,1fr)_250px]">
+  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[330px_minmax(0,1fr)_300px]">
     <ControlTowerPanel
       cars={cars}
       playerTeamId={playerTeamId}
@@ -1274,6 +1351,12 @@ export default function CanonicalRaceView({
         <polyline points={polyline} fill="none" stroke="#111827" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG+9} strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
         <polyline points={polyline} fill="none" stroke="#d1d5db" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG+3} strokeLinecap="round" strokeLinejoin="round"/>
         <polyline points={polyline} fill="none" stroke="url(#rw15-asphalt)" strokeWidth={RACE_VIEW_ASPHALT_WIDTH_SVG} strokeLinecap="round" strokeLinejoin="round"/>
+        <CanonicalStartingGrid
+          cars={cars}
+          geometry={geometry}
+          trackLengthM={trackLengthM}
+          unitsPerMeter={unitsPerMeter}
+        />
         {pitLanePoints.length>1?<g pointerEvents="none">
           <polyline points={pitPolyline} fill="none" stroke="#111827" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" opacity=".72"/>
           <polyline points={pitPolyline} fill="none" stroke="#64748b" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"/>
