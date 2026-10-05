@@ -429,6 +429,7 @@ function UndercutTrackViewport({
     [geometry]
   );
   const visualCars=useContinuousCars(view,{playbackRunning,playbackSpeed});
+  const viewportRef=useRef(null);
   const [cameraMode,setCameraMode]=useState(selectedDriverId?"follow":"fit");
   const [zoom,setZoom]=useState(FOLLOW_ZOOM);
   const selected=visualCars.find((car)=>String(car?.driver_id||"")===String(selectedDriverId||""))||null;
@@ -490,20 +491,31 @@ function UndercutTrackViewport({
       MAX_FOLLOW_ZOOM
     ));
   };
-  const handleTrackWheel=(event)=>{
-    event.preventDefault();
-    event.stopPropagation();
-    const delta=finite(event.deltaY,0);
-    if(Math.abs(delta)<.01)return;
-    const factor=delta<0?1.14:(1/1.14);
-    if(selected)setCameraMode("follow");
-    else if(cameraMode==="fit")setCameraMode("free");
-    changeZoom(factor);
-  };
+  const hasSelected=Boolean(selected);
+  useEffect(()=>{
+    const node=viewportRef.current;
+    if(!node)return undefined;
+    const onWheel=(event)=>{
+      event.preventDefault();
+      event.stopPropagation();
+      const delta=finite(event.deltaY,0);
+      if(Math.abs(delta)<.01)return;
+      const factor=delta<0?1.14:(1/1.14);
+      if(hasSelected)setCameraMode("follow");
+      else if(cameraMode==="fit")setCameraMode("free");
+      setZoom((value)=>clamp(
+        value*factor,
+        MIN_FOLLOW_ZOOM,
+        MAX_FOLLOW_ZOOM
+      ));
+    };
+    node.addEventListener("wheel",onWheel,{passive:false});
+    return ()=>node.removeEventListener("wheel",onWheel);
+  },[hasSelected,cameraMode]);
 
   return <div
+    ref={viewportRef}
     className="relative min-h-0 overflow-hidden bg-[#759b3b]"
-    onWheel={handleTrackWheel}
   >
     <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
       <span className="rounded border border-emerald-400/30 bg-black/45 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-200">{String(view?.current_control||"GREEN").replaceAll("_"," ")}</span>
