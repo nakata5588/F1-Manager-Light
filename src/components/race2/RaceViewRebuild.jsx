@@ -325,7 +325,6 @@ const InfoRail=React.memo(function InfoRail({view,cars,drivers,selectedDriverId,
   const selected=selectedIndex>=0?cars[selectedIndex]:null;
   const behind=selectedIndex>=0?cars[selectedIndex+1]||null:null;
   const fastest=(cars||[]).filter((car)=>Number(car?.best_lap_ms)>0).slice().sort((a,b)=>Number(a.best_lap_ms)-Number(b.best_lap_ms))[0]||null;
-  const engagement=selected?.battle_context||null;
   const track=view?.track_state||{};
   const pendingCommand=(view?.pending_commands||[])
     .find((command)=>String(command?.driverId??command?.driver_id??"")===String(selectedDriverId||""));
@@ -370,14 +369,6 @@ const InfoRail=React.memo(function InfoRail({view,cars,drivers,selectedDriverId,
         {teamOrder?metric("Team order",String(teamOrder.order||"yield").toUpperCase()):null}
         {pendingCommand?metric("Pending",String(pendingCommand.type||"command").toUpperCase()):null}
         {selected?.retired?metric("DNF",String(selected.retirement_reason||"retired").replaceAll("_"," ").toUpperCase()):null}
-        {engagement&&String(engagement.state||"")!=="none"?<div className={"mt-3 rounded-md border px-2 py-2 "+(battleActive(engagement)?"border-amber-300/30 bg-amber-500/[0.09]":"border-sky-300/20 bg-sky-500/[0.07]")}>
-          <div className={"text-[8px] font-black uppercase tracking-[0.12em] "+(battleActive(engagement)?"text-amber-300":"text-sky-300")}>Battle telemetry</div>
-          <div className="mt-1 text-[11px] font-black text-white">{String(engagement.role||"car").toUpperCase()} · {String(engagement.state||"").replaceAll("_"," ").toUpperCase()}</div>
-          {Number.isFinite(Number(engagement?.attempt_probability_pct))?metric("Pass chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
-          {Number.isFinite(Number(engagement?.driver_edge))?metric("Driver edge",`${Number(engagement.driver_edge)>=0?"+":""}${Number(engagement.driver_edge).toFixed(0)}`):null}
-          {Number.isFinite(Number(engagement?.car_edge))?metric("Car edge",`${Number(engagement.car_edge)>=0?"+":""}${Number(engagement.car_edge).toFixed(0)}`):null}
-          {engagement?.track_phase?metric("Track",String(engagement.track_phase).replaceAll("_"," ").toUpperCase()):null}
-        </div>:null}
       </>:<div className="text-[10px] leading-relaxed text-slate-500">Select a driver from the timing tower or track to show live KPIs.</div>}
     </div>
   </aside>;
