@@ -950,7 +950,8 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
     ?(cars||[]).find((car)=>String(car?.car_id||car?.id||"")===String(engagement.opponent_car_id))
     :null;
   const pct=(value)=>Number.isFinite(Number(value))?`${Math.round(Number(value)*100)}%`:"—";
-  const metric=(label,value)=><div className="flex items-center justify-between gap-2 border-b border-white/[0.05] py-1.5 last:border-b-0"><span className="text-[9px] uppercase tracking-[0.08em] text-slate-500">{label}</span><strong className="text-right text-[10px] font-semibold text-slate-200">{value}</strong></div>;
+  const metric=(label,value)=><div className="flex items-center justify-between gap-2 border-b border-white/[0.05] py-1.5 last:border-b-0"><span className="text-[9px] uppercase tracking-[0.08em] text-slate-500">{label}</span><strong className="text-right text-[11px] font-semibold text-slate-100">{value}</strong></div>;
+  const battleStat=(label,value,tone="text-white")=><div className="rounded-md border border-white/[0.07] bg-black/25 px-2 py-2 text-center"><div className="text-[8px] font-black uppercase tracking-[0.10em] text-slate-500">{label}</div><div className={`mt-1 text-[13px] font-black ${tone}`}>{value}</div></div>;
   return <aside className="hidden h-full min-h-0 overflow-y-auto border-l border-white/10 bg-[#070b10] lg:flex lg:flex-col">
     <div className="border-b border-white/10 bg-black/35 px-3 py-2.5">
       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-200">Race conditions</div>
@@ -1004,29 +1005,49 @@ const RaceInfoRail=React.memo(function RaceInfoRail({view,cars,drivers,selectedD
             {Array.isArray(latestPit?.repairedComponents)&&latestPit.repairedComponents.length?metric("Repairs",latestPit.repairedComponents.map((part)=>String(part).replaceAll("_"," ")).join(", ")):null}
           </div>
         </div>:null}
-        {engagement?<div className={"mt-2 rounded-md border px-2 py-2 "+(activeBattleContext(engagement)?"border-amber-300/20 bg-amber-500/[0.08]":"border-sky-300/20 bg-sky-500/[0.07]")}>
-          <div className={"text-[8px] font-black uppercase tracking-[0.12em] "+(activeBattleContext(engagement)?"text-amber-300":"text-sky-300")}>Battle telemetry</div>
-          <div className={"mt-0.5 text-[10px] font-semibold "+(activeBattleContext(engagement)?"text-amber-100":"text-sky-100")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state,engagement.result)}</div>
-          {battleOpponent?<div className="mt-0.5 text-[9px] text-slate-400">vs {shortName(drivers,battleOpponent.driver_id)} · {driverName(drivers,battleOpponent.driver_id)}</div>:null}
-          <div className="mt-2 border-t border-white/[0.06] pt-1">
+        {engagement?<div className={"mt-3 rounded-lg border px-3 py-3 "+(activeBattleContext(engagement)?"border-amber-300/30 bg-amber-500/[0.09]":"border-sky-300/20 bg-sky-500/[0.07]")}>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className={"text-[9px] font-black uppercase tracking-[0.14em] "+(activeBattleContext(engagement)?"text-amber-300":"text-sky-300")}>{activeBattleContext(engagement)?"Battle":"Track pressure"}</div>
+              <div className={"mt-1 text-[12px] font-black "+(activeBattleContext(engagement)?"text-amber-50":"text-sky-50")}>{String(engagement.role||"car").toUpperCase()} · {battleStateLabel(engagement.state,engagement.result)}</div>
+              {battleOpponent?<div className="mt-1 text-[10px] text-slate-300">vs <strong className="text-white">{shortName(drivers,battleOpponent.driver_id)}</strong> · {driverName(drivers,battleOpponent.driver_id)}</div>:null}
+            </div>
+            {hasTelemetryNumber(engagement?.remaining_ms)?<span className="rounded bg-black/30 px-2 py-1 font-mono text-[10px] font-bold text-slate-200">{formatBattleDuration(engagement.remaining_ms)}</span>:null}
+          </div>
+          {activeBattleContext(engagement)?<>
+            <div className="mt-3 grid grid-cols-3 gap-1.5">
+              {battleStat(
+                String(engagement?.role)==="defender"?"Attack chance":"Pass chance",
+                hasTelemetryNumber(engagement?.attempt_probability_pct)?`${Math.round(Number(engagement.attempt_probability_pct))}%`:"—",
+                "text-amber-200"
+              )}
+              {battleStat(
+                "Driver",
+                selectedDriverEdge==null?"—":`${selectedDriverEdge>=0?"+":""}${selectedDriverEdge.toFixed(0)}`,
+                selectedDriverEdge!=null&&selectedDriverEdge>0?"text-emerald-300":selectedDriverEdge!=null&&selectedDriverEdge<0?"text-rose-300":"text-slate-200"
+              )}
+              {battleStat(
+                "Car",
+                selectedCarEdge==null?"—":`${selectedCarEdge>=0?"+":""}${selectedCarEdge.toFixed(0)}`,
+                selectedCarEdge!=null&&selectedCarEdge>0?"text-emerald-300":selectedCarEdge!=null&&selectedCarEdge<0?"text-rose-300":"text-slate-200"
+              )}
+            </div>
+            <div className="mt-2 border-t border-white/[0.08] pt-1">
+              {selectedBattleEdge!=null?metric("Combined edge",`${selectedBattleEdge>=0?"+":""}${selectedBattleEdge.toFixed(0)} pts`):null}
+              {engagement?.attacker_pace_mode&&engagement?.defender_pace_mode?metric("Pace",`${String(engagement.attacker_pace_mode).toUpperCase()} vs ${String(engagement.defender_pace_mode).toUpperCase()}`):null}
+              {selectedStrategyContribution!=null?metric("Strategy",`${selectedStrategyContribution>=0?"+":""}${(selectedStrategyContribution*100).toFixed(0)} pp`):null}
+              {selectedTyreGripEdge!=null?metric("Tyre grip",`${selectedTyreGripEdge>=0?"+":""}${(selectedTyreGripEdge*100).toFixed(1)}%`):null}
+              {selectedTyreContribution!=null?metric("Tyre effect",`${selectedTyreContribution>=0?"+":""}${(selectedTyreContribution*100).toFixed(0)} pp`):null}
+              {engagement?.track_phase?metric("Track",`${String(engagement.track_phase).replaceAll("_"," ").toUpperCase()}${selectedTrackContribution!=null?` · ${selectedTrackContribution>=0?"+":""}${(selectedTrackContribution*100).toFixed(0)} pp`:""}`):null}
+              {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric("Closing",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
+              {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow",`${Math.round(Number(engagement.slipstream_strength_pct))}% · +${Number(engagement.slipstream_bonus_kmh||0).toFixed(1)} km/h`):null}
+              {engagement?.result?metric("Outcome",String(engagement.result).replaceAll("_"," ").toUpperCase()):null}
+            </div>
+          </>:<div className="mt-2 border-t border-white/[0.08] pt-1">
             {hasTelemetryNumber(engagement?.gap_m)?metric("Physical gap",formatBattleDistance(engagement.gap_m)):null}
-            {hasTelemetryNumber(engagement?.started_gap_m)?metric("Started gap",formatBattleDistance(engagement.started_gap_m)):null}
-            {hasTelemetryNumber(engagement?.attempt_probability_pct)?metric(String(engagement?.role)==="defender"?"Attack chance":"Attempt chance",`${Math.round(Number(engagement.attempt_probability_pct))}%`):null}
-            {hasTelemetryNumber(engagement?.closing_potential_kmh)?metric(String(engagement?.role)==="defender"?"Opponent closing":"Closing potential",`+${Number(engagement.closing_potential_kmh).toFixed(1)} km/h`):null}
-            {selectedDriverEdge!=null?metric("Driver edge",`${selectedDriverEdge>=0?"+":""}${selectedDriverEdge.toFixed(0)} pts`):null}
-            {selectedCarEdge!=null?metric("Car edge",`${selectedCarEdge>=0?"+":""}${selectedCarEdge.toFixed(0)} pts`):null}
-            {selectedBattleEdge!=null?metric("Combined edge",`${selectedBattleEdge>=0?"+":""}${selectedBattleEdge.toFixed(0)} pts`):null}
-            {engagement?.attacker_pace_mode&&engagement?.defender_pace_mode?metric("Pace modes",`${String(engagement.attacker_pace_mode).toUpperCase()} vs ${String(engagement.defender_pace_mode).toUpperCase()}`):null}
-            {selectedStrategyContribution!=null?metric("Strategy effect",`${selectedStrategyContribution>=0?"+":""}${(selectedStrategyContribution*100).toFixed(0)} pp`):null}
-            {selectedTyreGripEdge!=null?metric("Tyre grip edge",`${selectedTyreGripEdge>=0?"+":""}${(selectedTyreGripEdge*100).toFixed(1)}%`):null}
-            {selectedTyreContribution!=null?metric("Tyre effect",`${selectedTyreContribution>=0?"+":""}${(selectedTyreContribution*100).toFixed(0)} pp`):null}
-            {engagement?.track_phase?metric("Track window",`${String(engagement.track_phase).replaceAll("_"," ").toUpperCase()}${selectedTrackContribution!=null?` · ${selectedTrackContribution>=0?"+":""}${(selectedTrackContribution*100).toFixed(0)} pp`:""}`):null}
-            {hasTelemetryNumber(engagement?.remaining_ms)?metric("Window remaining",formatBattleDuration(engagement.remaining_ms)):null}
-            {hasTelemetryNumber(engagement?.contact_risk_pct)?metric("Contact risk / step",`${Number(engagement.contact_risk_pct).toFixed(2)}%`):null}
             {hasTelemetryNumber(engagement?.slipstream_strength_pct)&&Number(engagement.slipstream_strength_pct)>0?metric("Tow strength",`${Math.round(Number(engagement.slipstream_strength_pct))}%`):null}
             {hasTelemetryNumber(engagement?.slipstream_bonus_kmh)&&Number(engagement.slipstream_bonus_kmh)>0?metric("Tow bonus",`+${Number(engagement.slipstream_bonus_kmh).toFixed(1)} km/h`):null}
-            {engagement?.result?metric("Outcome",String(engagement.result).replaceAll("_"," ").toUpperCase()):null}
-          </div>
+          </div>}
         </div>:null}
       </>:<div className="text-[10px] leading-relaxed text-slate-500">Select a driver from the timing tower or track to show live KPIs.</div>}
     </div>
