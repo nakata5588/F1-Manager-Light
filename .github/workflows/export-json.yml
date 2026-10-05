@@ -2,6 +2,8 @@ name: Build and validate game data
 
 on:
   push:
+    branches:
+      - "main"
     paths:
       - "src/**"
       - "tests/**"
