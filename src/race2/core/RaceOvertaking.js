@@ -41,6 +41,18 @@ function activeTrackCar(car){
   return String(car?.pitState?.status??"track")==="track";
 }
 
+function overtakeBlockedSectorSet(blockedSectors){
+  return new Set((blockedSectors||[])
+    .map((value)=>Math.round(finite(value,null)))
+    .filter((value)=>value>=1&&value<=3));
+}
+
+function carInBlockedOvertakeSector(car,blocked){
+  if(!(blocked instanceof Set)||!blocked.size)return false;
+  const sector=Math.round(finite(car?.sector,null));
+  return blocked.has(sector);
+}
+
 function driverPerformance(car){
   return car?.performance?.driver||{};
 }
@@ -461,7 +473,7 @@ export function battleContactProbability(state,attacker,defender,{stepMs=100}={}
   return round(1-Math.pow(1-perSecond,dt),8);
 }
 
-function attemptOpportunity(state,attacker,occupied){
+function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
   if(!activeTrackCar(attacker))return null;
   if(attacker?.battle?.phase&&attacker.battle.phase!=="none")return null;
   if(finite(attacker?.battle?.cooldownUntilMs,0)>finite(state?.simulationTimeMs,0))return null;
@@ -474,6 +486,11 @@ function attemptOpportunity(state,attacker,occupied){
   if(!nearest?.car)return null;
   const defender=nearest.car;
   if(!activeTrackCar(defender))return null;
+  const blocked=overtakeBlockedSectorSet(blockedSectors);
+  if(
+    carInBlockedOvertakeSector(attacker,blocked)||
+    carInBlockedOvertakeSector(defender,blocked)
+  )return null;
   if(defender?.battle?.phase&&defender.battle.phase!=="none")return null;
   if(occupied.has(String(defender?.carId??"")))return null;
 
@@ -601,12 +618,13 @@ function resolveYieldingBattles(state,proposedCars){
   return cars;
 }
 
-function resolveExistingBattles(state,proposedCars,{stepMs}){
+function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}={}){
   let cars=[...(proposedCars||[])];
   const events=[];
   const bypassPairs=new Set();
   const handledAttempts=new Set();
   const nextTime=Math.max(0,finite(state?.simulationTimeMs,0))+Math.max(0,finite(stepMs,100));
+  const blocked=overtakeBlockedSectorSet(blockedSectors);
 
   for(const previousAttacker of state?.cars||[]){
     const previousBattle=previousAttacker?.battle;
@@ -622,6 +640,22 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
 
     const pairKey=raceTrafficPairKey(attacker,defender);
     const cooldownUntilMs=nextTime+RACE_BATTLE_RETRY_COOLDOWN_MS;
+
+    if(
+      carInBlockedOvertakeSector(previousAttacker,blocked)||
+      carInBlockedOvertakeSector(previousDefender,blocked)
+    ){
+      const yellowCooldownUntilMs=nextTime+500;
+      attacker=clearBattle(attacker,{result:"aborted",cooldownUntilMs:yellowCooldownUntilMs});
+      defender=clearBattle(defender,{result:"aborted",cooldownUntilMs:yellowCooldownUntilMs});
+      cars=setCar(setCar(cars,attacker),defender);
+      events.push(eventDescriptor("overtake_aborted",state,attacker,defender,{
+        attemptId,
+        reason:"local_yellow",
+        restrictedSectors:[...blocked],
+      }));
+      continue;
+    }
 
     if(!activeTrackCar(previousDefender)||defender?.dnf||defender?.status==="dnf"){
       attacker=clearBattle(attacker,{result:"aborted",cooldownUntilMs});
@@ -781,7 +815,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs}){
   return {cars,events,bypassPairs};
 }
 
-function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPairs=null}={}){
+function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPairs=null,blockedSectors=null}={}){
   let cars=[...(proposedCars||[])];
   const events=[];
   const bypassPairs=new Set(existingBypass||[]);
@@ -808,7 +842,7 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
   });
 
   for(const previousAttacker of sorted){
-    const opportunity=attemptOpportunity(state,previousAttacker,occupied);
+    const opportunity=attemptOpportunity(state,previousAttacker,occupied,{blockedSectors});
     if(!opportunity)continue;
 
     let attacker=carById(cars,previousAttacker?.carId);
@@ -898,10 +932,18 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
   return {cars,events,bypassPairs};
 }
 
-export function resolveRaceOvertaking(state,proposedCars,{stepMs=100,blockedPairs=null}={}){
+export function resolveRaceOvertaking(state,proposedCars,{
+  stepMs=100,
+  blockedPairs=null,
+  blockedSectors=null,
+}={}){
   const yieldingCars=resolveYieldingBattles(state,proposedCars);
-  const existing=resolveExistingBattles(state,yieldingCars,{stepMs});
-  const started=startNewBattles(state,existing.cars,existing.bypassPairs,{stepMs,blockedPairs});
+  const existing=resolveExistingBattles(state,yieldingCars,{stepMs,blockedSectors});
+  const started=startNewBattles(state,existing.cars,existing.bypassPairs,{
+    stepMs,
+    blockedPairs,
+    blockedSectors,
+  });
   return {
     cars:started.cars,
     events:[...existing.events,...started.events],
