@@ -23,10 +23,22 @@ function shortName(drivers,id){
 }
 
 function teamColor(teamId){
-  const palette=["#f43f5e","#38bdf8","#22c55e","#f59e0b","#a78bfa","#14b8a6","#fb7185","#84cc16","#f97316","#60a5fa"];
+  const palette=["#dc2626","#0ea5e9","#16a34a","#f59e0b","#8b5cf6","#0f766e","#db2777","#65a30d","#ea580c","#2563eb"];
   let hash=0;
   for(const char of String(teamId||""))hash=(hash*31+char.charCodeAt(0))>>>0;
   return palette[hash%palette.length];
+}
+
+function formatGap(car,index){
+  if(index===0)return "LEADER";
+  const ms=finite(car?.gap_to_leader_ms,null);
+  return ms==null?"—":`+${(ms/1000).toFixed(ms>=10000?1:3)}`;
+}
+
+function tyreLabel(tyre){
+  const compound=String(tyre?.compound||"—").toUpperCase();
+  const condition=Number(tyre?.condition);
+  return Number.isFinite(condition)?`${compound} ${Math.round(condition)}%`:compound;
 }
 
 function sampleCarPose(geometry,progress,lateralOffsetM,unitsPerMeter){
@@ -141,7 +153,7 @@ function useContinuousCars(view,{playbackRunning=false,playbackSpeed=1}={}){
   return display;
 }
 
-function viewBoxAround(base,center,zoom=3.2){
+function viewBoxAround(base,center,zoom=3.4){
   const [x,y,width,height]=base;
   const z=Math.max(1,finite(zoom,1));
   const nextWidth=width/z;
@@ -149,6 +161,13 @@ function viewBoxAround(base,center,zoom=3.2){
   const cx=clamp(center?.x??x+width/2,x+nextWidth/2,x+width-nextWidth/2);
   const cy=clamp(center?.y??y+height/2,y+nextHeight/2,y+height-nextHeight/2);
   return [cx-nextWidth/2,cy-nextHeight/2,nextWidth,nextHeight];
+}
+
+function TelemetryTile({label,value,accent=""}){
+  return <div className="min-w-0 border-r border-white/10 px-3 last:border-r-0">
+    <div className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</div>
+    <div className={"mt-1 truncate font-mono text-[13px] font-black "+(accent||"text-slate-100")}>{value}</div>
+  </div>;
 }
 
 export default function RaceViewRebuild({
@@ -165,7 +184,7 @@ export default function RaceViewRebuild({
     return points.length>=3?{points}:null;
   },[view?.track_geometry]);
   const baseViewBox=useMemo(
-    ()=>geometry?trackGeometryViewBox(geometry,{paddingRatio:.07,minPadding:22}):[0,0,1000,600],
+    ()=>geometry?trackGeometryViewBox(geometry,{paddingRatio:.075,minPadding:24}):[0,0,1000,600],
     [geometry]
   );
   const visualCars=useContinuousCars(view,{playbackRunning,playbackSpeed});
@@ -186,109 +205,150 @@ export default function RaceViewRebuild({
     ?sampleCarPose(geometry,selected.track_progress,selected.lateral_offset_m,unitsPerMeter)
     :null;
   const cameraBox=cameraMode==="follow"&&selectedPose
-    ?viewBoxAround(baseViewBox,selectedPose,3.2)
+    ?viewBoxAround(baseViewBox,selectedPose,3.4)
     :baseViewBox;
 
   const points=geometry?.points||[];
   const polyline=points.length?[...points,points[0]].map((point)=>point.join(",")).join(" "):"";
   const sortedCars=visualCars.slice().sort((a,b)=>finite(a?.position,999)-finite(b?.position,999));
+  const selectedBattle=selected?.battle_context&&String(selected.battle_context.state||"")!=="none"
+    ?selected.battle_context
+    :null;
 
   const selectAndFollow=(driverId)=>{
     onSelectDriver?.(String(driverId||""));
     setCameraMode("follow");
   };
 
-  return <div className="grid h-[calc(100vh-145px)] min-h-[650px] overflow-hidden rounded-lg border border-white/10 bg-[#080d13] lg:grid-cols-[270px_minmax(0,1fr)_270px]">
-    <aside className="min-h-0 overflow-y-auto border-r border-white/10 bg-[#070b10]">
-      <div className="sticky top-0 z-10 border-b border-white/10 bg-[#070b10]/95 px-3 py-3 backdrop-blur">
-        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">Race View Rebuild</div>
-        <div className="mt-1 text-[9px] text-slate-500">Canonical state only · no legacy renderer</div>
+  const trackState=view?.track_state||{};
+  const weather=String(view?.last_weather||"SUNNY").replaceAll("_"," ");
+  const rainPct=Math.round(clamp(trackState?.rain_intensity,0,1)*100);
+  const wetPct=Math.round(clamp(trackState?.track_wetness,0,1)*100);
+
+  return <div className="flex h-[calc(100vh-145px)] min-h-[650px] flex-col overflow-hidden rounded-lg border border-white/10 bg-[#07090c] text-slate-100">
+    <header className="flex h-8 shrink-0 items-center justify-between border-b border-white/10 bg-[#090b0f] px-3 font-mono text-[9px]">
+      <div className="flex items-center gap-4 text-slate-400">
+        <span className="font-black text-amber-200">{weather}</span>
+        <span>RAIN {rainPct}%</span>
+        <span>WET {wetPct}%</span>
+        <span className="text-slate-600">|</span>
+        <span>SESSION RACE</span>
       </div>
-      {sortedCars.map((car)=>{
-        const active=String(car?.driver_id||"")===String(selectedDriverId||"");
-        return <button
-          key={String(car?.car_id||car?.driver_id)}
-          type="button"
-          onClick={()=>selectAndFollow(car.driver_id)}
-          className={"grid w-full grid-cols-[32px_minmax(0,1fr)_58px] items-center gap-2 border-b border-white/[0.05] px-3 py-2 text-left "+(active?"bg-cyan-400/[0.14]":"hover:bg-white/[0.04]")}
+      <div className="flex items-center gap-4">
+        <span className={playbackRunning?"font-black text-lime-300":"font-black text-amber-300"}>{playbackRunning?"LIVE":"PAUSED"}</span>
+        <span className="text-white">LAP {finite(view?.current_lap,1)}/{view?.total_laps??"—"}</span>
+        <span className="text-slate-400">{playbackSpeed}×</span>
+        <button type="button" onClick={()=>setCameraMode("fit")} className={cameraMode==="fit"?"font-black text-white":"text-slate-500 hover:text-white"}>TRACK</button>
+        <button type="button" disabled={!selected} onClick={()=>setCameraMode("follow")} className={cameraMode==="follow"?"font-black text-lime-300":"text-slate-500 hover:text-white disabled:opacity-30"}>FOLLOW</button>
+      </div>
+    </header>
+
+    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_292px]">
+      <main className="relative min-h-0 overflow-hidden bg-[#6b8f35]">
+        {geometry?<svg
+          className="h-full w-full"
+          viewBox={cameraBox.join(" ")}
+          preserveAspectRatio="xMidYMid meet"
+          aria-label="Live race track"
         >
-          <strong className="text-right text-[12px] text-white">P{finite(car.position,0)}</strong>
-          <span className="truncate text-[11px] font-black text-slate-200">{shortName(drivers,car.driver_id)}</span>
-          <span className="text-right font-mono text-[9px] text-slate-400">{Math.round(finite(car.speed_kmh,0))} km/h</span>
-        </button>;
-      })}
-    </aside>
+          <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill="#6b8f35"/>
+          <polyline points={polyline} fill="none" stroke="#f3f4f6" strokeWidth={asphaltWidthSvg+3.2} strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points={polyline} fill="none" stroke="#4b4e52" strokeWidth={asphaltWidthSvg} strokeLinecap="round" strokeLinejoin="round"/>
+          <polyline points={polyline} fill="none" stroke="#62666b" strokeWidth=".8" strokeLinecap="round" strokeLinejoin="round" opacity=".55"/>
+          {visualCars.filter((car)=>!car?.retired).map((car)=>{
+            const pose=sampleCarPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
+            if(!pose)return null;
+            const active=String(car?.driver_id||"")===String(selectedDriverId||"");
+            const inBattle=["side_by_side","yielding"].includes(String(car?.battle_context?.state||""));
+            const color=teamColor(car.team_id);
+            return <g
+              key={String(car?.car_id||car?.driver_id)}
+              role="button"
+              tabIndex="0"
+              transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
+              onClick={(event)=>{event.stopPropagation();selectAndFollow(car.driver_id);}}
+              onKeyDown={(event)=>{
+                if(event.key==="Enter"||event.key===" "){
+                  event.preventDefault();
+                  selectAndFollow(car.driver_id);
+                }
+              }}
+              style={{cursor:"pointer"}}
+            >
+              {active?<circle r="8.4" fill="rgba(255,255,255,.08)" stroke="#fff" strokeWidth="1.15"/>:null}
+              {inBattle?<circle r="10.2" fill="none" stroke="#facc15" strokeWidth=".85" strokeDasharray="2.3 1.7"/>:null}
+              <rect x="-4.4" y="-1.45" width="8.8" height="2.9" rx=".75" fill={color} stroke="#111827" strokeWidth=".6"/>
+              <rect x="-1.5" y="-.82" width="2.9" height="1.64" rx=".5" fill="#111827"/>
+              <rect x="2.25" y="-.95" width="1.55" height="1.9" rx=".45" fill="#d1d5db" opacity=".82"/>
+              <circle cx="-2.6" cy="-1.65" r=".62" fill="#111827"/>
+              <circle cx="-2.6" cy="1.65" r=".62" fill="#111827"/>
+              <circle cx="2.45" cy="-1.65" r=".62" fill="#111827"/>
+              <circle cx="2.45" cy="1.65" r=".62" fill="#111827"/>
+            </g>;
+          })}
+        </svg>:<div className="flex h-full items-center justify-center bg-[#1b2418] text-sm text-slate-500">Canonical track geometry unavailable.</div>}
 
-    <main className="relative min-h-0 overflow-hidden bg-[#1c2b1d]">
-      <div className="absolute left-3 top-3 z-20 flex gap-2">
-        <span className="rounded border border-white/10 bg-black/55 px-2 py-1 text-[9px] font-black text-slate-200">
-          {playbackRunning?`${playbackSpeed}× LIVE`:"PAUSED"}
-        </span>
-        <span className="rounded border border-white/10 bg-black/55 px-2 py-1 text-[9px] font-black text-slate-300">
-          LAP {finite(view?.current_lap,1)}/{view?.total_laps??"—"}
-        </span>
-      </div>
-      <div className="absolute right-3 top-3 z-20 flex gap-1 rounded border border-white/10 bg-black/55 p-1">
-        <button type="button" onClick={()=>setCameraMode("fit")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="fit"?"bg-white text-black":"text-slate-300")}>FIT</button>
-        <button type="button" disabled={!selected} onClick={()=>setCameraMode("follow")} className={"rounded px-2 py-1 text-[9px] font-black "+(cameraMode==="follow"?"bg-cyan-300 text-black":"text-slate-300 disabled:opacity-30")}>FOLLOW</button>
-      </div>
-
-      {geometry?<svg
-        className="h-full w-full"
-        viewBox={cameraBox.join(" ")}
-        preserveAspectRatio="xMidYMid meet"
-        aria-label="Race View rebuild track"
-      >
-        <rect x={baseViewBox[0]} y={baseViewBox[1]} width={baseViewBox[2]} height={baseViewBox[3]} fill="#1c2b1d"/>
-        <polyline points={polyline} fill="none" stroke="#e5e7eb" strokeWidth={asphaltWidthSvg+2.5} strokeLinecap="round" strokeLinejoin="round"/>
-        <polyline points={polyline} fill="none" stroke="#242a30" strokeWidth={asphaltWidthSvg} strokeLinecap="round" strokeLinejoin="round"/>
-        {visualCars.filter((car)=>!car?.retired).map((car)=>{
-          const pose=sampleCarPose(geometry,car.track_progress,car.lateral_offset_m,unitsPerMeter);
-          if(!pose)return null;
-          const active=String(car?.driver_id||"")===String(selectedDriverId||"");
-          const inBattle=["side_by_side","yielding"].includes(String(car?.battle_context?.state||""));
-          return <g
-            key={String(car?.car_id||car?.driver_id)}
-            role="button"
-            tabIndex="0"
-            transform={`translate(${pose.x} ${pose.y}) rotate(${pose.heading})`}
-            onClick={(event)=>{event.stopPropagation();selectAndFollow(car.driver_id);}}
-            style={{cursor:"pointer"}}
-          >
-            {active?<circle r="6.3" fill="none" stroke="#67e8f9" strokeWidth="1.1"/>:null}
-            {inBattle?<circle r="7.6" fill="none" stroke="#fbbf24" strokeWidth=".8" strokeDasharray="2 1.5"/>:null}
-            <rect x="-3.4" y="-1.35" width="6.8" height="2.7" rx=".7" fill={teamColor(car.team_id)} stroke="#020617" strokeWidth=".55"/>
-            <circle cx="-1.8" cy="-1.5" r=".55" fill="#020617"/>
-            <circle cx="-1.8" cy="1.5" r=".55" fill="#020617"/>
-            <circle cx="1.8" cy="-1.5" r=".55" fill="#020617"/>
-            <circle cx="1.8" cy="1.5" r=".55" fill="#020617"/>
-          </g>;
-        })}
-      </svg>:<div className="flex h-full items-center justify-center text-sm text-slate-500">Canonical track geometry unavailable.</div>}
-    </main>
-
-    <aside className="min-h-0 overflow-y-auto border-l border-white/10 bg-[#070b10] p-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-300">Selected driver</div>
-      {selected?<div className="mt-3 space-y-2">
-        <div className="text-lg font-black text-white">{driverName(drivers,selected.driver_id)}</div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded border border-white/10 bg-white/[0.03] p-2"><div className="text-[8px] uppercase text-slate-500">Position</div><strong className="text-lg text-white">P{finite(selected.position,0)}</strong></div>
-          <div className="rounded border border-white/10 bg-white/[0.03] p-2"><div className="text-[8px] uppercase text-slate-500">Speed</div><strong className="text-lg text-white">{Math.round(finite(selected.speed_kmh,0))}</strong><span className="ml-1 text-[9px] text-slate-500">km/h</span></div>
-        </div>
-        <div className="rounded border border-white/10 bg-white/[0.03] p-2 text-[10px] text-slate-300">
-          <div className="flex justify-between"><span className="text-slate-500">Gap ahead</span><span>{selected.gap_to_previous_ms==null?"—":`+${(finite(selected.gap_to_previous_ms,0)/1000).toFixed(3)}s`}</span></div>
-          <div className="mt-1 flex justify-between"><span className="text-slate-500">Pace</span><span>{String(selected.current_pace||"—").toUpperCase()}</span></div>
-          <div className="mt-1 flex justify-between"><span className="text-slate-500">Tyre</span><span>{selected?.tyre?.compound||"—"} · {Number.isFinite(Number(selected?.tyre?.condition))?`${Math.round(Number(selected.tyre.condition))}%`:"—"}</span></div>
-        </div>
-        {selected?.battle_context&&String(selected.battle_context.state||"")!=="none"?<div className="rounded border border-amber-400/30 bg-amber-500/[0.08] p-3">
-          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-amber-300">Battle</div>
-          <div className="mt-1 text-sm font-black text-amber-50">{String(selected.battle_context.state||"").replaceAll("_"," ").toUpperCase()}</div>
-          <div className="mt-1 text-[10px] text-slate-300">Probability {Number.isFinite(Number(selected.battle_context.attempt_probability_pct))?`${Math.round(Number(selected.battle_context.attempt_probability_pct))}%`:"—"}</div>
+        {selected?<div className="pointer-events-none absolute bottom-3 left-3 rounded border border-white/20 bg-black/65 px-3 py-2 shadow-lg">
+          <div className="text-[8px] font-black uppercase tracking-[0.16em] text-lime-300">Follow</div>
+          <div className="mt-0.5 text-[12px] font-black text-white">{driverName(drivers,selected.driver_id)}</div>
         </div>:null}
-        <div className="rounded border border-sky-400/20 bg-sky-500/[0.05] p-2 text-[9px] leading-relaxed text-sky-100/70">
-          Weather graphics, minimap, historical car sprites and Battle overlays are intentionally disabled in this rebuild baseline.
+      </main>
+
+      <aside className="min-h-0 overflow-hidden border-l border-white/10 bg-[#0a0d12]">
+        <div className="grid h-8 grid-cols-[34px_8px_minmax(0,1fr)_66px_42px] items-center gap-1 border-b border-white/10 bg-[#111722] px-2 text-[7px] font-black uppercase tracking-[0.11em] text-slate-500">
+          <span className="text-center">P</span>
+          <span></span>
+          <span>Driver</span>
+          <span className="text-right">Gap</span>
+          <span className="text-right">Stop</span>
         </div>
-      </div>:<div className="mt-3 text-[10px] text-slate-500">Select a car or driver.</div>}
-    </aside>
+        <div className="h-[calc(100%-2rem)] overflow-y-auto">
+          {sortedCars.map((car,index)=>{
+            const active=String(car?.driver_id||"")===String(selectedDriverId||"");
+            const battle=["side_by_side","yielding"].includes(String(car?.battle_context?.state||""));
+            return <button
+              key={String(car?.car_id||car?.driver_id)}
+              type="button"
+              onClick={()=>selectAndFollow(car.driver_id)}
+              className={"grid min-h-[31px] w-full grid-cols-[34px_8px_minmax(0,1fr)_66px_42px] items-center gap-1 border-b border-white/[0.055] px-2 text-left transition "+(
+                active?"bg-[#273348]":battle?"bg-amber-500/[0.08]":"hover:bg-white/[0.035]"
+              )}
+            >
+              <span className="flex h-6 items-center justify-center bg-[#541c2c] text-[12px] font-black text-amber-200">{finite(car.position,index+1)}</span>
+              <span className="h-5" style={{backgroundColor:teamColor(car.team_id)}}></span>
+              <span className="truncate text-[11px] font-black uppercase tracking-[0.04em] text-slate-100">{shortName(drivers,car.driver_id)}</span>
+              <span className={"text-right font-mono text-[9px] "+(index===0?"font-black text-lime-300":"text-slate-300")}>{formatGap(car,index)}</span>
+              <span className="text-right font-mono text-[9px] text-slate-400">{Math.max(0,Math.round(finite(car?.pit_count,0)))}</span>
+            </button>;
+          })}
+        </div>
+      </aside>
+    </div>
+
+    <footer className="shrink-0 border-t border-white/10 bg-[#080b10]">
+      {selected?<div className="grid min-h-[88px] grid-cols-[190px_repeat(7,minmax(0,1fr))] items-stretch">
+        <div className="flex min-w-0 flex-col justify-center border-r border-white/10 bg-[#101722] px-4">
+          <div className="truncate text-[15px] font-black uppercase tracking-[0.05em] text-white">{driverName(drivers,selected.driver_id)}</div>
+          <div className="mt-1 flex items-center gap-3 font-mono text-[9px] text-slate-500">
+            <span className="font-black text-lime-300">P{finite(selected.position,0)}</span>
+            <span>{selected.team_id||"—"}</span>
+          </div>
+        </div>
+        <TelemetryTile label="Tyre" value={tyreLabel(selected.tyre)} accent="text-cyan-200"/>
+        <TelemetryTile label="Tyre temp" value={Number.isFinite(Number(selected?.tyre?.temperature_c))?`${Math.round(Number(selected.tyre.temperature_c))}°C`:"—"}/>
+        <TelemetryTile label="Fuel" value={Number.isFinite(Number(selected?.fuel_kg))?`${Number(selected.fuel_kg).toFixed(1)} kg`:"—"}/>
+        <TelemetryTile label="Engine" value={Number.isFinite(Number(selected?.engine_temperature))?`${Math.round(Number(selected.engine_temperature))}°C`:"—"}/>
+        <TelemetryTile label="Speed" value={`${Math.round(finite(selected.speed_kmh,0))} km/h`} accent="text-white"/>
+        <TelemetryTile label="Pace" value={String(selected.current_pace||"—").toUpperCase()} accent={String(selected.current_pace||"").toLowerCase()==="attack"?"text-rose-300":String(selected.current_pace||"").toLowerCase()==="conserve"?"text-sky-300":"text-slate-100"}/>
+        <TelemetryTile
+          label={selectedBattle?"Battle":"Gap ahead"}
+          value={selectedBattle
+            ?`${String(selectedBattle.state||"").replaceAll("_"," ").toUpperCase()} ${Number.isFinite(Number(selectedBattle.attempt_probability_pct))?`${Math.round(Number(selectedBattle.attempt_probability_pct))}%`:""}`
+            :selected.gap_to_previous_ms==null?"—":`+${(finite(selected.gap_to_previous_ms,0)/1000).toFixed(3)}s`
+          }
+          accent={selectedBattle?"text-amber-300":"text-slate-100"}
+        />
+      </div>:<div className="flex h-[88px] items-center justify-center text-[10px] font-mono uppercase tracking-[0.15em] text-slate-600">Select a driver from the timing tower or track</div>}
+    </footer>
   </div>;
 }
