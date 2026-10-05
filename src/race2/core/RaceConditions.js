@@ -354,10 +354,12 @@ function localYellowSectorsForDecision(state,decision,cars=[]){
   if(text(decision?.action).toUpperCase()!=="LOCAL_YELLOW")return [];
   const ids=new Set((decision?.event?.carIds||[]).map(text).filter(Boolean));
   const sectors=[];
-  for(const car of cars||[]){
-    if(ids.size&&!ids.has(text(car?.carId)))continue;
-    const sector=Math.round(finite(car?.sector,null));
-    if(sector>=1&&sector<=3&&!sectors.includes(sector))sectors.push(sector);
+  if(ids.size){
+    for(const car of cars||[]){
+      if(!ids.has(text(car?.carId)))continue;
+      const sector=Math.round(finite(car?.sector,null));
+      if(sector>=1&&sector<=3&&!sectors.includes(sector))sectors.push(sector);
+    }
   }
   const eventSector=Math.round(finite(
     decision?.event?.payload?.sector
