@@ -126,9 +126,17 @@ export function raceCarPresentationTransform({
     :lateralUnits;
   const widthM=raceCarNominalWidthM(year);
   const lengthM=raceCarNominalLengthM(year);
+  const longitudinalScale=(longitudinalUnits*lengthM)/footprint.nativeLength;
+  const lateralLimitScale=(lateralUnits*widthM)/footprint.nativeWidth;
+  // Preserve the car's own aspect ratio. The track stroke can deliberately be
+  // wider than physical scale for readability, so using it as the car scale
+  // makes cars too large longitudinally and creates false visual overlaps.
+  // Use the stricter physical mapping as a uniform scale.
+  const scale=Math.max(0.000001,Math.min(longitudinalScale,lateralLimitScale));
   return {
-    scaleX:Number(((longitudinalUnits*lengthM)/footprint.nativeLength).toFixed(6)),
-    scaleY:Number(((lateralUnits*widthM)/footprint.nativeWidth).toFixed(6)),
+    scaleX:Number(scale.toFixed(6)),
+    scaleY:Number(scale.toFixed(6)),
+    scale:Number(scale.toFixed(6)),
     carWidthM:widthM,
     carLengthM:lengthM,
     lateralUnitsPerMeter:Number(lateralUnits.toFixed(6)),
