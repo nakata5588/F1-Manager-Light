@@ -17,6 +17,7 @@ on:
       - "src/**"
       - "tests/**"
       - "public/data/**"
+      - "data/f1_db.xlsx"
       - "scripts/**"
       - "package.json"
       - "package-lock.json"
