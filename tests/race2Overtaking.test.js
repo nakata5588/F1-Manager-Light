@@ -351,6 +351,52 @@ test("RW30 racecraft can create a battle window even when free-speed telemetry i
   }
 });
 
+test("RW35 local yellow blocks only battles in the affected sector",()=>{
+  let state=runningState({seed:"rw35-local-yellow"});
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,sector:1,
+      speedMs:45,speedKmh:162,freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:70,overtaking:70,defending:70,raceIntelligence:70,mistakePropensity:15,aggression:50},
+      },
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,sector:1,
+      speedMs:45,speedKmh:162,freeTargetSpeedKmh:180,effectiveCornerSeverity:0,
+      performance:{
+        car:{race:70,power:70,chassis:70},
+        driver:{raceScore:92,overtaking:97,defending:70,raceIntelligence:92,mistakePropensity:15,aggression:50},
+      },
+    },
+  });
+
+  for(let bucket=0;bucket<80;bucket+=1){
+    const candidate={...state,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{
+      stepMs:100,
+      blockedSectors:[1],
+    });
+    assert.ok(!resolved.events.some((event)=>event.type==="overtake_started"));
+  }
+
+  const clearSector=patchCars(state,{
+    C1:{sector:2,absoluteDistanceM:430,distanceAlongLapM:430},
+    C2:{sector:2,absoluteDistanceM:421,distanceAlongLapM:421},
+  });
+  let started=false;
+  for(let bucket=0;bucket<80&&!started;bucket+=1){
+    const candidate={...clearSector,tick:bucket*10,simulationTimeMs:bucket*1000};
+    const resolved=resolveRaceOvertaking(candidate,candidate.cars,{
+      stepMs:100,
+      blockedSectors:[1],
+    });
+    started=resolved.events.some((event)=>event.type==="overtake_started");
+  }
+  assert.equal(started,true);
+});
+
 test("RW32 attack versus conserve materially changes an otherwise equal overtake opportunity",()=>{
   let state=runningState();
   const equalPerformance={
