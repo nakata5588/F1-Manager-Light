@@ -264,11 +264,6 @@ function sampleCarPose(geometry,progress,lateralOffsetM,unitsPerMeter,trackLengt
   };
 }
 
-function angleVector(deg){
-  const rad=finite(deg,0)*Math.PI/180;
-  return {x:Math.cos(rad),y:Math.sin(rad)};
-}
-
 function viewBoxAround(base,center,zoom){
   const [x,y,width,height]=base;
   const z=Math.max(1,finite(zoom,1));
