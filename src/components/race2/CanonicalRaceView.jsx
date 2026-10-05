@@ -622,7 +622,7 @@ function CanonicalSpray({car,geometry,unitsPerMeter,opacity=0,scale=1,pitBoxOffs
   </g>;
 }
 
-function CanonicalStartingGrid({
+const CanonicalStartingGrid=React.memo(function CanonicalStartingGrid({
   cars,
   geometry,
   trackLengthM,
@@ -689,7 +689,7 @@ function CanonicalStartingGrid({
       </g>;
     })}
   </g>;
-}
+});
 
 function CanonicalBattleOverlay({
   cars,
@@ -1145,14 +1145,9 @@ export default function CanonicalRaceView({
   },[resolved,runtimeGeometry,orientedRuntimeGeometry]);
   const canonicalVisualLine=useMemo(()=>{
     const canonical=view?.track_geometry;
-    const points=Array.isArray(canonical?.points)?canonical.points:[];
-    if(points.length<3)return null;
-    return buildClosedRacingLine(points,{
-      samplesPerSegment:3,
-      parameterization:"centripetal",
-      preserveStraights:true,
-      straightSourcePoints:points,
-    });
+    return Array.isArray(canonical?.points)&&canonical.points.length>=3
+      ?canonical
+      :null;
   },[view?.track_geometry]);
   const presentationLine=useMemo(()=>{
     if(canonicalVisualLine?.points?.length)return canonicalVisualLine;
@@ -1482,13 +1477,8 @@ export default function CanonicalRaceView({
         pitBoxSide={pitBoxSide}
       />
       {weatherVisuals.rainOpacity>0?<div
-        className="pointer-events-none absolute inset-0 z-10"
-        style={{
-          opacity:weatherVisuals.rainOpacity*.32,
-          backgroundImage:"linear-gradient(112deg, transparent 0 47%, rgba(186,230,253,.52) 48% 50%, transparent 51% 100%), linear-gradient(112deg, transparent 0 47%, rgba(224,242,254,.30) 48% 49%, transparent 50% 100%)",
-          backgroundSize:"38px 112px, 61px 146px",
-          backgroundPosition:"0 0, 13px 21px",
-        }}
+        className="pointer-events-none absolute inset-0 z-10 bg-sky-100"
+        style={{opacity:Math.min(.055,weatherVisuals.rainOpacity*.055)}}
       />:null}
       {weatherVisuals.fogOpacity>0?<div
         className="pointer-events-none absolute inset-0 z-10 bg-slate-300"
