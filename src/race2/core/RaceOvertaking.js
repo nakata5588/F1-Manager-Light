@@ -399,7 +399,7 @@ export function raceOvertakeOpportunityFactors(state,attacker,defender,{
     car:carFactor*0.11,
     tyre:tyreFactor*0.10,
     strategy:strategyEdge*0.14,
-    tow:activeTowStrength*0.12,
+    tow:activeTowStrength*0.14,
     track:trackContext.score>=0
       ?trackContext.score*0.08
       :trackContext.score*0.12,
@@ -486,9 +486,17 @@ function attemptOpportunity(state,attacker,occupied){
   const trackAttemptRange=baseAttemptRange*overtakingRangeFactor(state);
   const closingPotentialMs=overtakeClosingPotentialMs(state,attacker,defender);
   if(closingPotentialMs<0.75)return null;
+  // Traffic deliberately holds a following car near desiredTrafficGapM.
+  // The battle gate must therefore allow the canonical overtake model to take
+  // ownership from that staging gap; otherwise traffic can permanently prevent
+  // a faster car from ever entering side-by-side state.
+  const followingLaunchRange=Math.max(
+    RACE_TRAFFIC_HARD_GAP_M,
+    finite(desiredTrafficGapM(attacker),RACE_TRAFFIC_HARD_GAP_M)
+  )+2;
   const physicallyReachableRange=Math.max(
-    0,
-    closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)*0.82
+    followingLaunchRange,
+    closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)
   );
   const attemptRange=Math.min(trackAttemptRange,physicallyReachableRange);
   if(gapM>attemptRange)return null;
