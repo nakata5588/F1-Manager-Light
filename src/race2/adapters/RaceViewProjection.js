@@ -244,6 +244,8 @@ export function projectRaceStateToRaceView(state){
       team_id:row?.teamId??car?.teamId??null,
       car_id:row?.carId??car?.carId??null,
       grid_position:finite(car?.gridPosition,null),
+      grid_start_offset_m:finite(car?.gridStartOffsetM,null),
+      grid_lane_offset_m:finite(car?.gridLaneOffsetM,null),
       position_gain:finite(car?.gridPosition,null)==null
         ?0
         :finite(car?.gridPosition,0)-finite(row?.position,index+1),
