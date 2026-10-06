@@ -206,14 +206,25 @@ test("high-risk crash events carry medical concern into the observed Race Feed",
   }
   assert.ok(gs&&incident,"expected a deterministic high-risk crash seed");
   gs=advanceTo(gs,Number(incident.lap));
+  const targetSector=Math.max(1,Math.min(3,Number(incident.sector)||1));
+  let sectorGuard=0;
+  while(
+    Number(gs?.raceWeekendState?.live_race?.current_lap||0)===Number(incident.lap)&&
+    Number(gs?.raceWeekendState?.live_race?.current_sector||0)<targetSector&&
+    sectorGuard<3
+  ){
+    gs=advanceLiveRaceSector(gs,{gp,sectors:1});
+    sectorGuard+=1;
+  }
   const event=(gs.raceWeekendState.live_race.events||[])
     .find((row)=>
       String(row?.driver_id)===String(incident.driver_id)&&
       Number(row?.lap)===Number(incident.lap)&&
-      /accident|collision/i.test(String(row?.incident_kind||row?.incident_reason||""))&&
-      row?.medical_concern===true
+      Number(row?.sector||1)===targetSector&&
+      /accident|collision/i.test(String(row?.incident_kind||row?.incident_reason||""))
     );
   assert.ok(event);
+  assert.equal(event.medical_concern,true);
   assert.ok(Number(event.injury_probability)>0);
   assert.match(event.message,/might be injured/i);
 });
