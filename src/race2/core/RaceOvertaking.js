@@ -553,15 +553,7 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
     followingLaunchRange,
     closingPotentialMs*(RACE_BATTLE_MAX_DURATION_MS/1000)
   );
-  // Tow and free pace may build the approach from farther back, but the
-  // attacker should only leave the racing line once it has actually reached
-  // the following/staging gap. This keeps "battle" synonymous with a real
-  // passing move instead of a long-distance probability event.
-  const attemptRange=Math.min(
-    trackAttemptRange,
-    physicallyReachableRange,
-    followingLaunchRange
-  );
+  const attemptRange=Math.min(trackAttemptRange,physicallyReachableRange);
   if(gapM>attemptRange)return null;
 
   const bucket=Math.floor(Math.max(0,finite(state?.simulationTimeMs,0))/1000);
