@@ -6,6 +6,7 @@ import { startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.
 import {
   RACE_BATTLE_CONTACT_PROXIMITY_M,
   RACE_BATTLE_LATERAL_OFFSET_M,
+  RACE_BATTLE_SIDE_BY_SIDE_GAP_M,
   RACE_OVERTAKE_DECISIVE_CLEARANCE_M,
   battleContactProbability,
   initialBattleState,
@@ -1071,3 +1072,73 @@ test("RW11B a decisive pass in a train keeps lateral separation until hard gap i
       RACE_TRAFFIC_HARD_GAP_M-1e-6
   );
 });
+
+test("RW36 committed overtake approaches off-line before becoming side-by-side",()=>{
+  let state=runningState({seed:"rw36-approach"});
+  const attemptId="rw36:approach:C2:C1";
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,lateralOffsetM:0,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:8000},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:47,speedKmh:169.2,lateralOffsetM:0.3,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:8000},
+    },
+  });
+
+  const approaching=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  assert.equal(car({cars:approaching.cars},"C2").battle.phase,"approach");
+  assert.ok(Math.abs(car({cars:approaching.cars},"C2").lateralOffsetM)>0);
+  assert.ok(Math.abs(car({cars:approaching.cars},"C2").lateralOffsetM)<RACE_BATTLE_LATERAL_OFFSET_M);
+  assert.ok(approaching.bypassPairs.has("C1|C2"));
+
+  const closeState=patchCars({...state,cars:approaching.cars},{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100},
+    C2:{absoluteDistanceM:100-(RACE_BATTLE_SIDE_BY_SIDE_GAP_M-0.5),distanceAlongLapM:100-(RACE_BATTLE_SIDE_BY_SIDE_GAP_M-0.5)},
+  });
+  const committed=resolveRaceOvertaking(closeState,closeState.cars,{stepMs:100});
+  assert.equal(car({cars:committed.cars},"C2").battle.phase,"side_by_side");
+  assert.equal(car({cars:committed.cars},"C1").battle.phase,"side_by_side");
+  assert.equal(Math.abs(car({cars:committed.cars},"C2").lateralOffsetM),RACE_BATTLE_LATERAL_OFFSET_M);
+});
+
+test("RW36 tyre life and damage materially change the same battle opportunity",()=>{
+  let state=runningState({seed:"rw36-racecraft-factors"});
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,effectiveCornerSeverity:0,
+      tyre:{...car(state,"C1").tyre,grip_index:74,condition:52,grip_multiplier:0.97},
+      damage:{pace_loss_s_per_lap:1.4,aero_loss_pct:22,handling_loss_pct:35,braking_loss_pct:12},
+    },
+    C2:{
+      absoluteDistanceM:91,distanceAlongLapM:91,speedMs:47,speedKmh:169.2,effectiveCornerSeverity:0,
+      tyre:{...car(state,"C2").tyre,grip_index:80,condition:94,grip_multiplier:1},
+      damage:{pace_loss_s_per_lap:0,aero_loss_pct:0,handling_loss_pct:0,braking_loss_pct:0},
+    },
+  });
+  const advantage=raceOvertakeOpportunityFactors(
+    state,
+    car(state,"C2"),
+    car(state,"C1"),
+    {gapM:9,closingSpeedMs:2,towStrength:0.4}
+  );
+
+  const reversed=patchCars(state,{
+    C1:{tyre:{...car(state,"C1").tyre,grip_index:80,condition:94,grip_multiplier:1},damage:{pace_loss_s_per_lap:0,aero_loss_pct:0,handling_loss_pct:0,braking_loss_pct:0}},
+    C2:{tyre:{...car(state,"C2").tyre,grip_index:74,condition:52,grip_multiplier:0.97},damage:{pace_loss_s_per_lap:1.4,aero_loss_pct:22,handling_loss_pct:35,braking_loss_pct:12}},
+  });
+  const disadvantage=raceOvertakeOpportunityFactors(
+    reversed,
+    car(reversed,"C2"),
+    car(reversed,"C1"),
+    {gapM:9,closingSpeedMs:2,towStrength:0.4}
+  );
+
+  assert.ok(advantage.probability>disadvantage.probability);
+  assert.ok(advantage.tyreConditionEdge>0);
+  assert.ok(advantage.damageEdge>0);
+  assert.ok(advantage.contributions.tyreWear>0);
+  assert.ok(advantage.contributions.damage>0);
+});
+
