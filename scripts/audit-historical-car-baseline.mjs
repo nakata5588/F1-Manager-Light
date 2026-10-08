@@ -1,7 +1,7 @@
-// Historical car baseline audit: real archive evidence and managerial identity.
-// Diagnostic only. Does not materialize a playable car or touch drivers.
+// Verify a generated Season Pack actually uses Results-derived car attributes.
+// Not a race-time calculation: this inspects the finished build artifact.
 import fs from "node:fs/promises";
-import { createTeamConstructorBridgeResolver } from "../src/domain/teamConstructorBridge.js";
+import { prepareVerifiedCarResults } from "./lib/verified-car-results.mjs";
 import { materializeHistoricalCarBaselines } from "../src/domain/historicalCarResultBaseline.js";
 
 const root=new URL("../",import.meta.url);
@@ -9,49 +9,34 @@ async function read(path,fallback=[]){
   try{return JSON.parse(await fs.readFile(new URL(path,root),"utf8"));}
   catch(err){if(err.code==="ENOENT")return fallback;throw err;}
 }
-const [results,teams,drivers,reference,entries]=await Promise.all([
-  read("public/data/race_results.json"),
-  read("public/data/teams.json"),
-  read("public/data/drivers.json"),
-  read("data/reference/constructor_id_map.json",{constructors:[]}),
+const year=Number(process.argv.find(s=>s.startsWith("--year="))?.slice(7)??2000);
+const [results,teams,drivers,reference,entries,pack]=await Promise.all([
+  read("public/data/race_results.json"),read("public/data/teams.json"),
+  read("public/data/drivers.json"),read("data/reference/constructor_id_map.json",{constructors:[]}),
   read("public/data/f1_entry_list_history.json"),
+  read(`public/data/seasons/${year}/season.json`,null),
 ]);
-if(!results.length)throw Error("Historical results missing; run data build first");
-const resolver=createTeamConstructorBridgeResolver({teams,constructorReference:reference,entryRows:entries});
-const archiveDrivers=new Map();
-const idDrivers=new Set();
-for(const driver of drivers){
-  const id=String(driver.driver_id??driver.id??"");
-  if(!id)continue;
-  idDrivers.add(id);
-  const archive=Number(driver.driverID_arch??driver.driverId_arch??driver.driverId);
-  if(Number.isFinite(archive))archiveDrivers.set(archive,id);
-}
-const year=Number(process.argv.find(arg=>arg.startsWith("--year="))?.split("=")[1]??2000);
-let skippedTeam=0,skippedDriver=0,estimatedTeam=0,matched=0;
-const prepared=[];
-for(const result of results){
-  if(Number(result.year??result.season_year)!==year)continue;
-  const raw=String(result.driver_id??"");
-  const driver=idDrivers.has(raw)?raw:archiveDrivers.get(Number(result.driverId??result.driverID))??"";
-  if(!driver){skippedDriver++;continue;}
-  const link=resolver.resolve(result,{driverId:driver,year});
-  const team=String(link?.team_id??"").trim();
-  if(!team){skippedTeam++;continue;}
-  if(!link.exact_entrant){estimatedTeam++;continue;}
-  matched++;
-  prepared.push({...result,team_id:team,driver_id:driver});
-}
-const baselines=materializeHistoricalCarBaselines(prepared,year);
+if(!results.length||!pack?.state?.carStats)throw Error("Missing raw Results or generated Season Pack: build data and selected season first");
+const verified=prepareVerifiedCarResults({results,teams,drivers,constructorReference:reference,entryRows:entries,years:[year]});
+const baseline=materializeHistoricalCarBaselines(verified.rows,year);
+const teamNameById=new Map((pack.state.teams||[]).map(t=>[String(t.team_id),t.team_name]));
+const ranking=pack.state.carStats.map(r=>({
+  team_id:r.team_id,team:teamNameById.get(String(r.team_id))??r.team_id,
+  chassis:Number(r.chassis_spec??0),aero:Number(r.aero_spec??0),
+  reliability:Number(r.reliability??0),
+  source:r.generation_source??"explicit",
+  evidence:r.historical_baseline_source??null,
+  confidence:r.historical_baseline_confidence??null,
+})).sort((a,b)=>b.chassis-a.chassis);
+const generated=ranking.filter(x=>x.source==="historical_results_inference");
 const summary={
-  kind:"historical_results_baseline_audit",
-  year,sourceResults:results.filter(x=>Number(x.year??x.season_year)===year).length,
-  exactEntrantResults:matched,
-  skippedUnmappedDriver:skippedDriver,
-  skippedUnmappedTeam:skippedTeam,
-  excludedEstimatedEntrant:estimatedTeam,
-  rankedTeams:baselines.map(x=>({team_id:x.team_id,race:x.race,qualifying:x.qualifying,
-    reliability:x.reliability,drivers:x.evidence_driver_count,rows:x.evidence_result_count,confidence:x.confidence})),
+  year,rawResultRows:verified.coverage[0]?.total??0,
+  exactEntrantRows:verified.coverage[0]?.exact??0,
+  excludedEstimatedEntrant:verified.coverage[0]?.estimated??0,
+  unresolvedDriver:verified.coverage[0]?.unmappedDriver??0,
+  verifiedBaselineTeams:baseline.filter(x=>x.confidence==="medium").length,
+  generatedCarTeams:generated.length,
+  ranking,
 };
-console.log("HISTORICAL_CAR_BASELINE_AUDIT="+JSON.stringify(summary));
-if(!baselines.length)throw Error("No verified team/result matches: do not activate car baselines");
+console.log("HISTORICAL_CAR_SEASON_PACK_AUDIT="+JSON.stringify(summary));
+if(!generated.length)throw Error(`No Results-derived cars in Season Pack ${year}`);
