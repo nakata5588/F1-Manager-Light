@@ -127,15 +127,16 @@ function renderAnchor(anchor,now){
   if(!anchor)return null;
   const elapsedReal=Math.max(0,(now-anchor.realAtMs)/1000);
   const canonicalElapsed=elapsedReal*anchor.playbackSpeed*(anchor.playbackRunning?1:0);
-  const decay=Math.exp(-elapsedReal/Math.max(.12,anchor.correctionTauS));
+  const absoluteDecay=Math.exp(-elapsedReal/Math.max(.12,anchor.absoluteCorrectionTauS));
+  const lateralDecay=Math.exp(-elapsedReal/Math.max(.08,anchor.lateralCorrectionTauS));
   return {
     absoluteDistanceM:
       anchor.absoluteDistanceM+
       anchor.speedMs*canonicalElapsed+
-      anchor.absoluteCorrectionM*decay,
+      anchor.absoluteCorrectionM*absoluteDecay,
     lateralOffsetM:
       anchor.lateralOffsetM+
-      anchor.lateralCorrectionM*decay,
+      anchor.lateralCorrectionM*lateralDecay,
   };
 }
 
@@ -176,7 +177,11 @@ function useContinuousCars(view,{playbackRunning=false,playbackSpeed=1}={}){
         realAtMs:now,
         playbackRunning:Boolean(playbackRunning),
         playbackSpeed:Math.max(.05,finite(playbackSpeed,1)),
-        correctionTauS:playbackSpeed>=16?.42:playbackSpeed>=8?.20:.32,
+        // Longitudinal correction stays deliberately slower at x16 to avoid
+        // snapshot jumps. Lateral battle intent must remain readable instead
+        // of being averaged away by the same high-speed smoothing constant.
+        absoluteCorrectionTauS:playbackSpeed>=16?.42:playbackSpeed>=8?.20:.32,
+        lateralCorrectionTauS:playbackSpeed>=16?.14:playbackSpeed>=8?.16:.20,
         absoluteCorrectionM:reset?0:correctionAbsolute,
         lateralCorrectionM:reset?0:correctionLateral,
       });
