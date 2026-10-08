@@ -81,7 +81,14 @@ export function materializeHistoricalCarBaselines(results,year,{teamIds=[]}={}){
     // Bounded initial strength; not a fabricated engine/chassis part specification.
     const race=round1(clamp(42+pace*54,40,96));
     const q=round1(clamp(42+qualifying*54,40,96));
-    const reliability=round1(clamp(96-mechanicalRate*48,45,96));
+    // race_results contains numeric statusId without a reason lookup for some
+    // years. Absence of identified mechanical DNF is NOT proof of reliability.
+    const teamResults=selected.filter(r=>id(r.team_id)===team);
+    const hasCauseData=teamResults.some(r=>
+      r.retirement_category||typeof r.status==="string"||typeof r.status_text==="string"
+    );
+    const reliability=hasCauseData?round1(clamp(96-mechanicalRate*48,45,96)):75;
+    const onlyInferredTeams=teamResults.every(r=>r.team_resolution==="inferred_historical_constructor");
     rows.push({
       year:target,team_id:team,race,qualifying:q,reliability,
       historical_result_strength:round1(pace*100),
@@ -90,6 +97,8 @@ export function materializeHistoricalCarBaselines(results,year,{teamIds=[]}={}){
       evidence_driver_count:avgDrivers.length,
       evidence_result_count:avgDrivers.reduce((n,r)=>n+r.races,0),
       source:"same_season_results_baseline_v1",
+      entrant_mapping:onlyInferredTeams?"inferred_historical_constructor":"exact_or_mixed",
+      reliability_evidence:hasCauseData?"retirement_causes":"neutral_missing_causes",
       confidence:avgDrivers.length>=2&&avgDrivers.reduce((n,r)=>n+r.races,0)>=12?"medium":"low",
     });
   }
