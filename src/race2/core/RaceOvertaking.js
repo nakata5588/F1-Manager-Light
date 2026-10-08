@@ -309,7 +309,7 @@ function withApproachBattle(car,{
   const laneShare=role==="attacker"
     ?0.18+approachProgress*0.82
     :approachProgress*0.10;
-  const direction=role==="attacker"?side:-side;
+  const direction=side;
   return {
     ...car,
     lateralOffsetM:Number((direction*RACE_BATTLE_APPROACH_LATERAL_OFFSET_M*laneShare).toFixed(3)),
