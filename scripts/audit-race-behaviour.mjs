@@ -225,7 +225,21 @@ if(!selected.length){
   throw new Error(`Unknown scenario "${scenarioFilter}". Available: ${scenarios.map((row)=>row.name).join(", ")}`);
 }
 
-const output={generatedAt:new Date().toISOString(),seedCount,scenarios:{}};
+const output={
+  generatedAt:new Date().toISOString(),
+  seedCount,
+  // These are deterministic synthetic drivers/cars, NOT a materialized 1980
+  // season pack or historical Renault/other entrant ratings.
+  provenance:{
+    kind:"synthetic_benchmark",
+    historicalSeasonPack:false,
+    drivers:"deterministically generated raceScore/racecraft",
+    cars:"deterministically generated race/power/chassis",
+    tyres:"genericTyresForYear fallback; resourceSetup.tyres is empty",
+    strategies:"derived from generated tyre-management/intelligence scores",
+  },
+  scenarios:{},
+};
 for(const scenario of selected){
   const runs=[];
   for(let index=0;index<seedCount;index+=1){
