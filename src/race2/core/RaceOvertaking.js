@@ -776,6 +776,9 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
     }
 
     const clearance=physicalClearanceM(state,attacker,defender);
+    const previousClearance=physicalClearanceM(state,previousAttacker,previousDefender);
+    const actualClosingM=round(clearance-previousClearance,6);
+    const actualClosingMs=round((clearance-previousClearance)/(Math.max(1,stepMs)/1000),6);
 
     if(previousBattle?.phase==="approach"){
       const approachGapM=Math.max(0,-clearance);
@@ -804,6 +807,14 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
         });
         cars=setCar(setCar(cars,attacker),defender);
         bypassPairs.add(pairKey);
+        events.push(eventDescriptor("overtake_side_by_side",state,attacker,defender,{
+          attemptId,
+          gapM:round(approachGapM,6),
+          clearanceM:round(clearance,6),
+          actualClosingM,
+          actualClosingMs,
+          elapsedMs:round(nextTime-finite(previousBattle?.startedAtMs,nextTime),3),
+        }));
         continue;
       }
       if(expired||approachGapM>RACE_OVERTAKE_ATTEMPT_RANGE_M*1.35){
@@ -813,6 +824,10 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
         events.push(eventDescriptor("overtake_failed",state,attacker,defender,{
           attemptId,
           reason:expired?"approach_timeout":"defender_clear",
+          finalGapM:round(approachGapM,6),
+          actualClosingM,
+          actualClosingMs,
+          elapsedMs:round(nextTime-finite(previousBattle?.startedAtMs,nextTime),3),
         }));
         continue;
       }
