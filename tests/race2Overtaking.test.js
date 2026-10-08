@@ -1099,6 +1099,10 @@ test("RW36 committed overtake approaches off-line before becoming side-by-side",
   assert.equal(car({cars:approaching.cars},"C2").battle.phase,"approach");
   assert.ok(Math.abs(car({cars:approaching.cars},"C2").lateralOffsetM)>0);
   assert.ok(Math.abs(car({cars:approaching.cars},"C2").lateralOffsetM)<RACE_BATTLE_LATERAL_OFFSET_M);
+  assert.equal(
+    Math.sign(car({cars:approaching.cars},"C2").lateralOffsetM),
+    -Math.sign(car({cars:approaching.cars},"C1").lateralOffsetM)
+  );
   assert.ok(approaching.bypassPairs.has("C1|C2"));
 
   const closeState=patchCars({...state,cars:approaching.cars},{
