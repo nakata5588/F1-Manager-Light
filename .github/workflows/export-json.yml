@@ -267,3 +267,27 @@ jobs:
 
           echo "Unable to push generated JSON after 3 attempts."
           exit 1
+
+  smoke-season-2000:
+    name: Real 2000 Season Pack and race smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Export historical database
+        run: npm run build:data
+      - name: Generate real 2000 opening state
+        run: |
+          node scripts/build-team-constructor-bridge.mjs
+          node scripts/build-team-seasons.mjs
+          node scripts/build-driver-history.mjs
+          node scripts/build-historical-championships.mjs
+          node scripts/build-season-packs.mjs --years=2000
+      - name: Test real 2000 car materialization and full race handoff
+        run: node --test tests/historicalCarResultBaseline.test.js tests/historicalCarSeasonMaterialization.test.js tests/season2000EndToEnd.real.test.js
+      - name: Audit generated 2000 car ranking and provenance
+        run: npm run audit:cars:historical
