@@ -74,6 +74,13 @@ export function materializeHistoricalSeasonCarStats({
       const evidence=verifiedByTeam.get(team)||proxyByTeam.get(team);
       if(evidence)return toSpecs(evidence,yr);
       const fallback=inheritedByTeam.get(team);
-      return fallback?{...fallback,team_id:team,year:yr}:null;
+      const sourceYear=num(fallback?.year??fallback?.season_year);
+      // Never present a decades-old manual car (e.g. 1980) as an untouched
+      // 2000 car. Nearby historical specs can carry over provisionally.
+      return fallback&&Number.isFinite(sourceYear)&&yr-sourceYear>=0&&yr-sourceYear<=2
+        ?{...fallback,team_id:team,year:yr,
+          generation_source:"historical_nearby_spec_carryover",
+          historical_baseline_confidence:"low",source_season:sourceYear}
+        :null;
     }).filter(Boolean);
 }
