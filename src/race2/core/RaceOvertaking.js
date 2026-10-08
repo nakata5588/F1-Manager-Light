@@ -18,6 +18,8 @@ import {
 } from "./RaceTraffic.js";
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.85;
+export const RACE_BATTLE_APPROACH_LATERAL_OFFSET_M=0.95;
+export const RACE_BATTLE_SIDE_BY_SIDE_GAP_M=7.5;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
 export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
 export const RACE_BATTLE_CONTACT_PROXIMITY_M=2.6;
@@ -287,6 +289,46 @@ function withYieldingBattle(car,{opponentCarId,role,side,result,cooldownUntilMs}
   };
 }
 
+function withApproachBattle(car,{
+  opponentCarId,
+  role,
+  side,
+  attemptId,
+  startedTick,
+  startedAtMs,
+  expiresAtMs,
+  gapM=RACE_OVERTAKE_ATTEMPT_RANGE_M,
+}){
+  const gap=Math.max(0,finite(gapM,RACE_OVERTAKE_ATTEMPT_RANGE_M));
+  const approachProgress=clamp(
+    (RACE_OVERTAKE_ATTEMPT_RANGE_M-gap)/
+      Math.max(1,RACE_OVERTAKE_ATTEMPT_RANGE_M-RACE_BATTLE_SIDE_BY_SIDE_GAP_M),
+    0,
+    1
+  );
+  const laneShare=role==="attacker"
+    ?0.18+approachProgress*0.82
+    :approachProgress*0.10;
+  const direction=role==="attacker"?side:-side;
+  return {
+    ...car,
+    lateralOffsetM:Number((direction*RACE_BATTLE_APPROACH_LATERAL_OFFSET_M*laneShare).toFixed(3)),
+    battle:{
+      phase:"approach",
+      opponentCarId,
+      role,
+      side,
+      attemptId,
+      startedTick,
+      startedAtMs,
+      expiresAtMs,
+      contactRiskPct:null,
+      result:null,
+      cooldownUntilMs:finite(car?.battle?.cooldownUntilMs,0),
+    },
+  };
+}
+
 function withBattle(car,{
   opponentCarId,
   role,
@@ -352,6 +394,24 @@ function paceOpportunityValue(car){
   return paceMode(car)==="attack"?1:paceMode(car)==="conserve"?-1:0;
 }
 
+function tyreConditionRatio(car){
+  return clamp(finite(car?.tyre?.condition,100)/100,0,1);
+}
+
+function tyreCompoundGrip(car){
+  return clamp(finite(car?.tyre?.grip_index,75),45,100);
+}
+
+function battleDamageLoad(car){
+  const damage=car?.damage||{};
+  const paceLoss=Math.max(0,finite(damage?.pace_loss_s_per_lap,0));
+  const aero=clamp(finite(damage?.aero_loss_pct,0)/100,0,1);
+  const handling=clamp(finite(damage?.handling_loss_pct,0)/100,0,1);
+  const braking=clamp(finite(damage?.braking_loss_pct,0)/100,0,1);
+  const structural=aero*0.35+handling*0.45+braking*0.20;
+  return clamp((paceLoss/3.5)*0.65+structural*0.35,0,1);
+}
+
 function trackOpportunityContext(attacker,defender){
   const severity=Math.max(
     clamp(attacker?.effectiveCornerSeverity,0,1),
@@ -382,6 +442,15 @@ export function raceOvertakeOpportunityFactors(state,attacker,defender,{
   const attackerTyreGrip=finite(attackerResources?.tyreGripMultiplier,1);
   const defenderTyreGrip=finite(defenderResources?.tyreGripMultiplier,1);
   const tyreGripEdge=attackerTyreGrip-defenderTyreGrip;
+  const attackerCompoundGrip=tyreCompoundGrip(attacker);
+  const defenderCompoundGrip=tyreCompoundGrip(defender);
+  const compoundGripEdge=attackerCompoundGrip-defenderCompoundGrip;
+  const attackerTyreCondition=tyreConditionRatio(attacker);
+  const defenderTyreCondition=tyreConditionRatio(defender);
+  const tyreConditionEdge=attackerTyreCondition-defenderTyreCondition;
+  const attackerDamageLoad=battleDamageLoad(attacker);
+  const defenderDamageLoad=battleDamageLoad(defender);
+  const damageEdge=defenderDamageLoad-attackerDamageLoad;
   const attackerPace=paceMode(attacker);
   const defenderPace=paceMode(defender);
   const strategyEdge=clamp(
@@ -399,25 +468,34 @@ export function raceOvertakeOpportunityFactors(state,attacker,defender,{
   const driverFactor=clamp(finite(matchup?.driverEdge,0)/35,-1,1);
   const carFactor=clamp(finite(matchup?.carEdge,0)/35,-1,1);
   const tyreFactor=clamp(tyreGripEdge/0.12,-1,1);
+  const compoundFactor=clamp(compoundGripEdge/12,-1,1);
+  const tyreWearFactor=clamp(tyreConditionEdge/0.45,-1,1);
+  const damageFactor=clamp(damageEdge/0.70,-1,1);
   const activeTowStrength=clamp(
     towStrength==null?attacker?.traffic?.slipstreamStrength:towStrength,
     0,
     1
   );
 
+  // Opportunity uses the canonical inputs the player actually manages:
+  // driver, car, strategy, compound/grip, tyre life and persistent damage.
+  // Closing speed and tow remain physical prerequisites rather than UI bonuses.
   const contributions={
-    gap:gapFactor*0.15,
+    gap:gapFactor*0.13,
     closing:closingFactor*0.11,
     driver:driverFactor*0.20,
     car:carFactor*0.11,
-    tyre:tyreFactor*0.10,
-    strategy:strategyEdge*0.14,
-    tow:activeTowStrength*0.14,
+    tyre:tyreFactor*0.08,
+    compound:compoundFactor*0.05,
+    tyreWear:tyreWearFactor*0.06,
+    damage:damageFactor*0.09,
+    strategy:strategyEdge*0.12,
+    tow:activeTowStrength*0.12,
     track:trackContext.score>=0
-      ?trackContext.score*0.08
-      :trackContext.score*0.12,
+      ?trackContext.score*0.07
+      :trackContext.score*0.10,
   };
-  const rawProbability=0.20+Object.values(contributions).reduce((sum,value)=>sum+value,0);
+  const rawProbability=0.18+Object.values(contributions).reduce((sum,value)=>sum+value,0);
   const trackFactor=overtakingTrackFactor(state);
   const probability=clamp(rawProbability*trackFactor,0.02,0.94);
 
@@ -437,6 +515,18 @@ export function raceOvertakeOpportunityFactors(state,attacker,defender,{
     defenderTyreGrip:round(defenderTyreGrip,6),
     tyreGripEdge:round(tyreGripEdge,6),
     tyreFactor:round(tyreFactor,6),
+    attackerCompoundGrip:round(attackerCompoundGrip,3),
+    defenderCompoundGrip:round(defenderCompoundGrip,3),
+    compoundGripEdge:round(compoundGripEdge,3),
+    compoundFactor:round(compoundFactor,6),
+    attackerTyreCondition:round(attackerTyreCondition,6),
+    defenderTyreCondition:round(defenderTyreCondition,6),
+    tyreConditionEdge:round(tyreConditionEdge,6),
+    tyreWearFactor:round(tyreWearFactor,6),
+    attackerDamageLoad:round(attackerDamageLoad,6),
+    defenderDamageLoad:round(defenderDamageLoad,6),
+    damageEdge:round(damageEdge,6),
+    damageFactor:round(damageFactor,6),
     attackerPace,
     defenderPace,
     strategyEdge:round(strategyEdge,6),
@@ -640,7 +730,7 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
 
   for(const previousAttacker of state?.cars||[]){
     const previousBattle=previousAttacker?.battle;
-    if(previousBattle?.phase!=="side_by_side"||previousBattle?.role!=="attacker")continue;
+    if(!["approach","side_by_side"].includes(String(previousBattle?.phase||""))||previousBattle?.role!=="attacker")continue;
     const attemptId=String(previousBattle?.attemptId??"");
     if(!attemptId||handledAttempts.has(attemptId))continue;
     handledAttempts.add(attemptId);
@@ -681,6 +771,73 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
     }
 
     const clearance=physicalClearanceM(state,attacker,defender);
+
+    if(previousBattle?.phase==="approach"){
+      const approachGapM=Math.max(0,-clearance);
+      const expired=nextTime>=finite(previousBattle?.expiresAtMs,nextTime);
+      if(clearance>=-RACE_BATTLE_SIDE_BY_SIDE_GAP_M){
+        const side=Number(previousBattle?.side)||1;
+        attacker=withBattle(attacker,{
+          opponentCarId:defender?.carId,
+          role:"attacker",
+          side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:previousBattle?.expiresAtMs,
+          contactRiskPct:0,
+        });
+        defender=withBattle(defender,{
+          opponentCarId:attacker?.carId,
+          role:"defender",
+          side:-side,
+          attemptId,
+          startedTick:previousBattle?.startedTick,
+          startedAtMs:previousBattle?.startedAtMs,
+          expiresAtMs:previousBattle?.expiresAtMs,
+          contactRiskPct:0,
+        });
+        cars=setCar(setCar(cars,attacker),defender);
+        bypassPairs.add(pairKey);
+        continue;
+      }
+      if(expired||approachGapM>RACE_OVERTAKE_ATTEMPT_RANGE_M*1.35){
+        attacker=clearBattle(attacker,{result:"failed",cooldownUntilMs});
+        defender=clearBattle(defender,{result:"defended",cooldownUntilMs});
+        cars=setCar(setCar(cars,attacker),defender);
+        events.push(eventDescriptor("overtake_failed",state,attacker,defender,{
+          attemptId,
+          reason:expired?"approach_timeout":"defender_clear",
+        }));
+        continue;
+      }
+
+      const side=Number(previousBattle?.side)||1;
+      attacker=withApproachBattle(attacker,{
+        opponentCarId:defender?.carId,
+        role:"attacker",
+        side,
+        attemptId,
+        startedTick:previousBattle?.startedTick,
+        startedAtMs:previousBattle?.startedAtMs,
+        expiresAtMs:previousBattle?.expiresAtMs,
+        gapM:approachGapM,
+      });
+      defender=withApproachBattle(defender,{
+        opponentCarId:attacker?.carId,
+        role:"defender",
+        side:-side,
+        attemptId,
+        startedTick:previousBattle?.startedTick,
+        startedAtMs:previousBattle?.startedAtMs,
+        expiresAtMs:previousBattle?.expiresAtMs,
+        gapM:approachGapM,
+      });
+      cars=setCar(setCar(cars,attacker),defender);
+      bypassPairs.add(pairKey);
+      continue;
+    }
+
     const contactProximityM=Math.abs(clearance);
     const contactProbability=contactProximityM<=RACE_BATTLE_CONTACT_PROXIMITY_M
       ?battleContactProbability(state,previousAttacker,previousDefender,{stepMs})
@@ -884,7 +1041,7 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       5
     );
 
-    attacker=withBattle(attacker,{
+    attacker=withApproachBattle(attacker,{
       opponentCarId:defender?.carId,
       role:"attacker",
       side,
@@ -892,9 +1049,9 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       startedTick:state?.tick,
       startedAtMs:now,
       expiresAtMs,
-      contactRiskPct,
+      gapM:opportunity.gapM,
     });
-    defender=withBattle(defender,{
+    defender=withApproachBattle(defender,{
       opponentCarId:attacker?.carId,
       role:"defender",
       side:-side,
@@ -902,7 +1059,7 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       startedTick:state?.tick,
       startedAtMs:now,
       expiresAtMs,
-      contactRiskPct,
+      gapM:opportunity.gapM,
     });
 
     cars=setCar(setCar(cars,attacker),defender);
@@ -939,10 +1096,19 @@ function startNewBattles(state,proposedCars,existingBypass,{stepMs=100,blockedPa
       opportunityContributions:opportunity?.factors?.contributions??null,
       towStrength:round(opportunity.towStrength,6),
       towBonusKmh:round(opportunity.towBonusKmh,6),
+      phase:"approach",
+      attackerTyreCondition:opportunity?.factors?.attackerTyreCondition??null,
+      defenderTyreCondition:opportunity?.factors?.defenderTyreCondition??null,
+      tyreConditionEdge:opportunity?.factors?.tyreConditionEdge??null,
+      attackerDamageLoad:opportunity?.factors?.attackerDamageLoad??null,
+      defenderDamageLoad:opportunity?.factors?.defenderDamageLoad??null,
+      damageEdge:opportunity?.factors?.damageEdge??null,
     }));
 
     // The first battle tick keeps RW8.5's longitudinal hard gap. From the
-    // following tick the active battle itself authorizes side-by-side overlap.
+    // following tick the approach phase owns this pair, releases the canonical
+    // traffic-following ceiling and moves the attacker progressively off-line.
+    // Only once the cars are physically close does the state become side-by-side.
   }
 
   return {cars,events,bypassPairs};
