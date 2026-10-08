@@ -176,7 +176,7 @@ function useContinuousCars(view,{playbackRunning=false,playbackSpeed=1}={}){
         realAtMs:now,
         playbackRunning:Boolean(playbackRunning),
         playbackSpeed:Math.max(.05,finite(playbackSpeed,1)),
-        correctionTauS:playbackSpeed>=8?.20:.32,
+        correctionTauS:playbackSpeed>=16?.42:playbackSpeed>=8?.20:.32,
         absoluteCorrectionM:reset?0:correctionAbsolute,
         lateralCorrectionM:reset?0:correctionLateral,
       });
@@ -537,7 +537,6 @@ function UndercutTrackViewport({
       <polyline points={polyline} fill="none" stroke="#25292d" strokeWidth={asphaltWidthSvg*1.17} strokeLinecap="round" strokeLinejoin="round" opacity=".7"/>
       <polyline points={polyline} fill="none" stroke="#f5f5f4" strokeWidth={asphaltWidthSvg*1.08} strokeLinecap="round" strokeLinejoin="round"/>
       <polyline points={polyline} fill="none" stroke={wetness>0.08?"#42474c":"#55585d"} strokeWidth={asphaltWidthSvg} strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={polyline} fill="none" stroke="#686b70" strokeWidth={Math.max(.25,asphaltWidthSvg*.023)} strokeLinecap="round" strokeLinejoin="round" opacity=".65"/>
       {view?.pit_lane?.available&&pitLanePoints.length>1?<g pointerEvents="none">
         <polyline points={pitPolyline} fill="none" stroke="#202428" strokeWidth={asphaltWidthSvg*.80} strokeLinecap="round" strokeLinejoin="round" opacity=".9"/>
         <polyline points={pitPolyline} fill="none" stroke="#686b70" strokeWidth={asphaltWidthSvg*.62} strokeLinecap="round" strokeLinejoin="round"/>
