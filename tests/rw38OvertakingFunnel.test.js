@@ -34,3 +34,34 @@ test("RW38-A keeps orphan and incomplete outcomes visible instead of inventing r
   assert.equal(report.byOutcome.aborted,1);
   assert.equal(report.failureReasons.local_yellow,1);
 });
+
+test("RW38-A CI emits compact four-seed 1980 funnel report", {timeout:300_000}, async t=>{
+  const {execFileSync}=await import("node:child_process");
+  const {fileURLToPath}=await import("node:url");
+  const path=(await import("node:path")).default;
+  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+  const output=execFileSync(process.execPath,[
+    path.join(root,"scripts","audit-race-behaviour.mjs"),
+    "--seeds=4","--scenario=1980-dry","--json-only"
+  ],{cwd:root,encoding:"utf8",timeout:290_000,maxBuffer:12*1024*1024});
+  const line=output.split(/\r?\n/).find(row=>row.startsWith("RW11A_JSON="));
+  assert.ok(line,"canonical audit must produce JSON");
+  const report=JSON.parse(line.slice("RW11A_JSON=".length));
+  const scenario=report.scenarios["1980-dry"];
+  assert.equal(scenario.runs.length,4);
+  const summary={
+    scenario:"1980-dry",
+    seeds:4,
+    funnel:scenario.overtakingFunnel,
+    perSeed:scenario.runs.map(run=>({
+      seed:run.seed,
+      attempted:run.overtakingFunnel.attempts,
+      outcomes:run.overtakingFunnel.byOutcome,
+      reasons:run.overtakingFunnel.failureReasons,
+      completionRatePct:run.overtakingFunnel.completionRatePct,
+      averageInitialGapM:run.overtakingFunnel.averageInitialGapM,
+      averageClosingPotentialMs:run.overtakingFunnel.averageClosingPotentialMs
+    }))
+  };
+  t.diagnostic("RW38_CI_FUNNEL="+JSON.stringify(summary));
+});
