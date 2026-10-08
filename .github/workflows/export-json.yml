@@ -204,6 +204,9 @@ jobs:
       - name: Test generated Season Packs
         run: npm run test:season-packs
 
+      - name: Test 2000 Season Pack to canonical Race and official Results
+        run: node --test tests/season2000EndToEnd.real.test.js
+
       - name: Audit 2000 Results-derived Season Pack cars
         run: npm run audit:cars:historical
 
