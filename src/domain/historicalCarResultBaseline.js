@@ -1,3 +1,4 @@
+import { historicalResultInfo } from "./historicalRaceStatus.js";
 // Historical car baseline for the START of a newly selected season only.
 // Input rows must already have a verified managerial team_id / entrant mapping.
 // Do not call this for a simulated next season; driver materialization is separate.
@@ -8,9 +9,9 @@ const id=(v)=>String(v??"").trim();
 const statusOf=(r)=>id(r?.status??r?.statusId??r?.status_text).toLowerCase();
 const finishPosition=(r)=>number(r?.positionOrder??r?.position_order??r?.position,null);
 const gridPosition=(r)=>number(r?.grid??r?.grid_position,null);
-const isClassified=(r)=>r?.classified===true||/^(finished|classified|\+\d+ laps?)$/i.test(statusOf(r));
+const isClassified=(r)=>r?.classified===true||historicalResultInfo(r).key==="finished";
 const mechanical=(r)=>r?.retirement_category==="mechanical"||/engine|gearbox|transmission|hydraulic|electrical|suspension|brake|mechanical|oil|clutch|fuel|overheat/i.test(statusOf(r));
-const isDnq=(r)=>/dnq|dnpq|did not qualify|did not prequalify/i.test(statusOf(r))||r?.qualified===false;
+const isDnq=(r)=>historicalResultInfo(r).key==="dnq"||/dnpq|did not prequalify/i.test(statusOf(r))||r?.qualified===false;
 const isAccident=(r)=>/accident|collision|spin|crash/i.test(statusOf(r))||r?.retirement_category==="accident";
 const round1=(n)=>Number(n.toFixed(1));
 
