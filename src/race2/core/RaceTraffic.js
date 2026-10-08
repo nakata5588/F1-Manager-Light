@@ -85,9 +85,10 @@ export function raceTrafficPairKey(a,b){
 
 export function carsShareActiveBattle(a,b){
   if(!a||!b)return false;
+  const activePhases=new Set(["approach","side_by_side"]);
   return (
-    a?.battle?.phase==="side_by_side"&&
-    b?.battle?.phase==="side_by_side"&&
+    activePhases.has(String(a?.battle?.phase||"none"))&&
+    activePhases.has(String(b?.battle?.phase||"none"))&&
     String(a?.battle?.opponentCarId??"")===String(b?.carId??"")&&
     String(b?.battle?.opponentCarId??"")===String(a?.carId??"")
   );
