@@ -1192,3 +1192,56 @@ test("RW36 equal Hard tyres still allow a genuine driver/car advantage to pass p
   assert.equal(state.classification[0].carId,"C2");
 });
 
+test("RW37 overtake approach keeps the defender tow while releasing its traffic ceiling",()=>{
+  let state=runningState({seed:"rw37-approach-tow"});
+  const attemptId="rw37:approach-tow:C2:C1";
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:120,distanceAlongLapM:120,speedMs:60,speedKmh:216,
+      effectiveCornerSeverity:0,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+    C2:{
+      absoluteDistanceM:108,distanceAlongLapM:108,speedMs:60,speedKmh:216,
+      effectiveCornerSeverity:0,
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+  });
+
+  const next=stepRaceState(state);
+  const attacker=car(next,"C2");
+  assert.equal(attacker.battle.phase,"approach");
+  assert.equal(attacker.traffic.aheadCarId,null);
+  assert.equal(attacker.traffic.slipstreamAheadCarId,"C1");
+  assert.equal(attacker.traffic.slipstreamActive,true);
+  assert.ok(attacker.traffic.slipstreamTargetBonusKmh>0);
+});
+
+test("RW37 approach racecraft affects the attacker before side-by-side without slowing the defender",()=>{
+  let state=runningState({seed:"rw37-approach-racecraft"});
+  const attemptId="rw37:racecraft:C2:C1";
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:120,distanceAlongLapM:120,speedMs:50,speedKmh:180,
+      performance:{
+        car:{race:62,power:62,chassis:64},
+        driver:{raceScore:64,overtaking:55,defending:58,raceIntelligence:62,mistakePropensity:15,aggression:45},
+      },
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C2",role:"defender",side:-1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+    C2:{
+      absoluteDistanceM:110,distanceAlongLapM:110,speedMs:50,speedKmh:180,
+      performance:{
+        car:{race:92,power:94,chassis:90},
+        driver:{raceScore:95,overtaking:97,defending:90,raceIntelligence:95,mistakePropensity:10,aggression:65},
+      },
+      battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
+    },
+  });
+
+  const attackerMultiplier=raceBattlePaceMultiplier(state,car(state,"C2"));
+  const defenderMultiplier=raceBattlePaceMultiplier(state,car(state,"C1"));
+  assert.ok(attackerMultiplier>1.02);
+  assert.equal(defenderMultiplier,1);
+});
+
