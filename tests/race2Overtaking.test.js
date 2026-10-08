@@ -612,7 +612,7 @@ test("RW25 driver and car strength materially bias an active side-by-side battle
   assert.equal(next.classification[0].carId,"C2");
 });
 
-test("RW8.6 a deterministic close-range attempt enters canonical side-by-side state",()=>{
+test("RW36 a deterministic close-range attempt approaches before going side-by-side",()=>{
   let base=runningState();
   base=patchCars(base,{
     C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:40,speedKmh:144,effectiveCornerSeverity:0},
@@ -635,15 +635,23 @@ test("RW8.6 a deterministic close-range attempt enters canonical side-by-side st
   assert.ok(chosen,"expected at least one deterministic attempt window");
   const attacker=car({cars:chosen.resolved.cars},"C2");
   const defender=car({cars:chosen.resolved.cars},"C1");
-  assert.equal(attacker.battle.phase,"side_by_side");
-  assert.equal(defender.battle.phase,"side_by_side");
+  assert.equal(attacker.battle.phase,"approach");
+  assert.equal(defender.battle.phase,"approach");
   assert.equal(attacker.battle.opponentCarId,"C1");
   assert.equal(defender.battle.opponentCarId,"C2");
-  assert.equal(attacker.lateralOffsetM,-defender.lateralOffsetM);
-  assert.equal(Math.abs(attacker.lateralOffsetM),RACE_BATTLE_LATERAL_OFFSET_M);
+  assert.ok(Math.abs(attacker.lateralOffsetM)>Math.abs(defender.lateralOffsetM));
+  assert.ok(Math.abs(attacker.lateralOffsetM)<RACE_BATTLE_LATERAL_OFFSET_M);
 
   const again=resolveRaceOvertaking(chosen.state,chosen.state.cars,{stepMs:100});
   assert.deepEqual(again,chosen.resolved);
+
+  let canonical={...chosen.state,cars:chosen.resolved.cars};
+  for(let index=0;index<8&&car(canonical,"C2").battle.phase==="approach";index+=1){
+    canonical=stepRaceState(canonical);
+  }
+  assert.equal(car(canonical,"C2").battle.phase,"side_by_side");
+  assert.equal(car(canonical,"C1").battle.phase,"side_by_side");
+  assert.equal(Math.abs(car(canonical,"C2").lateralOffsetM),RACE_BATTLE_LATERAL_OFFSET_M);
 });
 
 test("RW8.6 active side-by-side battle may close below longitudinal hard gap without overlap",()=>{
