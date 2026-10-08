@@ -289,5 +289,7 @@ jobs:
           node scripts/build-season-packs.mjs --years=2000
       - name: Test real 2000 car materialization and full race handoff
         run: node --test tests/historicalCarResultBaseline.test.js tests/historicalCarSeasonMaterialization.test.js tests/season2000EndToEnd.real.test.js
+      - name: Test real 2000 Practice and Qualifying
+        run: node --test tests/season2000Weekend.real.test.js
       - name: Audit generated 2000 car ranking and provenance
         run: npm run audit:cars:historical
