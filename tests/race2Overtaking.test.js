@@ -16,7 +16,7 @@ import {
   raceOvertakeOpportunityFactors,
   resolveRaceOvertaking,
 } from "../src/race2/core/RaceOvertaking.js";
-import { RACE_TRAFFIC_HARD_GAP_M } from "../src/race2/core/RaceTraffic.js";
+import { RACE_TRAFFIC_HARD_GAP_M, raceTrafficContext } from "../src/race2/core/RaceTraffic.js";
 import { createLiveRaceRunner, runFastRace } from "../src/race2/core/RaceRunner.js";
 
 function input({seed="rw8.6",laps=10,stepMs=100,overtakingDifficulty=50}={}){
@@ -1192,7 +1192,7 @@ test("RW36 equal Hard tyres still allow a genuine driver/car advantage to pass p
   assert.equal(state.classification[0].carId,"C2");
 });
 
-test("RW37 overtake approach keeps the defender tow while releasing its traffic ceiling",()=>{
+test("RW37 overtake approach keeps the defender tow inside a traffic train",()=>{
   let state=runningState({seed:"rw37-approach-tow"});
   const attemptId="rw37:approach-tow:C2:C1";
   state=patchCars(state,{
@@ -1207,14 +1207,29 @@ test("RW37 overtake approach keeps the defender tow while releasing its traffic 
       battle:{...initialBattleState(),phase:"approach",opponentCarId:"C1",role:"attacker",side:1,attemptId,startedTick:0,startedAtMs:0,expiresAtMs:9000},
     },
   });
+  state={
+    ...state,
+    cars:[
+      ...state.cars,
+      {
+        ...car(state,"C1"),
+        carId:"C3",
+        driverId:"D3",
+        teamId:"T3",
+        gridPosition:3,
+        absoluteDistanceM:136,
+        distanceAlongLapM:136,
+        battle:initialBattleState(),
+        lateralOffsetM:0,
+      },
+    ],
+  };
 
-  const next=stepRaceState(state);
-  const attacker=car(next,"C2");
-  assert.equal(attacker.battle.phase,"approach");
-  assert.equal(attacker.traffic.aheadCarId,null);
-  assert.equal(attacker.traffic.slipstreamAheadCarId,"C1");
-  assert.equal(attacker.traffic.slipstreamActive,true);
-  assert.ok(attacker.traffic.slipstreamTargetBonusKmh>0);
+  const context=raceTrafficContext(state,car(state,"C2"));
+  assert.equal(context.aheadCarId,"C3");
+  assert.equal(context.slipstream.aheadCarId,"C1");
+  assert.equal(context.slipstream.active,true);
+  assert.ok(context.slipstream.targetBonusKmh>0);
 });
 
 test("RW37 approach racecraft affects the attacker before side-by-side without slowing the defender",()=>{
