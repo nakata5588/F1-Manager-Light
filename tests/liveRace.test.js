@@ -197,8 +197,19 @@ test("high-risk crash events carry medical concern into the observed Race Feed",
   let incident=null;
   for(let index=0;index<160&&!incident;index+=1){
     const candidate=createLiveRaceState(fixture(`medical-feed-${index}`),{gp});
+    const live=candidate?.raceWeekendState?.live_race||{};
+    const currentLap=Math.max(1,Number(live?.current_lap)||1);
+    const currentSector=Math.max(1,Math.min(3,Number(live?.current_sector)||1));
+    const currentOrdinal=(currentLap-1)*3+currentSector;
     const found=(candidate.raceWeekendState.race_strategy.race_control_plan?.incidents||[])
-      .find((row)=>["high","critical"].includes(String(row?.severity||"").toLowerCase())&&/accident|collision/i.test(String(row?.kind||row?.reason||"")));
+      .find((row)=>{
+        const lap=Math.max(1,Number(row?.lap)||1);
+        const sector=Math.max(1,Math.min(3,Number(row?.sector)||1));
+        const ordinal=(lap-1)*3+sector;
+        return ordinal>currentOrdinal&&
+          ["high","critical"].includes(String(row?.severity||"").toLowerCase())&&
+          /accident|collision/i.test(String(row?.kind||row?.reason||""));
+      });
     if(found){
       gs=candidate;
       incident=found;
