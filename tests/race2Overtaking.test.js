@@ -1154,3 +1154,41 @@ test("RW36 tyre life and damage materially change the same battle opportunity",(
   assert.ok(advantage.contributions.damage>0);
 });
 
+test("RW36 equal Hard tyres still allow a genuine driver/car advantage to pass physically",()=>{
+  let state=runningState({seed:"rw36-hard-hard-pass"});
+  const hardTyre=(row)=>({
+    ...row.tyre,
+    tyre_id:"rw36_hard",
+    compound:"Hard",
+    category:"dry",
+    grip_index:74,
+    condition:100,
+    grip_multiplier:1,
+    temperature_c:row.tyre?.optimal_temperature_c??96,
+  });
+  state=patchCars(state,{
+    C1:{
+      absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162,effectiveCornerSeverity:0,
+      tyre:hardTyre(car(state,"C1")),
+      resources:{...car(state,"C1").resources,paceMode:"balanced"},
+    },
+    C2:{
+      absoluteDistanceM:90,distanceAlongLapM:90,speedMs:45,speedKmh:162,effectiveCornerSeverity:0,
+      tyre:hardTyre(car(state,"C2")),
+      resources:{...car(state,"C2").resources,paceMode:"balanced"},
+    },
+  });
+
+  let started=false;
+  let completed=false;
+  for(let index=0;index<240&&!completed;index+=1){
+    state=stepRaceState(state);
+    started=started||state.events.some((event)=>event.type==="overtake_started");
+    completed=state.events.some((event)=>event.type==="overtake_completed");
+  }
+
+  assert.equal(started,true);
+  assert.equal(completed,true);
+  assert.equal(state.classification[0].carId,"C2");
+});
+
