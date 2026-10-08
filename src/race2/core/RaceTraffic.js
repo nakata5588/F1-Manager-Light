@@ -200,6 +200,15 @@ export function raceTrafficContext(
   {ignoreBattleOpponent=true,excludedCarIds=null}={}
 ){
   const nearest=nearestTrafficAhead(state,car,{ignoreBattleOpponent,excludedCarIds});
+  const battlePhase=String(car?.battle?.phase||"none");
+  // During an overtake approach the opponent must stop acting as a longitudinal
+  // traffic ceiling, but it is still the aerodynamic car ahead. In a train the
+  // old implementation accidentally switched the tow to the *next* car once
+  // the approach began, which removed the physical closing aid we had just
+  // used to commit the move.
+  const slipstreamNearest=battlePhase==="approach"
+    ?nearestTrafficAhead(state,car,{ignoreBattleOpponent:false,excludedCarIds})
+    :nearest;
   const desiredGapM=desiredTrafficGapM(car);
 
   if(!nearest){
@@ -210,7 +219,7 @@ export function raceTrafficContext(
       desiredGapM,
       followRangeM:null,
       speedCeilingMs:null,
-      slipstream:raceSlipstreamContext(state,car,{nearest:null}),
+      slipstream:raceSlipstreamContext(state,car,{nearest:slipstreamNearest}),
     };
   }
 
@@ -246,7 +255,7 @@ export function raceTrafficContext(
     desiredGapM,
     followRangeM:round(followRangeM,6),
     speedCeilingMs:speedCeilingMs==null?null:round(speedCeilingMs,6),
-    slipstream:raceSlipstreamContext(state,car,{nearest}),
+    slipstream:raceSlipstreamContext(state,car,{nearest:slipstreamNearest}),
   };
 }
 
