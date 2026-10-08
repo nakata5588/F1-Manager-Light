@@ -198,8 +198,14 @@ jobs:
       - name: Test historical New Game opening state
         run: npm run test:opening-state
 
+      - name: Test historical car materialization rules
+        run: npm run test:cars:historical
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
+
+      - name: Audit 2000 Results-derived Season Pack cars
+        run: npm run audit:cars:historical
 
       - name: Audit historical driver ratings and roles
         run: npm run audit:drivers:historical-calibration
