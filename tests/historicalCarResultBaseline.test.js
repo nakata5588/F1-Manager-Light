@@ -33,3 +33,10 @@ test("accident is not counted as mechanical failure",()=>{
   const b=materializeHistoricalCarBaselines([{year:2000,round:1,team_id:"t",driver_id:"a",position:20,status:"Engine"}],2000)[0];
   assert.ok(a.reliability>b.reliability);
 });
+
+test("canonical archive F/DNF status codes are interpreted for qualifying and finishing",()=>{
+  const normal=materializeHistoricalCarBaselines([{year:2000,round:1,team_id:"t",driver_id:"a",grid:1,positionOrder:1,positionText:"1",status:"Finished"}],2000)[0];
+  const dnq=materializeHistoricalCarBaselines([{year:2000,round:1,team_id:"t",driver_id:"a",grid:0,positionText:"F",status:"Failed to qualify"}],2000)[0];
+  assert.ok(normal.race>dnq.race);
+  assert.equal(dnq.historical_dnq_rate,100);
+});
