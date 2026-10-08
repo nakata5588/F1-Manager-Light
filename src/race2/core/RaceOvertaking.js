@@ -489,8 +489,8 @@ export function raceOvertakeOpportunityFactors(state,attacker,defender,{
     compound:compoundFactor*0.05,
     tyreWear:tyreWearFactor*0.06,
     damage:damageFactor*0.09,
-    strategy:strategyEdge*0.12,
-    tow:activeTowStrength*0.12,
+    strategy:strategyEdge*0.14,
+    tow:activeTowStrength*0.14,
     track:trackContext.score>=0
       ?trackContext.score*0.07
       :trackContext.score*0.10,
