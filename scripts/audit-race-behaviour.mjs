@@ -245,8 +245,9 @@ for(const scenario of selected){
       attempts:runs.reduce((n,r)=>n+r.overtakingFunnel.attempts,0),
       outcomes:Object.fromEntries(["completed","failed","aborted","contact","unresolved"].map(k=>[k,runs.reduce((n,r)=>n+r.overtakingFunnel.byOutcome[k],0)])),
       failureReasons:runs.reduce((acc,r)=>{for(const [k,v] of Object.entries(r.overtakingFunnel.failureReasons)){acc[k]=(acc[k]||0)+v;}return acc;},{}),
-      sideBySideCount:null,
-      limitation:"Cannot count pre-attempt gate rejections or side-by-side transitions using current canonical events.",
+      sideBySideCount:runs.reduce((n,r)=>n+r.overtakingFunnel.sideBySideCount,0),
+      failedBeforeSideBySide:runs.reduce((n,r)=>n+r.overtakingFunnel.failedBeforeSideBySide,0),
+      limitation:"Pre-attempt gate rejections are not available as canonical events.",
     },
     runs,
   };
