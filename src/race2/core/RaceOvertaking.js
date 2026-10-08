@@ -18,7 +18,7 @@ import {
 } from "./RaceTraffic.js";
 
 export const RACE_BATTLE_LATERAL_OFFSET_M=1.85;
-export const RACE_BATTLE_APPROACH_LATERAL_OFFSET_M=0.95;
+export const RACE_BATTLE_APPROACH_LATERAL_OFFSET_M=1.30;
 export const RACE_BATTLE_SIDE_BY_SIDE_GAP_M=7.5;
 export const RACE_OVERTAKE_ATTEMPT_RANGE_M=22;
 export const RACE_OVERTAKE_DECISIVE_CLEARANCE_M=1.5;
@@ -155,21 +155,26 @@ export function raceBattlePerformanceMatchup(attacker,defender){
 
 export function raceBattlePaceMultiplier(state,car){
   const battle=car?.battle||{};
-  if(String(battle?.phase||"none")!=="side_by_side")return 1;
+  const phase=String(battle?.phase||"none");
+  if(!["approach","side_by_side"].includes(phase))return 1;
   const opponent=carById(state?.cars,battle?.opponentCarId);
   if(!opponent)return 1;
 
   const attacker=String(battle?.role||"")==="attacker"?car:opponent;
   const defender=String(battle?.role||"")==="attacker"?opponent:car;
   const matchup=raceBattlePerformanceMatchup(attacker,defender);
-  const ownEdge=String(battle?.role||"")==="attacker"
-    ?matchup.edge
-    :-matchup.edge;
+  const role=String(battle?.role||"");
 
-  // Side-by-side pace is deliberately influenced much more strongly by the
-  // driver/car matchup than the initial visual implementation was. Normal
-  // tyre, damage, weather and track dynamics still apply outside this narrow
-  // duel multiplier.
+  if(phase==="approach"){
+    // Overtaking/defending skill must become physical before the cars are
+    // already side-by-side. Only the attacker receives the narrow approach
+    // modifier; the defender keeps its ordinary canonical pace rather than
+    // being artificially slowed to manufacture a pass.
+    if(role!=="attacker")return 1;
+    return round(clamp(1+matchup.edge*0.0010,0.96,1.04),6);
+  }
+
+  const ownEdge=role==="attacker"?matchup.edge:-matchup.edge;
   return round(clamp(1+ownEdge*0.0022,0.90,1.10),6);
 }
 
