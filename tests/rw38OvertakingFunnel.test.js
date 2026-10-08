@@ -6,6 +6,7 @@ test("RW38-A reconstructs attempts and explains failures without modifying event
   const events=[
     {type:"overtake_started",timeMs:1000,payload:{attemptId:"a",gapM:12,closingPotentialMs:2.5,probability:0.6,trackPhase:"straight"}},
     {type:"overtake_started",timeMs:1500,payload:{attemptId:"b",gapM:17,closingPotentialMs:0.6}},
+    {type:"overtake_side_by_side",timeMs:2400,payload:{attemptId:"a",gapM:6.9,actualClosingMs:2.1}},
     {type:"overtake_completed",timeMs:3000,payload:{attemptId:"a"}},
     {type:"overtake_failed",timeMs:12000,payload:{attemptId:"b",reason:"approach_timeout"}},
   ];
@@ -18,7 +19,9 @@ test("RW38-A reconstructs attempts and explains failures without modifying event
   assert.equal(report.failureReasons.approach_timeout,1);
   assert.equal(report.completionRatePct,50);
   assert.equal(report.averageInitialGapM,14.5);
-  assert.equal(report.sideBySideCount,null);
+  assert.equal(report.sideBySideCount,1);
+  assert.equal(report.failedBeforeSideBySide,1);
+  assert.equal(report.samples[0].lastClosingMs,2.1);
   assert.equal(report.samples[0].durationMs,2000);
 });
 
