@@ -205,11 +205,14 @@ function overtakeClosingPotentialMs(state,attacker,defender){
     overtakingPerformancePotential(attacker,{attacker:true})-
     overtakingPerformancePotential(defender,{attacker:false});
   const performanceClosing=performanceDelta*0.070;
-  return Math.max(
-    currentClosing,
-    freeClosing==null?Number.NEGATIVE_INFINITY:freeClosing,
-    performanceClosing
-  );
+  // Free targets already include driver/car pace, tyres, tyre wear, strategy,
+  // damage and battle racecraft. Using the additional performance estimate as
+  // a competing maximum when those targets exist can launch overtakes that the
+  // actual simulation cannot physically close (RW38 diagnosis).
+  // Retain the performance fallback only before valid free-speed telemetry.
+  return hasFreeTelemetry
+    ?Math.max(currentClosing,freeClosing)
+    :Math.max(currentClosing,performanceClosing);
 }
 
 function battleDurationMs(state,gapM,closingPotentialMs){
