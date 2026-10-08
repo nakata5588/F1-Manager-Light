@@ -282,3 +282,29 @@ test("RW10A adapter preserves a nullable no-stop target instead of coercing it t
     assert.equal(car.resourceSetup.strategy.plannedStopLap,null);
   }
 });
+
+test("RW39 production GameState adapter propagates driver racecraft and player strategy to canonical RaceState",()=>{
+  const gs=fixture();
+  gs.driverRatings=gs.driverRatings.map(row=>row.driver_id==="D1"
+    ?{...row,overtaking:92,defending:81,race_intelligence:87,aggression:73,tire_management:89}
+    :row
+  );
+  gs.raceWeekendState.race_strategy={
+    ...(gs.raceWeekendState.race_strategy||{}),
+    selections:{
+      D1:{pace_mode:"attack",pit_plan:"no_stop",start_tyre_id:null},
+      D2:{pace_mode:"conserve",pit_plan:"no_stop",start_tyre_id:null},
+    },
+  };
+  const source=buildRaceWeekendInput(gs,{gp:{gp_id:"test_gp",gp_name:"Test Grand Prix",track_id:"test_track",race_date:"1980-05-18"}});
+  const driver=source.drivers.find(row=>row.driverId==="D1");
+  const player=source.cars.find(row=>row.driverId==="D1");
+  const ai=source.cars.find(row=>row.driverId==="D2");
+  assert.equal(driver.performance.tyreManagement,89);
+  assert.equal(driver.performance.raceIntelligence,87);
+  assert.equal(driver.performance.aggression,73);
+  assert.equal(player.resourceSetup.strategy.paceMode,"attack");
+  assert.equal(ai.resourceSetup.strategy.paceMode,"conserve");
+  assert.ok(player.resourceSetup.tyres.length>0);
+  assert.ok(player.resourceSetup.tyres.every(row=>row.tyre_id&&Number.isFinite(row.grip_index)&&Number.isFinite(row.wear_rate)));
+});
