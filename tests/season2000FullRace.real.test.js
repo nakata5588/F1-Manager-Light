@@ -16,6 +16,7 @@ import { startRaceState } from "../src/race2/core/RaceSimulation.js";
 import { createLiveRaceRunner,runFastRaceToEnd } from "../src/race2/core/RaceRunner.js";
 import { projectCanonicalRaceStateToOfficialRows } from "../src/race2/adapters/OfficialRaceResultProjection.js";
 import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
+import { summarizeRaceBehaviour } from "../src/race2/diagnostics/RaceBehaviourAudit.js";
 
 async function season2000(){
   const file=new URL("../public/data/seasons/2000/season.json",import.meta.url);
@@ -124,6 +125,64 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.equal(archived.length,22,"all 22 starting drivers need an official result (including DNF)");
   assert.equal(new Set(archived.map(r=>String(r.driver_id))).size,22);
   assert.ok(archived.every(r=>r.team_id&&r.status));
+  // Read-only 2000 behaviour measurement. Results position changes alone are
+  // not proof of on-track overtakes: DNF, pit cycles and strategy also matter.
+  const behaviour=summarizeRaceBehaviour(fast,{scenario:"2000-Australia-real-58-laps"});
+  const battleTypes=new Set([
+    "overtake_started","overtake_side_by_side","overtake_completed",
+    "overtake_failed","overtake_aborted","contact",
+  ]);
+  const battleEvents=(fast.events||[]).filter(event=>battleTypes.has(event?.type));
+  const attempts=battleEvents.filter(event=>event.type==="overtake_started");
+  const successes=battleEvents.filter(event=>event.type==="overtake_completed");
+  const terminal=battleEvents.filter(event=>[
+    "overtake_completed","overtake_failed","overtake_aborted","contact",
+  ].includes(event.type));
+  const terminalAttemptIds=new Set(terminal.map(event=>event?.payload?.attemptId).filter(Boolean));
+  const unresolved=attempts.filter(event=>!terminalAttemptIds.has(event?.payload?.attemptId));
+  const passesByDriver={};
+  const passesByTeam={};
+  for(const event of successes){
+    const driverId=String(event?.driverIds?.[0]||"unknown");
+    const carId=String(event?.carIds?.[0]||"");
+    const teamId=String(fast.cars.find(c=>String(c.carId)===carId)?.teamId||"unknown");
+    passesByDriver[driverId]=(passesByDriver[driverId]||0)+1;
+    passesByTeam[teamId]=(passesByTeam[teamId]||0)+1;
+  }
+  const times=attempts.map(e=>Number(e?.timeMs)).filter(Number.isFinite).sort((a,b)=>a-b);
+  const raceEndMs=Number(fast.simulationTimeMs??0);
+  const boundaries=[0,...times,raceEndMs];
+  const gapsMs=boundaries.slice(1).map((value,index)=>Math.max(0,value-boundaries[index]));
+  const quietestHours=Math.max(0,...gapsMs)/3_600_000;
+  const pairedFailures=terminal.filter(e=>e.type==="overtake_failed")
+    .reduce((acc,e)=>{const reason=String(e?.payload?.reason??"unknown");acc[reason]=(acc[reason]||0)+1;return acc;},{});
+  const battleAudit={
+    scenario:"real 2000 Australian Grand Prix",
+    measurement:"canonical event stream; counts do not treat grid-to-finish changes as passes",
+    entrants:input.entries.length,laps:input.track.laps,simulationTimeMs:raceEndMs,
+    attempts:attempts.length,
+    completed:successes.length,
+    failed:behaviour.overtakes.failed,
+    aborted:behaviour.overtakes.aborted,
+    contactEvents:behaviour.overtakes.contacts,
+    sideBySideTransitionsRecorded:battleEvents.filter(e=>e.type==="overtake_side_by_side").length,
+    unresolvedAttemptIds:unresolved.length,
+    failedReasons:pairedFailures,
+    completionPct:attempts.length?Number((successes.length/attempts.length*100).toFixed(2)):null,
+    averageStartGapM:behaviour.overtakes.averageStartGapM,
+    averageClosingPotentialMs:behaviour.overtakes.averageClosingPotentialMs,
+    averagePlannedBattleDurationMs:behaviour.overtakes.averageDurationMs,
+    longestNoAttemptMinutes:Number((quietestHours*60).toFixed(2)),
+    firstAttemptAtMinute:times.length?Number((times[0]/60000).toFixed(2)):null,
+    lastAttemptAtMinute:times.length?Number((times[times.length-1]/60000).toFixed(2)):null,
+    passesByTeam,passesByDriver,
+    eventTypes:behaviour.eventTypes,
+    note:"Main starts battles immediately in side_by_side state; no explicit side-by-side transition event exists yet. Future RW38 diagnostics are separate PRs.",
+  };
+  assert.equal(behaviour.fieldSize,22);
+  assert.equal(battleAudit.completed,Object.values(passesByDriver).reduce((s,n)=>s+n,0));
+  console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
+
   const summary={
     gp:gp.gp_name,year:2000,
     track:input.track.trackId,circuit_m:input.track.lengthM,laps:input.track.laps,
