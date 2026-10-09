@@ -111,8 +111,8 @@ function uniqueRecoveredSuffix() {
   return uuid;
 }
 
-// A manual snapshot is restored byte-for-byte into a *new* localStorage slot.
-// Continue snapshots are wrapped in a standard legacy manual save envelope.
+// Game state is restored unchanged into a NEW legacy manual save envelope.
+// Restore metadata is stamped so Load Game clearly shows the recovered copy.
 // No active career change is made here. On failure, all PREVIOUS slots remain.
 export async function restoreIndexedDbSaveAsNewSlot({
   id,
@@ -136,14 +136,18 @@ export async function restoreIndexedDbSaveAsNewSlot({
     if (!entry) throw new Error("Archived save revision was not found.");
     const info = await verifyIndexedDbSaveRevision(entry, hashText);
     const stamp = now().toISOString();
-    const output = entry.kind === "manual" ? entry.raw : JSON.stringify({
+    const sourceName = info.name || (entry.kind === "continue"
+      ? "Continue " + String(info.year ?? "Career") : "Archived save");
+    const originalMeta = entry.kind === "manual" && isRecord(info.parsed.meta)
+      ? info.parsed.meta : {};
+    const output = JSON.stringify({
       meta: {
-        name: "Recovered Continue — " + String(info.year ?? "Career"),
-        seed: info.seed,
+        ...originalMeta,
+        name: "Recovered — " + sourceName,
         savedAt: stamp,
-        version: "1.0.1",
+        recoveredFrom: entry.sha256,
       },
-      gameState: info.parsed,
+      gameState: entry.kind === "manual" ? info.parsed.gameState : info.parsed,
     });
 
     // Verify the envelope before writing anything into the active store.
