@@ -17,11 +17,8 @@ export function createLegacyCareerRepository({
     throw new TypeError("A Web Storage compatible backend is required.");
   }
 
-  const readSlot = (key) => {
-    if (!key || (!String(key).startsWith(keys.manualPrefix) &&
-                 key !== keys.continue)) return null;
-    return storage.getItem(key);
-  };
+  // Legacy imports may have custom slot keys: do not narrow accepted keys.
+  const readSlot = (key) => key ? storage.getItem(key) : null;
 
   const listManualSlots = () => {
     const slots = [];
