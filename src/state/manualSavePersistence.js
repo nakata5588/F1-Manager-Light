@@ -33,13 +33,19 @@ function fingerprint(text) {
   return `${text.length}:${a >>> 0}:${b >>> 0}`;
 }
 
+let fallbackSlotSequence = 0;
+function uniqueSlotSuffix() {
+  // Slot IDs are storage metadata, not gameplay randomness.
+  return globalThis.crypto?.randomUUID?.() || `fallback-${Date.now()}-${++fallbackSlotSequence}`;
+}
+
 export function createManualSaveWriter({
   savePrefix = "f1ml_save_",
   lastSaveKey = "f1ml_last_save_key",
   continueKey = "f1hm_save",
   duplicateWindowMs = 1200,
   now = () => Date.now(),
-  newSlotSuffix = () => Math.random().toString(36).slice(2, 12),
+  newSlotSuffix = uniqueSlotSuffix,
 } = {}) {
   let previous = null;
   let writing = false;
