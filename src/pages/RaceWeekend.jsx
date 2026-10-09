@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGame } from "../state/GameStore.js";
 import { PRACTICE_PROGRAMMES } from "../engine/PracticeSetupEngine.js";
-import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam } from "../engine/RaceStrategyEngine.js";
+import { PIT_PLANS, RACE_PACE_MODES, tyresForTeam, legalTyresForChosenDrySpecification } from "../engine/RaceStrategyEngine.js";
 import { raceForecastForTeam, teamRaceForecast } from "../engine/WeekendWeatherEngine.js";
 import { conditionModifierBreakdown, practiceWeekendImpact } from "../domain/driverPerformance.js";
 import { RACE_PLAYBACK_SPEEDS, raceEventRequiresPause, racePlaybackCanRun, racePlaybackDelayForRemainingRatio, racePlaybackDelayMs, racePlaybackRemainingRatioAfterElapsed, raceReferenceSectorMs } from "../domain/racePlayback.js";
@@ -1794,6 +1794,8 @@ export default function RaceWeekend(){
               const did=String(entry.driver_id);
               const selection=raceStrategy?.selections?.[did]||{};
               const tyres=tyresForTeam(gs,String(entry.team_id??""));
+              const dryLock=Boolean(raceStrategy?.rules_snapshot?.dry_specification_locked);
+              const nextTyres=legalTyresForChosenDrySpecification(tyres,selection.start_tyre_id,dryLock);
               const supplier=gs?.raceStrategyWorld?.teamSuppliers?.[String(entry.team_id??"")]||tyres[0]?.supplier||"—";
               return <div key={did} className="border border-white/10 rounded-xl bg-black/15 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1822,11 +1824,11 @@ export default function RaceWeekend(){
                       {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
                     </select>
                   </label>
-                  <label className="text-xs text-slate-400">Next tyre
+                  <label className="text-xs text-slate-400">{dryLock?"Next tyre (same dry compound)":"Next tyre"}
                     <div className="mt-1 flex items-center gap-2">
                       <TyreCompoundIcon compound={tyreName(tyres,selection.next_tyre_id||selection.start_tyre_id)} size={30}/>
                       <select className="min-w-0 flex-1 border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
-                        {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                        {nextTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                       </select>
                     </div>
                   </label>
@@ -1989,6 +1991,7 @@ export default function RaceWeekend(){
                       const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
                       if(!liveDriver)return null;
                       const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
+                      const allowedTeamTyres=legalTyresForChosenDrySpecification(teamTyres,raceStrategy?.selections?.[did]?.start_tyre_id,raceStrategy?.rules_snapshot?.dry_specification_locked);
                       const strategy=raceStrategy?.selections?.[did]||{};
                       const workLocked=canonicalRedFlagLifecycle?.phase!=="suspended"||canonicalRedFlagLifecycle?.work_locked===true;
                       const damageComponents=liveDriver?.damage_state?.damaged_components||[];
@@ -2021,7 +2024,7 @@ export default function RaceWeekend(){
                               value={liveDriver?.tyre?.tyre_id||""}
                               onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
                             >
-                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                              {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                             </select>
                           </label>
                           <label className="grid gap-0.5">
@@ -2054,7 +2057,7 @@ export default function RaceWeekend(){
                               value={liveDriver?.next_tyre_id||strategy?.next_tyre_id||teamTyres[0]?.tyre_id||""}
                               onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,nextTyreId:e.target.value}))}
                             >
-                              {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                              {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                             </select>
                           </label>
                         </div>
@@ -2135,6 +2138,7 @@ export default function RaceWeekend(){
                         const did=String(entry?.driver_id||"");
                         const liveDriver=liveRows.find((row)=>String(row?.driver_id||"")===did);
                         const teamTyres=tyresForTeam(gs,String(entry?.team_id||""));
+                      const allowedTeamTyres=legalTyresForChosenDrySpecification(teamTyres,raceStrategy?.selections?.[did]?.start_tyre_id,raceStrategy?.rules_snapshot?.dry_specification_locked);
                         const strategy=raceStrategy?.selections?.[did]||{};
                         const workLocked=redFlagLifecycle?.phase!=="suspended"||redFlagLifecycle?.work_locked===true;
                         const damageComponents=liveDriver?.damage_state?.damaged_components||[];
@@ -2169,7 +2173,7 @@ export default function RaceWeekend(){
                                 value={liveDriver?.tyre?.tyre_id||""}
                                 onChange={(e)=>{if(e.target.value)perform(()=>setRedFlagTyre({driverId:did,tyreId:e.target.value}));}}
                               >
-                                {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                                {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                               </select>
                             </label>
                             <label className="grid gap-0.5">
@@ -2202,7 +2206,7 @@ export default function RaceWeekend(){
                                 value={strategy?.next_tyre_id||teamTyres[0]?.tyre_id||""}
                                 onChange={(e)=>perform(()=>setRedFlagStrategy({driverId:did,nextTyreId:e.target.value}))}
                               >
-                                {teamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                                {allowedTeamTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                               </select>
                             </label>
                             {strategy?.pit_plan==="one_stop"?<label className="grid gap-0.5">
@@ -2232,6 +2236,7 @@ export default function RaceWeekend(){
                   const did=String(entry.driver_id);
                   const driver=driverObject(drivers,did);
                   const teamTyres=tyresForTeam(gs,String(entry.team_id??""));
+                  const allowedTeamTyres=legalTyresForChosenDrySpecification(teamTyres,raceStrategy?.selections?.[did]?.start_tyre_id,raceStrategy?.rules_snapshot?.dry_specification_locked);
                   const commands=usesCanonicalRaceRuntime
                     ?collectionRows(raceViewModel?.pending_commands).filter((row)=>String(row?.driverId??row?.driver_id??"")===did)
                     :(raceStrategy?.live_commands?.[did]||[]);
@@ -2325,11 +2330,11 @@ export default function RaceWeekend(){
                               }}
                             >
                               <option value="">Stay out</option>
-                              {teamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
+                              {allowedTeamTyres.map((tyre)=><option key={"tyre-"+tyre.tyre_id} value={"tyre|"+tyre.tyre_id}>Pit → {tyre.compound_name}</option>)}
                               {hasFrontWingDamage?<option value="front_wing">Pit → Replace front wing only</option>:null}
                               {hasRepairableDamage?<option value="repair">Pit → Repair damage only</option>:null}
-                              {hasFrontWingDamage?teamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
-                              {hasRepairableDamage?teamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
+                              {hasFrontWingDamage?allowedTeamTyres.map((tyre)=><option key={"wing-"+tyre.tyre_id} value={"tyre_front_wing|"+tyre.tyre_id}>Pit → {tyre.compound_name} + front wing</option>):null}
+                              {hasRepairableDamage?allowedTeamTyres.map((tyre)=><option key={"repair-"+tyre.tyre_id} value={"tyre_repair|"+tyre.tyre_id}>Pit → {tyre.compound_name} + repair damage</option>):null}
                             </select>
                             {canYieldToTeammate?<button
                               type="button"

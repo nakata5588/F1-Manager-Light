@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRaceStrategyState } from "../src/engine/RaceStrategyEngine.js";
-import { genericTyresForYear } from "../src/domain/raceTyreModel.js";
+import { createRaceStrategyState, setRaceStrategySelection } from "../src/engine/RaceStrategyEngine.js";
+import { genericTyresForYear, tyresForTeam } from "../src/domain/raceTyreModel.js";
+import { initialRaceResources } from "../src/race2/core/RaceResources.js";
 
 const gp={gp_id:"gp_463",gp_name:"Australian Grand Prix",track_id:"tr_0019",
   year:2000,race_date:"2000-03-12",weather:"SUNNY"};
@@ -81,4 +82,72 @@ test("AI tyre diversity responds deterministically to the Save World seed",()=>{
   const first=aiCompounds(grid({seed:"tyre-mix-2000-regression"}));
   const other=aiCompounds(grid({seed:"alternate-career-save"}));
   assert.notDeepEqual(first,other,"distinct Save seeds should allow distinct tactical opening plans");
+});
+
+test("Australian GP 2000 takes Bridgestone Soft/Medium rather than generic Hard/Soft",()=>{
+  const world={...grid(),tyres:[],raceWeekendState:{engine_version:"rw2",track_id:"tr_0019"}};
+  const allocation=tyresForTeam(world,"team_2");
+  assert.deepEqual(allocation.filter(tyre=>tyre.category==="dry").map(tyre=>tyre.compound_name),
+    ["Medium","Soft"]);
+  assert.ok(allocation.every(tyre=>tyre.supplier==="Bridgestone"));
+  assert.ok(allocation.every(tyre=>tyre.model_parameters_estimated===true));
+  const saved={...world,raceWeekendState:{
+    engine_version:"rw2",track_id:"tr_0019",
+    race_strategy:{selections:{driver_1:{
+      driver_id:"driver_1",team_id:"team_1",
+      start_tyre_id:"generic_2000_hard",next_tyre_id:"generic_2000_soft",
+    }}},
+  }};
+  assert.ok(tyresForTeam(saved,"team_1").some(row=>row.tyre_id==="generic_2000_hard"),
+    "old race-weekend saves retain their exact historical-in-save tyre IDs");
+  assert.ok(tyresForTeam(saved,"team_2").some(row=>row.tyre_id==="bs_2000_aus_medium"),
+    "other teams can still consume verified event allocation");
+  const strategy=createRaceStrategyState(world,{gp,raceEntryState:world.raceEntryState});
+  const selections=Object.values(strategy.state.selections);
+  assert.equal(strategy.state.rules_snapshot.dry_specification_locked,true);
+  assert.ok(selections.every(s=>
+    s.start_tyre_id!=="bs_2000_aus_medium"&&s.start_tyre_id!=="bs_2000_aus_soft"
+      ?true:s.next_tyre_id===s.start_tyre_id
+  ));
+  const compounds=new Set(selections.map(s=>s.start_tyre_id));
+  assert.ok(compounds.has("bs_2000_aus_soft")&&compounds.has("bs_2000_aus_medium"),
+    "driver choices can differ although each driver's dry specification stays fixed");
+});
+
+test("2000 manual tyre edits and canonical pit inventory respect one dry specification",()=>{
+  const world={...grid(),tyres:[],raceWeekendState:{engine_version:"rw2",track_id:"tr_0019"}};
+  const created=createRaceStrategyState(world,{gp,raceEntryState:world.raceEntryState});
+  const gameState={
+    ...created.gameState,
+    raceWeekendState:{
+      ...world.raceWeekendState,
+      phase:"grid_ready",year:2000,race_strategy:created.state,
+    },
+  };
+  const chosen=setRaceStrategySelection(gameState,{
+    driverId:"driver_1",
+    patch:{start_tyre_id:"bs_2000_aus_soft",next_tyre_id:"bs_2000_aus_medium"},
+  });
+  const selected=chosen.raceWeekendState.race_strategy.selections.driver_1;
+  assert.equal(selected.start_tyre_id,"bs_2000_aus_soft");
+  assert.equal(selected.next_tyre_id,"bs_2000_aus_soft",
+    "a pit stop may fit fresh Softs, but not switch to a forbidden Medium");
+  const original=tyresForTeam(chosen,"team_1");
+  const carInput={
+    resourceSetup:{
+      tyres:original,
+      strategy:{startTyreId:selected.start_tyre_id,nextTyreId:"bs_2000_aus_medium",drySpecificationLocked:true},
+    },
+  };
+  const resources=initialRaceResources({year:2000,track:{year:2000}},carInput,{performance:{}});
+  assert.equal(resources.tyre.compound,"Soft");
+  assert.equal(resources.resources.strategy.nextTyreId,"bs_2000_aus_soft");
+  assert.deepEqual(resources.resources.availableTyres
+    .filter(t=>t.category==="dry").map(t=>t.tyre_id),["bs_2000_aus_soft"]);
+  assert.ok(resources.resources.availableTyres.some(t=>t.category==="wet"),
+    "wet-weather tyre switches remain legal");
+
+  const argentina={...grid(),activeYear:1980,tyres:genericTyresForYear(1980),
+    raceWeekendState:{engine_version:"rw2",track_id:"tr_0018"}};
+  assert.ok(tyresForTeam(argentina,"team_1").some(t=>t.tyre_id==="generic_1980_hard"));
 });
