@@ -220,8 +220,13 @@ function overtakeClosingPotentialMs(state,attacker,defender){
   // a competing maximum when those targets exist can launch overtakes that the
   // actual simulation cannot physically close (RW38 diagnosis).
   // Retain the performance fallback only before valid free-speed telemetry.
+  // A momentary speed difference while crossing a braking zone is not a
+  // sustainable passing advantage. Once canonical free-target telemetry
+  // exists it already includes chassis/power, driver, compound, wear,
+  // damage, strategy and tow. Weight that forward pace more heavily than
+  // the transient wheel-speed delta; retain a small momentum contribution.
   return hasFreeTelemetry
-    ?Math.max(currentClosing,freeClosing)
+    ?freeClosing*0.80+currentClosing*0.20
     :Math.max(currentClosing,performanceClosing);
 }
 
@@ -647,7 +652,14 @@ function attemptOpportunity(state,attacker,occupied,{blockedSectors=null}={}){
     0.18,
     0.55
   );
-  if(closingPotentialMs<minimumClosingPotentialMs)return null;
+  // The second phase has to close the actual side-by-side distance before
+  // its own maximum time budget. Do not start duels which cannot physically
+  // cover that distance on the measured net pace, even if a high driver score
+  // or a random roll would otherwise permit the attempt.
+  const requiredSideBySideClosingMs=(
+    RACE_BATTLE_SIDE_BY_SIDE_GAP_M+RACE_OVERTAKE_DECISIVE_CLEARANCE_M
+  )/(RACE_BATTLE_MAX_DURATION_MS/1000);
+  if(closingPotentialMs<Math.max(minimumClosingPotentialMs,requiredSideBySideClosingMs))return null;
 
   // Traffic deliberately holds a following car near desiredTrafficGapM.
   // The battle gate must therefore allow the canonical overtake model to take
