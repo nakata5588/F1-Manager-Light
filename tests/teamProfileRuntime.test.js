@@ -42,7 +42,7 @@ test("Team Profile uses the real TeamLogo and historical logo candidates", async
     assert.match(html, /alt="Lotus"/, "logo must use the resolved display name");
     assert.match(html, /<img/, "historical logo candidates must produce an image element");
     const modalSource = await readFile(new URL("../src/components/entity/TeamModal.jsx", import.meta.url), "utf8");
-    assert.match(modalSource, /<TeamLogo[\\s\\S]*?teamId=\\{idStr\\}[\\s\\S]*?name=\\{name\\}/,
+    assert.match(modalSource, /<TeamLogo[\s\S]*?teamId=\{idStr\}[\s\S]*?name=\{name\}/,
       "Team Profile must pass resolved team identity and name to the working logo component");
   } finally {
     await server.close();
