@@ -280,6 +280,23 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100,positionByCar
   const officialStepEndMs=officialStartMs+Math.max(0,finite(stepMs,0));
   const lapLimit=Math.max(1,Math.round(finite(state?.session?.lapLimit,state?.track?.laps??1)));
   const candidates=orderCandidates(crossingCandidates(state,cars,{stepMs}),stepMs);
+  // Once the first driver completes the full race distance, every still-running
+  // driver finishes at their NEXT start/finish crossing, even if they have
+  // completed fewer laps. Compare crossings in official race-clock time so
+  // those occurring just before the winner in the same fixed step do not count.
+  const nextById=new Map(cars.map((car)=>[String(car?.carId??""),car]));
+  const checkeredTimes=[
+    ...(state?.cars||[])
+      .filter((car)=>car?.status==="finished"&&finite(car?.completedLaps,0)>=lapLimit)
+      .map((car)=>finite(car?.finishTimeMs,null)),
+    ...candidates
+      .filter((crossing)=>
+        crossing.lapNumber===lapLimit&&
+        nextById.get(crossing.carId)?.status==="finished"
+      )
+      .map((crossing)=>round(officialStartMs+crossing.resolvedOffsetMs,3)),
+  ].filter((time)=>time!=null);
+  const checkeredTimeMs=checkeredTimes.length?Math.min(...checkeredTimes):null;
   const sectorCandidates=sectorCrossingCandidates(state,cars,{stepMs,lapCandidates:candidates});
   const crossingsByCar=new Map();
   const sectorCrossingsByCar=new Map();
@@ -407,7 +424,19 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100,positionByCar
       }
     }
 
-    const status=String(next?.status||"");
+    const checkeredCrossing=checkeredTimeMs==null||next?.dnf||
+      next?.status==="dnf"||next?.status==="finished"
+      ?null
+      :crossings
+        .filter((crossing)=>
+          crossing.lapNumber<lapLimit&&
+          round(officialStartMs+crossing.resolvedOffsetMs,3)>=checkeredTimeMs
+        )
+        .sort((a,b)=>a.resolvedOffsetMs-b.resolvedOffsetMs)[0]??null;
+    if(checkeredCrossing){
+      finishTimeMs=round(officialStartMs+checkeredCrossing.resolvedOffsetMs,3);
+    }
+    const status=checkeredCrossing?"finished":String(next?.status||"");
     const elapsedMs=status==="finished"&&finishTimeMs!=null
       ?finishTimeMs
       :(status==="dnf"||next?.dnf)
@@ -416,6 +445,16 @@ export function applyCanonicalLapTiming(state,nextCars,{stepMs=100,positionByCar
 
     return {
       ...next,
+      ...(checkeredCrossing?{
+        absoluteDistanceM:round(checkeredCrossing.lapNumber*finite(state?.track?.lengthM,0),6),
+        distanceAlongLapM:0,
+        completedLaps:checkeredCrossing.lapNumber,
+        lap:checkeredCrossing.lapNumber,
+        sector:3,
+        status:"finished",
+        zoneId:"finish",
+        zoneType:"finish",
+      }:{}),
       elapsedMs,
       finishTimeMs,
       lapStartedAtMs,
