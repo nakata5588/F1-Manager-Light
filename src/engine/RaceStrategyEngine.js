@@ -97,6 +97,9 @@ export function raceStrategyRulesForYear(yearInput){
     notes:"In-race refuelling is unavailable; tyre stops remain strategic.",
   };
   if(year<=2006)return {
+    // Confirmed for 2000: the driver retains one selected dry specification
+    // across qualifying and race. Other years are not assumed by this change.
+    dry_specification_locked:year===2000,
     era_id:"refuelling",
     label:"Refuelling era",
     refuelling_allowed:true,
@@ -465,7 +468,7 @@ function bestTyreForCategory(options,category,{durable=false,excludeId=null}={})
 function defaultStrategy(gs,entry,weather,track,rules){
   const did=String(entry?.driver_id??"");
   const tid=String(entry?.team_id??"");
-  const options=tyresForTeam(gs,tid);
+  const options=tyresForTeam(gs,tid,{year:gs?.activeYear,trackId:track?.track_id});
   const category=weatherCategory(stateAtLap(weather,1));
   const rating=(gs?.driverRatings||[]).find((r)=>String(r?.driver_id??"")===did)||{};
   const tyreMgmt=num(rating?.tire_management,60);
@@ -508,7 +511,7 @@ function defaultStrategy(gs,entry,weather,track,rules){
       track.tyre_wear>=55||tyreMgmt<65));
   const start=bestTyreForCategory(options,category,{durable});
   const alternate=category==="dry"
-    ?bestTyreForCategory(options,"dry",{durable:!durable,excludeId:tyreId(start)})
+    ?(rules?.dry_specification_locked?start:bestTyreForCategory(options,"dry",{durable:!durable,excludeId:tyreId(start)}))
     :bestTyreForCategory(options,category,{excludeId:tyreId(start)})||start;
 
   let pitPlan=rules.default_pit_plan;
@@ -613,7 +616,7 @@ export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
   const current=existing?.selections?.[did];
   if(!current)return gs;
   const tid=String(current.team_id||"");
-  const options=tyresForTeam(gs,tid);
+  const options=tyresForTeam(gs,tid,{year:gs?.activeYear,trackId:weekend?.track_id});
   const validTyreIds=new Set(options.map(tyreId));
   const rules=existing.rules_snapshot||raceStrategyRulesForYear(gs?.activeYear);
   const track=existing.track_snapshot||raceTrackProfile(gs,{});
@@ -621,6 +624,15 @@ export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
 
   if(patch.start_tyre_id&&validTyreIds.has(String(patch.start_tyre_id)))next.start_tyre_id=String(patch.start_tyre_id);
   if(patch.next_tyre_id&&validTyreIds.has(String(patch.next_tyre_id)))next.next_tyre_id=String(patch.next_tyre_id);
+  if(rules?.dry_specification_locked){
+    const starting=tyreById(options,next.start_tyre_id);
+    const nextDry=tyreById(options,next.next_tyre_id);
+    if(starting?.category==="dry"&&nextDry?.category==="dry"){
+      // A pit stop can mount a fresh tyre, but not change the dry
+      // specification selected for that driver's historical weekend.
+      next.next_tyre_id=next.start_tyre_id;
+    }
+  }
   if(Object.hasOwn(RACE_PACE_MODES,String(patch.pace_mode)))next.pace_mode=String(patch.pace_mode);
   if(Object.hasOwn(PIT_PLANS,String(patch.pit_plan)))next.pit_plan=String(patch.pit_plan);
   if(patch.planned_stop_lap!==undefined){
