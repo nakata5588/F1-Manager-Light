@@ -71,7 +71,7 @@ function compatibleSave(key, kind, raw) {
     }
     // Validate through the authoritative loader, not another engine.
     extractGameStateFromStoredSave(parsed);
-    careerId = String(original?.saveMeta?.seed || parsed?.meta?.seed || "");
+    careerId = String(original?.saveMeta?.seed || "");
     schemaVersion = rawSchema;
   }
   if (!careerId) {
