@@ -279,6 +279,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     brakingModel:input.track?.speedProfile?.brakingModel??"legacy",
     fastestLapMs:fastest?.bestLapMs??null,
     fastestLapDriverId:fastest?.driverId??null,
+    fastestLapNumber:fastest?.bestLapNumber??null,
     winnerFinishMs:winner?.finishTimeMs??null,
     averageWinnerSpeedKmh:winner?.finishTimeMs>0
       ?Number((input.track.lengthM*input.track.laps*3.6/(winner.finishTimeMs/1000)).toFixed(3))
