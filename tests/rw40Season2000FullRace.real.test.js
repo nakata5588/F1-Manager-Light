@@ -270,6 +270,65 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     .sort((a,b)=>Number(a.bestLapMs)-Number(b.bestLapMs))[0];
   const winner=fast.cars.find(car=>String(car.driverId)===String(archived[0]?.driver_id));
   const sampleCount=input.track?.speedProfile?.samples?.length||0;
+  // Counterfactual isolated calibration: same historical grid/car/driver snapshots
+  // and same circuit, but dry track throughout. The generated career's actual
+  // forecast/rain scenario above remains unchanged and fully parity-tested.
+  const dryInput=structuredClone(input);
+  dryInput.weather={
+    ...dryInput.weather,
+    state:"SUNNY",wet_race:false,rain_intensity:0,
+    starting_track_wetness:0,track_wetness:0,
+    segments:[{from_lap:1,to_lap:58,state:"SUNNY"}],
+    timeline:[],
+  };
+  let normalizedWetStarts=0;
+  for(const car of dryInput.cars){
+    const tyres=car.resourceSetup?.tyres||[];
+    const planned=car.resourceSetup?.strategy?.startTyreId;
+    const selected=tyres.find(t=>String(t.tyre_id)===String(planned));
+    if(selected&&selected.category!=="dry"){
+      const dryTyre=tyres.filter(t=>t.category==="dry")
+        .sort((a,b)=>Number(a.wear_rate)-Number(b.wear_rate))[0];
+      assert.ok(dryTyre,"dry calibration requires a dry tyre in every team's allocation");
+      car.resourceSetup.strategy.startTyreId=dryTyre.tyre_id;
+      normalizedWetStarts++;
+    }
+  }
+  const dryInitial=startRaceState(createRaceState(dryInput));
+  const dryFast=runFastRaceToEnd(dryInitial,{maxSteps:150000});
+  assert.equal(dryFast.status,"finished");
+  const dryFastest=dryFast.cars.filter(car=>Number(car.bestLapMs)>0)
+    .sort((a,b)=>Number(a.bestLapMs)-Number(b.bestLapMs))[0];
+  const dryWinner=dryFast.cars.filter(car=>car.status==="finished")
+    .sort((a,b)=>Number(a.finishTimeMs)-Number(b.finishTimeMs))[0];
+  const history=(car)=>car?.pitState?.history||[];
+  const lapDistribution=(car)=>{
+    const laps=(car?.lapTimes||[]).map(row=>typeof row==="number"?row:
+      Number(row?.lapTimeMs??row?.lap_time_ms??row?.timeMs??row?.durationMs??NaN))
+      .filter(Number.isFinite).filter(n=>n>10000);
+    const sorted=[...laps].sort((a,b)=>a-b);
+    return {n:laps.length,medianMs:sorted.length?sorted[Math.floor(sorted.length/2)]:null,
+      meanMs:laps.length?Math.round(laps.reduce((a,b)=>a+b,0)/laps.length):null,
+      minMs:sorted[0]??null,maxMs:sorted.at(-1)??null};
+  };
+  const audit={
+    baselineSource:"PR #480 track profile; isolated weather-only benchmark",
+    scenario:"Australia 2000 full-grid, same historical inputs, dry track all 58 laps",
+    gridSize:dryInput.cars.length,laps:dryInput.track.laps,
+    dryWetStartOverrides:normalizedWetStarts,
+    rainScenario:{winnerFinishMs:winner?.finishTimeMs??null,
+      fastestLapMs:fastest?.bestLapMs??null,pitCount:history(winner).length,
+      pitLaps:history(winner).map(row=>row.lap),lapDistribution:lapDistribution(winner)},
+    dryScenario:{winnerDriverId:dryWinner?.driverId??null,
+      winnerFinishMs:dryWinner?.finishTimeMs??null,
+      fastestLapMs:dryFastest?.bestLapMs??null,
+      pitCount:history(dryWinner).length,
+      pitLaps:history(dryWinner).map(row=>row.lap),
+      lapDistribution:lapDistribution(dryWinner),
+      finishers:dryFast.cars.filter(car=>car.status==="finished").length},
+    historicalReference:{winnerFinishMs:5641987,fastestLapMs:91481},
+  };
+  console.log("REAL_2000_DRY_PACE_CONTROL="+JSON.stringify(audit));
   console.log("REAL_2000_PACE_AUDIT="+JSON.stringify({
     track:input.track.trackId,
     profileSource:input.track?.speedProfile?.source||"missing",
