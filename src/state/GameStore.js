@@ -46,6 +46,7 @@ import { currentWorldCadence, stampWorldCadence } from "@/domain/worldCadence";
 import { refreshBoardAssessment } from "@/domain/boardState";
 import { refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
 import { nextRacePlaybackEpoch, racePlaybackAdvanceAllowed } from "@/race2/runtime/RacePlaybackGate.js";
+import { createManualSaveWriter, isSaveQuotaError } from "./manualSavePersistence.js";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -62,21 +63,11 @@ function defaultSaveName(gs) {
 }
 function safeJSONParse(str) { try { return JSON.parse(str); } catch { return null; } }
 
-/* ---------- helpers extra para dedupe ---------- */
-function stableStringify(obj) { try { return JSON.stringify(obj); } catch { return String(obj); } }
-function hash32(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16);
-}
-let __savingMutex = false;
-let __lastSaveHash = null;
-let __lastSaveTs = 0;
-let __lastSaveResult = null;
-const DEDUPE_WINDOW_MS = 1200;
+const writeManualSave = createManualSaveWriter({
+  savePrefix: SAVE_PREFIX,
+  lastSaveKey: LAST_SAVE_KEY,
+  continueKey: SAVE_KEY,
+});
 
 /** ===== DEFAULT SETTINGS ===== */
 const defaultSettings = DEFAULT_USER_SETTINGS;
@@ -116,45 +107,13 @@ export function makeLightSnapshot(gs) {
   for (const k of HEAVY_KEYS) delete light[k];
   return prepareGameStateForSave(light);
 }
-function isQuotaError(e) {
-  return e && (e.name === "QuotaExceededError" || e.code === 22 || String(e).includes("exceeded the quota"));
-}
-function evictOldSaves(minKeep = 3) {
-  try {
-    const items = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(SAVE_PREFIX)) {
-        const raw = localStorage.getItem(k);
-        let ts = 0;
-        try { ts = Date.parse(JSON.parse(raw)?.meta?.savedAt || ""); } catch {}
-        if (!Number.isFinite(ts)) {
-          const m = String(k).match(/(\d{10,})$/);
-          if (m) ts = Number(m[1]);
-        }
-        items.push({ key: k, ts: ts || 0 });
-      }
-    }
-    items.sort((a,b) => a.ts - b.ts);
-    let removed = 0;
-    while (items.length > minKeep) {
-      const it = items.shift();
-      localStorage.removeItem(it.key);
-      removed++;
-    }
-    return removed;
-  } catch { return 0; }
-}
-function setItemQuotaSafe(key, value, { evictManualSaves = true } = {}) {
+function setItemQuotaSafe(key, value) {
   try {
     localStorage.setItem(key, value);
-    return true;
-  } catch (e) {
-    if (!isQuotaError(e)) throw e;
-    // Background/rolling autosaves must never delete the user's manual saves.
-    if (!evictManualSaves) return false;
-    evictOldSaves(2);
-    try { localStorage.setItem(key, value); return true; } catch { return false; }
+    return localStorage.getItem(key) === value;
+  } catch (error) {
+    if (isSaveQuotaError(error)) return false;
+    throw error;
   }
 }
 function cleanupLegacyAutosaveDuplicate() {
@@ -162,7 +121,7 @@ function cleanupLegacyAutosaveDuplicate() {
 }
 function setRollingSnapshot(value) {
   cleanupLegacyAutosaveDuplicate();
-  return setItemQuotaSafe(SAVE_KEY, value, { evictManualSaves: false });
+  return setItemQuotaSafe(SAVE_KEY, value);
 }
 function writeRollingAutosave(gs) {
   if (gs?.settings?.autosave === false) return false;
@@ -1843,60 +1802,35 @@ export const useGame = create((set, get) => ({
   },
 
   saveGame: (options) => {
-    if (__savingMutex) return __lastSaveResult;
-    __savingMutex = true;
+    const gs = get().gameState || {};
     try {
-      const state = get();
-      const gs = state.gameState || {};
       const light = makeLightSnapshot(gs);
-
-      const nameIn = options?.name;
-      const overwriteKeyIn = options?.overwriteKey;
-      const meta = { name: (nameIn || "").trim() || defaultSaveName(gs), version: GAME_VERSION, schemaVersion: SAVE_SCHEMA_VERSION, gameVersion: GAME_VERSION, seed: light.saveMeta?.seed ?? null, savedAt: nowIso() };
-      const payload = { meta, gameState: light };
-
-      const now = Date.now();
-      const h = hash32(stableStringify({ k: overwriteKeyIn, n: meta.name, d: gs.currentDateISO, r: gs.currentRound }));
-      if (__lastSaveHash === h && now - __lastSaveTs < DEDUPE_WINDOW_MS) {
-        __savingMutex = false;
-        return __lastSaveResult;
-      }
-
-      // Save As / Save to slot always create a new manual save unless the
-      // caller explicitly supplies overwriteKey. This avoids overwriting a
-      // previous career just because it happened to be the last save used.
-      const key = overwriteKeyIn || `${SAVE_PREFIX}${now}`;
-
-      let persisted = false;
-      let continueSnapshotOk = false;
-      let errorMessage = null;
-      // Reclaim the obsolete duplicate Race Weekend autosave before a manual
-      // save attempts quota eviction.
-      cleanupLegacyAutosaveDuplicate();
-      try {
-        persisted = setItemQuotaSafe(key, JSON.stringify(payload));
-        if (persisted) {
-          localStorage.setItem(LAST_SAVE_KEY, key);
-          // Keep Continue in sync with the most recently saved career.
-          continueSnapshotOk = setRollingSnapshot( JSON.stringify(light));
-          set({ currentSaveKey: key });
-        } else {
-          errorMessage = "Browser storage is full. The save was not written.";
-          console.warn("saveGame: quota still exceeded after eviction.");
-        }
-      } catch (e) {
-        errorMessage = String(e?.message || e || "Save failed.");
-        console.warn("saveGame (multi) failed:", e);
-      }
-
-      __lastSaveHash = h;
-      __lastSaveTs = now;
-      __lastSaveResult = persisted
-        ? { ok: true, key, meta, continueSnapshotOk }
-        : { ok: false, key: null, meta, error: errorMessage || "Save failed." };
-      return __lastSaveResult;
-    } finally {
-      setTimeout(() => { __savingMutex = false; }, 0);
+      const name = String(options?.name || "").trim() || defaultSaveName(gs);
+      const meta = {
+        name,
+        version: GAME_VERSION,
+        schemaVersion: SAVE_SCHEMA_VERSION,
+        gameVersion: GAME_VERSION,
+        seed: light.saveMeta?.seed ?? null,
+        savedAt: nowIso(),
+      };
+      const result = writeManualSave({
+        storage: localStorage,
+        gameState: light,
+        meta,
+        overwriteKey: options?.overwriteKey || null,
+      });
+      if (result.ok) set({ currentSaveKey: result.key });
+      return result;
+    } catch (error) {
+      console.warn("saveGame failed:", error);
+      return {
+        ok: false,
+        key: null,
+        error: isSaveQuotaError(error)
+          ? "Browser storage is full. The save was not written. Existing saves were preserved."
+          : String(error?.message || error || "Save failed."),
+      };
     }
   },
 
