@@ -17,15 +17,50 @@ import {
 } from "../src/domain/teamConstructorBridge.js";
 import { createHistoricalResultTeamResolver } from "../src/domain/historicalResultTeamResolver.js";
 
-test("Team Profile initializes display name before historical logo candidates", async()=>{
-  const source=await readFile(new URL("../src/components/entity/TeamModal.jsx",import.meta.url),"utf8");
-  const nameIndex=source.indexOf("const name = team?.team_name");
-  const logoIndex=source.indexOf("const logoCandidates = useMemo");
-  assert.ok(nameIndex>=0,"Team Profile display name declaration must exist");
-  assert.ok(logoIndex>=0,"Team Profile logo resolver must exist");
-  assert.ok(nameIndex<logoIndex,"Team display name must be initialized before logo candidate resolution");
+test("Team Profile renders the real TeamLogo with the resolved team display name", async () => {
+  // Exercise the actual JSX tree instead of requiring the retired
+  // "logoCandidates" implementation detail in TeamModal.
+  const { createServer } = await import("vite");
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const server = await createServer({
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+    logLevel: "error",
+  });
+  try {
+    const [{ default: TeamModal }, { useGame }] = await Promise.all([
+      server.ssrLoadModule("/src/components/entity/TeamModal.jsx"),
+      server.ssrLoadModule("/src/state/GameStore.js"),
+    ]);
+    const original = useGame.getState().gameState;
+    try {
+      useGame.setState({
+        gameState: {
+          activeYear: 1980,
+          team: { team_id: "t_0005", team_name: "Lotus" },
+          teams: [{ team_id: "t_0005", team_name: "Lotus" }],
+          teamBrands: [{ team_id: "t_0005", year: 1980, logo_path: "/logos/custom-lotus.png" }],
+          drivers: [], contracts: [], teamHistoricalStrength: [],
+        },
+      });
+      const html = renderToStaticMarkup(
+        React.createElement(TeamModal, {
+          entity: { id: "t_0005", tab: "overview" },
+          pageMode: true,
+          onClose: () => {},
+        })
+      );
+      assert.match(html, /Lotus/, "the real Team Profile must render its team name");
+      assert.match(html, /alt="Lotus"/, "TeamLogo must receive the same resolved name");
+      assert.match(html, /logo/, "TeamLogo must be rendered as part of the profile");
+    } finally {
+      useGame.setState({ gameState: original });
+    }
+  } finally {
+    await server.close();
+  }
 });
-
 
 
 
