@@ -36,7 +36,11 @@ export const ALBERT_PARK_ORIGINAL_ERA=Object.freeze({
   source:"historical_turn_reference_approximate",
   // Speeds on straights are limited by preceding turns and acceleration,
   // not an arbitrary circuit-specific top-speed ceiling.
-  cornerRetentionFactor:0.90,
+  // Calibrated against a separate dry 22-car/58-lap 2000 regression.
+  // 0.90 produced 1:28.606 fastest vs historical 1:31.481; lower
+  // corner retention preserves free straight speed and places braking
+  // effort into actual historical turns instead of adding a global cap.
+  cornerRetentionFactor:0.78,
   brakingModel:"distance_sensitive",
 });
 
