@@ -105,6 +105,52 @@ season and multiple seasons. Test interrupted writes, quota, two tabs,
 duplicate saves, old game versions and updates to reference data. Back
 compatibility must not apply future historical results to a simulated career.
 
+## P1 Storage port and verified IndexedDB shadow copy (2026-10-09)
+
+`src/state/careerSaveRepository.js` is now the injected synchronous
+localStorage adapter for current Save Game, Load Game, Continue, manual slot
+listing and last-slot lookup. `GameStore.js` uses it for these entrypoints;
+the existing `manualSavePersistence.js` is **still the one manual writer**,
+including overwrite identity, quota and readback checks. The rolling
+autosave/session recovery paths remain unchanged and remain authoritative.
+
+`src/state/indexedDbSaveArchive.js` now provides **opt-in, non-destructive
+snapshot copying** to an immutable IndexedDB archive:
+
+- Call `copyLegacySavesToIndexedDb({ storage: window.localStorage })` from
+  an explicitly authorized migration flow in a future PR. No production
+  code calls this function automatically today.
+- It reads every `f1ml_save_*` manual slot and the flat `f1hm_save`
+  Continue snapshot. The last-played pointer is **never changed**.
+- Only valid saves supported by the current v0→v2 loader are copied.
+  Unknown-schema/corrupt saves are left untouched and reported.
+- A SHA-256 hash of each **exact original JSON string** forms the immutable
+  archive revision ID. Changing a manual slot later creates a *new* revision
+  rather than replacing its earlier shadow copy.
+- IndexedDB `add` waits until its transaction **commits**. Afterward the
+  archive is read back and byte- and checksum-verified, then the legacy
+  source is checked again for a concurrent overwrite.
+- An `ok: false` report means at least one slot could not be verified;
+  no data is deleted to recover space. When IndexedDB is unavailable the
+  function rejects and all legacy saves remain intact.
+- The IndexedDB database is `f1ml-careers-shadow`, store
+  `verifiedLegacySnapshots`, version 1. This is *not* the future
+  authoritative versioned career database or schema-v3 format.
+
+**Migration is not active for players yet.** This module is exercised by
+automated tests; it does not provide automatic fallback, load/resume from
+IndexedDB, space savings or crash recovery. It intentionally keeps the
+localStorage save as the only official authority. Do **not** describe shadow
+copies as verified backups until the particular copy operation returns
+success. IndexedDB may be wiped by the browser along with localStorage; an
+explicit exported save remains essential for external backups.
+
+Next step: expose a user-visible, explicit one-time opt-in migration action,
+surface per-slot failures, then add an asynchronous authoritative repository
+with atomic revision/pointer/recovery writes and a reversible cutover. That
+transition will require a separately versioned save schema and browser tests
+for crashes, multi-tab changes, closed tabs and migration rollback.
+
 ## Versioned provenance required before a disk-format switch
 
 Persist the **starting era and career seed**, save schema, season-pack/data
