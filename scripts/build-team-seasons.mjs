@@ -3,33 +3,12 @@ import path from "node:path";
 import { readJsonOptional, readJsonRequired } from "./lib/json-source.mjs";
 import { canonicalTeamId, canonicalTeamName } from "../src/domain/teamIdentity.js";
 import { createTeamConstructorBridgeResolver } from "../src/domain/teamConstructorBridge.js";
+import { historicalFirst as first, historicalNameKey as canon, historicalResultYear, createHistoricalDriverResolver } from "./lib/historical-results-normalizer.mjs";
 
 const root=process.cwd();
 const dataDir=path.join(root,"public","data");
 const source=path.join(dataDir,"race_results.json");
 const target=path.join(dataDir,"team_seasons.json");
-
-const unwrap=(value)=>{
-  if(value&&typeof value==="object"&&!Array.isArray(value)){
-    if(value.result!==undefined&&value.result!==null&&value.result!=="")return unwrap(value.result);
-    if(value.value!==undefined&&value.value!==null&&value.value!=="")return unwrap(value.value);
-    if(value.text!==undefined&&value.text!==null&&value.text!=="")return unwrap(value.text);
-  }
-  return value;
-};
-const canon=(value)=>String(unwrap(value)??"")
-  .toLowerCase()
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g,"")
-  .replace(/[^a-z0-9]+/g,"")
-  .trim();
-const first=(row,keys,fallback=undefined)=>{
-  for(const key of keys){
-    const value=unwrap(row?.[key]);
-    if(value!==undefined&&value!==null&&value!=="")return value;
-  }
-  return fallback;
-};
 
 const [rows,teams,drivers,constructorReference,entryRows]=await Promise.all([
   readJsonRequired(source,{label:"race_results.json"}),
@@ -39,29 +18,7 @@ const [rows,teams,drivers,constructorReference,entryRows]=await Promise.all([
   readJsonOptional(path.join(dataDir,"f1_entry_list_history.json"),[]),
 ]);
 
-const driverNameToId=new Map();
-const driverArchiveIdToId=new Map();
-const driverIds=new Set();
-for(const driver of drivers){
-  const id=String(first(driver,["driver_id","id"],""));
-  if(!id)continue;
-  driverIds.add(id);
-  const archiveId=Number(first(driver,["driverID_arch","driverId_arch","driverId"],NaN));
-  if(Number.isFinite(archiveId))driverArchiveIdToId.set(archiveId,id);
-  for(const value of [driver.display_name,driver.driver_name,driver.name,driver.full_name]){
-    const key=canon(value);
-    if(key&&!driverNameToId.has(key))driverNameToId.set(key,id);
-  }
-}
-
-function resolveDriver(row){
-  const direct=String(first(row,["driver_id","person_id"],""));
-  if(direct&&driverIds.has(direct))return direct;
-  const archiveId=Number(first(row,["driverId","driverID"],NaN));
-  if(Number.isFinite(archiveId)&&driverArchiveIdToId.has(archiveId))return driverArchiveIdToId.get(archiveId);
-  const name=first(row,["driver_name","display_name","driverName","name"],"");
-  return driverNameToId.get(canon(name))||direct||"";
-}
+const resolveDriver=createHistoricalDriverResolver(drivers);
 
 const bridgeResolver=createTeamConstructorBridgeResolver({
   teams,
@@ -72,8 +29,8 @@ const bridgeResolver=createTeamConstructorBridgeResolver({
 const byKey=new Map();
 let sourceIndex=0;
 for(const row of Array.isArray(rows)?rows:[]){
-  const year=Number(first(row,["year","season_year"],NaN));
-  const driverId=resolveDriver(row);
+  const year=historicalResultYear(row);
+  const driverId=resolveDriver(row,{allowUnknownDirect:true});
   if(!Number.isFinite(year)){sourceIndex+=1;continue;}
 
   const link=bridgeResolver.resolve(row,{driverId});
