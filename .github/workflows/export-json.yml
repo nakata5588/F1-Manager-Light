@@ -198,8 +198,17 @@ jobs:
       - name: Test historical New Game opening state
         run: npm run test:opening-state
 
+      - name: Test historical car materialization principles
+        run: npm run test:cars:historical
+
       - name: Test generated Season Packs
         run: npm run test:season-packs
+
+      - name: Test real 2000 Season Pack to canonical Race and Results
+        run: node --test tests/season2000EndToEnd.real.test.js
+
+      - name: Audit Results-derived 2000 historical car attributes
+        run: npm run audit:cars:historical
 
       - name: Audit historical driver ratings and roles
         run: npm run audit:drivers:historical-calibration
@@ -258,3 +267,27 @@ jobs:
 
           echo "Unable to push generated JSON after 3 attempts."
           exit 1
+
+  smoke-season-2000:
+    name: Real 2000 Season Pack and canonical race smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Export canonical historical database
+        run: npm run build:data
+      - name: Generate real 2000 opening state
+        run: |
+          node scripts/build-team-constructor-bridge.mjs
+          node scripts/build-team-seasons.mjs
+          node scripts/build-driver-history.mjs
+          node scripts/build-historical-championships.mjs
+          node scripts/build-season-packs.mjs --years=2000
+      - name: Test real 2000 car materialization and canonical race
+        run: npm run test:cars:historical && node --test tests/season2000EndToEnd.real.test.js
+      - name: Audit generated 2000 car attributes and provenance
+        run: npm run audit:cars:historical
