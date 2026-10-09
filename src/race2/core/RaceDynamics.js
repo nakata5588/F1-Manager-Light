@@ -96,11 +96,10 @@ export function raceTargetSpeedProfile(state,car){
 
   const straightScore=power*0.55+race*0.30+driver*0.15;
   const straightFactor=clamp(0.90+straightScore*0.00135,0.90,1.04);
-  const circuitStraightFactor=clamp(
-    finite(state?.track?.speedProfile?.straightSpeedFactor,1),0.75,1.05
-  );
-  const straightTarget=eraStraightSpeedKmh(state?.track?.year)*
-    straightFactor*circuitStraightFactor;
+  // Era and actual car/driver performance set the free straight speed.
+  // Corner severity and braking distance — not a track-specific magic cap —
+  // determine how much of it is physically reachable on a given circuit.
+  const straightTarget=eraStraightSpeedKmh(state?.track?.year)*straightFactor;
 
   const handlingScore=chassis*0.55+race*0.20+driver*0.25;
   const cornerRetentionFactor=clamp(
