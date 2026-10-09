@@ -34,10 +34,8 @@ export const ALBERT_PARK_ORIGINAL_ERA=Object.freeze({
   yearTo:2020,
   corners:TURNS.length,
   source:"historical_turn_reference_approximate",
-  // Circuit-specific straight limitation: contemporary 2000 accounts describe
-  // ~290 km/h at T1, not the global open-straight era upper envelope.
-  // The era's top-speed envelope still increases over historical seasons.
-  straightSpeedFactor:0.92,
+  // Speeds on straights are limited by preceding turns and acceleration,
+  // not an arbitrary circuit-specific top-speed ceiling.
   cornerRetentionFactor:0.90,
   brakingModel:"distance_sensitive",
 });
@@ -79,7 +77,6 @@ export function provisionalAlbertParkSpeedProfile(trackId,year,lengthM){
     referenceCorners:TURNS.length,
     sampleSpacingM:Number(spacing.toFixed(6)),
     windowM:null,
-    straightSpeedFactor:ALBERT_PARK_ORIGINAL_ERA.straightSpeedFactor,
     cornerRetentionFactor:ALBERT_PARK_ORIGINAL_ERA.cornerRetentionFactor,
     brakingModel:ALBERT_PARK_ORIGINAL_ERA.brakingModel,
     samples,
