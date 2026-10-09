@@ -110,6 +110,34 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   }
   const initial=startRaceState(createRaceState(input));
   assert.equal(initial.cars.length,22);
+  const playerTid=String(ferrari.team_id);
+  const aiCars=initial.cars.filter(c=>String(c.teamId)!==playerTid);
+  const dryChoicesForAi=input.cars.filter(c=>String(c.teamId)!==playerTid)
+    .map(c=>new Set((c.resourceSetup?.tyres||[])
+      .filter(t=>String(t.category||"dry")==="dry")
+      .map(t=>String(t.compound_name??t.compound??t.name??"").toLowerCase())));
+  const aiCompoundCounts=aiCars.reduce((acc,car)=>{
+    const label=String(car.tyre?.compound??car.tyre?.tyre_id??"unknown").toLowerCase();
+    acc[label]=(acc[label]||0)+1;
+    return acc;
+  },{});
+  const gridPaceModes=initial.cars.reduce((acc,car)=>{
+    const mode=String(car.resources?.paceMode??"unknown");
+    acc[mode]=(acc[mode]||0)+1;
+    return acc;
+  },{});
+  const supportsDryChoice=dryChoicesForAi.some(set=>set.size>=2);
+  console.log("REAL_2000_STRATEGY_GRID="+JSON.stringify({
+    dryChoiceAvailable:supportsDryChoice,
+    aiStartCompounds:aiCompoundCounts,
+    aiCars:aiCars.length,
+    paceModes:gridPaceModes,
+    source:"2000 Season Pack strategy selections carried through canonical RaceState",
+  }));
+  if(supportsDryChoice){
+    assert.ok(Object.keys(aiCompoundCounts).length>=2,
+      "the 2000 AI field should not default entirely to the most durable dry tyre");
+  }
   const fast=runFastRaceToEnd(initial,{maxSteps:150000});
   assert.equal(fast.status,"finished");
   assert.ok(fast.tick>1000);
