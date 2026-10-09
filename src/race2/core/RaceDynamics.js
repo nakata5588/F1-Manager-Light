@@ -94,10 +94,18 @@ export function raceTargetSpeedProfile(state,car){
 
   const straightScore=power*0.55+race*0.30+driver*0.15;
   const straightFactor=clamp(0.90+straightScore*0.00135,0.90,1.04);
-  const straightTarget=eraStraightSpeedKmh(state?.track?.year)*straightFactor;
+  const circuitStraightFactor=clamp(
+    finite(state?.track?.speedProfile?.straightSpeedFactor,1),0.75,1.05
+  );
+  const straightTarget=eraStraightSpeedKmh(state?.track?.year)*
+    straightFactor*circuitStraightFactor;
 
   const handlingScore=chassis*0.55+race*0.20+driver*0.25;
-  const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44);
+  const cornerRetentionFactor=clamp(
+    finite(state?.track?.speedProfile?.cornerRetentionFactor,1),0.7,1.1
+  );
+  const cornerRetention=clamp(0.28+handlingScore*0.0015,0.31,0.44)*
+    cornerRetentionFactor;
   const resourcePerformance=raceResourcePerformance(car);
   const rawTargetSpeedKmh=Math.max(
     55,
