@@ -1794,6 +1794,11 @@ export default function RaceWeekend(){
               const did=String(entry.driver_id);
               const selection=raceStrategy?.selections?.[did]||{};
               const tyres=tyresForTeam(gs,String(entry.team_id??""));
+              const dryLock=Boolean(raceStrategy?.rules_snapshot?.dry_specification_locked);
+              const selectedStart=tyres.find(tyre=>String(tyre.tyre_id)===String(selection.start_tyre_id));
+              const nextTyres=dryLock&&selectedStart?.category==="dry"
+                ?tyres.filter(tyre=>tyre.category!=="dry"||String(tyre.tyre_id)===String(selection.start_tyre_id))
+                :tyres;
               const supplier=gs?.raceStrategyWorld?.teamSuppliers?.[String(entry.team_id??"")]||tyres[0]?.supplier||"—";
               return <div key={did} className="border border-white/10 rounded-xl bg-black/15 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1822,11 +1827,11 @@ export default function RaceWeekend(){
                       {Object.values(PIT_PLANS).map((plan)=><option key={plan.id} value={plan.id}>{plan.label}</option>)}
                     </select>
                   </label>
-                  <label className="text-xs text-slate-400">Next tyre
+                  <label className="text-xs text-slate-400">{dryLock?"Next tyre (same dry compound)":"Next tyre"}
                     <div className="mt-1 flex items-center gap-2">
                       <TyreCompoundIcon compound={tyreName(tyres,selection.next_tyre_id||selection.start_tyre_id)} size={30}/>
                       <select className="min-w-0 flex-1 border border-white/10 bg-[#0f141d] text-slate-100 rounded-lg px-2 py-2 text-sm" value={selection.next_tyre_id||selection.start_tyre_id||""} onChange={(e)=>setRaceStrategy(did,{next_tyre_id:e.target.value})}>
-                        {tyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
+                        {nextTyres.map((tyre)=><option key={tyre.tyre_id} value={tyre.tyre_id}>{tyre.compound_name}</option>)}
                       </select>
                     </div>
                   </label>
