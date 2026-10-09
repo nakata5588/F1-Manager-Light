@@ -57,6 +57,20 @@ completed sessions, after Results have been durably archived and checksummed.
 Never trim official classification, lap timing, DNF or event history for a
 space-saving shortcut.
 
+## Same-career stale journal guard (incremental hardening)
+
+A matching career seed alone does not prove journal freshness. Legacy
+sessionStorage checkpoints can survive into later rounds of the *same*
+career. Until durable revisions exist, recovery now rejects checkpoints
+that are older by known season, round or date, belong to another GP at
+the same point, rewind canonical ticks, or try to reopen finished Results.
+It continues to accept a newer matching journal after a stale Continue
+snapshot. Explicit manual Load Game and imported game state invalidate
+the previous tab's journal without deleting any save slot.
+
+This is **not** a complete multi-tab concurrency protocol. The planned
+IndexedDB revision/checksum transaction remains necessary.
+
 ## Proposed IndexedDB rollout (future PRs)
 
 **Phase A — compatibility baseline (this PR).** Central ownership map and
