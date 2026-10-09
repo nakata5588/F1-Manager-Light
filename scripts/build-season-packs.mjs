@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { readJsonOptional, readJsonRequired } from "./lib/json-source.mjs";
+import { prepareVerifiedCarResults } from "./lib/verified-car-results.mjs";
+import { materializeHistoricalCarBaselines } from "../src/domain/historicalCarResultBaseline.js";
 import {
   discoverSupportedYears,
   materializeSeasonPack,
@@ -22,7 +24,7 @@ const [
   teamBrands,teamEngines,contracts,sponsorsContracts,rules,qualifyingRules,qualifyingRuleOverrides,eraSafety,
   accidentModel,facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,
   financialRules,agendaBlocks,contractRules,youthIntakeRules,scoutingZones,
-  trackLayoutByYear,teamSeasons,coreTracks,
+  trackLayoutByYear,teamSeasons,coreTracks,raceResults,constructorReference,entryRows,
 ]=await Promise.all([
   requiredJson("drivers.json"),
   requiredJson("calendar.json"),
@@ -70,6 +72,9 @@ const [
   requiredJson("track_layout_by_year.json"),
   requiredJson("team_seasons.json"),
   requiredJson("core_tracks.json"),
+  requiredJson("race_results.json"),
+  readJsonRequired(path.join(root,"data/reference/constructor_id_map.json"),{label:"constructor_id_map.json"}),
+  optionalJson("f1_entry_list_history.json"),
 ]);
 
 const globalData={
@@ -81,6 +86,22 @@ const globalData={
   facilities,carStats,staffContracts,tyres,pointsSystems,penaltiesRules,financialRules,
   agendaBlocks,contractRules,youthIntakeRules,scoutingZones,trackLayoutByYear,teamSeasons,coreTracks,
 };
+
+// Build-time only: resolve historical Results once for the entire dataset.
+const verified=prepareVerifiedCarResults({results:raceResults,teams,drivers,constructorReference,entryRows});
+const byYear=new Map();
+for(const row of verified.rows){
+  const year=Number(row.year);
+  if(!byYear.has(year))byYear.set(year,[]);
+  byYear.get(year).push(row);
+}
+globalData.historicalCarResultBaselines=[...byYear.entries()].flatMap(([year,rows])=>
+  materializeHistoricalCarBaselines(rows,year)
+);
+const coverage2000=verified.coverage.find(r=>r.year===2000)||null;
+console.log("CAR_RESULTS_RECONCILIATION_2000="+JSON.stringify({
+  ...coverage2000,estimatedCarTeams:globalData.historicalCarResultBaselines.filter(r=>r.year===2000).length
+}));
 
 const requestedArg=process.argv.find((arg)=>arg.startsWith("--years="));
 const requested=requestedArg
