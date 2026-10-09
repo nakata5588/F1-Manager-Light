@@ -196,6 +196,60 @@ migration, true durable autosave after browser closure, browser-level
 testing, and explicit provenance/versioning of model and reference data.
 Do not automatically delete old saves during any future cutover.
 
+## Atomic IndexedDB career repository groundwork (2026-10-09)
+
+`src/state/durableCareerRepository.js` adds a **separate**, opt-in
+transactional database `f1ml-careers` (version 1) alongside the existing
+immutable recovery archive `f1ml-careers-shadow`. It is not connected to
+the live Save/Quick Save/Continue buttons yet.
+
+The new implementation includes:
+
+- `careerRevisions`: immutable, SHA-256-addressed JSON snapshots. Every
+  revision retains original bytes, career identity, schema version, a
+  monotonic revision number and storage timestamp. Results, active
+  canonical Race Weekend state and RNG are never recomputed or compacted.
+- `careerHeads`: per-slot pointers to the last committed revision.
+  Saving a manual slot or Continue requires its **expected revision**.
+  The revision and pointer commit in the **same readwrite transaction**;
+  competing tabs cannot silently overwrite a newer commit. Switching
+  Continue to another career needs explicit permission; manual slots
+  cannot be switched between career identities.
+- `careerMeta`: initial migration **staging** state. The repository can
+  copy all compatible localStorage manual slots and Continue into one
+  IndexedDB transaction only if the destination has no previous heads.
+  It verifies original bytes before and after copying and performs
+  checksum-verified readback for every slot.
+- Per-career `recovery:<seed>` records use the **same transactional revision
+  engine** to durably store Race Weekend checkpoints. A checkpoint is
+  applied only via existing `sessionRecoveryMatchesState` /
+  `applySessionRecoverySnapshot` safeguards, preventing stale journals
+  and cross-career recovery.
+- A metadata-only `rollbackStage()` records that the staged migration
+  should not be activated. It deliberately does not erase original saves
+  or verified IndexedDB revision history.
+
+**Status: NOT YET THE ACTIVE BACKEND.** Existing `GameStore` flows
+continue using localStorage with the previous synchronous
+`manualSavePersistence.js` writer. This is necessary: enabling an
+asynchronous authority without adapting the startup loader, autosave,
+Save As, Quick Save, Load Game, Continue and tab-recovery routes would
+make some new writes invisible to the running game.
+
+The next change must rewire those entrypoints **as one coordinated
+asynchronous cutover**, with explicit opt-in and an atomic active-backend
+marker, a safe read/restore fallback, and browser-verified F5 / close /
+reopen / quota / multi-tab tests. An IndexedDB transaction is committed
+only after `transaction.oncomplete`. No game setting or button may
+advertise an active IndexedDB backend until all that works.
+
+Staging will deliberately reject invalid saves, unsupported future
+schemas, or records without a stable career seed. These legacy sources
+remain untouched and should be exported or upgraded via the existing
+loader before cutover. The v2 save envelope is unchanged. If staging
+fails (including quota failures), no partial IndexedDB head or revision
+should be committed, and the original localStorage saves remain intact.
+
 ## Versioned provenance required before a disk-format switch
 
 Persist the **starting era and career seed**, save schema, season-pack/data
