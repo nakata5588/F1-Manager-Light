@@ -266,7 +266,18 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
       severityMax:Math.max(...(input.track.speedProfile?.samples||[]).map(s=>Number(s.severity))),
       severityMean:(input.track.speedProfile?.samples||[]).reduce((sum,s)=>sum+Number(s.severity||0),0)/Math.max(1,input.track.speedProfile?.samples?.length||0),
     },
-    weatherInput:input.weather,startingWeather:initial.weatherState,
+    weatherInput:{
+      state:input.weather?.state??null,
+      startingTrackWetness:input.weather?.starting_track_wetness??null,
+      segments:input.weather?.segments??[],
+      maxTimelineWetness:Math.max(0,...(input.weather?.timeline||[]).map(row=>Number(row?.track_wetness||0))),
+      firstRainLap:input.weather?.timeline?.find(row=>Number(row?.rain_intensity||0)>0)?.lap??null,
+    },
+    startingWeather:{
+      state:initial.weatherState?.state??null,
+      trackWetness:initial.weatherState?.track_wetness??null,
+      rainIntensity:initial.weatherState?.rain_intensity??null,
+    },
     gridTyres,leader:{
       driverId:leader?.driverId??null,finishTimeMs:leader?.finishTimeMs??null,
       bestLapMs:leader?.bestLapMs??null,
