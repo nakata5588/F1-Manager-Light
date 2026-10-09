@@ -91,6 +91,17 @@ test("Australian GP 2000 takes Bridgestone Soft/Medium rather than generic Hard/
     ["Medium","Soft"]);
   assert.ok(allocation.every(tyre=>tyre.supplier==="Bridgestone"));
   assert.ok(allocation.every(tyre=>tyre.model_parameters_estimated===true));
+  const saved={...world,raceWeekendState:{
+    engine_version:"rw2",track_id:"tr_0019",
+    race_strategy:{selections:{driver_1:{
+      driver_id:"driver_1",team_id:"team_1",
+      start_tyre_id:"generic_2000_hard",next_tyre_id:"generic_2000_soft",
+    }}},
+  }};
+  assert.ok(tyresForTeam(saved,"team_1").some(row=>row.tyre_id==="generic_2000_hard"),
+    "old race-weekend saves retain their exact historical-in-save tyre IDs");
+  assert.ok(tyresForTeam(saved,"team_2").some(row=>row.tyre_id==="bs_2000_aus_medium"),
+    "other teams can still consume verified event allocation");
   const strategy=createRaceStrategyState(world,{gp,raceEntryState:world.raceEntryState});
   const selections=Object.values(strategy.state.selections);
   assert.equal(strategy.state.rules_snapshot.dry_specification_locked,true);
