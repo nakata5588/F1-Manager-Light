@@ -122,9 +122,16 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   // at the event tick. Passing a lapped car is not a change of race position.
   // The half-lap proximity guard tolerates start/finish line crossings.
   const completedPassContexts=[];
+  let sampledMaxSpeedKmh=0;
   let priorEventCount=0;
   for(let tick=0;tick<fast.tick;tick++){
     const next=live.step();
+    // Periodic canonical speed samples; read-only and deliberately lightweight.
+    if(tick%25===0){
+      for(const car of next.cars)sampledMaxSpeedKmh=Math.max(
+        sampledMaxSpeedKmh,Number(car.speedKmh)||0
+      );
+    }
     if(next.events.length>priorEventCount){
       const newEvents=next.events.slice(priorEventCount);
       for(const event of newEvents){
@@ -259,4 +266,26 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     })),
   };
   console.log("REAL_2000_FULL_RACE_AUDIT="+JSON.stringify(summary));
+  const fastest=fast.cars.filter(car=>Number(car.bestLapMs)>0)
+    .sort((a,b)=>Number(a.bestLapMs)-Number(b.bestLapMs))[0];
+  const winner=fast.cars.find(car=>String(car.driverId)===String(archived[0]?.driver_id));
+  const sampleCount=input.track?.speedProfile?.samples?.length||0;
+  console.log("REAL_2000_PACE_AUDIT="+JSON.stringify({
+    track:input.track.trackId,
+    profileSource:input.track?.speedProfile?.source||"missing",
+    profileSampleCount:sampleCount,
+    profileMaxSeverity:Math.max(0,...(input.track?.speedProfile?.samples||[]).map(p=>Number(p.severity)||0)),
+    straightSpeedFactor:input.track?.speedProfile?.straightSpeedFactor??1,
+    brakingModel:input.track?.speedProfile?.brakingModel??"legacy",
+    fastestLapMs:fastest?.bestLapMs??null,
+    fastestLapDriverId:fastest?.driverId??null,
+    winnerFinishMs:winner?.finishTimeMs??null,
+    averageWinnerSpeedKmh:winner?.finishTimeMs>0
+      ?Number((input.track.lengthM*input.track.laps*3.6/(winner.finishTimeMs/1000)).toFixed(3))
+      :null,
+    maxSampledSpeedKmh:Number(sampledMaxSpeedKmh.toFixed(3)),
+    winnerPitLaps:(winner?.pitState?.history||[]).map(stop=>Number(stop.lap)),
+    startingWeather:input.weather?.segments?.[0]?.state??input.weather?.state??null,
+    dryStart:((input.weather?.timeline||[])[0]?.track_wetness??null)===0,
+  }));
 });
