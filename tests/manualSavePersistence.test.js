@@ -183,3 +183,41 @@ test("a deleted or externally modified slot cannot be used for duplicate success
   const third = h.save();
   assert.notEqual(third.key, second.key);
 });
+
+test("stale overwrite keys cannot cross career identities", () => {
+  const h = harness();
+  const slot = h.save({ state: h.gameState(500, "career-a") });
+  const previous = h.storage.getItem(slot.key);
+  const attempted = h.save({ state: h.gameState(900, "career-b"), overwriteKey: slot.key });
+  assert.equal(attempted.ok, false);
+  assert.match(attempted.error, /another career/i);
+  assert.equal(h.storage.getItem(slot.key), previous);
+});
+
+test("legacy saves without seed can still be overwritten safely", () => {
+  const h = harness();
+  h.storage.setItem("f1ml_save_legacy", JSON.stringify({ meta: { name: "Old" }, gameState: { activeYear: 1980 } }));
+  const updated = h.save({ overwriteKey: "f1ml_save_legacy" });
+  assert.equal(updated.ok, true);
+  assert.equal(JSON.parse(h.storage.getItem(updated.key)).gameState.saveMeta.seed, "career-a");
+});
+
+test("unreadable existing slots are preserved instead of overwritten", () => {
+  const h = harness();
+  h.storage.setItem("f1ml_save_broken", "not JSON");
+  const failure = h.save({ overwriteKey: "f1ml_save_broken" });
+  assert.equal(failure.ok, false);
+  assert.equal(h.storage.getItem("f1ml_save_broken"), "not JSON");
+});
+
+test("last-played pointer failure is reported without invalidating a valid manual save", () => {
+  const h = harness();
+  h.storage.setItem("f1ml_last_save_key", "old slot");
+  h.storage.failWhen(key => key === "f1ml_last_save_key");
+  const saved = h.save();
+  assert.equal(saved.ok, true);
+  assert.equal(saved.lastSavePointerOk, false);
+  assert.equal(saved.continueSnapshotOk, true);
+  assert.equal(h.storage.getItem("f1ml_last_save_key"), "old slot");
+  assert.ok(h.storage.getItem(saved.key));
+});
