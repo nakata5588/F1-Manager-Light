@@ -157,7 +157,11 @@ async function checkReadback(head, revision, hashText) {
         head.revision + ":" + head.sha256) {
     throw error("DAMAGED_SAVE", "The durable pointer and immutable revision disagree.");
   }
-  compatibleSave(head.key, head.kind, revision.raw);
+  const checkedSave = compatibleSave(head.key, head.kind, revision.raw);
+  if (checkedSave.careerId !== head.careerId ||
+      checkedSave.schemaVersion !== revision.schemaVersion) {
+    throw error("DAMAGED_SAVE", "Stored career identity or save schema was modified.");
+  }
   const digest = await hashText(revision.raw);
   if (digest !== head.sha256) {
     throw error("BAD_CHECKSUM", "The durable revision checksum does not match its bytes.");
@@ -250,7 +254,7 @@ export async function openDurableCareerDatabase({
                 return;
               }
               if (previous && previous.careerId !== prepared.careerId &&
-                  !allowCareerSwitch) {
+                  !(allowCareerSwitch && prepared.kind === "continue")) {
                 abort(error("CAREER_CONFLICT", "The selected slot belongs to another career."));
                 return;
               }
