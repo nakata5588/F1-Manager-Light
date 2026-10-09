@@ -369,6 +369,8 @@ test("RW checkered: lapped drivers finish on their next crossing, with official 
     completedLaps:[3,2,1][index],
     distanceAlongLapM:index===0?0:1,
     status:index===0?"finished":"running",
+    zoneId:index===0?"finish":car.zoneId,
+    zoneType:index===0?"finish":car.zoneType,
     finishTimeMs:index===0?250:null,
   }));
   const finished=applyCanonicalLapTiming(previous,proposed,{stepMs:1000});
