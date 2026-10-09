@@ -73,7 +73,7 @@
     "test:lower-series": "node --test tests/lowerSeriesCallups.test.js tests/lowerSeriesCareerMovement.test.js tests/lowerSeriesCompetitionGuard.test.js tests/lowerSeriesEntries.test.js tests/lowerSeriesHistoricalReputation.test.js tests/lowerSeriesHistoricalResults.test.js tests/lowerSeriesHistoricalValidation.test.js tests/lowerSeriesHistoryView.test.js tests/lowerSeriesProspects.test.js tests/lowerSeriesSimulation.test.js tests/lowerSeriesTimeline.test.js tests/lowerSeriesWorld.test.js tests/seriesCatalog.test.js",
     "audit:race-behaviour": "node scripts/audit-race-behaviour.mjs",
     "audit:cars:historical": "node scripts/audit-historical-car-baseline.mjs --year=2000",
-    "test:cars:historical": "node --test tests/historicalCarResultBaseline.test.js tests/historicalCarSeasonMaterialization.test.js"
+    "test:cars:historical": "node --test tests/historicalResultsNormalizer.test.js tests/historicalCarResultBaseline.test.js tests/historicalCarSeasonMaterialization.test.js"
   },
   "keywords": [
     "f1",
