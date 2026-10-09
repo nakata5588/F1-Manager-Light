@@ -385,7 +385,7 @@ test("damaged durable pointer or revision is detected; never silently replaces o
     expectedRevision: null,
   });
   factory.tamper("f1ml-careers", "careerRevisions", saved.id,
-    row => ({ ...row, raw: row.raw.replace("renault", "ferrari") }));
+    row => ({ ...row, raw: row.raw.replace("\"budget\":1200000", "\"budget\":1100000") }));
   await assert.rejects(repo.readCurrent("f1hm_save"),
     e => e.code === "BAD_CHECKSUM");
   repo.close();
