@@ -469,9 +469,35 @@ function defaultStrategy(gs,entry,weather,track,rules){
   const category=weatherCategory(stateAtLap(weather,1));
   const rating=(gs?.driverRatings||[]).find((r)=>String(r?.driver_id??"")===did)||{};
   const tyreMgmt=num(rating?.tire_management,60);
+  const intelligence=num(rating?.race_intelligence,60);
+  const aggression=num(rating?.aggression??rating?.agression,60);
+  const overtaking=num(rating?.overtaking,60);
   const playerTeam=teamId(gs?.team||{});
   const isPlayer=tid===playerTeam;
-  const durable=category==="dry"&&(isPlayer||track.tyre_wear>=55||tyreMgmt<65);
+  // Historical high-wear circuits used to put the *entire* AI grid on the
+  // most durable dry tyre (the track-wear >= 55 shortcut). That removes tyre
+  // offsets and makes physical passing less dynamic even when the engine
+  // correctly uses car, driver and tyre performance.
+  //
+  // AI choices are deterministic per save/GP/driver. Strong tyre managers and
+  // aggressive drivers can accept extra degradation for faster opening laps.
+  // Track wear still shifts them toward a durable tyre. The player's initial
+  // safe default and their manual tyre choice remain unchanged.
+  const softStartChance=clamp(
+    0.34+
+    (tyreMgmt-60)*0.006+
+    (intelligence-60)*0.002+
+    (aggression-60)*0.002+
+    (overtaking-60)*0.0015-
+    (num(track?.tyre_wear,50)-50)*0.0035,
+    0.08,
+    0.72
+  );
+  const compoundChoiceRoll=rngFor(
+    gs,
+    `${gs?.activeYear??"season"}-${track?.track_id??track?.trackId??"track"}-${tid}-${did}-ai-start-compound`
+  ).next();
+  const durable=category==="dry"&&(isPlayer||compoundChoiceRoll>=softStartChance);
   const start=bestTyreForCategory(options,category,{durable});
   const alternate=category==="dry"
     ?bestTyreForCategory(options,"dry",{durable:!durable,excludeId:tyreId(start)})
@@ -486,8 +512,9 @@ function defaultStrategy(gs,entry,weather,track,rules){
 
   let pace="balanced";
   if(!isPlayer){
-    if(tyreMgmt>=78&&num(rating?.race_intelligence,60)>=72)pace="attack";
+    if(tyreMgmt>=78&&intelligence>=72)pace="attack";
     else if(tyreMgmt<52)pace="conserve";
+    else if(category==="dry"&&!durable&&aggression>=75)pace="attack";
   }
   const planned=Math.max(2,Math.min(track.laps-2,Math.round(track.laps*0.52)));
   return {
