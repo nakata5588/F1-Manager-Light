@@ -95,7 +95,15 @@ export function tyresForTeam(gs,teamId,{year=null,trackId=null}={}){
     effectiveYear>=num(t?.year_from,t?.year??Infinity)&&
     effectiveYear<=num(t?.year_to,t?.year??-Infinity)
   );
-  const all=eventAllocation&&!explicitlySupplied&&!hasYearDatabase
+  // Existing career saves may already contain a planned generic_2000 tyre
+  // from before the verified event allocation was introduced. Do not remap
+  // those race-weekend selections under the player's feet.
+  const existingSelections=Object.values(gs?.raceWeekendState?.race_strategy?.selections||{});
+  const hasLegacyGenericSelection=existingSelections.some(selection=>
+    String(selection?.team_id||"")===String(teamId)&&
+    /^generic_2000_/.test(String(selection?.start_tyre_id||""))
+  );
+  const all=eventAllocation&&!explicitlySupplied&&!hasYearDatabase&&!hasLegacyGenericSelection
     ?eventAllocation
     :activeTyresForYear(gs,effectiveYear);
   const matching=supplier
