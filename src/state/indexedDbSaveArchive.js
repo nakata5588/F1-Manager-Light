@@ -19,7 +19,9 @@ function settledTransaction(database, mode, method, value) {
     let request;
     try {
       transaction = database.transaction(IDB_SHADOW_STORE, mode);
-      request = transaction.objectStore(IDB_SHADOW_STORE)[method](value);
+      request = value === undefined
+        ? transaction.objectStore(IDB_SHADOW_STORE)[method]()
+        : transaction.objectStore(IDB_SHADOW_STORE)[method](value);
     } catch (error) {
       reject(error);
       return;
@@ -89,6 +91,7 @@ export async function openIndexedDbShadowArchive({
   });
   return {
     get: (id) => settledTransaction(database, "readonly", "get", id),
+    list: () => settledTransaction(database, "readonly", "getAll"),
     add: (entry) => settledTransaction(database, "readwrite", "add", entry),
     close: () => database.close(),
   };
@@ -155,6 +158,7 @@ export async function copyLegacySavesToIndexedDb({
           kind: candidate.kind,
           raw: candidate.raw,
           length: candidate.raw.length,
+          capturedAt: new Date().toISOString(),
           sha256,
           ...meta,
         };

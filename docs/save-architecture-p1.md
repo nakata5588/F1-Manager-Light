@@ -151,6 +151,51 @@ with atomic revision/pointer/recovery writes and a reversible cutover. That
 transition will require a separately versioned save schema and browser tests
 for crashes, multi-tab changes, closed tabs and migration rollback.
 
+## User-initiated, reversible archive recovery (2026-10-09)
+
+The **Settings → Save Backups & Recovery** panel now exposes two optional
+buttons: **Copy & verify local saves** and **View archived revisions**. No
+IndexedDB copy is made during gameplay, when entering Settings, or on a
+scheduled background task. The user must explicitly choose to create one.
+
+After successful copy, the panel lists each revision with its archival
+capture time and verifies its exact original JSON bytes against SHA-256,
+its expected immutable record ID, legacy v0/v1/v2 schema compatibility and
+career/Results data shape. Damaged or unsupported revisions are shown as
+unverified and cannot be restored.
+
+**Restore to new slot** requires explicit browser confirmation, verifies
+the selected revision again and creates a **new** `f1ml_save_recovered_*`
+manual save slot with a fresh timestamp and a clearly labelled name. The
+original gameplay state, including active canonical race ticks, tyre wear,
+RNG state and archived Results, is preserved without recalculation.
+The original legacy save, rolling Continue snapshot and last-played pointer
+are neither overwritten nor selected. The user may go to **Load Game** and
+choose the recovered save manually. Older and newer copies can coexist.
+
+This provides an explicit **copy → verify → recover** workflow and a
+non-destructive rollback path if the normal local save disappears while
+IndexedDB survives (for example after closing/reopening tabs). It does
+**not** implement an authoritative IndexedDB backend switch: localStorage
+remains the sole live source and `SAVE_SCHEMA_VERSION` remains 2. It does
+not silently promote an old career over the current one.
+
+The regression suite simulates a closed browser/new session using a
+reopened archive, absent Continue/local slots, independent tabs/recovery
+slots, checksum failures, quota errors, silent writes, legacy schema
+compatibility and IndexedDB transaction readback/listing. A real browser
+smoke test across F5, full close/reopen and multi-tab usage is still
+needed before replacing the storage backend. Site/browser-data clearing,
+private browsing, origin changes and storage eviction may remove **both**
+localStorage and IndexedDB; an exported JSON save stored outside the
+browser is still recommended.
+
+**Remaining P1 work:** an asynchronous authoritative storage repository,
+atomic revision/pointer/recovery transactions, tested rollback on failed
+migration, true durable autosave after browser closure, browser-level
+testing, and explicit provenance/versioning of model and reference data.
+Do not automatically delete old saves during any future cutover.
+
 ## Versioned provenance required before a disk-format switch
 
 Persist the **starting era and career seed**, save schema, season-pack/data
