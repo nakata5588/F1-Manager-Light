@@ -118,7 +118,37 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.ok(finishers.some(c=>c.completedLaps===58),
     "at least one car must cross the complete race distance");
   const live=createLiveRaceRunner(initial);
-  for(let tick=0;tick<fast.tick;tick++)live.step();
+  // Classify completed on-track passes using physical absolute lap distance
+  // at the event tick. Passing a lapped car is not a change of race position.
+  // The half-lap proximity guard tolerates start/finish line crossings.
+  const completedPassContexts=[];
+  let priorEventCount=0;
+  for(let tick=0;tick<fast.tick;tick++){
+    const next=live.step();
+    if(next.events.length>priorEventCount){
+      const newEvents=next.events.slice(priorEventCount);
+      for(const event of newEvents){
+        if(event.type!=="overtake_completed")continue;
+        const attacker=next.cars.find(c=>String(c.carId)===String(event?.carIds?.[0]));
+        const defender=next.cars.find(c=>String(c.carId)===String(event?.carIds?.[1]));
+        if(!attacker||!defender)continue;
+        const absoluteSeparationM=Math.abs(
+          Number(attacker.absoluteDistanceM)-Number(defender.absoluteDistanceM)
+        );
+        const sameLapProximity=absoluteSeparationM<input.track.lengthM*0.5;
+        completedPassContexts.push({
+          attemptId:String(event?.payload?.attemptId??""),
+          driverId:attacker.driverId,
+          teamId:attacker.teamId,
+          defenderId:defender.driverId,
+          lap:Number(attacker.completedLaps||0)+1,
+          sameLapProximity,
+          absoluteSeparationM:Number(absoluteSeparationM.toFixed(3)),
+        });
+      }
+      priorEventCount=next.events.length;
+    }
+  }
   assert.deepEqual(live.getState(),fast,"Live and Autosim must converge to identical canonical state");
   const official=projectCanonicalRaceStateToOfficialRows(gs,fast);
   const archived=materializeOfficialRaceRows(official);
@@ -156,6 +186,26 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   const quietestHours=Math.max(0,...gapsMs)/3_600_000;
   const pairedFailures=terminal.filter(e=>e.type==="overtake_failed")
     .reduce((acc,e)=>{const reason=String(e?.payload?.reason??"unknown");acc[reason]=(acc[reason]||0)+1;return acc;},{});
+  const completionIds=new Set(successes.map(e=>String(e?.payload?.attemptId??"")));
+  const measuredMetrics=["driverEdge","carEdge","tyreGripEdge","strategyEdge","tyreConditionEdge","damageEdge"];
+  const averagesFor=rows=>Object.fromEntries(measuredMetrics.map(key=>{
+    const values=rows.map(e=>Number(e?.payload?.[key])).filter(Number.isFinite);
+    return [key,values.length
+      ?Number((values.reduce((sum,n)=>sum+n,0)/values.length).toFixed(4))
+      :null];
+  }));
+  const completedStarts=attempts.filter(e=>completionIds.has(String(e?.payload?.attemptId??"")));
+  const nonCompletedStarts=attempts.filter(e=>!completionIds.has(String(e?.payload?.attemptId??"")));
+  const countBy=(values,keyOf)=>values.reduce((acc,row)=>{
+    const key=String(keyOf(row)??"unknown");
+    acc[key]=(acc[key]||0)+1;
+    return acc;
+  },{});
+  const uniqueOpponentPairs=new Set(
+    successes.map(e=>[...e.driverIds].map(String).sort().join("|"))
+  ).size;
+  const approximatePositionPasses=completedPassContexts.filter(row=>row.sameLapProximity);
+  const approximateLappingPasses=completedPassContexts.filter(row=>!row.sameLapProximity);
   const battleAudit={
     scenario:"real 2000 Australian Grand Prix",
     measurement:"canonical event stream; counts do not treat grid-to-finish changes as passes",
@@ -176,11 +226,25 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     firstAttemptAtMinute:times.length?Number((times[0]/60000).toFixed(2)):null,
     lastAttemptAtMinute:times.length?Number((times[times.length-1]/60000).toFixed(2)):null,
     passesByTeam,passesByDriver,
+    sameLapPhysicalPasses:approximatePositionPasses.length,
+    lappingOrUnlappingPhysicalPasses:approximateLappingPasses.length,
+    completedPassContextsRecorded:completedPassContexts.length,
+    uniqueOpponentPairsWithCompletedPass:uniqueOpponentPairs,
+    sameLapPassesByRaceQuarter:countBy(approximatePositionPasses,row=>
+      row.lap<=15?"laps_1_15":row.lap<=30?"laps_16_30":row.lap<=45?"laps_31_45":"laps_46_58"),
+    startsByAttackerPaceMode:countBy(attempts,e=>e?.payload?.attackerPaceMode??"unknown"),
+    completedByAttackerPaceMode:countBy(completedStarts,e=>e?.payload?.attackerPaceMode??"unknown"),
+    startFactorMeansSuccessful:averagesFor(completedStarts),
+    startFactorMeansUnsuccessful:averagesFor(nonCompletedStarts),
+    passProximityRule:"abs(driver absolute distances) < half one lap at event tick; approximate position pass proxy",
     eventTypes:behaviour.eventTypes,
     note:"RW38 approach and physical side-by-side transition diagnostics on experimental RW39 stack.",
   };
   assert.equal(behaviour.fieldSize,22);
   assert.equal(battleAudit.completed,Object.values(passesByDriver).reduce((s,n)=>s+n,0));
+  assert.equal(completedPassContexts.length,successes.length,
+    "every completed pass should retain its two physical drivers at the event tick");
+  assert.equal(approximatePositionPasses.length+approximateLappingPasses.length,successes.length);
   console.log("REAL_2000_BATTLE_AUDIT="+JSON.stringify(battleAudit));
 
   const summary={
