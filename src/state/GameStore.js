@@ -16,7 +16,7 @@ import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateF
 import { legacyCompatibleSaveState } from "@/core/saveSections";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
-import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "@/domain/sessionRecovery";
+import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot, clearSessionRecoverySnapshot } from "@/domain/sessionRecovery";
 import { processWorkshopJobs } from "@/domain/componentService";
 import { processPlayerTechnicalLifecycle } from "@/domain/playerTechnicalLifecycle";
 import { advanceNextSeasonCarDay } from "@/domain/nextSeasonCar";
@@ -1789,6 +1789,12 @@ export const useGame = create((set, get) => ({
     if (!gs || typeof gs !== "object") return null;
     const migrated = extractGameStateFromStoredSave(gs);
     set({ gameState: hydrateLoadedGameState(migrated), currentSaveKey: null });
+    // An explicit load is authoritative; an older tab journal must not
+    // overwrite it on the next refresh, even within the same career.
+    clearSessionRecoverySnapshot(
+      typeof sessionStorage === "undefined" ? null : sessionStorage,
+      SESSION_RECOVERY_KEY
+    );
     return migrated;
   },
 
@@ -1847,6 +1853,10 @@ export const useGame = create((set, get) => ({
       const gs = extractGameStateFromStoredSave(obj);
       if (gs && typeof gs === "object") {
         set({ gameState: hydrateLoadedGameState(gs), currentSaveKey: key });
+        clearSessionRecoverySnapshot(
+          typeof sessionStorage === "undefined" ? null : sessionStorage,
+          SESSION_RECOVERY_KEY
+        );
         try {
           localStorage.setItem(LAST_SAVE_KEY, key);
           // Loading a manual/imported save must also become the active Continue
