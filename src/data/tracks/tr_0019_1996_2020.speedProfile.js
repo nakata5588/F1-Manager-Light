@@ -39,6 +39,7 @@ export const ALBERT_PARK_ORIGINAL_ERA=Object.freeze({
   // The era's top-speed envelope still increases over historical seasons.
   straightSpeedFactor:0.92,
   cornerRetentionFactor:0.90,
+  brakingModel:"distance_sensitive",
 });
 
 export function provisionalAlbertParkSpeedProfile(trackId,year,lengthM){
@@ -60,8 +61,10 @@ export function provisionalAlbertParkSpeedProfile(trackId,year,lengthM){
     for(const [,turnFraction,peak,width] of TURNS){
       const delta=Math.abs(fraction-turnFraction);
       const wrappedDelta=Math.min(delta,1-delta);
-      const weight=Math.exp(-0.5*(wrappedDelta/width)**2);
-      severity=Math.max(severity,peak*weight);
+      // Narrow, physically located turn envelopes: braking distance is owned
+      // by canonical RaceDynamics instead of making the whole approach a corner.
+      const weight=Math.exp(-0.5*(wrappedDelta/(width*0.58))**2);
+      severity=Math.max(severity,peak*0.92*weight);
     }
     return {
       distanceM:Number((i*spacing).toFixed(3)),
@@ -78,6 +81,7 @@ export function provisionalAlbertParkSpeedProfile(trackId,year,lengthM){
     windowM:null,
     straightSpeedFactor:ALBERT_PARK_ORIGINAL_ERA.straightSpeedFactor,
     cornerRetentionFactor:ALBERT_PARK_ORIGINAL_ERA.cornerRetentionFactor,
+    brakingModel:ALBERT_PARK_ORIGINAL_ERA.brakingModel,
     samples,
   };
 }
