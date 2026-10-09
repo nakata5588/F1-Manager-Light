@@ -146,7 +146,33 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
   assert.ok(finishers.some(c=>c.completedLaps===58),
     "at least one car must cross the complete race distance");
   const live=createLiveRaceRunner(initial);
-  for(let tick=0;tick<fast.tick;tick++)live.step();
+  const physicalPasses=[];
+  const sampledTopSpeedByDriver={};
+  let previousEventCount=0;
+  for(let tick=0;tick<fast.tick;tick++){
+    const snapshot=live.step();
+    if(tick%10===0){
+      for(const car of snapshot.cars){
+        const key=String(car.driverId);
+        sampledTopSpeedByDriver[key]=Math.max(sampledTopSpeedByDriver[key]||0,Number(car.speedKmh)||0);
+      }
+    }
+    if(snapshot.events.length>previousEventCount){
+      for(const event of snapshot.events.slice(previousEventCount)){
+        if(event.type!=="overtake_completed")continue;
+        const attacker=snapshot.cars.find(car=>String(car.carId)===String(event.carIds?.[0]));
+        const defender=snapshot.cars.find(car=>String(car.carId)===String(event.carIds?.[1]));
+        if(!attacker||!defender)continue;
+        const distance=Math.abs(Number(attacker.absoluteDistanceM)-Number(defender.absoluteDistanceM));
+        physicalPasses.push({
+          attacker:attacker.driverId,defender:defender.driverId,
+          lap:Number(attacker.completedLaps||0)+1,
+          sameLap:distance<input.track.lengthM*0.5,
+        });
+      }
+      previousEventCount=snapshot.events.length;
+    }
+  }
   assert.deepEqual(live.getState(),fast,"Live and Autosim must converge to identical canonical state");
   const official=projectCanonicalRaceStateToOfficialRows(gs,fast);
   const archived=materializeOfficialRaceRows(official);
@@ -224,4 +250,45 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     })),
   };
   console.log("REAL_2000_FULL_RACE_AUDIT="+JSON.stringify(summary));
+  const leader=fast.cars.filter(car=>car.status==="finished").sort((a,b)=>Number(a.finishTimeMs)-Number(b.finishTimeMs))[0];
+  const realPositionPasses=physicalPasses.filter(p=>p.sameLap);
+  const gridTyres=initial.cars.map(car=>({
+    driverId:car.driverId,teamId:car.teamId,
+    tyreId:car.tyre?.tyre_id??null,
+    compound:car.tyre?.compound??car.tyre?.compound_name??null,
+    category:car.tyre?.category??null,
+  }));
+  const simulationAudit={
+    year:2000,track:input.track.trackId,
+    trackSpeedProfile:{
+      count:input.track.speedProfile?.samples?.length??0,
+      severityMin:Math.min(...(input.track.speedProfile?.samples||[]).map(s=>Number(s.severity))),
+      severityMax:Math.max(...(input.track.speedProfile?.samples||[]).map(s=>Number(s.severity))),
+      severityMean:(input.track.speedProfile?.samples||[]).reduce((sum,s)=>sum+Number(s.severity||0),0)/Math.max(1,input.track.speedProfile?.samples?.length||0),
+    },
+    weatherInput:input.weather,startingWeather:initial.weatherState,
+    gridTyres,leader:{
+      driverId:leader?.driverId??null,finishTimeMs:leader?.finishTimeMs??null,
+      bestLapMs:leader?.bestLapMs??null,
+      averageRaceSpeedKmh:leader?.finishTimeMs>0?Number((input.track.lengthM*58*3.6/(leader.finishTimeMs/1000)).toFixed(3)):null,
+    },
+    finishersFullDistance:fast.cars.filter(car=>car.status==="finished"&&car.completedLaps===58).length,
+    finishersLapped:fast.cars.filter(car=>car.status==="finished"&&car.completedLaps<58).length,
+    finishersAll:fast.cars.filter(car=>car.status==="finished").length,
+    topSpeedsKmh:sampledTopSpeedByDriver,
+    maxSampledSpeedKmh:Math.max(0,...Object.values(sampledTopSpeedByDriver)),
+    recordedOvertakes:physicalPasses.length,
+    approximateSameLapPositionPasses:realPositionPasses.length,
+    approximateLappingPasses:physicalPasses.length-realPositionPasses.length,
+    sameLapPassesByRaceQuarter:{
+      q1:realPositionPasses.filter(p=>p.lap<=15).length,
+      q2:realPositionPasses.filter(p=>p.lap>15&&p.lap<=30).length,
+      q3:realPositionPasses.filter(p=>p.lap>30&&p.lap<=45).length,
+      q4:realPositionPasses.filter(p=>p.lap>45).length,
+    },
+    postLeaderFinishMs:Math.max(0,Number(fast.simulationTimeMs)-Number(leader?.finishTimeMs||fast.simulationTimeMs)),
+    pitStops:fast.cars.map(car=>({driverId:car.driverId,laps:(car.pitState?.history||[]).map(stop=>Number(stop.lap))})),
+  };
+  assert.equal(simulationAudit.recordedOvertakes,battleAudit.completed);
+  console.log("REAL_2000_DEEP_HISTORICAL_AUDIT="+JSON.stringify(simulationAudit));
 });
