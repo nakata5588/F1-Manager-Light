@@ -41,7 +41,7 @@ test("2000 Australian GP: 22 historic starters complete 58 laps in canonical Liv
     assert.ok(teamSeats.length>=2,`2000 ${t.team_name} must have two race seats`);
     garageByTeam[tid]={
       cars:[1,2].map(slot=>({
-        id:`${tid}_race_${slot}`,kind:"race",
+        id:tid===String(ferrari.team_id)?`car_${slot}`:`${tid}_race_${slot}`,kind:"race",
         driver_id:String(teamSeats[slot-1].driver_id),
         componentCondition:{engine:100,suspension:100},
       })),
