@@ -1294,3 +1294,33 @@ test("RW40B reaching side-by-side gets a separate physical time budget without g
   assert.ok(!result.events.some(e=>e.type==="overtake_completed"),
     "side-by-side is not the same as a completed pass");
 });
+
+test("RW40D gives near-complete physical passes bounded grace but not stalled duels",()=>{
+  let state=runningState({seed:"rw40d-physical-progress"});
+  state=patchCars(state,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,speedMs:45,speedKmh:162},
+    C2:{absoluteDistanceM:99.2,distanceAlongLapM:99.2,speedMs:48,speedKmh:172.8},
+  });
+  state=manualBattle(state,{expiresAtMs:50});
+  const proposed=patchCars(state,{
+    C2:{absoluteDistanceM:99.7,distanceAlongLapM:99.7},
+  });
+  const progress=resolveRaceOvertaking(state,proposed.cars,{stepMs:100});
+  const advancing=car({cars:progress.cars},"C2");
+  assert.equal(advancing.battle.phase,"side_by_side");
+  assert.ok(advancing.battle.expiresAtMs>100);
+  assert.ok(advancing.battle.expiresAtMs<=1800+100);
+  assert.equal(advancing.absoluteDistanceM,99.7,"no manufactured gain in distance");
+  assert.ok(!progress.events.some(e=>e.type==="overtake_completed"),
+    "a driver still behind must not be declared ahead");
+
+  const stalled=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  assert.ok(stalled.events.some(e=>e.type==="overtake_failed"),
+    "no extra time for an expired duel without positive physical progress");
+  assert.equal(car({cars:stalled.cars},"C2").battle.result,"failed");
+
+  const atLimit={...state,tick:240,simulationTimeMs:24000};
+  const capped=resolveRaceOvertaking(atLimit,proposed.cars,{stepMs:100});
+  assert.ok(capped.events.some(e=>e.type==="overtake_failed"),
+    "cannot renew the battle beyond both phase budgets");
+});
