@@ -322,3 +322,22 @@ jobs:
       - name: Simulate full 2000 Australian GP with canonical engine and official Results
         timeout-minutes: 23
         run: node --test tests/season2000FullRace.real.test.js
+
+  p0-complete-check:
+    name: P0 canonical npm run check (including build and save regressions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - name: Install clean dependencies
+        run: npm ci
+      - name: Generate JSON prerequisites
+        run: npm run build:data
+      - name: Run entire canonical check suite
+        run: npm run check
