@@ -20,6 +20,7 @@ import { aiTyreCrossoverDecision, tyreWeatherPenaltyForWetness } from "./TyreCro
 import {
   RACE_PACE_MODES,
   activeTyresForYear,
+  legalTyresForChosenDrySpecification,
   optimalTyreTemperatureC,
   projectedTyreWearPerLap,
   tyreConditionEffects,
@@ -53,7 +54,7 @@ function retirementCutoff(plan,driverId,totalLaps){
 }
 const canon=(v)=>String(v??"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
 
-export { RACE_PACE_MODES, tyreConditionEffects, tyresForTeam };
+export { RACE_PACE_MODES, tyreConditionEffects, tyresForTeam, legalTyresForChosenDrySpecification };
 
 export const PIT_PLANS=Object.freeze({
   no_stop:{id:"no_stop",label:"No planned stop"},
@@ -625,11 +626,8 @@ export function setRaceStrategySelection(gs,{driverId,patch={}}={}){
   if(patch.start_tyre_id&&validTyreIds.has(String(patch.start_tyre_id)))next.start_tyre_id=String(patch.start_tyre_id);
   if(patch.next_tyre_id&&validTyreIds.has(String(patch.next_tyre_id)))next.next_tyre_id=String(patch.next_tyre_id);
   if(rules?.dry_specification_locked){
-    const starting=tyreById(options,next.start_tyre_id);
-    const nextDry=tyreById(options,next.next_tyre_id);
-    if(starting?.category==="dry"&&nextDry?.category==="dry"){
-      // A pit stop can mount a fresh tyre, but not change the dry
-      // specification selected for that driver's historical weekend.
+    const eligible=legalTyresForChosenDrySpecification(options,next.start_tyre_id,true);
+    if(!eligible.some(row=>tyreId(row)===next.next_tyre_id)){
       next.next_tyre_id=next.start_tyre_id;
     }
   }
