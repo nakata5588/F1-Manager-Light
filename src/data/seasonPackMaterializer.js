@@ -19,6 +19,7 @@ import { inferDriverWorldEntries } from "../domain/driverWorldEntry.js";
 import { inferDriverFeederPlacements, feederPlacementRuntimePatch } from "../domain/driverFeederPlacement.js";
 import { materializeMissingStartingRatings } from "../domain/driverStartingRating.js";
 import { materializeHistoricalTeamStrengths } from "../domain/teamHistoricalStrength.js";
+import { materializeHistoricalSeasonCarStats } from "../domain/historicalCarSeasonMaterialization.js";
 import { activeLowerSeriesTeamsForYear } from "../domain/lowerSeriesTeams.js";
 import { seriesHasTeamCompetition, seriesIdOf } from "../domain/seriesCatalog.js";
 import {
@@ -824,7 +825,15 @@ export function materializeSeasonPack(globalData,yearInput){
   const teamBrands=exactOrLatestTeamRows(normalizeTeamSource(g.teamBrands||[]),year,teamIds);
   const teamEngines=exactOrLatestTeamRows(normalizeTeamSource(g.teamEngines||[]),year,teamIds);
   const facilities=exactOrLatestTeamRows(normalizeTeamSource(g.facilities||[]),year,teamIds);
-  const carStats=exactOrLatestTeamRows(normalizeTeamSource(g.carStats||[]),year,teamIds);
+  const normalizedCarStats=normalizeTeamSource(g.carStats||[]);
+  const carStats=materializeHistoricalSeasonCarStats({
+    year,
+    teamIds:[...teamIds],
+    explicitRows:rowsAtYear(normalizedCarStats,year),
+    inheritedRows:exactOrLatestTeamRows(normalizedCarStats,year,teamIds),
+    resultBaselines:g.historicalCarResultBaselines||[],
+    resultProxies:(g.carCompetitiveness||[]).map(normalizeTeamRow).filter(Boolean),
+  });
   const sponsorsContracts=activeContractRows(g.sponsorsContracts,year)
     .map(normalizeTeamRow).filter(Boolean)
     .filter((r)=>teamIds.has(teamId(r)));
