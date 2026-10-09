@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Monitor, Maximize2, RotateCcw, Save, Settings as SettingsIcon } from "lucide-react";
 import { useGame } from "../state/GameStore";
+import SaveBackupRecoveryPanel from "../components/saves/SaveBackupRecoveryPanel.jsx";
 import {
   DEFAULT_DISPLAY_SETTINGS,
   DEFAULT_USER_SETTINGS,
@@ -394,6 +395,8 @@ export default function Settings({embedded=false}){
         <Toggle checked={draft.autosave!==false} onChange={(value)=>set("autosave",value)} label="Autosave"/>
       </div>
     </Section>
+
+    <SaveBackupRecoveryPanel/>
 
     <div className="sticky bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-[#0b0d12]/95 p-3 shadow-2xl shadow-black/40 backdrop-blur">
       <div className="min-w-0 flex-1">
