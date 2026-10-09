@@ -69,6 +69,19 @@ export function activeTyresForYear(gs,yearInput=null){
   return source.filter((row)=>num(row?.year_to,row?.year??row?.year_from??NaN)===nearest);
 }
 
+// One authority for which dry-specification tyres can be refitted at pits.
+// Weather tyres remain available regardless of the selected dry specification.
+export function legalTyresForChosenDrySpecification(options,startTyreId,locked=false){
+  const source=Array.isArray(options)?options:[];
+  if(!locked)return source;
+  const selected=source.find(row=>String(row?.tyre_id??row?.id)===String(startTyreId??""));
+  if(!selected||String(selected.category)!=="dry")return source;
+  return source.filter(row=>
+    String(row?.category||"dry")!=="dry"||
+    String(row?.tyre_id??row?.id)===String(startTyreId)
+  );
+}
+
 export function tyresForTeam(gs,teamId,{year=null,trackId=null}={}){
   const world=gs?.raceStrategyWorld||{};
   const supplier=world?.teamSuppliers?.[String(teamId)]||null;
