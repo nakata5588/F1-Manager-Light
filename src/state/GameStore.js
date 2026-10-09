@@ -13,6 +13,7 @@ import { buildFreshCareerState } from "@/state/newGameRuntime";
 import { createManagerProfile, normalizeManagerProfile } from "@/domain/managerProfile";
 import { applyPlayerManagerTeamPrincipalAppointment, playerManagerIsActiveTeamPrincipal } from "@/domain/managerEmployment";
 import { GAME_VERSION, SAVE_SCHEMA_VERSION, createNewSaveMeta, extractGameStateFromStoredSave, prepareGameStateForSave } from "@/core/saveSafety";
+import { legacyCompatibleSaveState } from "@/core/saveSections";
 import { refreshDriverAvailability } from "@/engine/InjuryEngine";
 import { normalizeRaceWeekendResumeState } from "@/domain/raceWeekendResume";
 import { applySessionRecoverySnapshot, buildSessionRecoverySnapshot } from "@/domain/sessionRecovery";
@@ -92,20 +93,10 @@ async function fetchOptional(path, fallback = []) {
 }
 
 /** ==================== QUOTA-SAFE STORAGE ==================== */
-const HEAVY_KEYS = [
-  "dbCalendar","dbDrivers","dbTeams","dbDriverRatings","dbDriverRatingProfiles","dbDriverHistory","dbHistoricalChampionships","dbDriverOpeningState","dbStaffRatings","dbSeries","dbSeriesRules","dbLowerSeriesTeams","dbLowerSeriesEntries",
-  "dbTeamBrands","dbTeamEngines","dbContracts","dbSponsorsContracts",
-  "dbRules","dbEraSafety","dbAccidentModel","dbDriverCareer","dbAchievements",
-  "dbFacilities","dbCarStats","dbStaffContracts","dbStaffCore",
-  "dbTyres","dbPointsSystems","dbQualifyingRules","dbQualifyingRuleOverrides","dbPenaltiesRules","dbFinancialRules",
-  "dbBoardGoals","dbAgendaBlocks","dbLogosIndex","dbAIDifficulty",
-  "dbContractRules","dbYouthIntakeRules","dbScoutingZones","dbTrackLayoutByYear","dbTeamSeasons","dbTeamConstructorBridge","dbTeamLineageHistory","dbCoreTracks",
-  "dbWeatherProfiles","dbWeatherStates","dbPitcrewRoster",
-];
 export function makeLightSnapshot(gs) {
-  const light = { ...gs };
-  for (const k of HEAVY_KEYS) delete light[k];
-  return prepareGameStateForSave(light);
+  // Reference, career, active race and archived Results have one ownership map.
+  // Keep the v2 flat save envelope unchanged; never compact a live race here.
+  return prepareGameStateForSave(legacyCompatibleSaveState(gs || {}));
 }
 function setItemQuotaSafe(key, value) {
   try {
