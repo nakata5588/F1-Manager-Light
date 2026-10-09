@@ -8,6 +8,7 @@
 import {
   RACE_PACE_MODES,
   genericTyresForYear,
+  legalTyresForChosenDrySpecification,
   optimalTyreTemperatureC,
   projectedTyreWearPerLap,
   tyreConditionEffects,
@@ -190,7 +191,10 @@ export function initialRaceResources(input,inputCar,driver){
         tyreChangeRequested:true,
         refuelRequested:fuel.fuelStintPlanned,
       },
-      availableTyres:tyreOptionsFor(inputCar,finite(input?.year,input?.track?.year??1980))
+      availableTyres:legalTyresForChosenDrySpecification(
+        tyreOptionsFor(inputCar,finite(input?.year,input?.track?.year??1980)),
+        tyre.tyre_id,drySpecificationLocked
+      )
         .map((row)=>({
           tyre_id:String(row?.tyre_id??row?.id??""),
           supplier:row?.supplier??null,
@@ -201,7 +205,7 @@ export function initialRaceResources(input,inputCar,driver){
           warmup_time_s:finite(row?.warmup_time_s,2.5),
           wet_efficiency:finite(row?.wet_efficiency,null),
         }))
-        .filter((row)=>row.tyre_id&&(!drySpecificationLocked||row.category!=="dry"||row.tyre_id===tyre.tyre_id)),
+        .filter((row)=>row.tyre_id),
       initialFuelKg:fuel.initialFuelKg,
       fuelBurnKgPerKm:fuel.burnKgPerKm,
       fuelReserveKg:fuel.reserveKg,
