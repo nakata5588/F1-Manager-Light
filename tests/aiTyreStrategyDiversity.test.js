@@ -23,6 +23,7 @@ function grid({seed="tyre-mix-2000-regression",tyreWear=65,highSkills=false,lowS
   }));
   return {
     activeYear:2000,currentDateISO:"2000-03-12",saveMeta:{seed},
+    raceWeekendState:{engine_version:"rw2"},
     team:teams[0],teams,drivers,driverRatings,
     tyres:genericTyresForYear(2000),
     coreTracks:[{
@@ -70,6 +71,11 @@ test("AI compound risk respects driver tyre management, race intelligence and hi
   const extremeWearSoft=softCount(grid({tyreWear:95}));
   assert.ok(extremeWearSoft<=baselineSoft,
     "increasing track tyre wear should not create more soft-start AI decisions");
+});
+test("legacy live-race saves keep the old high-wear durable tyre defaults",()=>{
+  const legacy={...grid(),raceWeekendState:{engine_version:"legacy"}};
+  const options=aiCompounds(legacy);
+  assert.ok(options.every(id=>id==="generic_2000_hard"));
 });
 test("AI tyre diversity responds deterministically to the Save World seed",()=>{
   const first=aiCompounds(grid({seed:"tyre-mix-2000-regression"}));
