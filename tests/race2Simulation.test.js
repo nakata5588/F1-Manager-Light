@@ -5,6 +5,7 @@ import { createRaceState, DEFAULT_RACE_STEP_MS, RACE_STATE_SCHEMA_VERSION } from
 import { advanceRaceState, startRaceState, stepRaceState } from "../src/race2/core/RaceSimulation.js";
 import { applyCanonicalLapTiming, canonicalOfficialRaceTimeMs } from "../src/race2/core/RaceLapTiming.js";
 import { buildRaceClassification } from "../src/race2/core/RaceClassification.js";
+import { materializeOfficialRaceRows } from "../src/engine/RaceFinalizationEngine.js";
 
 function input({laps=2,cars=2}={}){
   const entries=Array.from({length:cars},(_,index)=>({driverId:`D${index+1}`,teamId:index<2?"T1":"T2",carId:`car_${index+1}`,status:"confirmed"}));
@@ -446,4 +447,18 @@ test("RW checkered: a DNF is not converted into a classified finisher",()=>{
   assert.equal(winner.status,"finished");
   assert.equal(retired.status,"dnf");
   assert.equal(retired.finishTimeMs,null);
+});
+
+test("RW checkered: official result materializer retains +1/+2 Lap and null millisecond gaps",()=>{
+  const rows=materializeOfficialRaceRows([
+    {position:1,driver_id:"D1",status:"Finished",laps_completed:3,race_laps:3,total_time_ms:5000},
+    {position:2,driver_id:"D2",status:"Finished",laps_completed:2,race_laps:3,
+      total_time_ms:5500,laps_behind:1,gap_to_winner_ms:null},
+    {position:3,driver_id:"D3",status:"Finished",laps_completed:1,race_laps:3,
+      total_time_ms:6000,laps_behind:2,gap_to_winner_ms:null},
+  ]);
+  assert.deepEqual(rows.map((row)=>row.laps_behind),[0,1,2]);
+  assert.deepEqual(rows.map((row)=>row.gap_to_winner_ms),[0,null,null]);
+  assert.deepEqual(rows.map((row)=>row.gap_to_previous_ms),[0,null,null]);
+  assert.deepEqual(rows.map((row)=>row.total_time_ms),[5000,5500,6000]);
 });
