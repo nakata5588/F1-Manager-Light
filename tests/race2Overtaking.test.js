@@ -1294,3 +1294,37 @@ test("RW40B reaching side-by-side gets a separate physical time budget without g
   assert.ok(!result.events.some(e=>e.type==="overtake_completed"),
     "side-by-side is not the same as a completed pass");
 });
+
+test("RW40C a transient speed spike cannot launch a duel against a faster sustainable car",()=>{
+  const s=runningState({seed:"rw40c-transient"});
+  const state=patchCars(s,{
+    C1:{absoluteDistanceM:100,distanceAlongLapM:100,
+      speedMs:40,speedKmh:144,freeTargetSpeedKmh:220,effectiveCornerSeverity:0},
+    C2:{absoluteDistanceM:91,distanceAlongLapM:91,
+      speedMs:50,speedKmh:180,freeTargetSpeedKmh:160,effectiveCornerSeverity:0},
+  });
+  const result=resolveRaceOvertaking(state,state.cars,{stepMs:100});
+  assert.ok(!result.events.some(e=>e.type==="overtake_started"),
+    "a temporary positive wheel-speed delta must not defeat negative sustainable pace");
+});
+
+test("RW40C a genuine car/driver pace advantage still launches physical overtaking",()=>{
+  let attempts=0;
+  for(let seed=0;seed<32;seed++){
+    const s=runningState({seed:`rw40c-sustained-${seed}`});
+    const state=patchCars(s,{
+      C1:{absoluteDistanceM:100,distanceAlongLapM:100,
+        speedMs:40,speedKmh:144,freeTargetSpeedKmh:165,effectiveCornerSeverity:0},
+      C2:{absoluteDistanceM:91,distanceAlongLapM:91,
+        speedMs:41,speedKmh:147.6,freeTargetSpeedKmh:190,effectiveCornerSeverity:0},
+    });
+    const events=resolveRaceOvertaking(state,state.cars,{stepMs:100}).events;
+    const started=events.find(e=>e.type==="overtake_started");
+    if(started){
+      attempts++;
+      assert.ok(started.payload.closingPotentialMs>=0.75,
+        "attempts require sustainable closing sufficient for the physical passing window");
+    }
+  }
+  assert.ok(attempts>0,"a real car/driver pace advantage must remain eligible to attack");
+});
