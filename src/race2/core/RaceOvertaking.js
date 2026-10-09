@@ -954,8 +954,17 @@ function resolveExistingBattles(state,proposedCars,{stepMs,blockedSectors=null}=
 
     const expired=nextTime>=finite(previousBattle?.expiresAtMs,nextTime);
     const defenderClearance=-clearance;
-    if(expired&&clearance>=0){
-      const extendedExpiry=nextTime+RACE_BATTLE_EXTENSION_MS;
+    // Keep genuinely progressing duels alive for one short, bounded window
+    // when the physical distance to a completed pass can be covered at the
+    // *measured* relative closing speed. Never extend a stalled battle, and
+    // never let sequential extensions run past two maximum phase budgets.
+    const absoluteDuelDeadlineMs=finite(previousBattle?.startedAtMs,nextTime)+
+      2*RACE_BATTLE_MAX_DURATION_MS;
+    const remainingPassDistanceM=Math.max(0,RACE_OVERTAKE_DECISIVE_CLEARANCE_M-clearance);
+    const finishWithinGrace=actualClosingMs>0&&
+      remainingPassDistanceM<=actualClosingMs*(RACE_BATTLE_EXTENSION_MS/1000);
+    if(expired&&nextTime<absoluteDuelDeadlineMs&&(clearance>=0||finishWithinGrace)){
+      const extendedExpiry=Math.min(nextTime+RACE_BATTLE_EXTENSION_MS,absoluteDuelDeadlineMs);
       const side=Number(previousBattle?.side)||1;
       const contactRiskPct=round(contactProbability*100,5);
       attacker=withBattle(attacker,{
