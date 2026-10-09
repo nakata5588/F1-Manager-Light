@@ -493,11 +493,19 @@ function defaultStrategy(gs,entry,weather,track,rules){
     0.08,
     0.72
   );
-  const compoundChoiceRoll=rngFor(
-    gs,
-    `${gs?.activeYear??"season"}-${track?.track_id??track?.trackId??"track"}-${tid}-${did}-ai-start-compound`
-  ).next();
-  const durable=category==="dry"&&(isPlayer||compoundChoiceRoll>=softStartChance);
+  // Legacy live-race saves deliberately retain their established default
+  // choices. RW2 is the sole canonical engine receiving the new varied AI
+  // strategy; this prevents retroactively changing old save-world pit plans.
+  const canonicalWeekend=String(gs?.raceWeekendState?.engine_version??"") === "rw2";
+  const compoundChoiceRoll=canonicalWeekend&&!isPlayer&&category==="dry"
+    ?rngFor(
+      gs,
+      `${gs?.activeYear??"season"}-${track?.track_id??track?.trackId??"track"}-${tid}-${did}-ai-start-compound`
+    ).next()
+    :null;
+  const durable=category==="dry"&&(isPlayer||
+    (canonicalWeekend?compoundChoiceRoll>=softStartChance:
+      track.tyre_wear>=55||tyreMgmt<65));
   const start=bestTyreForCategory(options,category,{durable});
   const alternate=category==="dry"
     ?bestTyreForCategory(options,"dry",{durable:!durable,excludeId:tyreId(start)})
@@ -514,7 +522,7 @@ function defaultStrategy(gs,entry,weather,track,rules){
   if(!isPlayer){
     if(tyreMgmt>=78&&intelligence>=72)pace="attack";
     else if(tyreMgmt<52)pace="conserve";
-    else if(category==="dry"&&!durable&&aggression>=75)pace="attack";
+    else if(canonicalWeekend&&category==="dry"&&!durable&&aggression>=75)pace="attack";
   }
   const planned=Math.max(2,Math.min(track.laps-2,Math.round(track.laps*0.52)));
   return {
