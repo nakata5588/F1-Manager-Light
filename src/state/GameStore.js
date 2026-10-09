@@ -48,6 +48,7 @@ import { refreshBoardAssessment } from "@/domain/boardState";
 import { refreshCarPerformanceSnapshot } from "@/domain/carPerformance";
 import { nextRacePlaybackEpoch, racePlaybackAdvanceAllowed } from "@/race2/runtime/RacePlaybackGate.js";
 import { createManualSaveWriter, isSaveQuotaError } from "./manualSavePersistence.js";
+import { createLegacyCareerRepository } from "./careerSaveRepository.js";
 
 /** ===== CONSTs de save ===== */
 const SAVE_KEY = "f1hm_save";
@@ -175,21 +176,7 @@ function hydrateLoadedGameState(saved) {
 
 function latestManualSaveKey() {
   try {
-    const items = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key || !key.startsWith(SAVE_PREFIX)) continue;
-      const raw = localStorage.getItem(key);
-      let ts = 0;
-      try { ts = Date.parse(JSON.parse(raw)?.meta?.savedAt || ""); } catch {}
-      if (!Number.isFinite(ts) || ts <= 0) {
-        const match = String(key).match(/(\d{10,})$/);
-        if (match) ts = Number(match[1]);
-      }
-      items.push({ key, ts: Number(ts) || 0 });
-    }
-    items.sort((a, b) => b.ts - a.ts);
-    return items[0]?.key || null;
+    return createLegacyCareerRepository({ storage: localStorage }).latestManualSaveKey();
   } catch {
     return null;
   }
@@ -1737,7 +1724,7 @@ export const useGame = create((set, get) => ({
 
   loadLocal: () => {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = createLegacyCareerRepository({ storage: localStorage }).readContinue();
       if (!raw) return false;
       const saved = extractGameStateFromStoredSave(JSON.parse(raw));
       set({ gameState: hydrateLoadedGameState(saved), currentSaveKey: null });
@@ -1750,12 +1737,7 @@ export const useGame = create((set, get) => ({
 
   hasAnySave: () => {
     try {
-      if (localStorage.getItem(SAVE_KEY)) return true;
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(SAVE_PREFIX)) return true;
-      }
-      return false;
+      return createLegacyCareerRepository({ storage: localStorage }).hasAnySave();
     } catch {
       return false;
     }
@@ -1811,8 +1793,10 @@ export const useGame = create((set, get) => ({
         seed: light.saveMeta?.seed ?? null,
         savedAt: nowIso(),
       };
-      const result = writeManualSave({
+      const result = createLegacyCareerRepository({
         storage: localStorage,
+        manualWriter: writeManualSave,
+      }).saveManual({
         gameState: light,
         meta,
         overwriteKey: options?.overwriteKey || null,
@@ -1840,13 +1824,15 @@ export const useGame = create((set, get) => ({
   },
 
   getLastSaveKey: () => {
-    try { return localStorage.getItem(LAST_SAVE_KEY); } catch { return null; }
+    try {
+      return createLegacyCareerRepository({ storage: localStorage }).getLastManualSaveKey();
+    } catch { return null; }
   },
 
   loadFromKey: (key) => {
     if (!key) return null;
     try {
-      const raw = localStorage.getItem(key);
+      const raw = createLegacyCareerRepository({ storage: localStorage }).readSlot(key);
       if (!raw) return null;
       const obj = safeJSONParse(raw);
       if (!obj || typeof obj !== "object") return null;
