@@ -276,3 +276,32 @@ test("native IndexedDB getAll and transaction completion persist between reopene
   reopened.close();
   assert.equal(closes, 2);
 });
+
+
+test("Settings archive panel renders opt-in actions without doing background migration", async () => {
+  const { createServer } = await import("vite");
+  const React = await import("react");
+  const { MemoryRouter } = await import("react-router-dom");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const server = await createServer({
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+    logLevel: "error",
+  });
+  try {
+    const { default: Panel } = await server.ssrLoadModule(
+      "/src/components/saves/SaveBackupRecoveryPanel.jsx"
+    );
+    const html = renderToStaticMarkup(
+      React.createElement(MemoryRouter, null, React.createElement(Panel))
+    );
+    assert.match(html, /Save Backups &amp; Recovery/);
+    assert.match(html, /Copy &amp; verify local saves/);
+    assert.match(html, /View archived revisions/);
+    assert.match(html, /never created automatically/);
+    assert.doesNotMatch(html, /Restore to new slot/,
+      "no restore action without the user requesting an archive listing");
+  } finally {
+    await server.close();
+  }
+});
