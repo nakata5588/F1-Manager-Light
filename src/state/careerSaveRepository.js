@@ -47,7 +47,14 @@ export function createLegacyCareerRepository({
     readSlot,
     listManualSlots,
     latestManualSaveKey: () => listManualSlots()[0]?.key || null,
-    hasAnySave: () => Boolean(readSlot(keys.continue)) || listManualSlots().length > 0,
+    hasAnySave: () => {
+      if (readSlot(keys.continue)) return true;
+      // Check slot names only: unreadable/corrupt saves still count, as before.
+      for (let i = 0; i < storage.length; i++) {
+        if (storage.key(i)?.startsWith(keys.manualPrefix)) return true;
+      }
+      return false;
+    },
     getLastManualSaveKey: () => storage.getItem(keys.lastManual),
     readContinue: () => readSlot(keys.continue),
     saveManual: (args) => {
@@ -55,10 +62,13 @@ export function createLegacyCareerRepository({
       return manualWriter({ storage, ...args });
     },
     // Read-only export used by non-destructive migrations; preserve exact bytes.
-    migrationCandidates: () => [
-      ...listManualSlots().map(({ key, raw }) => ({ key, raw, kind: "manual" })),
-      ...(readSlot(keys.continue) === null ? [] :
-        [{ key: keys.continue, raw: readSlot(keys.continue), kind: "continue" }]),
-    ],
+    migrationCandidates: () => {
+      const continueBytes = readSlot(keys.continue);
+      return [
+        ...listManualSlots().map(({ key, raw }) => ({ key, raw, kind: "manual" })),
+        ...(continueBytes === null ? [] :
+          [{ key: keys.continue, raw: continueBytes, kind: "continue" }]),
+      ];
+    },
   };
 }
