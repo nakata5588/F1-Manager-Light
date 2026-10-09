@@ -291,3 +291,29 @@ jobs:
         run: npm run test:cars:historical && node --test tests/season2000EndToEnd.real.test.js
       - name: Audit generated 2000 car attributes and provenance
         run: npm run audit:cars:historical
+
+  full-distance-2000:
+    name: Full 2000 Australian GP (22 cars, 58 laps)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Export historical canonical data
+        run: npm run build:data
+      - name: Generate 2000 car attributes from historical Results
+        run: |
+          node scripts/build-team-constructor-bridge.mjs
+          node scripts/build-team-seasons.mjs
+          node scripts/build-driver-history.mjs
+          node scripts/build-historical-championships.mjs
+          node scripts/build-season-packs.mjs --years=2000
+      - name: Check 2000 car baseline provenance
+        run: npm run audit:cars:historical
+      - name: Simulate full 2000 Australian GP with canonical engine and official Results
+        timeout-minutes: 23
+        run: node --test tests/season2000FullRace.real.test.js
