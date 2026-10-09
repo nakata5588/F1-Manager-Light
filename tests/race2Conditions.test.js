@@ -155,6 +155,7 @@ test("RW8.11A reuses era-aware incident policy instead of inventing RW2 threshol
   const historic=createRaceState(input({year:1980}));
   const historicDecision=advanceRaceConditions(historic,historic.cars,[event]);
   assert.equal(historicDecision.raceControlState.recommendedMode,"LOCAL_YELLOW");
+  assert.deepEqual(historicDecision.raceControlState.restrictedSectors,[1]);
 
   const modern=createRaceState(input({year:2015}));
   const mediumEvent={

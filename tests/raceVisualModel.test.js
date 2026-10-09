@@ -35,9 +35,12 @@ import {
   RACE_VIEW_ASPHALT_WIDTH_SVG,
   RACE_VIEW_NOMINAL_TRACK_WIDTH_M,
   raceCarNativeFootprint,
+  raceCarNominalLengthM,
   raceCarNominalWidthM,
   raceCarPresentationScale,
+  raceCarPresentationTransform,
   raceViewLateralUnitsPerMeter,
+  raceViewPhysicalAsphaltWidthSvg,
 } from "../src/domain/raceCarPresentation.js";
 
 test("RW6.7A uses each driver's own sector pace for visual motion",()=>{
@@ -698,6 +701,36 @@ test("RW31 widens the nominal race surface while preserving approved 1980 car si
   assert.ok(result.targetWidthSvg>=2.8&&result.targetWidthSvg<=3.1);
   assert.ok(result.targetLengthSvg>=5&&result.targetLengthSvg<=6.5);
   assert.ok(result.scale<0.2);
+});
+
+test("RW35 track and car share one physical world scale",()=>{
+  const footprint=raceCarNativeFootprint({year:1980,model:"FW07"});
+  const asphaltWidthSvg=raceViewPhysicalAsphaltWidthSvg({
+    trackWidthM:12.5,
+    trackLengthM:5968,
+    visualTrackLengthSvg:4513.489,
+  });
+  const transform=raceCarPresentationTransform({
+    year:1980,
+    model:"FW07",
+    trackWidthM:12.5,
+    asphaltWidthSvg,
+    trackLengthM:5968,
+    visualTrackLengthSvg:4513.489,
+  });
+  const renderedWidth=footprint.nativeWidth*transform.scaleY;
+  const renderedLength=footprint.nativeLength*transform.scaleX;
+  const units=4513.489/5968;
+  const expectedWidth=units*raceCarNominalWidthM(1980);
+  const maximumPhysicalLength=units*raceCarNominalLengthM(1980);
+  assert.equal(raceCarNominalWidthM(1980),2.1);
+  assert.equal(raceCarNominalLengthM(1980),4.45);
+  assert.ok(asphaltWidthSvg>9&&asphaltWidthSvg<10);
+  assert.equal(transform.scaleX,transform.scaleY);
+  assert.ok(Math.abs(renderedWidth-expectedWidth)<0.01);
+  assert.ok(renderedLength<=maximumPhysicalLength+0.01);
+  assert.ok(renderedWidth/asphaltWidthSvg>0.12);
+  assert.ok(renderedWidth/asphaltWidthSvg<0.20);
 });
 
 test("RW31 canonical lateral battle spacing uses rendered track width rather than lap-length scale",()=>{

@@ -1,0 +1,47 @@
+name: RW40 historical 2000 battle calibration
+
+on:
+  pull_request:
+    paths:
+      - "src/race2/**"
+      - "tests/rw40Season2000FullRace.real.test.js"
+      - ".github/workflows/rw40-real-2000-battle.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  real-2000-battle:
+    name: Real 2000 RW battle/tyre/strategy audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical-data
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install experimental simulation dependencies
+        run: npm ci
+      - name: Generate 2000 historical cars using official main materializer
+        run: |
+          cd canonical-data
+          npm ci
+          npm run build:data
+          node scripts/build-team-constructor-bridge.mjs
+          node scripts/build-team-seasons.mjs
+          node scripts/build-driver-history.mjs
+          node scripts/build-historical-championships.mjs
+          node scripts/build-season-packs.mjs --years=2000
+      - name: Provide immutable real 2000 Season Pack to race test
+        run: |
+          mkdir -p public/data/seasons/2000
+          cp canonical-data/public/data/seasons/2000/season.json public/data/seasons/2000/season.json
+      - name: Run 22-car 58-lap RW race and extract battle events
+        timeout-minutes: 23
+        run: node --test tests/rw40Season2000FullRace.real.test.js

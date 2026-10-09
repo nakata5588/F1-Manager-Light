@@ -85,8 +85,18 @@ export function raceControlPaceMultiplier(mode){
   }
 }
 
+export function raceControlBlockedOvertakeSectors(state){
+  const mode=text(state?.raceControlState?.mode||"GREEN").toUpperCase();
+  if(mode!=="LOCAL_YELLOW")return [];
+  return [...new Set((state?.raceControlState?.restrictedSectors||[])
+    .map((value)=>Math.round(finite(value,null)))
+    .filter((value)=>value>=1&&value<=3))]
+    .sort((a,b)=>a-b);
+}
+
 export function raceControlOvertakingAllowed(state){
-  return text(state?.raceControlState?.mode||"GREEN").toUpperCase()==="GREEN";
+  const mode=text(state?.raceControlState?.mode||"GREEN").toUpperCase();
+  return !["VSC","SAFETY_CAR","RED_FLAG"].includes(mode);
 }
 
 export function raceControlFreezesProgress(state){
@@ -171,6 +181,9 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
         raceControlState:{
           ...control,
           mode:recommended,
+          restrictedSectors:recommended==="LOCAL_YELLOW"
+            ?(control?.restrictedSectors||[])
+            :[],
           activatedTick:Math.max(0,Math.floor(finite(state?.tick,0))),
           activatedReferenceLap:referenceLap,
           minimumReleaseLap:referenceLap+Math.max(1,duration),
@@ -202,7 +215,11 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
           mode:recommended,
           minimumReleaseLap:extendedRelease,
         },
-        events:changed?[eventDescriptor("race_control_extended",state,{
+        // Repeated local-yellow incidents may legitimately extend the same
+        // sector restriction, but should not spam the player with a fresh
+        // "yellow extended" message every time. Global neutralisations still
+        // announce extensions.
+        events:changed&&recommended!=="LOCAL_YELLOW"?[eventDescriptor("race_control_extended",state,{
           mode:recommended,
           source:"incident",
           referenceLap,
@@ -215,7 +232,16 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
 
   const releaseLap=Math.max(1,Math.floor(finite(previous?.minimumReleaseLap,referenceLap)));
   if(referenceLap<releaseLap){
-    return {raceControlState:{...control,mode:current},events:[]};
+    return {
+      raceControlState:{
+        ...control,
+        mode:current,
+        restrictedSectors:current==="LOCAL_YELLOW"
+          ?(previous?.restrictedSectors||control?.restrictedSectors||[])
+          :(control?.restrictedSectors||[]),
+      },
+      events:[],
+    };
   }
 
   if(current!=="GREEN"){
@@ -229,6 +255,9 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
           ...control,
           mode:recommended,
           source:assessedControl?.source??previous?.source??null,
+          restrictedSectors:recommended==="LOCAL_YELLOW"
+            ?(control?.restrictedSectors||[])
+            :[],
           activatedTick:Math.max(0,Math.floor(finite(state?.tick,0))),
           activatedReferenceLap:referenceLap,
           minimumReleaseLap:referenceLap+Math.max(1,duration),
@@ -247,6 +276,7 @@ export function enforceRaceControlAssessment(state,assessedControl,cars){
         mode:"GREEN",
         source:null,
         minimumReleaseLap:null,
+        restrictedSectors:[],
         redFlagLifecycle:null,
       },
       events:[lifecycleEvent(state,current,"GREEN","clear",{referenceLap})],

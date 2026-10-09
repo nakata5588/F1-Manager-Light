@@ -17,6 +17,7 @@ import {
 import {
   enforceRaceControlAssessment,
   neutralizeBattles,
+  raceControlBlockedOvertakeSectors,
   raceControlFreezesProgress,
   raceControlOvertakingAllowed,
   raceControlPaceMultiplier,
@@ -187,6 +188,53 @@ test("RW8.11B VSC and Safety Car use shared canonical pace restrictions",()=>{
   assert.equal(raceControlOvertakingAllowed(green),true);
   assert.equal(raceControlOvertakingAllowed(vsc),false);
   assert.equal(raceControlOvertakingAllowed(safetyCar),false);
+});
+
+test("RW35 local yellow only blocks overtaking in its restricted sector",()=>{
+  const base=startRaceState(createRaceState(input({year:1980})));
+  const localYellow={
+    ...base,
+    raceControlState:{
+      ...base.raceControlState,
+      mode:"LOCAL_YELLOW",
+      restrictedSectors:[2],
+    },
+  };
+  assert.equal(raceControlOvertakingAllowed(localYellow),true);
+  assert.deepEqual(raceControlBlockedOvertakeSectors(localYellow),[2]);
+
+  const green={
+    ...base,
+    raceControlState:{...base.raceControlState,mode:"GREEN",restrictedSectors:[2]},
+  };
+  assert.deepEqual(raceControlBlockedOvertakeSectors(green),[]);
+});
+
+test("RW35 repeated local-yellow incidents extend silently instead of spamming notices",()=>{
+  const base=startRaceState(createRaceState(input({year:1980})));
+  const prepared={
+    ...base,
+    raceControlState:{...base.raceControlState,restrictedSectors:[1]},
+  };
+  const first=enforceRaceControlAssessment(
+    prepared,
+    assessment(prepared,{mode:"LOCAL_YELLOW",source:"incident",referenceLap:1}),
+    prepared.cars
+  );
+  assert.equal(first.raceControlState.mode,"LOCAL_YELLOW");
+  const active={...base,raceControlState:first.raceControlState};
+  const extended=enforceRaceControlAssessment(
+    active,
+    assessment(active,{
+      mode:"LOCAL_YELLOW",
+      source:"incident",
+      referenceLap:first.raceControlState.minimumReleaseLap,
+    }),
+    active.cars
+  );
+  assert.equal(extended.raceControlState.mode,"LOCAL_YELLOW");
+  assert.ok(extended.raceControlState.minimumReleaseLap>first.raceControlState.minimumReleaseLap);
+  assert.deepEqual(extended.events,[]);
 });
 
 test("RW8.11B neutralisation lasts its full lap duration before returning GREEN",()=>{

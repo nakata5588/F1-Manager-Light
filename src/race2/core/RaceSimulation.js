@@ -33,6 +33,7 @@ import {
   advanceRedFlagSuspension,
   enforceRaceControlAssessment,
   neutralizeBattles,
+  raceControlBlockedOvertakeSectors,
   raceControlFreezesProgress,
   raceControlOvertakingAllowed,
 } from "./RaceControlLifecycle.js";
@@ -343,6 +344,7 @@ export function stepRaceState(state){
     ?resolveRaceOvertaking(interactionState,teamOrders.cars,{
       stepMs,
       blockedPairs:teamOrders.bypassPairs,
+      blockedSectors:raceControlBlockedOvertakeSectors(interactionState),
     })
     :{cars:neutralizeBattles(teamOrders.cars),events:[],bypassPairs:new Set()};
   const bypassPairs=new Set([
