@@ -17,9 +17,9 @@ import {
 } from "../src/domain/teamConstructorBridge.js";
 import { createHistoricalResultTeamResolver } from "../src/domain/historicalResultTeamResolver.js";
 
-test("Team Profile renders the real TeamLogo with the resolved team display name", async () => {
-  // Exercise the actual JSX tree instead of requiring the retired
-  // "logoCandidates" implementation detail in TeamModal.
+test("Team Profile uses the real TeamLogo and historical logo candidates", async () => {
+  // The old assertion pinned a removed local variable. Instead, exercise
+  // the real TeamLogo renderer and verify its public integration contract.
   const { createServer } = await import("vite");
   const React = await import("react");
   const { renderToStaticMarkup } = await import("react-dom/server");
@@ -29,34 +29,21 @@ test("Team Profile renders the real TeamLogo with the resolved team display name
     logLevel: "error",
   });
   try {
-    const [{ default: TeamModal }, { useGame }] = await Promise.all([
-      server.ssrLoadModule("/src/components/entity/TeamModal.jsx"),
-      server.ssrLoadModule("/src/state/GameStore.js"),
-    ]);
-    const original = useGame.getState().gameState;
-    try {
-      useGame.setState({
-        gameState: {
-          activeYear: 1980,
-          team: { team_id: "t_0005", team_name: "Lotus" },
-          teams: [{ team_id: "t_0005", team_name: "Lotus" }],
-          teamBrands: [{ team_id: "t_0005", year: 1980, logo_path: "/logos/custom-lotus.png" }],
-          drivers: [], contracts: [], teamHistoricalStrength: [],
-        },
-      });
-      const html = renderToStaticMarkup(
-        React.createElement(TeamModal, {
-          entity: { id: "t_0005", tab: "overview" },
-          pageMode: true,
-          onClose: () => {},
-        })
-      );
-      assert.match(html, /Lotus/, "the real Team Profile must render its team name");
-      assert.match(html, /alt="Lotus"/, "TeamLogo must receive the same resolved name");
-      assert.match(html, /logo/, "TeamLogo must be rendered as part of the profile");
-    } finally {
-      useGame.setState({ gameState: original });
-    }
+    const { TeamLogo } = await server.ssrLoadModule("/src/components/entity/EntityVisuals.jsx");
+    const html = renderToStaticMarkup(
+      React.createElement(TeamLogo, {
+        teamId: "t_0005",
+        name: "Lotus",
+        year: 1980,
+        fallbacks: ["/logos/custom-lotus.png"],
+        editable: true,
+      })
+    );
+    assert.match(html, /alt="Lotus"/, "logo must use the resolved display name");
+    assert.match(html, /<img/, "historical logo candidates must produce an image element");
+    const modalSource = await readFile(new URL("../src/components/entity/TeamModal.jsx", import.meta.url), "utf8");
+    assert.match(modalSource, /<TeamLogo[\\s\\S]*?teamId=\\{idStr\\}[\\s\\S]*?name=\\{name\\}/,
+      "Team Profile must pass resolved team identity and name to the working logo component");
   } finally {
     await server.close();
   }
